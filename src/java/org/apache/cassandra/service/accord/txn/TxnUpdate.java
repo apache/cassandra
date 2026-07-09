@@ -26,7 +26,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -254,7 +253,7 @@ public final class TxnUpdate extends AccordUpdate
         }
     }
 
-    static class Block
+    public static class Block
     {
         private static final long EMPTY_SIZE = ObjectSizes.measure(new Block(null, null));
         public static final ParameterisedUnversionedSerializer<Block, TableMetadatasAndKeys> serializer = new ParameterisedUnversionedSerializer<>()
@@ -572,103 +571,125 @@ public final class TxnUpdate extends AccordUpdate
         this.preserveTimestamps = preserveTimestamps;
     }
 
-
-    public TxnUpdate(TableMetadatas tables, TxnCondition[] conditions, List<Pair<Fragment, Integer>> conditionFragments, List<Fragment> noneConditionFragment, @Nullable ConsistencyLevel cassandraCommitCL, PreserveTimestamp preserveTimestamps)
+    public TxnUpdate(TableMetadatas tables, List<PreTransformedBlock> preTransformedBlocks, @Nullable ConsistencyLevel cassandraCommitCL, PreserveTimestamp preserveTimestamps)
     {
         requireArgument(cassandraCommitCL == null || IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(cassandraCommitCL));
         this.tables = tables;
-
-        List<Pair<Fragment, Integer>> sortedConditionFragments = conditionFragments.stream().sorted((l, r) -> Fragment.compareKeys(l.left(), r.left())).collect(Collectors.toList());
-        List<Fragment> sortedNoneConditionFragment = noneConditionFragment.stream().sorted(Fragment::compareKeys).collect(Collectors.toList());
-        List<Fragment> sortedAllFragments = mergeSortedFragments(sortedConditionFragments.stream().map(Pair::left).collect(Collectors.toList()), sortedNoneConditionFragment);
-
-        this.keys = Keys.of(sortedAllFragments, fragment -> fragment.key);
+        this.keys = sortedFragmentKeys(preTransformedBlocks);
 
         List<Block> blocks = new ArrayList<>();
         int nextConditionIndex = 0;
-        if (conditions.length != 0)
+        for (PreTransformedBlock preTransformedBlock : preTransformedBlocks)
         {
-            Pair<Integer, Block> pair = generateConditionBlock(conditions, sortedConditionFragments);
+            Pair<Integer, Block> pair = preTransformedBlock.generateBlock(nextConditionIndex, tables);
             nextConditionIndex = pair.left();
             blocks.add(pair.right());
         }
-
-        if (!noneConditionFragment.isEmpty())
-            blocks.add(generateNoneConditionBlock(sortedNoneConditionFragment, nextConditionIndex));
 
         this.blocks = blocks;
         this.cassandraCommitCL = cassandraCommitCL;
         this.preserveTimestamps = preserveTimestamps;
     }
 
-    private List<Fragment> mergeSortedFragments(List<Fragment> left, List<Fragment> right)
+    public Keys sortedFragmentKeys(List<PreTransformedBlock> preTransformedBlocks)
     {
-        List<Fragment> fragments = new ArrayList<>(left.size() + right.size());
-        int l = 0;
-        int r = 0;
+        List<Key> keys = new ArrayList<>();
+        for (PreTransformedBlock preTransformedBlock : preTransformedBlocks)
+            keys.addAll(preTransformedBlock.getKeys());
 
-        while (l < left.size() && r < right.size())
+        keys.sort(RoutableKey::compareTo);
+        return Keys.of(keys, k -> k);
+    }
+
+    public static class PreTransformedBlock
+    {
+        public TxnCondition[] conditions;
+        @Nullable
+        public List<Pair<TxnWrite.Fragment, Integer>> fragmentConditionIndexPair;
+        @Nullable
+        public List<TxnWrite.Fragment> noneConditions;
+
+        public PreTransformedBlock(TxnCondition[] conditions, List<Pair<TxnWrite.Fragment, Integer>> fragmentConditionIndexPair, List<TxnWrite.Fragment> noneConditions)
         {
-            if ((Fragment.compareKeys(left.get(l), right.get(r))) <= 0)
-                fragments.add(left.get(l++));
+            Invariants.require((fragmentConditionIndexPair == null && noneConditions != null) || (fragmentConditionIndexPair != null && noneConditions == null));
+            this.conditions = conditions;
+            if (fragmentConditionIndexPair != null)
+                fragmentConditionIndexPair.sort((l, r) -> TxnWrite.Fragment.compareKeys(l.left(), r.left()));
+            this.fragmentConditionIndexPair = fragmentConditionIndexPair;
+            if (noneConditions != null)
+                noneConditions.sort(Fragment::compareKeys);
+            this.noneConditions = noneConditions;
+        }
+
+        private boolean isTrailingUpdate()
+        {
+            return noneConditions != null;
+        }
+
+        public List<Key> getKeys()
+        {
+            List<Key> keys = new ArrayList<>();
+            if (isTrailingUpdate())
+            {
+                for (int i = 0; i < noneConditions.size(); i++)
+                    keys.add(noneConditions.get(i).key);
+            }
+            else {
+                for (int i = 0; i < fragmentConditionIndexPair.size(); i++)
+                    keys.add(fragmentConditionIndexPair.get(i).left().key);
+            }
+            return keys;
+        }
+
+        public Pair<Integer, Block> generateBlock(int conditionalBlockIndex, TableMetadatas tables)
+        {
+            if (isTrailingUpdate())
+            {
+                BlockFragment[] blockFragments = new BlockFragment[noneConditions.size()];
+                int[] fragmentIds = new int[noneConditions.size()];
+                for (int i = 0 ; i < noneConditions.size() ; ++i)
+                {
+                    Fragment fragment = noneConditions.get(i);
+                    blockFragments[i] = new BlockFragment(i, fragment.key, Fragment.FragmentSerializer.serialize(fragment, tables, Version.LATEST));
+                    fragmentIds[i] = i;
+                }
+
+                SerializedTxnCondition serializedCondition = new SerializedTxnCondition(TxnCondition.none(), tables);
+                ConditionalBlock[] conditionalBlock = new ConditionalBlock[] { new ConditionalBlock(conditionalBlockIndex++, serializedCondition, fragmentIds) };
+                return Pair.create(conditionalBlockIndex, new Block(blockFragments, conditionalBlock));
+            }
             else
-                fragments.add(right.get(r++));
+            {
+                List<List<Integer>> conditionsIndexToFragmentId = new ArrayList<>(conditions.length);
+                for (int i = 0; i < conditions.length; i++)
+                    conditionsIndexToFragmentId.add(new ArrayList<>());
+
+                BlockFragment[] blockFragments = new BlockFragment[fragmentConditionIndexPair.size()];
+                ConditionalBlock[] conditionalBlocks = new ConditionalBlock[conditions.length];
+
+                int blockFragmentIdx = 0;
+                for (Pair<Fragment, Integer> pair : fragmentConditionIndexPair)
+                {
+                    Fragment fragment = pair.left;
+                    int conditionsIndex = pair.right;
+                    blockFragments[blockFragmentIdx] = new BlockFragment(blockFragmentIdx, fragment.key, Fragment.FragmentSerializer.serialize(fragment, tables, Version.LATEST));
+                    conditionsIndexToFragmentId.get(conditionsIndex).add(blockFragmentIdx);
+                    blockFragmentIdx++;
+                }
+
+                int conditionalBlocksIdx = 0;
+
+                for (int i = 0; i < conditions.length; i++)
+                {
+                    int[] fragmentIds = conditionsIndexToFragmentId.get(i).stream().mapToInt(x -> x).toArray();
+                    SerializedTxnCondition serializedCondition = new SerializedTxnCondition(conditions[i], tables);
+                    conditionalBlocks[conditionalBlocksIdx] = new ConditionalBlock(conditionalBlocksIdx, serializedCondition, fragmentIds);
+                    conditionalBlocksIdx++;
+                }
+
+                return Pair.create(conditionalBlocksIdx, new Block(blockFragments, conditionalBlocks));
+            }
         }
-
-        while (l < left.size())
-            fragments.add(left.get(l++));
-
-        while (r < right.size())
-            fragments.add(right.get(r++));
-
-        return fragments;
-    }
-
-    private Pair<Integer, Block> generateConditionBlock(TxnCondition[] conditions, List<Pair<Fragment, Integer>> sortedFragmentConditionIndexPair)
-    {
-        // Maps the index of each TxnCondition to it's list of fragmentIds
-        List<List<Integer>> conditionsIndexToFragmentId = new ArrayList<>(conditions.length);
-        for (int i = 0; i < conditions.length; i++)
-            conditionsIndexToFragmentId.add(new ArrayList<>());
-
-        BlockFragment[] blockFragments = new BlockFragment[sortedFragmentConditionIndexPair.size()];
-        ConditionalBlock[] conditionalBlocks = new ConditionalBlock[conditions.length];
-
-        int blockFragmentIdx = 0;
-        for (Pair<Fragment, Integer> pair : sortedFragmentConditionIndexPair)
-        {
-            Fragment fragment = pair.left;
-            int conditionsIndex = pair.right;
-            blockFragments[blockFragmentIdx] = new BlockFragment(blockFragmentIdx, fragment.key, Fragment.FragmentSerializer.serialize(fragment, tables, Version.LATEST));
-            conditionsIndexToFragmentId.get(conditionsIndex).add(blockFragmentIdx);
-            blockFragmentIdx++;
-        }
-
-        int conditionalBlocksIdx = 0;
-
-        for (int i = 0; i < conditions.length; i++)
-        {
-            int[] fragmentIds = conditionsIndexToFragmentId.get(i).stream().mapToInt(x -> x).toArray();
-            SerializedTxnCondition serializedCondition = new SerializedTxnCondition(conditions[i], tables);
-            conditionalBlocks[conditionalBlocksIdx] = new ConditionalBlock(conditionalBlocksIdx, serializedCondition, fragmentIds);
-            conditionalBlocksIdx++;
-        }
-
-        return Pair.create(conditionalBlocksIdx, new Block(blockFragments, conditionalBlocks));
-    }
-
-    private Block generateNoneConditionBlock(List<Fragment> fragments, int conditionalBlockIndex)
-    {
-        BlockFragment[] blockFragments = new BlockFragment[fragments.size()];
-        int[] fragmentIds = new int[fragments.size()];
-        for (int i = 0 ; i < fragments.size() ; ++i)
-        {
-            blockFragments[i] = new BlockFragment(i, fragments.get(i).key, Fragment.FragmentSerializer.serialize(fragments.get(i), tables, Version.LATEST));
-            fragmentIds[i] = i;
-        }
-
-        SerializedTxnCondition serializedCondition = new SerializedTxnCondition(TxnCondition.none(), tables);
-        return new Block(blockFragments, new ConditionalBlock[] { new ConditionalBlock(conditionalBlockIndex, serializedCondition, fragmentIds) });
     }
 
     private TxnUpdate(TableMetadatas tables, Keys keys, List<Block> blocks, ConsistencyLevel cassandraCommitCL, PreserveTimestamp preserveTimestamps)

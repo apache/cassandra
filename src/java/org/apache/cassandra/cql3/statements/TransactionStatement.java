@@ -551,9 +551,9 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         {
             Int2ObjectHashMap<NamedSelect> autoReads = new Int2ObjectHashMap<>();
 
+            List<TxnUpdate.PreTransformedBlock> preTransformedBlocks = new ArrayList<>();
             TxnCondition[] conditions = new TxnCondition[groupedConditions.size()];
-            // Groups each fragment with an index corresponding to the TxnCondition it is associated with
-            List<Pair<TxnWrite.Fragment, Integer>> conditionFragments = new ArrayList<>();
+            List<Pair<TxnWrite.Fragment, Integer>> fragmentConditionIndexPair = new ArrayList<>();
             List<List<TxnWrite.Fragment>> groupedFragments = createWriteFragments(state, options, autoReads, keyCollector);
 
             int idx = 0;
@@ -562,16 +562,20 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 conditions[idx] = createCondition(groupedConditions.get(idx), options);
                 List<TxnWrite.Fragment> correspondingFragments = groupedFragments.get(idx);
                 for (TxnWrite.Fragment fragment : correspondingFragments)
-                    conditionFragments.add(Pair.create(fragment, idx));
+                    fragmentConditionIndexPair.add(Pair.create(fragment, idx));
                 idx++;
             }
 
-            List<TxnWrite.Fragment> noneConditionFragments = new ArrayList<>();
+            preTransformedBlocks.add(new TxnUpdate.PreTransformedBlock(conditions, fragmentConditionIndexPair, null));
+
+            List<TxnWrite.Fragment> noneConditions = new ArrayList<>();
             if (idx < groupedFragments.size())
-                noneConditionFragments.addAll(groupedFragments.get(idx));
+                noneConditions.addAll(groupedFragments.get(idx));
+
+            preTransformedBlocks.add(new TxnUpdate.PreTransformedBlock(new TxnCondition[]{ TxnCondition.none() }, null, noneConditions));
 
             List<TxnNamedRead> reads = createNamedReads(options, autoReads, keyCollector);
-            if (conditionFragments.isEmpty() && noneConditionFragments.isEmpty()) // ModificationStatement yield no Mutation (DELETE WHERE pk=0 AND c < 0 AND c > 0 -- matches no keys; so has no mutation)
+            if (fragmentConditionIndexPair.isEmpty() && noneConditions.isEmpty()) // ModificationStatement yield no Mutation (DELETE WHERE pk=0 AND c < 0 AND c > 0 -- matches no keys; so has no mutation)
             {
                 // cleanup memory
                 keyCollector.clear();
@@ -581,7 +585,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             ConsistencyLevel commitCL = consistencyLevelForAccordCommit(cm, tables, keyCollector, options.getConsistency());
             Keys keys = keyCollector.build();
 
-            AccordUpdate update = new TxnUpdate(tables, conditions, conditionFragments, noneConditionFragments, commitCL, PreserveTimestamp.no);
+            AccordUpdate update = new TxnUpdate(tables, preTransformedBlocks, commitCL, PreserveTimestamp.no);
             TxnRead read = createTxnRead(tables, reads, null, Domain.Key);
             return new Txn.InMemory(keys, read, TxnQuery.ALL, update, new TableMetadatasAndKeys(tables, keys));
         }
