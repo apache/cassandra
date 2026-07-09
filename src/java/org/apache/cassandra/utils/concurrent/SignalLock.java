@@ -424,12 +424,6 @@ public final class SignalLock implements Lock
 
     public boolean incrementAsyncWork(boolean signalIfWaiting)
     {
-        return incrementAsyncWork(signalIfWaiting, 1);
-    }
-
-    public boolean incrementAsyncWork(boolean signalIfWaiting, int increment)
-    {
-        Invariants.require(increment >= 1 && increment <= MAX_SIGNAL_COUNT);
         while (true)
         {
             long cur = state;

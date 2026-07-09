@@ -20,13 +20,13 @@ package org.apache.cassandra.service.accord.interop;
 
 import java.util.function.BiConsumer;
 
+import accord.api.ExclusiveAsyncExecutor;
 import accord.api.Result;
 import accord.coordinate.ExecuteFlag;
 import accord.coordinate.Persist;
 import accord.coordinate.tracking.AllTracker;
 import accord.coordinate.tracking.QuorumTracker;
 import accord.local.Node;
-import accord.local.ExclusiveAsyncExecutor;
 import accord.messages.Apply;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;

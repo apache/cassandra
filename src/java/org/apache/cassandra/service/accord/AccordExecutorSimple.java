@@ -128,6 +128,18 @@ class AccordExecutorSimple extends AccordExecutor
         }
     }
 
+    final boolean hasWaitingToRun()
+    {
+        updateWaitingToRunExclusive();
+        return hasAlreadyWaitingToRun();
+    }
+
+    final Task pollWaitingToRunExclusive()
+    {
+        updateWaitingToRunExclusive();
+        return pollAlreadyWaitingToRunExclusive();
+    }
+
     @Override
     boolean isOwningThread()
     {

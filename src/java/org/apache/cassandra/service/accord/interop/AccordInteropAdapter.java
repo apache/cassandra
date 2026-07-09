@@ -23,6 +23,7 @@ import java.util.function.BiConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.ExclusiveAsyncExecutor;
 import accord.api.Result;
 import accord.api.Update;
 import accord.coordinate.CoordinationAdapter;
@@ -30,7 +31,6 @@ import accord.coordinate.CoordinationAdapter.Adapters.TxnAdapter;
 import accord.coordinate.ExecuteFlag.CoordinationFlags;
 import accord.coordinate.ExecutePath;
 import accord.local.Node;
-import accord.local.ExclusiveAsyncExecutor;
 import accord.messages.Apply;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;

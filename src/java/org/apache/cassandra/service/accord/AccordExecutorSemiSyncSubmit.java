@@ -47,18 +47,6 @@ public class AccordExecutorSemiSyncSubmit extends AccordExecutorAbstractSemiSync
     }
 
     @Override
-    void loopYieldExclusive() throws InterruptedException
-    {
-        if (waiting > 0 && hasWaitingToRun())
-        {
-            pauseLoop();
-            hasWork.signal();
-            awaitWork();
-            resumeLoop();
-        }
-    }
-
-    @Override
     void awaitExclusive() throws InterruptedException
     {
         if (!hasUnqueued())

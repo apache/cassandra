@@ -37,6 +37,7 @@ import org.junit.Assert;
 
 import accord.api.AsyncExecutor;
 import accord.api.Data;
+import accord.api.ExclusiveAsyncExecutor;
 import accord.api.Journal;
 import accord.api.ProgressLog.NoOpProgressLog;
 import accord.api.RemoteListeners.NoOpRemoteListeners;
@@ -56,7 +57,6 @@ import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.NodeCommandStoreService;
 import accord.local.SafeCommandStore;
-import accord.local.ExclusiveAsyncExecutor;
 import accord.local.StoreParticipants;
 import accord.local.TimeService;
 import accord.local.durability.DurabilityService;
@@ -132,7 +132,7 @@ public class AccordTestUtils
 
     public static class Commands
     {
-        public static Command notDefined(TxnId txnId, PartialTxn txn)
+        public static Command notDefined(TxnId txnId)
         {
             return Command.NotDefined.notDefined(txnId, NotDefined, NotDurable, StoreParticipants.empty(txnId), Ballot.ZERO);
         }
@@ -371,7 +371,7 @@ public class AccordTestUtils
             }
 
             @Override
-            public ExclusiveAsyncExecutor someSequentialExecutor()
+            public ExclusiveAsyncExecutor someExclusiveExecutor()
             {
                 return null;
             }

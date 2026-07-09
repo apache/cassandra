@@ -345,7 +345,6 @@ public class AccordCache implements CacheSize
 
     <P1, P2, K, V> Collection<AccordTask<?>> load(LoadExecutor<P1, P2> loadExecutor, P1 p1, P2 p2, AccordCacheEntry<K, V> node)
     {
-        Type<K, V, ?> parent = node.owner.parent();
         return node.load(loadExecutor, p1, p2).waiters();
     }
 

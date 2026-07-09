@@ -90,9 +90,9 @@ import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static accord.local.ExecutionContext.contextFor;
 import static accord.local.LoadKeys.SYNC;
 import static accord.local.LoadKeysFor.READ_WRITE;
-import static accord.local.ExecutionContext.contextFor;
 import static accord.local.RedundantStatus.SomeStatus.GC_BEFORE_AND_LOCALLY_DURABLE;
 import static accord.primitives.Routable.Domain.Range;
 import static accord.primitives.Timestamp.Flag.HLC_BOUND;

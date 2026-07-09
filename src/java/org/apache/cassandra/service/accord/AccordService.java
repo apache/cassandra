@@ -964,7 +964,7 @@ public class AccordService implements IAccordService, Shutdownable
             return syncInternal(minBound, keys, syncLocal, syncRemote);
 
         return KeyBarriers.find(node, minBound, keys.get(0).toUnseekable(), syncLocal, syncRemote).chain()
-                          .flatMap(found -> KeyBarriers.await(node, node.someSequentialExecutor(), found, syncLocal, syncRemote))
+                          .flatMap(found -> KeyBarriers.await(node, node.someExclusiveExecutor(), found, syncLocal, syncRemote))
                           .flatMap(success -> {
                               if (success)
                                   return null;
