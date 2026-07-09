@@ -64,7 +64,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                                    @Nullable CommandSummaries commandsForRanges,
                                    AccordCommandStore commandStore)
     {
-        super(task.preLoadContext(), commandStore);
+        super(task.executionContext(), commandStore);
         this.task = task;
         this.commandsForRanges = commandsForRanges;
         this.commandStore = commandStore;

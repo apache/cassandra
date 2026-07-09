@@ -29,8 +29,8 @@ import org.apache.cassandra.concurrent.DebuggableTask.DebuggableTaskRunner;
 
 abstract class AccordExecutorAbstractLoop extends AccordExecutor
 {
-    private volatile Task unqueued;
-    private static final AtomicReferenceFieldUpdater<AccordExecutorAbstractLoop, Task> unqueuedUpdater = AtomicReferenceFieldUpdater.newUpdater(AccordExecutorAbstractLoop.class, Task.class, "unqueued");
+    volatile Task unqueued;
+    static final AtomicReferenceFieldUpdater<AccordExecutorAbstractLoop, Task> unqueuedUpdater = AtomicReferenceFieldUpdater.newUpdater(AccordExecutorAbstractLoop.class, Task.class, "unqueued");
 
     AccordExecutorAbstractLoop(Lock lock, int executorId, Agent agent)
     {
@@ -67,28 +67,16 @@ abstract class AccordExecutorAbstractLoop extends AccordExecutor
         if (hasUnqueued() || tasks > 0)
             return true;
 
-        lock();
+        AccordTaskRunner self = AccordTaskRunner.get();
+        lock(self);
         try
         {
             return hasUnqueued() || tasks > 0;
         }
         finally
         {
-            unlock();
+            unlock(self);
         }
-    }
-
-    final void updateWaitingToRunExclusive()
-    {
-        drainUnqueuedExclusive();
-        super.updateWaitingToRunExclusive();
-    }
-
-    final void drainUnqueuedExclusive()
-    {
-        Task cur = Task.reverse(acquireUnqueuedExclusive());
-        while (cur != null)
-            cur = enqueueOneExclusive(cur);
     }
 
     final Task acquireUnqueuedExclusive()

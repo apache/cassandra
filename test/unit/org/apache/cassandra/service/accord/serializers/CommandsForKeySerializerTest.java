@@ -49,6 +49,7 @@ import org.junit.Test;
 import accord.api.Agent;
 import accord.api.AsyncExecutor;
 import accord.api.DataStore;
+import accord.api.ExclusiveAsyncExecutor;
 import accord.api.Journal;
 import accord.api.Key;
 import accord.api.OwnershipEventListener;
@@ -72,7 +73,6 @@ import accord.local.NodeCommandStoreService;
 import accord.local.RedundantBefore;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
-import accord.local.ExclusiveAsyncExecutor;
 import accord.local.StoreParticipants;
 import accord.local.TimeService;
 import accord.local.cfk.CommandsForKey;
@@ -718,7 +718,7 @@ public class CommandsForKeySerializerTest
         @Override public NodeCommandStoreService node() { return new NodeCommandStoreService()
         {
             @Override public AsyncExecutor someExecutor() { throw new UnsupportedOperationException(); }
-            @Override public ExclusiveAsyncExecutor someSequentialExecutor() { throw new UnsupportedOperationException(); }
+            @Override public ExclusiveAsyncExecutor someExclusiveExecutor() { throw new UnsupportedOperationException(); }
             @Override public long epoch() { return 0;}
             @Override public Node.Id id() { return Node.Id.NONE; }
             @Override public Timeouts timeouts() { return null; }

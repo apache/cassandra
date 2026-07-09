@@ -100,6 +100,217 @@ public class AccordExecutorSignalLoop extends AccordExecutorAbstractLoop
         return new LoopTask(index, id);
     }
 
+    @Override
+    final void drainUnqueuedNewWorkExclusive()
+    {
+        updatePendingUnqueued();
+        Task requeue = null, requeueTail = null;
+        Task cur = pendingNewHead;
+        while (cur != null)
+        {
+            Task next = cur.next;
+            if (cur.isNewWork())
+            {
+                cur.next = null;
+                cur.submitExclusive(this);
+                --pendingCount;
+            }
+            else
+            {
+                if (requeue == null) requeue = cur;
+                else requeueTail.next = cur;
+                requeueTail = cur;
+            }
+            cur = next;
+        }
+
+        pendingNewHead = requeue;
+        pendingNewTail = requeueTail;
+    }
+
+    private boolean enqueueOnePending()
+    {
+        if (pendingCount == 0)
+            return false;
+
+        if (pendingSequentialHead != null)
+        {
+            pendingSequentialHead = enqueueOneCleanup(pendingSequentialHead);
+            if (pendingSequentialHead == null)
+                pendingSequentialTail = null;
+        }
+        else if (pendingCleanupHead != null)
+        {
+            pendingCleanupHead = enqueueOneCleanup(pendingCleanupHead);
+            if (pendingCleanupHead == null)
+                pendingCleanupTail = null;
+        }
+        else
+        {
+            pendingNewHead = enqueueOneSubmit(pendingNewHead);
+            if (pendingNewHead == null)
+                pendingNewTail = null;
+        }
+        --pendingCount;
+        return true;
+    }
+
+    private void fetchWorkExclusive()
+    {
+        boolean hasReadyToRun = hasReadyToRun();
+        boolean hadWaitingToRun = hasAlreadyWaitingToRun();
+        {
+            int prevPendingUnqueued = pendingCount;
+            updateAndEnqueuePendingUntilHasWaitingToRun(prevPendingUnqueued / 2);
+        }
+
+        if (hadWaitingToRun && hasReadyToRun)
+        {
+            lock.addAndGetEnabledThreadCount(1);
+        }
+        else if (hadWaitingToRun)
+        {
+            readyToRunTarget = Math.min(readyToRunLimit, readyToRunTarget + (1+readyToRunTarget)/2);
+        }
+        else if (hasReadyToRun && readyToRunTarget > 1)
+        {
+            --readyToRunTarget;
+        }
+
+        boolean hasDrainedSignal = false;
+        while (true)
+        {
+            long state = lock.state();
+            int signals = SignalLock.asyncSignalCount(state);
+            int waiters = SignalLock.waitingEnabledThreadCount(state);
+            if (signals >= readyToRunTarget)
+            {
+                if (enqueueOnePending() || (updatePendingUnqueued() && enqueueOnePending())) continue;
+                else if (hasDrainedSignal)
+                    lock.signalLockWorkExclusive();
+                return;
+            }
+            else if (waiters > 0 && signals > 1 && SignalLock.activeEnabledThreadCount(state) == 1)
+            {
+                // ensure at least one other thread is running if there's enough work for it; it will spin up other threads if necessary
+                lock.propagateAsyncWorkSignals(1);
+            }
+
+            Task task = pollAlreadyWaitingToRunExclusive();
+            if (task == null)
+            {
+                if (updateAndEnqueuePendingUntilHasWaitingToRun(0))
+                    continue;
+
+                lock.clearLockWork();
+                hasDrainedSignal = true;
+                if (!updateAndEnqueuePendingUntilHasWaitingToRun(0))
+                {
+                    if (tasks == 0)
+                        notifyQuiescentExclusive();
+                    return;
+                }
+            }
+            else
+            {
+                try { task.preRunExclusive(); }
+                catch (Throwable t)
+                {
+                    try { task.fail(t); }
+                    catch (Throwable t2) { try { t.addSuppressed(t2); } catch (Throwable t3) {} }
+                    try { completeTaskExclusive(task); }
+                    catch (Throwable t2) { try { t.addSuppressed(t2); } catch (Throwable t3) {} }
+                    continue;
+                }
+                if (DEBUG_EXECUTION) DebugTask.get(task).onPreRun();
+
+                addReadyToRun(task);
+                boolean incremented = lock.incrementAsyncWork(false);
+                Invariants.require(incremented);
+            }
+        }
+    }
+
+    private boolean updatePendingUnqueued()
+    {
+        if (!hasUnqueued())
+            return false;
+
+        int count = 0;
+        Task addSequentialHead = null, addSequentialTail = null;
+        Task addCleanupHead = null, addCleanupTail = null;
+        Task addNewHead = null, addNewTail = null;
+        {
+            Task cur = Task.reverse(acquireUnqueuedExclusive());
+            while (cur != null)
+            {
+                Task next = cur.next;
+                if (!cur.isReadyToCleanup())
+                {
+                    if (addNewHead == null) addNewHead = addNewTail = setNextNull(cur);
+                    else addNewHead = reverseOne(addNewHead, cur);
+                }
+                else if (cur instanceof ExclusiveExecutorTask)
+                {
+                    if (addSequentialHead == null) addSequentialHead = addSequentialTail = setNextNull(cur);
+                    else addSequentialHead = reverseOne(addSequentialHead, cur);
+                }
+                else
+                {
+                    if (addCleanupHead == null) addCleanupHead = addCleanupTail = setNextNull(cur);
+                    else addCleanupHead = reverseOne(addCleanupHead, cur);
+                }
+                ++count;
+                cur = next;
+            }
+        }
+
+        pendingCount += count;
+        if (addSequentialHead != null)
+        {
+            if (pendingSequentialHead == null) pendingSequentialHead = addSequentialHead;
+            else pendingSequentialTail.next = addSequentialHead;
+            pendingSequentialTail = addSequentialTail;
+        }
+        if (addCleanupHead != null)
+        {
+            if (pendingCleanupHead == null) pendingCleanupHead = addCleanupHead;
+            else pendingCleanupTail.next = addCleanupHead;
+            pendingCleanupTail = addCleanupTail;
+        }
+        if (addNewHead != null)
+        {
+            if (pendingNewHead == null) pendingNewHead = addNewHead;
+            else pendingNewTail.next = addNewHead;
+            pendingNewTail = addNewTail;
+        }
+        return true;
+    }
+
+    private Task reverseOne(Task prev, Task cur)
+    {
+        cur.next = prev;
+        return cur;
+    }
+
+    private Task setNextNull(Task cur)
+    {
+        cur.next = null;
+        return cur;
+    }
+
+    private boolean updateAndEnqueuePendingUntilHasWaitingToRun(int processAtLeast)
+    {
+        updatePendingUnqueued();
+        int count = 0;
+        while (enqueueOnePending())
+        {
+            if (++count >= processAtLeast && hasAlreadyWaitingToRun())
+                return true;
+        }
+        return hasAlreadyWaitingToRun();
+    }
+
     class LoopTask extends AccordExecutorLoops.LoopTask
     {
         final int index;
@@ -110,7 +321,7 @@ public class AccordExecutorSignalLoop extends AccordExecutorAbstractLoop
             this.index = index;
         }
 
-        private Task awaitWork()
+        private Task awaitWork(AccordTaskRunner self)
         {
             while (true)
             {
@@ -123,11 +334,11 @@ public class AccordExecutorSignalLoop extends AccordExecutorAbstractLoop
                     }
                     catch (Throwable t)
                     {
-                        unlock();
+                        unlock(self);
                         throw t;
                     }
 
-                    if (!unlockAndAcquire())
+                    if (!unlockAndAcquire(self))
                         continue;
                 }
 
@@ -138,11 +349,8 @@ public class AccordExecutorSignalLoop extends AccordExecutorAbstractLoop
             }
         }
 
-        private Task cleanupAndMaybeGetWork(@Nullable Task cleanup)
+        private Task cleanupAndMaybeGetWork(AccordTaskRunner self, @Nullable Task cleanup)
         {
-            if (cleanup == null)
-                return null;
-
             if (lock.tryAcquireAsyncWork())
             {
                 if (shutdown)
@@ -151,22 +359,21 @@ public class AccordExecutorSignalLoop extends AccordExecutorAbstractLoop
                 return pushCleanupAndReturn(cleanup, nonNull(pollReadyToRun()));
             }
 
-            if (!tryLock())
+            if (!tryLock(self))
                 return pushCleanupAndReturn(cleanup, null);
 
             try
             {
                 completeTaskExclusive(cleanup);
-                clearRunning();
                 fetchWorkExclusive();
             }
             catch (Throwable t)
             {
-                unlock();
+                unlock(self);
                 throw t;
             }
 
-            if (unlockAndAcquire())
+            if (unlockAndAcquire(self))
             {
                 if (shutdown)
                     throw new ShutdownException();
@@ -178,225 +385,52 @@ public class AccordExecutorSignalLoop extends AccordExecutorAbstractLoop
 
         private Task pushCleanupAndReturn(Task cleanup, Task result)
         {
-            clearRunning();
             cleanup.setReadyToCleanup();
             if (push(cleanup) == null)
                 lock.signalLockWork();
             return result;
         }
 
-        final boolean tryLock()
+        final boolean tryLock(AccordTaskRunner self)
         {
-            return onTryLock(lock.tryLock(index));
+            if (self.accordLockedExecutor() != null)
+                return false;
+
+            return onTryLock(self, lock.tryLock(index));
         }
 
-        final boolean unlockAndAcquire()
+        final boolean unlockAndAcquire(AccordTaskRunner self)
         {
-            if (Invariants.isParanoid()) paranoidUnlockExclusive();
+            self.clearAccordLockedExecutor();
             if (DEBUG_EXECUTION) debug.onExitLock();
             return lock.unlockAndAcquireAsyncWork();
-        }
-
-        private boolean enqueueOnePending()
-        {
-            if (pendingCount == 0)
-                return false;
-
-            if (pendingSequentialHead != null)
-            {
-                pendingSequentialHead = enqueueOneCleanup(pendingSequentialHead);
-                if (pendingSequentialHead == null)
-                    pendingSequentialTail = null;
-            }
-            else if (pendingCleanupHead != null)
-            {
-                pendingCleanupHead = enqueueOneCleanup(pendingCleanupHead);
-                if (pendingCleanupHead == null)
-                    pendingCleanupTail = null;
-            }
-            else
-            {
-                pendingNewHead = enqueueOneSubmit(pendingNewHead);
-                if (pendingNewHead == null)
-                    pendingNewTail = null;
-            }
-            --pendingCount;
-            return true;
-        }
-
-        private void fetchWorkExclusive()
-        {
-            boolean hasReadyToRun = hasReadyToRun();
-            boolean hadWaitingToRun = hasAlreadyWaitingToRun();
-            {
-                int prevPendingUnqueued = pendingCount;
-                updateAndEnqueuePendingUntilHasWaitingToRun(prevPendingUnqueued / 2);
-            }
-
-            if (hadWaitingToRun && hasReadyToRun)
-            {
-                lock.addAndGetEnabledThreadCount(1);
-            }
-            else if (hadWaitingToRun)
-            {
-                readyToRunTarget = Math.min(readyToRunLimit, readyToRunTarget + (1+readyToRunTarget)/2);
-            }
-            else if (hasReadyToRun && readyToRunTarget > 1)
-            {
-                --readyToRunTarget;
-            }
-
-            boolean hasDrainedSignal = false;
-            while (true)
-            {
-                long state = lock.state();
-                int signals = SignalLock.asyncSignalCount(state);
-                int waiters = SignalLock.waitingEnabledThreadCount(state);
-                if (signals >= readyToRunTarget)
-                {
-                    if (enqueueOnePending() || (updatePendingUnqueued() && enqueueOnePending())) continue;
-                    else if (hasDrainedSignal)
-                        lock.signalLockWorkExclusive();
-                    return;
-                }
-                else if (waiters > 0 && signals > 1 && SignalLock.activeEnabledThreadCount(state) == 1)
-                {
-                    // ensure at least one other thread is running if there's enough work for it; it will spin up other threads if necessary
-                    lock.propagateAsyncWorkSignals(1);
-                }
-
-                Task task = pollAlreadyWaitingToRunExclusive();
-                if (task == null)
-                {
-                    if (updateAndEnqueuePendingUntilHasWaitingToRun(0))
-                        continue;
-
-                    lock.clearLockWork();
-                    hasDrainedSignal = true;
-                    if (!updateAndEnqueuePendingUntilHasWaitingToRun(0))
-                    {
-                        if (tasks == 0)
-                            notifyQuiescentExclusive();
-                        return;
-                    }
-                }
-                else
-                {
-                    try { task.preRunExclusive(); }
-                    catch (Throwable t)
-                    {
-                        try { task.fail(t); }
-                        catch (Throwable t2) { try { t.addSuppressed(t2); } catch (Throwable t3) {} }
-                        try { completeTaskExclusive(task); }
-                        catch (Throwable t2) { try { t.addSuppressed(t2); } catch (Throwable t3) {} }
-                        continue;
-                    }
-                    if (DEBUG_EXECUTION) DebugTask.get(task).onPreRun();
-
-                    addReadyToRun(task);
-                    boolean incremented = lock.incrementAsyncWork(false);
-                    Invariants.require(incremented);
-                }
-            }
-        }
-
-        private boolean updatePendingUnqueued()
-        {
-            if (!hasUnqueued())
-                return false;
-
-            int count = 0;
-            Task addSequentialHead = null, addSequentialTail = null;
-            Task addCleanupHead = null, addCleanupTail = null;
-            Task addNewHead = null, addNewTail = null;
-            {
-                Task cur = Task.reverse(acquireUnqueuedExclusive());
-                while (cur != null)
-                {
-                    Task next = cur.next;
-                    if (!cur.isReadyToCleanup())
-                    {
-                        if (addNewHead == null) addNewHead = addNewTail = setNextNull(cur);
-                        else addNewHead = reverseOne(addNewHead, cur);
-                    }
-                    else if (cur instanceof SequentialQueueTask)
-                    {
-                        if (addSequentialHead == null) addSequentialHead = addSequentialTail = setNextNull(cur);
-                        else addSequentialHead = reverseOne(addSequentialHead, cur);
-                    }
-                    else
-                    {
-                        if (addCleanupHead == null) addCleanupHead = addCleanupTail = setNextNull(cur);
-                        else addCleanupHead = reverseOne(addCleanupHead, cur);
-                    }
-                    ++count;
-                    cur = next;
-                }
-            }
-
-            pendingCount += count;
-            if (addSequentialHead != null)
-            {
-                if (pendingSequentialHead == null) pendingSequentialHead = addSequentialHead;
-                else pendingSequentialTail.next = addSequentialHead;
-                pendingSequentialTail = addSequentialTail;
-            }
-            if (addCleanupHead != null)
-            {
-                if (pendingCleanupHead == null) pendingCleanupHead = addCleanupHead;
-                else pendingCleanupTail.next = addCleanupHead;
-                pendingCleanupTail = addCleanupTail;
-            }
-            if (addNewHead != null)
-            {
-                if (pendingNewHead == null) pendingNewHead = addNewHead;
-                else pendingNewTail.next = addNewHead;
-                pendingNewTail = addNewTail;
-            }
-            return true;
-        }
-
-        private Task reverseOne(Task prev, Task cur)
-        {
-            cur.next = prev;
-            return cur;
-        }
-
-        private Task setNextNull(Task cur)
-        {
-            cur.next = null;
-            return cur;
-        }
-
-        private boolean updateAndEnqueuePendingUntilHasWaitingToRun(int processAtLeast)
-        {
-            updatePendingUnqueued();
-            int count = 0;
-            while (enqueueOnePending())
-            {
-                if (++count >= processAtLeast && hasAlreadyWaitingToRun())
-                    return true;
-            }
-            return hasAlreadyWaitingToRun();
         }
 
         @Override
         public void run()
         {
-            lock.register(index, Thread.currentThread());
+            Thread thread = Thread.currentThread();
+            AccordTaskRunner self = AccordTaskRunner.get(thread);
+            self.setAccordActiveExecutor(AccordExecutorSignalLoop.this);
+            setWrapped(self);
+
+            lock.register(index, thread);
             Task task = null;
             while (true)
             {
                 try
                 {
-                    try { task = cleanupAndMaybeGetWork(task); }
-                    catch (Throwable t) { task = null; throw t; }
+                    if (task != null)
+                    {
+                        try { task = cleanupAndMaybeGetWork(self, task); }
+                        catch (Throwable t) { task = null; throw t; }
+                    }
                     if (task == null)
-                        task = awaitWork();
+                        task = awaitWork(self);
 
                     try
                     {
-                        setRunning(task);
+                        self.setAccordActiveTask(task);
                         task.run();
                     }
                     catch (Throwable t)
@@ -420,6 +454,10 @@ public class AccordExecutorSignalLoop extends AccordExecutorAbstractLoop
                 catch (Throwable t)
                 {
                     agent.onException(t);
+                }
+                finally
+                {
+                    self.setAccordActiveTask(null);
                 }
             }
         }

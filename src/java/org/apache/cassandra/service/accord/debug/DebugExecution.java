@@ -131,11 +131,11 @@ public class DebugExecution
         }
     }
 
-    public static class DebugSequentialExecutor
+    public static class DebugExclusiveExecutor
     {
-        public static DebugSequentialExecutor maybeDebug(DebugExecutor owner, int commandStoreId)
+        public static DebugExclusiveExecutor maybeDebug(DebugExecutor owner, int commandStoreId)
         {
-            return DEBUG_EXECUTION ? new DebugSequentialExecutor(owner, commandStoreId) : null;
+            return DEBUG_EXECUTION ? new DebugExclusiveExecutor(owner, commandStoreId) : null;
         }
 
         final DebugExecutor owner;
@@ -144,7 +144,7 @@ public class DebugExecution
         long setTaskAt, waitingAt;
         Task prev;
 
-        public DebugSequentialExecutor(DebugExecutor owner, int commandStoreId)
+        public DebugExclusiveExecutor(DebugExecutor owner, int commandStoreId)
         {
             this.owner = owner;
             this.commandStoreId = commandStoreId;

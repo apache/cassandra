@@ -24,7 +24,7 @@ import accord.api.Agent;
 import accord.utils.QuadFunction;
 import accord.utils.QuintConsumer;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.concurrent.CassandraThread;
 import org.apache.cassandra.service.accord.AccordExecutorLoops.LoopTask;
 import org.apache.cassandra.service.accord.debug.DebugExecution.DebugExecutorLoop;
 
@@ -33,7 +33,6 @@ import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXE
 
 abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
 {
-    private static final int YIELD_INTERVAL = DatabaseDescriptor.getAccord().queue_yield_interval;
     int runningThreads;
     boolean shutdown;
 
@@ -44,11 +43,10 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
 
     abstract void notifyWork();
     abstract void notifyWorkExclusive();
-    void loopYieldExclusive() throws InterruptedException {}
     abstract void awaitExclusive() throws InterruptedException;
     abstract <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Task> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4);
 
-    <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Task> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
+    final <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Task> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
     {
         // if we're a loop thread, we will poll the waitingToRun queue when we come around
         // NOTE: this assumes no synchronous blocking tasks are submitted to this executor
@@ -56,7 +54,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
         else submitExternal(sync, async, p1s, p1a, p2, p3, p4);
     }
 
-    <P1s, P2, P3, P4> void submitExternalExclusive(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, P1s p1s, P2 p2, P3 p3, P4 p4)
+    final <P1s, P2, P3, P4> void submitExternalExclusive(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, P1s p1s, P2 p2, P3 p3, P4 p4)
     {
         try
         {
@@ -82,6 +80,73 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
     {
         if (hasWaitingToRun())
             notifyWorkExclusive();
+    }
+
+    final boolean hasWaitingToRun()
+    {
+        updateWaitingToRunExclusive();
+        return hasAlreadyWaitingToRun();
+    }
+
+    final Task pollWaitingToRunExclusive()
+    {
+        updateWaitingToRunExclusive();
+        return pollAlreadyWaitingToRunExclusive();
+    }
+
+    final void updateWaitingToRunExclusive()
+    {
+        drainUnqueuedExclusive();
+        super.updateWaitingToRunExclusive();
+    }
+
+    final void drainUnqueuedExclusive()
+    {
+        Task cur = Task.reverse(acquireUnqueuedExclusive());
+        while (cur != null)
+            cur = enqueueOneExclusive(cur);
+    }
+
+    final void drainUnqueuedNewWorkExclusive()
+    {
+        Task cur = acquireUnqueuedExclusive();
+        Task prev = null, requeue = null, requeueLast = null;
+        while (cur != null)
+        {
+            Task next = cur.next;
+            if (cur.isNewWork())
+            {
+                cur.next = prev;
+                prev = cur;
+            }
+            else
+            {
+                if (requeue == null) requeue = cur;
+                else requeueLast.next = cur;
+                requeueLast = cur;
+            }
+            cur = next;
+        }
+
+        if (requeue != null)
+        {
+            while (true)
+            {
+                Task next = unqueued;
+                requeueLast.next = next;
+                if (unqueuedUpdater.compareAndSet(this, next, requeue))
+                    break;
+            }
+        }
+
+        cur = prev;
+        while (cur != null)
+        {
+            Task next = cur.next;
+            cur.submitExclusive(this);
+            cur.next = null;
+            cur = next;
+        }
     }
 
     @Override
@@ -130,11 +195,15 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
             @Override
             public void run()
             {
-                Thread self = Thread.currentThread();
+                Thread thread = Thread.currentThread();
+                AccordTaskRunner self = AccordTaskRunner.get(thread);
+                self.setAccordActiveExecutor(AccordExecutorAbstractLockLoop.this);
+                setWrapped(self);
+
                 Task task;
                 while (true)
                 {
-                    lock();
+                    lock(self);
                     try
                     {
                         enterLockLoop();
@@ -144,7 +213,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
 
                             if (task != null)
                             {
-                                setRunning(task);
+                                self.setAccordActiveTask(task);
                                 try
                                 {
                                     task.preRunExclusive();
@@ -157,7 +226,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
                                 finally
                                 {
                                     completeTaskExclusive(task);
-                                    clearRunning();
+                                    self.setAccordActiveTask(null);
                                 }
                             }
                             else
@@ -185,7 +254,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
                     }
                     finally
                     {
-                        unlock();
+                        unlock(self);
                     }
                 }
             }
@@ -200,12 +269,15 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
             @Override
             public void run()
             {
-                int count = 0;
+                CassandraThread self = (CassandraThread) Thread.currentThread();
+                self.setAccordActiveExecutor(AccordExecutorAbstractLockLoop.this);
+                setWrapped(self);
+
                 Task task = null;
                 while (true)
                 {
                     if (DEBUG_EXECUTION) debug.onLock();
-                    lock();
+                    lock(self);
                     try
                     {
                         if (DEBUG_EXECUTION) debug.onEnterLock();
@@ -215,13 +287,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
                             Task tmp = task;
                             task = null;
                             completeTaskExclusive(tmp);
-                            clearRunning();
-                        }
-
-                        if (count >= YIELD_INTERVAL)
-                        {
-                            loopYieldExclusive();
-                            count = 0;
+                            self.setAccordActiveTask(null);
                         }
 
                         while (true)
@@ -230,7 +296,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
 
                             if (task != null)
                             {
-                                setRunning(task);
+                                self.setAccordActiveTask(task);
                                 task.preRunExclusive();
                                 if (DEBUG_EXECUTION) debug.onExitLock();
                                 exitLockLoop();
@@ -250,7 +316,6 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
                             awaitExclusive();
                             if (DEBUG_EXECUTION) debug.onEnterLock();
                             resumeLoop();
-                            count = 0;
                         }
                     }
                     catch (Throwable t)
@@ -276,12 +341,11 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
                     finally
                     {
                         if (DEBUG_EXECUTION) debug.onExitLock();
-                        unlock();
+                        unlock(self);
                     }
 
                     try
                     {
-                        ++count;
                         task.run();
                     }
                     catch (Throwable t)

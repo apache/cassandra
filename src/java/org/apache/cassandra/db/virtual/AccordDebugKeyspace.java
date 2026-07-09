@@ -1875,7 +1875,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             Node node = AccordService.unsafeInstance().node();
             if (Route.isFullRoute(route))
             {
-                PrepareRecovery.recover(node, node.someSequentialExecutor(), txnId, NotKnownToBeInvalid, (FullRoute<?>) route, null, LatentStoreSelector.standard(), (success, fail) -> {
+                PrepareRecovery.recover(node, node.someExclusiveExecutor(), txnId, NotKnownToBeInvalid, (FullRoute<?>) route, null, LatentStoreSelector.standard(), (success, fail) -> {
                     if (fail != null) result.setFailure(fail);
                     else result.setSuccess(null);
                 });

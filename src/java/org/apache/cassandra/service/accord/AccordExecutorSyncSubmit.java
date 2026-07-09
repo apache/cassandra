@@ -91,14 +91,15 @@ public class AccordExecutorSyncSubmit extends AccordExecutorAbstractLockLoop
 
     <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Task> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
     {
-        lock();
+        AccordTaskRunner self = AccordTaskRunner.get();
+        lock(self);
         try
         {
             submitExternalExclusive(sync, p1s, p2, p3, p4);
         }
         finally
         {
-            unlock();
+            unlock(self);
         }
     }
 

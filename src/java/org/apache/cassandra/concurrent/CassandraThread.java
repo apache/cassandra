@@ -18,14 +18,21 @@
 
 package org.apache.cassandra.concurrent;
 
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+
 import org.apache.cassandra.metrics.ThreadLocalMetrics;
+import org.apache.cassandra.service.accord.AccordExecutor;
 
 import io.netty.util.concurrent.FastThreadLocalThread;
 
-public class CassandraThread extends FastThreadLocalThread
+public class CassandraThread extends FastThreadLocalThread implements AccordExecutor.AccordTaskRunner
 {
     private ThreadLocalMetrics threadLocalMetrics;
     private ExecutorLocals executorLocals;
+    private AccordExecutor accordActiveExecutor;
+    private AccordExecutor accordLockedExecutor;
+    private volatile AccordExecutor.Task accordActiveTask;
+    private static final AtomicReferenceFieldUpdater<CassandraThread, AccordExecutor.Task> accordActiveTaskUpdater = AtomicReferenceFieldUpdater.newUpdater(CassandraThread.class, AccordExecutor.Task.class, "accordActiveTask");
 
     private final ImmediateTaskHolder immediateTaskHolder;
 
@@ -87,6 +94,54 @@ public class CassandraThread extends FastThreadLocalThread
         ExecutorLocals current = executorLocals;
         executorLocals = newExecutorLocals;
         return current != null ? current : ExecutorLocals.none();
+    }
+
+    public final AccordExecutor accordActiveExecutor()
+    {
+        return accordActiveExecutor;
+    }
+
+    public final void setAccordActiveExecutor(AccordExecutor newExecutor)
+    {
+        accordActiveExecutor = newExecutor;
+    }
+
+    @Override
+    public final AccordExecutor accordLockedExecutor()
+    {
+        return accordLockedExecutor;
+    }
+
+    @Override
+    public final boolean trySetAccordLockedExecutor(AccordExecutor newLockedExecutor)
+    {
+        if (accordLockedExecutor != null)
+            return false;
+        accordLockedExecutor = newLockedExecutor;
+        return true;
+    }
+
+    @Override
+    public final void clearAccordLockedExecutor()
+    {
+        accordLockedExecutor = null;
+    }
+
+    public final AccordExecutor.Task accordActiveTask()
+    {
+        return accordActiveTask;
+    }
+
+    // to be called only by the thread itself, so can (eventually) avoid any memory barriers
+    public final AccordExecutor.Task accordActiveSelfTask()
+    {
+        // TODO (expected): with newer JDK use accordActiveTaskUpdater.getPlain
+        return accordActiveTask;
+    }
+
+    public final void setAccordActiveTask(AccordExecutor.Task newActiveTask)
+    {
+        accordActiveTaskUpdater.lazySet(this, newActiveTask);
     }
 
     // final to avoid skipping of the cleanup logic in child classes
