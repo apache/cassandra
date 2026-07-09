@@ -49,8 +49,8 @@ import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandSummaries;
 import accord.local.CommandSummaries.Summary;
+import accord.local.ExecutionContext;
 import accord.local.LoadKeys;
-import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.AbstractRanges;
@@ -111,7 +111,7 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
     {
         private final Function<? super SafeCommandStore, R> function;
 
-        public ForFunction(AccordCommandStore commandStore, PreLoadContext loadCtx, Function<? super SafeCommandStore, R> function)
+        public ForFunction(AccordCommandStore commandStore, ExecutionContext loadCtx, Function<? super SafeCommandStore, R> function)
         {
             super(commandStore, loadCtx);
             this.function = function;
@@ -129,7 +129,7 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
     {
         private final Consumer<? super SafeCommandStore> consumer;
 
-        private ForConsumer(AccordCommandStore commandStore, PreLoadContext loadCtx, Consumer<? super SafeCommandStore> consumer)
+        private ForConsumer(AccordCommandStore commandStore, ExecutionContext loadCtx, Consumer<? super SafeCommandStore> consumer)
         {
             super(commandStore, loadCtx);
             this.consumer = consumer;
@@ -143,12 +143,12 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
         }
     }
 
-    public static <T> AccordTask<T> create(CommandStore commandStore, PreLoadContext ctx, Function<? super SafeCommandStore, T> function)
+    public static <T> AccordTask<T> create(CommandStore commandStore, ExecutionContext ctx, Function<? super SafeCommandStore, T> function)
     {
         return new ForFunction<>((AccordCommandStore) commandStore, ctx, function);
     }
 
-    public static AccordTask<Void> create(CommandStore commandStore, PreLoadContext ctx, Consumer<? super SafeCommandStore> consumer)
+    public static AccordTask<Void> create(CommandStore commandStore, ExecutionContext ctx, Consumer<? super SafeCommandStore> consumer)
     {
         return new ForConsumer((AccordCommandStore) commandStore, ctx, consumer);
     }
@@ -201,7 +201,7 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
 
     private State state = INITIALIZED;
     final AccordCommandStore commandStore;
-    private final PreLoadContext preLoadContext;
+    private final ExecutionContext executionContext;
     private volatile String loggingId;
     private static final AtomicLong nextLoggingId = new AtomicLong(Clock.Global.currentTimeMillis());
     private static final AtomicReferenceFieldUpdater<AccordTask, String> loggingIdUpdater = AtomicReferenceFieldUpdater.newUpdater(AccordTask.class, String.class, "loggingId");
@@ -220,10 +220,10 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
 
     private BiConsumer<? super R, Throwable> callback;
 
-    public AccordTask(@Nonnull AccordCommandStore commandStore, PreLoadContext preLoadContext)
+    public AccordTask(@Nonnull AccordCommandStore commandStore, ExecutionContext executionContext)
     {
         this.commandStore = commandStore;
-        this.preLoadContext = preLoadContext;
+        this.executionContext = executionContext;
         this.loggingId = "0x" + Long.toHexString(nextLoggingId.incrementAndGet());
 
         if (logger.isTraceEnabled())
@@ -245,7 +245,7 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
     @Override
     public String toString()
     {
-        return preLoadContext.describe() + ' ' + toBriefString();
+        return executionContext.describe() + ' ' + toBriefString();
     }
 
     public String toBriefString()
@@ -257,7 +257,7 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
     {
         return toBriefString() + ": "
                + (queued == null ? "unqueued" : queued.kind)
-               + ", primaryTxnId: " + preLoadContext.primaryTxnId()
+               + ", primaryTxnId: " + executionContext.primaryTxnId()
                + ", waitingToLoad: " + summarise(waitingToLoad)
                + ", loading:" + summarise(loading, AccordSafeState::global)
                + ", cfks:" + summarise(commandsForKey, AccordSafeState::global)
@@ -315,7 +315,7 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
 
     Unseekables<?> keys()
     {
-        return preLoadContext.keys();
+        return executionContext.keys();
     }
 
     // TODO (expected): try to execute immediately BUT consider ordering requirements
@@ -363,22 +363,22 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
         // so we do not mutate anything, except the atomic counter of references
         if (parent.commands != null)
         {
-            for (TxnId txnId : preLoadContext.txnIds())
+            for (TxnId txnId : executionContext.txnIds())
                 presetupExclusive(txnId, AccordTask::ensureCommands, parent.commands, commandStore.cachesUnsafe().commands());
         }
 
         if (parent.commandsForKey == null) return;
-        if (preLoadContext.keys().domain() != Key) return;
-        switch (preLoadContext.loadKeys())
+        if (executionContext.keys().domain() != Key) return;
+        switch (executionContext.loadKeys())
         {
-            default: throw new UnhandledEnum(preLoadContext.loadKeys());
+            default: throw new UnhandledEnum(executionContext.loadKeys());
             case NONE:
                 break;
 
             case ASYNC:
             case INCR:
             case SYNC:
-                for (RoutingKey key : (AbstractUnseekableKeys)preLoadContext.keys())
+                for (RoutingKey key : (AbstractUnseekableKeys) executionContext.keys())
                     presetupExclusive(key, AccordTask::ensureCommandsForKey, parent.commandsForKey, commandStore.cachesUnsafe().commandsForKeys());
                 break;
         }
@@ -402,7 +402,7 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
     {
         {
             boolean hasPreSetup = commands != null;
-            for (TxnId txnId : preLoadContext.txnIds())
+            for (TxnId txnId : executionContext.txnIds())
             {
                 if (hasPreSetup && completePresetupExclusive(txnId, commands, caches.commands()))
                     continue;
@@ -410,22 +410,22 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
             }
         }
 
-        if (preLoadContext.keys().isEmpty())
+        if (executionContext.keys().isEmpty())
             return;
 
-        switch (preLoadContext.keys().domain())
+        switch (executionContext.keys().domain())
         {
-            case Key: setupKeyLoadsExclusive(caches, (AbstractUnseekableKeys)preLoadContext.keys(), false); break;
+            case Key: setupKeyLoadsExclusive(caches, (AbstractUnseekableKeys) executionContext.keys(), false); break;
             case Range: setupRangeLoadsExclusive(caches);
         }
     }
 
     private void setupKeyLoadsExclusive(Caches caches, Iterable<? extends RoutingKey> keys, boolean isToCompleteRangeScan)
     {
-        if (preLoadContext.loadKeys() == LoadKeys.NONE)
+        if (executionContext.loadKeys() == LoadKeys.NONE)
             return;
 
-        if (!isToCompleteRangeScan && preLoadContext.loadKeysFor() == RECOVERY)
+        if (!isToCompleteRangeScan && executionContext.loadKeysFor() == RECOVERY)
         {
             Invariants.require(rangeScanner == null);
             rangeScanner = new RangeTxnScanner();
@@ -441,12 +441,12 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
 
     private void setupRangeLoadsExclusive(Caches caches)
     {
-        if (preLoadContext.loadKeysFor() == WRITE)
+        if (executionContext.loadKeysFor() == WRITE)
             return;
 
-        switch (preLoadContext.loadKeys())
+        switch (executionContext.loadKeys())
         {
-            default: throw new UnhandledEnum(preLoadContext.loadKeys());
+            default: throw new UnhandledEnum(executionContext.loadKeys());
             case NONE:
             case ASYNC:
                 break;
@@ -564,9 +564,9 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
         return true;
     }
 
-    public PreLoadContext preLoadContext()
+    public ExecutionContext preLoadContext()
     {
-        return preLoadContext;
+        return executionContext;
     }
 
     public Map<TxnId, AccordSafeCommand> commands()
@@ -680,7 +680,7 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
         try (Closeable close = resources.get())
         {
             if (Tracing.isTracing())
-                Tracing.trace(preLoadContext.describe());
+                Tracing.trace(executionContext.describe());
 
             state(RUNNING);
 
@@ -789,7 +789,7 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
 
     void cancelExclusive()
     {
-        logger.info("Cancelling {}", preLoadContext);
+        logger.info("Cancelling {}", executionContext);
         state(CANCELLED);
         if (rangeScanner != null)
             rangeScanner.cancelled = true;
@@ -968,7 +968,7 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
         // TODO (expected): produce key summaries to avoid locking all in memory
         final Set<TokenKey> intersectingKeys = new ObjectHashSet<>();
         final KeyWatcher keyWatcher = new KeyWatcher();
-        final Ranges ranges = ((AbstractRanges) preLoadContext.keys()).toRanges();
+        final Ranges ranges = ((AbstractRanges) executionContext.keys()).toRanges();
         final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeyCache;
 
         public RangeTxnAndKeyScanner(AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeyCache)
@@ -1082,9 +1082,9 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
             loader.load(guardedSummaries, () -> cancelled);
         }
 
-        PreLoadContext preLoadContext()
+        ExecutionContext preLoadContext()
         {
-            return preLoadContext;
+            return executionContext;
         }
 
         @Override
@@ -1109,7 +1109,7 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
 
         void startInternal(Caches caches)
         {
-            loader = commandStore.rangeIndex().loader(preLoadContext.primaryTxnId(), preLoadContext.executeAt(), preLoadContext.loadKeysFor(), preLoadContext.keys());
+            loader = commandStore.rangeIndex().loader(executionContext.primaryTxnId(), executionContext.executeAt(), executionContext.loadKeysFor(), executionContext.keys());
             loader.loadExclusive(guardedSummaries, caches);
         }
 
@@ -1143,7 +1143,7 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
         @Override
         public String description()
         {
-            return "Scanning range intersections for " + preLoadContext.reason() + ' ' + toBriefString();
+            return "Scanning range intersections for " + executionContext.reason() + ' ' + toBriefString();
         }
 
         @Override
@@ -1174,6 +1174,6 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
     @Override
     public String description()
     {
-        return preLoadContext.describe();
+        return executionContext.describe();
     }
 }

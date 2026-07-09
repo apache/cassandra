@@ -33,7 +33,7 @@ import accord.coordinate.CoordinationAdapter;
 import accord.coordinate.ExecuteFlag.CoordinationFlags;
 import accord.local.Node;
 import accord.local.Node.Id;
-import accord.local.SequentialAsyncExecutor;
+import accord.local.ExclusiveAsyncExecutor;
 import accord.messages.Commit;
 import accord.messages.Commit.Kind;
 import accord.primitives.AbstractRanges;
@@ -125,7 +125,7 @@ public class AccordInteropExecution implements ReadCoordinator
     private final Timestamp executeAt;
     private final Deps deps;
     private final BiConsumer<? super Result, Throwable> callback;
-    private final SequentialAsyncExecutor executor;
+    private final ExclusiveAsyncExecutor executor;
     private final ConsistencyLevel consistencyLevel;
     private final AccordEndpointMapper endpointMapper;
 
@@ -141,7 +141,7 @@ public class AccordInteropExecution implements ReadCoordinator
     private volatile long uniqueHlc;
 
     public AccordInteropExecution(Node node, TxnId txnId, Txn txn, AccordUpdate.Kind updateKind, FullRoute<?> route, Ballot ballot, Timestamp executeAt, Deps deps, BiConsumer<? super Result, Throwable> callback,
-                                  SequentialAsyncExecutor executor, ConsistencyLevel consistencyLevel, AccordEndpointMapper endpointMapper) throws TopologyException
+                                  ExclusiveAsyncExecutor executor, ConsistencyLevel consistencyLevel, AccordEndpointMapper endpointMapper) throws TopologyException
     {
         requireArgument(!txn.read().keys().isEmpty() || updateKind == AccordUpdate.Kind.UNRECOVERABLE_REPAIR);
         this.node = node;

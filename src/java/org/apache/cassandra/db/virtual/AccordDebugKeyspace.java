@@ -71,9 +71,9 @@ import accord.local.CommandStores.LatentStoreSelector;
 import accord.local.Commands;
 import accord.local.Commands.NotifyWaitingOnPlus;
 import accord.local.DurableBefore;
+import accord.local.ExecutionContext;
 import accord.local.MaxConflicts;
 import accord.local.Node;
-import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.StoreParticipants;
@@ -337,16 +337,16 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         if (prev != null && info.status() == prev.status() && info.position() == prev.position()) ++uniquePos;
                         else uniquePos = 0;
                         prev = info;
-                        PreLoadContext preLoadContext = info.preLoadContext();
+                        ExecutionContext executionContext = info.preLoadContext();
                         rows.add(info.status().name(), info.position(), uniquePos)
                                  .lazyCollect(columns -> {
                                      columns.add("description", info.describe())
                                             .add("command_store_id", info.commandStoreId())
-                                            .add("txn_id", preLoadContext, PreLoadContext::primaryTxnId, TO_STRING)
-                                            .add("txn_id_additional", preLoadContext, PreLoadContext::additionalTxnId, TO_STRING)
-                                            .add("keys", preLoadContext, PreLoadContext::keys, TO_STRING)
-                                            .add("keys_loading", preLoadContext, PreLoadContext::loadKeys, TO_STRING)
-                                            .add("keys_loading_for", preLoadContext, PreLoadContext::loadKeysFor, TO_STRING);
+                                            .add("txn_id", executionContext, ExecutionContext::primaryTxnId, TO_STRING)
+                                            .add("txn_id_additional", executionContext, ExecutionContext::additionalTxnId, TO_STRING)
+                                            .add("keys", executionContext, ExecutionContext::keys, TO_STRING)
+                                            .add("keys_loading", executionContext, ExecutionContext::loadKeys, TO_STRING)
+                                            .add("keys_loading_for", executionContext, ExecutionContext::loadKeysFor, TO_STRING);
                         });
                     }
                 });
@@ -740,7 +740,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             collector.partition(commandStore.id())
                      .collect(rows -> {
                          // TODO (desired): support maybe execute immediately with safeStore
-                         Future<?> future = toFuture(commandStore.chain((PreLoadContext.Empty) metadata::toString, safeStore -> { addRows(safeStore, rows); }));
+                         Future<?> future = toFuture(commandStore.chain((ExecutionContext.Empty) metadata::toString, safeStore -> { addRows(safeStore, rows); }));
                          if (!future.awaitUntilThrowUncheckedOnInterrupt(collector.deadlineNanos()))
                              throw new InternalTimeoutException();
                      });
@@ -1895,7 +1895,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             AccordService.getBlocking(accord.node()
                                             .commandStores()
                                             .forId(commandStoreId)
-                                            .chain(PreLoadContext.contextFor(txnId, TXN_OPS), apply)
+                                            .chain(ExecutionContext.contextFor(txnId, TXN_OPS), apply)
                                             .flatMap(i -> i));
         }
 

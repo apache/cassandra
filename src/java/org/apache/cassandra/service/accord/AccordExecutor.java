@@ -44,8 +44,7 @@ import accord.api.Agent;
 import accord.api.RoutingKey;
 import accord.impl.AbstractAsyncExecutor;
 import accord.local.Command;
-import accord.local.PreLoadContext;
-import accord.local.SequentialAsyncExecutor;
+import accord.local.ExecutionContext;
 import accord.local.cfk.CommandsForKey;
 import accord.messages.Accept;
 import accord.messages.Commit;
@@ -611,25 +610,25 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         task.addToQueue(task.commandStore.exclusiveExecutor);
     }
 
-    private void waitingToRun(Task task, @Nullable SequentialExecutor queue)
+    private void waitingToRun(Task task, @Nullable ExclusiveExecutor queue)
     {
         task.onWaitingToRun();
         task.addToQueue(queue == null ? waitingToRun : queue);
     }
 
-    public SequentialExecutor executor()
+    public ExclusiveExecutor executor()
     {
-        return new SequentialExecutor(this);
+        return new ExclusiveExecutor(this);
     }
 
-    public SequentialExecutor executor(int commandStoreId)
+    public ExclusiveExecutor executor(int commandStoreId)
     {
-        return new SequentialExecutor(this, commandStoreId);
+        return new ExclusiveExecutor(this, commandStoreId);
     }
 
-    public SequentialAsyncExecutor newSequentialExecutor()
+    public accord.local.ExclusiveAsyncExecutor newSequentialExecutor()
     {
-        return new SequentialExecutor(this);
+        return new ExclusiveExecutor(this);
     }
 
     public <R> void cancel(AccordTask<R> task)
@@ -751,7 +750,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
                 case PHASE_HLC_FIFO:
                 {
                     // TODO (expected): we should process messages for a TxnId together, to avoid processing delayed messages out of order
-                    PreLoadContext context = task.preLoadContext();
+                    ExecutionContext context = task.preLoadContext();
                     if (context instanceof Request)
                     {
                         MessageType type = ((Request) context).type();
@@ -1207,7 +1206,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
     }
 
     // run the task even on a stopped commandStore
-    public interface Unstoppable extends PreLoadContext.Empty
+    public interface Unstoppable extends ExecutionContext.Empty
     {
     }
 
@@ -1218,9 +1217,9 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
     static final class SequentialQueueTask extends Task
     {
-        private final SequentialExecutor queue;
+        private final ExclusiveExecutor queue;
 
-        SequentialQueueTask(SequentialExecutor queue)
+        SequentialQueueTask(ExclusiveExecutor queue)
         {
             super();
             this.queue = queue;
@@ -1265,8 +1264,8 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
     }
 
-    private static final AtomicReferenceFieldUpdater<SequentialExecutor, Thread> ownerUpdater = AtomicReferenceFieldUpdater.newUpdater(SequentialExecutor.class, Thread.class, "owner");
-    public class SequentialExecutor extends TaskQueue<Task> implements SequentialAsyncExecutor
+    private static final AtomicReferenceFieldUpdater<ExclusiveExecutor, Thread> ownerUpdater = AtomicReferenceFieldUpdater.newUpdater(ExclusiveExecutor.class, Thread.class, "owner");
+    public class ExclusiveExecutor extends TaskQueue<Task> implements accord.local.ExclusiveAsyncExecutor
     {
         final int commandStoreId;
         final SequentialQueueTask selfTask;
@@ -1278,12 +1277,12 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
         final DebugSequentialExecutor debug;
 
-        SequentialExecutor(AccordExecutor executor)
+        ExclusiveExecutor(AccordExecutor executor)
         {
             this(executor, -1);
         }
 
-        SequentialExecutor(AccordExecutor executor, int commandStoreId)
+        ExclusiveExecutor(AccordExecutor executor, int commandStoreId)
         {
             super(WAITING_TO_RUN, commandStoreId < 0);
             this.commandStoreId = commandStoreId;
@@ -1331,7 +1330,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             if (!(task instanceof AccordTask<?>))
                 return true;
 
-            PreLoadContext context = ((AccordTask<?>) task).preLoadContext();
+            ExecutionContext context = ((AccordTask<?>) task).preLoadContext();
 
             return !(terminated ? (context instanceof Unterminatable) : (context instanceof Unstoppable));
         }
@@ -1522,7 +1521,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
         private Cancellable execute(RunOrFail runOrFail, long queuePosition)
         {
-            PlainChain submit = new PlainChain(runOrFail, SequentialExecutor.this, queuePosition);
+            PlainChain submit = new PlainChain(runOrFail, ExclusiveExecutor.this, queuePosition);
             return AccordExecutor.this.submit(submit);
         }
 
@@ -1643,7 +1642,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
     abstract class Plain extends Task implements Cancellable
     {
-        abstract SequentialExecutor executor();
+        abstract ExclusiveExecutor executor();
 
         @Override
         protected void preRunExclusive() {}
@@ -1663,7 +1662,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
         void cancelExclusive(AccordExecutor owner)
         {
-            SequentialExecutor executor = executor();
+            ExclusiveExecutor executor = executor();
             TaskQueue queue = executor == null ? waitingToRun : executor;
             if (queue.contains(this))
             {
@@ -1685,7 +1684,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
     {
         final @Nullable AsyncPromise<Void> result;
         final Runnable run;
-        final @Nullable SequentialExecutor executor;
+        final @Nullable ExclusiveExecutor executor;
 
         PlainRunnable(Runnable run)
         {
@@ -1697,7 +1696,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             this(result, run, null, 0);
         }
 
-        PlainRunnable(AsyncPromise<Void> result, Runnable run, @Nullable SequentialExecutor executor, long queuePosition)
+        PlainRunnable(AsyncPromise<Void> result, Runnable run, @Nullable ExclusiveExecutor executor, long queuePosition)
         {
             this.result = result;
             this.run = run;
@@ -1727,7 +1726,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
 
         @Override
-        SequentialExecutor executor()
+        ExclusiveExecutor executor()
         {
             return executor;
         }
@@ -1755,7 +1754,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
 
         @Override
-        SequentialExecutor executor()
+        ExclusiveExecutor executor()
         {
             return null;
         }
@@ -1934,14 +1933,14 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
     class PlainChain extends Plain
     {
         final RunOrFail runOrFail;
-        final @Nullable SequentialExecutor executor;
+        final @Nullable ExclusiveExecutor executor;
 
         PlainChain(RunOrFail runOrFail)
         {
             this(runOrFail, null, 0);
         }
 
-        PlainChain(RunOrFail runOrFail, @Nullable SequentialExecutor executor, long queuePosition)
+        PlainChain(RunOrFail runOrFail, @Nullable ExclusiveExecutor executor, long queuePosition)
         {
             this.runOrFail = runOrFail;
             this.executor = executor;
@@ -1949,7 +1948,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
 
         @Override
-        SequentialExecutor executor()
+        ExclusiveExecutor executor()
         {
             return executor;
         }
@@ -1991,7 +1990,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         long startedAtNanos;
         final Object describe;
 
-        DebuggableChain(RunOrFail runOrFail, @Nullable SequentialExecutor executor, int queuePosition, Object describe)
+        DebuggableChain(RunOrFail runOrFail, @Nullable ExclusiveExecutor executor, int queuePosition, Object describe)
         {
             super(runOrFail, executor, queuePosition);
             this.createdAtNanos = MonotonicClock.Global.approxTime.now();
@@ -2073,7 +2072,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             return null;
         }
 
-        public @Nullable PreLoadContext preLoadContext()
+        public @Nullable ExecutionContext preLoadContext()
         {
             if (task instanceof AccordTask)
                 return ((AccordTask<?>) task).preLoadContext();
@@ -2119,7 +2118,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             Task t = queue.get(i);
             if (t instanceof SequentialQueueTask)
             {
-                SequentialExecutor q = ((SequentialQueueTask) t).queue;
+                ExclusiveExecutor q = ((SequentialQueueTask) t).queue;
                 snapshot.add(new TaskInfo(ifCurrent, q.commandStoreId, q.task));
                 for (int j = 0 ; j < q.size() ; ++j)
                     snapshot.add(new TaskInfo(ifQueued, q.commandStoreId, q.get(j)));
