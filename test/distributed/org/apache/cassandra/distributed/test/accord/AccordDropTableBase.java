@@ -24,9 +24,9 @@ import org.assertj.core.api.Assertions;
 
 import accord.api.RoutingKey;
 import accord.local.CommandStores;
+import accord.local.ExecutionContext;
 import accord.local.LoadKeys;
 import accord.local.Node;
-import accord.local.PreLoadContext;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
@@ -135,7 +135,7 @@ public class AccordDropTableBase extends TestBaseImpl
                 TableId tableId = TableId.fromString(s);
                 AccordService accord = (AccordService) AccordService.instance();
                 TxnId syntheticTxnId = new TxnId(TxnId.MAX_EPOCH, 0, Txn.Kind.ExclusiveSyncPoint, Routable.Domain.Range, new Node.Id(1));
-                PreLoadContext ctx = PreLoadContext.contextFor(syntheticTxnId, Ranges.single(TokenRange.fullRange(tableId, getPartitioner())), LoadKeys.SYNC, READ_WRITE, "Test");
+                ExecutionContext ctx = ExecutionContext.contextFor(syntheticTxnId, Ranges.single(TokenRange.fullRange(tableId, getPartitioner())), LoadKeys.SYNC, READ_WRITE, "Test");
                 CommandStores stores = accord.node().commandStores();
                 for (int storeId : stores.ids())
                 {

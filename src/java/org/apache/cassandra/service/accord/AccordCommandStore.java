@@ -58,13 +58,13 @@ import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.CommandSummaries;
+import accord.local.ExecutionContext;
 import accord.local.MaxConflicts;
 import accord.local.MaxDecidedRX;
 import accord.local.MinimalCommand;
 import accord.local.MinimalCommand.MinimalWithDeps;
 import accord.local.NodeCommandStoreService;
-import accord.local.PreLoadContext;
-import accord.local.PreLoadContext.Empty;
+import accord.local.ExecutionContext.Empty;
 import accord.local.RedundantBefore;
 import accord.local.RedundantBefore.Bounds;
 import accord.local.RedundantStatus.Property;
@@ -216,7 +216,7 @@ public class AccordCommandStore extends CommandStore
     public final String loggingId;
     public final Journal journal;
     private final AccordExecutor sharedExecutor;
-    final AccordExecutor.SequentialExecutor exclusiveExecutor;
+    final AccordExecutor.ExclusiveExecutor exclusiveExecutor;
     private final ExclusiveCaches caches;
     private final RangeIndex rangeIndex;
     private final TableId tableId;
@@ -403,27 +403,27 @@ public class AccordCommandStore extends CommandStore
         return lastSystemTimestampMicros.accumulateAndGet(node.now(), (a, b) -> Math.max(a + 1, b));
     }
     @Override
-    public <T> AsyncChain<T> chain(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function)
+    public <T> AsyncChain<T> chain(ExecutionContext loadCtx, Function<? super SafeCommandStore, T> function)
     {
         return AccordTask.create(this, loadCtx, function).chain();
     }
 
     @Override
-    public AsyncChain<Void> chain(PreLoadContext preLoadContext, Consumer<? super SafeCommandStore> consumer)
+    public AsyncChain<Void> chain(ExecutionContext executionContext, Consumer<? super SafeCommandStore> consumer)
     {
-        return AccordTask.create(this, preLoadContext, consumer).chain();
+        return AccordTask.create(this, executionContext, consumer).chain();
     }
 
     @Override
-    public AsyncChain<Void> priorityChain(PreLoadContext preLoadContext, Consumer<? super SafeCommandStore> consumer)
+    public AsyncChain<Void> priorityChain(ExecutionContext executionContext, Consumer<? super SafeCommandStore> consumer)
     {
-        return AccordTask.create(this, preLoadContext, consumer).priorityChain();
+        return AccordTask.create(this, executionContext, consumer).priorityChain();
     }
 
     @Override
-    public <T> AsyncChain<T> priorityChain(PreLoadContext preLoadContext, Function<? super SafeCommandStore, T> function)
+    public <T> AsyncChain<T> priorityChain(ExecutionContext executionContext, Function<? super SafeCommandStore, T> function)
     {
-        return AccordTask.create(this, preLoadContext, function).priorityChain();
+        return AccordTask.create(this, executionContext, function).priorityChain();
     }
 
     @Override
@@ -729,7 +729,7 @@ public class AccordCommandStore extends CommandStore
             if (!maybeShouldReplay(txnId))
                 return AsyncChains.success(null);
 
-            return commandStore.chain(PreLoadContext.contextFor(txnId, "Replay"), safeStore -> {
+            return commandStore.chain(ExecutionContext.contextFor(txnId, "Replay"), safeStore -> {
                 Replay replay = shouldReplay(txnId, safeStore.unsafeGet(txnId).current().participants());
                 if (replay == Replay.NONE)
                     return null;

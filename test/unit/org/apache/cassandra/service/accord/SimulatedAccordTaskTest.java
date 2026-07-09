@@ -32,7 +32,7 @@ import org.junit.Test;
 
 import accord.api.RoutingKey;
 import accord.impl.basic.SimulatedFault;
-import accord.local.PreLoadContext;
+import accord.local.ExecutionContext;
 import accord.local.SafeCommandStore;
 import accord.messages.PreAccept;
 import accord.primitives.FullRoute;
@@ -107,7 +107,7 @@ public class SimulatedAccordTaskTest extends SimulatedAccordCommandStoreTestBase
                 {
                     case Task:
                     {
-                        PreLoadContext ctx = (PreLoadContext.Empty)()->"Test";
+                        ExecutionContext ctx = (ExecutionContext.Empty)()->"Test";
                         instance.maybeCacheEvict(ctx.keys());
                         operation(instance, ctx, actionGen.next(rs), rs::nextBoolean).chain().begin(counter);
                     }
@@ -178,7 +178,7 @@ public class SimulatedAccordTaskTest extends SimulatedAccordCommandStoreTestBase
 
     private enum Action { SUCCESS, FAILURE, LOAD_FAILURE }
 
-    private static AccordTask<Void> operation(SimulatedAccordCommandStore instance, PreLoadContext ctx, Action action, BooleanSupplier delay)
+    private static AccordTask<Void> operation(SimulatedAccordCommandStore instance, ExecutionContext ctx, Action action, BooleanSupplier delay)
     {
         return new SimulatedOperation(instance.commandStore, ctx, action == Action.FAILURE ? SimulatedOperation.Action.FAILURE : SimulatedOperation.Action.SUCCESS);
     }
@@ -201,9 +201,9 @@ public class SimulatedAccordTaskTest extends SimulatedAccordCommandStoreTestBase
         enum Action { SUCCESS, FAILURE}
         private final Action action;
 
-        public SimulatedOperation(AccordCommandStore commandStore, PreLoadContext preLoadContext, Action action)
+        public SimulatedOperation(AccordCommandStore commandStore, ExecutionContext executionContext, Action action)
         {
-            super(commandStore, preLoadContext);
+            super(commandStore, executionContext);
             this.action = action;
         }
 

@@ -26,7 +26,7 @@ import accord.coordinate.Persist;
 import accord.coordinate.tracking.AllTracker;
 import accord.coordinate.tracking.QuorumTracker;
 import accord.local.Node;
-import accord.local.SequentialAsyncExecutor;
+import accord.local.ExclusiveAsyncExecutor;
 import accord.messages.Apply;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
@@ -53,7 +53,7 @@ import static org.apache.cassandra.db.ConsistencyLevel.SERIAL;
  */
 public class AccordInteropPersist extends Persist
 {
-    public AccordInteropPersist(Node node, SequentialAsyncExecutor executor, Topologies topologies, TxnId txnId, Route<?> sendTo, Ballot ballot, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, FullRoute<?> fullRoute, ConsistencyLevel consistencyLevel, ExecuteFlag.CoordinationFlags flags, boolean informDurableOnDone, Apply.Kind applyKind, BiConsumer<? super Result, Throwable> callback)
+    public AccordInteropPersist(Node node, ExclusiveAsyncExecutor executor, Topologies topologies, TxnId txnId, Route<?> sendTo, Ballot ballot, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, FullRoute<?> fullRoute, ConsistencyLevel consistencyLevel, ExecuteFlag.CoordinationFlags flags, boolean informDurableOnDone, Apply.Kind applyKind, BiConsumer<? super Result, Throwable> callback)
     {
         super(node, executor, topologies, txnId, ballot, sendTo, txn, executeAt, deps, writes, result.toPersistable(), fullRoute, flags, informDurableOnDone, AccordInteropApply.FACTORY, applyKind, consistencyLevel == ALL ? AllTracker::new : QuorumTracker::new, (ignore, fail) -> {
             if (fail != null) callback.accept(null, fail);
