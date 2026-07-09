@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
@@ -141,6 +142,7 @@ public class DecommissionTest extends TestBaseImpl
 
     public static class BB
     {
+        static final AtomicBoolean injected = new AtomicBoolean(false);
         public static void install(ClassLoader classLoader, Integer num)
         {
             if (num == 2)
@@ -157,7 +159,7 @@ public class DecommissionTest extends TestBaseImpl
         public static void execute(NodeId leaving, PlacementDeltas startLeave, PlacementDeltas midLeave, PlacementDeltas finishLeave,
                                    @SuperCall Callable<?> zuper) throws ExecutionException, InterruptedException
         {
-            if (!StorageService.instance.isDecommissionFailed())
+            if (injected.compareAndSet(false, true))
                 throw new ExecutionException(new RuntimeException("simulated error in prepareUnbootstrapStreaming"));
 
             try

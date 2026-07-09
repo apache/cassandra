@@ -53,8 +53,10 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
@@ -62,6 +64,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.pauseBeforeCommit;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseCommits;
 import static org.apache.cassandra.distributed.shared.NetworkTopology.dcAndRack;
 import static org.apache.cassandra.distributed.shared.NetworkTopology.networkTopology;
 import static org.apache.cassandra.distributed.test.ring.BootstrapTest.populate;
@@ -81,6 +85,43 @@ public class DecommissionTest extends TestBaseImpl
             populate(cluster, 0, 100, 1, 2, ConsistencyLevel.QUORUM);
             cluster.get(2).nodetoolResult("decommission", "--force").asserts().failure();
             cluster.get(2).nodetoolResult("decommission", "--force").asserts().success();
+        }
+    }
+
+    @Test
+    public void testOperationModeOnDecomResume() throws Exception
+    {
+        // Node 2's first decomission attempt fails mid-stream (injected by BB), leaving it in
+        // DECOMISSION_FAILED. On resume, operationMode() must transition back to LEAVING before
+        // MID_LEAVE is committed. We pause the CMS just before that commit to assert the mode
+        // in the window where streaming has finished but the epoch has not yet advanced.
+        try (Cluster cluster = builder().withNodes(3)
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .withInstanceInitializer(BB::install)
+                                        .start())
+        {
+            populate(cluster, 0, 100, 1, 2, ConsistencyLevel.QUORUM);
+
+            IInvokableInstance cmsNode = cluster.get(1);
+            IInvokableInstance leavingNode = cluster.get(2);
+
+            // --force required: cie_internal keyspace has RF=3, decommission would fail replication check otherwise
+            leavingNode.nodetoolResult("decommission", "--force").asserts().failure();
+            leavingNode.runOnInstance(() -> assertEquals(StorageService.Mode.DECOMMISSION_FAILED, StorageService.instance.operationMode()));
+
+            Callable<Epoch> midLeavePaused = pauseBeforeCommit(cmsNode, e -> e instanceof PrepareLeave.MidLeave);
+
+            Thread resumeThread = new Thread(() -> leavingNode.nodetoolResult("decommission").asserts().success());
+            resumeThread.start();
+            midLeavePaused.call();
+
+            leavingNode.runOnInstance(() ->
+                assertEquals("operationMode during resumed decommission streaming should be LEAVING, not DECOMMISSION_FAILED",
+                             StorageService.Mode.LEAVING,
+                             StorageService.instance.operationMode()));
+
+            unpauseCommits(cmsNode);
+            resumeThread.join(TimeUnit.MINUTES.toMillis(2));
         }
     }
 
