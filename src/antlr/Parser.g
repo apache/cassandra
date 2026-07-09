@@ -29,8 +29,6 @@ options {
 
     // enables parsing txn specific syntax when true
     protected boolean isParsingTxn = false;
-    // tracks whether a txn has conditional updates
-    protected boolean isTxnConditional = false;
 
     protected List<RowDataReference.Raw> references;
 
@@ -785,16 +783,14 @@ batchTxnStatement returns [TransactionStatement.Parsed expr]
         List<RowDataReference.Raw> returning = null;
         List<List<ConditionStatement.Raw>> conditions = new ArrayList<>();
         List<List<ModificationStatement.Parsed>> updates = new ArrayList<>();
-        List<ConditionStatement.Raw> e = new ArrayList<>();
-        e.add(new ConditionStatement.Raw(null, ConditionStatement.Kind.ELSE, null));
     }
     : K_BEGIN K_TRANSACTION
       ( let=letStatement ';' { assignments.add(let); })*
       ( ( (selectStatement) => s=selectStatement ';' { select = s; }) | ( K_SELECT drs=rowDataReferences ';' { returning = drs; }) )?
       (
-          K_IF c=txnConditions K_THEN { isTxnConditional = true; } u=updateStatements { conditions.add(c); updates.add(u); }
+          K_IF c=txnConditions K_THEN u=updateStatements { conditions.add(c); updates.add(u); }
           ( K_ELSE K_IF c=txnConditions K_THEN u=updateStatements { conditions.add(c); updates.add(u); } )*
-          ( K_ELSE u=updateStatements { conditions.add(e); updates.add(u); } )?
+          ( K_ELSE u=updateStatements { conditions.add(Collections.singletonList(new ConditionStatement.Raw(null, ConditionStatement.Kind.ELSE, null))); updates.add(u); } )?
           K_END K_IF
       )?
       ( (batchStatementObjective) => u=updateStatements { updates.add(u); } )?
