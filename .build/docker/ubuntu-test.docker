@@ -184,9 +184,9 @@ RUN /bin/bash -c "source ${BUILD_HOME}/env3.8/bin/activate && \
 
 # Initialize ccm versions. branch heads and all versions iterating through to the latest version found on downloads.apache.org/cassandra
 RUN bash -c 'source ${BUILD_HOME}/env3.8/bin/activate && \
-    latest_4_0=$(curl -s https://downloads.apache.org/cassandra/ | grep -oP "(?<=href=\")4\.0\.[0-9]+(?=\")" | sort -V | tail -1 | cut -d"." -f3) && \
+    latest_4_0=$(curl -s https://downloads.apache.org/cassandra/ | grep -oP "(?<=href=\")4\.0\.[0-9]+" | sort -V | tail -1 | cut -d"." -f3) && \
     for i in $(seq 1 $latest_4_0); do echo $i ; ccm create --quiet -n 1 -v binary:4.0.$i test && ccm remove test ; done && \
-    latest_4_1=$(curl -s https://downloads.apache.org/cassandra/ | grep -oP "(?<=href=\")4\.1\.[0-9]+(?=\")" | sort -V | tail -1 | cut -d"." -f3) && \
+    latest_4_1=$(curl -s https://downloads.apache.org/cassandra/ | grep -oP "(?<=href=\")4\.1\.[0-9]+" | sort -V | tail -1 | cut -d"." -f3) && \
     for i in $(seq 1 $latest_4_1); do echo $i ; ccm create --quiet -n 1 -v binary:4.1.$i test && ccm remove test ; done'
 
 # 5+ requires java11, sudo doesn't work on cross-platform builds
@@ -201,10 +201,10 @@ RUN /bin/bash -c 'source ${BUILD_HOME}/env3.8/bin/activate && \
     ccm create --quiet -n 1 -v git:cassandra-5.0 test && ccm remove test && \
     ccm create --quiet -n 1 -v git:cassandra-6.0 test && ccm remove test && \
     ccm create --quiet -n 1 -v git:trunk test && ccm remove test && \
-    latest_5_0=$(curl -s https://downloads.apache.org/cassandra/ | grep -oP "(?<=href=\")5\.0\.[0-9]+(?=\")" | sort -V | tail -1 | cut -d"." -f3) && \
+    latest_5_0=$(curl -s https://downloads.apache.org/cassandra/ | grep -oP "(?<=href=\")5\.0\.[0-9]+" | sort -V | tail -1 | cut -d"." -f3) && \
     for i in $(seq 1 $latest_5_0); do echo $i ; ccm create --quiet -n 1 -v binary:5.0.$i test && ccm remove test ; done'
     # TODO uncomment when 6.0.0 is released
-    #latest_6_0=$(curl -s https://downloads.apache.org/cassandra/ | grep -oP "(?<=href=\")6\.0\.[0-9]+(?=\")" | sort -V | tail -1 | cut -d"." -f3) && \
+    #latest_6_0=$(curl -s https://downloads.apache.org/cassandra/ | grep -oP "(?<=href=\")6\.0\.[0-9]+" | sort -V | tail -1 | cut -d"." -f3) && \
     #for i in $(seq 1 $latest_6_0); do echo $i ; ccm create --quiet -n 1 -v binary:6.0.$i test && ccm remove test ; done'
 
 # the .git subdirectories to pip installed cassandra-driver breaks virtualenv-clone, so just remove them
