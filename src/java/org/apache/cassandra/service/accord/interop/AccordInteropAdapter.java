@@ -30,7 +30,7 @@ import accord.coordinate.CoordinationAdapter.Adapters.TxnAdapter;
 import accord.coordinate.ExecuteFlag.CoordinationFlags;
 import accord.coordinate.ExecutePath;
 import accord.local.Node;
-import accord.local.SequentialAsyncExecutor;
+import accord.local.ExclusiveAsyncExecutor;
 import accord.messages.Apply;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
@@ -83,14 +83,14 @@ public class AccordInteropAdapter extends TxnAdapter
     }
 
     @Override
-    public void execute(Node node, SequentialAsyncExecutor executor, Topologies any, FullRoute<?> route, Ballot ballot, ExecutePath path, CoordinationFlags flags, TxnId txnId, Txn txn, Timestamp executeAt, Deps stableDeps, Deps sendDeps, BiConsumer<? super Result, Throwable> callback)
+    public void execute(Node node, ExclusiveAsyncExecutor executor, Topologies any, FullRoute<?> route, Ballot ballot, ExecutePath path, CoordinationFlags flags, TxnId txnId, Txn txn, Timestamp executeAt, Deps stableDeps, Deps sendDeps, BiConsumer<? super Result, Throwable> callback)
     {
         if (!doInteropExecute(node, executor, route, ballot, txnId, txn, executeAt, stableDeps, callback))
             super.execute(node, executor, any, route, ballot, path, flags, txnId, txn, executeAt, stableDeps, sendDeps, callback);
     }
 
     @Override
-    public void persist(Node node, SequentialAsyncExecutor executor, Topologies any, Route<?> require, Route<?> sendTo, FullRoute<?> route, Ballot ballot, CoordinationFlags flags, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, boolean informDurableOnDone, BiConsumer<? super Result, Throwable> callback)
+    public void persist(Node node, ExclusiveAsyncExecutor executor, Topologies any, Route<?> require, Route<?> sendTo, FullRoute<?> route, Ballot ballot, CoordinationFlags flags, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, boolean informDurableOnDone, BiConsumer<? super Result, Throwable> callback)
     {
         if (applyKind == Minimal && doInteropPersist(node, executor, any, require, sendTo, ballot, txnId, txn, executeAt, deps, writes, result, route, informDurableOnDone, callback))
             return;
@@ -98,7 +98,7 @@ public class AccordInteropAdapter extends TxnAdapter
         super.persist(node, executor, any, require, sendTo, route, ballot, flags, txnId, txn, executeAt, deps, writes, result, informDurableOnDone, callback);
     }
 
-    private boolean doInteropExecute(Node node, SequentialAsyncExecutor executor, FullRoute<?> route, Ballot ballot, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, BiConsumer<? super Result, Throwable> callback)
+    private boolean doInteropExecute(Node node, ExclusiveAsyncExecutor executor, FullRoute<?> route, Ballot ballot, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, BiConsumer<? super Result, Throwable> callback)
     {
         // Unrecoverable repair always needs to be run by AccordInteropExecution
         AccordUpdate.Kind updateKind = AccordUpdate.kind(txn.update());
@@ -121,7 +121,7 @@ public class AccordInteropAdapter extends TxnAdapter
         return true;
     }
 
-    private boolean doInteropPersist(Node node, SequentialAsyncExecutor executor, Topologies any, Route<?> require, Route<?> sendTo, Ballot ballot, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, FullRoute<?> fullRoute, boolean informDurableOnDone, BiConsumer<? super Result, Throwable> callback)
+    private boolean doInteropPersist(Node node, ExclusiveAsyncExecutor executor, Topologies any, Route<?> require, Route<?> sendTo, Ballot ballot, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, FullRoute<?> fullRoute, boolean informDurableOnDone, BiConsumer<? super Result, Throwable> callback)
     {
         Update update = txn.update();
         ConsistencyLevel consistencyLevel = update instanceof AccordUpdate ? ((AccordUpdate) update).cassandraCommitCL() : null;

@@ -87,7 +87,7 @@ finally {
 }
 ....
 
-In other words, `CommandStore` collects the `PreLoadContext`, state
+In other words, `CommandStore` collects the `ExecutionContext`, state
 required to be in memory for command execution (possible dependencies,
 such as `TxnId`s, and `Key`s of commands, but also `CommandsForKeys`
 that will be needed during execution). Once the context is collected and

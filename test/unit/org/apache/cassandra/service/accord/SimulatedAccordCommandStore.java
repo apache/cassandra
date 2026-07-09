@@ -54,12 +54,12 @@ import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
+import accord.local.ExecutionContext;
 import accord.local.Node;
 import accord.local.NodeCommandStoreService;
-import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
-import accord.local.SequentialAsyncExecutor;
+import accord.local.ExclusiveAsyncExecutor;
 import accord.local.TimeService;
 import accord.local.durability.DurabilityService;
 import accord.messages.BeginRecovery;
@@ -182,7 +182,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             }
 
             @Override
-            public SequentialAsyncExecutor someSequentialExecutor()
+            public ExclusiveAsyncExecutor someSequentialExecutor()
             {
                 return null;
             }
@@ -448,7 +448,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         return process(request, request);
     }
 
-    public <T extends Reply> T process(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function) throws ExecutionException, InterruptedException
+    public <T extends Reply> T process(ExecutionContext loadCtx, Function<? super SafeCommandStore, T> function) throws ExecutionException, InterruptedException
     {
         var result = processAsync(loadCtx, function);
         processAll();
@@ -460,7 +460,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         return processAsync(request, request);
     }
 
-    public <T extends Reply> AsyncResult<T> processAsync(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function)
+    public <T extends Reply> AsyncResult<T> processAsync(ExecutionContext loadCtx, Function<? super SafeCommandStore, T> function)
     {
         return commandStore.submit(loadCtx, function);
     }

@@ -36,7 +36,7 @@ import accord.api.LocalListeners;
 import accord.api.ProgressLog;
 import accord.local.CommandStores;
 import accord.local.NodeCommandStoreService;
-import accord.local.SequentialAsyncExecutor;
+import accord.local.ExclusiveAsyncExecutor;
 import accord.local.ShardDistributor;
 import accord.utils.RandomSource;
 import accord.utils.Reduce;
@@ -148,7 +148,7 @@ public class AccordCommandStores extends CommandStores implements CacheSize, Shu
     }
 
     @Override
-    public SequentialAsyncExecutor someSequentialExecutor()
+    public ExclusiveAsyncExecutor someSequentialExecutor()
     {
         int idx = ((int) Thread.currentThread().getId()) & mask;
         return executors[idx].newSequentialExecutor();

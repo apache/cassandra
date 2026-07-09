@@ -46,7 +46,7 @@ import org.slf4j.LoggerFactory;
 import accord.api.RoutingKey;
 import accord.local.CheckedCommands;
 import accord.local.Command;
-import accord.local.PreLoadContext;
+import accord.local.ExecutionContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.StoreParticipants;
@@ -87,7 +87,7 @@ import org.apache.cassandra.utils.concurrent.Condition;
 
 import static accord.local.LoadKeys.SYNC;
 import static accord.local.LoadKeysFor.READ_WRITE;
-import static accord.local.PreLoadContext.contextFor;
+import static accord.local.ExecutionContext.contextFor;
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordService.getBlocking;
@@ -127,7 +127,7 @@ public class AccordTaskTest
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
 
-        getBlocking(commandStore.execute(PreLoadContext.contextFor(txnId, "Test"), instance -> {
+        getBlocking(commandStore.execute(ExecutionContext.contextFor(txnId, "Test"), instance -> {
             // TODO review: This change to `ifInitialized` was done in a lot of places and it doesn't preserve this property
             // I fixed this reference to point to `ifLoadedAndInitialised` and but didn't update other places
             Assert.assertNull(instance.ifInitialised(txnId));
@@ -141,7 +141,7 @@ public class AccordTaskTest
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
 
-        getBlocking(commandStore.execute(PreLoadContext.contextFor(txnId, "Test"), safe -> {
+        getBlocking(commandStore.execute(ExecutionContext.contextFor(txnId, "Test"), safe -> {
             StoreParticipants participants = StoreParticipants.empty(txnId);
             SafeCommand command = safe.get(txnId, participants);
             Assert.assertNotNull(command);
@@ -155,7 +155,7 @@ public class AccordTaskTest
         Txn txn = AccordTestUtils.createWriteTxn((int)clock.incrementAndGet());
         TokenKey key = ((PartitionKey) Iterables.getOnlyElement(txn.keys())).toUnseekable();
 
-        getBlocking(commandStore.execute((PreLoadContext.Empty)() -> "Test", instance -> {
+        getBlocking(commandStore.execute((ExecutionContext.Empty)() -> "Test", instance -> {
             SafeCommandsForKey cfk = instance.ifLoadedAndInitialised(key);
             Assert.assertNull(cfk);
         }));
@@ -298,7 +298,7 @@ public class AccordTaskTest
                 awaitDone(commandStore, ids, participants);
                 assertNoReferences(commandStore, ids, participants);
 
-                PreLoadContext ctx = contextFor(ids.get(0), ids.size() == 1 ? null : ids.get(1), participants, SYNC, READ_WRITE, "Test");
+                ExecutionContext ctx = contextFor(ids.get(0), ids.size() == 1 ? null : ids.get(1), participants, SYNC, READ_WRITE, "Test");
                 Consumer<SafeCommandStore> consumer = Mockito.mock(Consumer.class);
 
                 Map<TxnId, Boolean> failed = selectFailedTxn(rs, ids);
@@ -363,7 +363,7 @@ public class AccordTaskTest
             assertNoReferences(commandStore, ids, participants);
             createCommand(commandStore, rs, ids);
 
-            PreLoadContext ctx = contextFor(ids.get(0), ids.size() == 1 ? null : ids.get(1), participants, SYNC, READ_WRITE, "Test");
+            ExecutionContext ctx = contextFor(ids.get(0), ids.size() == 1 ? null : ids.get(1), participants, SYNC, READ_WRITE, "Test");
 
             Consumer<SafeCommandStore> consumer = Mockito.mock(Consumer.class);
             String errorMsg = "txn_ids " + ids;

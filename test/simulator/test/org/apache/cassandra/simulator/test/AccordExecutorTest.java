@@ -35,9 +35,8 @@ import java.util.function.BooleanSupplier;
 import org.junit.Test;
 
 import accord.api.AsyncExecutor;
-import accord.local.SequentialAsyncExecutor;
+import accord.local.ExclusiveAsyncExecutor;
 
-import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableSupplier;
@@ -85,7 +84,7 @@ public class AccordExecutorTest extends SimulationTestBase
                          ExecutorPlus submit = executorFactory().pooled("submit-test", submissionThreads);
                          AccordExecutor executor = supplier.get();
                          Lock lock = executor.unsafeLock();
-                         SequentialAsyncExecutor sequentialExecutor = executor.newSequentialExecutor();
+                         ExclusiveAsyncExecutor sequentialExecutor = executor.newSequentialExecutor();
                          Executor lockExecutor = executorFactory().sequential("lock");
 
                          for (float sleepChance : new float[] { 0f, 0.01f, 0.1f })
@@ -120,7 +119,7 @@ public class AccordExecutorTest extends SimulationTestBase
                  () -> {}, 1L);
     }
 
-    private static void submitLoop(int id, Lock lock, AccordExecutor executor, SequentialAsyncExecutor sequentialExecutor, Executor lockExecutor, int outerLoop, int innerLoop, float sleepChance, float lockChance) throws ExecutionException, InterruptedException
+    private static void submitLoop(int id, Lock lock, AccordExecutor executor, ExclusiveAsyncExecutor sequentialExecutor, Executor lockExecutor, int outerLoop, int innerLoop, float sleepChance, float lockChance) throws ExecutionException, InterruptedException
     {
         ConcurrentLinkedQueue<Future<?>> await = new ConcurrentLinkedQueue<>();
         while (outerLoop-- > 0)
@@ -137,7 +136,7 @@ public class AccordExecutorTest extends SimulationTestBase
         }
     }
 
-    private static void submitRecursive(Lock lock, AccordExecutor executor, SequentialAsyncExecutor sequentialExecutor, int count, Collection<Future<?>> await, float sleepChance, float lockChance)
+    private static void submitRecursive(Lock lock, AccordExecutor executor, ExclusiveAsyncExecutor sequentialExecutor, int count, Collection<Future<?>> await, float sleepChance, float lockChance)
     {
         AsyncExecutor submitTo = ThreadLocalRandom.current().nextBoolean() ? executor : sequentialExecutor;
         await.add(toFuture(submitTo.chain(() -> {

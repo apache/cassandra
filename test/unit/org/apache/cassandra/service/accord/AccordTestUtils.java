@@ -51,12 +51,12 @@ import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
+import accord.local.ExecutionContext;
 import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.NodeCommandStoreService;
-import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
-import accord.local.SequentialAsyncExecutor;
+import accord.local.ExclusiveAsyncExecutor;
 import accord.local.StoreParticipants;
 import accord.local.TimeService;
 import accord.local.durability.DurabilityService;
@@ -244,7 +244,7 @@ public class AccordTestUtils
     public static AsyncChain<Pair<Writes, PersistableResult>> processTxnResult(AccordCommandStore commandStore, TxnId txnId, PartialTxn txn, Timestamp executeAt) throws Throwable
     {
         AtomicReference<AsyncChain<Pair<Writes, PersistableResult>>> result = new AtomicReference<>();
-        getBlocking(commandStore.execute((PreLoadContext.Empty)() -> "Test",
+        getBlocking(commandStore.execute((ExecutionContext.Empty)() -> "Test",
                                          safeStore -> result.set(processTxnResultDirect(safeStore, txnId, txn, executeAt))));
         return result.get();
     }
@@ -371,7 +371,7 @@ public class AccordTestUtils
             }
 
             @Override
-            public SequentialAsyncExecutor someSequentialExecutor()
+            public ExclusiveAsyncExecutor someSequentialExecutor()
             {
                 return null;
             }
@@ -419,7 +419,7 @@ public class AccordTestUtils
         Node.Id node = new Id(1);
         Topology topology = new Topology(1, Shard.create(range, new SortedArrayList<>(new Id[] { node }), Sets.newHashSet(node)));
         AccordCommandStore store = createAccordCommandStore(node, now, topology);
-        store.execute((PreLoadContext.Empty)()->"Test", safeStore -> ((AccordCommandStore)safeStore.commandStore()).executor().cacheUnsafe().setCapacity(1 << 20));
+        store.execute((ExecutionContext.Empty)()->"Test", safeStore -> ((AccordCommandStore)safeStore.commandStore()).executor().cacheUnsafe().setCapacity(1 << 20));
         return store;
     }
 

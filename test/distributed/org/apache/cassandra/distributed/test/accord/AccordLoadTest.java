@@ -56,7 +56,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.local.CommandStore;
-import accord.local.PreLoadContext;
+import accord.local.ExecutionContext;
 import accord.local.SafeCommand;
 import accord.primitives.PartialDeps;
 import accord.primitives.TxnId;
@@ -832,7 +832,7 @@ public class AccordLoadTest extends AccordTestBase
                                 if (storeId.get() >= 0)
                                 {
                                     CommandStore commandStore = service.node().commandStores().forId(storeId.get());
-                                    List<List<String>> result = AccordService.getBlocking(commandStore.submit(PreLoadContext.contextFor(candidate, "LoadTest"), safeStore -> {
+                                    List<List<String>> result = AccordService.getBlocking(commandStore.submit(ExecutionContext.contextFor(candidate, "LoadTest"), safeStore -> {
                                         SafeCommand safeCommand = safeStore.unsafeGet(candidate);
                                         PartialDeps deps = safeCommand.current().partialDeps();
                                         if (deps == null)
@@ -855,7 +855,7 @@ public class AccordLoadTest extends AccordTestBase
                                         for (List<String> info : result)
                                         {
                                             TxnId txnId = TxnId.parse(info.get(0));
-                                            AccordService.getBlocking(commandStore.execute(PreLoadContext.contextFor(txnId, "LoadTest"), safeStore -> {
+                                            AccordService.getBlocking(commandStore.execute(ExecutionContext.contextFor(txnId, "LoadTest"), safeStore -> {
                                                 SafeCommand safeCommand = safeStore.unsafeGet(txnId);
                                                 if (safeCommand.current().executeAt != null)
                                                     info.add(safeCommand.current().executeAt.toString());
