@@ -71,7 +71,6 @@ import org.apache.cassandra.metrics.LogLinearDecayingHistograms;
 import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
 import org.apache.cassandra.service.accord.AccordCommandStore.Caches;
 import org.apache.cassandra.service.accord.AccordExecutor.Task;
-import org.apache.cassandra.service.accord.AccordExecutor.TaskQueue;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.debug.DebugExecution.DebugTask;
@@ -87,18 +86,17 @@ import static accord.local.LoadKeysFor.WRITE;
 import static accord.primitives.Routable.Domain.Key;
 import static accord.primitives.Txn.Kind.EphemeralRead;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
-import static org.apache.cassandra.service.accord.AccordTask.State.ASSIGNED;
-import static org.apache.cassandra.service.accord.AccordTask.State.CANCELLED;
-import static org.apache.cassandra.service.accord.AccordTask.State.FAILED;
-import static org.apache.cassandra.service.accord.AccordTask.State.FINISHED;
-import static org.apache.cassandra.service.accord.AccordTask.State.INITIALIZED;
-import static org.apache.cassandra.service.accord.AccordTask.State.LOADING;
-import static org.apache.cassandra.service.accord.AccordTask.State.PERSISTING;
-import static org.apache.cassandra.service.accord.AccordTask.State.RUNNING;
-import static org.apache.cassandra.service.accord.AccordTask.State.SCANNING_RANGES;
-import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_LOAD;
-import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_RUN;
-import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_SCAN_RANGES;
+import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.ASSIGNED;
+import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.CANCELLED;
+import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.FAILED;
+import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.FINISHED;
+import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.LOADING;
+import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.PERSISTING;
+import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.RUNNING;
+import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.SCANNING_RANGES;
+import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.WAITING_TO_LOAD;
+import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.WAITING_TO_RUN;
+import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.WAITING_TO_SCAN_RANGES;
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXECUTION;
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DebugTask.SANITY_CHECK;
 
@@ -111,9 +109,9 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
     {
         private final Function<? super SafeCommandStore, R> function;
 
-        public ForFunction(AccordCommandStore commandStore, ExecutionContext loadCtx, Function<? super SafeCommandStore, R> function)
+        public ForFunction(AccordCommandStore commandStore, ExecutionContext context, Function<? super SafeCommandStore, R> function)
         {
-            super(commandStore, loadCtx);
+            super(commandStore, context);
             this.function = function;
         }
 
@@ -129,9 +127,9 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
     {
         private final Consumer<? super SafeCommandStore> consumer;
 
-        private ForConsumer(AccordCommandStore commandStore, ExecutionContext loadCtx, Consumer<? super SafeCommandStore> consumer)
+        private ForConsumer(AccordCommandStore commandStore, ExecutionContext context, Consumer<? super SafeCommandStore> consumer)
         {
-            super(commandStore, loadCtx);
+            super(commandStore, context);
             this.consumer = consumer;
         }
 
@@ -143,63 +141,16 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
         }
     }
 
-    public static <T> AccordTask<T> create(CommandStore commandStore, ExecutionContext ctx, Function<? super SafeCommandStore, T> function)
+    public static <T> AccordTask<T> create(CommandStore commandStore, ExecutionContext context, Function<? super SafeCommandStore, T> function)
     {
-        return new ForFunction<>((AccordCommandStore) commandStore, ctx, function);
+        return new ForFunction<>((AccordCommandStore) commandStore, context, function);
     }
 
-    public static AccordTask<Void> create(CommandStore commandStore, ExecutionContext ctx, Consumer<? super SafeCommandStore> consumer)
+    public static AccordTask<Void> create(CommandStore commandStore, ExecutionContext context, Consumer<? super SafeCommandStore> consumer)
     {
-        return new ForConsumer((AccordCommandStore) commandStore, ctx, consumer);
+        return new ForConsumer((AccordCommandStore) commandStore, context, consumer);
     }
 
-    public enum State
-    {
-        INITIALIZED(),
-        WAITING_TO_SCAN_RANGES(INITIALIZED),
-        SCANNING_RANGES(WAITING_TO_SCAN_RANGES),
-        WAITING_TO_LOAD(INITIALIZED, SCANNING_RANGES),
-        LOADING(INITIALIZED, SCANNING_RANGES, WAITING_TO_LOAD),
-        WAITING_TO_RUN(INITIALIZED, SCANNING_RANGES, WAITING_TO_LOAD, LOADING),
-        ASSIGNED(WAITING_TO_RUN),
-        RUNNING(ASSIGNED),
-        PERSISTING(RUNNING),
-        FINISHED(RUNNING, PERSISTING),
-        CANCELLED(WAITING_TO_SCAN_RANGES, SCANNING_RANGES, WAITING_TO_LOAD, LOADING, WAITING_TO_RUN, ASSIGNED),
-        FAILED(WAITING_TO_SCAN_RANGES, SCANNING_RANGES, WAITING_TO_LOAD, LOADING, WAITING_TO_RUN, ASSIGNED, RUNNING, PERSISTING);
-
-        private final int permittedFrom;
-
-        State()
-        {
-            this.permittedFrom = 0;
-        }
-
-        State(State ... permittedFroms)
-        {
-            int permittedFrom = 0;
-            for (State state : permittedFroms)
-                permittedFrom |= 1 << state.ordinal();
-            this.permittedFrom = permittedFrom;
-        }
-
-        boolean isPermittedFrom(State prev)
-        {
-            return (permittedFrom & (1 << prev.ordinal())) != 0;
-        }
-
-        boolean isExecuted()
-        {
-            return this.compareTo(PERSISTING) >= 0;
-        }
-
-        boolean isComplete()
-        {
-            return this.compareTo(FINISHED) >= 0;
-        }
-    }
-
-    private State state = INITIALIZED;
     final AccordCommandStore commandStore;
     private final ExecutionContext executionContext;
     private volatile String loggingId;
@@ -214,14 +165,13 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
     // TODO (desired): collection supporting faster deletes but still fast poll (e.g. some ordered collection)
     @Nullable ArrayDeque<AccordCacheEntry<?, ?>> waitingToLoad;
     @Nullable RangeTxnScanner rangeScanner;
-    boolean hasRanges;
     @Nullable CommandSummaries commandsForRanges;
-    @Nullable private TaskQueue queued;
 
     private BiConsumer<? super R, Throwable> callback;
 
     public AccordTask(@Nonnull AccordCommandStore commandStore, ExecutionContext executionContext)
     {
+        super(executionContext);
         this.commandStore = commandStore;
         this.executionContext = executionContext;
         this.loggingId = "0x" + Long.toHexString(nextLoggingId.incrementAndGet());
@@ -250,13 +200,13 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
 
     public String toBriefString()
     {
-        return '{' + loggingId() + ',' + state + '}';
+        return '{' + loggingId() + ',' + state() + '}';
     }
 
     public String toDescription()
     {
         return toBriefString() + ": "
-               + (queued == null ? "unqueued" : queued.kind)
+               + (queued() == null ? "unqueued" : state())
                + ", primaryTxnId: " + executionContext.primaryTxnId()
                + ", waitingToLoad: " + summarise(waitingToLoad)
                + ", loading:" + summarise(loading, AccordSafeState::global)
@@ -302,17 +252,6 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
         return out.toString();
     }
 
-    private void state(State state)
-    {
-        Invariants.require(state.isPermittedFrom(this.state), "%s forbidden from %s", state, this, AccordTask::toDescription);
-        this.state = state;
-        if (state == WAITING_TO_RUN)
-        {
-            Invariants.require(rangeScanner == null || rangeScanner.scanned);
-            Invariants.require(loading == null && waitingToLoad == null, "WAITING_TO_RUN => no loading or waiting; found %s", this, AccordTask::toDescription);
-        }
-    }
-
     Unseekables<?> keys()
     {
         return executionContext.keys();
@@ -334,20 +273,6 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
         };
     }
 
-    public AsyncChain<R> priorityChain()
-    {
-        return new AsyncChains.Head<>()
-        {
-            @Override
-            protected Cancellable start(BiConsumer<? super R, Throwable> callback)
-            {
-                preSetup(callback);
-                commandStore.executor().submitPriority(AccordTask.this);
-                return AccordTask.this;
-            }
-        };
-    }
-
     private void preSetup(BiConsumer<? super R, Throwable> callback)
     {
         Invariants.require(this.callback == null);
@@ -358,7 +283,7 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
     // to be invoked only by the CommandStore owning thread, to take references to objects already in use by the current execution
     public void presetup(AccordTask<?> parent)
     {
-        this.queuePosition = parent.queuePosition;
+        this.position = parent.position;
         // note we use the caches "unsafely" here deliberately, as we only reference commands we already have references to
         // so we do not mutate anything, except the atomic counter of references
         if (parent.commands != null)
@@ -393,8 +318,8 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
     public void setupExclusive()
     {
         setupInternal(commandStore.cachesExclusive());
-        state(rangeScanner != null ? WAITING_TO_SCAN_RANGES
-                                   : waitingToLoad != null ? State.WAITING_TO_LOAD
+        setState(rangeScanner != null ? WAITING_TO_SCAN_RANGES
+                                      : waitingToLoad != null ? WAITING_TO_LOAD
                                     : loading != null ? LOADING : WAITING_TO_RUN);
     }
 
@@ -455,7 +380,6 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
                 throw new AssertionError("Incremental mode should only be used with an explicit list of keys");
 
             case SYNC:
-                hasRanges = true;
                 rangeScanner = new RangeTxnAndKeyScanner(caches.commandsForKeys());
         }
     }
@@ -535,11 +459,11 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
             return false;
 
         loading = null;
-        if (this.state.compareTo(State.WAITING_TO_LOAD) < 0)
+        if (compareTo(WAITING_TO_LOAD) < 0)
             return false;
 
         Invariants.require(waitingToLoad == null, "Invalid state: %s", this, AccordTask::toDescription);
-        state(WAITING_TO_RUN);
+        setState(WAITING_TO_RUN);
         return true;
     }
 
@@ -557,14 +481,14 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
     private boolean onEmptyWaitingToLoad()
     {
         waitingToLoad = null;
-        if (this.state.compareTo(State.WAITING_TO_LOAD) < 0)
+        if (compareTo(WAITING_TO_LOAD) < 0)
             return false;
 
-        state(loading == null ? WAITING_TO_RUN : LOADING);
+        setState(loading == null ? WAITING_TO_RUN : LOADING);
         return true;
     }
 
-    public ExecutionContext preLoadContext()
+    public ExecutionContext executionContext()
     {
         return executionContext;
     }
@@ -602,7 +526,7 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
 
     private ArrayDeque<AccordCacheEntry<?, ?>> ensureWaitingToLoad()
     {
-        Invariants.require(state.compareTo(WAITING_TO_LOAD) <= 0, "Expected status to be on or before WAITING_TO_LOAD; found %s", this, AccordTask::toDescription);
+        Invariants.require(compareTo(WAITING_TO_LOAD) <= 0, "Expected status to be on or before WAITING_TO_LOAD; found %s", this, AccordTask::toDescription);
         if (waitingToLoad == null)
             waitingToLoad = new ArrayDeque<>();
         return waitingToLoad;
@@ -610,7 +534,7 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
 
     public AccordCacheEntry<?, ?> pollWaitingToLoad()
     {
-        Invariants.require(state == State.WAITING_TO_LOAD, "Expected status to be WAITING_TO_LOAD; found %s", this, AccordTask::toDescription);
+        Invariants.require(is(WAITING_TO_LOAD), "Expected status to be WAITING_TO_LOAD; found %s", this, AccordTask::toDescription);
         if (waitingToLoad == null)
             return null;
 
@@ -658,8 +582,7 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
     @Override
     protected void preRunExclusive()
     {
-        state(ASSIGNED);
-        queued = null;
+        setState(ASSIGNED);
         if (rangeScanner != null)
         {
             commandsForRanges = rangeScanner.finish(commandStore.cachesExclusive());
@@ -675,14 +598,13 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
     public void run()
     {
         onRunning();
-        logger.trace("Running {} with state {}", this, state);
         AccordSafeCommandStore safeStore = null;
         try (Closeable close = resources.get())
         {
             if (Tracing.isTracing())
                 Tracing.trace(executionContext.describe());
 
-            state(RUNNING);
+            setState(RUNNING);
 
             safeStore = commandStore.begin(this, commandsForRanges);
             R result = apply(safeStore);
@@ -710,7 +632,7 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
             boolean flush = changes != null || safeStore.fieldUpdates() != null;
             if (flush)
             {
-                state(PERSISTING);
+                setState(PERSISTING);
                 Runnable onFlush = () -> finish(result, null);
                 safeStore.persistFieldUpdatesInternal(changes == null ? onFlush : null);
                 if (changes != null) save(changes, onFlush);
@@ -735,12 +657,12 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
 
     public void fail(Throwable throwable)
     {
-        if (state.isComplete())
+        if (state().isComplete())
             return;
 
         try
         {
-            state(FAILED);
+            setState(FAILED);
             commandStore.agent().onException(throwable);
         }
         finally
@@ -748,6 +670,12 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
             if (callback != null)
                 callback.accept(null, throwable);
         }
+    }
+
+    @Override
+    protected boolean isNewWork()
+    {
+        return true;
     }
 
     public void failExclusive(Throwable throwable)
@@ -758,7 +686,7 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
     @Override
     protected void cleanupExclusive(AccordExecutor executor)
     {
-        Invariants.expect(state.isExecuted());
+        Invariants.expect(state().isExecuted());
         releaseResources(commandStore.cachesExclusive());
         super.cleanupExclusive(executor);
         executor.keys.increment(commandsForKey == null ? 0 : commandsForKey.size(), runningAt);
@@ -775,22 +703,17 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
         return rangeScanner;
     }
 
-    public boolean hasRanges()
-    {
-        return hasRanges;
-    }
-
     @Override
     public void cancel()
     {
-        if (!state.isComplete())
+        if (!state().isComplete())
             commandStore.executor().cancel(this);
     }
 
     void cancelExclusive()
     {
         logger.info("Cancelling {}", executionContext);
-        state(CANCELLED);
+        setState(CANCELLED);
         if (rangeScanner != null)
             rangeScanner.cancelled = true;
         if (callback != null)
@@ -805,14 +728,9 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
         owner.cancelExclusive(this);
     }
 
-    public State state()
-    {
-        return state;
-    }
-
     private void finish(R result, Throwable failure)
     {
-        state(failure == null ? FINISHED : FAILED);
+        setState(failure == null ? FINISHED : FAILED);
         if (callback != null)
             callback.accept(result, failure);
     }
@@ -921,38 +839,6 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
             commandsForKey.forEach((k, v) -> v.revert());
     }
 
-    protected void addToQueue(TaskQueue queue)
-    {
-        if (state == CANCELLED)
-            return;
-
-        Invariants.require(queue.kind == state || (queue.kind == State.WAITING_TO_LOAD && state == WAITING_TO_SCAN_RANGES), "Invalid queue type: %s vs %s", queue.kind, this, AccordTask::toDescription);
-        Invariants.require(this.queued == null, "Already queued with state: %s", this, AccordTask::toDescription);
-        queued = queue;
-        queue.append(this);
-    }
-
-    @Nullable
-    TaskQueue<?> queued()
-    {
-        return queued;
-    }
-
-    TaskQueue<?> unqueue()
-    {
-        TaskQueue<?> wasQueued = queued;
-        queued.remove(this);
-        queued = null;
-        return wasQueued;
-    }
-
-    TaskQueue<?> unqueueIfQueued()
-    {
-        if (queued == null)
-            return null;
-        return unqueue();
-    }
-
     public class RangeTxnAndKeyScanner extends RangeTxnScanner
     {
         class KeyWatcher implements AccordCache.Listener<RoutingKey, CommandsForKey>
@@ -965,7 +851,6 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
             }
         }
 
-        // TODO (expected): produce key summaries to avoid locking all in memory
         final Set<TokenKey> intersectingKeys = new ObjectHashSet<>();
         final KeyWatcher keyWatcher = new KeyWatcher();
         final Ranges ranges = ((AbstractRanges) executionContext.keys()).toRanges();
@@ -1102,9 +987,9 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
         public void start(AccordExecutor executor)
         {
             Caches caches = commandStore.cachesExclusive();
-            state(SCANNING_RANGES);
+            setState(SCANNING_RANGES);
             startInternal(caches);
-            executor.submitPlainExclusive(AccordTask.this, this);
+            executor.submitPlainExclusive(AccordTask.this, GlobalGroup.RANGE_SCAN, this);
         }
 
         void startInternal(Caches caches)
@@ -1115,12 +1000,12 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
 
         public void scannedExclusive()
         {
-            Invariants.require(state == SCANNING_RANGES, "Expected SCANNING_RANGES; found %s", AccordTask.this, AccordTask::toDescription);
+            Invariants.require(is(SCANNING_RANGES), "Expected SCANNING_RANGES; found %s", AccordTask.this, AccordTask::toDescription);
             scanned = true;
             scannedInternal();
-            if (loading == null) state(WAITING_TO_RUN);
-            else if (waitingToLoad == null) state(LOADING);
-            else state(State.WAITING_TO_LOAD);
+            if (loading == null) setState(WAITING_TO_RUN);
+            else if (waitingToLoad == null) setState(LOADING);
+            else setState(WAITING_TO_LOAD);
         }
 
         void scannedInternal()

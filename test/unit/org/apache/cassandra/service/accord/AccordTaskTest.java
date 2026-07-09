@@ -85,9 +85,9 @@ import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Condition;
 
+import static accord.local.ExecutionContext.contextFor;
 import static accord.local.LoadKeys.SYNC;
 import static accord.local.LoadKeysFor.READ_WRITE;
-import static accord.local.ExecutionContext.contextFor;
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordService.getBlocking;

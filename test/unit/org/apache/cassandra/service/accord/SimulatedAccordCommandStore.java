@@ -35,6 +35,7 @@ import javax.annotation.Nullable;
 import org.assertj.core.api.Assertions;
 
 import accord.api.AsyncExecutor;
+import accord.api.ExclusiveAsyncExecutor;
 import accord.api.Journal;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
@@ -59,7 +60,6 @@ import accord.local.Node;
 import accord.local.NodeCommandStoreService;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
-import accord.local.ExclusiveAsyncExecutor;
 import accord.local.TimeService;
 import accord.local.durability.DurabilityService;
 import accord.messages.BeginRecovery;
@@ -182,7 +182,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             }
 
             @Override
-            public ExclusiveAsyncExecutor someSequentialExecutor()
+            public ExclusiveAsyncExecutor someExclusiveExecutor()
             {
                 return null;
             }

@@ -397,7 +397,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
 
     public AccordFetchCoordinator(Node node, Ranges ranges, SyncPoint syncPoint, DataStore.FetchRanges fetchRanges, CommandStore commandStore) throws TopologyException
     {
-        super(node, node.someSequentialExecutor(), ranges, syncPoint, fetchRanges, commandStore);
+        super(node, node.someExclusiveExecutor(), ranges, syncPoint, fetchRanges, commandStore);
     }
 
     @Override

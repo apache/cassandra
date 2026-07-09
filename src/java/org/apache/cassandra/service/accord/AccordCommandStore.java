@@ -27,7 +27,6 @@ import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
-import java.util.concurrent.locks.Lock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -59,12 +58,12 @@ import accord.local.CommandStore;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.CommandSummaries;
 import accord.local.ExecutionContext;
+import accord.local.ExecutionContext.Empty;
 import accord.local.MaxConflicts;
 import accord.local.MaxDecidedRX;
 import accord.local.MinimalCommand;
 import accord.local.MinimalCommand.MinimalWithDeps;
 import accord.local.NodeCommandStoreService;
-import accord.local.ExecutionContext.Empty;
 import accord.local.RedundantBefore;
 import accord.local.RedundantBefore.Bounds;
 import accord.local.RedundantStatus.Property;
@@ -100,6 +99,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.accord.AccordDurableOnFlush.ReportDurable;
+import org.apache.cassandra.service.accord.AccordExecutor.AccordTaskRunner;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfo;
 import org.apache.cassandra.service.accord.api.TokenKey;
@@ -167,12 +167,12 @@ public class AccordCommandStore extends CommandStore
 
     public static final class ExclusiveCaches extends Caches implements CommandStoreCaches<AccordSafeCommand, AccordSafeCommandsForKey>
     {
-        private final Lock lock;
+        private final AccordExecutor owner;
 
-        public ExclusiveCaches(Lock lock, AccordCache global, AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commands, AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeys)
+        public ExclusiveCaches(AccordExecutor owner, AccordCache global, AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commands, AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeys)
         {
             super(global, commands, commandsForKeys);
-            this.lock = lock;
+            this.owner = owner;
         }
 
         @Override
@@ -190,8 +190,8 @@ public class AccordCommandStore extends CommandStore
         @Override
         public void close()
         {
-            global().tryShrinkOrEvict(lock);
-            lock.unlock();
+            global().tryShrinkOrEvict(owner.unsafeLock());
+            owner.unlock(AccordTaskRunner.get());
         }
     }
 
@@ -261,7 +261,7 @@ public class AccordCommandStore extends CommandStore
         {
             commands = exclusive.commands.newInstance(this);
             commandsForKey = exclusive.commandsForKey.newInstance(this);
-            this.caches = new ExclusiveCaches(sharedExecutor.unsafeLock(), exclusive.global, commands, commandsForKey);
+            this.caches = new ExclusiveCaches(sharedExecutor, exclusive.global, commands, commandsForKey);
         }
         this.exclusiveExecutor = sharedExecutor.executor(id);
 
@@ -323,13 +323,13 @@ public class AccordCommandStore extends CommandStore
     public ExclusiveCaches lockCaches()
     {
         //noinspection LockAcquiredButNotSafelyReleased
-        caches.lock.lock();
+        caches.owner.lock(AccordTaskRunner.get());
         return caches;
     }
 
     public ExclusiveCaches tryLockCaches()
     {
-        if (caches.lock.tryLock())
+        if (caches.owner.tryLock(AccordTaskRunner.get()))
             return caches;
         return null;
     }
@@ -403,27 +403,15 @@ public class AccordCommandStore extends CommandStore
         return lastSystemTimestampMicros.accumulateAndGet(node.now(), (a, b) -> Math.max(a + 1, b));
     }
     @Override
-    public <T> AsyncChain<T> chain(ExecutionContext loadCtx, Function<? super SafeCommandStore, T> function)
+    public <T> AsyncChain<T> chain(ExecutionContext context, Function<? super SafeCommandStore, T> function)
     {
-        return AccordTask.create(this, loadCtx, function).chain();
+        return AccordTask.create(this, context, function).chain();
     }
 
     @Override
-    public AsyncChain<Void> chain(ExecutionContext executionContext, Consumer<? super SafeCommandStore> consumer)
+    public AsyncChain<Void> chain(ExecutionContext context, Consumer<? super SafeCommandStore> consumer)
     {
-        return AccordTask.create(this, executionContext, consumer).chain();
-    }
-
-    @Override
-    public AsyncChain<Void> priorityChain(ExecutionContext executionContext, Consumer<? super SafeCommandStore> consumer)
-    {
-        return AccordTask.create(this, executionContext, consumer).priorityChain();
-    }
-
-    @Override
-    public <T> AsyncChain<T> priorityChain(ExecutionContext executionContext, Function<? super SafeCommandStore, T> function)
-    {
-        return AccordTask.create(this, executionContext, function).priorityChain();
+        return AccordTask.create(this, context, consumer).chain();
     }
 
     @Override

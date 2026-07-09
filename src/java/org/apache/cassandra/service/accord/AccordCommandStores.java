@@ -31,12 +31,12 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
 import accord.api.DataStore;
+import accord.api.ExclusiveAsyncExecutor;
 import accord.api.Journal;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
 import accord.local.CommandStores;
 import accord.local.NodeCommandStoreService;
-import accord.local.ExclusiveAsyncExecutor;
 import accord.local.ShardDistributor;
 import accord.utils.RandomSource;
 import accord.utils.Reduce;
@@ -148,10 +148,10 @@ public class AccordCommandStores extends CommandStores implements CacheSize, Shu
     }
 
     @Override
-    public ExclusiveAsyncExecutor someSequentialExecutor()
+    public ExclusiveAsyncExecutor someExclusiveExecutor()
     {
         int idx = ((int) Thread.currentThread().getId()) & mask;
-        return executors[idx].newSequentialExecutor();
+        return executors[idx].newExclusiveExecutor();
     }
 
     public synchronized void setCapacity(long bytes)
