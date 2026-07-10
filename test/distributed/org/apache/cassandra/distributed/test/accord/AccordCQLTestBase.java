@@ -304,16 +304,16 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     @Test
     public void testRejectTransactionWithUpdatesToSamePrimaryKeyInTrailingUpdate() throws Throwable
     {
-        test(cluster -> {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, z int, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
             try
             {
-                cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)"), ConsistencyLevel.ALL, 1, 1, 2);
+                cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, v, z) VALUES (?, ?, ?, ?)"), ConsistencyLevel.ALL, 1, 1, 1, 1);
                 String txn = "BEGIN TRANSACTION\n" +
                              " LET k1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1 AND c = 1);\n" +
                              " IF k1.v > 5 THEN \n" +
-                             "    UPDATE " + qualifiedAccordTableName + " SET v = 10 WHERE k = 1 AND c = 2;\n" +
+                             "    UPDATE " + qualifiedAccordTableName + " SET v = 1 WHERE k = 1 AND c = 1;\n" +
                              " ELSE \n" +
-                             "    UPDATE " + qualifiedAccordTableName + " SET v = 2 WHERE k = 1 AND c = 1;\n" +
+                             "    UPDATE " + qualifiedAccordTableName + " SET z = 3 WHERE k = 1 AND c = 1;\n" +
                              " END IF \n" +
                              " UPDATE " + qualifiedAccordTableName + " SET v = 5 WHERE k = 1 AND c = 1;\n" +
                              "COMMIT TRANSACTION";

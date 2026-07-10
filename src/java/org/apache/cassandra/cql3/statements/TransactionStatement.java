@@ -414,7 +414,8 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 else
                 {
                     validateOnlyModifyPrimaryKeyColumnPairOnce(seenColumns, modification, writeFragments);
-                    totalSeenColumns.putAll(seenColumns);
+                    for (Map.Entry<Object, Columns> entry : seenColumns.entrySet())
+                        totalSeenColumns.merge(entry.getKey(), entry.getValue(), Columns::mergeTo);
                 }
 
                 if (modification.allReferenceOperations().stream().anyMatch(ReferenceOperation::requiresRead))
