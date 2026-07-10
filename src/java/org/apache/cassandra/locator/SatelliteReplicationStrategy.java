@@ -1121,7 +1121,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
                     }
                     return false;
                 };
-                return new WriteResponseTracker(blockFor, totalBlockFor, totalContacts, totalPending, pending, filter);
+                return new WriteResponseTracker(blockFor, totalBlockFor, totalContacts - totalPending, totalPending, pending, filter);
             }
         }
 
