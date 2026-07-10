@@ -20,7 +20,9 @@ package org.apache.cassandra.locator;
 import java.net.InetAddress;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.junit.After;
@@ -30,15 +32,19 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.UnavailableException;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
@@ -47,6 +53,7 @@ import org.apache.cassandra.service.paxos.SatellitePaxosParticipants;
 import org.apache.cassandra.service.reads.tracked.TrackedRead;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.*;
@@ -179,6 +186,93 @@ public class SatellitePaxosFailoverTest extends SatelliteReplicationStrategyTest
         {
             // expected
         }
+    }
+
+    @Test
+    public void testSendPaxosCommitMutationsFailsWhenSatelliteRequestsFail() throws Exception
+    {
+        createDualDCKeyspace("dc1");
+        SatelliteReplicationStrategy strategy = getSRS(DUAL_DC_KEYSPACE);
+
+        // Mark all non-primary (satellite/secondary) endpoints alive so they are contacted with a callback,
+        // rather than being pre-marked as failed via the downEndpoints path.
+        markAllEndpointsAlive();
+
+        // Capture and swallow the outbound satellite commit requests so no real network I/O happens; we drive
+        // the failure ourselves via callback expiration below.
+        List<MessageCapture> captured = new CopyOnWriteArrayList<>();
+        MessagingService.instance().outboundSink.add((message, to) -> {
+            if (message.verb() == Verb.PAXOS2_COMMIT_REMOTE_REQ)
+                captured.add(new MessageCapture(message, to));
+            return false;
+        });
+
+        Commit.Agreed commit = agreedCommit();
+
+        Future<Void> future = strategy.sendPaxosCommitMutations(commit, false);
+
+        // A quorum of satellite endpoints must have been contacted with a callback.
+        assertFalse("Expected satellite commit requests to be sent", captured.isEmpty());
+        assertFalse("Future should not complete before any responses/failures", future.isDone());
+
+        // Simulate a request failure (timeout) for every satellite endpoint. This exercises the callback's
+        // onFailure path; it only runs because invokeOnFailure() returns true.
+        for (MessageCapture cap : captured)
+            MessagingService.instance().callbacks.onExpired(cap.message, cap.to);
+
+        assertTrue("Future should fail once satellite quorum is unreachable", future.awaitUninterruptibly(30, TimeUnit.SECONDS));
+        assertTrue("Future should have failed", future.isDone() && !future.isSuccess());
+        assertNotNull("Failure cause should be set", future.cause());
+    }
+
+    @Test
+    public void testSendPaxosCommitMutationsSucceedsWhenSatelliteRequestsRespond() throws Exception
+    {
+        createDualDCKeyspace("dc1");
+        SatelliteReplicationStrategy strategy = getSRS(DUAL_DC_KEYSPACE);
+
+        markAllEndpointsAlive();
+
+        List<MessageCapture> captured = new CopyOnWriteArrayList<>();
+        MessagingService.instance().outboundSink.add((message, to) -> {
+            if (message.verb() == Verb.PAXOS2_COMMIT_REMOTE_REQ)
+                captured.add(new MessageCapture(message, to));
+            return false;
+        });
+
+        Commit.Agreed commit = agreedCommit();
+
+        Future<Void> future = strategy.sendPaxosCommitMutations(commit, false);
+
+        assertFalse("Expected satellite commit requests to be sent", captured.isEmpty());
+
+        // Deliver a successful response for every satellite endpoint via the registered callback.
+        for (MessageCapture cap : captured)
+        {
+            Message<NoPayload> response = Message.internalResponse(Verb.PAXOS2_COMMIT_REMOTE_RSP, NoPayload.noPayload)
+                                                 .withFrom(cap.to);
+            MessagingService.instance().callbacks.removeAndRespond(cap.message.id(), cap.to, response);
+        }
+
+        assertTrue("Future should complete once satellite quorum responds",
+                   future.awaitUninterruptibly(30, TimeUnit.SECONDS));
+        assertTrue("Future should have succeeded", future.isSuccess());
+    }
+
+    private Commit.Agreed agreedCommit()
+    {
+        TableMetadata table = tableMetadata(DUAL_DC_KEYSPACE);
+        // Pin the key to TOKEN (150) so it maps to the configured ring ranges set up by the test base.
+        DecoratedKey key = new BufferDecoratedKey(TOKEN, bytes("test_key"));
+        PartitionUpdate update = PartitionUpdate.emptyUpdate(table, key);
+        // A non-none mutation id is required by sendPaxosCommitMutations (it registers with mutation tracking).
+        return new Commit.Agreed(Ballot.none(), update).withMutationId(new MutationId(1L, 1L));
+    }
+
+    private void markAllEndpointsAlive()
+    {
+        for (InetAddressAndPort endpoint : ClusterMetadata.current().directory.allAddresses())
+            Gossiper.instance.initializeNodeUnsafe(endpoint, UUID.randomUUID(), 1);
     }
 
     private SatellitePaxosParticipants getParticipants(String keyspace) throws Exception
