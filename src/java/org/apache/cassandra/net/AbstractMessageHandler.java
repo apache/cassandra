@@ -31,7 +31,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ManyToOneConcurrentLinkedQueue;
-import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.FrameDecoder.CorruptFrame;
 import org.apache.cassandra.net.FrameDecoder.Frame;
 import org.apache.cassandra.net.FrameDecoder.FrameProcessor;
@@ -292,7 +291,8 @@ public abstract class AbstractMessageHandler extends ChannelInboundHandlerAdapte
         onReserveCapacityRegained(endpointReserveCapacity, globalReserve, elapsedNanos);
     }
 
-    private void onReserveCapacityRegained(Limit endpointReserve, Limit globalReserve, long elapsedNanos)
+    @VisibleForTesting
+    void onReserveCapacityRegained(Limit endpointReserve, Limit globalReserve, long elapsedNanos)
     {
         if (isClosed)
             return;
@@ -314,13 +314,17 @@ public abstract class AbstractMessageHandler extends ChannelInboundHandlerAdapte
                 decoder.reactivate();
 
                 if (decoder.isActive())
-                    ClientMetrics.instance.unpauseConnection();
+                    onConnectionUnpaused();
             }
         }
         catch (Throwable t)
         {
             fatalExceptionCaught(t);
         }
+    }
+
+    protected void onConnectionUnpaused()
+    {
     }
 
     protected abstract void fatalExceptionCaught(Throwable t);
