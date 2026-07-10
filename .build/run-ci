@@ -38,6 +38,7 @@ import gzip
 import itertools
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import tarfile
@@ -273,6 +274,19 @@ def install_jenkins(kubeconfig: Optional[str], kubecontext: Optional[str], kube_
     if result.returncode != 0:
         print("Failed to install Jenkins Operator using Helm. Check the configuration and/or `kubectl logs cassius-jenkins-0`.")
         sys.exit(1)
+
+
+def wait_for_jenkins_http(ip: str, timeout: int = 300):
+    host, port = (ip.rsplit(":", 1)[0], int(ip.rsplit(":", 1)[1])) if ":" in ip else (ip, 80)
+    spin_while(f"Waiting for Jenkins HTTP at {host}:{port}… ", lambda: _tcp_connect_ok(host, port))
+
+
+def _tcp_connect_ok(host: str, port: int) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=2):
+            return True
+    except OSError:
+        return False
 
 
 def get_jenkins(k8s_client: client.CoreV1Api, args, kube_ns: str) -> Tuple[str, jenkins.Jenkins]:
@@ -828,6 +842,7 @@ def main():
 
     (ip, server) = get_jenkins(k8s_client, args, DEFAULT_KUBE_NS)
     if args.setup or args.only_setup:
+        wait_for_jenkins_http(ip)
         ensure_cassandra_job_parameters_visible(server)
     if args.only_setup:
         return

@@ -352,7 +352,7 @@ def build(command, cell) {
         ws("workspace/${JOB_NAME}/${BUILD_NUMBER}/${cell.step}/${cell.arch}/jdk-${cell.jdk}") {
           try {
             fetchSource(cell.step, cell.arch, cell.jdk)
-            sh """
+            sh label: "checking Jenkinsfile validity", script: """
                 test -f .jenkins/Jenkinsfile || { echo "Invalid git fork/branch"; exit 1; }
                 grep -q "Jenkins CI declaration" .jenkins/Jenkinsfile || { echo "Only Cassandra 5.0+ supported"; exit 1; }
               """
@@ -370,7 +370,7 @@ def build(command, cell) {
                 }
                 if (0 != status) { error("Stage ${cell.step}${cell_suffix} failed with exit status ${status}") }
                 if ("jar" == cell.step) {
-                  stash name: "${cell.arch}_${cell.jdk}"
+                  _stash(cell)
                 }
                 dir("build") {
                   copyToNightlies("${command.toCopy}", "${cell.step}/jdk${cell.jdk}/${cell.arch}/")
@@ -438,8 +438,8 @@ def test(command, cell) {
                   def descriptions = []
                   for (def cause in exc.getCauses()) {
                     echo "CauseOfInterruption: ${cause.getClass().getName()} - ${cause.getShortDescription()}"
-                    if (cause.getClass().getName().contains('CauseOfInterruption$UserInterruption')) {
-                      throw exc // user explicitly aborted — do not retry
+                    if (cause.getClass().getName().contains('CauseOfInterruption$UserInterruption') || cause.getClass().getName().contains('ParallelStep$FailFastCause')) {
+                      throw exc // user abort or fail-fast — do not retry
                     }
                     descriptions.add(cause.getShortDescription())
                   }
@@ -453,24 +453,12 @@ def test(command, cell) {
               }
             }
             dir("build") {
-              sh """
-                  mkdir -p test/output/${cell.step}
-                  find test/output -type f -name "TEST*.xml" -execdir mkdir -p jdk_${cell.jdk}/${cell.arch} ';' -execdir mv {} jdk_${cell.jdk}/${cell.arch}/{} ';'
-                  find test/output -name cqlshlib.xml -execdir mv cqlshlib.xml ${cell.step}/cqlshlib${cell_suffix}.xml ';'
-                  find test/output -name nosetests.xml -execdir mv nosetests.xml ${cell.step}/nosetests${cell_suffix}.xml ';'
-                """
+              organiseTestResultFiles(cell, cell_suffix)
               if (!cell.step.startsWith("microbench")) {
                 junit testResults: "test/**/TEST-*.xml,test/**/cqlshlib*.xml,test/**/nosetests*.xml", testDataPublishers: [[$class: 'StabilityTestDataPublisher']]
               }
-              // check if we had Linux OOM killer active within the test container which could kill forked JUnit JVM processes
-              sh """
-                  echo "docker memory/oomkiller debug:"
-                  cat /sys/fs/cgroup/docker/memory.events || true
-                """
-              sh """
-                  find test/output -type f -name "*.xml" -print0 | xargs -0 -r -n1 -P"\$(nproc)" xz -f
-                  echo "test result files compressed"; find test/output -type f -name "*.xml.xz" | wc -l
-                """
+              debugOomKiller()
+              compressTestResultFiles()
               archiveArtifacts artifacts: "test/logs/**,test/**/TEST-*.xml.xz,test/**/cqlshlib*.xml.xz,test/**/nosetests*.xml.xz,test/**/jmh-result.json", fingerprint: true
               copyToNightlies("${logfile},test/logs/**,test/**/jmh-result.json", "${cell.step}/${cell.arch}/jdk${cell.jdk}/python${cell.python}/cython_${cell.cython}/" + "split_${cell.split}_${splits}".replace("/", "_"))
             }
@@ -517,7 +505,7 @@ def fetchDockerImages(dockerfiles) {
   // prefetch, from apache jfrog, reduces risking dockerhub pull rate limits
   // also prefetch alpine:latest as its used as a utility in the scripts
   def dockerfilesVar = dockerfiles.join(' ')
-  sh """#!/bin/bash
+  sh label: "fetching docker images...", script: """#!/bin/bash
       for dockerfile in ${dockerfilesVar} ; do
         image_tag="\$(md5sum .build/docker/\${dockerfile}.docker | cut -d' ' -f1)"
         image_name="apache/cassandra-\${dockerfile}:\${image_tag}"
@@ -527,6 +515,14 @@ def fetchDockerImages(dockerfiles) {
       done
       docker pull -q apache.jfrog.io/cassan-docker/alpine:3.19.1 &
       wait
+      # debug how much space the images have taken.  df reports the node's filesystem: an emptyDir has no
+      # size of its own, so this sees node pressure coming, never the docker-storage sizeLimit
+      { set +x; } 2>/dev/null
+      free_gib=\$(df --output=avail -B 1073741824 / | tail -1 | tr -d ' ')
+      echo "docker images total: \$(docker system df --format '{{.Size}}' | head -1) (node free: \${free_gib}Gi)"
+      if [ "\${free_gib}" -le 10 ] ; then
+        echo "WARNING: only \${free_gib}Gi free on the node after pulling images — review the agents' ephemeral-storage budget in .jenkins/k8s/jenkins-deployment.yaml"
+      fi
      """
 }
 
@@ -564,15 +560,15 @@ def copyToNightlies(sourceFiles, remoteDirectory='') {
 def cleanAgent(job_name) {
   // get any public IP which is more helpful correlating back to the cloud instance
   sh script: 'hostname; curl -sm 10 ifconfig.me', returnStatus: true
+  def agentScriptsUrl = "https://raw.githubusercontent.com/apache/cassandra-builds/trunk/jenkins-dsl/agent_scripts/"
   if (isCanonical()) {
-    def agentScriptsUrl = "https://raw.githubusercontent.com/apache/cassandra-builds/trunk/jenkins-dsl/agent_scripts/"
     cleanAgentDocker(job_name, agentScriptsUrl)
-    logAgentInfo(job_name, agentScriptsUrl)
   }
+  logAgentInfo(job_name, agentScriptsUrl)
   cleanWs()
   if (isCanonical()) {
     // in the workspace prune any abandoned or uncleaned builds (CASSANDRA-20436)
-    sh """#!/bin/bash
+    sh label: "prune abandoned and uncleaned workspace builds files...", script: """#!/bin/bash
         set +e
         find /home/jenkins/jenkins-*/workspace/ -mindepth 2 -maxdepth 2 -type d -regextype posix-extended -regex '.*/[0-9]+' -mtime +31 -print -exec rm -rf {} +
     """
@@ -582,8 +578,7 @@ def cleanAgent(job_name) {
 def cleanAgentDocker(job_name, agentScriptsUrl) {
   // we don't expect any build to have been running for longer than maxBuildHours
   def maxBuildHours = 12
-  echo "Pruning docker for '${job_name}' on ${NODE_NAME}…" ;
-  sh """#!/bin/bash
+  sh label: "Pruning docker for '${job_name}' on ${NODE_NAME}...", script: """#!/bin/bash
       set +e
       wget -q ${agentScriptsUrl}/docker_image_pruner.py
       wget -q ${agentScriptsUrl}/docker_agent_cleaner.sh
@@ -592,12 +587,58 @@ def cleanAgentDocker(job_name, agentScriptsUrl) {
 }
 
 def logAgentInfo(job_name, agentScriptsUrl) {
-  sh """#!/bin/bash
-      set +e -o pipefail
-      wget -q ${agentScriptsUrl}/agent_report.sh
-      bash -x agent_report.sh | tee -a \$(date +"%Y%m%d%H%M")-disk-usage-stats.txt
-     """
-  copyToNightlies("*-disk-usage-stats.txt", "cassandra/ci-cassandra.apache.org/agents/${NODE_NAME}/disk-usage/")
+  // post-run remaining build/ and docker usage. used to validate the agents' ephemeral-storage budget
+  sh label: "log build usage...", script: """
+      { set +x; } 2>/dev/null
+      du -sh ${WORKSPACE}/build/m2 ${WORKSPACE}/build/tmp ${WORKSPACE}/build/test ${WORKSPACE}/build 2>/dev/null || true
+      df -h / || true
+    """
+  if (isCanonical()) {
+    sh label: "running agent_report.sh for disk usage stats (and more)...", script: """#!/bin/bash
+        set +e -o pipefail
+        wget -q ${agentScriptsUrl}/agent_report.sh
+        bash -x agent_report.sh | tee -a \$(date +"%Y%m%d%H%M")-disk-usage-stats.txt
+      """
+    copyToNightlies("*-disk-usage-stats.txt", "cassandra/ci-cassandra.apache.org/agents/${NODE_NAME}/disk-usage/")
+  }
+}
+
+def _stash(cell) {
+  sh label: "check stash size...", script: """
+      { set +x; } 2>/dev/null
+      free_gib=\$(df --output=avail -B 1073741824 / | tail -1 | tr -d ' ')
+      stash_gb=\$(du -sb ${WORKSPACE} | awk '{printf "%.1f", \$1/1024/1024/1024}')
+      echo "stash size: \${stash_gb}G (node free: \${free_gib}Gi)"
+      if [ "\${free_gib}" -le 10 ] ; then
+        echo "WARNING: only \${free_gib}Gi free on the node after building stash (\${stash_gb}G) — review jnlp's resourceLimitEphemeralStorage in .jenkins/k8s/jenkins-deployment.yaml"
+      fi
+    """
+  stash name: "${cell.arch}_${cell.jdk}"
+}
+
+def organiseTestResultFiles(cell, cell_suffix) {
+  sh label: "organise test result files...", script: """
+      mkdir -p test/output/${cell.step}
+      find test/output -type f -name "TEST*.xml" -execdir mkdir -p jdk_${cell.jdk}/${cell.arch} ';' -execdir mv {} jdk_${cell.jdk}/${cell.arch}/{} ';'
+      find test/output -name cqlshlib.xml -execdir mv cqlshlib.xml ${cell.step}/cqlshlib${cell_suffix}.xml ';'
+      find test/output -name nosetests.xml -execdir mv nosetests.xml ${cell.step}/nosetests${cell_suffix}.xml ';'
+    """
+}
+
+def debugOomKiller() {
+  // check if we had Linux OOM killer active within the test container which could kill forked JUnit JVM processes
+  sh label: "checking for oom kills...", script: """
+      # docker memory/oomkiller debug:
+      cat /sys/fs/cgroup/docker/memory.events || true
+    """
+}
+
+def compressTestResultFiles() {
+  sh label: "compress test result files...", script: """
+      { set +x; } 2>/dev/null
+      find test/output -type f -name "*.xml" -print0 | xargs -0 -r -n1 -P"\$(nproc)" xz -f
+      echo "\$(find test/output -type f -name "*.xml.xz" | wc -l) test result files compressed"
+    """
 }
 
 /////////////////////////////////////////
@@ -614,7 +655,7 @@ def generateTestReports() {
     def script_vars = "#!/bin/bash -x \n "
     if (isCanonical()) {
       // copyArtifacts takes >4hrs, hack with manual download
-      sh """${script_vars}
+      sh label: "manual download (instead of copyArtifacts)...", script: """${script_vars}
           ( mkdir -p build/test
           wget -q ${BUILD_URL}/artifact/test/output/*zip*/output.zip
           unzip -x -d build/test -q output.zip ) ${teeSuffix}
@@ -627,7 +668,7 @@ def generateTestReports() {
       // merge splits for each target's test report, other axes are kept separate
       //   TODO parallelised for loop
       //   TODO results_details.tar.xz needs to include all logs for failed tests
-      sh """${script_vars} (
+      sh label: "merging splits test reports...", script: """${script_vars} (
           echo "test result files to decompress"; find build/test/output -type f -name "*.xml.xz" | wc -l
           find build/test/output -type f -name "*.xml.xz" -print0 | xargs -0 -r -n1 -P"\$(nproc)" xz -f --decompress
 

@@ -69,6 +69,7 @@ controller:
     - "staticMethod org.codehaus.groovy.runtime.DefaultGroovyMethods inspect java.lang.Object"
     - "staticMethod org.codehaus.groovy.runtime.DefaultGroovyMethods max java.util.Collection"
     - "staticMethod org.codehaus.groovy.runtime.DefaultGroovyMethods putAt java.util.List java.util.List java.lang.Object"
+    - "field hudson.plugins.git.GitSCMBackwardCompatibility branch"
     - "method org.jenkinsci.plugins.workflow.steps.FlowInterruptedException getCauses"
   JCasC:
     configScripts:
@@ -154,6 +155,20 @@ agent:
   node-selector:
     cassandra.jenkins.agent: true
   waitForPodSec: "180"
+  # Each template below is an opaque string to the helm chart, parsed only by the kubernetes plugin,
+  # so neither the chart nor .jenkins/k8s/jenkins-test.sh can validate what a template asks for.
+  # Two traps live in that gap:
+  #  - a volume declared under `volumes:` is generated as `volume-N`, and the generated copy wins any
+  #    merge with a raw `yaml:` entry of the same name, so a field set only there is silently dropped.
+  #    Volumes wanting a field the plugin lacks, a sizeLimit for instance, are declared in `yaml:` alone.
+  #  - ephemeral-storage is charged to the pod: every emptyDir, the workspace included, along with the
+  #    containers' writable layers and logs, all against the containers' limits summed.  Declare no
+  #    request and the pod is BestEffort for storage, which the scheduler ignores and the node evicts
+  #    first, reporting only `request is 0`.  Each template below budgets 80Gi of the ~89Gi that a
+  #    100GiB node allocates, leaving the rest to the node's own image cache and daemonsets.
+  # After any deploy, read back what an agent was actually given:
+  #   kubectl get pod -l jenkins/cassius-jenkins-agent -o json \
+  #     | jq '.items[0].spec | {volumes, containers: [.containers[] | {name, resources, volumeMounts}]}'
   podTemplates:
     agent-dind-small: |
       - name: agent-dind-small
@@ -201,6 +216,9 @@ agent:
             resourceLimitCpu: 2
             resourceRequestMemory: 1G
             resourceLimitMemory: 1G
+            # the workspace emptyDir, charged to the pod, is what this covers
+            resourceRequestEphemeralStorage: 10Gi
+            resourceLimitEphemeralStorage: 20Gi
             ttyEnabled: 'true'
             workingDir: /home/jenkins/agent
           - name: dind
@@ -213,7 +231,7 @@ agent:
                 key: "DOCKER_IPTABLES_LEGACY"
                 value: "1"
             image: docker:dind
-            args: "--default-address-pool base=192.168.96.0/20,size=24"  # overwrite docker subnet in case of overlapping 
+            args: "--default-address-pool base=192.168.96.0/20,size=24"  # overwrite docker subnet in case of overlapping
             livenessProbe:
               failureThreshold: '0'
               initialDelaySeconds: '0'
@@ -225,12 +243,13 @@ agent:
             resourceLimitCpu: 4
             resourceRequestMemory: 1G
             resourceLimitMemory: 2400M
+            # docker's images and containers, in the docker-storage emptyDir, not this container's layer
+            resourceRequestEphemeralStorage: 40Gi
+            resourceLimitEphemeralStorage: 60Gi
             ttyEnabled: 'true'
             workingDir: /home/jenkins/agent
         volumes:
-          - emptyDirVolume:
-              memory: 'false'
-              mountPath: /var/lib/docker
+          # /var/lib/docker is not here but in `yaml:` below, the only place it can carry a sizeLimit
           - emptyDirVolume:
               memory: 'false'
               mountPath: /certs
@@ -247,6 +266,19 @@ agent:
                           values:
                             - "true"
                     topologyKey: kubernetes.io/hostname
+            # docker's storage, named and mounted here so that the sizeLimit survives the plugin's merge.
+            # 60Gi bounds the images and their containers alone, of the pod's 80Gi: ubuntu-test unpacks
+            # to ~33Gi, and exceeding either evicts the pod naming what it was, which the node's own
+            # threshold does not.  fetchDockerImages in Jenkinsfile warns as the node fills.
+            volumes:
+              - name: docker-storage
+                emptyDir:
+                  sizeLimit: 60Gi
+            containers:
+              - name: dind
+                volumeMounts:
+                  - name: docker-storage
+                    mountPath: /var/lib/docker
     agent-dind-medium: |
       - name: agent-dind-medium
         label: agent-dind cassandra-medium cassandra-amd64-medium
@@ -291,6 +323,9 @@ agent:
             resourceLimitCpu: 3
             resourceRequestMemory: 1G
             resourceLimitMemory: 2400M
+            # the workspace emptyDir, charged to the pod, is what this covers
+            resourceRequestEphemeralStorage: 10Gi
+            resourceLimitEphemeralStorage: 20Gi
             ttyEnabled: 'true'
             workingDir: /home/jenkins/agent
           - name: dind
@@ -315,12 +350,13 @@ agent:
             resourceLimitCpu: 4
             resourceRequestMemory: 3400M
             resourceLimitMemory: 5G
+            # docker's images and containers, in the docker-storage emptyDir, not this container's layer
+            resourceRequestEphemeralStorage: 40Gi
+            resourceLimitEphemeralStorage: 60Gi
             ttyEnabled: 'true'
             workingDir: /home/jenkins/agent
         volumes:
-          - emptyDirVolume:
-              memory: 'false'
-              mountPath: /var/lib/docker
+          # /var/lib/docker is not here but in `yaml:` below, the only place it can carry a sizeLimit
           - emptyDirVolume:
               memory: 'false'
               mountPath: /certs
@@ -337,6 +373,19 @@ agent:
                           values:
                             - "true"
                     topologyKey: kubernetes.io/hostname
+            # docker's storage, named and mounted here so that the sizeLimit survives the plugin's merge.
+            # 60Gi bounds the images and their containers alone, of the pod's 80Gi: ubuntu-test unpacks
+            # to ~33Gi, and exceeding either evicts the pod naming what it was, which the node's own
+            # threshold does not.  fetchDockerImages in Jenkinsfile warns as the node fills.
+            volumes:
+              - name: docker-storage
+                emptyDir:
+                  sizeLimit: 60Gi
+            containers:
+              - name: dind
+                volumeMounts:
+                  - name: docker-storage
+                    mountPath: /var/lib/docker
     agent-dind-large: |
       - name: agent-dind-large
         label: agent-dind cassandra-large cassandra-amd64-large cassandra-amd64-large-dedicated
@@ -381,6 +430,9 @@ agent:
             resourceLimitCpu: 3
             resourceRequestMemory: 1G
             resourceLimitMemory: 2G
+            # the workspace emptyDir, charged to the pod, is what this covers
+            resourceRequestEphemeralStorage: 10Gi
+            resourceLimitEphemeralStorage: 20Gi
             ttyEnabled: 'true'
             workingDir: /home/jenkins/agent
           - name: dind
@@ -405,12 +457,13 @@ agent:
             resourceLimitCpu: 7
             resourceRequestMemory: 16G
             resourceLimitMemory: 30G
+            # docker's images and containers, in the docker-storage emptyDir, not this container's layer
+            resourceRequestEphemeralStorage: 40Gi
+            resourceLimitEphemeralStorage: 60Gi
             ttyEnabled: 'true'
             workingDir: /home/jenkins/agent
         volumes:
-          - emptyDirVolume:
-              memory: 'false'
-              mountPath: /var/lib/docker
+          # /var/lib/docker is not here but in `yaml:` below, the only place it can carry a sizeLimit
           - emptyDirVolume:
               memory: 'false'
               mountPath: /certs
@@ -427,5 +480,18 @@ agent:
                           values:
                             - "true"
                     topologyKey: kubernetes.io/hostname
+            # docker's storage, named and mounted here so that the sizeLimit survives the plugin's merge.
+            # 60Gi bounds the images and their containers alone, of the pod's 80Gi: ubuntu-test unpacks
+            # to ~33Gi, and exceeding either evicts the pod naming what it was, which the node's own
+            # threshold does not.  fetchDockerImages in Jenkinsfile warns as the node fills.
+            volumes:
+              - name: docker-storage
+                emptyDir:
+                  sizeLimit: 60Gi
+            containers:
+              - name: dind
+                volumeMounts:
+                  - name: docker-storage
+                    mountPath: /var/lib/docker
 
 
