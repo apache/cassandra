@@ -495,7 +495,7 @@ public abstract class AbstractReplicationStrategy
             }
         }
 
-        return new CoordinationPlan.ForWriteWithIdeal(metadata, actual.replicas(), actual.responses(), ideal);
+        return new CoordinationPlan.ForWriteWithIdeal(actual.replicas(), actual.responses(), ideal);
     }
 
     public CoordinationPlan.ForWriteWithIdeal planForWrite(ClusterMetadata metadata,
@@ -522,7 +522,7 @@ public abstract class AbstractReplicationStrategy
         ReplicaPlan.ForWrite plan = ReplicaPlans.forSingleReplicaWrite(metadata, keyspace, token, replicaSupplier);
         ResponseTracker tracker = createTrackerForWrite(plan.consistencyLevel(), plan, plan.pending, metadata);
 
-        return new CoordinationPlan.ForWriteWithIdeal(metadata, plan, tracker, null);
+        return new CoordinationPlan.ForWriteWithIdeal(plan, tracker, null);
     }
 
     /**
@@ -545,7 +545,7 @@ public abstract class AbstractReplicationStrategy
         int blockFor = plan.contacts().size();
         ResponseTracker tracker = new SimpleResponseTracker(blockFor, blockFor);
 
-        return new CoordinationPlan.ForWriteWithIdeal(metadata, plan, tracker, null);
+        return new CoordinationPlan.ForWriteWithIdeal(plan, tracker, null);
     }
 
     /**
@@ -675,7 +675,7 @@ public abstract class AbstractReplicationStrategy
         // replicas using the supplied token as this can actually be of the incorrect type (for example when
         // performing Paxos repair).
         final Token actualToken = table.partitioner == MetaStrategy.partitioner ? MetaStrategy.entireRange.right : token;
-        ReplicaLayout.ForTokenWrite all = forTokenWriteLiveAndDown(keyspaceMetadata, actualToken);
+        ReplicaLayout.ForTokenWrite all = forTokenWriteLiveAndDown(metadata, keyspaceMetadata, actualToken);
         ReplicaLayout.ForTokenWrite electorate = consistencyForConsensus.isDatacenterLocal()
                                                  ? all.filter(InOurDc.replicas()) : all;
 
@@ -719,58 +719,46 @@ public abstract class AbstractReplicationStrategy
             case THREE:
             case QUORUM:
             case ALL:
+            {
                 int totalContacts = plan.contacts().size();
-                if (pending.isEmpty())
-                {
-                    int blockFor = cl.blockFor(this);
-                    return new SimpleResponseTracker(blockFor, totalContacts);
-                }
-                else
-                {
-                    // Check if double count model applies (some CLs like ANY don't add pending)
-                    int baseBlockFor = cl.blockFor(this);
-                    int totalBlockFor = cl.blockForWrite(this, pending);
+                int baseBlockFor = cl.blockFor(this);
+                int totalBlockFor = cl.blockForWrite(this, pending);
 
-                    // If totalBlockFor == baseBlockFor, no double-count needed (e.g., ANY)
-                    if (totalBlockFor == baseBlockFor)
-                        return new SimpleResponseTracker(baseBlockFor, totalContacts);
+                // Check if double count model applies (some CLs like ANY don't add pending)
+                // If totalBlockFor == baseBlockFor, no double-count needed (e.g., ANY)
+                if (totalBlockFor == baseBlockFor)
+                    return new SimpleResponseTracker(baseBlockFor, totalContacts);
 
-                    // Double count model: natural must satisfy base CL, total must include pending
-                    int pendingReplicas = pending.size();
-                    // contacts() includes both natural and pending replicas
-                    int naturalReplicas = totalContacts - pendingReplicas;
-                    return new WriteResponseTracker(baseBlockFor, totalBlockFor,
-                                                    naturalReplicas, pendingReplicas,
-                                                    endpoint -> pending.endpoints().contains(endpoint));
-                }
+                // Double count model: natural must satisfy base CL, total must include pending
+                int pendingReplicas = pending.size();
+                // contacts() includes both natural and pending replicas
+                int naturalReplicas = totalContacts - pendingReplicas;
+                return new WriteResponseTracker(baseBlockFor, totalBlockFor,
+                                                naturalReplicas, pendingReplicas,
+                                                endpoint -> pending.endpoints().contains(endpoint));
+            }
 
             case LOCAL_ONE:
             case LOCAL_QUORUM:
+            {
                 int localContacts = plan.contacts().filter(InOurDc.replicas()).size();
-                if (pending.isEmpty())
-                {
-                    int localBlockFor = cl.blockFor(this);
-                    return new SimpleResponseTracker(localBlockFor, localContacts, InOurDc.endpoints());
-                }
-                else
-                {
-                    // Check if double count model applies (depends on local pending)
-                    int baseBlockFor = cl.blockFor(this);
-                    int totalBlockFor = cl.blockForWrite(this, pending);
+                // Check if double count model applies (depends on local pending)
+                int baseBlockFor = cl.blockFor(this);
+                int totalBlockFor = cl.blockForWrite(this, pending);
 
-                    // If totalBlockFor == baseBlockFor, no local pending so no double-count needed
-                    if (totalBlockFor == baseBlockFor)
-                        return new SimpleResponseTracker(baseBlockFor, localContacts, InOurDc.endpoints());
+                // If totalBlockFor == baseBlockFor, no local pending so no double-count needed
+                if (totalBlockFor == baseBlockFor)
+                    return new SimpleResponseTracker(baseBlockFor, localContacts, InOurDc.endpoints());
 
-                    // Double count model for local DC
-                    int localPending = pending.count(InOurDc.replicas());
-                    // localContacts includes both natural and pending in local DC
-                    int localNatural = localContacts - localPending;
-                    return new WriteResponseTracker(baseBlockFor, totalBlockFor,
-                                                    localNatural, localPending,
-                                                    endpoint -> pending.endpoints().contains(endpoint),
-                                                    InOurDc.endpoints());
-                }
+                // Double count model for local DC
+                int localPending = pending.count(InOurDc.replicas());
+                // localContacts includes both natural and pending in local DC
+                int localNatural = localContacts - localPending;
+                return new WriteResponseTracker(baseBlockFor, totalBlockFor,
+                                                localNatural, localPending,
+                                                endpoint -> pending.endpoints().contains(endpoint),
+                                                InOurDc.endpoints());
+            }
 
             case EACH_QUORUM:
                 return createPerDcTracker(plan, pending, metadata);

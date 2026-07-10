@@ -472,7 +472,7 @@ public class Paxos
 
         static Participants get(ClusterMetadata metadata, TableMetadata table, Token token, ConsistencyLevel consistencyForConsensus, Predicate<Replica> isReplicaAlive)
         {
-            AbstractReplicationStrategy strategy = Keyspace.open(table.keyspace).getReplicationStrategy();
+            AbstractReplicationStrategy strategy = metadata.schema.getKeyspaceMetadata(table.keyspace).replicationStrategy;
             return strategy.paxosParticipants(metadata, table, token, consistencyForConsensus, isReplicaAlive);
         }
 

@@ -297,12 +297,13 @@ public class ReplicaPlans
         Replica selfReplica = liveAndDown.all().selfIfPresent();
         ReplicaLayout.ForTokenWrite liveRemoteOnly = liveAndDown.filter(r -> FailureDetector.isReplicaAlive.test(r) && r != selfReplica);
 
+        EndpointsForToken allLiveRemoteOnly = liveRemoteOnly.all();
         return new ReplicaPlan.ForWrite(keyspace, keyspace.getReplicationStrategy(),
                                         ConsistencyLevel.ONE,
                                         liveRemoteOnly.pending(),
-                                        liveRemoteOnly.all(),
-                                        liveRemoteOnly.all(),
-                                        liveRemoteOnly.all(),
+                                        allLiveRemoteOnly,
+                                        allLiveRemoteOnly,
+                                        allLiveRemoteOnly,
                                         (cm) -> forReplayMutation(cm, keyspace, token),
                                         metadata.epoch);
     }

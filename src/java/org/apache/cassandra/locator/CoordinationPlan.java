@@ -24,6 +24,8 @@ import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
 
+import com.google.common.base.Preconditions;
+
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
@@ -47,9 +49,11 @@ import org.apache.cassandra.tcm.ClusterMetadata;
  * the replica selection and quorum requirements must be consistent.
  *
  * The separation between ReplicaPlan and ResponseTracker allows:
- * - ReplicaPlan to focus on replica topology and selection
- * - ResponseTracker to encapsulate completion logic
- * - Replication strategies to customize both consistently
+ * <ul>
+ *   <li>ReplicaPlan to focus on replica topology and selection</li>
+ *   <li>ResponseTracker to encapsulate completion logic</li>
+ *   <li>Replication strategies to customize both consistently</li>
+ * </ul>
  *
  * No polymorphism is needed at this level - the variation is captured in the
  * ResponseTracker implementations. This is just a typed tuple ensuring the
@@ -69,9 +73,7 @@ public abstract class CoordinationPlan<E extends Endpoints<E>, P extends Replica
      */
     public CoordinationPlan(ResponseTracker responses)
     {
-        if (responses == null)
-            throw new IllegalArgumentException("tracker cannot be null");
-
+        Preconditions.checkNotNull(responses);
         this.responses = responses;
     }
 
@@ -130,13 +132,11 @@ public abstract class CoordinationPlan<E extends Endpoints<E>, P extends Replica
 
     public static class ForWriteWithIdeal extends CoordinationPlan.ForWrite
     {
-        public final ClusterMetadata metadata;
         public final CoordinationPlan.ForWrite ideal;
 
-        public ForWriteWithIdeal(ClusterMetadata metadata, ReplicaPlan.ForWrite replicas, ResponseTracker responses, CoordinationPlan.ForWrite ideal)
+        public ForWriteWithIdeal(ReplicaPlan.ForWrite replicas, ResponseTracker responses, CoordinationPlan.ForWrite ideal)
         {
             super(replicas, responses);
-            this.metadata = metadata;
             this.ideal = ideal;
         }
 
@@ -159,7 +159,7 @@ public abstract class CoordinationPlan<E extends Endpoints<E>, P extends Replica
             ReplicaPlan.ForWrite plan = ReplicaPlans.forBatchlogWrite(metadata, isAny);
             int blockFor = plan.consistencyLevel().blockFor(plan.replicationStrategy());
             ResponseTracker tracker = new SimpleResponseTracker(blockFor, plan.contacts().size());
-            return new ForWriteWithIdeal(metadata, plan, tracker, null);
+            return new ForWriteWithIdeal(plan, tracker, null);
         }
     }
 

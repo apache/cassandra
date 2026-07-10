@@ -43,7 +43,7 @@ public class CoordinationPlans
             idealPlan = new CoordinationPlan.ForWrite(idealReplicaPlan, idealTracker);
         }
 
-        return new CoordinationPlan.ForWriteWithIdeal(ClusterMetadata.current(), plan, tracker, idealPlan);
+        return new CoordinationPlan.ForWriteWithIdeal(plan, tracker, idealPlan);
     }
 
     public static CoordinationPlan.ForTokenRead create(ReplicaPlan.ForTokenRead plan)

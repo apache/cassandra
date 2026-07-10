@@ -20,14 +20,12 @@ package org.apache.cassandra.service;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.MessageParams;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.locator.CoordinationPlan;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.service.writes.thresholds.WriteWarningContext;
@@ -41,8 +39,6 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
 {
-    private static final Locator locator = DatabaseDescriptor.getLocator();
-
     public DatacenterSyncWriteResponseHandler(CoordinationPlan.ForWrite coordinationPlan,
                                               Runnable callback,
                                               WriteType writeType,
