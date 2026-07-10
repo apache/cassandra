@@ -168,7 +168,6 @@ public class PaxosCommitPropertyTest extends ResponseHandlerPropertyTestBase
     {
         Set<InetAddressAndPort> local = new HashSet<>();
         int dc1Full = topology.replicationFactors.getOrDefault("datacenter1", 0);
-        int dc1Pending = topology.pendingReplicas.getOrDefault("datacenter1", 0);
 
         for (int i = 0; i < dc1Full; i++)
             local.add(replicaSets.fullReplicas.get(i).endpoint());

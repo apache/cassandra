@@ -651,16 +651,16 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
         response(response != null, from);
     }
 
-    /**
-     * Record a failure or success response if {@code from} contributes to our consistency.
-     * If we have reached a final outcome of the commit, run {@code onDone}.
-     */
     @VisibleForTesting
     protected boolean isFromLocalDc(InetAddressAndPort endpoint)
     {
         return InOurDc.endpoints().test(endpoint);
     }
 
+    /**
+     * Record a failure or success response if {@code from} contributes to our consistency.
+     * If we have reached a final outcome of the commit, run {@code onDone}.
+     */
     private void response(boolean success, InetAddressAndPort from)
     {
         if (consistencyForCommit.isDatacenterLocal() && !isFromLocalDc(from))

@@ -88,39 +88,6 @@ public class PaxosProposePropertyTest extends ResponseHandlerPropertyTestBase
         }
     }
 
-    /**
-     * Paxos quorum parameters derived from topology and consistency level.
-     *
-     * Paxos computes quorum from the electorate:
-     * - SERIAL: electorate is all replicas across all DCs
-     * - LOCAL_SERIAL: electorate is local DC replicas only
-     */
-    static class PaxosQuorumConfig
-    {
-        final int sizeOfConsensusQuorum;
-        final int sizeOfPoll;
-
-        PaxosQuorumConfig(int naturalSize, int pendingSize)
-        {
-            this.sizeOfConsensusQuorum = (naturalSize / 2 + 1) + pendingSize;
-            this.sizeOfPoll = naturalSize + pendingSize;
-        }
-
-        static PaxosQuorumConfig compute(TopologyConfig topology, ConsistencyLevel cl)
-        {
-            if (cl == ConsistencyLevel.LOCAL_SERIAL)
-            {
-                int localNatural = topology.replicationFactors.get("datacenter1");
-                int localPending = topology.pendingReplicas.get("datacenter1");
-                return new PaxosQuorumConfig(localNatural, localPending);
-            }
-            else
-            {
-                return new PaxosQuorumConfig(topology.totalReplicas, topology.totalPending);
-            }
-        }
-    }
-
     static class ProposeScenario
     {
         final ConsistencyLevel cl;
