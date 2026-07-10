@@ -168,10 +168,7 @@ public class TxnUpdateTest
                 assertThat(ensureInjectivityOfFragmentIdsToFragments(block)).isTrue();
 
                 boolean inTrailingUpdateBlock = shouldHaveTrailingUpdate && (blockIdx == blocks.size() - 1);
-                if (!inTrailingUpdateBlock)
-                    assertThat(ensureConditionalBlockIdsPreserveOrder(block, conditions, metadatas)).isTrue();
-                else
-                    assertThat(ensureConditionalBlockIdsPreserveOrder(block, trailingCondition, metadatas)).isTrue();
+                assertThat(ensureConditionalBlockIdsPreserveOrder(block, inTrailingUpdateBlock ? trailingCondition : conditions, metadatas)).isTrue();
             }
         });
     }
