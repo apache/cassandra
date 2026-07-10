@@ -3634,7 +3634,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     }
 
     @Test
-    public void testLetComparisonTransactionStatement() throws Throwable
+    public void testLetComparison() throws Throwable
     {
         test("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH " + transactionalMode.asCqlParam(), cluster -> {
             String insert = "BEGIN TRANSACTION\n" +
@@ -3788,6 +3788,62 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                           "COMMIT TRANSACTION";
 
             assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 1, ImmutableList.of(7, 8)}, read);
+        });
+    }
+
+    @Test
+    public void testUseLetVariableInConditionGuard() throws Throwable
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v boolean) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            String insert = "BEGIN TRANSACTION\n" +
+                            "INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (1, true);\n" +
+                            "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(insert, ConsistencyLevel.SERIAL);
+
+            String query = "BEGIN TRANSACTION\n" +
+                           "LET k1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1);\n" +
+                           "IF k1.v THEN \n" +
+                           "    UPDATE " + qualifiedAccordTableName + " SET v = false WHERE k = 1;\n" +
+                           "END IF\n" +
+                           "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.SERIAL);
+
+            String read = "BEGIN TRANSACTION\n" +
+                          "SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1;\n" +
+                          "COMMIT TRANSACTION";
+
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult(read, ConsistencyLevel.SERIAL);
+            assertThat(result).hasSize(1).contains(1, false);
+        });
+    }
+
+    @Test
+    public void testUseNegationOfLetVariableInConditionGuard() throws Throwable
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v boolean) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            String insert = "BEGIN TRANSACTION\n" +
+                            "INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (1, false);\n" +
+                            "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(insert, ConsistencyLevel.SERIAL);
+
+            String query = "BEGIN TRANSACTION\n" +
+                           "LET k1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1);\n" +
+                           "IF !k1.v THEN \n" +
+                           "    UPDATE " + qualifiedAccordTableName + " SET v = true WHERE k = 1;\n" +
+                           "END IF\n" +
+                           "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.SERIAL);
+
+            String read = "BEGIN TRANSACTION\n" +
+                          "SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1;\n" +
+                          "COMMIT TRANSACTION";
+
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult(read, ConsistencyLevel.SERIAL);
+            assertThat(result).hasSize(1).contains(1, true);
         });
     }
 }

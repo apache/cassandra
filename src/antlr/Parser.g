@@ -837,7 +837,8 @@ txnConditionKind returns [ConditionStatement.Kind op]
     ;
 
 txnColumnCondition[List<ConditionStatement.Raw> conditions]
-    : lhs=rowDataReference
+    :  '!' lhs=rowDataReference { conditions.add(new ConditionStatement.Raw(lhs, ConditionStatement.Kind.EQ, Constants.Literal.bool("false"))); }
+    | lhs=rowDataReference
       ( 
         K_IS 
         (
@@ -846,6 +847,7 @@ txnColumnCondition[List<ConditionStatement.Raw> conditions]
         )
         | (txnConditionKind term)=> op=txnConditionKind t=term { conditions.add(new ConditionStatement.Raw(lhs, op, t)); }
         | (txnConditionKind rowDataReference)=> op=txnConditionKind rhs=rowDataReference { conditions.add(new ConditionStatement.Raw(lhs, op, rhs)); }
+        | { conditions.add(new ConditionStatement.Raw(lhs, ConditionStatement.Kind.EQ, Constants.Literal.bool("true"))); }
       )
     | lhs=term op=txnConditionKind rhs=rowDataReference { conditions.add(new ConditionStatement.Raw(lhs, op, rhs)); }
     ;
