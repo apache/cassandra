@@ -793,7 +793,7 @@ batchTxnStatement returns [TransactionStatement.Parsed expr]
           ( K_ELSE u=updateStatements { conditions.add(Collections.singletonList(new ConditionStatement.Raw(null, ConditionStatement.Kind.ELSE, null))); updates.add(u); } )?
           K_END K_IF
       )?
-      ( (batchStatementObjective) => u=updateStatements { updates.add(u); } )?
+      ( (updateStatements) => u=updateStatements { updates.add(u); } )?
       (K_COMMIT K_TRANSACTION)
     {
         $expr = new TransactionStatement.Parsed(assignments, select, returning, updates, conditions, references);
