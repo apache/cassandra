@@ -124,7 +124,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
 {
     private static final Logger logger = LoggerFactory.getLogger(SatelliteReplicationStrategy.class);
 
-    private static boolean ADDL_CHECKS_ENABLED = CassandraRelevantProperties.SATELLITE_REPLICATION_ADDITIONAL_CHECKS.getBoolean();
+    private static final boolean ADDL_CHECKS_ENABLED = CassandraRelevantProperties.SATELLITE_REPLICATION_ADDITIONAL_CHECKS.getBoolean();
 
     private static final String PRIMARY_DC_KEY = "primary";
     private static final String SATELLITE_KEY_PATTERN = ".satellite.";
@@ -660,10 +660,8 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
             this.satellite = strategy.getSatelliteForDC(primary);
 
             this.dcs = createDcList();
-            Preconditions.checkState(!dcs.isEmpty(), "No DCs available for request (primary=%s, all disabled?)", primary);
 
-            Set<String> dcSet = new HashSet<>(dcs);
-            this.liveAndDownLayout = filterLayout(liveAndDownLayout, rp -> dcSet.contains(metadata.locator.location(rp.endpoint()).datacenter));
+            this.liveAndDownLayout = filterLayout(liveAndDownLayout, rp -> this.dcs.contains(metadata.locator.location(rp.endpoint()).datacenter));
             this.liveLayout = filterLayout(this.liveAndDownLayout, FailureDetector.isReplicaAlive);
 
             this.liveAndDownLayouts = Maps.newHashMapWithExpectedSize(dcs.size());
@@ -696,7 +694,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
                 results.add(dc);
             }
 
-            Preconditions.checkState(!results.isEmpty());
+            Preconditions.checkState(!results.isEmpty(), "No DCs available for request (primary=%s, all disabled?)", primary);
             return results;
         }
 
@@ -821,6 +819,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
 
             private ReplicaLayout.ForTokenWrite mergeLayouts(Collection<ReplicaLayout.ForTokenWrite> layouts)
             {
+                Preconditions.checkArgument(layouts != null && !layouts.isEmpty());
                 ReplicaCollection.Builder<EndpointsForToken> naturalBuilder = null;
                 ReplicaCollection.Builder<EndpointsForToken> pendingBuilder = null;
 
@@ -1227,9 +1226,6 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
             String fullDc = null;
             for (String dc : planner.dcs)
             {
-                if (fullReplica != null)
-                    break;
-
                 E dcCandidates = candidates.get(dc);
                 if (dcCandidates == null || !canSelectReplicasFromDc(dc, dcCandidates.size()))
                     continue;
@@ -1243,6 +1239,9 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
                         break;
                     }
                 }
+
+                if (fullReplica != null)
+                    break;
             }
 
             if (fullReplica == null)
@@ -1702,7 +1701,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
         if (tracker.isSuccessful())
             promise.trySuccess(null);
         else
-            promise.tryFailure(new RuntimeException("Satellite DC quorum not met"));
+            promise.tryFailure(new RuntimeException("Satellite DC quorum not met. Responses required: " + tracker.required() + ", responses received: " + tracker.received()));
     }
 
     private CoordinationPlan.ForTokenRead planForTokenReadPrimary(ClusterMetadata metadata,

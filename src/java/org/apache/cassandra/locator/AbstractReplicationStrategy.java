@@ -761,7 +761,7 @@ public abstract class AbstractReplicationStrategy
             }
 
             case EACH_QUORUM:
-                return createPerDcTracker(plan, pending, metadata);
+                return createCompositeTracker(plan, pending, metadata);
 
             default:
                 throw new UnsupportedOperationException("Unsupported consistency level for writes: " + cl);
@@ -771,7 +771,7 @@ public abstract class AbstractReplicationStrategy
     /**
      * Create per-datacenter tracker for EACH_QUORUM.
      */
-    private ResponseTracker createPerDcTracker(ReplicaPlan.ForWrite plan, Endpoints<?> pending, ClusterMetadata metadata)
+    private ResponseTracker createCompositeTracker(ReplicaPlan.ForWrite plan, Endpoints<?> pending, ClusterMetadata metadata)
     {
         Map<String, ResponseTracker> trackerPerDc = new HashMap<>();
         Locator locator = metadata.locator;

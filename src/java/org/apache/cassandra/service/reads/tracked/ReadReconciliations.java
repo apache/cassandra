@@ -161,7 +161,7 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
     {
         private static final Logger logger = LoggerFactory.getLogger(Coordinator.class);
 
-        // FIXME: this will probably break per-DC consistency semantica of SatelliteReplicationStrategy
+        // FIXME: this will probably break per-DC consistency semantics of SatelliteReplicationStrategy
         //  once read speculation is implemented
         private static final AtomicLongFieldUpdater<Coordinator> remainingUpdater =
             AtomicLongFieldUpdater.newUpdater(Coordinator.class, "remaining");
@@ -378,12 +378,12 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
             return next;
         }
 
-        protected boolean updateRemainingAndMaybeComplete(int mutationsDelta, int summariesDelta, int syncAcksDelta)
+        boolean updateRemainingAndMaybeComplete(int mutationsDelta, int summariesDelta, int syncAcksDelta)
         {
             return updateRemaining(mutationsDelta, summariesDelta, syncAcksDelta) == 0 && complete();
         }
 
-        protected boolean complete()
+        private boolean complete()
         {
             if (isDataNode())
                 MutationTrackingService.instance().localReads().acknowledgeReconcile(id, augmentingOffsets());

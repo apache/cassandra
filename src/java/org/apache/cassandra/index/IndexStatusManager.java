@@ -82,18 +82,6 @@ public class IndexStatusManager
 
     private IndexStatusManager() {}
 
-    public Index.Status getUnqueryableStatus(String keyspace, InetAddressAndPort endpoint, Index.QueryPlan indexQueryPlan)
-    {
-        Index.Status result = null;
-        for (Index index : indexQueryPlan.getIndexes())
-        {
-            Index.Status status = getIndexStatus(endpoint, keyspace, index.getIndexMetadata().name);
-            if (result == null || !index.isQueryable(status))
-                result = status;
-        }
-        return result;
-    }
-
     /**
      * Remove endpoints whose indexes are not queryable for the specified {@link Index.QueryPlan}.
      *

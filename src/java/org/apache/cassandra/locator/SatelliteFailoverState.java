@@ -87,7 +87,7 @@ public class SatelliteFailoverState
          * @param state The failover state
          * @param fromDC The old primary DC we're failing from (null for NORMAL state)
          */
-        public FailoverInfo(State state, String fromDC)
+        private FailoverInfo(State state, String fromDC)
         {
             this.state = state;
             this.fromDC = fromDC;
@@ -188,14 +188,14 @@ public class SatelliteFailoverState
         private final Map<Range<Token>, FailoverInfo> perRangeState;
         private final FailoverInfo defaultState;  // Used for ranges not explicitly set
 
-        public FailoverStateMap(Map<Range<Token>, FailoverInfo> perRangeState,
+        private FailoverStateMap(Map<Range<Token>, FailoverInfo> perRangeState,
                                 FailoverInfo defaultState)
         {
             this.perRangeState = Collections.unmodifiableMap(new HashMap<>(perRangeState));
             this.defaultState = defaultState;
         }
 
-        public FailoverStateMap(FailoverInfo globalState)
+        private FailoverStateMap(FailoverInfo globalState)
         {
             this.perRangeState = Collections.emptyMap();
             this.defaultState = globalState;

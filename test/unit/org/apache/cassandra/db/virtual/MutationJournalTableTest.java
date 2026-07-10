@@ -67,8 +67,6 @@ public class MutationJournalTableTest extends CQLTester
             execute("INSERT INTO ks.tbl(pk, v) VALUES (?, ?)", i, i);
         }
 
-        Thread.sleep(15000);
-
         // Query the virtual table
         ResultSet result = executeNet("SELECT * FROM vts.mutation_journal");
 

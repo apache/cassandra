@@ -159,7 +159,7 @@ public class CompositeTrackerTest
     @Test
     public void testQuorumEarlyCompletionWhenImpossible()
     {
-        // 4 children, 2 failed → max possible = 2 < quorum(3) → complete
+        // 4 children, 2 failed → max possible = 2 < quorum(4) → complete
         CompositeTracker tracker = new CompositeTracker(CompositeTracker.quorum(4), Arrays.asList(
             createMockTracker(true, false),
             createMockTracker(false, true),
@@ -174,7 +174,7 @@ public class CompositeTrackerTest
     @Test
     public void testQuorumNotCompleteWhenStillPossible()
     {
-        // 4 children: 1 succeeded, 1 failed, 2 pending → max possible = 3 >= quorum(3)
+        // 4 children: 1 succeeded, 1 failed, 2 pending → max possible = 3 >= quorum(4)
         CompositeTracker tracker = new CompositeTracker(CompositeTracker.quorum(4), Arrays.asList(
             createMockTracker(true, true),
             createMockTracker(false, true),
