@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -45,6 +46,7 @@ import accord.api.Key;
 import accord.primitives.Keys;
 import accord.primitives.Routable.Domain;
 import accord.primitives.Txn;
+import accord.utils.Invariants;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
@@ -98,6 +100,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.Pair;
 
 import static accord.primitives.Txn.Kind.Read;
 import static com.google.common.base.Preconditions.checkArgument;
@@ -155,25 +158,34 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     private final NamedSelect returningSelect;
     private final List<RowDataReference> returningReferences;
     private final List<ModificationStatement> updates;
+    private final List<List<ModificationStatement>> groupedUpdates;
     private final List<ConditionStatement> conditions;
+    private final List<List<ConditionStatement>> groupedConditions;
 
     private final VariableSpecifications bindVariables;
     private final ResultSet.ResultMetadata resultMetadata;
 
     private long minEpoch = Epoch.EMPTY.getEpoch();
 
+    // For each index of groupedConditions, it's corresponding update is the same
+    // index in groupedUpdates. We maintain the invariant that the size of
+    // groupedUpdates is equal to the size of groupedConditions or the size of
+    // groupedUpdates is one greater than the size of groupedConditions
+    // in the case of trailing updates.
     public TransactionStatement(List<NamedSelect> assignments,
                                 NamedSelect returningSelect,
                                 List<RowDataReference> returningReferences,
-                                List<ModificationStatement> updates,
-                                List<ConditionStatement> conditions,
+                                List<List<ModificationStatement>> groupedUpdates,
+                                List<List<ConditionStatement>> groupedConditions,
                                 VariableSpecifications bindVariables)
     {
         this.assignments = assignments;
         this.returningSelect = returningSelect;
         this.returningReferences = returningReferences;
-        this.updates = updates;
-        this.conditions = conditions;
+        this.updates = groupedUpdates.stream().flatMap(Collection::stream).collect(Collectors.toList());
+        this.groupedUpdates = groupedUpdates;
+        this.conditions = groupedConditions.stream().flatMap(Collection::stream).collect(Collectors.toList());
+        this.groupedConditions = groupedConditions;
         this.bindVariables = bindVariables;
 
         if (returningSelect != null)
@@ -331,7 +343,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         return reads;
     }
 
-    TxnCondition createCondition(QueryOptions options)
+    TxnCondition createCondition(List<ConditionStatement> conditions, QueryOptions options)
     {
         if (conditions.isEmpty())
             return TxnCondition.none();
@@ -376,31 +388,56 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         return new Keys(keySet);
     }
 
-    List<TxnWrite.Fragment> createWriteFragments(ClientState state, QueryOptions options, Map<Integer, NamedSelect> autoReads, TableMetadatasAndKeys.KeyCollector keyCollector)
+    List<List<TxnWrite.Fragment>> createWriteFragments(ClientState state, QueryOptions options, Map<Integer, NamedSelect> autoReads, TableMetadatasAndKeys.KeyCollector keyCollector)
     {
-        // check that within a transaction we don't have multiple updates to the same primary key, column pair
-        HashMap<Object, Columns> seenColumns = new HashMap<>();
+        List<List<TxnWrite.Fragment>> groupedWriteFragments = new ArrayList<>(groupedUpdates.size());
 
-        List<TxnWrite.Fragment> fragments = new ArrayList<>(updates.size());
+        // When we have a trailing update, we use the total seen columns we
+        // have accumulated within each branch to perform the validation.
+        // This is because we do not know for certain at runtime which branch we will enter.
+        // This can produce false positives, but will never let us perform an unsafe query.
+        HashMap<Object, Columns> totalSeenColumns = new HashMap<>();
+
         int idx = 0;
-        for (ModificationStatement modification : updates)
+        for (int groupedUpdatesIdx = 0; groupedUpdatesIdx < groupedUpdates.size(); groupedUpdatesIdx++)
         {
-            minEpoch = Math.max(minEpoch, modification.metadata().epoch.getEpoch());
-            List<TxnWrite.Fragment> writeFragments = modification.getTxnWriteFragment(idx, state, options, keyCollector);
-            fragments.addAll(writeFragments);
-            validateOnlyModifyPrimaryKeyColumnPairOnce(seenColumns, modification, writeFragments);
+            List<ModificationStatement> updates = groupedUpdates.get(groupedUpdatesIdx);
+            HashMap<Object, Columns> seenColumns = new HashMap<>();
+            List<TxnWrite.Fragment> fragments = new ArrayList<>(updates.size());
 
-            if (modification.allReferenceOperations().stream().anyMatch(ReferenceOperation::requiresRead))
+            for (ModificationStatement modification : updates)
             {
-                // Reads are not merged by partition here due to potentially differing columns retrieved, etc.
-                int partitionName = txnDataName(AUTO_READ, idx);
-                if (!autoReads.containsKey(partitionName))
-                    autoReads.put(partitionName, new NamedSelect(partitionName, modification.createSelectForTxn()));
-            }
+                minEpoch = Math.max(minEpoch, modification.metadata().epoch.getEpoch());
+                List<TxnWrite.Fragment> writeFragments = modification.getTxnWriteFragment(idx, state, options, keyCollector);
+                fragments.addAll(writeFragments);
+                boolean containsTrailingUpdate = groupedUpdates.size() > groupedConditions.size();
 
-            idx++;
+                // TODO: When adding support for consecutive IF statements, we need to revisit CASSANDRA-21136, currently we perform this check per branch since only one branch can be executed
+                if (groupedUpdatesIdx == groupedUpdates.size() - 1 && containsTrailingUpdate)
+                    validateOnlyModifyPrimaryKeyColumnPairOnce(totalSeenColumns, modification, writeFragments);
+                else if (containsTrailingUpdate)
+                {
+                    validateOnlyModifyPrimaryKeyColumnPairOnce(seenColumns, modification, writeFragments);
+                    for (Map.Entry<Object, Columns> entry : seenColumns.entrySet())
+                        totalSeenColumns.merge(entry.getKey(), entry.getValue(), Columns::mergeTo);
+                }
+                else
+                    validateOnlyModifyPrimaryKeyColumnPairOnce(seenColumns, modification, writeFragments);
+
+                if (modification.allReferenceOperations().stream().anyMatch(ReferenceOperation::requiresRead))
+                {
+                    // Reads are not merged by partition here due to potentially differing columns retrieved, etc.
+                    int partitionName = txnDataName(AUTO_READ, idx);
+                    if (!autoReads.containsKey(partitionName))
+                        autoReads.put(partitionName, new NamedSelect(partitionName, modification.createSelectForTxn()));
+                }
+
+                idx++;
+            }
+            groupedWriteFragments.add(fragments);
         }
-        return fragments;
+
+        return groupedWriteFragments;
     }
 
     private static void validateOnlyModifyPrimaryKeyColumnPairOnce(HashMap<Object, Columns> seenColumns,
@@ -520,9 +557,32 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         else
         {
             Int2ObjectHashMap<NamedSelect> autoReads = new Int2ObjectHashMap<>();
-            List<TxnWrite.Fragment> writeFragments = createWriteFragments(state, options, autoReads, keyCollector);
+
+            List<TxnUpdate.PreTransformedBlock> preTransformedBlocks = new ArrayList<>();
+            TxnCondition[] conditions = new TxnCondition[groupedConditions.size()];
+            List<Pair<TxnWrite.Fragment, Integer>> fragmentConditionIndexPair = new ArrayList<>();
+            List<List<TxnWrite.Fragment>> groupedFragments = createWriteFragments(state, options, autoReads, keyCollector);
+
+            int idx = 0;
+            while (idx < groupedConditions.size())
+            {
+                conditions[idx] = createCondition(groupedConditions.get(idx), options);
+                List<TxnWrite.Fragment> correspondingFragments = groupedFragments.get(idx);
+                for (TxnWrite.Fragment fragment : correspondingFragments)
+                    fragmentConditionIndexPair.add(Pair.create(fragment, idx));
+                idx++;
+            }
+
+            preTransformedBlocks.add(new TxnUpdate.PreTransformedBlock(conditions, fragmentConditionIndexPair, null));
+
+            List<TxnWrite.Fragment> noneConditions = new ArrayList<>();
+            if (idx < groupedFragments.size())
+                noneConditions.addAll(groupedFragments.get(idx));
+
+            preTransformedBlocks.add(new TxnUpdate.PreTransformedBlock(new TxnCondition[]{ TxnCondition.none() }, null, noneConditions));
+
             List<TxnNamedRead> reads = createNamedReads(options, autoReads, keyCollector);
-            if (writeFragments.isEmpty()) // ModificationStatement yield no Mutation (DELETE WHERE pk=0 AND c < 0 AND c > 0 -- matches no keys; so has no mutation)
+            if (fragmentConditionIndexPair.isEmpty() && noneConditions.isEmpty()) // ModificationStatement yield no Mutation (DELETE WHERE pk=0 AND c < 0 AND c > 0 -- matches no keys; so has no mutation)
             {
                 // cleanup memory
                 keyCollector.clear();
@@ -531,7 +591,8 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             }
             ConsistencyLevel commitCL = consistencyLevelForAccordCommit(cm, tables, keyCollector, options.getConsistency());
             Keys keys = keyCollector.build();
-            AccordUpdate update = new TxnUpdate(tables, writeFragments, createCondition(options), commitCL, PreserveTimestamp.no);
+
+            AccordUpdate update = new TxnUpdate(tables, preTransformedBlocks, commitCL, PreserveTimestamp.no);
             TxnRead read = createTxnRead(tables, reads, null, Domain.Key);
             return new Txn.InMemory(keys, read, TxnQuery.ALL, update, new TableMetadatasAndKeys(tables, keys));
         }
@@ -720,29 +781,29 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         private final List<SelectStatement.RawStatement> assignments;
         private final SelectStatement.RawStatement select;
         private final List<RowDataReference.Raw> returning;
-        private final List<ModificationStatement.Parsed> updates;
-        private final List<ConditionStatement.Raw> conditions;
+        private final List<List<ModificationStatement.Parsed>> groupedUpdates;
+        private final List<List<ConditionStatement.Raw>> groupedConditions;
         private final List<RowDataReference.Raw> dataReferences;
 
         public Parsed(List<SelectStatement.RawStatement> assignments,
                       SelectStatement.RawStatement select,
                       List<RowDataReference.Raw> returning,
-                      List<ModificationStatement.Parsed> updates,
-                      List<ConditionStatement.Raw> conditions,
+                      List<List<ModificationStatement.Parsed>> groupedUpdates,
+                      List<List<ConditionStatement.Raw>> groupedConditions,
                       List<RowDataReference.Raw> dataReferences)
         {
             this.assignments = assignments;
             this.select = select;
             this.returning = returning;
-            this.updates = updates;
-            this.conditions = conditions != null ? conditions : Collections.emptyList();
+            this.groupedUpdates = groupedUpdates;
+            this.groupedConditions = groupedConditions;
             this.dataReferences = dataReferences;
         }
 
         @Override
         protected Iterable<? extends QualifiedStatement> getStatements()
         {
-            Iterable<QualifiedStatement> group = Iterables.concat(assignments, updates);
+            Iterable<QualifiedStatement> group = Iterables.concat(assignments, groupedUpdates.stream().flatMap(Collection::stream).collect(Collectors.toList()));
             if (select != null)
                 group = Iterables.concat(group, Collections.singleton(select));
             return group;
@@ -751,8 +812,8 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         @Override
         public CQLStatement prepare(ClientState state)
         {
-            checkFalse(updates.isEmpty() && returning == null && select == null, EMPTY_TRANSACTION_MESSAGE);
-
+            checkFalse(groupedUpdates.isEmpty() && returning == null && select == null, EMPTY_TRANSACTION_MESSAGE);
+            Invariants.require(groupedUpdates.size() == groupedConditions.size() + 1 || groupedUpdates.size() == groupedConditions.size());
             if (select != null || returning != null)
                 checkTrue(select != null ^ returning != null, "Cannot specify both a full SELECT and a SELECT w/ LET references.");
 
@@ -804,30 +865,40 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                                                         .collect(Collectors.toList());
             }
 
-            List<ModificationStatement> preparedUpdates = new ArrayList<>(updates.size());
-            
-            // check for any read-before-write updates
-            for (int i = 0; i < updates.size(); i++)
+            List<List<ModificationStatement>> preparedUpdates = new ArrayList<>(groupedUpdates.size());
+            for (List<ModificationStatement.Parsed> update : groupedUpdates)
             {
-                ModificationStatement.Parsed parsed = updates.get(i);
+                List<ModificationStatement> preparedUpdate = new ArrayList<>(update.size());
 
-                ModificationStatement prepared = parsed.prepare(state, bindVariables);
-                checkTrue(prepared.metadata().isAccordEnabled(), TRANSACTIONS_DISABLED_ON_TABLE_MESSAGE, prepared.type, prepared.source);
-                checkFalse(prepared.metadata().params.pendingDrop, TRANSACTIONS_DISABLED_ON_TABLE_BEING_DROPPED_MESSAGE, prepared.type, prepared.source);
-                checkFalse(prepared.hasConditions(), NO_CONDITIONS_IN_UPDATES_MESSAGE, prepared.type, prepared.source);
-                checkFalse(prepared.isTimestampSet(), NO_TIMESTAMPS_IN_UPDATES_MESSAGE, prepared.type, prepared.source);
-                checkFalse(prepared.attrs.isTimeToLiveSet(), NO_TTLS_IN_UPDATES_MESSAGE, prepared.type, prepared.source);
+                // check for any read-before-write updates
+                for (ModificationStatement.Parsed parsed : update)
+                {
+                    ModificationStatement prepared = parsed.prepare(state, bindVariables);
+                    checkTrue(prepared.metadata().isAccordEnabled(), TRANSACTIONS_DISABLED_ON_TABLE_MESSAGE, prepared.type, prepared.source);
+                    checkFalse(prepared.metadata().params.pendingDrop, TRANSACTIONS_DISABLED_ON_TABLE_BEING_DROPPED_MESSAGE, prepared.type, prepared.source);
+                    checkFalse(prepared.hasConditions(), NO_CONDITIONS_IN_UPDATES_MESSAGE, prepared.type, prepared.source);
+                    checkFalse(prepared.isTimestampSet(), NO_TIMESTAMPS_IN_UPDATES_MESSAGE, prepared.type, prepared.source);
+                    checkFalse(prepared.attrs.isTimeToLiveSet(), NO_TTLS_IN_UPDATES_MESSAGE, prepared.type, prepared.source);
 
-                if (prepared.metadata().isCounter())
-                    throw invalidRequest(NO_COUNTERS_IN_TXNS_MESSAGE, prepared.type, prepared.source);
+                    if (prepared.metadata().isCounter())
+                        throw invalidRequest(NO_COUNTERS_IN_TXNS_MESSAGE, prepared.type, prepared.source);
 
-                preparedUpdates.add(prepared);
+                    preparedUpdate.add(prepared);
+                }
+
+                preparedUpdates.add(preparedUpdate);
             }
 
-            List<ConditionStatement> preparedConditions = new ArrayList<>(conditions.size());
-            for (ConditionStatement.Raw condition : conditions)
-                // TODO: If we eventually support IF ks.function(ref) THEN, the keyspace will have to be provided here
-                preparedConditions.add(condition.prepare("[txn]", bindVariables));
+            List<List<ConditionStatement>> preparedConditions = new ArrayList<>(groupedConditions.size());
+            for (List<ConditionStatement.Raw> condition : groupedConditions)
+            {
+                List<ConditionStatement> preparedCondition = new ArrayList<>(condition.size());
+                for (ConditionStatement.Raw raw : condition)
+                    // TODO: If we eventually support IF ks.function(ref) THEN, the keyspace will have to be provided here
+                    preparedCondition.add(raw.prepare("[txn]", bindVariables));
+
+                preparedConditions.add(preparedCondition);
+            }
 
             return new TransactionStatement(preparedAssignments, returningSelect, returningReferences, preparedUpdates, preparedConditions, bindVariables);
         }

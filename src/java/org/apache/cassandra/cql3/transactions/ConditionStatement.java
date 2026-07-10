@@ -40,13 +40,14 @@ public class ConditionStatement
         GT(TxnCondition.Kind.GREATER_THAN, TxnCondition.Kind.LESS_THAN),
         GTE(TxnCondition.Kind.GREATER_THAN_OR_EQUAL, TxnCondition.Kind.LESS_THAN_OR_EQUAL),
         LT(TxnCondition.Kind.LESS_THAN, TxnCondition.Kind.GREATER_THAN),
-        LTE(TxnCondition.Kind.LESS_THAN_OR_EQUAL, TxnCondition.Kind.GREATER_THAN_OR_EQUAL);
-        
+        LTE(TxnCondition.Kind.LESS_THAN_OR_EQUAL, TxnCondition.Kind.GREATER_THAN_OR_EQUAL),
+        ELSE(TxnCondition.Kind.ELSE, null);
+
         // TODO: Support for IN, CONTAINS, CONTAINS KEY
 
         private final TxnCondition.Kind kind;
         private final TxnCondition.Kind reversedKind;
-        
+
         Kind(TxnCondition.Kind kind, TxnCondition.Kind reversedKind)
         {
             this.kind = kind;
@@ -80,8 +81,8 @@ public class ConditionStatement
 
         public Raw(Term.Raw lhs, Kind kind, Term.Raw rhs)
         {
-            Preconditions.checkArgument(lhs != null);
-            Preconditions.checkArgument((rhs == null) == (kind == Kind.IS_NOT_NULL || kind == Kind.IS_NULL));
+            Preconditions.checkArgument(lhs != null || kind == Kind.ELSE);
+            Preconditions.checkArgument((rhs == null) == (kind == Kind.IS_NOT_NULL || kind == Kind.IS_NULL || kind == Kind.ELSE));
             this.lhs = lhs;
             this.kind = kind;
             this.rhs = rhs;
@@ -89,6 +90,9 @@ public class ConditionStatement
 
         public ConditionStatement prepare(String keyspace, VariableSpecifications bindVariables)
         {
+            if (kind == Kind.ELSE)
+                return new ConditionStatement(null, kind, null, false);
+
             if (rhs == null)
             {
                 // In the IS NULL/IS NOT NULL case, the reference will always be on the LHS
@@ -134,6 +138,8 @@ public class ConditionStatement
     {
         switch (kind)
         {
+            case ELSE:
+                return TxnCondition.Else.instance;
             case IS_NOT_NULL:
             case IS_NULL:
                 return new TxnCondition.Exists(reference.toTxnReference(options), kind.toTxnKind(reversed));
