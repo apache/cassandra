@@ -20,8 +20,11 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 
@@ -141,6 +144,82 @@ public class NodetoolClassHierarchyTest extends CQLTester
 
         assertTrue("The following commands implement LocalCommand but shouldConnect() does not return false: " + failedCommands,
                    failedCommands.isEmpty());
+    }
+
+    /**
+     * When command arguments are addressed by name rather than by CLI position, all arguments
+     * of a command share a single flat, case-insensitive key namespace: options are keyed by
+     * their normalized {@code paramLabel()} and names, positional parameters by their paramLabel.
+     * No two arguments of the same command may claim the same normalized key, otherwise one value
+     * is silently overwritten on write or misrouted on read (e.g. a command field and a
+     * {@code @Mixin} field that produce the same paramLabel).
+     */
+    @Test
+    public void testCommandArgumentKeysAreUnambiguous()
+    {
+        CommandLine root = new CommandLine(NodetoolCommand.class);
+        Map<String, List<String>> affected = new TreeMap<>();
+
+        commandTreeWalker(root, cmd -> {
+            List<String> violations = collectAmbiguousArgumentKeys(cmd);
+            if (!violations.isEmpty())
+                affected.put(fullCommandName(cmd), violations);
+        });
+
+        assertTrue("The following commands have ambiguous argument keys (options are keyed by " +
+                   "normalized paramLabel and names, positional parameters by paramLabel, all in " +
+                   "one case-insensitive namespace). Rename the field or set an explicit, unique " +
+                   "paramLabel:\n" +
+                   buildAffectedCommandMessage(affected),
+                   affected.isEmpty());
+    }
+
+    private static List<String> collectAmbiguousArgumentKeys(CommandLine cmd)
+    {
+        List<String> violations = new ArrayList<>();
+        Map<String, String> keyOwners = new LinkedHashMap<>();
+
+        for (CommandLine.Model.OptionSpec option : cmd.getCommandSpec().options())
+        {
+            if (option.usageHelp() || option.versionHelp())
+                continue;
+
+            String owner = "option " + String.join("/", option.names());
+            // An option is addressable by its paramLabel and by every name/alias, so all of them
+            // must stay unambiguous, a set tolerates a paramLabel equal to one of its own names.
+            Set<String> keys = new LinkedHashSet<>();
+            keys.add(normalizeOptionName(option.paramLabel()).toLowerCase());
+            for (String name : option.names())
+                keys.add(normalizeOptionName(name).toLowerCase());
+
+            for (String key : keys)
+                claimArgumentKey(key, owner, keyOwners, violations);
+        }
+
+        for (CommandLine.Model.PositionalParamSpec param : cmd.getCommandSpec().positionalParameters())
+        {
+            String owner = String.format("parameter index=%s (%s)", param.index(), param.paramLabel());
+            claimArgumentKey(normalizeOptionName(param.paramLabel()).toLowerCase(), owner, keyOwners, violations);
+        }
+
+        return violations;
+    }
+
+    private static void claimArgumentKey(String key, String owner, Map<String, String> keyOwners, List<String> violations)
+    {
+        String previousOwner = keyOwners.putIfAbsent(key, owner);
+        if (previousOwner != null)
+            violations.add(String.format("key '%s' is claimed by both %s and %s", key, previousOwner, owner));
+    }
+
+    /** Strips the leading dashes from an option name. */
+    private static String normalizeOptionName(String name)
+    {
+        if (name.startsWith("--"))
+            return name.substring(2);
+        else if (name.startsWith("-"))
+            return name.substring(1);
+        return name;
     }
 
     /**
