@@ -952,6 +952,8 @@ index_summary_resize_interval: 60m
 # impacting read latencies. Almost always a good idea on SSDs; not
 # necessarily on platters.
 trickle_fsync: false
+# The interval is counted in uncompressed bytes, so for compressed SSTables
+# (the default) an fsync fires after fewer bytes than this reach the disk.
 # Min unit: KiB
 trickle_fsync_interval: 10240KiB
 
