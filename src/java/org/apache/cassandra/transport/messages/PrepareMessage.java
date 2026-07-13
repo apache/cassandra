@@ -51,12 +51,13 @@ public class PrepareMessage extends Message.Request
         {
             String query = CBUtil.readLongString(body);
             String keyspace = null;
-            if (version.isGreaterOrEqualTo(ProtocolVersion.V5)) {
+            if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+            {
                 // If flags grows, we may want to consider creating a PrepareOptions class with an internal codec
                 // class that handles flags and options of the prepare message. Since there's only one right now,
                 // we just take care of business here.
 
-                int flags = (int)body.readUnsignedInt();
+                int flags = (int) body.readUnsignedInt();
                 if ((flags & 0x1) == 0x1)
                 {
                     keyspace = CBUtil.readString(body);
@@ -74,8 +75,11 @@ public class PrepareMessage extends Message.Request
             {
                 // If we have no keyspace, write out a 0-valued flag field.
                 if (msg.keyspace == null)
+                {
                     dest.writeInt(0x0);
-                else {
+                }
+                else
+                {
                     dest.writeInt(0x1);
                     CBUtil.writeAsciiString(msg.keyspace, dest);
                 }
@@ -134,7 +138,7 @@ public class PrepareMessage extends Message.Request
         {
             QueryEvents.instance.notifyPrepareFailure(null, query, state, e);
             JVMStabilityInspector.inspectThrowable(e);
-            return ErrorMessage.fromException(e);
+            return ErrorMessage.fromExceptionNoStreamId(e);
         }
     }
 
