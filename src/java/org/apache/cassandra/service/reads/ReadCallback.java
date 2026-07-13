@@ -30,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.MessageParams;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
@@ -99,6 +100,11 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     protected P replicaPlan()
     {
         return replicaPlan.get();
+    }
+
+    public ConsistencyLevel consistencyLevel()
+    {
+        return replicaPlan().consistencyLevel();
     }
 
     public boolean await(long commandTimeout, TimeUnit unit)

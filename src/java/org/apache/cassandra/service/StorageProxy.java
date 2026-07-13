@@ -128,6 +128,7 @@ import org.apache.cassandra.metrics.CASClientRequestMetrics;
 import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
 import org.apache.cassandra.metrics.DenylistMetrics;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
+import org.apache.cassandra.metrics.ReadResponseMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.ForwardingInfo;
 import org.apache.cassandra.net.Message;
@@ -310,6 +311,7 @@ public class StorageProxy implements StorageProxyMBean
 
 
         ReadRepairMetrics.init();
+        ReadResponseMetrics.init();
 
         if (!Paxos.isLinearizable())
         {
@@ -2749,7 +2751,11 @@ public class StorageProxy implements StorageProxyMBean
                      UnfilteredPartitionIterator iterator = command.executeLocally(controller))
                 {
                     if (command.isLimitedToOnePartition() && !command.isDigestQuery())
-                        response = command.createLocalObjectResponse(iterator, controller.getRepairedDataInfo());
+                    {
+                        ConsistencyLevel cl = handler.consistencyLevel();
+                        boolean localReplicaOnly = cl == ConsistencyLevel.ONE || cl == ConsistencyLevel.LOCAL_ONE;
+                        response = command.createLocalObjectResponse(iterator, controller.getRepairedDataInfo(), localReplicaOnly);
+                    }
                     else
                         response = command.createResponse(iterator, controller.getRepairedDataInfo());
                 }
