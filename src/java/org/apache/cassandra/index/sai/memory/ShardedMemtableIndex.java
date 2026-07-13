@@ -24,7 +24,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 
 import javax.annotation.Nullable;
@@ -35,7 +34,6 @@ import com.google.common.base.Preconditions;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.ShardBoundaries;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -57,7 +55,6 @@ public class ShardedMemtableIndex implements MemtableIndex
 {
     private final ShardBoundaries boundaries;
     private final MemoryIndex[] shards;
-    private final AbstractType<?> comparator;
     private final StorageAttachedIndex index;
     private final LongAdder writeCount = new LongAdder();
     private final LongAdder estimatedMemoryUsed = new LongAdder();
@@ -72,7 +69,6 @@ public class ShardedMemtableIndex implements MemtableIndex
                                 Memtable memtable)
     {
         this.index = index;
-        this.comparator = index.termType().indexType();
         int shardCount = (null == shardCountOption) ? defaultShardCount: shardCountOption;
         this.boundaries = owner.localRangeSplits(shardCount);
         this.shards = generateShards(boundaries.shardCount(), index);
@@ -126,11 +122,10 @@ public class ShardedMemtableIndex implements MemtableIndex
     // didn't receive any terms within the token range of the shard
     @Nullable
     public ByteBuffer getMinTerm() {
-        return Arrays.stream(shards)
-               .map(MemoryIndex::getMinTerm)
-               .filter(Objects::nonNull)
-               .min(comparator)
-               .orElse(null);
+        ByteBuffer result = null;
+        for (MemoryIndex shard : shards)
+            result = index.termType().min(shard.getMinTerm(), result);
+        return result;
     }
 
     // Returns the maximum indexed term in the combined memory indexes.
@@ -141,11 +136,10 @@ public class ShardedMemtableIndex implements MemtableIndex
     // didn't receive any terms within the token range of the shard
     @Nullable
     public ByteBuffer getMaxTerm() {
-        return Arrays.stream(shards)
-                     .map(MemoryIndex::getMaxTerm)
-                     .filter(Objects::nonNull)
-                     .max(comparator)
-                     .orElse(null);
+        ByteBuffer result = null;
+        for (MemoryIndex shard : shards)
+            result = index.termType().max(shard.getMaxTerm(), result);
+        return result;
     }
 
     public long index(DecoratedKey key, Clustering<?> clustering, ByteBuffer value)

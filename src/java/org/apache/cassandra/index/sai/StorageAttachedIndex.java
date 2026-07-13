@@ -279,9 +279,22 @@ public class StorageAttachedIndex implements Index
 
         IndexTermType indexTermType = IndexTermType.create(target.left, metadata.partitionKeyColumns(), target.right);
         String shardsOption = options.get(ShardedMemtableIndex.SHARDS_OPTION);
-        if (shardsOption != null && indexTermType.isVector())
-            throw new InvalidRequestException("A storage-attached index on a vector column does not support sharding");
+        if (shardsOption != null)
+        {
+            if (indexTermType.isVector())
+                throw new InvalidRequestException("A storage-attached index on a vector column does not support sharding");
 
+            try
+            {
+                int shardCount = Integer.parseInt(shardsOption);
+                if (shardCount <= 0)
+                    throw new InvalidRequestException("Shard count for a storage-attached index must be a positive integer, was " + shardCount);
+            }
+            catch (NumberFormatException e)
+            {
+                throw new InvalidRequestException("Shard count for a storage-attached index must be a valid integer, got '" + shardsOption + "'");
+            }
+        }
         AbstractAnalyzer.fromOptions(indexTermType, analysisOptions);
         IndexWriterConfig config = IndexWriterConfig.fromOptions(null, indexTermType, options);
 

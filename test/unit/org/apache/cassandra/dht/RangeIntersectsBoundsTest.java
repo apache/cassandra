@@ -159,6 +159,11 @@ public class RangeIntersectsBoundsTest extends CassandraTestBase
         assertFalse(someWrapped.intersects(ir));
         assertTrue(someWrapped.intersects(bb));
         assertTrue(someWrapped.intersects(aa));
+        // TODO (CASSANDRA-18216): bl=(3,4) and ra=(8,9) are empty on integer tokens (no value between adjacent
+        // integers), so assertFalse is accidentally correct here. With PartitionPosition (where multiple keys can
+        // share a token), these intervals are non-empty and the wrapping range (8,4] would intersect them. The
+        // wrapping branch in Range.intersects(ExcludingBounds) returns false for these cases; revisit if
+        // ExcludingBounds is ever used with PartitionPosition on wrapping ranges.
         assertFalse(someWrapped.intersects(bl));
         assertFalse(someWrapped.intersects(ra));
 
@@ -235,6 +240,10 @@ public class RangeIntersectsBoundsTest extends CassandraTestBase
         assertFalse(someWrapped.intersects(ir));
         assertTrue(someWrapped.intersects(bb));
         assertTrue(someWrapped.intersects(aa));
+        // TODO (CASSANDRA-18216): bl=[3,4) includes 3, and (8,4] wrapping contains 3 — they intersect. This
+        // assertFalse matches the wrapping branch in Range.intersects(IncludingExcludingBounds) which returns
+        // false when this.right == that.right (both 4). The branch is semantically wrong for this case but is
+        // dead code for SAI (shard ranges never wrap). Ported as-is from DS fork PR #298.
         assertFalse(someWrapped.intersects(bl));
         assertTrue(someWrapped.intersects(ra));
     }
