@@ -20,7 +20,9 @@ package org.apache.cassandra.transport;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.*;
@@ -40,8 +42,10 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
+import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.codec.MessageToMessageDecoder;
+import io.netty.handler.codec.MessageToMessageEncoder;
 import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.auth.AllowAllAuthorizer;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
@@ -64,6 +68,7 @@ import static org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy.
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
 import static org.apache.cassandra.net.FramingTest.randomishBytes;
 import static org.apache.cassandra.transport.Flusher.MAX_FRAMED_PAYLOAD_SIZE;
+import static org.apache.cassandra.transport.PreV5Handlers.getConnectionVersion;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 import static org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter.NO_OP_LIMITER;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -148,6 +153,45 @@ public class CQLConnectionTest
     }
 
     @Test
+    public void handleIncompleteHeaderErrorDuringNegotiation() throws Throwable
+    {
+        // CASSANDRA-21508: a partial header (fewer than Header.LENGTH=9 bytes) carrying an unsupported
+        // protocol version gives the server no stream id to route an error back to. Rather than emit an
+        // unroutable error frame (which could be misapplied to another request), the server closes the
+        // connection. Here the client observes a closed connection with no error frame.
+        int messageCount = 0;
+        Codec codec = Codec.crc(alloc);
+        AllocationObserver observer = new AllocationObserver();
+        InboundProxyHandler.Controller controller = new InboundProxyHandler.Controller();
+        // Truncate the client's STARTUP to a partial header (< 9 bytes) and set an unsupported version.
+        controller.withPayloadTransform(msg -> {
+            ByteBuf bb = (ByteBuf) msg;
+            ByteBuf truncated = bb.copy(0, 4);
+            truncated.setByte(0, 99 & Envelope.PROTOCOL_VERSION_MASK);
+            bb.release();
+            return truncated;
+        });
+
+        ServerConfigurator configurator = ServerConfigurator.builder()
+                                                            .withAllocationObserver(observer)
+                                                            .withProxyController(controller)
+                                                            .build();
+        Server server = server(configurator);
+        Client client = new Client(codec, messageCount);
+        server.start();
+        client.connect(address, port);
+
+        // The server cannot recover a stream id from the incomplete header, so it closes the connection
+        // without sending an error frame.
+        assertFalse(client.isConnected());
+        assertThat(client.getConnectionError()).isNull();
+        server.stop();
+
+        // the failure happens before any capacity is allocated
+        observer.verifier().accept(0);
+    }
+
+    @Test
     public void handleFrameCorruptionAfterNegotiation() throws Throwable
     {
         // A corrupt messaging frame should terminate the connection as clients
@@ -219,6 +263,43 @@ public class CQLConnectionTest
     }
 
     @Test
+    public void fatalErrorFrameIsFlushedBeforeChannelClose()
+    {
+        // CASSANDRA-21508: the post-V5 exception handler must close the connection only AFTER the diagnostic
+        // error frame has been flushed. If it closes synchronously right after writeAndFlush, a write that
+        // can't drain immediately (TCP backpressure, TLS, large frame) is aborted and the client never sees
+        // the error. Simulate "write cannot complete synchronously" with an outbound handler that captures
+        // the write promise without completing it - the handler must not have closed the channel yet.
+        StallingOutboundHandler stall = new StallingOutboundHandler();
+        EmbeddedChannel channel = new EmbeddedChannel()
+        {
+            // client_error_reporting_exclusions (SubnetGroups.contains) requires a real InetSocketAddress;
+            // EmbeddedChannel's default remote address is not one, so supply a loopback address.
+            @Override
+            protected SocketAddress remoteAddress0()
+            {
+                return new InetSocketAddress("127.0.0.1", 9042);
+            }
+        };
+        channel.pipeline().addLast(stall);
+        channel.pipeline().addLast(ExceptionHandlers.postV5Handler(FrameEncoderCrc.instance.allocator(),
+                                                                   ProtocolVersion.V5));
+
+        // Fatal protocol error, no recoverable stream id -> handler encodes an error frame and fatally closes.
+        channel.pipeline().fireExceptionCaught(ProtocolException.toFatalException(new ProtocolException("boom")));
+
+        // The error frame was handed to the outbound pipeline...
+        assertNotNull("expected the handler to write an error frame", stall.writePromise);
+        // ...but since that write has not completed, the channel must still be open. The buggy synchronous
+        // ctx.close() would have already closed it here.
+        assertTrue("channel must not close before the error frame is flushed", channel.isOpen());
+
+        // Once the write completes, the deferred close fires.
+        stall.writePromise.setSuccess();
+        assertFalse("channel should close after the error frame is flushed", channel.isOpen());
+    }
+
+    @Test
     public void testAquireAndRelease()
     {
         acquireAndRelease(10, 100, Codec.crc(alloc));
@@ -283,6 +364,48 @@ public class CQLConnectionTest
 
         Predicate<Envelope.Header> responseMatcher =
         h ->  (shouldError.test(h.streamId) && h.type == Message.Type.ERROR) || h.type == Message.Type.RESULT;
+
+        ServerConfigurator configurator = ServerConfigurator.builder()
+                                                            .withConsumer(consumer)
+                                                            .withAllocationObserver(observer)
+                                                            .withDecoder(decoder)
+                                                            .build();
+
+        runTest(configurator, codec, messageCount, envelopeProvider, responseMatcher, observer.verifier());
+    }
+
+    @Test
+    public void testRecoverableBetaFlagEnvelopeErrors()
+    {
+        // CASSANDRA-21508: a V6 (beta) envelope header with the USE_BETA flag unset is an
+        // invalid but *recoverable* protocol error, exactly like an unknown opcode. The server should
+        // return an ERROR on the offending stream id and continue processing subsequent envelopes on the
+        // same connection.
+
+        // every other message advertises V6 with USE_BETA unset and should error while extracting the header
+        IntPredicate shouldError = i -> i % 2 == 0;
+        testBetaFlagEnvelopeErrors(10, shouldError, Codec.crc(alloc));
+        testBetaFlagEnvelopeErrors(10, shouldError, Codec.lz4(alloc));
+
+        testBetaFlagEnvelopeErrors(100, shouldError, Codec.crc(alloc));
+    }
+
+    private void testBetaFlagEnvelopeErrors(int messageCount, IntPredicate shouldError, Codec codec)
+    {
+        TestConsumer consumer = new TestConsumer(new ResultMessage.Void(), codec.encoder);
+        AllocationObserver observer = new AllocationObserver(false);
+        Message.Decoder<Message.Request> decoder = new FixedDecoder();
+
+        // Mutate the erroring streams' headers to advertise the V6 (beta) version with the USE_BETA flag
+        // cleared. In the envelope header, byte 0 is the (direction & version) byte and byte 1 is the flags.
+        int betaBit = 1 << Envelope.Header.Flag.USE_BETA.ordinal();
+        IntFunction<Envelope> envelopeProvider = mutatedEnvelopeProvider(shouldError, b -> {
+            b.put(0, (byte) ProtocolVersion.V6.asInt());     // REQUEST direction, V6 (beta)
+            b.put(1, (byte) (b.get(1) & ~betaBit));          // clear USE_BETA
+        });
+
+        Predicate<Envelope.Header> responseMatcher =
+        h -> (shouldError.test(h.streamId) && h.type == Message.Type.ERROR) || h.type == Message.Type.RESULT;
 
         ServerConfigurator configurator = ServerConfigurator.builder()
                                                             .withConsumer(consumer)
@@ -551,6 +674,19 @@ public class CQLConnectionTest
         buf.setByte(index, buf.getByte(index) ^ (1 << 4));
     }
 
+    private static class StallingOutboundHandler extends ChannelOutboundHandlerAdapter
+    {
+        volatile ChannelPromise writePromise;
+
+        @Override
+        public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise)
+        {
+            // Capture the write but neither complete nor forward it: simulates a socket that cannot drain
+            // synchronously. The handler's own finally releases the payload, so we don't touch msg.
+            writePromise = promise;
+        }
+    }
+
     private static class MutableEnvelope extends Envelope
     {
         public MutableEnvelope(Envelope source)
@@ -610,7 +746,6 @@ public class CQLConnectionTest
 
             Message.Request request = new OptionsMessage();
             request.setSource(source);
-            request.setStreamId(source.header.streamId);
             Connection connection = channel.attr(Connection.attributeKey).get();
             request.attach(connection);
 
@@ -629,17 +764,17 @@ public class CQLConnectionTest
         TestConsumer(Message.Response fixedResponse, FrameEncoder frameEncoder)
         {
             this.fixedResponse = fixedResponse;
-            this.responseTemplate = fixedResponse.encode(ProtocolVersion.V5);
+            this.responseTemplate = fixedResponse.encode(ProtocolVersion.V5, 0);
             this.frameEncoder = frameEncoder;
         }
 
-        public void dispatch(Channel channel, Message.Request message, Dispatcher.FlushItemConverter toFlushItem, Overload backpressure)
+        public <P> void dispatch(Channel channel, Message.Request message, Dispatcher.FlushItemConverter<P> toFlushItem, P param, Overload backpressure)
         {
             if (flusher == null)
                 flusher = new SimpleClient.SimpleFlusher(frameEncoder);
 
             Envelope response = Envelope.create(responseTemplate.header.type,
-                                                message.getStreamId(),
+                                                message.getSource().header.streamId,
                                                 ProtocolVersion.V5,
                                                 responseTemplate.header.flags,
                                                 responseTemplate.body.copy());
@@ -648,7 +783,7 @@ public class CQLConnectionTest
             // and flush them to the outbound pipeline
             flusher.schedule(channel.pipeline().lastContext());
             // this simulates the release of the allocated resources that a real flusher would do
-            Flusher.FlushItem.Framed item = (Flusher.FlushItem.Framed)toFlushItem.toFlushItem(channel, message, fixedResponse);
+            Flusher.FlushItem.Framed item = (Flusher.FlushItem.Framed)toFlushItem.toFlushItem(param, channel, message, fixedResponse);
             item.release();
         }
 
@@ -955,6 +1090,21 @@ public class CQLConnectionTest
         }
     }
 
+    /**
+     * Simple adaptor to plug CQL message encoding into pre-V5 pipelines
+     */
+    @ChannelHandler.Sharable
+    public static class ProtocolEncoder extends MessageToMessageEncoder<Message>
+    {
+        public static final ProtocolEncoder instance = new ProtocolEncoder();
+        private ProtocolEncoder(){}
+        public void encode(ChannelHandlerContext ctx, Message source, List<Object> results)
+        {
+            ProtocolVersion version = getConnectionVersion(ctx);
+            results.add(source.encode(version, 0));
+        }
+    }
+
     static class Client
     {
         private final Codec codec;
@@ -993,7 +1143,7 @@ public class CQLConnectionTest
                     ChannelPipeline pipeline = channel.pipeline();
                     // Outbound handlers to enable us to send the initial STARTUP
                     pipeline.addLast("envelopeEncoder", Envelope.Encoder.instance);
-                    pipeline.addLast("messageEncoder", PreV5Handlers.ProtocolEncoder.instance);
+                    pipeline.addLast("messageEncoder", ProtocolEncoder.instance);
                     pipeline.addLast("envelopeDecoder", new Envelope.Decoder());
                     // Inbound handler to perform the handshake & modify the pipeline on receipt of a READY
                     pipeline.addLast("handshake", new MessageToMessageDecoder<Envelope>()
@@ -1070,6 +1220,17 @@ public class CQLConnectionTest
                             // written, via enqueue(Envelope message), and flush them to the outbound pipeline
                             flusher.schedule(channel.pipeline().lastContext());
                             ready.countDown();
+                        }
+
+                        @Override
+                        public void channelInactive(ChannelHandlerContext ctx)
+                        {
+                            // If the server closes the connection during negotiation (e.g. an unroutable
+                            // protocol error that cannot be answered with a stream id), unblock connect()
+                            // so the test observes the disconnection rather than hanging for a READY/ERROR.
+                            connected = false;
+                            ready.countDown();
+                            ctx.fireChannelInactive();
                         }
                     });
                 }

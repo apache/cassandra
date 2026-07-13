@@ -149,7 +149,7 @@ public class MessageDispatcherTest
     public long tryAuth(Callable<Long> check, Message.Request request) throws Exception
     {
         long start = check.call();
-        dispatch.dispatch(null, request, (channel,req,response) -> null, ClientResourceLimits.Overload.NONE);
+        dispatch.dispatch(null, request, (p, channel, req, response) -> null, null, ClientResourceLimits.Overload.NONE);
 
         // While this is timeout based, we should be *well below* a full second on any of this processing in any sane environment.
         long timeout = System.currentTimeMillis();
@@ -170,11 +170,12 @@ public class MessageDispatcherTest
 
 
         @Override
-        void processRequest(Channel channel,
-                            Message.Request request,
-                            FlushItemConverter forFlusher,
-                            ClientResourceLimits.Overload backpressure,
-                            RequestTime requestTime)
+        <P> void processRequest(Channel channel,
+                                Message.Request request,
+                                FlushItemConverter<P> forFlusher,
+                                P param,
+                                ClientResourceLimits.Overload backpressure,
+                                RequestTime requestTime)
         {
             // noop
         }

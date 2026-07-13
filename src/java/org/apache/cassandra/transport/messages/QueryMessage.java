@@ -128,7 +128,7 @@ public class QueryMessage extends Message.Request
             JVMStabilityInspector.inspectThrowable(e);
             if (!((e instanceof RequestValidationException) || (e instanceof RequestExecutionException)))
                 logger.error("Unexpected error during query", e);
-            return ErrorMessage.fromException(e);
+            return ErrorMessage.fromExceptionNoStreamId(e);
         }
     }
 

@@ -125,29 +125,31 @@ public class ProtocolNegotiationTest extends CQLTester
             for (int i = 0; i < 100; i++)
             {
                 int streamId = random.nextInt(254) + 1;
-                options.setStreamId(streamId);
+                options.setSource(new Envelope(Envelope.Header.dummy(streamId, options.type), null));
                 Message.Response response = client.execute(options);
+                // The stream id is stamped onto the frame at encoding time; verify it round-trips by
+                // reading it back off the response's source envelope.
                 assertEquals(String.format("StreamId mismatch; version: %s, seed: %s, iter: %s, expected: %s, actual: %s",
-                                           version, seed, i, streamId, response.getStreamId()),
-                             streamId, response.getStreamId());
+                                           version, seed, i, streamId, response.getSource().header.streamId),
+                             streamId, response.getSource().header.streamId);
             }
 
             int streamId = random.nextInt(254) + 1;
             // STARTUP messages are handled by the initial connection handler
             StartupMessage startup = new StartupMessage(ImmutableMap.of(CQL_VERSION, QueryProcessor.CQL_VERSION.toString()));
-            startup.setStreamId(streamId);
+            startup.setSource(new Envelope(Envelope.Header.dummy(streamId, startup.type), null));
             Message.Response response = client.execute(startup);
             assertEquals(String.format("StreamId mismatch after negotiation; version: %s, expected: %s, actual %s",
-                                       version, streamId, response.getStreamId()),
-                         streamId, response.getStreamId());
+                                       version, streamId, response.getSource().header.streamId),
+                         streamId, response.getSource().header.streamId);
 
             // Following STARTUP, the version specific handlers are fully responsible for processing messages
             QueryMessage query = new QueryMessage("SELECT * FROM system.local", QueryOptions.DEFAULT);
-            query.setStreamId(streamId);
+            query.setSource(new Envelope(Envelope.Header.dummy(streamId, query.type), null));
             response = client.execute(query);
             assertEquals(String.format("StreamId mismatch after negotiation; version: %s, expected: %s, actual %s",
-                                       version, streamId, response.getStreamId()),
-                         streamId, response.getStreamId());
+                                       version, streamId, response.getSource().header.streamId),
+                         streamId, response.getSource().header.streamId);
         }
         catch (IOException e)
         {
@@ -214,9 +216,9 @@ public class ProtocolNegotiationTest extends CQLTester
             QueryMessage query = new QueryMessage("SELECT * FROM system.local", QueryOptions.DEFAULT)
             {
                 @Override
-                public Envelope encode(ProtocolVersion originalVersion)
+                public Envelope encode(ProtocolVersion originalVersion, int streamId)
                 {
-                    return super.encode(v);
+                    return super.encode(v, streamId);
                 }
             };
             try

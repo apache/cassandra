@@ -35,7 +35,6 @@ import io.netty.channel.EventLoop;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.net.FrameEncoderCrc;
 import org.apache.cassandra.net.FrameEncoderLZ4;
-import org.apache.cassandra.transport.Message.Response;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.memory.BufferPool;
 
@@ -49,22 +48,22 @@ abstract class Flusher implements Runnable
         Math.min(BufferPool.NORMAL_CHUNK_SIZE,
                  FrameEncoder.Payload.MAX_SIZE - Math.max(FrameEncoderCrc.HEADER_AND_TRAILER_LENGTH, FrameEncoderLZ4.HEADER_AND_TRAILER_LENGTH));
 
-    static class FlushItem<T>
+    public static class FlushItem<T>
     {
         enum Kind {FRAMED, UNFRAMED}
 
         final Kind kind;
         final Channel channel;
-        final T response;
-        final Envelope request;
+        final T responseEnvelope;
+        final Envelope requestEnvelope;
         final Consumer<FlushItem<T>> tidy;
 
-        FlushItem(Kind kind, Channel channel, T response, Envelope request, Consumer<FlushItem<T>> tidy)
+        FlushItem(Kind kind, Channel channel, T responseEnvelope, Envelope requestEnvelope, Consumer<FlushItem<T>> tidy)
         {
             this.kind = kind;
             this.channel = channel;
-            this.request = request;
-            this.response = response;
+            this.requestEnvelope = requestEnvelope;
+            this.responseEnvelope = responseEnvelope;
             this.tidy = tidy;
         }
 
@@ -77,21 +76,21 @@ abstract class Flusher implements Runnable
         {
             final FrameEncoder.PayloadAllocator allocator;
             Framed(Channel channel,
-                   Envelope response,
-                   Envelope request,
+                   Envelope responseEnvelope,
+                   Envelope requestEnvelope,
                    FrameEncoder.PayloadAllocator allocator,
                    Consumer<FlushItem<Envelope>> tidy)
             {
-                super(Kind.FRAMED, channel, response, request, tidy);
+                super(Kind.FRAMED, channel, responseEnvelope, requestEnvelope, tidy);
                 this.allocator = allocator;
             }
         }
 
-        static class Unframed extends FlushItem<Response>
+        static class Unframed extends FlushItem<Envelope>
         {
-            Unframed(Channel channel, Response response, Envelope request, Consumer<FlushItem<Response>> tidy)
+            Unframed(Channel channel, Envelope responseEnvelope, Envelope requestEnvelope, Consumer<FlushItem<Envelope>> tidy)
             {
-                super(Kind.UNFRAMED, channel, response, request, tidy);
+                super(Kind.UNFRAMED, channel, responseEnvelope, requestEnvelope, tidy);
             }
         }
     }
@@ -143,13 +142,13 @@ abstract class Flusher implements Runnable
 
     private void processUnframedResponse(FlushItem.Unframed flush)
     {
-        flush.channel.write(flush.response, flush.channel.voidPromise());
+        flush.channel.write(flush.responseEnvelope, flush.channel.voidPromise());
         channels.add(flush.channel);
     }
 
     private void processFramedResponse(FlushItem.Framed flush)
     {
-        Envelope outbound = flush.response;
+        Envelope outbound = flush.responseEnvelope;
         if (envelopeSize(outbound.header) >= MAX_FRAMED_PAYLOAD_SIZE)
         {
             flushLargeMessage(flush.channel, outbound, flush.allocator);
@@ -157,7 +156,7 @@ abstract class Flusher implements Runnable
         else
         {
             payloads.computeIfAbsent(flush.channel, channel -> new FlushBuffer(channel, flush.allocator, 5))
-                    .add(flush.response);
+                    .add(flush.responseEnvelope);
         }
     }
 

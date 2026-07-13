@@ -184,9 +184,9 @@ public class UnableToParseClientMessageTest extends TestBaseImpl
         }
 
         @Override
-        public Envelope encode(ProtocolVersion version)
+        public Envelope encode(ProtocolVersion version, int streamId)
         {
-            Envelope base = super.encode(version);
+            Envelope base = super.encode(version, streamId);
             return new CustomHeaderEnvelope(base.header, base.body, headerEncoded);
         }
     }
@@ -227,7 +227,7 @@ public class UnableToParseClientMessageTest extends TestBaseImpl
         }
 
         @Override
-        public Envelope encode(ProtocolVersion version)
+        public Envelope encode(ProtocolVersion version, int streamId)
         {
             Codec<?> originalCodec = type.codec;
             try
@@ -254,7 +254,7 @@ public class UnableToParseClientMessageTest extends TestBaseImpl
                     }
                 });
 
-                return super.encode(version);
+                return super.encode(version, streamId);
             }
             finally
             {

@@ -317,7 +317,7 @@ public class SimpleClient implements Closeable
                 for (int i = 0; i < requests.size(); i++)
                 {
                     Message.Request message = requests.get(i);
-                    message.setStreamId(i);
+                    message.setSource(new Envelope(Envelope.Header.dummy(i, message.type), null));
                     message.attach(connection);
                 }
                 lastWriteFuture = channel.writeAndFlush(requests);
@@ -330,7 +330,7 @@ public class SimpleClient implements Closeable
                         throw new RuntimeException("timeout");
                     if (msg instanceof ErrorMessage)
                         throw new RuntimeException((Throwable) ((ErrorMessage) msg).error);
-                    rrMap.put(requests.get(msg.getStreamId()), msg);
+                    rrMap.put(requests.get(msg.getSource().header.streamId), msg);
                 }
             }
             else
@@ -346,6 +346,18 @@ public class SimpleClient implements Closeable
         {
             throw new UncheckedInterruptedException(e);
         }
+    }
+
+    /**
+     * The stream id to frame an outbound client request with. SimpleClient carries the intended id on the
+     * request's (dummy) source envelope (see {@link #execute(List)} and callers that pipeline requests).
+     * When no source has been assigned, we fall back to 0, which is sufficient for the non-pipelined path
+     * where only a single request is ever in flight.
+     */
+    private static int outboundStreamId(Message message)
+    {
+        Envelope source = message.getSource();
+        return source == null ? 0 : source.header.streamId;
     }
 
     public interface EventHandler
@@ -397,36 +409,37 @@ public class SimpleClient implements Closeable
             this.largeMessageThreshold = largeMessageThreshold;
         }
 
-        protected void decode(ChannelHandlerContext ctx, Envelope response, List<Object> results)
+        @Override
+        protected void decode(ChannelHandlerContext ctx, Envelope request, List<Object> results)
         {
-            switch(response.header.type)
+            switch(request.header.type)
             {
                 case READY:
                 case AUTHENTICATE:
-                    if (response.header.version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                    if (request.header.version.isGreaterOrEqualTo(ProtocolVersion.V5))
                     {
-                        configureModernPipeline(ctx, response, largeMessageThreshold);
+                        configureModernPipeline(ctx, request, largeMessageThreshold);
                         // consuming the message is done when setting up the pipeline
                     }
                     else
                     {
                         configureLegacyPipeline(ctx);
                         // really just removes self from the pipeline, so pass this message on
-                        ctx.pipeline().context(Envelope.Decoder.class).fireChannelRead(response);
+                        ctx.pipeline().context(Envelope.Decoder.class).fireChannelRead(request);
                     }
                     break;
                 case SUPPORTED:
                     // just pass through
-                    results.add(response);
+                    results.add(request);
                     break;
                 default:
-                    throw new ProtocolException(String.format("Unexpected %s response expecting " +
+                    throw new ProtocolException(String.format("Unexpected %s request expecting " +
                                                               "READY, AUTHENTICATE or SUPPORTED",
-                                                              response.header.type));
+                                                              request.header.type));
             }
         }
 
-        private void configureModernPipeline(ChannelHandlerContext ctx, Envelope response, int largeMessageThreshold)
+        private void configureModernPipeline(ChannelHandlerContext ctx, Envelope request, int largeMessageThreshold)
         {
             logger.info("Configuring modern pipeline");
             ChannelPipeline pipeline = ctx.pipeline();
@@ -448,7 +461,7 @@ public class SimpleClient implements Closeable
 
             CQLMessageHandler.MessageConsumer<Message.Response> responseConsumer = new CQLMessageHandler.MessageConsumer<Message.Response>()
             {
-                public void dispatch(Channel channel, Message.Response message, Dispatcher.FlushItemConverter toFlushItem, Overload backpressure)
+                public <P> void dispatch(Channel channel, Message.Response message, Dispatcher.FlushItemConverter<P> toFlushItem, P param, Overload backpressure)
                 {
                     responseHandler.handleResponse(channel, message);
                 }
@@ -543,15 +556,15 @@ public class SimpleClient implements Closeable
                     ProtocolVersion version = connection == null ? ProtocolVersion.CURRENT : connection.getVersion();
                     SimpleFlusher flusher = new SimpleFlusher(frameEncoder, largeMessageThreshold);
                     for (Message message : (List<Message>) msg)
-                        flusher.enqueue(message.encode(version));
+                        flusher.enqueue(message.encode(version, outboundStreamId(message)));
 
                     flusher.maybeWrite(ctx, promise);
                 }
             });
             pipeline.remove(this);
 
-            Message.Response message = messageDecoder.decode(ctx.channel(), response);
-            responseConsumer.dispatch(channel, message, (ch, req, resp) -> null, Overload.NONE);
+            Message.Response message = messageDecoder.decode(ctx.channel(), request);
+            responseConsumer.dispatch(channel, message, (p, ch, req, resp) -> null, null, Overload.NONE);
         }
 
         private FrameDecoder frameDecoder(ChannelHandlerContext ctx, BufferPoolAllocator allocator)
@@ -596,7 +609,8 @@ public class SimpleClient implements Closeable
             // The only case the connection can be null is when we send the initial STARTUP message (client side thus)
             ProtocolVersion version = connection == null ? ProtocolVersion.CURRENT : connection.getVersion();
             assert messages.size() == 1;
-            results.add(messages.get(0).encode(version));
+            Message message = messages.get(0);
+            results.add(message.encode(version, outboundStreamId(message)));
         }
     }
 
@@ -620,7 +634,7 @@ public class SimpleClient implements Closeable
             pipeline.addLast(HandlerNames.INITIAL_HANDLER, new InitialHandler(version, responseHandler, largeMessageThreshold));
             pipeline.addLast(HandlerNames.MESSAGE_DECODER, PreV5Handlers.ProtocolDecoder.instance);
             pipeline.addLast(HandlerNames.MESSAGE_ENCODER, MessageBatchEncoder.instance);
-            pipeline.addLast(HandlerNames.RESPONSE_HANDLER,  responseHandler);
+            pipeline.addLast(HandlerNames.RESPONSE_HANDLER, responseHandler);
         }
     }
 

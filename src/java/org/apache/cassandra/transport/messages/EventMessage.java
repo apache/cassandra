@@ -25,6 +25,8 @@ import org.apache.cassandra.transport.ProtocolVersion;
 
 public class EventMessage extends Message.Response
 {
+    public static final int EVENT_MESSAGE_STREAM_ID = -1;
+
     public static final Message.Codec<EventMessage> codec = new Message.Codec<EventMessage>()
     {
         public EventMessage decode(ByteBuf body, ProtocolVersion version)
@@ -49,7 +51,6 @@ public class EventMessage extends Message.Response
     {
         super(Message.Type.EVENT);
         this.event = event;
-        this.setStreamId(-1);
     }
 
     @Override
