@@ -39,13 +39,16 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.WrappingUnfilteredRowIterator;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.metrics.ReadResponseMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -198,7 +201,7 @@ public class ReadResponseTest
         StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
 
         ReadResponse localResponse = command.createResponse(EmptyIterators.unfilteredPartition(metadata), rdi);
-        ReadResponse inMemoryResponse = command.createLocalObjectResponse(EmptyIterators.unfilteredPartition(metadata), rdi);
+        ReadResponse inMemoryResponse = command.createLocalObjectResponse(EmptyIterators.unfilteredPartition(metadata), rdi, false);
 
         assertIteratorsEqual(command, localResponse, inMemoryResponse);
     }
@@ -215,7 +218,7 @@ public class ReadResponseTest
         PartitionUpdate update = PartitionUpdate.singleRowUpdate(metadata, dk, row);
 
         ReadResponse localResponse = command.createResponse(singlePartitionIterator(update), rdi);
-        ReadResponse inMemoryResponse = command.createLocalObjectResponse(singlePartitionIterator(update), rdi);
+        ReadResponse inMemoryResponse = command.createLocalObjectResponse(singlePartitionIterator(update), rdi, false);
 
         assertIteratorsEqual(command, localResponse, inMemoryResponse);
     }
@@ -225,7 +228,7 @@ public class ReadResponseTest
     {
         ReadCommand command = command(key(), metadata);
         StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
-        ReadResponse response = command.createLocalObjectResponse(EmptyIterators.unfilteredPartition(metadata), rdi);
+        ReadResponse response = command.createLocalObjectResponse(EmptyIterators.unfilteredPartition(metadata), rdi, false);
 
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
@@ -238,11 +241,110 @@ public class ReadResponseTest
     }
 
     @Test
+    public void inMemoryResponseUsesHigherLimitsForOneConsistency()
+    {
+        int key = key();
+        ReadCommand command = command(key, metadataWithClustering);
+        StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
+        // More rows than the default row limit (128) but fewer than the ONE/LOCAL_ONE limit (512).
+        int rowCount = 150;
+        PartitionUpdate update = buildMultiRowUpdate(metadataWithClustering, key, rowCount);
+
+        ReadResponse otherResponse = command.createLocalObjectResponse(singlePartitionIterator(update), rdi, false);
+        ReadResponse oneResponse = command.createLocalObjectResponse(singlePartitionIterator(update), rdi, true);
+
+        // The default-tier limits overflow this partition; ONE/LOCAL_ONE keeps more of it in memory.
+        assertTrue("default tier should overflow", otherResponse.inMemoryUnfilteredCount() < rowCount);
+        assertTrue("ONE/LOCAL_ONE tier should keep more rows in memory",
+                   oneResponse.inMemoryUnfilteredCount() > otherResponse.inMemoryUnfilteredCount());
+    }
+
+    @Test
+    public void inMemoryResponseCountsRowLimitHitOnOverflow()
+    {
+        // Row limit 1, size limit disabled: the rows beyond the first overflow, hitting the row-count limit.
+        limitHitAssertion()
+            .rows(5).maxRows(1)
+            .expectRowLimitHit()
+            .verify();
+    }
+
+    @Test
+    public void inMemoryResponseCountsSizeLimitHitOnOverflow()
+    {
+        // Row limit disabled, tiny size limit: the rows beyond the first overflow, hitting the size limit.
+        limitHitAssertion()
+            .rows(5).maxSize(1)
+            .expectSizeLimitHit()
+            .verify();
+    }
+
+    @Test
+    public void inMemoryResponseCountsRowLimitFirstWhenBothLimitsCrossed()
+    {
+        // Both limits would be crossed; the row-count limit is checked first, so only it is counted.
+        limitHitAssertion()
+            .rows(5).maxRows(1).maxSize(1)
+            .expectRowLimitHit()
+            .verify();
+    }
+
+    @Test
+    public void inMemoryResponseDoesNotCountLimitHitWhenAllInMemory()
+    {
+        // Limits above the response size: nothing overflows.
+        limitHitAssertion()
+            .rows(3).maxRows(100).maxSize(Long.MAX_VALUE)
+            .expectNoLimitHit()
+            .verify();
+    }
+
+    private LimitHitAssertionBuilder limitHitAssertion()
+    {
+        return new LimitHitAssertionBuilder();
+    }
+
+    /**
+     * Builds an in-memory response for a partition of {@link #rows} rows with the configured per-request limits
+     * ({@code 0} disables a limit) and asserts which limit-hit counter(s) were incremented (each by one).
+     */
+    private class LimitHitAssertionBuilder
+    {
+        private int rows = 0;
+        private int maxRows = 0;   // 0 = row-count limit disabled
+        private long maxSize = 0;  // 0 = heap-size limit disabled
+        private boolean expectRowHit = false;
+        private boolean expectSizeHit = false;
+
+        LimitHitAssertionBuilder rows(int rows) { this.rows = rows; return this; }
+        LimitHitAssertionBuilder maxRows(int maxRows) { this.maxRows = maxRows; return this; }
+        LimitHitAssertionBuilder maxSize(long maxSize) { this.maxSize = maxSize; return this; }
+        LimitHitAssertionBuilder expectRowLimitHit() { this.expectRowHit = true; return this; }
+        LimitHitAssertionBuilder expectSizeLimitHit() { this.expectSizeHit = true; return this; }
+        LimitHitAssertionBuilder expectNoLimitHit() { this.expectRowHit = false; this.expectSizeHit = false; return this; }
+
+        void verify()
+        {
+            int key = key();
+            ReadCommand command = command(key, metadataWithClustering);
+            StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
+            PartitionUpdate update = buildMultiRowUpdate(metadataWithClustering, key, rows);
+
+            long rowHitsBefore = ReadResponseMetrics.inMemoryRowLimitHits.getCount();
+            long sizeHitsBefore = ReadResponseMetrics.inMemorySizeLimitHits.getCount();
+            ReadResponse.createInMemoryDataResponse(singlePartitionIterator(update), command, rdi, maxRows, maxSize);
+            assertEquals("unexpected row limit hit count", rowHitsBefore + (expectRowHit ? 1 : 0), ReadResponseMetrics.inMemoryRowLimitHits.getCount());
+            assertEquals("unexpected size limit hit count", sizeHitsBefore + (expectSizeHit ? 1 : 0), ReadResponseMetrics.inMemorySizeLimitHits.getCount());
+        }
+    }
+
+    @Test
     public void inMemoryResponseWithOverflowMatchesLocalDataResponse()
     {
+        // Row limit crossed: the whole response is serialized.
         inMemoryAssertion()
             .maxRows(2).rows(5)
-            .expectInMemoryUnfilteredCount(2)
+            .expectSerialized()
             .verify();
     }
 
@@ -251,16 +353,57 @@ public class ReadResponseTest
     {
         inMemoryAssertion()
             .maxRows(10).rows(3)
-            .expectInMemoryUnfilteredCount(3)
+            .expectInMemory()
             .verify();
     }
 
     @Test
-    public void inMemoryResponseWithZeroMaxRowsUsesOnlyOverflow()
+    public void inMemoryResponseByteLimitWithOverflow()
     {
+        // Row limit disabled; the byte limit is crossed, so the whole response is serialized.
         inMemoryAssertion()
-            .maxRows(0).rows(3)
-            .expectInMemoryUnfilteredCount(0)
+            .maxBytesAsSizeOfFirstNRows(2).rows(5)
+            .expectSerialized()
+            .verify();
+    }
+
+    @Test
+    public void inMemoryResponseByteLimitAllRowsInMemoryWhenUnderLimit()
+    {
+        // Byte limit sized above the whole response: it stays in memory.
+        inMemoryAssertion()
+            .maxBytesAsSizeOfFirstNRows(10).rows(3)
+            .expectInMemory()
+            .verify();
+    }
+
+    @Test
+    public void inMemoryResponseByteLimitReachedBeforeRowLimit()
+    {
+        // Row limit (10) is not reached; the byte limit (sized for 2 rows) is crossed first, so the response is serialized.
+        inMemoryAssertion()
+            .maxRows(10).maxBytesAsSizeOfFirstNRows(2).rows(5)
+            .expectSerialized()
+            .verify();
+    }
+
+    @Test
+    public void inMemoryResponseRowLimitReachedBeforeByteLimit()
+    {
+        // Byte limit (sized for all 5 rows) is not reached; the row limit (2) is crossed first, so the response is serialized.
+        inMemoryAssertion()
+            .maxRows(2).maxBytesAsSizeOfFirstNRows(5).rows(5)
+            .expectSerialized()
+            .verify();
+    }
+
+    @Test
+    public void inMemoryResponseKeepsEverythingWhenBothLimitsDisabled()
+    {
+        // Both limits disabled: the whole partition is kept in memory.
+        inMemoryAssertion()
+            .maxRows(0).rows(4)
+            .expectInMemory()
             .verify();
     }
 
@@ -277,7 +420,8 @@ public class ReadResponseTest
         // Returns EMPTY before any iteration; returns expectedDigest once the iterator has been consumed.
         LazyRepairedDataInfo rdi = new LazyRepairedDataInfo(expectedDigest);
 
-        ReadResponse response = ReadResponse.createInMemoryDataResponse(lazyRdiWrappedIterator(update, rdi), command, rdi, 10);
+        // large heap budget (row limit disabled) so all rows are kept in memory; this test only cares about digest capture timing
+        ReadResponse response = ReadResponse.createInMemoryDataResponse(lazyRdiWrappedIterator(update, rdi), command, rdi, 0, Long.MAX_VALUE);
 
         assertTrue("digest should be non-empty after iterator was consumed", rdi.wasConsumedBeforeDigestCaptured());
         assertEquals(expectedDigest, response.repairedDataDigest());
@@ -285,85 +429,86 @@ public class ReadResponseTest
     }
 
     @Test
-    public void inMemoryResponseWithRangeTombstoneOnlyAllInMemory()
+    public void inMemoryResponseWithRangeTombstoneAllInMemory()
     {
+        // A single range tombstone (open+close markers) well under the limit: kept in memory.
         inMemoryAssertion()
             .maxRows(10).rows(0)
             .withTombstone(rangeTombstone(0, 5))
-            .expectInMemoryUnfilteredCount(2)
+            .expectInMemory()
             .verify();
     }
 
     @Test
-    public void inMemoryResponseWithRangeTombstoneOnlyOverflow()
+    public void inMemoryResponseWithRangeTombstoneOverflow()
     {
-        // rows 0-1 go in-memory, rows 2-4 and the RT go to overflow
+        // Rows plus a trailing range tombstone cross the row limit: the whole response is serialized.
         inMemoryAssertion()
             .maxRows(2).rows(5)
             .withTombstone(rangeTombstone(6, 9))
-            .expectInMemoryUnfilteredCount(2)
+            .expectSerialized()
             .verify();
     }
 
     @Test
     public void inMemoryResponseWithTombstonesOnlyOverflow()
     {
-        // Each RT produces an open+close marker pair (2 unfiltered objects).
-        // maxRows=2 fits exactly the first RT; the second overflows.
+        // Two range tombstones (open+close markers each) cross the row limit: the whole response is serialized.
         inMemoryAssertion()
             .maxRows(2).rows(0)
             .withTombstone(rangeTombstone(0, 3))
             .withTombstone(rangeTombstone(5, 8))
-            .expectInMemoryUnfilteredCount(2)
+            .expectSerialized()
             .verify();
     }
 
     @Test
-    public void inMemoryResponseWithRangeTombstoneBetweenInMemoryAndOverflow()
+    public void inMemoryResponseWithRangeTombstoneAmongRowsOverflow()
     {
-        // RT at [1, 2) sits between the in-memory rows (0) and the overflow rows (3-4)
+        // A range tombstone at [1, 2) interleaved with rows 0-4, crossing the row limit: serialized in full.
         inMemoryAssertion()
             .maxRows(2).rows(5)
             .withTombstone(rangeTombstone(1, 2))
-            .expectInMemoryUnfilteredCount(3)
+            .expectSerialized()
             .verify();
     }
 
     @Test
-    public void inMemoryResponseWithRangeTombstoneBetweenInMemoryAndOverflowReversed()
+    public void inMemoryResponseWithRangeTombstoneAmongRowsOverflowReversed()
     {
-        // RT at [2, 3) sits between the in-memory rows (4) and the overflow rows (0-1)
+        // Same as above with reversed read order; the range tombstone is at [2, 3).
         inMemoryAssertion()
             .maxRows(2).rows(5).reversed()
             .withTombstone(rangeTombstone(2, 3))
-            .expectInMemoryUnfilteredCount(3)
+            .expectSerialized()
             .verify();
     }
 
     @Test
     public void inMemoryResponseWithOverlappingRangeTombstonesAtDifferentTimestamps()
     {
-        // Three overlapping RTs: [0,3) ts=100, [1,4) ts=200, [2,5) ts=50
-        // which are transformed into: bound, boundary, boundary, bound markers
+        // Three overlapping RTs: [0,3) ts=100, [1,4) ts=200, [2,5) ts=50 form a single continuous open range
+        // (bound, boundary, boundary, bound markers). Emission cannot stop while inside the open marker, so even
+        // with a row limit of 2 the whole response is kept in memory.
         inMemoryAssertion()
             .maxRows(2).rows(5)
             .withTombstone(rangeTombstone(0, 3).timestamp(100))
             .withTombstone(rangeTombstone(1, 4).timestamp(200))
             .withTombstone(rangeTombstone(2, 5).timestamp(50))
-            .expectInMemoryUnfilteredCount(4)
+            .expectInMemory()
             .verify();
     }
 
     @Test
     public void inMemoryResponseWithOverlappingRangeTombstonesAtDifferentTimestampsReversed()
     {
-        // Same tombstones as above with reversed read order
+        // Same tombstones as above with reversed read order; still kept in memory (open marker cannot be split).
         inMemoryAssertion()
             .maxRows(2).rows(5).reversed()
             .withTombstone(rangeTombstone(0, 3).timestamp(100))
             .withTombstone(rangeTombstone(1, 4).timestamp(200))
             .withTombstone(rangeTombstone(2, 5).timestamp(50))
-            .expectInMemoryUnfilteredCount(4)
+            .expectInMemory()
             .verify();
     }
 
@@ -374,17 +519,24 @@ public class ReadResponseTest
 
     private class InMemoryAssertionBuilder
     {
-        private int maxRows = Integer.MAX_VALUE;
+        private int maxRows = 0;                 // per-request row limit; 0 = disabled
+        private Integer maxBytes = null; // if set, the byte limit is sized to hold this many leading Unfiltered objects; null = disabled
         private int rows = 0;
         private boolean reversed = false;
         private final List<RangeTombstoneSpec> tombstones = new ArrayList<>();
-        private Integer expectInMemoryUnfilteredCount = null;
+        // true = the whole response is expected to be kept as an object graph, false = serialized in full
+        private Boolean expectInMemory = null;
 
         InMemoryAssertionBuilder maxRows(int maxRows) { this.maxRows = maxRows; return this; }
+        // Enables the byte limit, sizing it to exactly hold the first n Unfiltered objects the read produces
+        InMemoryAssertionBuilder maxBytesAsSizeOfFirstNRows(int n) {this.maxBytes = n; return this; }
         InMemoryAssertionBuilder rows(int rows) { this.rows = rows; return this; }
         InMemoryAssertionBuilder reversed() { this.reversed = true; return this; }
         InMemoryAssertionBuilder withTombstone(RangeTombstoneSpec rt) { tombstones.add(rt); return this; }
-        InMemoryAssertionBuilder expectInMemoryUnfilteredCount(int count) { this.expectInMemoryUnfilteredCount = count; return this; }
+        // The response stays within the limits and is kept in memory as an object graph.
+        InMemoryAssertionBuilder expectInMemory() { this.expectInMemory = true; return this; }
+        // A limit is crossed, so the whole response is serialized into a buffer.
+        InMemoryAssertionBuilder expectSerialized() { this.expectInMemory = false; return this; }
 
         void verify()
         {
@@ -406,13 +558,53 @@ public class ReadResponseTest
             }
             PartitionUpdate update = builder.build();
 
-            ReadResponse localResponse = command.createResponse(singlePartitionIterator(update, reversed), rdi);
-            ReadResponse inMemoryResponse = ReadResponse.createInMemoryDataResponse(singlePartitionIterator(update, reversed), command, rdi, maxRows);
+            long maxHeapSize = maxBytes == null ? 0 : heapSizeOfFirstNRows(update, reversed, maxBytes);
 
-            assertIteratorsEqual(command, localResponse, inMemoryResponse);
-            if (expectInMemoryUnfilteredCount != null)
-                assertEquals("Unxpected inMemoryUnfilteredCount", (int) expectInMemoryUnfilteredCount, inMemoryResponse.inMemoryUnfilteredCount());
+            ReadResponse localResponse = command.createResponse(singlePartitionIterator(update, reversed), rdi);
+            ReadResponse inMemoryResponse = ReadResponse.createInMemoryDataResponse(singlePartitionIterator(update, reversed), command, rdi, maxRows, maxHeapSize);
+
+            // The reconstructed response must match the plain serialized response regardless of representation.
+            List<String> expected = collectUnfiltered(command, localResponse);
+            assertEquals(expected, collectUnfiltered(command, inMemoryResponse));
+
+            // When kept in memory the whole response is an object graph (inMemoryUnfilteredCount == all unfiltereds);
+            // when serialized nothing is kept in memory (inMemoryUnfilteredCount == 0).
+            if (expectInMemory != null)
+                assertEquals("unexpected inMemoryUnfilteredCount",
+                             expectInMemory ? expected.size() : 0,
+                             inMemoryResponse.inMemoryUnfilteredCount());
         }
+    }
+
+    /**
+     * Returns a heap size of the first {@code n} Unfiltered objects the read of
+     * {@code update} produces. Feeding this to the in-memory response keeps those {@code n} objects in memory (the
+     * (n+1)th crosses the >= threshold and overflows), which lets the assertions above express the byte-based split
+     * as a count of leading Unfiltered objects even though the limit itself is a heap size.
+     */
+    private long heapSizeOfFirstNRows(PartitionUpdate update, boolean reversed, int n)
+    {
+        if (n <= 0)
+            return 0;
+
+        long size = 0;
+        int count = 0;
+        try (UnfilteredRowIterator rowIter = update.unfilteredIterator(ColumnFilter.SelectionColumnFilter.all(update.columns()), Slices.ALL, reversed))
+        {
+            while (rowIter.hasNext() && count < n)
+            {
+                size += unsharedHeapSize(rowIter.next());
+                count++;
+            }
+        }
+        return size;
+    }
+
+    private static long unsharedHeapSize(Unfiltered unfiltered)
+    {
+        return unfiltered.isRow()
+               ? ((Row) unfiltered).unsharedHeapSize()
+               : ((RangeTombstoneMarker) unfiltered).unsharedHeapSize();
     }
 
     private static RangeTombstoneSpec rangeTombstone(int start, int end)
