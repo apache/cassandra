@@ -18,15 +18,19 @@
 package org.apache.cassandra.index.sai.disk.v1;
 
 import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 
 import com.google.common.base.Stopwatch;
 
+import org.apache.lucene.index.CorruptIndexException;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -34,11 +38,13 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.index.sai.IndexValidation;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
@@ -61,6 +67,8 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import static org.apache.cassandra.Util.dk;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class SegmentFlushTest
 {
@@ -85,6 +93,147 @@ public class SegmentFlushTest
     public void reset()
     {
         SegmentBuilder.updateLastValidSegmentRowId(-1); // reset
+    }
+
+    @Test
+    public void multiSegmentBalancedTreePassesChecksumValidation() throws IOException
+    {
+        Path tmpDir = Files.createTempDirectory("SegmentFlushTest");
+        IndexDescriptor indexDescriptor = IndexDescriptor.create(new Descriptor(new File(tmpDir.toFile()), "ks", "cf", new SequenceBasedSSTableId(1)), Murmur3Partitioner.instance, SAITester.EMPTY_COMPARATOR);
+        ColumnMetadata column = ColumnMetadata.regularColumn("sai", "internal", "ts", TimestampType.instance, 1);
+        StorageAttachedIndex index = SAITester.createMockIndex(column);
+
+        SSTableIndexWriter writer = new SSTableIndexWriter(indexDescriptor, index, V1OnDiskFormat.SEGMENT_BUILD_MEMORY_LIMITER, () -> true);
+
+        List<DecoratedKey> keys = Arrays.asList(dk("1"), dk("2"));
+        Collections.sort(keys);
+
+        writer.addRow(SAITester.TEST_FACTORY.create(keys.get(0)), createRow(column, TimestampType.instance.decompose(new Date(1_000L))), 0L);
+        writer.addRow(SAITester.TEST_FACTORY.create(keys.get(1)), createRow(column, TimestampType.instance.decompose(new Date(2_000L))), SegmentBuilder.LAST_VALID_SEGMENT_ROW_ID + 1);
+        writer.complete(Stopwatch.createStarted());
+
+        // Will throw if checksum validation fails:
+        indexDescriptor.validatePerIndexComponents(index.termType(), index.identifier(), IndexValidation.CHECKSUM, true, true);
+    }
+
+    @Test
+    public void multiSegmentTermsDataPassesChecksumValidation() throws IOException
+    {
+        Path tmpDir = Files.createTempDirectory("SegmentFlushTest");
+        IndexDescriptor indexDescriptor = IndexDescriptor.create(new Descriptor(new File(tmpDir.toFile()), "ks", "cf", new SequenceBasedSSTableId(1)), Murmur3Partitioner.instance, SAITester.EMPTY_COMPARATOR);
+        ColumnMetadata column = ColumnMetadata.regularColumn("sai", "internal", "name", UTF8Type.instance, 1);
+        StorageAttachedIndex index = SAITester.createMockIndex(column);
+
+        SSTableIndexWriter writer = new SSTableIndexWriter(indexDescriptor, index, V1OnDiskFormat.SEGMENT_BUILD_MEMORY_LIMITER, () -> true);
+
+        List<DecoratedKey> keys = Arrays.asList(dk("1"), dk("2"));
+        Collections.sort(keys);
+
+        writer.addRow(SAITester.TEST_FACTORY.create(keys.get(0)), createRow(column, UTF8Type.instance.decompose("a")), 0L);
+        writer.addRow(SAITester.TEST_FACTORY.create(keys.get(1)), createRow(column, UTF8Type.instance.decompose("b")), SegmentBuilder.LAST_VALID_SEGMENT_ROW_ID + 1);
+        writer.complete(Stopwatch.createStarted());
+
+        // Will throw if checksum validation fails:
+        indexDescriptor.validatePerIndexComponents(index.termType(), index.identifier(), IndexValidation.CHECKSUM, true, true);
+    }
+
+    @Test
+    public void multiSegmentBalancedTreePassesHeaderFooterValidation() throws IOException
+    {
+        Path tmpDir = Files.createTempDirectory("SegmentFlushTest");
+        IndexDescriptor indexDescriptor = IndexDescriptor.create(new Descriptor(new File(tmpDir.toFile()), "ks", "cf", new SequenceBasedSSTableId(1)), Murmur3Partitioner.instance, SAITester.EMPTY_COMPARATOR);
+        ColumnMetadata column = ColumnMetadata.regularColumn("sai", "internal", "ts", TimestampType.instance, 1);
+        StorageAttachedIndex index = SAITester.createMockIndex(column);
+
+        SSTableIndexWriter writer = new SSTableIndexWriter(indexDescriptor, index, V1OnDiskFormat.SEGMENT_BUILD_MEMORY_LIMITER, () -> true);
+
+        List<DecoratedKey> keys = Arrays.asList(dk("1"), dk("2"));
+        Collections.sort(keys);
+
+        writer.addRow(SAITester.TEST_FACTORY.create(keys.get(0)), createRow(column, TimestampType.instance.decompose(new Date(1_000L))), 0L);
+        writer.addRow(SAITester.TEST_FACTORY.create(keys.get(1)), createRow(column, TimestampType.instance.decompose(new Date(2_000L))), SegmentBuilder.LAST_VALID_SEGMENT_ROW_ID + 1);
+        writer.complete(Stopwatch.createStarted());
+
+        indexDescriptor.validatePerIndexComponents(index.termType(), index.identifier(), IndexValidation.HEADER_FOOTER, false, true);
+    }
+
+    @Test
+    public void multiSegmentBalancedTreeFailsChecksumOnFirstSegmentByteFlip() throws IOException
+    {
+        Path tmpDir = Files.createTempDirectory("SegmentFlushTest");
+        IndexDescriptor indexDescriptor = IndexDescriptor.create(new Descriptor(new File(tmpDir.toFile()), "ks", "cf", new SequenceBasedSSTableId(1)), Murmur3Partitioner.instance, SAITester.EMPTY_COMPARATOR);
+        ColumnMetadata column = ColumnMetadata.regularColumn("sai", "internal", "ts", TimestampType.instance, 1);
+        StorageAttachedIndex index = SAITester.createMockIndex(column);
+
+        SSTableIndexWriter writer = new SSTableIndexWriter(indexDescriptor, index, V1OnDiskFormat.SEGMENT_BUILD_MEMORY_LIMITER, () -> true);
+
+        List<DecoratedKey> keys = Arrays.asList(dk("1"), dk("2"));
+        Collections.sort(keys);
+
+        writer.addRow(SAITester.TEST_FACTORY.create(keys.get(0)), createRow(column, TimestampType.instance.decompose(new Date(1_000L))), 0L);
+        writer.addRow(SAITester.TEST_FACTORY.create(keys.get(1)), createRow(column, TimestampType.instance.decompose(new Date(2_000L))), SegmentBuilder.LAST_VALID_SEGMENT_ROW_ID + 1);
+        writer.complete(Stopwatch.createStarted());
+
+        // Locate segment 0's payload extent so the flip lands inside it. Corrupting the FIRST
+        // (not last) segment specifically proves the validator inspects every segment -- a
+        // validator that only checked the trailing footer would miss this and silently pass.
+        MetadataSource source = MetadataSource.loadColumnMetadata(indexDescriptor, index.identifier());
+        List<SegmentMetadata> segments = SegmentMetadata.load(source, indexDescriptor.primaryKeyFactory);
+        assertEquals(2, segments.size());
+        SegmentMetadata.ComponentMetadata cm = segments.get(0).componentMetadatas.get(IndexComponent.BALANCED_TREE);
+        long flipPosition = cm.offset + cm.length / 2;
+
+        File balancedTree = indexDescriptor.fileFor(IndexComponent.BALANCED_TREE, index.identifier());
+        try (RandomAccessFile raf = new RandomAccessFile(balancedTree.toJavaIOFile(), "rw"))
+        {
+            raf.seek(flipPosition);
+            int original = raf.readByte();
+            raf.seek(flipPosition);
+            raf.writeByte(original ^ 0xFF);
+        }
+
+        try
+        {
+            indexDescriptor.validatePerIndexComponents(index.termType(), index.identifier(), IndexValidation.CHECKSUM, true, true);
+            fail("Expected corrupted first segment to fail checksum validation");
+        }
+        catch (UncheckedIOException expected)
+        {
+            assertTrue("Expected CorruptIndexException cause; got " + expected.getCause(), expected.getCause() instanceof CorruptIndexException);
+        }
+    }
+
+    @Test
+    public void multiSegmentBalancedTreeFailsChecksumOnAppendedGarbage() throws IOException
+    {
+        Path tmpDir = Files.createTempDirectory("SegmentFlushTest");
+        IndexDescriptor indexDescriptor = IndexDescriptor.create(new Descriptor(new File(tmpDir.toFile()), "ks", "cf", new SequenceBasedSSTableId(1)), Murmur3Partitioner.instance, SAITester.EMPTY_COMPARATOR);
+        ColumnMetadata column = ColumnMetadata.regularColumn("sai", "internal", "ts", TimestampType.instance, 1);
+        StorageAttachedIndex index = SAITester.createMockIndex(column);
+
+        SSTableIndexWriter writer = new SSTableIndexWriter(indexDescriptor, index, V1OnDiskFormat.SEGMENT_BUILD_MEMORY_LIMITER, () -> true);
+
+        List<DecoratedKey> keys = Arrays.asList(dk("1"), dk("2"));
+        Collections.sort(keys);
+
+        writer.addRow(SAITester.TEST_FACTORY.create(keys.get(0)), createRow(column, TimestampType.instance.decompose(new Date(1_000L))), 0L);
+        writer.addRow(SAITester.TEST_FACTORY.create(keys.get(1)), createRow(column, TimestampType.instance.decompose(new Date(2_000L))), SegmentBuilder.LAST_VALID_SEGMENT_ROW_ID + 1);
+        writer.complete(Stopwatch.createStarted());
+
+        // Append 100 random bytes past the last segment's footer. The per-segment slice loop
+        // walks each segment's declared frame, then asserts that frameStart == input.length()
+        // once done. This corruption trips that post-loop invariant, not a per-segment CRC.
+        SAITester.CorruptionType.APPENDED_DATA.corrupt(indexDescriptor.fileFor(IndexComponent.BALANCED_TREE, index.identifier()));
+
+        try
+        {
+            indexDescriptor.validatePerIndexComponents(index.termType(), index.identifier(), IndexValidation.CHECKSUM, true, true);
+            fail("Expected trailing garbage to fail checksum validation");
+        }
+        catch (UncheckedIOException expected)
+        {
+            assertTrue("Expected CorruptIndexException cause; got " + expected.getCause(), expected.getCause() instanceof CorruptIndexException);
+        }
     }
 
     @Test
