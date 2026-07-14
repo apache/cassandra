@@ -20,7 +20,6 @@ package org.apache.cassandra.db.rows;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
@@ -44,9 +43,10 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.utils.BiLongAccumulator;
 import org.apache.cassandra.utils.BulkIterator;
+import org.apache.cassandra.utils.ComplexCellMergeIterator;
 import org.apache.cassandra.utils.LongAccumulator;
-import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.RowMergeIterator;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.UpdateFunction;
@@ -220,6 +220,15 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
      * @param nowInSec the current time in seconds to decid if a cell is expired.
      */
     public boolean hasDeletion(long nowInSec);
+
+    /**
+     * The smallest local deletion time of all the data in this row (row deletion, primary key liveness, cells and
+     * complex deletions), or {@link Cell#MAX_DELETION_TIME} if the row has no deletion nor expiring data.
+     * <p>
+     * Unlike {@link #hasDeletion(long)}, this value is independent of the current time. In particular, a value of
+     * {@link Cell#MAX_DELETION_TIME} guarantees the row carries neither tombstones nor expiring data.
+     */
+    public long minLocalDeletionTime();
 
     /**
      * An iterator to efficiently search data for a given column.
@@ -762,6 +771,11 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
 
             LivenessInfo rowInfo = LivenessInfo.EMPTY;
             Deletion rowDeletion = Deletion.LIVE;
+            int columnsCountEstimation = 0;
+            // Track the smallest local deletion time across all inputs: if none of them carries any deletion or
+            // expiring data (i.e. this stays at MAX_DELETION_TIME), the merged row can't either, so we can hand the
+            // value to BTreeRow.create() below and skip the full btree scan it would otherwise do to recompute it.
+            long minDeletionTime = Cell.MAX_DELETION_TIME;
             for (Row row : rows)
             {
                 if (row == null)
@@ -771,6 +785,11 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
                     rowInfo = row.primaryKeyLivenessInfo();
                 if (row.deletion().supersedes(rowDeletion))
                     rowDeletion = row.deletion();
+
+                minDeletionTime = Math.min(minDeletionTime, row.minLocalDeletionTime());
+
+                columnDataIterators.add(row.iterator());
+                columnsCountEstimation = Math.max(columnsCountEstimation, row.columnCount());
             }
 
             if (rowDeletion.isShadowedBy(rowInfo))
@@ -784,25 +803,12 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
             if (activeDeletion.deletes(rowInfo))
                 rowInfo = LivenessInfo.EMPTY;
 
-            int columnsCountEstimation = 0;
-            for (Row row : rows)
-            {
-                if (row != null)
-                {
-                    columnDataIterators.add(row.iterator());
-                    columnsCountEstimation = Math.max(columnsCountEstimation, row.columnCount());
-                }
-                else
-                {
-                    columnDataIterators.add(Collections.emptyIterator());
-                }
-            }
             // try to estimate and set a potential target capacity
             if (dataBuffer.length < columnsCountEstimation)
                 dataBuffer = new ColumnData[columnsCountEstimation];
 
             columnDataReducer.setActiveDeletion(activeDeletion);
-            Iterator<ColumnData> merged = MergeIterator.get(columnDataIterators, ColumnData.comparator, columnDataReducer);
+            Iterator<ColumnData> merged = RowMergeIterator.get(columnDataIterators, ColumnData.comparator, columnDataReducer);
             while (merged.hasNext())
             {
                 ColumnData data = merged.next();
@@ -819,8 +825,12 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
 
             try (BulkIterator<ColumnData> it = BulkIterator.of(dataBuffer))
             {
-                return BTreeRow.create(clustering, rowInfo, rowDeletion,
-                                       BTree.build(it, dataBufferSize, UpdateFunction.noOp()));
+                Object[] tree = BTree.build(it, dataBufferSize, UpdateFunction.noOp());
+                // If none of the merged rows had any deletion or expiring data, neither does the result, so we can
+                // pass the already-known min local deletion time and avoid rescanning the whole btree to recompute it.
+                return minDeletionTime == Cell.MAX_DELETION_TIME
+                       ? BTreeRow.create(clustering, rowInfo, rowDeletion, tree, Cell.MAX_DELETION_TIME)
+                       : BTreeRow.create(clustering, rowInfo, rowDeletion, tree);
             }
         }
 
@@ -841,10 +851,11 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
             return rows;
         }
 
-        private static class ColumnDataReducer extends MergeIterator.Reducer<ColumnData, ColumnData>
+        private static class ColumnDataReducer extends RowMergeIterator.Reducer<ColumnData, ColumnData>
         {
             private ColumnMetadata column;
-            private final List<ColumnData> versions;
+            private final ColumnData[] versions;
+            private int versionsSize;
 
             private DeletionTime activeDeletion;
 
@@ -854,7 +865,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
 
             public ColumnDataReducer(int size, boolean hasComplex)
             {
-                this.versions = new ArrayList<>(size);
+                this.versions = new ColumnData[size];
                 this.complexBuilder = hasComplex ? ComplexColumnData.builder() : null;
                 this.complexCells = hasComplex ? new ArrayList<>(size) : null;
                 this.cellReducer = new CellReducer();
@@ -870,20 +881,24 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
                 if (useColumnMetadata(data.column()))
                     column = data.column();
 
-                versions.add(data);
+                versions[versionsSize++] = data;
             }
 
             /**
-             * Determines it the {@code ColumnMetadata} is the one that should be used.
-             * @param dataColumn the {@code ColumnMetadata} to use.
-             * @return {@code true} if the {@code ColumnMetadata} is the one that should be used, {@code false} otherwise.
+             * Determines whether {@code dataColumn} should replace the currently selected column metadata,
+             * i.e. whether no column has been selected yet or {@code dataColumn} is a newer version.
+             * @param dataColumn the candidate {@code ColumnMetadata} to evaluate.
+             * @return {@code true} if {@code dataColumn} should be used, {@code false} otherwise.
              */
             private boolean useColumnMetadata(ColumnMetadata dataColumn)
             {
-                if (column == null)
+                ColumnMetadata currentColumn = column;
+                if (currentColumn == null)
                     return true;
+                if (currentColumn == dataColumn)
+                    return false;
 
-                return ColumnMetadataVersionComparator.INSTANCE.compare(column, dataColumn) < 0;
+                return ColumnMetadataVersionComparator.INSTANCE.compare(currentColumn, dataColumn) < 0;
             }
 
             protected ColumnData getReduced()
@@ -891,9 +906,9 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
                 if (column.isSimple())
                 {
                     Cell<?> merged = null;
-                    for (int i=0, isize=versions.size(); i<isize; i++)
+                    for (int i = 0; i < versionsSize; i++)
                     {
-                        Cell<?> cell = (Cell<?>) versions.get(i);
+                        Cell<?> cell = (Cell<?>) versions[i];
                         if (!activeDeletion.deletes(cell))
                             merged = merged == null ? cell : Cells.reconcile(merged, cell);
                     }
@@ -904,9 +919,9 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
                     complexBuilder.newColumn(column);
                     complexCells.clear();
                     DeletionTime complexDeletion = DeletionTime.LIVE;
-                    for (int i=0, isize=versions.size(); i<isize; i++)
+                    for (int i = 0; i < versionsSize; i++)
                     {
-                        ColumnData data = versions.get(i);
+                        ColumnData data = versions[i];
                         ComplexColumnData cd = (ComplexColumnData)data;
                         if (cd.complexDeletion().supersedes(complexDeletion))
                             complexDeletion = cd.complexDeletion();
@@ -923,7 +938,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
                         cellReducer.setActiveDeletion(activeDeletion);
                     }
 
-                    Iterator<Cell<?>> cells = MergeIterator.get(complexCells, Cell.comparator, cellReducer);
+                    Iterator<Cell<?>> cells = ComplexCellMergeIterator.get(complexCells, Cell.comparator, cellReducer);
                     while (cells.hasNext())
                     {
                         Cell<?> merged = cells.next();
@@ -937,11 +952,12 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
             protected void onKeyChange()
             {
                 column = null;
-                versions.clear();
+                Arrays.fill(versions, 0, versionsSize, null);
+                versionsSize = 0;
             }
         }
 
-        private static class CellReducer extends MergeIterator.Reducer<Cell<?>, Cell<?>>
+        private static class CellReducer extends ComplexCellMergeIterator.Reducer<Cell<?>, Cell<?>>
         {
             private DeletionTime activeDeletion;
             private Cell<?> merged;

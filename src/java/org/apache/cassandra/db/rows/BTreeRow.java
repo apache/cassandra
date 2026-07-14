@@ -439,6 +439,11 @@ public class BTreeRow extends AbstractRow
         return nowInSec >= minLocalDeletionTime;
     }
 
+    public long minLocalDeletionTime()
+    {
+        return minLocalDeletionTime;
+    }
+
     public boolean hasInvalidDeletions()
     {
         if (primaryKeyLivenessInfo().isExpiring() && (primaryKeyLivenessInfo().ttl() < 0 || primaryKeyLivenessInfo().localExpirationTime() < 0))
