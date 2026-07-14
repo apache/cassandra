@@ -129,8 +129,8 @@ public abstract class ThresholdTester extends GuardrailTester
     {
         setter.accept(guardrails(), disabledValue, disabledValue);
 
-        testValidationOfStrictlyPositiveProperty((g, a) -> setter.accept(g, disabledValue, a), failName);
-        testValidationOfStrictlyPositiveProperty((g, w) -> setter.accept(g, w, disabledValue), warnName);
+        testValidationOfNonNegativeProperty((g, a) -> setter.accept(g, disabledValue, a), failName);
+        testValidationOfNonNegativeProperty((g, w) -> setter.accept(g, w, disabledValue), warnName);
 
         setter.accept(guardrails(), disabledValue, disabledValue);
         Assertions.assertThatThrownBy(() -> setter.accept(guardrails(), 2L, 1L))
@@ -238,10 +238,6 @@ public abstract class ThresholdTester extends GuardrailTester
                 expectedMessage = format("Invalid value %d for %s: maximum allowed value is %d",
                                          value, name, maxValue);
 
-            if (value == 0 && value != disabledValue)
-                expectedMessage = format("Invalid value for %s: 0 is not allowed; if attempting to disable use %s",
-                                         name, disabledValue);
-
             if (value < 0 && disabledValue != null && value != disabledValue)
                 expectedMessage = format("Invalid value %d for %s: negative values are not "
                                          + "allowed, outside of %s which disables the guardrail",
@@ -254,7 +250,7 @@ public abstract class ThresholdTester extends GuardrailTester
         }
     }
 
-    private void assertInvalidStrictlyPositiveProperty(BiConsumer<Guardrails, Long> setter, long value, String name)
+    private void assertInvalidNonNegativeProperty(BiConsumer<Guardrails, Long> setter, long value, String name)
     {
         assertInvalidPositiveProperty(setter, value, maxValue, name);
     }
@@ -266,12 +262,29 @@ public abstract class ThresholdTester extends GuardrailTester
         assertInvalidPositiveProperty((g, l) -> setter.accept(g, l.intValue()), (long) value, maxValue, name);
     }
 
-    protected void testValidationOfStrictlyPositiveProperty(BiConsumer<Guardrails, Long> setter, String name)
+    /**
+     * Overridden by guardrails that reject a threshold of zero for a reason other than it being the disabled marker,
+     * such as {@code maximum_replication_factor}, whose fail threshold cannot be lower than {@code default_keyspace_rf}.
+     */
+    protected boolean zeroIsValid()
     {
-        assertInvalidStrictlyPositiveProperty(setter, Integer.MIN_VALUE, name);
-        assertInvalidStrictlyPositiveProperty(setter, -2, name);
+        return true;
+    }
+
+    protected void testValidationOfNonNegativeProperty(BiConsumer<Guardrails, Long> setter, String name)
+    {
+        assertInvalidNonNegativeProperty(setter, Integer.MIN_VALUE, name);
+        assertInvalidNonNegativeProperty(setter, -2, name);
         assertValidProperty(setter, disabledValue);
-        assertInvalidStrictlyPositiveProperty(setter, disabledValue == null ? -1 : 0, name);
+
+        // thresholds expressed as a size or a duration are disabled with an empty value, so -1 is invalid for them
+        if (disabledValue == null)
+            assertInvalidNonNegativeProperty(setter, -1, name);
+
+        // zero is a threshold of zero, not a request to disable the guardrail
+        if (zeroIsValid())
+            assertValidProperty(setter, 0L);
+
         assertValidProperty(setter, 1L);
         assertValidProperty(setter, 2L);
         assertValidProperty(setter, maxValue);

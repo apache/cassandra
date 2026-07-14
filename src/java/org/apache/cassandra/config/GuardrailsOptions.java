@@ -92,17 +92,17 @@ public class GuardrailsOptions implements GuardrailsConfig
         config.read_consistency_levels_disallowed = validateConsistencyLevels(config.read_consistency_levels_disallowed, "read_consistency_levels_disallowed");
         config.write_consistency_levels_warned = validateConsistencyLevels(config.write_consistency_levels_warned, "write_consistency_levels_warned");
         config.write_consistency_levels_disallowed = validateConsistencyLevels(config.write_consistency_levels_disallowed, "write_consistency_levels_disallowed");
-        validateSizeThreshold(config.partition_size_warn_threshold, config.partition_size_fail_threshold, false, "partition_size");
-        validateMaxLongThreshold(config.partition_tombstones_warn_threshold, config.partition_tombstones_fail_threshold, "partition_tombstones", false);
-        validateSizeThreshold(config.column_value_size_warn_threshold, config.column_value_size_fail_threshold, false, "column_value_size");
-        validateSizeThreshold(config.collection_size_warn_threshold, config.collection_size_fail_threshold, false, "collection_size");
-        validateSizeThreshold(config.collection_map_size_warn_threshold, config.collection_map_size_fail_threshold, false, "collection_map_size");
-        validateSizeThreshold(config.collection_set_size_warn_threshold, config.collection_set_size_fail_threshold, false, "collection_set_size");
-        validateSizeThreshold(config.collection_list_size_warn_threshold, config.collection_list_size_fail_threshold, false, "collection_list_size");
-        validateSizeThreshold(config.column_ascii_value_size_warn_threshold, config.column_ascii_value_size_fail_threshold, false, "column_acii_value_size");
-        validateSizeThreshold(config.column_blob_value_size_warn_threshold, config.column_blob_value_size_fail_threshold, false, "column_blob_value_size");
-        validateSizeThreshold(config.column_text_and_varchar_value_size_warn_threshold, config.column_text_and_varchar_value_size_fail_threshold, false, "column_text_value_size");
-        validateSizeThreshold(config.column_varchar_value_size_warn_threshold, config.column_varchar_value_size_fail_threshold, false, "column_varchar_value_size");
+        validateSizeThreshold(config.partition_size_warn_threshold, config.partition_size_fail_threshold, "partition_size");
+        validateMaxLongThreshold(config.partition_tombstones_warn_threshold, config.partition_tombstones_fail_threshold, "partition_tombstones");
+        validateSizeThreshold(config.column_value_size_warn_threshold, config.column_value_size_fail_threshold, "column_value_size");
+        validateSizeThreshold(config.collection_size_warn_threshold, config.collection_size_fail_threshold, "collection_size");
+        validateSizeThreshold(config.collection_map_size_warn_threshold, config.collection_map_size_fail_threshold, "collection_map_size");
+        validateSizeThreshold(config.collection_set_size_warn_threshold, config.collection_set_size_fail_threshold, "collection_set_size");
+        validateSizeThreshold(config.collection_list_size_warn_threshold, config.collection_list_size_fail_threshold, "collection_list_size");
+        validateSizeThreshold(config.column_ascii_value_size_warn_threshold, config.column_ascii_value_size_fail_threshold, "column_acii_value_size");
+        validateSizeThreshold(config.column_blob_value_size_warn_threshold, config.column_blob_value_size_fail_threshold, "column_blob_value_size");
+        validateSizeThreshold(config.column_text_and_varchar_value_size_warn_threshold, config.column_text_and_varchar_value_size_fail_threshold, "column_text_value_size");
+        validateSizeThreshold(config.column_varchar_value_size_warn_threshold, config.column_varchar_value_size_fail_threshold, "column_varchar_value_size");
         validateMaxIntThreshold(config.items_per_collection_warn_threshold, config.items_per_collection_fail_threshold, "items_per_collection");
         validateMaxIntThreshold(config.fields_per_udt_warn_threshold, config.fields_per_udt_fail_threshold, "fields_per_udt");
         validateMaxIntThreshold(config.vector_dimensions_warn_threshold, config.vector_dimensions_fail_threshold, "vector_dimensions");
@@ -113,10 +113,7 @@ public class GuardrailsOptions implements GuardrailsConfig
         validateMinCmsSizeThreshold(config.minimum_cms_size_fail_threshold, "minimum_cms_size_fail_threshold");
         validateTimestampThreshold(config.maximum_timestamp_warn_threshold, config.maximum_timestamp_fail_threshold, "maximum_timestamp");
         validateTimestampThreshold(config.minimum_timestamp_warn_threshold, config.minimum_timestamp_fail_threshold, "minimum_timestamp");
-        validateMaxLongThreshold(config.sai_sstable_indexes_per_query_warn_threshold,
-                                 config.sai_sstable_indexes_per_query_fail_threshold,
-                                 "sai_sstable_indexes_per_query",
-                                 false);
+        validateMaxLongThreshold(config.sai_sstable_indexes_per_query_warn_threshold, config.sai_sstable_indexes_per_query_fail_threshold, "sai_sstable_indexes_per_query");
         validatePasswordPolicy(config.password_policy);
         validateRoleNamePolicy(config.role_name_policy);
         validateAndSanitizeClientDriverVersions(config.minimum_client_driver_versions_warned, "minimum_client_driver_versions_warned");
@@ -646,7 +643,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     public void setPartitionSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
     {
-        validateSizeThreshold(warn, fail, false, "partition_size");
+        validateSizeThreshold(warn, fail, "partition_size");
         updatePropertyWithLogging("partition_size_warn_threshold",
                                   warn,
                                   () -> config.partition_size_warn_threshold,
@@ -671,7 +668,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     public void setPartitionTombstonesThreshold(long warn, long fail)
     {
-        validateMaxLongThreshold(warn, fail, "partition_tombstones", false);
+        validateMaxLongThreshold(warn, fail, "partition_tombstones");
         updatePropertyWithLogging("partition_tombstones_warn_threshold",
                                   warn,
                                   () -> config.partition_tombstones_warn_threshold,
@@ -740,7 +737,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     public void setColumnValueSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
     {
-        validateSizeThreshold(warn, fail, false, "column_value_size");
+        validateSizeThreshold(warn, fail, "column_value_size");
         updatePropertyWithLogging("column_value_size_warn_threshold",
                                   warn,
                                   () -> config.column_value_size_warn_threshold,
@@ -753,7 +750,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     public void setColumnAsciiValueSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
     {
-        validateSizeThreshold(warn, fail, false, "column_ascii_value_size");
+        validateSizeThreshold(warn, fail, "column_ascii_value_size");
         updatePropertyWithLogging("column_ascii_value_size_warn_threshold",
                                   warn,
                                   () -> config.column_ascii_value_size_warn_threshold,
@@ -766,7 +763,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     public void setColumnBlobValueSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
     {
-        validateSizeThreshold(warn, fail, false, "column_blob_value_size");
+        validateSizeThreshold(warn, fail, "column_blob_value_size");
         updatePropertyWithLogging("column_blob_value_size_warn_threshold",
                                   warn,
                                   () -> config.column_blob_value_size_warn_threshold,
@@ -779,7 +776,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     public void setColumnTextAndVarcharValueSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
     {
-        validateSizeThreshold(warn, fail, false, "column_text_value_size");
+        validateSizeThreshold(warn, fail, "column_text_value_size");
         updatePropertyWithLogging("column_text_and_varchar_value_size_warn_threshold",
                                   warn,
                                   () -> config.column_text_and_varchar_value_size_warn_threshold,
@@ -848,7 +845,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     public void setCollectionSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
     {
-        validateSizeThreshold(warn, fail, false, "collection_size");
+        validateSizeThreshold(warn, fail, "collection_size");
         updatePropertyWithLogging("collection_size_warn_threshold",
                                   warn,
                                   () -> config.collection_size_warn_threshold,
@@ -861,7 +858,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     public void setCollectionMapSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
     {
-        validateSizeThreshold(warn, fail, false, "collection_map_size");
+        validateSizeThreshold(warn, fail, "collection_map_size");
         updatePropertyWithLogging("collection_map_size_warn_threshold",
                                   warn,
                                   () -> config.collection_map_size_warn_threshold,
@@ -874,7 +871,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     public void setCollectionSetSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
     {
-        validateSizeThreshold(warn, fail, false, "collection_set_size");
+        validateSizeThreshold(warn, fail, "collection_set_size");
         updatePropertyWithLogging("collection_set_size_warn_threshold",
                                   warn,
                                   () -> config.collection_set_size_warn_threshold,
@@ -887,7 +884,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     public void setCollectionListSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
     {
-        validateSizeThreshold(warn, fail, false, "collection_list_size");
+        validateSizeThreshold(warn, fail, "collection_list_size");
         updatePropertyWithLogging("collection_list_size_warn_threshold",
                                   warn,
                                   () -> config.collection_list_size_warn_threshold,
@@ -1265,7 +1262,7 @@ public class GuardrailsOptions implements GuardrailsConfig
     @Override
     public void setSaiStringTermSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
     {
-        validateSizeThreshold(warn, fail, false, "sai_string_term_size");
+        validateSizeThreshold(warn, fail, "sai_string_term_size");
         updatePropertyWithLogging("sai_string_term_size_warn_threshold",
                                   warn,
                                   () -> config.sai_string_term_size_warn_threshold,
@@ -1293,7 +1290,7 @@ public class GuardrailsOptions implements GuardrailsConfig
     @Override
     public void setSaiBlobTermSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
     {
-        validateSizeThreshold(warn, fail, false, "sai_blob_term_size");
+        validateSizeThreshold(warn, fail, "sai_blob_term_size");
         updatePropertyWithLogging("sai_blob_term_size_warn_threshold",
                                   warn,
                                   () -> config.sai_blob_term_size_warn_threshold,
@@ -1321,7 +1318,7 @@ public class GuardrailsOptions implements GuardrailsConfig
     @Override
     public void setSaiFrozenTermSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
     {
-        validateSizeThreshold(warn, fail, false, "sai_frozen_term_size");
+        validateSizeThreshold(warn, fail, "sai_frozen_term_size");
         updatePropertyWithLogging("sai_frozen_term_size_warn_threshold",
                                   warn,
                                   () -> config.sai_frozen_term_size_warn_threshold,
@@ -1349,7 +1346,7 @@ public class GuardrailsOptions implements GuardrailsConfig
     @Override
     public void setSaiVectorTermSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
     {
-        validateSizeThreshold(warn, fail, false, "sai_vector_term_size");
+        validateSizeThreshold(warn, fail, "sai_vector_term_size");
         updatePropertyWithLogging("sai_vector_term_size_warn_threshold",
                                   warn,
                                   () -> config.sai_vector_term_size_warn_threshold,
@@ -1460,11 +1457,6 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     private static void validatePositiveNumeric(long value, long maxValue, String name)
     {
-        validatePositiveNumeric(value, maxValue, name, false);
-    }
-
-    private static void validatePositiveNumeric(long value, long maxValue, String name, boolean allowZero)
-    {
         if (value == -1)
             return;
 
@@ -1472,11 +1464,8 @@ public class GuardrailsOptions implements GuardrailsConfig
             throw new IllegalArgumentException(format("Invalid value %d for %s: maximum allowed value is %d",
                                                       value, name, maxValue));
 
-        if (!allowZero && value == 0)
-            throw new IllegalArgumentException(format("Invalid value for %s: 0 is not allowed; " +
-                                                      "if attempting to disable use -1", name));
-
-        // We allow -1 as a general "disabling" flag. But reject anything lower to avoid mistakes.
+        // Zero is a valid threshold, meaning "any value above zero triggers the guardrail". 
+        // We allow -1 as a general "disabling" flag, but reject anything lower to avoid mistakes.
         if (value < 0)
             throw new IllegalArgumentException(format("Invalid value %d for %s: negative values are not allowed, " +
                                                       "outside of -1 which disables the guardrail", value, name));
@@ -1501,10 +1490,10 @@ public class GuardrailsOptions implements GuardrailsConfig
         validateWarnLowerThanFail(warn, fail, name);
     }
 
-    private static void validateMaxLongThreshold(long warn, long fail, String name, boolean allowZero)
+    private static void validateMaxLongThreshold(long warn, long fail, String name)
     {
-        validatePositiveNumeric(warn, Long.MAX_VALUE, name + "_warn_threshold", allowZero);
-        validatePositiveNumeric(fail, Long.MAX_VALUE, name + "_fail_threshold", allowZero);
+        validatePositiveNumeric(warn, Long.MAX_VALUE, name + "_warn_threshold");
+        validatePositiveNumeric(fail, Long.MAX_VALUE, name + "_fail_threshold");
         validateWarnLowerThanFail(warn, fail, name);
     }
 
@@ -1555,7 +1544,7 @@ public class GuardrailsOptions implements GuardrailsConfig
         // the fail threshold.
         validateMaxLongThreshold(warn == null ? -1 : warn.toMicroseconds(),
                                  fail == null ? -1 : fail.toMicroseconds(),
-                                 name, true);
+                                 name);
     }
 
     private static void validateWarnLowerThanFail(long warn, long fail, String name)
@@ -1578,21 +1567,13 @@ public class GuardrailsOptions implements GuardrailsConfig
                                                       "than the fail threshold %d", warn, name, fail));
     }
 
-    private static void validateSize(DataStorageSpec.LongBytesBound size, boolean allowZero, String name)
+    /**
+     * A {@code null} size disables a size threshold, and a size of zero bytes is a valid threshold meaning "any
+     * value above zero bytes triggers the guardrail", so the only thing left to check is the relative order of the
+     * two thresholds. {@link DataStorageSpec} already rejects negative sizes when parsing.
+     */
+    private static void validateSizeThreshold(DataStorageSpec.LongBytesBound warn, DataStorageSpec.LongBytesBound fail, String name)
     {
-        if (size == null)
-            return;
-
-        if (!allowZero && size.toBytes() == 0)
-            throw new IllegalArgumentException(format("Invalid value for %s: 0 is not allowed; " +
-                                                      "if attempting to disable use an empty value",
-                                                      name));
-    }
-
-    private static void validateSizeThreshold(DataStorageSpec.LongBytesBound warn, DataStorageSpec.LongBytesBound fail, boolean allowZero, String name)
-    {
-        validateSize(warn, allowZero, name + "_warn_threshold");
-        validateSize(fail, allowZero, name + "_fail_threshold");
         validateWarnLowerThanFail(warn, fail, name);
     }
 
@@ -1665,7 +1646,10 @@ public class GuardrailsOptions implements GuardrailsConfig
         if (maxDiskSize == null)
             return;
 
-        validateSize(maxDiskSize, false, "data_disk_usage_max_disk_size");
+        // Unlike a guardrail threshold, this is the disk size the percentage thresholds are calculated against, so zero is meaningless
+        if (maxDiskSize.toBytes() == 0)
+            throw new IllegalArgumentException("Invalid value for data_disk_usage_max_disk_size: 0 is not allowed; " +
+                                               "if attempting to disable use an empty value");
 
         long diskSize = DiskUsageMonitor.totalDiskSpace();
 

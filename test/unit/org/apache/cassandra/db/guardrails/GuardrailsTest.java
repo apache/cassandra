@@ -41,6 +41,12 @@ public class GuardrailsTest extends GuardrailTester
     public static final String REASON = "Testing";
     public static final String FEATURE = "Feature name";
 
+    private static final Threshold.ErrorMessageProvider MAX_MESSAGE_PROVIDER 
+            = (isWarn, what, v, t) -> format("%s: for %s, %s > %s", isWarn ? "Warning" : "Aborting", what, v, t);
+
+    private static final Threshold.ErrorMessageProvider MIN_MESSAGE_PROVIDER 
+            = (isWarn, what, v, t) -> format("%s: for %s, %s < %s", isWarn ? "Warning" : "Aborting", what, v, t);
+
     private void testDisabledThreshold(Threshold guard) throws Throwable
     {
         assertFalse(guard.enabled(userClientState));
@@ -125,6 +131,64 @@ public class GuardrailsTest extends GuardrailTester
 
         assertValid(() -> guard.guard(5, "Z", true, userClientState));
         assertFails(() -> guard.guard(11, "A", true, userClientState), "Aborting: for A, 11 > 10", "Aborting: for <redacted>, 11 > 10");
+    }
+
+    @Test
+    public void testNegativeMaxThresholdMeansUnlimited() throws Throwable
+    {
+        // -1 means "unlimited": warnValue/failValue must map to Long.MAX_VALUE
+        MaxThreshold guard = new MaxThreshold("x", REASON, state -> -1, state -> -1, (isWarn, featureName, v, t) -> "");
+        assertEquals(Long.MAX_VALUE, guard.warnValue(userClientState));
+        assertEquals(Long.MAX_VALUE, guard.failValue(userClientState));
+        assertFalse(guard.enabled(userClientState));
+    }
+
+    @Test
+    public void testZeroMaxThresholdIsZeroNotUnlimited() throws Throwable
+    {
+        // 0 means "zero", not unlimited
+        MaxThreshold guard = new MaxThreshold("x", REASON, state -> 0, state -> 0, MAX_MESSAGE_PROVIDER);
+        assertEquals(0, guard.warnValue(userClientState));
+        assertEquals(0, guard.failValue(userClientState));
+
+        assertTrue(guard.enabled(userClientState));
+        assertFalse(guard.triggersOn(0, userClientState));
+        assertTrue(guard.failsOn(1, userClientState));
+
+        assertValid(() -> guard.guard(0, "Z", false, userClientState));
+        assertFails(() -> guard.guard(1, "A", false, userClientState), "Aborting: for A, 1 > 0");
+    }
+
+    @Test
+    public void testWarnOnlyZeroMaxThreshold() throws Throwable
+    {
+        // warn 0 with the fail threshold disabled: warn when the value is greater than zero
+        MaxThreshold guard = new MaxThreshold("x", REASON, state -> 0, state -> DISABLED, MAX_MESSAGE_PROVIDER);
+        assertEquals(0, guard.warnValue(userClientState));
+        assertEquals(Long.MAX_VALUE, guard.failValue(userClientState));
+
+        assertTrue(guard.enabled(userClientState));
+        assertTrue(guard.warnsOn(1, userClientState));
+        assertFalse(guard.failsOn(1, userClientState));
+
+        assertValid(() -> guard.guard(0, "Z", false, userClientState));
+        assertWarns(() -> guard.guard(1, "A", false, userClientState), "Warning: for A, 1 > 0");
+    }
+
+    @Test
+    public void testFailOnlyZeroMaxThreshold() throws Throwable
+    {
+        // fail 0 with the warn threshold disabled: fail when the value is greater than zero
+        MaxThreshold guard = new MaxThreshold("x", REASON, state -> DISABLED, state -> 0, MAX_MESSAGE_PROVIDER);
+        assertEquals(Long.MAX_VALUE, guard.warnValue(userClientState));
+        assertEquals(0, guard.failValue(userClientState));
+
+        assertTrue(guard.enabled(userClientState));
+        assertTrue(guard.failsOn(1, userClientState));
+        assertFalse(guard.warnsOn(1, userClientState));
+
+        assertValid(() -> guard.guard(0, "Z", false, userClientState));
+        assertFails(() -> guard.guard(1, "A", false, userClientState), "Aborting: for A, 1 > 0");
     }
 
     @Test
@@ -227,6 +291,66 @@ public class GuardrailsTest extends GuardrailTester
 
         assertValid(() -> guard.guard(11, "Z", true, userClientState));
         assertFails(() -> guard.guard(5, "A", true, userClientState), "Aborting: for A, 5 < 10", "Aborting: for <redacted>, 5 < 10");
+    }
+
+    @Test
+    public void testNegativeMinThresholdMeansUnlimited() throws Throwable
+    {
+        // -1 means "unlimited": warnValue/failValue must map to Long.MIN_VALUE
+        MinThreshold guard = new MinThreshold("x", REASON,
+                                              state -> -1, state -> -1,
+                                              (isWarn, what, v, t) -> "");
+        assertEquals(Long.MIN_VALUE, guard.warnValue(userClientState));
+        assertEquals(Long.MIN_VALUE, guard.failValue(userClientState));
+        assertFalse(guard.enabled(userClientState));
+    }
+
+    @Test
+    public void testZeroMinThresholdIsZeroNotUnlimited() throws Throwable
+    {
+        // 0 means "zero", not unlimited
+        MinThreshold guard = new MinThreshold("x", REASON,  state -> 0, state -> 0, MIN_MESSAGE_PROVIDER);
+        assertEquals(0, guard.warnValue(userClientState));
+        assertEquals(0, guard.failValue(userClientState));
+
+        assertTrue(guard.enabled(userClientState));
+        assertFalse(guard.triggersOn(0, userClientState));
+        assertTrue(guard.failsOn(-1, userClientState));
+
+        assertValid(() -> guard.guard(0, "Z", false, userClientState));
+        assertFails(() -> guard.guard(-1, "A", false, userClientState), "Aborting: for A, -1 < 0");
+    }
+
+    @Test
+    public void testWarnOnlyZeroMinThreshold() throws Throwable
+    {
+        // warn 0 with the fail threshold disabled: warn when the value is lesser than zero
+        MinThreshold guard = new MinThreshold("x", REASON, state -> 0, state -> DISABLED, MIN_MESSAGE_PROVIDER);
+        assertEquals(0, guard.warnValue(userClientState));
+        assertEquals(Long.MIN_VALUE, guard.failValue(userClientState));
+
+        assertTrue(guard.enabled(userClientState));
+        assertTrue(guard.warnsOn(-1, userClientState));
+        assertFalse(guard.failsOn(-1, userClientState));
+
+        assertValid(() -> guard.guard(0, "Z", false, userClientState));
+        assertWarns(() -> guard.guard(-1, "A", false, userClientState), "Warning: for A, -1 < 0");
+    }
+
+    @Test
+    public void testFailOnlyZeroMinThreshold() throws Throwable
+    {
+        // fail 0 with the warn threshold disabled: fail when the value is lesser than zero
+        MinThreshold guard = new MinThreshold("x", REASON, state -> DISABLED, state -> 0, MIN_MESSAGE_PROVIDER);
+        assertEquals(Long.MIN_VALUE, guard.warnValue(userClientState));
+        assertEquals(0, guard.failValue(userClientState));
+
+        assertTrue(guard.enabled(userClientState));
+        assertTrue(guard.failsOn(-1, userClientState));
+        assertFalse(guard.warnsOn(-1, userClientState));
+
+        assertValid(() -> guard.guard(0, "Z", false, userClientState));
+        assertFails(() -> guard.guard(-1, "A", false, userClientState), "Aborting: for A, -1 < 0");
     }
 
     @Test
