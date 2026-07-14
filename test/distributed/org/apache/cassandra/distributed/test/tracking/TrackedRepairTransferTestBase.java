@@ -42,6 +42,9 @@ public abstract class TrackedRepairTransferTestBase extends TrackedTransferTestB
 
         IInvokableInstance coordinator = cluster.get(1);
         coordinator.executeInternal("INSERT INTO " + tableWithKeyspace(keyspace) + " (pk, v) VALUES (?, 1)", key);
+        coordinator.flush(keyspace);
+        coordinator.executeInternal("INSERT INTO " + tableWithKeyspace(keyspace) + " (pk, v) VALUES (?, 1)", key);
+        coordinator.flush(keyspace);
 
         // Write should only be present on instance 1
         cluster.forEach(instance -> {
