@@ -3072,7 +3072,7 @@ public class DatabaseDescriptor
 
     public static void setCompressedReadAheadBufferSizeInKb(int sizeInKb)
     {
-        if (sizeInKb != 0 && sizeInKb < 256)
+        if (sizeInKb < 0 || (sizeInKb > 0 && sizeInKb < 256))
             throw new IllegalArgumentException("compressed_read_ahead_buffer_size_in_kb must be at least 256KiB (set to 0 to disable)");
 
         conf.compressed_read_ahead_buffer_size = createIntKibibyteBoundAndEnsureItIsValidForByteConversion(sizeInKb, "compressed_read_ahead_buffer_size");
