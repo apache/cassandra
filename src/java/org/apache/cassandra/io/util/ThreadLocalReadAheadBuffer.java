@@ -104,8 +104,10 @@ public class ThreadLocalReadAheadBuffer implements Closeable
     {
         Block block = getBlock();
         ByteBuffer blockBuffer = block.buffer;
-        long realPosition = Math.min(channelSize, position);
-        int blockNo = (int) (realPosition / bufferSize);
+        if (position >= channelSize)
+            throw new CorruptSSTableException(null, channel.filePath());
+
+        int blockNo = (int) (position / bufferSize);
         long blockPosition = blockNo * (long) bufferSize;
 
         long remaining = channelSize - blockPosition;
@@ -119,7 +121,7 @@ public class ThreadLocalReadAheadBuffer implements Closeable
 
         blockBuffer.flip();
         blockBuffer.limit(sizeToRead);
-        blockBuffer.position((int) (realPosition - blockPosition));
+        blockBuffer.position((int) (position - blockPosition));
     }
 
     protected void loadBlock(ByteBuffer blockBuffer, long blockPosition, int sizeToRead)
