@@ -1,4 +1,5 @@
 5.0.9
+ * SAI Component Checksum Validation Should be Segment-Aware (CASSANDRA-21516)
  * Support Python 3.12 and 3.13 in cqlsh (CASSANDRA-20997)
  * Fix AssertionError in hasReplicaWithOngoingRepair when parallel_repair_count > 1 (CASSANDRA-21426)
  * putShortVolatile is not volatile in InMemoryTrie (CASSANDRA-21353)
