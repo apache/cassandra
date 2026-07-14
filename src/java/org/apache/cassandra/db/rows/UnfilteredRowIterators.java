@@ -38,7 +38,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.IMergeIterator;
-import org.apache.cassandra.utils.MergeIterator;
+import org.apache.cassandra.utils.UnfilteredMergeIterator;
 
 /**
  * Static methods to work with atom iterators.
@@ -415,7 +415,7 @@ public abstract class UnfilteredRowIterators
                   reversed,
                   EncodingStats.merge(iterators, UnfilteredRowIterator::stats));
 
-            this.mergeIterator = MergeIterator.get(iterators,
+            this.mergeIterator = UnfilteredMergeIterator.get(iterators,
                                                    reversed ? metadata.comparator.reversed() : metadata.comparator,
                                                    new MergeReducer(iterators.size(), reversed, listener));
             this.listener = listener;
@@ -540,7 +540,7 @@ public abstract class UnfilteredRowIterators
                 listener.close();
         }
 
-        private class MergeReducer extends MergeIterator.Reducer<Unfiltered, Unfiltered>
+        private class MergeReducer extends UnfilteredMergeIterator.Reducer<Unfiltered, Unfiltered>
         {
             private final MergeListener listener;
 

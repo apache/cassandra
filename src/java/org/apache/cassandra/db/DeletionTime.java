@@ -178,7 +178,8 @@ public abstract class DeletionTime implements Comparable<DeletionTime>, IMeasura
 
     public boolean deletes(Cell<?> cell)
     {
-        return deletes(cell.timestamp());
+        // check for LIVE first to avoid a potential cell megamorphic call
+        return markedForDeleteAt() != MARKED_FOR_DELETE_AT_LIVE && deletes(cell.timestamp());
     }
 
     public boolean deletes(long timestamp)
