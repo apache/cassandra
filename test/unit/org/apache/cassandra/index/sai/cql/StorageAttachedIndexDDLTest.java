@@ -52,8 +52,10 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
@@ -1426,6 +1428,27 @@ public class StorageAttachedIndexDDLTest extends SAITester
         assertEquals(singletonList(4L), toSize.apply(iterator.next()));
         assertEquals(singletonList(3L), toSize.apply(iterator.next()));
         assertEquals(Arrays.asList(2L, 1L), toSize.apply(iterator.next()));
+    }
+
+    @Test
+    public void multiSegmentVectorIndexPassesChecksumValidation()
+    {
+        createTable("CREATE TABLE %s (pk int, val vector<float, 3>, PRIMARY KEY(pk))");
+
+        int vectorCount = 100;
+        for (int pk = 0; pk < vectorCount; pk++)
+            execute("INSERT INTO %s (pk, val) VALUES (" + pk + ", [" + pk + ".0, " + (pk + 1) + ".0, " + (pk + 2) + ".0])");
+
+        flush();
+
+        SegmentBuilder.updateLastValidSegmentRowId(17); // 17 rows per segment -> multi-segment build
+        IndexIdentifier vectorIndexIdentifier = createIndexIdentifier(createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'"));
+        IndexTermType vectorIndexTermType = createIndexTermType(VectorType.getInstance(FloatType.instance, 3));
+
+        // A vector index writes CompressedVectors.db, TermsData.db, and PostingLists.db in append
+        // mode with one SAI codec footer per segment (see OnHeapGraph.writeData). Multi-segment
+        // builds therefore need segment-aware checksum validation.
+        assertTrue(verifyChecksum(vectorIndexTermType, vectorIndexIdentifier));
     }
 
     private void assertZeroSegmentBuilderUsage()

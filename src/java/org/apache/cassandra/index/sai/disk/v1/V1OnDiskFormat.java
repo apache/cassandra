@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai.disk.v1;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -42,6 +43,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.OnDiskFormat;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
+import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.metrics.AbstractMetrics;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
@@ -50,6 +52,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IndexInput;
 
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
@@ -94,6 +98,18 @@ public class V1OnDiskFormat implements OnDiskFormat
                                                                            IndexComponent.COMPRESSED_VECTORS,
                                                                            IndexComponent.TERMS_DATA,
                                                                            IndexComponent.POSTING_LISTS);
+
+    /**
+     * Per-column components whose files are written in append mode with one SAI codec footer
+     * per segment (see {@link org.apache.cassandra.index.sai.disk.v1.bbtree.NumericIndexWriter},
+     * {@link org.apache.cassandra.index.sai.disk.v1.trie.TrieTermsDictionaryWriter},
+     * {@link org.apache.cassandra.index.sai.disk.v1.postings.PostingsWriter}, and
+     * {@link org.apache.cassandra.index.sai.disk.v1.vector.OnHeapGraph}).
+     */
+    private static final Set<IndexComponent> SEGMENTED_COMPONENTS = EnumSet.of(IndexComponent.BALANCED_TREE,
+                                                                               IndexComponent.POSTING_LISTS,
+                                                                               IndexComponent.TERMS_DATA,
+                                                                               IndexComponent.COMPRESSED_VECTORS);
 
     /**
      * Global limit on heap consumed by all index segment building that occurs outside the context of Memtable flush.
@@ -218,12 +234,87 @@ public class V1OnDiskFormat implements OnDiskFormat
             }
         }
 
+        if (isEmptyIndex)
+            return;
+
+        // Safely read the segment metadata so we can validate per-segment checksums below...
+        List<SegmentMetadata> segments = null;
+        if (checksum)
+        {
+            validateIndexComponent(indexDescriptor, indexIdentifier, IndexComponent.META, true);
+            try
+            {
+                segments = SegmentMetadata.load(MetadataSource.loadColumnMetadata(indexDescriptor, indexIdentifier), indexDescriptor.primaryKeyFactory);
+            }
+            catch (IOException e)
+            {
+                rethrowIOException(e);
+            }
+        }
+
         for (IndexComponent indexComponent : perColumnIndexComponents(indexTermType))
         {
-            if (!isEmptyIndex && isNotBuildCompletionMarker(indexComponent))
+            if (isNotBuildCompletionMarker(indexComponent))
             {
-                validateIndexComponent(indexDescriptor, indexIdentifier, indexComponent, checksum);
+                // META was validated up-front in CHECKSUM mode; don't validate it twice.
+                if (checksum && indexComponent == IndexComponent.META)
+                    continue;
+
+                if (checksum && SEGMENTED_COMPONENTS.contains(indexComponent))
+                {
+                    assert segments != null : "No segment metadata available!";
+                    validateSegmentedIndexComponent(indexDescriptor, indexIdentifier, indexComponent, segments, indexTermType.isVector());
+                }
+                else
+                    validateIndexComponent(indexDescriptor, indexIdentifier, indexComponent, checksum);
             }
+        }
+    }
+
+    private static void validateSegmentedIndexComponent(IndexDescriptor indexDescriptor,
+                                                        IndexIdentifier indexIdentifier,
+                                                        IndexComponent indexComponent,
+                                                        List<SegmentMetadata> segments,
+                                                        boolean payloadOnlyMetadata)
+    {
+        try (IndexInput input = indexDescriptor.openPerIndexInput(indexComponent, indexIdentifier))
+        {
+            long fileLength = input.length();
+            long frameStart = 0;
+
+            for (SegmentMetadata segment : segments)
+            {
+                SegmentMetadata.ComponentMetadata cm = segment.componentMetadatas.get(indexComponent);
+
+                // Non-vector writers record offsets as the codec-framed segment starts (before
+                // the header) and length as the full framed length (through the footer). The vector
+                // writer (OnHeapGraph#writeData) instead records the offset as the payload start (after
+                // the header) and length as just the payload length, because vector readers seek
+                // directly at the payload. Segments are written contiguously in append mode, so we can
+                // recover the vector-path frame extent by walking segment ends and adding the trailing
+                // 16-byte codec footer.
+                long frameEnd = payloadOnlyMetadata ? cm.offset + cm.length + CodecUtil.footerLength() : cm.offset + cm.length;
+
+                if (frameEnd > fileLength || frameEnd < frameStart)
+                    throw new CorruptIndexException(String.format("Segment frame [%d, %d) is inconsistent with component file length %d",
+                                                                  frameStart, frameEnd, fileLength),
+                                                    indexComponent.name + '@' + frameStart);
+
+                IndexInput slice = input.slice(indexComponent.name + '@' + frameStart, frameStart, frameEnd - frameStart);
+                SAICodecUtils.validateChecksum(slice);
+                frameStart = frameEnd;
+            }
+
+            if (frameStart != fileLength)
+                throw new CorruptIndexException(String.format("Component file length %d does not match combined frame length of all segments %d",
+                                                              fileLength, frameStart),
+                                                indexComponent.name);
+        }
+        catch (Exception e)
+        {
+            logger.warn(indexDescriptor.logMessage("Segmented checksum validation failed for index component {} on SSTable {}"),
+                        indexComponent, indexDescriptor.sstableDescriptor);
+            rethrowIOException(e);
         }
     }
 
@@ -244,9 +335,7 @@ public class V1OnDiskFormat implements OnDiskFormat
         catch (Exception e)
         {
             logger.warn(indexDescriptor.logMessage("{} failed for index component {} on SSTable {}"),
-                        checksum ? "Checksum validation" : "Validation",
-                        indexComponent,
-                        indexDescriptor.sstableDescriptor);
+                        checksum ? "Checksum validation" : "Validation", indexComponent, indexDescriptor.sstableDescriptor);
             rethrowIOException(e);
         }
     }
