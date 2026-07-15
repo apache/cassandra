@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.NavigableMap;
-import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.Assert;
@@ -73,6 +71,7 @@ import org.apache.cassandra.utils.Pair;
 import static accord.primitives.Status.Durability.AllQuorums;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
+import static org.apache.cassandra.service.accord.AccordCacheEntry.LockMode.RELEASE_QUEUE;
 import static org.apache.cassandra.service.accord.AccordService.getBlocking;
 import static org.apache.cassandra.service.accord.AccordTestUtils.Commands.preaccepted;
 import static org.apache.cassandra.service.accord.AccordTestUtils.ballot;
@@ -140,6 +139,7 @@ public class AccordCommandStoreTest
                                                      promised, executeAt, txn, dependencies, accepted,
                                                      waitingOn, result.left, TxnDataResult.PERSISTABLE);
         AccordSafeCommand safeCommand = new AccordSafeCommand(loaded(txnId, null));
+        safeCommand.preExecute(new AccordTask<>(null, ExecutionContext.unsequenced(txnId, "Test"), null), RELEASE_QUEUE);
         safeCommand.set(expected);
         // In practice we should never need to save it with the condition boolean set
         // Not sure why this test does that
@@ -168,10 +168,10 @@ public class AccordCommandStoreTest
         Command command2 = preaccepted(txnId2, txn, timestamp(1, clock.incrementAndGet(), 1));
 
         AccordSafeCommandsForKey cfk = new AccordSafeCommandsForKey(loaded(key, null));
-        cfk.initialize();
+        cfk.preExecute(new AccordTask<>(null, ExecutionContext.unsequenced(txnId1, "Test"), null), RELEASE_QUEUE);
 
-        cfk.set(cfk.current().update(new TestSafeCommandStore(ExecutionContext.contextFor(command1.txnId(), "Test")), command1).cfk());
-        cfk.set(cfk.current().update(new TestSafeCommandStore(ExecutionContext.contextFor(command1.txnId(), "Test")), command2).cfk());
+        cfk.set(cfk.current().update(new TestSafeCommandStore(ExecutionContext.unsequenced(command1.txnId(), "Test")), command1).cfk());
+        cfk.set(cfk.current().update(new TestSafeCommandStore(ExecutionContext.unsequenced(command1.txnId(), "Test")), command2).cfk());
 
         CommandsForKeyAccessor.systemTableUpdater(commandStore.id(), (TokenKey)cfk.key(), cfk.current(), null, commandStore.nextSystemTimestampMicros()).run();
         logger.info("E: {}", cfk);
@@ -179,12 +179,5 @@ public class AccordCommandStoreTest
         logger.info("A: {}", actual);
 
         Assert.assertEquals(cfk.current(), actual);
-    }
-
-    private static <K, V extends AccordSafeState<K, ?>> NavigableMap<K, V> toNavigableMap(V safeState)
-    {
-        TreeMap<K, V> map = new TreeMap<>();
-        map.put(safeState.key(), safeState);
-        return map;
     }
 }

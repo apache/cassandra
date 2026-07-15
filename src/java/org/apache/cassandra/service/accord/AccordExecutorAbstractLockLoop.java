@@ -26,7 +26,6 @@ import accord.utils.QuintConsumer;
 
 import org.apache.cassandra.concurrent.CassandraThread;
 import org.apache.cassandra.service.accord.AccordExecutorLoops.LoopTask;
-import org.apache.cassandra.service.accord.debug.DebugExecution.DebugExecutorLoop;
 
 import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITH_LOCK;
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXECUTION;
@@ -214,18 +213,21 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
                             if (task != null)
                             {
                                 self.setAccordActiveTask(task);
+                                boolean executed = false;
                                 try
                                 {
                                     task.preRunExclusive();
+                                    executed = true;
                                     task.run();
                                 }
                                 catch (Throwable t)
                                 {
-                                    task.fail(t);
+                                    executed = false;
+                                    task.failExecution(t);
                                 }
                                 finally
                                 {
-                                    completeTaskExclusive(task);
+                                    cleanupTaskExclusive(task, executed);
                                     self.setAccordActiveTask(null);
                                 }
                             }
@@ -265,7 +267,6 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
     {
         return new LoopTask(name)
         {
-            final DebugExecutorLoop debug = DEBUG_EXECUTION ? new DebugExecutorLoop(AccordExecutorAbstractLockLoop.this.debug) : null;
             @Override
             public void run()
             {
@@ -276,17 +277,15 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
                 Task task = null;
                 while (true)
                 {
-                    if (DEBUG_EXECUTION) debug.onLock();
                     lock(self);
                     try
                     {
-                        if (DEBUG_EXECUTION) debug.onEnterLock();
                         enterLockLoop();
                         if (task != null)
                         {
                             Task tmp = task;
                             task = null;
-                            completeTaskExclusive(tmp);
+                            cleanupTaskExclusive(tmp, true);
                             self.setAccordActiveTask(null);
                         }
 
@@ -322,9 +321,9 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
                     {
                         if (task != null)
                         {
-                            try { task.fail(t); }
+                            try { task.failExecution(t); }
                             catch (Throwable t2) { t.addSuppressed(t2); }
-                            try { completeTaskExclusive(task); }
+                            try { cleanupTaskExclusive(task, false); }
                             catch (Throwable t2) { t.addSuppressed(t2); }
                             try { agent.onException(t); }
                             catch (Throwable t2) { /* nothing we can sensibly do after already reporting */ }
@@ -350,7 +349,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
                     }
                     catch (Throwable t)
                     {
-                        try { task.fail(t); }
+                        try { task.failExecution(t); }
                         catch (Throwable t2)
                         {
                             try

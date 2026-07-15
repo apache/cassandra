@@ -20,14 +20,24 @@ package org.apache.cassandra.service.accord;
 import org.junit.Assert;
 import org.junit.Test;
 
+import accord.local.SafeState;
+
 import org.apache.cassandra.service.accord.AccordCache.Type;
+import org.apache.cassandra.service.accord.AccordCacheEntry.LockMode;
 import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
 
 public class AccordCacheEntryTest
 {
-    static class CacheEntry extends AccordCacheEntry<String, String>
+    static class TestSafeState extends SafeState<String> implements AccordSafeState<String, String, TestSafeState>
     {
-        public CacheEntry(String key, Type<String, String, ?>.Instance instance)
+        @Override public AccordCacheEntry<String, String, TestSafeState> global() { return null; }
+        @Override public void preExecute(AccordTask<?> owner, LockMode lockMode) {}
+        @Override public void postExecute(AccordTask<?> owner) {}
+    }
+
+    static class CacheEntry extends AccordCacheEntry<String, String, TestSafeState>
+    {
+        public CacheEntry(String key, Type<String, String, TestSafeState>.Instance instance)
         {
             super(key, instance);
         }

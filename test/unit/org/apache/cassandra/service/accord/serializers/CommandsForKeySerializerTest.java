@@ -505,8 +505,8 @@ public class CommandsForKeySerializerTest
             {
                 int next = source.nextInt(commands.size());
                 Command command = commands.get(next);
-                if (command.txnId.isSyncPoint()) cfk = cfk.registerUnmanaged(new TestSafeCommandStore(ExecutionContext.contextFor(command.txnId(), "Test")), new TestSafeCommand(command), REGISTER).cfk();
-                else cfk = cfk.update(new TestSafeCommandStore(ExecutionContext.contextFor(command.txnId(), "Test")), command).cfk();
+                if (command.txnId.isSyncPoint()) cfk = cfk.registerUnmanaged(new TestSafeCommandStore(ExecutionContext.unsequenced(command.txnId(), "Test")), new TestSafeCommand(command), REGISTER).cfk();
+                else cfk = cfk.update(new TestSafeCommandStore(ExecutionContext.unsequenced(command.txnId(), "Test")), command).cfk();
                 commands.set(next, commands.get(commands.size() - 1));
                 commands.remove(commands.size() - 1);
             }
@@ -547,33 +547,10 @@ public class CommandsForKeySerializerTest
 
     static class TestSafeCommand extends SafeCommand
     {
-        final Command command;
         TestSafeCommand(Command command)
         {
             super(command.txnId);
-            this.command = command;
-        }
-
-        @Override
-        public Command current()
-        {
-            return command;
-        }
-
-        @Override
-        public void markUnsafe()
-        {
-        }
-
-        @Override
-        public boolean isUnsafe()
-        {
-            return false;
-        }
-
-        @Override
-        protected void set(Command command)
-        {
+            current = command;
         }
     }
 
@@ -704,7 +681,7 @@ public class CommandsForKeySerializerTest
     {
         public TestSafeCommandStore(ExecutionContext context)
         {
-            super(context, TestCommandStore.INSTANCE);
+            super(context);
         }
 
         @Override protected CommandStoreCaches tryGetCaches() { return null; }
@@ -712,6 +689,7 @@ public class CommandsForKeySerializerTest
         @Override protected SafeCommandsForKey add(SafeCommandsForKey safeCfk, CommandStoreCaches caches) { return null; }
         @Override protected SafeCommand getInternal(TxnId txnId) { return null; }
         @Override protected SafeCommandsForKey getInternal(RoutingKey key) { return null; }
+        @Override public CommandStore commandStore() { return TestCommandStore.INSTANCE; }
         @Override public DataStore dataStore() { return null; }
         @Override public Agent agent() { return null; }
         @Override public ProgressLog progressLog() { return null; }

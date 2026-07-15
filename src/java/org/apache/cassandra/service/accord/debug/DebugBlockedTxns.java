@@ -178,7 +178,7 @@ public class DebugBlockedTxns
 
     private AsyncChain<Txn> visitRootTxnAsync(CommandStore commandStore, TxnId txnId)
     {
-        return commandStore.chain(ExecutionContext.contextFor(txnId, "Populate txn_blocked_by"), safeStore -> {
+        return commandStore.chain(ExecutionContext.unsequenced(txnId, "Populate txn_blocked_by"), safeStore -> {
             Command command = safeStore.unsafeGetNoCleanup(txnId).current();
             if (command == null || command.saveStatus() == SaveStatus.Uninitialised)
                 return null;
@@ -188,7 +188,7 @@ public class DebugBlockedTxns
 
     private AsyncChain<Txn> visitTxnAsync(CommandStore commandStore, TxnId txnId, Timestamp rootExecuteAt, @Nullable TokenKey byKey, int depth, boolean recurse)
     {
-        return commandStore.chain(ExecutionContext.contextFor(txnId, "Populate txn_blocked_by"), safeStore -> {
+        return commandStore.chain(ExecutionContext.unsequenced(txnId, "Populate txn_blocked_by"), safeStore -> {
             Command command = safeStore.unsafeGetNoCleanup(txnId).current();
             if (command == null || command.saveStatus() == SaveStatus.Uninitialised)
                 return null;
@@ -231,7 +231,7 @@ public class DebugBlockedTxns
 
     private AsyncChain<Void> visitKeysAsync(CommandStore commandStore, TokenKey key, Timestamp rootExecuteAt, int depth)
     {
-        return commandStore.chain(ExecutionContext.contextFor(RoutingKeys.of(key.toUnseekable()), SYNC, READ_WRITE, "Populate txn_blocked_by"), safeStore -> {
+        return commandStore.chain(ExecutionContext.unsequencedReadWrite(RoutingKeys.of(key.toUnseekable()), "Populate txn_blocked_by"), safeStore -> {
             visitKeysSync(safeStore, key, rootExecuteAt, depth);
         });
     }

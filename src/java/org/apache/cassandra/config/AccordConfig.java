@@ -157,29 +157,10 @@ public class AccordConfig
         PHASE_ONLY,
 
         /**
-         * Always pick the task by priority.
-         */
-        PRIORITY_BUDGET,
-
-        /**
-         * Pick by phase first, so the highest phase with budget ALWAYS runs.
-         * Within a phase, pick by priority.
-         */
-        PHASE_BUDGET,
-
-        /**
          * Pick by phase first, selecting the phase that has processed the least work recently relative to arrivals.
          * Within a phase, pick by priority.
          */
         PHASE_FAIR,
-
-        /**
-         * Pick by phase first, selecting the phase that has processed the least work recently relative to arrivals.
-         * However, each phase has a budget that is consumed on dispatch, and we pick only from those phases with budget.
-         * If there is no phase with budget, the budget resets.
-         * Within a phase, pick by priority.
-         */
-        PHASE_BUDGET_FAIR,
 
         /**
          * While phases are within a threshold of imbalance, pick tasks by priority.
@@ -190,8 +171,6 @@ public class AccordConfig
          * Within a phase, pick by priority.
          */
         BLENDED_PRIORITY_PHASE_FAIR,
-
-        BLENDED_PRIORITY_PHASE_BUDGET_FAIR,
     }
 
     public QueueShardModel queue_shard_model = THREAD_POOL_PER_SHARD;
@@ -212,8 +191,29 @@ public class AccordConfig
 
     public Integer queue_flow_imbalance_onset = null;
     public Integer queue_flow_imbalance_width_shift = null;
+
     public String queue_active_limits;
-    public String queue_budgets;
+
+    public Boolean queue_nonsync_enabled;
+
+    /**
+     * Size at which we will begin processing a task that is ASYNC, INCR OR INCR_ATOMIC.
+     * Note that a size of zero will effectively give implicit priority to INCR_ATOMIC tasks, as they may immediately
+     * take a FIFO queue slot (which is processed preferentially).
+     */
+    public Integer queue_nonsync_min_batch_size;
+
+    /**
+     * If there are more than min_batch_size keys ready for an ASYNC, INCR or INCR_ATOMIC task,
+     * process up to this many keys at once.
+     */
+    public Integer queue_nonsync_max_batch_size;
+
+    /**
+     * An ASYNC, INCR or INCR_ATOMIC task that is ready to run but waiting for batch_size work will proceed
+     * once this number of tasks are blocked behind it, regardless of batch_size.
+     */
+    public Integer queue_nonsync_blocked_limit;
 
     /**
      * If set, the signal loop does not match park/unpark pairs, but instead consumers perform timed-park spin waits
@@ -239,9 +239,6 @@ public class AccordConfig
      * TODO (expected): adjust this by proportion of ring
      */
     public volatile OptionaldPositiveInt command_store_shard_count = OptionaldPositiveInt.UNDEFINED;
-
-    public volatile OptionaldPositiveInt max_queued_loads = OptionaldPositiveInt.UNDEFINED;
-    public volatile OptionaldPositiveInt max_queued_range_loads = OptionaldPositiveInt.UNDEFINED;
 
     public volatile OptionaldPositiveInt progress_log_concurrency = OptionaldPositiveInt.UNDEFINED;
     public DurationSpec.IntMillisecondsBound progress_log_query_fallback_timeout = new DurationSpec.IntMillisecondsBound("1m");
