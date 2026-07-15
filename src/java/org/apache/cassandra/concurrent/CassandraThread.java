@@ -31,6 +31,7 @@ public class CassandraThread extends FastThreadLocalThread implements AccordExec
     private ExecutorLocals executorLocals;
     private AccordExecutor accordActiveExecutor;
     private AccordExecutor accordLockedExecutor;
+    private int accordLockedExecutorDepth;
     private volatile AccordExecutor.Task accordActiveTask;
     private static final AtomicReferenceFieldUpdater<CassandraThread, AccordExecutor.Task> accordActiveTaskUpdater = AtomicReferenceFieldUpdater.newUpdater(CassandraThread.class, AccordExecutor.Task.class, "accordActiveTask");
 
@@ -113,18 +114,19 @@ public class CassandraThread extends FastThreadLocalThread implements AccordExec
     }
 
     @Override
-    public final boolean trySetAccordLockedExecutor(AccordExecutor newLockedExecutor)
+    public final boolean tryEnterAccordLockedExecutor(AccordExecutor newLockedExecutor)
     {
-        if (accordLockedExecutor != null)
-            return false;
-        accordLockedExecutor = newLockedExecutor;
+        if (accordLockedExecutor == null) accordLockedExecutor = newLockedExecutor;
+        else if (accordLockedExecutor != newLockedExecutor) return false;
+        ++accordLockedExecutorDepth;
         return true;
     }
 
     @Override
-    public final void clearAccordLockedExecutor()
+    public final void exitAccordLockedExecutor()
     {
-        accordLockedExecutor = null;
+        if (--accordLockedExecutorDepth == 0)
+            accordLockedExecutor = null;
     }
 
     public final AccordExecutor.Task accordActiveTask()

@@ -88,7 +88,7 @@ public class InMemoryRangeIndex extends InMemoryRangeSummaryIndex implements Ran
             {
                 for (TxnId txnId : load)
                 {
-                    AccordCacheEntry<TxnId, Command> entry = caches.commands().getUnsafe(txnId);
+                    AccordCacheEntry<TxnId, Command, ?> entry = caches.commands().getUnsafe(txnId);
                     if (entry == null)
                     {
                         loadFromDisk.add(txnId);
@@ -115,7 +115,6 @@ public class InMemoryRangeIndex extends InMemoryRangeSummaryIndex implements Ran
 
         public void finish(Map<Timestamp, Summary> into)
         {
-            cleanupExclusive(null);
             owner.search(this, into::put, null);
         }
 

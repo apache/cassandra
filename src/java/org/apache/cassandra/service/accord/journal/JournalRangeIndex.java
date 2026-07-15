@@ -107,7 +107,7 @@ public class JournalRangeIndex extends SemiSyncIntervalTree<Object[]> implements
             }
 
             @Override
-            public void onUpdate(AccordCacheEntry<TxnId, Command> state)
+            public void onUpdate(AccordCacheEntry<TxnId, Command, ?> state)
             {
                 Summary summary = loader.ifRelevant(state);
                 if (summary != null)
@@ -162,7 +162,7 @@ public class JournalRangeIndex extends SemiSyncIntervalTree<Object[]> implements
                             if (isMaybeRelevant(i))
                             {
                                 TxnId txnId = i.txnId;
-                                AccordCacheEntry<TxnId, Command> entry = c.getUnsafe(txnId);
+                                AccordCacheEntry<TxnId, Command, ?> entry = c.getUnsafe(txnId);
                                 Invariants.expect(entry != null, "%s found interval %s but no matching transaction in cache", owner.commandStore, i);
                                 if (entry != null)
                                 {
@@ -267,7 +267,7 @@ public class JournalRangeIndex extends SemiSyncIntervalTree<Object[]> implements
     }
 
     @Override
-    public void onUpdate(AccordCacheEntry<TxnId, Command> state)
+    public void onUpdate(AccordCacheEntry<TxnId, Command, ?> state)
     {
         TxnId txnId = state.key();
         if (txnId.is(Routable.Domain.Range))
@@ -334,7 +334,7 @@ public class JournalRangeIndex extends SemiSyncIntervalTree<Object[]> implements
     }
 
     @Override
-    public void onEvict(AccordCacheEntry<TxnId, Command> state)
+    public void onEvict(AccordCacheEntry<TxnId, Command, ?> state)
     {
         TxnId txnId = state.key();
         if (txnId.is(Routable.Domain.Range))

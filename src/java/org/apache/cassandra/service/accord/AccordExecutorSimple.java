@@ -82,7 +82,8 @@ class AccordExecutorSimple extends AccordExecutor
 
     protected void run()
     {
-        Thread self = Thread.currentThread();
+        AccordTaskRunner self = AccordTaskRunner.get();
+        self.setAccordActiveExecutor(AccordExecutorSimple.this);
         lock.lock();
         try
         {
@@ -95,11 +96,24 @@ class AccordExecutorSimple extends AccordExecutor
                     return;
                 }
 
-                try { task.preRunExclusive(); task.run(); }
-                catch (Throwable t) { task.fail(t); }
+                // TODO (expected): dedup with AbstractLockLoop, and cleanup (executed flag is a bit ugly)
+                self.setAccordActiveTask(task);
+                boolean executed = false;
+                try
+                {
+                    task.preRunExclusive();
+                    executed = true;
+                    task.run();
+                }
+                catch (Throwable t)
+                {
+                    executed = false;
+                    task.failExecution(t);
+                }
                 finally
                 {
-                    completeTaskExclusive(task);
+                    cleanupTaskExclusive(task, executed);
+                    self.setAccordActiveTask(null);
                 }
             }
         }

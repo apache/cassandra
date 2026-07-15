@@ -55,7 +55,6 @@ import org.apache.cassandra.journal.Descriptor;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordCommandStore.DurablyAppliedTo;
 import org.apache.cassandra.service.accord.AccordExecutor.AccordExecutorFactory;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.AccordConfig.QueueShardModel.THREAD_PER_SHARD;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccord;
@@ -73,7 +72,6 @@ public class AccordCommandStores extends CommandStores implements CacheSize, Shu
     private final int mask;
 
     private long cacheSize, workingSetSize;
-    private int maxQueuedLoads, maxQueuedRangeLoads;
     private boolean shrinkingOn;
 
     AccordCommandStores(NodeCommandStoreService node, Agent agent, DataStore store, RandomSource random,
@@ -87,12 +85,9 @@ public class AccordCommandStores extends CommandStores implements CacheSize, Shu
 
         cacheSize = DatabaseDescriptor.getAccordCacheSizeInMiB() << 20;
         workingSetSize = DatabaseDescriptor.getAccordWorkingSetSizeInMiB() << 20;
-        AccordConfig config = DatabaseDescriptor.getAccord();
-        maxQueuedLoads = maxQueuedLoads(config);
-        maxQueuedRangeLoads = maxQueuedRangeLoads(config);
         shrinkingOn = DatabaseDescriptor.getAccordCacheShrinkingOn();
         refreshCapacities();
-        ScheduledExecutors.scheduledFastTasks.scheduleWithFixedDelay(() -> {
+        ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(() -> {
             for (AccordExecutor executor : executors)
             {
                 executor.executeDirectlyWithLock(() -> {
@@ -173,13 +168,6 @@ public class AccordCommandStores extends CommandStores implements CacheSize, Shu
         refreshCapacities();
     }
 
-    public synchronized void setMaxQueuedLoads(int total, int range)
-    {
-        maxQueuedLoads = total;
-        maxQueuedRangeLoads = range;
-        refreshCapacities();
-    }
-
     public synchronized void setShrinking(boolean on)
     {
         shrinkingOn = on;
@@ -213,14 +201,11 @@ public class AccordCommandStores extends CommandStores implements CacheSize, Shu
     {
         long capacityPerExecutor = cacheSize / executors.length;
         long workingSetPerExecutor = workingSetSize < 0 ? Long.MAX_VALUE : workingSetSize / executors.length;
-        int maxLoadsPerExecutor = Math.max(1, (maxQueuedLoads + executors.length - 1) / executors.length);
-        int maxRangeLoadsPerExecutor = Math.max(1, (maxQueuedRangeLoads + executors.length - 1) / executors.length);
         for (AccordExecutor executor : executors)
         {
             executor.executeDirectlyWithLock(() -> {
                 executor.setCapacity(capacityPerExecutor);
                 executor.setWorkingSetSize(workingSetPerExecutor);
-                executor.setMaxQueuedLoads(maxLoadsPerExecutor, maxRangeLoadsPerExecutor);
                 executor.cacheExclusive().setShrinkingOn(shrinkingOn);
             });
         }
@@ -341,21 +326,4 @@ public class AccordCommandStores extends CommandStores implements CacheSize, Shu
                 return Math.max(1, config.queue_shard_count.or(DatabaseDescriptor.getAvailableProcessors() / 8));
         }
     }
-
-    private static int threads(AccordConfig config)
-    {
-        return config.queue_thread_count.or(2 * FBUtilities.getAvailableProcessors());
-    }
-
-    public static int maxQueuedLoads(AccordConfig config)
-    {
-        return config.max_queued_loads.or(FBUtilities.getAvailableProcessors());
-    }
-
-    public static int maxQueuedRangeLoads(AccordConfig config)
-    {
-        return config.max_queued_range_loads.or(maxQueuedLoads(config) / 4);
-    }
-
-
 }

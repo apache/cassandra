@@ -56,7 +56,6 @@ import accord.impl.progresslog.TxnState;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores.RangesForEpoch;
-import accord.local.CommandSummaries;
 import accord.local.ExecutionContext;
 import accord.local.ExecutionContext.Empty;
 import accord.local.MaxConflicts;
@@ -178,13 +177,16 @@ public class AccordCommandStore extends CommandStore
         @Override
         public AccordSafeCommand acquireIfLoaded(TxnId txnId)
         {
-            return commands().acquireIfLoaded(txnId);
+            // note: we must return false if the entry is locked to enforce ordering.
+            // note importantly that this is also coupled to the safety of synchronously releasing ExclusiveExecutor.owner,
+            // rather than waiting until the (potentially asynchronous) cleanup of the task completes
+            return commands().acquireIfLoadedAndPermitted(txnId);
         }
 
         @Override
         public AccordSafeCommandsForKey acquireIfLoaded(RoutingKey key)
         {
-            return commandsForKeys().acquireIfLoaded(key);
+            return commandsForKeys().acquireIfLoadedAndPermitted(key);
         }
 
         @Override
@@ -299,7 +301,7 @@ public class AccordCommandStore extends CommandStore
     void tryPreSetup(AccordTask<?> task)
     {
         if (inStore() && current != null)
-            task.presetup(current.task);
+            task.preSetup(current.task);
     }
 
     public final TableId tableId()
@@ -432,11 +434,17 @@ public class AccordCommandStore extends CommandStore
         return taskExecutor().tryExecuteImmediately(run);
     }
 
-    public AccordSafeCommandStore begin(AccordTask<?> operation, @Nullable CommandSummaries commandsForRanges)
+    public AccordSafeCommandStore begin(AccordSafeCommandStore safeStore)
     {
         require(current == null);
-        current = AccordSafeCommandStore.create(operation, commandsForRanges, this);
+        current = safeStore;
         return current;
+    }
+
+    public void complete(AccordSafeCommandStore store)
+    {
+        require(current == store);
+        current = null;
     }
 
     public boolean hasSafeStore()
@@ -452,19 +460,6 @@ public class AccordCommandStore extends CommandStore
     ProgressLog progressLog()
     {
         return progressLog;
-    }
-
-    public void complete(AccordSafeCommandStore store)
-    {
-        require(current == store);
-        current.postExecute();
-        current = null;
-    }
-
-    public void abort(AccordSafeCommandStore store)
-    {
-        Invariants.require(store == current);
-        current = null;
     }
 
     @Override
@@ -650,7 +645,7 @@ public class AccordCommandStore extends CommandStore
                 public Ready() { super(1); }
                 @Override public void run() { decrement(); }
 
-                void maybeFlush(ExclusiveCaches caches, AccordCacheEntry<RoutingKey, CommandsForKey> e)
+                void maybeFlush(ExclusiveCaches caches, AccordCacheEntry<RoutingKey, CommandsForKey, ?> e)
                 {
                     if (e.isModified())
                     {
@@ -665,7 +660,7 @@ public class AccordCommandStore extends CommandStore
             {
                 if (ranges == null)
                 {
-                    for (AccordCacheEntry<RoutingKey, CommandsForKey> e : caches.commandsForKeys())
+                    for (AccordCacheEntry<RoutingKey, CommandsForKey, ?> e : caches.commandsForKeys())
                         ready.maybeFlush(caches, e);
                 }
                 else
@@ -717,7 +712,7 @@ public class AccordCommandStore extends CommandStore
             if (!maybeShouldReplay(txnId))
                 return AsyncChains.success(null);
 
-            return commandStore.chain(ExecutionContext.contextFor(txnId, "Replay"), safeStore -> {
+            return commandStore.chain(ExecutionContext.unsequenced(txnId, "Replay"), safeStore -> {
                 Replay replay = shouldReplay(txnId, safeStore.unsafeGet(txnId).current().participants());
                 if (replay == Replay.NONE)
                     return null;

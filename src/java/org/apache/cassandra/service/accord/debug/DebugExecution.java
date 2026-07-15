@@ -40,10 +40,10 @@ public class DebugExecution
 {
     private static final Logger logger = LoggerFactory.getLogger(DebugExecution.class);
     public static final boolean DEBUG_EXECUTION = CassandraRelevantProperties.ACCORD_DEBUG_EXECUTION.getBoolean(false);
-    private static final long REPORT_MIN_LATENCY_MICROS = 20_000;
+    private static final long REPORT_MIN_LATENCY_MICROS = 50_000;
     private static final long REPORT_CPU_RATIO = 2;
-    private static final long REPORT_MAX_LATENCY_MICROS = 50_000;
-    private static final long REPORT_CPU_MICROS = 10_000;
+    private static final long REPORT_MAX_LATENCY_MICROS = 100_000;
+    private static final long REPORT_CPU_MICROS = 50_000;
 
     // TODO (expected): use sharded histogram so we can report global stats
     public static class DebugExecutor
@@ -94,40 +94,13 @@ public class DebugExecution
             long lockedForCpuMicros = (unlockedAtCpu - lockedAtCpu)/1000;
             if (lockedForMicros >= REPORT_MAX_LATENCY_MICROS)
             {
-                report("Held lock for {}us (cpu:{}us)\n", lockedForMicros, lockedForCpuMicros);
+                report("Held lock for {}us (cpu:{}us)", lockedForMicros, lockedForCpuMicros);
             }
             else if (lockedForMicros >= REPORT_MIN_LATENCY_MICROS && (lockedForMicros / lockedForCpuMicros) >= REPORT_CPU_RATIO)
             {
-                report("Held lock for {}us with cpu time only {}us\n", lockedForMicros, lockedForCpuMicros);
+                report("Held lock for {}us with cpu time only {}us", lockedForMicros, lockedForCpuMicros);
             }
             locked.increment(lockedForMicros);
-        }
-    }
-
-    public static class DebugExecutorLoop
-    {
-        final DebugExecutor owner;
-        long lockAt;
-
-        public DebugExecutorLoop(DebugExecutor owner)
-        {
-            this.owner = owner;
-        }
-
-        public void onLock()
-        {
-            lockAt = nanoTime();
-        }
-
-        public void onEnterLock()
-        {
-            owner.onEnterLock(lockAt);
-            lockAt = 0;
-        }
-
-        public void onExitLock()
-        {
-            owner.onExitLock();
         }
     }
 
@@ -200,7 +173,7 @@ public class DebugExecution
 
         public List<Command> sanityCheck; // for AccordTask only
         long polledAt, preRunAt, runCompleteAt, completedAt;
-        long releasedRangeScannerAt, releasedCommandsAt, releasedCommandsForKeyAt;
+        long releasedRangeScannerAt, releasedStateAt;
         long runningAtCpu, runCompleteAtCpu;
         Thread thread;
 
@@ -231,14 +204,9 @@ public class DebugExecution
             releasedRangeScannerAt = nanoTime();
         }
 
-        public void onReleasedCommands()
+        public void onReleasedState()
         {
-            releasedCommandsAt = nanoTime();
-        }
-
-        public void onReleasedCommandsForKeys()
-        {
-            releasedCommandsForKeyAt = nanoTime();
+            releasedStateAt = nanoTime();
         }
 
         public void onCompleted(DebugExecutor owner)
@@ -254,9 +222,9 @@ public class DebugExecution
                     runningMicros = (runCompleteAt - task.runningAt) / 1000;
                     owner.running.increment(runningMicros);
                 }
-                long runToCleanMicros = (task.cleanupAt - runCompleteAt)/1000;
+                long runToCleanMicros = (task.completeAt - runCompleteAt) / 1000;
                 owner.runToCleanup.increment(runToCleanMicros);
-                long cleanupMicros = (completedAt - task.cleanupAt)/1000;
+                long cleanupMicros = (completedAt - task.completeAt) / 1000;
                 owner.cleanup.increment(cleanupMicros);
                 long totalMicros = (completedAt - polledAt)/1000;
                 owner.taskTotal.increment(totalMicros);
@@ -266,7 +234,7 @@ public class DebugExecution
                     String reason = "";
                     if (totalMicros > REPORT_MAX_LATENCY_MICROS) reason += "LONG TIME ";
                     if (totalCpu > REPORT_CPU_MICROS) reason += "HIGH CPU ";
-                    if ((totalMicros > REPORT_MIN_LATENCY_MICROS && (totalMicros/totalCpu) >= REPORT_CPU_RATIO)) reason += "LOW RATIO ";
+                    if ((totalMicros > REPORT_MIN_LATENCY_MICROS && (totalCpu == 0 || (totalMicros/totalCpu) >= REPORT_CPU_RATIO))) reason += "LOW RATIO ";
                     report("{}{}: total {}us cpu:{}us ({}), pollToRun {}us, running {}us, runToClean {}us, cleanup {}us",
                            reason, task, totalMicros, totalCpu, thread, pollToRunMicros, runningMicros, runToCleanMicros, cleanupMicros);
                 }

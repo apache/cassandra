@@ -18,19 +18,17 @@
 package org.apache.cassandra.service.accord;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -52,14 +50,17 @@ import accord.local.CommandSummaries.Summary;
 import accord.local.ExecutionContext;
 import accord.local.LoadKeys;
 import accord.local.SafeCommandStore;
+import accord.local.SafeState;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.AbstractRanges;
 import accord.primitives.AbstractUnseekableKeys;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
+import accord.primitives.RoutingKeys;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
+import accord.utils.ArrayBuffers.BufferList;
 import accord.utils.Invariants;
 import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChain;
@@ -68,6 +69,9 @@ import accord.utils.async.Cancellable;
 
 import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.metrics.LogLinearDecayingHistograms;
+import org.apache.cassandra.service.accord.AccordCacheEntry.LockMode;
+import org.apache.cassandra.service.accord.AccordCacheEntry.RunnableStatus;
+import org.apache.cassandra.service.accord.AccordCacheEntry.Loading;
 import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
 import org.apache.cassandra.service.accord.AccordCommandStore.Caches;
 import org.apache.cassandra.service.accord.AccordExecutor.Task;
@@ -76,142 +80,259 @@ import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.debug.DebugExecution.DebugTask;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.Condition;
 
+import static accord.local.LoadKeys.INCR;
+import static accord.local.LoadKeys.NONE;
+import static accord.local.LoadKeys.SYNC;
 import static accord.local.LoadKeysFor.RECOVERY;
 import static accord.local.LoadKeysFor.WRITE;
-import static accord.primitives.Routable.Domain.Key;
-import static accord.primitives.Txn.Kind.EphemeralRead;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
-import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.ASSIGNED;
+import static org.apache.cassandra.service.accord.AccordCacheEntry.LockMode.HOLD_QUEUE;
+import static org.apache.cassandra.service.accord.AccordCacheEntry.LockMode.RELEASE_QUEUE;
+import static org.apache.cassandra.service.accord.AccordCacheEntry.RunnableStatus.NOT_RUNNABLE;
+import static org.apache.cassandra.service.accord.AccordCacheEntry.RunnableStatus.STILL_RUNNABLE;
+import static org.apache.cassandra.service.accord.AccordCacheEntry.RunnableStatus.STILL_RUNNABLE_NEWLY_BLOCKING;
+import static org.apache.cassandra.service.accord.AccordExecutor.NONSYNC_BLOCKED_LIMIT;
+import static org.apache.cassandra.service.accord.AccordExecutor.NONSYNC_ENABLED;
+import static org.apache.cassandra.service.accord.AccordExecutor.NONSYNC_MIN_BATCH_SIZE;
+import static org.apache.cassandra.service.accord.AccordExecutor.Task.GlobalGroup.LOAD;
+import static org.apache.cassandra.service.accord.AccordExecutor.Task.GlobalGroup.RANGE_LOAD;
+import static org.apache.cassandra.service.accord.AccordExecutor.Task.RunState.PERSISTING;
 import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.CANCELLED;
-import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.FAILED;
-import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.FINISHED;
-import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.LOADING;
-import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.PERSISTING;
+import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.INCOMPLETE;
+import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.LOADING_OPTIONAL;
+import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.LOADING_REQUIRED;
 import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.RUNNING;
 import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.SCANNING_RANGES;
-import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.WAITING_TO_LOAD;
+import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.WAITING;
+import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.WAITING_ON_OPTIONAL;
+import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.WAITING_ON_REQUIRED;
+import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.WAITING_OR_RUNNING;
 import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.WAITING_TO_RUN;
-import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.WAITING_TO_SCAN_RANGES;
+import static org.apache.cassandra.service.accord.AccordSafeState.global;
+import static org.apache.cassandra.service.accord.AccordSafeState.postExecute;
+import static org.apache.cassandra.service.accord.AccordSafeState.preExecute;
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXECUTION;
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DebugTask.SANITY_CHECK;
 
-public abstract class AccordTask<R> extends Task implements Function<SafeCommandStore, R>, Cancellable, DebuggableTask
+public final class AccordTask<R> extends Task implements Cancellable, DebuggableTask
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordTask.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
 
-    static class ForFunction<R> extends AccordTask<R>
-    {
-        private final Function<? super SafeCommandStore, R> function;
-
-        public ForFunction(AccordCommandStore commandStore, ExecutionContext context, Function<? super SafeCommandStore, R> function)
-        {
-            super(commandStore, context);
-            this.function = function;
-        }
-
-        @Override
-        public R apply(SafeCommandStore commandStore)
-        {
-            return function.apply(commandStore);
-        }
-    }
-
-    // TODO (desired): these anonymous ops are somewhat tricky to debug. We may want to at least give them names.
-    static class ForConsumer extends AccordTask<Void>
-    {
-        private final Consumer<? super SafeCommandStore> consumer;
-
-        private ForConsumer(AccordCommandStore commandStore, ExecutionContext context, Consumer<? super SafeCommandStore> consumer)
-        {
-            super(commandStore, context);
-            this.consumer = consumer;
-        }
-
-        @Override
-        public Void apply(SafeCommandStore commandStore)
-        {
-            consumer.accept(commandStore);
-            return null;
-        }
-    }
-
-    public static <T> AccordTask<T> create(CommandStore commandStore, ExecutionContext context, Function<? super SafeCommandStore, T> function)
-    {
-        return new ForFunction<>((AccordCommandStore) commandStore, context, function);
-    }
-
     public static AccordTask<Void> create(CommandStore commandStore, ExecutionContext context, Consumer<? super SafeCommandStore> consumer)
     {
-        return new ForConsumer((AccordCommandStore) commandStore, context, consumer);
+        return new AccordTask<>((AccordCommandStore) commandStore, context, safeStore -> {
+            consumer.accept(safeStore);
+            return null;
+        });
+    }
+
+    public static <R> AccordTask<R> create(CommandStore commandStore, ExecutionContext context, Function<? super SafeCommandStore, R> function)
+    {
+        return new AccordTask<>((AccordCommandStore) commandStore, context, function);
+    }
+
+    final class NonSyncState extends ExecutionContext.Wrapped implements ExecutionContext
+    {
+        RoutingKeys active;
+        ObjectHashSet<RoutingKey> notBlocking;
+        ObjectHashSet<RoutingKey> blocking; // cache entries on which we're blocking work
+        int loaded, processed;
+        int ready;
+
+        public NonSyncState()
+        {
+            super(executionContext);
+        }
+
+        @Override
+        public Unseekables<?> keys()
+        {
+            return active;
+        }
+
+        void addLoaded()
+        {
+            ++loaded;
+        }
+
+        void onNotHead(AccordCacheEntry<?, ?, ?> entry)
+        {
+            if ((notBlocking == null || !notBlocking.remove((RoutingKey) entry.key())) && blocking != null)
+                blocking.remove((RoutingKey) entry.key());
+        }
+
+        void onNewHead(AccordCacheEntry<?, ?, ?> entry)
+        {
+            ensureNotBlocking().add((RoutingKey) entry.key());
+        }
+
+        void onNewBlockingHead(AccordCacheEntry<?, ?, ?> entry)
+        {
+            ensureBlocking().add((RoutingKey) entry.key());
+        }
+
+        void onStillHeadNewBlocking(AccordCacheEntry<?, ?, ?> entry)
+        {
+            notBlocking.remove((RoutingKey) entry.key());
+            ensureBlocking().add((RoutingKey) entry.key());
+        }
+
+        private ObjectHashSet<RoutingKey> ensureBlocking()
+        {
+            if (blocking == null)
+                blocking = new ObjectHashSet<>();
+            return blocking;
+        }
+
+        private ObjectHashSet<RoutingKey> ensureNotBlocking()
+        {
+            if (notBlocking == null)
+                notBlocking = new ObjectHashSet<>();
+            return notBlocking;
+        }
+
+        private int readyCount()
+        {
+            return (blocking == null ? 0 : blocking.size()) + (notBlocking == null ? 0 : notBlocking.size());
+        }
+
+        boolean isLoaded()
+        {
+            return loaded >= Math.min(keys, NONSYNC_MIN_BATCH_SIZE);
+        }
+
+        boolean isWaitReady()
+        {
+            if (readyCount() >= Math.min(keys - processed, NONSYNC_MIN_BATCH_SIZE))
+                return true;
+
+            return blocking != null && blocking.size() >= NONSYNC_BLOCKED_LIMIT;
+        }
+
+        void preRunExclusive()
+        {
+            try (BufferList<RoutingKey> keys = new BufferList<>())
+            {
+                if ((blocking == null || !populate(keys, blocking)) && notBlocking != null)
+                    populate(keys, notBlocking);
+
+                keys.forEach(key -> preExecute(refs.get(key), AccordTask.this, RELEASE_QUEUE));
+                keys.sort(RoutingKey::compareTo);
+                active = RoutingKeys.of(keys);
+            }
+            processed += active.size();
+            if (processed == keys && isIncremental())
+                setIncrementalFinishingExclusive();
+        }
+
+        private boolean populate(List<RoutingKey> keys, ObjectHashSet<RoutingKey> from)
+        {
+            if (keys.size() + from.size() <= AccordExecutor.NONSYNC_MAX_BATCH_SIZE)
+            {
+                keys.addAll(from);
+                from.clear();
+                return keys.size() == AccordExecutor.NONSYNC_MAX_BATCH_SIZE;
+            }
+
+            Iterator<RoutingKey> iterator = from.iterator();
+            while (iterator.hasNext())
+            {
+                if (keys.size() == AccordExecutor.NONSYNC_MAX_BATCH_SIZE)
+                    return true;
+
+                RoutingKey key = iterator.next();
+                keys.add(key);
+                iterator.remove();
+            }
+
+            return false;
+        }
+
+        void postRunExclusive()
+        {
+            if (active != null)
+            {
+                for (RoutingKey key : active)
+                    postExecute(refs.remove(key), AccordTask.this);
+                active = null;
+            }
+            ready = readyCount();
+        }
     }
 
     final AccordCommandStore commandStore;
     private final ExecutionContext executionContext;
-    private volatile String loggingId;
-    private static final AtomicLong nextLoggingId = new AtomicLong(Clock.Global.currentTimeMillis());
-    private static final AtomicReferenceFieldUpdater<AccordTask, String> loggingIdUpdater = AtomicReferenceFieldUpdater.newUpdater(AccordTask.class, String.class, "loggingId");
+    private final Function<? super SafeCommandStore, R> function;
 
-    // TODO (desired): merge all of these maps into one
-    @Nullable Object2ObjectHashMap<TxnId, AccordSafeCommand> commands;
-    @Nullable Object2ObjectHashMap<RoutingKey, AccordSafeCommandsForKey> commandsForKey;
-    @Nullable Object2ObjectHashMap<Object, AccordSafeState<?, ?>> loading;
+    // TODO (expected): simple custom map that allows (at least):
+    //   - efficient putIfAbsent
+    //   - efficient small collections (2-4 entries)
+    //   - forEach with parameters to avoid boxing lambdas
+    //   - destructive forEach
+    //   - forEach over specific SafeState types
+    Object2ObjectHashMap<Object, SafeState<?>> refs = new Object2ObjectHashMap<>();
+
+    /**
+     * if is(LOADING), this is the number of cache entries we're waiting to complete loading before we can transition to WAITING_ON_CACHE_QUEUES;
+     * if is(WAITING_ON_CACHE_QUEUES), it's the number we're waiting to be head of before we can run
+     * <p>
+     * if isNonSync(), this counts only txnId; otherwise it counts keys and txnId
+     */
+    int waitingForState;
+
+    /**
+     * Only set when isNonSync()
+     * <p>
+     * if is(LOADING), this is the cache entries that have finished loading
+     * otherwise it's the cache entries for which we're at the head of the queue and are ready to run with
+     */
+    @Nullable NonSyncState nonSync;
+
+    int keys; // TODO (expected): not counting keys we add during execution
     LogLinearDecayingHistograms.Buffer histogramBuffer;
-    // TODO (desired): collection supporting faster deletes but still fast poll (e.g. some ordered collection)
-    @Nullable ArrayDeque<AccordCacheEntry<?, ?>> waitingToLoad;
     @Nullable RangeTxnScanner rangeScanner;
     @Nullable CommandSummaries commandsForRanges;
+    byte runState;
 
     private BiConsumer<? super R, Throwable> callback;
 
-    public AccordTask(@Nonnull AccordCommandStore commandStore, ExecutionContext executionContext)
+    public AccordTask(@Nonnull AccordCommandStore commandStore, ExecutionContext executionContext, Function<? super SafeCommandStore, R> function)
     {
-        super(executionContext);
+        super(executionContext, commandStore.executor().uniqueCreatedAt);
         this.commandStore = commandStore;
         this.executionContext = executionContext;
-        this.loggingId = "0x" + Long.toHexString(nextLoggingId.incrementAndGet());
-
+        this.function = function;
         if (logger.isTraceEnabled())
             logger.trace("Created {} on {}", this, commandStore);
     }
 
-    private String loggingId()
+    String loggingId()
     {
-        String id = loggingId;
-        if (id == null)
-        {
-            id = "0x" + Long.toHexString(nextLoggingId.incrementAndGet());
-            if (!loggingIdUpdater.compareAndSet(this, null, id))
-                id = loggingId;
-        }
-        return id;
+        return executor().executorId + "/" + Long.toHexString(createdAt);
     }
 
     @Override
     public String toString()
     {
-        return executionContext.describe() + ' ' + toBriefString();
+        return "@[" + commandStore.id() + ',' + commandStore.node().id() + "] " + executionContext.describe() + ' ' + toBriefString();
     }
 
     public String toBriefString()
     {
-        return '{' + loggingId() + ',' + state() + '}';
+        return '{' + loggingId() + ',' + describeState() + '}';
     }
 
     public String toDescription()
     {
         return toBriefString() + ": "
-               + (queued() == null ? "unqueued" : state())
+               + (queued() == null ? "unqueued" : describeState())
                + ", primaryTxnId: " + executionContext.primaryTxnId()
-               + ", waitingToLoad: " + summarise(waitingToLoad)
-               + ", loading:" + summarise(loading, AccordSafeState::global)
-               + ", cfks:" + summarise(commandsForKey, AccordSafeState::global)
-               + ", txns:" + summarise(commands, AccordSafeState::global);
+               + ", state: " + summarise(refs, AccordSafeState::global);
 
     }
 
@@ -252,11 +373,6 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
         return out.toString();
     }
 
-    Unseekables<?> keys()
-    {
-        return executionContext.keys();
-    }
-
     // TODO (expected): try to execute immediately BUT consider ordering requirements
     //  esp. with deferred actions on e.g. CommandsForKey (not yet supported but also important for performance)
     public AsyncChain<R> chain()
@@ -267,7 +383,7 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
             protected Cancellable start(BiConsumer<? super R, Throwable> callback)
             {
                 preSetup(callback);
-                commandStore.executor().submit(AccordTask.this);
+                executor().submit(AccordTask.this);
                 return AccordTask.this;
             }
         };
@@ -281,86 +397,147 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
     }
 
     // to be invoked only by the CommandStore owning thread, to take references to objects already in use by the current execution
-    public void presetup(AccordTask<?> parent)
+    public void preSetup(AccordTask<?> parent)
     {
         this.position = parent.position;
+        setInheritedWithTranche(parent.tranche());
+
         // note we use the caches "unsafely" here deliberately, as we only reference commands we already have references to
         // so we do not mutate anything, except the atomic counter of references
-        if (parent.commands != null)
+
+        LoadKeys loadKeys = loadKeys(executionContext);
+        if (loadKeys != NONE)
         {
-            for (TxnId txnId : executionContext.txnIds())
-                presetupExclusive(txnId, AccordTask::ensureCommands, parent.commands, commandStore.cachesUnsafe().commands());
+            Unseekables<?> parentKeysOrRanges = parent.executionContext.keys();
+            Unseekables<?> keysOrRanges = executionContext.keys();
+
+            boolean isKeySubset = parent.isIncremental() ? parent.nonSync.active.containsAll(keysOrRanges) : parentKeysOrRanges.containsAll(keysOrRanges);
+            if (isKeySubset)
+                setInheritedRangeScan();
+
+            setSequencedExclusive(executionContext.executionSequence());
+            if (isSequencedByPriorityAtomic())
+            {
+                boolean isTxnIdSubset = executionContext.isTxnIdSubsetOf(parent.executionContext);
+                Invariants.require(isKeySubset, "Must start ATOMIC tasks from a task declaring a superset of the required keys (for ASYNC/INCR tasks this means the keys active for the batch in question)");
+                Invariants.require(isTxnIdSubset, "Must start ATOMIC tasks from a task declaring a superset of the required TxnIds");
+                // TODO (required): we're appending to the fifo queue - does this maintain correct order?
+                setCacheQueuedFifoExclusive();
+            }
+
+            if (loadKeys != SYNC)
+            {
+                setNonSyncExclusive();
+                nonSync = new NonSyncState();
+                if (loadKeys == INCR)
+                {
+                    setIncrementalExclusive();
+                    // forbid BY_PRIORITY sequencing to avoid priority inversion deadlocks on INCR tasks that lock a TxnId but await some key that has a higher priority task (that is waiting on our locked TxnId) - solvable in future if necessary
+                    Invariants.require(isSequencedByPriorityAtomic() || isUnsequenced(), "INCR tasks may currently only be ATOMIC or UNSEQUENCED");
+                }
+            }
+
+            if (keysOrRanges.equals(parentKeysOrRanges))
+            {
+                // TODO (desired): custom map we can more cheaply fork/copy
+                parent.refs.forEach((key, val) -> {
+                    if (val instanceof AccordSafeCommandsForKey)
+                        preSetup((RoutingKey) key, parent.refs, commandStore.cachesUnsafe().commandsForKeys());
+                });
+            }
+            else
+            {
+                switch (keysOrRanges.domain())
+                {
+                    case Key:
+                        for (RoutingKey key : (AbstractUnseekableKeys) keysOrRanges)
+                            preSetup(key, parent.refs, commandStore.cachesUnsafe().commandsForKeys());
+                        break;
+
+                    case Range:
+                        AbstractRanges ranges = (AbstractRanges) keysOrRanges;
+                        parent.refs.forEach((key, val) -> {
+                            if (val instanceof AccordSafeCommandsForKey && ranges.contains((RoutingKey) key))
+                                preSetup((RoutingKey) key, parent.refs, commandStore.cachesUnsafe().commandsForKeys());
+                        });
+                        break;
+                }
+            }
         }
 
-        if (parent.commandsForKey == null) return;
-        if (executionContext.keys().domain() != Key) return;
-        switch (executionContext.loadKeys())
-        {
-            default: throw new UnhandledEnum(executionContext.loadKeys());
-            case NONE:
-                break;
-
-            case ASYNC:
-            case INCR:
-            case SYNC:
-                for (RoutingKey key : (AbstractUnseekableKeys) executionContext.keys())
-                    presetupExclusive(key, AccordTask::ensureCommandsForKey, parent.commandsForKey, commandStore.cachesUnsafe().commandsForKeys());
-                break;
-        }
+        for (TxnId txnId : executionContext.txnIds())
+            preSetup(txnId, parent.refs, commandStore.cachesUnsafe().commands());
     }
 
     @Override
     void submitExclusive(AccordExecutor owner)
     {
-        owner.submitExclusive(this);
-    }
-
-    public void setupExclusive()
-    {
+        owner.registerExclusive(this);
         setupInternal(commandStore.cachesExclusive());
-        setState(rangeScanner != null ? WAITING_TO_SCAN_RANGES
-                                      : waitingToLoad != null ? WAITING_TO_LOAD
-                                    : loading != null ? LOADING : WAITING_TO_RUN);
     }
 
     private void setupInternal(Caches caches)
     {
+        boolean hasPreSetup = hasInherited();
+        LoadKeys loadKeys = loadKeys(executionContext);
+        if (loadKeys != NONE)
         {
-            boolean hasPreSetup = commands != null;
-            for (TxnId txnId : executionContext.txnIds())
+            if (loadKeys != SYNC && !hasPreSetup)
             {
-                if (hasPreSetup && completePresetupExclusive(txnId, commands, caches.commands()))
-                    continue;
-                setupExclusive(txnId, AccordTask::ensureCommands, caches.commands());
+                setNonSyncExclusive();
+                nonSync = new NonSyncState();
+                if (loadKeys == INCR)
+                    setIncrementalExclusive();
+            }
+
+            Unseekables<?> keysOrRanges = executionContext.keys();
+            switch (keysOrRanges.domain())
+            {
+                case Range:
+                    if (!hasInheritedRangeScan()) setupRangeLoadsExclusive(caches);
+                    else refs.forEach((k, v) -> {
+                        if (v instanceof AccordSafeCommandsForKey)
+                            completePresetupExclusive((AccordSafeCommandsForKey)v);
+                    });
+                    break;
+                case Key:
+                    setupKeyLoadsExclusive(hasPreSetup, caches, (AbstractUnseekableKeys) keysOrRanges, hasInheritedRangeScan());
+                    break;
             }
         }
 
-        if (executionContext.keys().isEmpty())
+        for (TxnId txnId : executionContext.txnIds())
+        {
+            if (hasPreSetup && completePresetupExclusive(txnId))
+                continue;
+            setupExclusive(txnId, caches.commands(), 1);
+        }
+
+        if (is(SCANNING_RANGES))
             return;
 
-        switch (executionContext.keys().domain())
-        {
-            case Key: setupKeyLoadsExclusive(caches, (AbstractUnseekableKeys) executionContext.keys(), false); break;
-            case Range: setupRangeLoadsExclusive(caches);
-        }
+        onSetupOrScannedExclusive();
     }
 
-    private void setupKeyLoadsExclusive(Caches caches, Iterable<? extends RoutingKey> keys, boolean isToCompleteRangeScan)
+    private void setupKeyLoadsExclusive(boolean hasPreSetup, Caches caches, Iterable<? extends RoutingKey> setupKeys, boolean doNotScanRanges)
     {
-        if (executionContext.loadKeys() == LoadKeys.NONE)
+        if (executionContext.loadKeys() == NONE)
             return;
 
-        if (!isToCompleteRangeScan && executionContext.loadKeysFor() == RECOVERY)
+        if (!doNotScanRanges && executionContext.loadKeysFor() == RECOVERY)
         {
             Invariants.require(rangeScanner == null);
             rangeScanner = new RangeTxnScanner();
+            rangeScanner.start();
         }
 
-        boolean hasPreSetup = commandsForKey != null;
-        for (RoutingKey key : keys)
+        int waitsForIncrement = isSync() ? 1 : 0;
+        for (RoutingKey setupKey : setupKeys)
         {
-            if (hasPreSetup && completePresetupExclusive(key, commandsForKey, caches.commandsForKeys())) continue;
-            setupExclusive(key, AccordTask::ensureCommandsForKey, caches.commandsForKeys());
+            if (hasPreSetup && completePresetupExclusive(setupKey))
+                continue;
+
+            setupExclusive(setupKey, caches.commandsForKeys(), waitsForIncrement);
         }
     }
 
@@ -369,123 +546,365 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
         if (executionContext.loadKeysFor() == WRITE)
             return;
 
-        switch (executionContext.loadKeys())
-        {
-            default: throw new UnhandledEnum(executionContext.loadKeys());
-            case NONE:
-            case ASYNC:
-                break;
-
-            case INCR:
-                throw new AssertionError("Incremental mode should only be used with an explicit list of keys");
-
-            case SYNC:
-                rangeScanner = new RangeTxnAndKeyScanner(caches.commandsForKeys());
-        }
+        rangeScanner = new RangeTxnAndKeyScanner(caches.commandsForKeys());
+        rangeScanner.start();
     }
 
     // expects mutual exclusivity only on the command store
-    private <K, V, S extends AccordSafeState<K, V>> void presetupExclusive(K k, Function<AccordTask<?>, Map<? super K, ? super S>> loaded, Map<? super K, S> parentMap, AccordCache.Type<K, V, S>.Instance cache)
+    private <K, V, S extends SafeState<V> & AccordSafeState<K, V, S>> void preSetup(K k, Map<Object, SafeState<?>> parentMap, AccordCache.Type<K, V, S>.Instance cache)
     {
-        AccordSafeState<K, V> ref = parentMap.get(k);
+        S ref = (S) parentMap.get(k);
         if (ref == null)
             return;
 
-        AccordCacheEntry<K, V> node = ref.global();
+        AccordCacheEntry<K, V, S> node = ref.global();
         int refs = node.increment();
         Invariants.require(refs > 1);
-        loaded.apply(this).put(k, cache.parent().adapter().safeRef(node));
+        S safeState = cache.parent().adapter().safeRef(node);
+        this.refs.put(k, safeState);
+        if (cache.isCommandsForKey())
+            keys++;
     }
 
-    // expects to hold lock
-    private <K, V, S extends AccordSafeState<K, V>> boolean completePresetupExclusive(K k, Map<? super K, S> map, AccordCache.Type<K, V, S>.Instance cache)
+    private <K, V, S extends SafeState<V> & AccordSafeState<K, V, S>> boolean completePresetupExclusive(K k)
     {
-        AccordSafeState<K, V> preacquired = map.get(k);
+        S preacquired = (S) refs.get(k);
         if (preacquired != null)
         {
-            cache.recordPreAcquired(preacquired);
+            completePresetupExclusive(preacquired);
             return true;
         }
         return false;
     }
 
+    private <K, V, S extends SafeState<V> & AccordSafeState<K, V, S>> void completePresetupExclusive(S preacquired)
+    {
+        AccordCacheEntry<K, V, S> entry = preacquired.global();
+        if (entry.isLoaded()) completeSetupOfLoaded(entry);
+        else completeSetupOfLoading(entry, true);
+    }
+
     // expects to hold lock
-    private <K, V, S extends AccordSafeState<K, V>> void setupExclusive(K k, Function<AccordTask<?>, Map<? super K, ? super S>> loaded, AccordCache.Type<K, V, S>.Instance cache)
+    private <K, V, S extends SafeState<V> & AccordSafeState<K, V, S>> void setupExclusive(K k, AccordCache.Type<K, V, S>.Instance cache, int waitForIncrement)
     {
         S safeRef = cache.acquire(k);
-        Status entryStatus = safeRef.global().status();
-        Map<? super K, ? super S> map;
+        AccordCacheEntry<K, V, ?> entry = safeRef.global();
+        Status entryStatus = entry.status();
+        boolean submitLoad = false;
+        boolean isLoaded;
         switch (entryStatus)
         {
             default: throw new UnhandledEnum(entryStatus);
             case WAITING_TO_LOAD:
+                submitLoad = true;
             case LOADING:
-                map = ensureLoading();
+                isLoaded = false;
+                waitingForState += waitForIncrement;
                 break;
             case WAITING_TO_SAVE:
             case SAVING:
             case LOADED:
             case MODIFIED:
             case FAILED_TO_SAVE:
-                map = loaded.apply(this);
+                isLoaded = true;
         }
 
-        Object prev = map.putIfAbsent(k, safeRef);
+        Object prev = refs.putIfAbsent(k, safeRef);
         if (prev != null)
         {
-            noSpamLogger.warn("PreLoadContext {} contained key {} more than once", map, k);
+            noSpamLogger.warn("ExecutionContext {} contained key {} more than once", refs, k);
             cache.release(safeRef, this);
+            waitingForState -= waitForIncrement;
         }
-        else if (map == loading)
-        {
-            if (entryStatus == Status.WAITING_TO_LOAD)
-                ensureWaitingToLoad().add(safeRef.global());
-            safeRef.global().loadingOrWaiting().add(this);
-            Invariants.paranoid(safeRef.global().loadingOrWaiting().waiters().size() == safeRef.global().references());
-        }
-    }
-
-    // expects to hold lock
-    public boolean onLoad(AccordCacheEntry<?, ?> state)
-    {
-        AccordSafeState<?, ?> safeRef = loading == null ? null : loading.remove(state.key());
-        Invariants.require(safeRef != null && safeRef.global() == state, "Expected to find %s loading; found %s", state, this, AccordTask::toDescription);
-        if (safeRef.getClass() == AccordSafeCommand.class)
-            ensureCommands().put((TxnId)state.key(), (AccordSafeCommand) safeRef);
         else
-            ensureCommandsForKey().put((RoutingKey) state.key(), (AccordSafeCommandsForKey) safeRef);
+        {
+            if (entry.isCommandsForKey())
+                keys++;
 
-        if (!loading.isEmpty())
-            return false;
-
-        loading = null;
-        if (compareTo(WAITING_TO_LOAD) < 0)
-            return false;
-
-        Invariants.require(waitingToLoad == null, "Invalid state: %s", this, AccordTask::toDescription);
-        setState(WAITING_TO_RUN);
-        return true;
+            if (isLoaded) completeSetupOfLoaded(entry);
+            else
+            {
+                if (submitLoad) executor().cacheUnsafe().load(executor(), this, is(ExclusiveGroup.RANGE), entry);
+                completeSetupOfLoading(entry, !submitLoad);
+            }
+        }
     }
 
-    // expects to hold lock
-    public boolean onLoading(AccordCacheEntry<?, ?> state)
+    private void completeSetupOfLoaded(AccordCacheEntry<?, ?, ?> entry)
     {
-        boolean removed = waitingToLoad != null && waitingToLoad.remove(state);
-        Invariants.require(removed, "%s not found in waitingToLoad %s", state, this, AccordTask::toDescription);
-        if (!waitingToLoad.isEmpty())
-            return false;
-
-        return onEmptyWaitingToLoad();
+        if (isOptional(entry))
+        {
+            nonSync.addLoaded();
+            if (isCacheQueuedFifo())
+                addQueuedOptionalKey(entry, entry.addFifo(this));
+        }
+        else if (isCacheQueuedFifo())
+        {
+            entry.addFifo(this);
+        }
     }
 
-    private boolean onEmptyWaitingToLoad()
+    private void completeSetupOfLoading(AccordCacheEntry<?, ?, ?> entry, boolean alreadyLoading)
     {
-        waitingToLoad = null;
-        if (compareTo(WAITING_TO_LOAD) < 0)
-            return false;
+        if (alreadyLoading)
+        {
+            Loading loading = entry.loading();
+            if (loading.loading != null && loading.loading.is(RANGE_LOAD) && loading.loading.is(WAITING_TO_RUN) && !is(ExclusiveGroup.RANGE))
+            {
+                // requeue anything setup as a range load that's now needed for a key-based operation, so it can use the correct the queue limits
+                loading.loading.unqueue(executor().runnable);
+                loading.loading.override(LOAD);
+                executor().runnable.enqueue(loading.loading, false);
+            }
+        }
 
-        setState(loading == null ? WAITING_TO_RUN : LOADING);
-        return true;
+        if (isCacheQueuedFifo()) entry.addFifo(this);
+        else entry.addWaitingToLoad(this);
+        Invariants.paranoid(entry.waitingCount() == entry.references());
+    }
+
+    private void onSetupOrScannedExclusive()
+    {
+        if (waitingForState > 0)
+        {
+            setStateExclusive(LOADING_REQUIRED);
+            executor().loading.enqueue(this);
+        }
+        else onLoadedRequiredExclusive();
+    }
+
+    private void onLoadedRequiredExclusive()
+    {
+        if (isSync() || nonSync.isLoaded())
+        {
+            waitOnCacheQueuesExclusive();
+        }
+        else
+        {
+            setStateExclusive(LOADING_OPTIONAL);
+            executor().loading.enqueue(this);
+        }
+    }
+
+    boolean isUnsequenced(AccordCacheEntry<?, ?, ?> entry)
+    {
+        return isUnsequenced() && (entry.isCommandsForKey() || !isIncremental());
+    }
+
+    boolean isOptional(AccordCacheEntry<?, ?, ?> entry)
+    {
+        return isNonSync() && entry.isCommandsForKey();
+    }
+
+    boolean holdsLocksBetweenRuns()
+    { // TODO (desired): encode as a state bit
+        return isIncremental() && executionContext.primaryTxnId() != null;
+    }
+
+    private void waitOnCacheQueuesExclusive()
+    {
+        Invariants.require(waitingForState == 0);
+        onLoaded();
+        executor().runnable.incrementArrivals(this);
+        commandStore.exclusiveExecutor.incrementArrivals(this);
+
+        this.refs.forEach((key, safeState) -> {
+            AccordCacheEntry<?, ?, ?> entry = global(safeState);
+            boolean optional = isOptional(entry);
+            if (entry.isLoaded())
+            {
+                RunnableStatus status = addToCacheQueue(entry, false);
+                if (optional) addQueuedOptionalKey(entry, status);
+                else if (status == NOT_RUNNABLE)
+                    ++waitingForState;
+            }
+            else Invariants.require(optional);
+        });
+
+        // TODO (desired): exception-safe rollback for addUnsequenced
+        setCacheQueuedExclusive();
+        if (waitingForState == 0) waitOnOptionalCacheQueuesExclusive();
+        else
+        {
+            setStateExclusive(WAITING_ON_REQUIRED);
+            executor().waitingOnCacheQueues.enqueue(this);
+        }
+    }
+
+    private void waitOnOptionalCacheQueuesExclusive()
+    {
+        if (isSync() || nonSync.isWaitReady()) waitToRunExclusive();
+        else
+        {
+            setStateExclusive(WAITING_ON_OPTIONAL);
+            executor().waitingOnCacheQueues.enqueue(this);
+        }
+    }
+
+    RunnableStatus addToCacheQueue(AccordCacheEntry<?, ?, ?> loaded, boolean addIfFifo)
+    {
+        if (isCacheQueuedFifo()) return addIfFifo ? loaded.addFifo(this) : loaded.headStatus(this);
+        else if (isUnsequenced(loaded)) return loaded.addUnsequenced(this);
+        else return loaded.addPrioritised(this);
+    }
+
+    void onLoadOneExclusive(AccordCacheEntry<?, ?, ?> loaded)
+    {
+        if (isOptional(loaded))
+        {
+            // if we're incremental/async we don't block on keys loading, so we don't need to decrement anything
+            // however, if we're in fifo mode this loaded key might be ready for us to run with
+            State state = state();
+            switch (state)
+            {
+                default: throw new UnhandledEnum(state);
+                case WAITING_ON_REQUIRED:
+                case WAITING_ON_OPTIONAL:
+                case WAITING_TO_RUN:
+                case RUNNING:
+                    RunnableStatus status = addToCacheQueue(loaded, false);
+                    if (status != NOT_RUNNABLE)
+                        addQueuedOptionalKey(loaded, status);
+                    // fall-through
+                case LOADING_REQUIRED:
+                    nonSync.addLoaded();
+                    break;
+
+                case LOADING_OPTIONAL:
+                    addLoadedOptionalKey();
+                    break;
+            }
+        }
+        else
+        {
+            if (--waitingForState == 0)
+            {
+                if (is(LOADING_REQUIRED))
+                {
+                    unqueue(executor().loading);
+                    onLoadedRequiredExclusive();
+                }
+                else Invariants.require(is(SCANNING_RANGES));
+            }
+        }
+    }
+
+    void addLoadedOptionalKey()
+    {
+        nonSync.addLoaded();
+        if (is(LOADING_OPTIONAL) && nonSync.isLoaded())
+        {
+            unqueue(executor().loading);
+            waitOnCacheQueuesExclusive();
+        }
+    }
+
+    // TODO (expected): add vs setup vs onChange; some callers don't need to try
+    void addQueuedOptionalKey(AccordCacheEntry<?, ?, ?> loaded, RunnableStatus status)
+    {
+        switch (status)
+        {
+            default: throw UnhandledEnum.unknown(status);
+            case NOT_RUNNABLE: break;
+            case STILL_RUNNABLE:
+            case NEWLY_RUNNABLE:
+                nonSync.onNewHead(loaded);
+                break;
+            case STILL_RUNNABLE_NEWLY_BLOCKING:
+            case NEWLY_BLOCKING_RUNNABLE:
+                nonSync.onNewBlockingHead(loaded);
+                break;
+        }
+
+        if (is(WAITING_ON_OPTIONAL) && nonSync.isWaitReady())
+        {
+            unqueue(executor().waitingOnCacheQueues);
+            waitToRunExclusive();
+        }
+    }
+
+    void onChangeHeadStatus(AccordCacheEntry<?, ?, ?> entry, RunnableStatus status)
+    {
+        if (isSync() || !entry.isCommandsForKey()) onChangeRequiredHeadStatus(entry, status);
+        if (isNonSync() && entry.isCommandsForKey()) onChangeOptionalHeadStatus(entry, status);
+    }
+
+    private void incrementWaitingWhileAlreadyWaiting()
+    {
+        Invariants.require(isState(WAITING));
+        if (waitingForState == 0)
+        {
+            if (is(WAITING_ON_OPTIONAL)) setStateExclusive(WAITING_ON_REQUIRED);
+            else
+            {
+                // TODO (expected): this is potentially costly; maybe we don't want to swap these in and out (but harder to maintain invariants)
+                unqueue(commandStore.exclusiveExecutor);
+                setStateExclusive(WAITING_ON_REQUIRED);
+                executor().waitingOnCacheQueues.enqueue(this);
+            }
+        }
+        Invariants.require(waitingForState < refs.size());
+        ++waitingForState;
+    }
+
+    void onChangeRequiredHeadStatus(AccordCacheEntry<?, ?, ?> entry, RunnableStatus newStatus)
+    {
+        if (newStatus == NOT_RUNNABLE)
+        {
+            incrementWaitingWhileAlreadyWaiting();
+        }
+        else if (newStatus != STILL_RUNNABLE_NEWLY_BLOCKING)
+        {
+            Invariants.require(is(WAITING_ON_REQUIRED));
+            if (--waitingForState == 0)
+            {
+                unqueue(executor().waitingOnCacheQueues);
+                waitOnOptionalCacheQueuesExclusive();
+            }
+        }
+    }
+
+    void onChangeOptionalHeadStatus(AccordCacheEntry<?, ?, ?> entry, RunnableStatus status)
+    {
+        Invariants.require(isState(WAITING_OR_RUNNING));
+        switch (status)
+        {
+            default: throw UnhandledEnum.unknown(status);
+            case STILL_RUNNABLE: throw UnhandledEnum.invalid(STILL_RUNNABLE); // onChange -> changed (but this means no change)
+            case NOT_RUNNABLE:
+                nonSync.onNotHead(entry);
+                if (is(WAITING_TO_RUN) && !nonSync.isWaitReady())
+                {
+                    unqueue(commandStore.exclusiveExecutor);
+                    setStateExclusive(WAITING_ON_OPTIONAL);
+                    executor().waitingOnCacheQueues.enqueue(this);
+                }
+                return;
+
+            case STILL_RUNNABLE_NEWLY_BLOCKING:
+                nonSync.onStillHeadNewBlocking(entry);
+                break;
+
+            case NEWLY_RUNNABLE:
+                nonSync.onNewHead(entry);
+                break;
+
+            case NEWLY_BLOCKING_RUNNABLE:
+                nonSync.onNewBlockingHead(entry);
+                break;
+        }
+
+        if (is(WAITING_ON_OPTIONAL) && nonSync.isWaitReady())
+        {
+            unqueue(executor().waitingOnCacheQueues);
+            waitToRunExclusive();
+        }
+    }
+
+    void waitToRunExclusive()
+    {
+        setStateExclusive(WAITING_TO_RUN);
+        commandStore.exclusiveExecutor.enqueue(this, false);
     }
 
     public ExecutionContext executionContext()
@@ -493,70 +912,132 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
         return executionContext;
     }
 
-    public Map<TxnId, AccordSafeCommand> commands()
+    @Override
+    protected void preRunExclusive()
     {
-        return commands;
-    }
-
-    public Map<TxnId, AccordSafeCommand> ensureCommands()
-    {
-        if (commands == null)
-            commands = new Object2ObjectHashMap<>();
-        return commands;
-    }
-
-    public Map<RoutingKey, AccordSafeCommandsForKey> commandsForKey()
-    {
-        return commandsForKey;
-    }
-
-    public Map<RoutingKey, AccordSafeCommandsForKey> ensureCommandsForKey()
-    {
-        if (commandsForKey == null)
-            commandsForKey = new Object2ObjectHashMap<>();
-        return commandsForKey;
-    }
-
-    private Map<Object, AccordSafeState<?, ?>> ensureLoading()
-    {
-        if (loading == null)
-            loading = new Object2ObjectHashMap<>();
-        return loading;
-    }
-
-    private ArrayDeque<AccordCacheEntry<?, ?>> ensureWaitingToLoad()
-    {
-        Invariants.require(compareTo(WAITING_TO_LOAD) <= 0, "Expected status to be on or before WAITING_TO_LOAD; found %s", this, AccordTask::toDescription);
-        if (waitingToLoad == null)
-            waitingToLoad = new ArrayDeque<>();
-        return waitingToLoad;
-    }
-
-    public AccordCacheEntry<?, ?> pollWaitingToLoad()
-    {
-        Invariants.require(is(WAITING_TO_LOAD), "Expected status to be WAITING_TO_LOAD; found %s", this, AccordTask::toDescription);
-        if (waitingToLoad == null)
-            return null;
-
-        AccordCacheEntry<?, ?> next = waitingToLoad.poll();
-        if (waitingToLoad.isEmpty())
-            onEmptyWaitingToLoad();
-        return next;
-    }
-
-    public AccordCacheEntry<?, ?> peekWaitingToLoad()
-    {
-        return waitingToLoad == null ? null : waitingToLoad.peek();
-    }
-
-    private void maybeSanityCheck(AccordSafeCommand safeCommand)
-    {
-        if (SANITY_CHECK)
+        super.preRunExclusive();
+        if (rangeScanner != null)
         {
-            DebugTask debug = DebugTask.get(this);
-            if (debug.sanityCheck == null)
-                debug.sanityCheck = new ArrayList<>(commands.size());
-            debug.sanityCheck.add(safeCommand.current());
+            commandsForRanges = rangeScanner.finish(commandStore.cachesExclusive());
+            rangeScanner = null;
+        }
+
+        if (isSync())
+        {
+            refs.forEach((k, v) -> {
+                preExecute(v, this, RELEASE_QUEUE);
+            });
+        }
+        else
+        {
+            if (!hasIncrementalStarted())
+            {
+                TxnId primaryTxnId = executionContext.primaryTxnId();
+                if (primaryTxnId != null)
+                {
+                    LockMode lockMode = holdsLocksBetweenRuns() ? HOLD_QUEUE : RELEASE_QUEUE;
+                    preExecute(refs.get(primaryTxnId), this, lockMode);
+                    TxnId additionalTxnId = executionContext.additionalTxnId();
+                    if (additionalTxnId != null)
+                        preExecute(refs.get(additionalTxnId), this, lockMode);
+                }
+
+                if (isIncremental() && isSequencedByPriorityAtomic() && !isCacheQueuedFifo())
+                {
+                    setCacheQueuedFifoExclusive();
+                    refs.forEach((key, safeState) -> {
+                        AccordCacheEntry<?, ?, ?> entry = global(safeState);
+                        RunnableStatus status = entry.moveToFifo(this);
+                        if (entry.isLoaded())
+                        {
+                            switch (status)
+                            {
+                                default: throw UnhandledEnum.unknown(status);
+                                case NOT_RUNNABLE:
+                                case STILL_RUNNABLE:
+                                case STILL_RUNNABLE_NEWLY_BLOCKING:
+                                    break;
+                                case NEWLY_RUNNABLE:
+                                    nonSync.onNewHead(entry);
+                                    break;
+                                case NEWLY_BLOCKING_RUNNABLE:
+                                    nonSync.onNewBlockingHead(entry);
+                                    break;
+                            }
+                        }
+                    });
+                }
+
+                if (isIncremental())
+                    setIncrementalStartedExclusive();
+            }
+            nonSync.preRunExclusive();
+        }
+    }
+
+    @Override
+    public void run()
+    {
+        onRunning();
+        AccordSafeCommandStore safeStore = null;
+        try (Closeable close = resources.get())
+        {
+            if (Tracing.isTracing())
+                Tracing.trace(executionContext.describe());
+
+            commandStore.begin(safeStore = new AccordSafeCommandStore(this, isSync() ? executionContext : nonSync));
+
+            R result = function.apply(safeStore);
+
+            boolean finished = !isIncremental() || isIncrementalFinishing();
+            if (finished)
+            {
+                List<Journal.CommandUpdate> changes = new ArrayList<>();
+                // TODO (expected): save any TxnId we add so that we don't need to iterate all of refs
+                refs.forEach((key, value) -> {
+                    if (value instanceof AccordSafeCommand)
+                    {
+                        AccordSafeCommand safeCommand = (AccordSafeCommand) value;
+                        Journal.CommandUpdate diff = safeCommand.update();
+                        if (diff != null)
+                        {
+                            changes.add(diff);
+                            maybeSanityCheck(safeCommand);
+                        }
+                    }
+                });
+
+                boolean flush = !changes.isEmpty() || safeStore.fieldUpdates() != null;
+                if (flush)
+                {
+                    setRunState(PERSISTING);
+                    Runnable onFlush = () -> finish(result, null);
+                    safeStore.persistFieldUpdatesInternal(changes.isEmpty() ? onFlush : null);
+                    if (!changes.isEmpty())
+                        save(changes, onFlush);
+                    finished = false;
+                }
+            }
+
+            // TODO (required): exception handling here needs improving
+            safeStore.postExecute();
+            commandStore.complete(safeStore);
+            safeStore = null;
+
+            if (finished)
+                finish(result, null);
+        }
+        catch (Throwable t)
+        {
+            if (safeStore != null)
+                refs.forEach((k, v) -> v.setAbandoned());
+            throw t;
+        }
+        finally
+        {
+            if (safeStore != null)
+                commandStore.complete(safeStore);
+            onRunComplete();
         }
     }
 
@@ -579,147 +1060,71 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
         }
     }
 
-    @Override
-    protected void preRunExclusive()
+    private void maybeSanityCheck(AccordSafeCommand safeCommand)
     {
-        setState(ASSIGNED);
-        if (rangeScanner != null)
+        if (SANITY_CHECK)
         {
-            commandsForRanges = rangeScanner.finish(commandStore.cachesExclusive());
-            rangeScanner = null;
-        }
-        if (commands != null)
-            commands.forEach((k, v) -> v.preExecute());
-        if (commandsForKey != null)
-            commandsForKey.forEach((k, v) -> v.preExecute());
-    }
-
-    @Override
-    public void run()
-    {
-        onRunning();
-        AccordSafeCommandStore safeStore = null;
-        try (Closeable close = resources.get())
-        {
-            if (Tracing.isTracing())
-                Tracing.trace(executionContext.describe());
-
-            setState(RUNNING);
-
-            safeStore = commandStore.begin(this, commandsForRanges);
-            R result = apply(safeStore);
-
-            List<Journal.CommandUpdate> changes = null;
-            if (commands != null)
-            {
-                for (AccordSafeCommand safeCommand : commands.values())
-                {
-                    if (safeCommand.txnId().is(EphemeralRead))
-                        continue;
-
-                    Journal.CommandUpdate diff = safeCommand.update();
-                    if (diff == null)
-                        continue;
-
-                    if (changes == null)
-                        changes = new ArrayList<>(commands.size());
-                    changes.add(diff);
-
-                    maybeSanityCheck(safeCommand);
-                }
-            }
-
-            boolean flush = changes != null || safeStore.fieldUpdates() != null;
-            if (flush)
-            {
-                setState(PERSISTING);
-                Runnable onFlush = () -> finish(result, null);
-                safeStore.persistFieldUpdatesInternal(changes == null ? onFlush : null);
-                if (changes != null) save(changes, onFlush);
-            }
-
-            commandStore.complete(safeStore);
-            safeStore = null;
-            onRunComplete();
-            if (!flush)
-                finish(result, null);
-        }
-        catch (Throwable t)
-        {
-            if (safeStore != null)
-            {
-                revert();
-                commandStore.abort(safeStore);
-            }
-            throw t;
+            DebugTask debug = DebugTask.get(this);
+            if (debug.sanityCheck == null)
+                debug.sanityCheck = new ArrayList<>(2);
+            debug.sanityCheck.add(safeCommand.current());
         }
     }
 
-    public void fail(Throwable throwable)
+    public void reportFailure(Throwable throwable)
     {
-        if (state().isComplete())
-            return;
-
         try
-        {
-            setState(FAILED);
-            commandStore.agent().onException(throwable);
-        }
-        finally
         {
             if (callback != null)
                 callback.accept(null, throwable);
         }
-    }
-
-    @Override
-    protected boolean isNewWork()
-    {
-        return true;
-    }
-
-    public void failExclusive(Throwable throwable)
-    {
-        fail(throwable);
-    }
-
-    @Override
-    protected void cleanupExclusive(AccordExecutor executor)
-    {
-        Invariants.expect(state().isExecuted());
-        releaseResources(commandStore.cachesExclusive());
-        super.cleanupExclusive(executor);
-        executor.keys.increment(commandsForKey == null ? 0 : commandsForKey.size(), runningAt);
-        if (histogramBuffer != null)
+        finally
         {
-            histogramBuffer.flush(cleanupAt);
-            histogramBuffer = null;
+            commandStore.agent().onException(throwable);
         }
     }
 
-    @Nullable
-    public RangeTxnScanner rangeScanner()
+    @Override
+    protected void cleanupExclusive(AccordExecutor executor, boolean executed)
     {
-        return rangeScanner;
+        if (is(RUNNING) && isNonSync())
+        {
+            nonSync.postRunExclusive();
+            if (isIncremental() && !isIncrementalFinishing())
+            {
+                setStateExclusive(INCOMPLETE);
+                waitOnOptionalCacheQueuesExclusive();
+                return;
+            }
+        }
+
+        executor.keys.increment(keys, runningAt);
+        releaseResourcesExclusive(commandStore.cachesExclusive());
+        super.cleanupExclusive(executor, executed);
+        if (histogramBuffer != null)
+        {
+            histogramBuffer.flush(completeAt);
+            histogramBuffer = null;
+        }
     }
 
     @Override
     public void cancel()
     {
-        if (!state().isComplete())
-            commandStore.executor().cancel(this);
+        if (!state().hasStarted())
+            executor().cancel(this);
     }
 
     void cancelExclusive()
     {
         logger.info("Cancelling {}", executionContext);
-        setState(CANCELLED);
+        setStateExclusive(CANCELLED);
         if (rangeScanner != null)
             rangeScanner.cancelled = true;
         if (callback != null)
         {
-            if (commandStore.executor().isInLoop()) callback.accept(null, new CancellationException());
-            else commandStore.executor().submit(() -> callback.accept(null, new CancellationException()));
+            if (executor().isInLoop()) callback.accept(null, new CancellationException());
+            else executor().submit(() -> callback.accept(null, new CancellationException()));
         }
     }
 
@@ -730,113 +1135,54 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
 
     private void finish(R result, Throwable failure)
     {
-        setState(failure == null ? FINISHED : FAILED);
+        setRunState(failure == null ? RunState.SUCCESS : RunState.FAILED);
         if (callback != null)
             callback.accept(result, failure);
     }
 
-    void releaseResources(Caches caches)
+    void releaseResourcesExclusive(Caches caches)
     {
+        if (refs == null)
+            return;
+
         try
         {
-            // TODO (expected): we should destructively iterate to avoid invoking second time in fail; or else read and set to null
             if (rangeScanner != null)
             {
                 rangeScanner.cleanup(caches);
                 rangeScanner = null;
                 if (DEBUG_EXECUTION) DebugTask.get(this).onReleasedRangeScanner();
             }
-            if (commands != null)
-            {
-                commands.forEach((k, v) -> caches.commands().release(v, this));
-                commands.clear();
-                commands = null;
-                if (DEBUG_EXECUTION) DebugTask.get(this).onReleasedCommands();
-            }
-            if (commandsForKey != null)
-            {
-                commandsForKey.forEach((k, v) -> caches.commandsForKeys().release(v, this));
-                commandsForKey.clear();
-                commandsForKey = null;
-                if (DEBUG_EXECUTION) DebugTask.get(this).onReleasedCommandsForKeys();
-            }
-            if (waitingToLoad != null)
-            {
-                while (!waitingToLoad.isEmpty())
-                    waitingToLoad.poll().loadingOrWaiting().remove(this);
-                waitingToLoad = null;
-            }
-            if (loading != null)
-            {
-                loading.forEach((k, v) -> caches.global().release(v, this));
-                loading.clear();
-                loading = null;
-            }
+
+            refs.forEach((key, safeState) -> {
+                AccordSafeState.postExecute(safeState, this);
+            });
+            if (DEBUG_EXECUTION) DebugTask.get(this).onReleasedState();
         }
         catch (Throwable t)
         {
-            releaseResourcesSlow(caches, t);
+            releaseResourcesSlowExclusive(t);
             commandStore.agent().onException(t);
         }
+        finally
+        {
+            refs = null;
+        }
     }
 
-    private void releaseResourcesSlow(Caches caches, Throwable suppressedBy)
+    private void releaseResourcesSlowExclusive(Throwable suppressedBy)
     {
-        if (commands != null)
-        {
-            safeRelease(commands, caches.commands(), suppressedBy);
-            commands.clear();
-            commands = null;
-        }
-        if (commandsForKey != null)
-        {
-            safeRelease(commandsForKey, caches.commandsForKeys(), suppressedBy);
-            commandsForKey.clear();
-            commandsForKey = null;
-        }
-        if (waitingToLoad != null)
-        {
-            while (!waitingToLoad.isEmpty())
+        if (refs == null)
+            return;
+
+        refs.forEach((k, safeState) -> {
+            if (!safeState.isReleased())
             {
-                try { waitingToLoad.poll().loadingOrWaiting().remove(this); }
+                try { AccordSafeState.postExecute(safeState, this); }
                 catch (Throwable t) { suppressedBy.addSuppressed(t); }
             }
-            waitingToLoad = null;
-        }
-        if (loading != null)
-        {
-            safeRelease(loading, caches.global(), suppressedBy);
-            loading.clear();
-            loading = null;
-        }
-    }
-
-    private <K, V> void safeRelease(Map<K, ? extends AccordSafeState<K, V>> map, AccordCache.Type<K, V, ?>.Instance cache, Throwable suppressedBy)
-    {
-        for (AccordSafeState<K, V> safeState : map.values())
-        {
-            if (safeState.isUnsafe()) continue;
-            try { cache.release(safeState, this); }
-            catch (Throwable t) { suppressedBy.addSuppressed(t); }
-        }
-    }
-
-    private void safeRelease(Map<?, ? extends AccordSafeState<?, ?>> map, AccordCache cache, Throwable suppressedBy)
-    {
-        for (AccordSafeState<?, ?> safeState : map.values())
-        {
-            if (safeState.isUnsafe()) continue;
-            try { cache.release(safeState, this); }
-            catch (Throwable t) { suppressedBy.addSuppressed(t); }
-        }
-    }
-
-    void revert()
-    {
-        if (commands != null)
-            commands.forEach((k, v) -> v.revert());
-        if (commandsForKey != null)
-            commandsForKey.forEach((k, v) -> v.revert());
+        });
+        refs = null;
     }
 
     public class RangeTxnAndKeyScanner extends RangeTxnScanner
@@ -844,17 +1190,17 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
         class KeyWatcher implements AccordCache.Listener<RoutingKey, CommandsForKey>
         {
             @Override
-            public void onUpdate(AccordCacheEntry<RoutingKey, CommandsForKey> state)
+            public void onUpdate(AccordCacheEntry<RoutingKey, CommandsForKey, ?> state)
             {
                 if (ranges.contains(state.key()))
-                    reference(state);
+                    reference((AccordCacheEntry<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>) state);
             }
         }
 
         final Set<TokenKey> intersectingKeys = new ObjectHashSet<>();
-        final KeyWatcher keyWatcher = new KeyWatcher();
         final Ranges ranges = ((AbstractRanges) executionContext.keys()).toRanges();
         final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeyCache;
+        KeyWatcher keyWatcher = new KeyWatcher();
 
         public RangeTxnAndKeyScanner(AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeyCache)
         {
@@ -877,11 +1223,8 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
             super.runInternal();
         }
 
-        private void reference(AccordCacheEntry<RoutingKey, CommandsForKey> entry)
+        private void reference(AccordCacheEntry<RoutingKey, CommandsForKey, AccordSafeCommandsForKey> entry)
         {
-            if (loading != null && loading.containsKey(entry.key()))
-                return;
-
             switch (entry.status())
             {
                 default: throw new AssertionError("Unhandled Status: " + entry.status());
@@ -894,7 +1237,7 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
                 case SAVING:
                 case LOADED:
                 case FAILED_TO_SAVE:
-                    if (commandsForKey != null && commandsForKey.containsKey(entry.key()))
+                    if (refs.containsKey(entry.key()))
                         return;
 
                     Object v = entry.getOrShrunkExclusive();
@@ -913,7 +1256,20 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
                             return;
                     }
 
-                    ensureCommandsForKey().putIfAbsent(entry.key(), commandsForKeyCache.acquire(entry));
+                    refs.put(entry.key(), commandsForKeyCache.acquire(entry));
+                    ++keys;
+
+                    Invariants.require(!isCacheQueuedFifo(), "Unsafe to addFifo in listener as no ordering guarantees");
+                    if (isOptional(entry))
+                        addLoadedOptionalKey();
+
+                    if (isCacheQueued())
+                    {
+                        Invariants.require(isState(WAITING));
+                        RunnableStatus status = addToCacheQueue(entry, false);
+                        if (isOptional(entry)) addQueuedOptionalKey(entry, status);
+                        else if (status == NOT_RUNNABLE) incrementWaitingWhileAlreadyWaiting();
+                    }
             }
         }
 
@@ -930,23 +1286,22 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
 
         void scannedInternal()
         {
-            if (commandsForKey != null)
-                intersectingKeys.removeAll(commandsForKey.keySet());
-            if (loading != null)
-                intersectingKeys.removeAll(loading.keySet());
-            setupKeyLoadsExclusive(commandStore.cachesExclusive(), intersectingKeys, true);
+            intersectingKeys.removeAll(refs.keySet());
+            setupKeyLoadsExclusive(false, commandStore.cachesExclusive(), intersectingKeys, true);
             super.scannedInternal();
         }
 
         void cleanup(Caches caches)
         {
-            caches.commandsForKeys().tryUnregister(keyWatcher);
+            if (keyWatcher != null)
+                caches.commandsForKeys().tryUnregister(keyWatcher);
             super.cleanup(caches);
         }
 
         CommandSummaries finish(Caches caches)
         {
             caches.commandsForKeys().unregister(keyWatcher);
+            keyWatcher = null;
             return super.finish(caches);
         }
     }
@@ -975,7 +1330,7 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
         @Override
         protected void postRunExclusive()
         {
-            commandStore.executor().onScannedRangesExclusive(AccordTask.this, failure);
+            executor().onScannedRangesExclusive(AccordTask.this, failure);
         }
 
         @Override
@@ -984,12 +1339,13 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
             this.failure = t;
         }
 
-        public void start(AccordExecutor executor)
+        public void start()
         {
             Caches caches = commandStore.cachesExclusive();
-            setState(SCANNING_RANGES);
+            setStateExclusive(SCANNING_RANGES);
+            executor().scanningRanges.enqueue(AccordTask.this);
             startInternal(caches);
-            executor.submitPlainExclusive(AccordTask.this, GlobalGroup.RANGE_SCAN, this);
+            executor().submitPlainExclusive(AccordTask.this, GlobalGroup.RANGE_SCAN, this);
         }
 
         void startInternal(Caches caches)
@@ -1003,9 +1359,8 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
             Invariants.require(is(SCANNING_RANGES), "Expected SCANNING_RANGES; found %s", AccordTask.this, AccordTask::toDescription);
             scanned = true;
             scannedInternal();
-            if (loading == null) setState(WAITING_TO_RUN);
-            else if (waitingToLoad == null) setState(LOADING);
-            else setState(WAITING_TO_LOAD);
+            unqueue(executor().scanningRanges);
+            onSetupOrScannedExclusive();
         }
 
         void scannedInternal()
@@ -1021,6 +1376,8 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
         CommandSummaries finish(Caches caches)
         {
             loader.finish(summaries);
+            loader.cleanupExclusive(caches);
+            loader = null;
             TreeMap<Timestamp, Summary> byId = new TreeMap<>(summaries);
             return (CommandSummaries.ByTxnIdSnapshot) () -> byId;
         }
@@ -1060,5 +1417,30 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
     public String description()
     {
         return executionContext.describe();
+    }
+
+    private AccordExecutor executor()
+    {
+        return commandStore.executor();
+    }
+
+    @Override
+    protected boolean isNewWork()
+    {
+        return true;
+    }
+
+    @Nullable
+    public RangeTxnScanner rangeScanner()
+    {
+        return rangeScanner;
+    }
+
+    private static LoadKeys loadKeys(ExecutionContext context)
+    {
+        LoadKeys loadKeys = context.loadKeys();
+        if (NONSYNC_ENABLED)
+            return loadKeys;
+        return loadKeys == NONE ? NONE : SYNC;
     }
 }

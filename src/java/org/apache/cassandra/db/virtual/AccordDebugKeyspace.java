@@ -1650,7 +1650,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         {
             try (AccordCommandStore.ExclusiveCaches caches = commandStore.lockCaches())
             {
-                AccordCacheEntry<TxnId, Command> entry = caches.commands().getUnsafe(txnId);
+                AccordCacheEntry<TxnId, Command, ?> entry = caches.commands().getUnsafe(txnId);
                 return entry == null ? null : entry.getExclusive();
             }
         }
@@ -1895,7 +1895,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             AccordService.getBlocking(accord.node()
                                             .commandStores()
                                             .forId(commandStoreId)
-                                            .chain(ExecutionContext.contextFor(txnId, TXN_OPS), apply)
+                                            .chain(ExecutionContext.unsequenced(txnId, TXN_OPS), apply)
                                             .flatMap(i -> i));
         }
 
