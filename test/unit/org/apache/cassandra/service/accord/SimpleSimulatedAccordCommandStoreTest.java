@@ -41,7 +41,7 @@ public class SimpleSimulatedAccordCommandStoreTest extends SimulatedAccordComman
                 for (int i = 0, examples = 100; i < examples; i++)
                 {
                     TxnId id = AccordGens.txnIds().next(rs);
-                    instance.process(ExecutionContext.contextFor(id, "Test"), (safe) -> {
+                    instance.process(ExecutionContext.unsequenced(id, "Test"), (safe) -> {
                         var safeCommand = safe.get(id, StoreParticipants.empty(id));
                         var command = safeCommand.current();
                         Assertions.assertThat(command.saveStatus()).isEqualTo(SaveStatus.Uninitialised);

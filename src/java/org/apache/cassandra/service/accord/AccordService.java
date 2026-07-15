@@ -464,6 +464,7 @@ public class AccordService implements IAccordService, Shutdownable
         agent.setup(localId);
         AccordTimeService time = new AccordTimeService();
         this.scheduler = new AccordScheduler();
+        // TODO (expected): can we pass ImmediateExecutor rather than Scheduler?
         final RequestCallbacks callbacks = new RequestCallbacks(time, scheduler);
         this.dataStore = new AccordDataStore();
         this.journal = new AccordJournal(DatabaseDescriptor.getAccord().journal);

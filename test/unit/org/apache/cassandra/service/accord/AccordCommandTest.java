@@ -174,7 +174,7 @@ public class AccordCommandTest
         Commit commit = Commit.SerializerSupport.create(txnId, route, 1, 1, Commit.Kind.StableWithTxnAndDeps, Ballot.ZERO, executeAt, partialTxn, deps, fullRoute);
         getBlocking(commandStore.execute(commit, commit::apply));
 
-        getBlocking(commandStore.execute(ExecutionContext.contextFor(txnId, Keys.of(key).toParticipants(), LoadKeys.SYNC, READ_WRITE, "Test"), safeStore -> {
+        getBlocking(commandStore.execute(ExecutionContext.unsequencedReadWrite(txnId, Keys.of(key).toParticipants(), "Test"), safeStore -> {
             Command before = safeStore.ifInitialised(txnId).current();
             Assert.assertEquals(commit.executeAt, before.executeAt());
             Assert.assertTrue(before.hasBeen(Status.Committed));

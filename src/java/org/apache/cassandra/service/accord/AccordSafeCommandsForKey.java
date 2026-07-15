@@ -20,38 +20,32 @@ package org.apache.cassandra.service.accord;
 
 import java.util.Objects;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import accord.api.RoutingKey;
 import accord.local.cfk.CommandsForKey;
 import accord.local.cfk.NotifySink;
 import accord.local.cfk.SafeCommandsForKey;
+import accord.utils.Invariants;
 
-public class AccordSafeCommandsForKey extends SafeCommandsForKey implements AccordSafeState<RoutingKey, CommandsForKey>
+import org.apache.cassandra.service.accord.AccordCacheEntry.LockMode;
+
+public class AccordSafeCommandsForKey extends SafeCommandsForKey implements AccordSafeState<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>
 {
-    public static class CommandsForKeyCacheEntry extends AccordCacheEntry<RoutingKey, CommandsForKey>
+    public static class CommandsForKeyCacheEntry extends AccordCacheEntry<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>
     {
         private NotifySink overrideSink;
 
-        CommandsForKeyCacheEntry(RoutingKey key, AccordCache.Type<RoutingKey, CommandsForKey, ?>.Instance owner)
+        CommandsForKeyCacheEntry(RoutingKey key, AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance owner)
         {
             super(key, owner);
         }
     }
 
-    private boolean invalidated;
-    private final AccordCacheEntry<RoutingKey, CommandsForKey> global;
-    private CommandsForKey original;
-    private CommandsForKey current;
+    private final AccordCacheEntry<RoutingKey, CommandsForKey, AccordSafeCommandsForKey> global;
 
-    public AccordSafeCommandsForKey(AccordCacheEntry<RoutingKey, CommandsForKey> global)
+    public AccordSafeCommandsForKey(AccordCacheEntry<RoutingKey, CommandsForKey, AccordSafeCommandsForKey> global)
     {
         super(global.key());
         this.global = global;
-        this.original = null;
-        this.current = null;
-//        if (overrideSink() == null)
-//            overrideSink(new RecordingNotifySink());
     }
 
     @Override
@@ -60,7 +54,7 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AccordSafeCommandsForKey that = (AccordSafeCommandsForKey) o;
-        return Objects.equals(original, that.original) && Objects.equals(current, that.current);
+        return Objects.equals(current, that.current);
     }
 
     @Override
@@ -73,47 +67,21 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
     public String toString()
     {
         return "AccordSafeCommandsForKey{" +
-               "invalidated=" + invalidated +
+               "state=" + statusString() +
                ", global=" + global +
-               ", original=" + original +
                ", current=" + current +
                '}';
     }
 
-    @Override
-    public boolean hasUpdate()
+    public final AccordCacheEntry<RoutingKey, CommandsForKey, AccordSafeCommandsForKey> global()
     {
-        boolean hasUpdate = AccordSafeState.super.hasUpdate();
-
-        // cfk initialization is legal, but doesn't need to be propagated to the cache (and would
-        // cause an exception to be thrown if it were). Making an exception on the cache side could
-        // throw away applied cfk updates as well, so it's special cased here
-        if (hasUpdate && original == null && current != null && current.size() == 0)
-            return false;
-
-        return hasUpdate;
-    }
-
-    @Override
-    public AccordCacheEntry<RoutingKey, CommandsForKey> global()
-    {
-        checkNotInvalidated();
         return global;
     }
 
     @Override
-    public CommandsForKey current()
+    public void postExecute(AccordTask<?> owner)
     {
-        checkNotInvalidated();
-        return current;
-    }
-
-    @Override
-    @VisibleForTesting
-    public void set(CommandsForKey cfk)
-    {
-        checkNotInvalidated();
-        this.current = cfk;
+        global.releaseExclusive(this, owner);
     }
 
     @Override
@@ -128,31 +96,13 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
         return ((CommandsForKeyCacheEntry)global).overrideSink;
     }
 
-    public CommandsForKey original()
+    public void preExecute(AccordTask<?> owner, LockMode lockMode)
     {
-        checkNotInvalidated();
-        return original;
-    }
-
-    @Override
-    public void preExecute()
-    {
-        checkNotInvalidated();
-        original = global.getExclusive();
-        current = original;
-        if (isUnset())
+        requireUninitialised();
+        current = global.lockExclusive(owner, lockMode);
+        if (current == null)
             initialize();
+        setSafe();
     }
 
-    @Override
-    public void markUnsafe()
-    {
-        invalidated = true;
-    }
-
-    @Override
-    public boolean isUnsafe()
-    {
-        return invalidated;
-    }
 }

@@ -44,11 +44,6 @@ abstract class AccordExecutorAbstractLoop extends AccordExecutor
         return unqueued != null;
     }
 
-    Task unqueued()
-    {
-        return unqueued;
-    }
-
     final Task push(Task submit)
     {
         Invariants.require(submit.next == null);
@@ -89,26 +84,16 @@ abstract class AccordExecutorAbstractLoop extends AccordExecutor
         Invariants.require(cur != null);
         Task next = cur.next;
         cur.next = null;
-        if (cur.isReadyToCleanup()) completeTaskExclusive(cur);
-        else cur.submitExclusive(this);
+        if (cur.is(Task.State.UNINITIALIZED)) cur.submitExclusive(this);
+        else cleanupTaskExclusive(cur, true);
         return next;
     }
 
-    final Task enqueueOneCleanup(Task cur)
+    final Task destructiveNext(Task cur)
     {
         Invariants.require(cur != null);
         Task next = cur.next;
         cur.next = null;
-        completeTaskExclusive(cur);
-        return next;
-    }
-
-    final Task enqueueOneSubmit(Task cur)
-    {
-        Invariants.require(cur != null);
-        Task next = cur.next;
-        cur.next = null;
-        cur.submitExclusive(this);
         return next;
     }
 

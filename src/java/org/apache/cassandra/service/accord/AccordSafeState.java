@@ -17,41 +17,31 @@
  */
 package org.apache.cassandra.service.accord;
 
-import accord.impl.SafeState;
+import accord.local.SafeState;
 
-public interface AccordSafeState<K, V> extends SafeState<V>
+import org.apache.cassandra.service.accord.AccordCacheEntry.LockMode;
+
+public interface AccordSafeState<K, V, S extends SafeState<V> & AccordSafeState<K, V, S>>
 {
-    void set(V update);
-    V original();
-    void markUnsafe();
-    boolean isUnsafe();
-    void preExecute();
+    AccordCacheEntry<K, V, S> global();
+    void postExecute(AccordTask<?> owner);
+    void preExecute(AccordTask<?> owner, LockMode lockMode);
 
-    AccordCacheEntry<K, V> global();
-
-    default boolean hasUpdate()
+    static AccordCacheEntry<?, ?, ?> global(SafeState<?> safeState)
     {
-        return original() != current();
+        return safeState.getClass() == AccordSafeCommand.class ? ((AccordSafeCommand) safeState).global()
+                                                               : ((AccordSafeCommandsForKey) safeState).global();
     }
 
-    default void revert()
+    static void postExecute(SafeState<?> safeState, AccordTask<?> owner)
     {
-        set(original());
+        if (safeState.getClass() == AccordSafeCommand.class) ((AccordSafeCommand) safeState).postExecute(owner);
+        else ((AccordSafeCommandsForKey) safeState).postExecute(owner);
     }
 
-    default K key()
+    static void preExecute(SafeState<?> safeState, AccordTask<?> owner, LockMode lockMode)
     {
-        return global().key();
-    }
-
-    default Throwable failure()
-    {
-        return global().failure();
-    }
-
-    default void checkNotInvalidated()
-    {
-        if (isUnsafe())
-            throw new IllegalStateException("Cannot access invalidated " + this);
+        if (safeState.getClass() == AccordSafeCommand.class) ((AccordSafeCommand) safeState).preExecute(owner, lockMode);
+        else ((AccordSafeCommandsForKey) safeState).preExecute(owner, lockMode);
     }
 }

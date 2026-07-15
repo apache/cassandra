@@ -38,6 +38,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordCacheEntry;
 import org.apache.cassandra.service.accord.AccordCommandStore;
+import org.apache.cassandra.service.accord.AccordSafeCommand;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -86,7 +87,7 @@ public class AccordJournalConsistentExpungeTest extends TestBaseImpl
                 Node node = service.node();
                 AccordCommandStore commandStore = (AccordCommandStore) node.commandStores().unsafeForKey(key.toUnseekable());
 
-                Iterator<AccordCacheEntry<TxnId, Command>> iterator = commandStore.cachesUnsafe().commands().iterator();
+                Iterator<AccordCacheEntry<TxnId, Command, AccordSafeCommand>> iterator = commandStore.cachesUnsafe().commands().iterator();
 
                 TxnId txnId = TxnId.NONE;
 

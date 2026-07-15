@@ -82,7 +82,7 @@ public interface RangeIndex
             return null;
         }
 
-        public CommandSummaries.Summary ifRelevant(AccordCacheEntry<TxnId, Command> state)
+        public CommandSummaries.Summary ifRelevant(AccordCacheEntry<TxnId, Command, ?> state)
         {
             if (state.key().domain() != Routable.Domain.Range)
                 return null;

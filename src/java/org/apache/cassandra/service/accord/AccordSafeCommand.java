@@ -20,51 +20,22 @@ package org.apache.cassandra.service.accord;
 
 import java.util.Objects;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import accord.api.Journal;
 import accord.local.Command;
 import accord.local.SafeCommand;
 import accord.primitives.TxnId;
 
-import org.apache.cassandra.utils.concurrent.Ref;
+import org.apache.cassandra.service.accord.AccordCacheEntry.LockMode;
 
-public class AccordSafeCommand extends SafeCommand implements AccordSafeState<TxnId, Command>
+public class AccordSafeCommand extends SafeCommand implements AccordSafeState<TxnId, Command, AccordSafeCommand>
 {
-    public static class DebugAccordSafeCommand extends AccordSafeCommand
-    {
-        final Ref<?> selfRef;
-        public DebugAccordSafeCommand(AccordCacheEntry<TxnId, Command> global)
-        {
-            super(global);
-            selfRef = new Ref<>(this, null);
-            selfRef.debug(global.key().toString());
-        }
-
-        @Override
-        public void markUnsafe()
-        {
-            super.markUnsafe();
-            selfRef.release();
-        }
-
-        public static void trace(AccordSafeCommand safeCommand, String message)
-        {
-            ((DebugAccordSafeCommand)safeCommand).selfRef.debug(message);
-        }
-    }
-
-    private boolean unsafe;
-    private final AccordCacheEntry<TxnId, Command> global;
+    private final AccordCacheEntry<TxnId, Command, AccordSafeCommand> global;
     private Command original;
-    private Command current;
 
-    public AccordSafeCommand(AccordCacheEntry<TxnId, Command> global)
+    public AccordSafeCommand(AccordCacheEntry<TxnId, Command, AccordSafeCommand> global)
     {
         super(global.key());
         this.global = global;
-        this.original = null;
-        this.current = null;
     }
 
     @Override
@@ -73,7 +44,7 @@ public class AccordSafeCommand extends SafeCommand implements AccordSafeState<Tx
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AccordSafeCommand that = (AccordSafeCommand) o;
-        return Objects.equals(original, that.original) && Objects.equals(current, that.current);
+        return Objects.equals(this.original, that.original) && Objects.equals(this.current(), that.current());
     }
 
     @Override
@@ -86,66 +57,36 @@ public class AccordSafeCommand extends SafeCommand implements AccordSafeState<Tx
     public String toString()
     {
         return "AccordSafeCommand{" +
-               "invalidated=" + unsafe +
+               "status=" + statusString() +
                ", global=" + global +
                ", original=" + original +
                ", current=" + current +
                '}';
     }
 
-    @Override
-    public AccordCacheEntry<TxnId, Command> global()
+    public AccordCacheEntry<TxnId, Command, AccordSafeCommand> global()
     {
-        checkNotInvalidated();
         return global;
     }
 
     @Override
-    public Command current()
+    public void postExecute(AccordTask<?> owner)
     {
-        checkNotInvalidated();
-        return current;
-    }
-
-    @Override
-    @VisibleForTesting
-    public void set(Command command)
-    {
-        checkNotInvalidated();
-        this.current = command;
-    }
-
-    @Override
-    public Command original()
-    {
-        checkNotInvalidated();
-        return original;
+        global.releaseExclusive(this, owner);
     }
 
     public Journal.CommandUpdate update()
     {
-        return new Journal.CommandUpdate(original, current);
+        return new Journal.CommandUpdate(original, current());
     }
 
-    @Override
-    public void preExecute()
+    public void preExecute(AccordTask<?> owner, LockMode lockMode)
     {
-        checkNotInvalidated();
-        original = global.getExclusive();
+        requireUninitialised();
+        original = global.lockExclusive(owner, lockMode);
         current = original;
-        if (isUnset())
-            uninitialised();
-    }
-
-    @Override
-    public void markUnsafe()
-    {
-        unsafe = true;
-    }
-
-    @Override
-    public boolean isUnsafe()
-    {
-        return unsafe;
+        if (current == null)
+            initialise();
+        setSafe();
     }
 }
