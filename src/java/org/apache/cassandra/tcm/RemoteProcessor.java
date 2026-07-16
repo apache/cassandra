@@ -22,7 +22,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -419,6 +421,7 @@ public final class RemoteProcessor implements Processor
     public static class CandidateIterator extends AbstractIterator<InetAddressAndPort>
     {
         private final Deque<InetAddressAndPort> candidates;
+        private final Set<InetAddressAndPort> elements;
         private final boolean checkLive;
 
         @SuppressWarnings("resource")
@@ -431,6 +434,7 @@ public final class RemoteProcessor implements Processor
         public CandidateIterator(Collection<InetAddressAndPort> initialContacts, boolean checkLive)
         {
             this.candidates = new ConcurrentLinkedDeque<>(initialContacts);
+            this.elements = new HashSet<>(initialContacts);
             this.checkLive = checkLive;
         }
 
@@ -442,19 +446,26 @@ public final class RemoteProcessor implements Processor
         public void addCandidates(DiscoveredNodes discoveredNodes)
         {
             if (discoveredNodes.kind() == DiscoveredNodes.Kind.CMS_ONLY)
-                discoveredNodes.nodes().forEach(candidates::addFirst);
+                discoveredNodes.nodes().forEach(this::maybeAddFirst);
             else
-                discoveredNodes.nodes().forEach(candidates::addLast);
+                discoveredNodes.nodes().forEach(this::maybeAddLast);
         }
 
-        public void notCms(InetAddressAndPort resp)
+        private void maybeAddFirst(InetAddressAndPort candidate)
         {
-            candidates.addLast(resp);
+            if (elements.add(candidate))
+                candidates.addFirst(candidate);
+        }
+
+        private void maybeAddLast(InetAddressAndPort candidate)
+        {
+            if (elements.add(candidate))
+                candidates.addLast(candidate);
         }
 
         public void timeout(InetAddressAndPort timedOut)
         {
-            candidates.addLast(timedOut);
+            maybeAddLast(timedOut);
         }
 
         public String toString()
@@ -488,14 +499,17 @@ public final class RemoteProcessor implements Processor
 
                 if (checkLive && !FailureDetector.instance.isAlive(ep))
                 {
-                    if (candidates.isEmpty())
-                        return ep;
-                    else
+                    // If there are other candidates, just return this one to the back of the deque. It can be added
+                    // directly, not via maybeAddLast as it hasn't been removed from the element set yet
+                    if (!candidates.isEmpty())
                     {
                         candidates.addLast(ep);
                         continue;
                     }
                 }
+                // if we have a candidate, it was popped from the deque so make sure it's also removed from the set
+                if (ep != null)
+                    elements.remove(ep);
                 return ep;
             }
             return endOfData();
