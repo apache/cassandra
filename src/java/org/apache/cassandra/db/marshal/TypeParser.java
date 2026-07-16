@@ -373,9 +373,9 @@ public class TypeParser
         // access or getInstance(TypeParser) invocation below performs the initialization for valid types.
         @SuppressWarnings("unchecked")
         Class<? extends AbstractType<?>> typeClass =
-            (Class<? extends AbstractType<?>>)(Class<?>) FBUtilities.classForNameWithoutInitialization(className,
-                                                                                                       "abstract-type",
-                                                                                                       AbstractType.class);
+            (Class<? extends AbstractType<?>>) FBUtilities.classForNameWithoutInitialization(className,
+                                                                                             "abstract-type",
+                                                                                             AbstractType.class);
         return typeClass;
     }
 
