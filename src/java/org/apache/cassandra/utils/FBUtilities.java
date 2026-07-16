@@ -744,8 +744,9 @@ public class FBUtilities
             if (!className.contains("."))
                 className = "org.apache.cassandra.io.compress." + className;
 
-            Class<?> compressionProviderClass = FBUtilities.classForName(className, "compression service provider");
-            return (AbstractCompressionProvider) compressionProviderClass.getConstructor().newInstance();
+            Class<? extends AbstractCompressionProvider> compressionProviderClass =
+                FBUtilities.classForNameWithoutInitialization(className, "compression service provider", AbstractCompressionProvider.class);
+            return compressionProviderClass.getConstructor().newInstance();
         }
         catch (ConfigurationException e)
         {

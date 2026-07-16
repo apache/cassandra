@@ -61,6 +61,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.compress.AbstractCompressionProvider;
 import org.apache.cassandra.security.AbstractCryptoProvider;
 import org.apache.cassandra.security.ISslContextFactory;
 
@@ -137,6 +138,17 @@ public class FBUtilitiesTest
         assertThatThrownBy(() -> FBUtilities.newCryptoProvider(ClassLoadingTestNonAssignable.class.getName(), Map.of()))
         .isInstanceOf(ConfigurationException.class)
         .hasMessageContaining("must extend or implement " + AbstractCryptoProvider.class.getName());
+
+        assertThat(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class)).isFalse();
+    }
+
+    @Test
+    public void testNewCompressionProviderRejectsWrongTypeWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+        assertThatThrownBy(() -> FBUtilities.newCompressionProvider(ClassLoadingTestNonAssignable.class.getName()))
+        .isInstanceOf(ConfigurationException.class)
+        .hasStackTraceContaining("must extend or implement " + AbstractCompressionProvider.class.getName());
 
         assertThat(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class)).isFalse();
     }
