@@ -342,9 +342,9 @@ public abstract class AbstractReplicationStrategy
 
         @SuppressWarnings("unchecked")
         Class<AbstractReplicationStrategy> strategyClass =
-            (Class<AbstractReplicationStrategy>)(Class<?>) FBUtilities.classForNameWithoutInitialization(className,
-                                                                                                        "replication strategy",
-                                                                                                        AbstractReplicationStrategy.class);
+            (Class<AbstractReplicationStrategy>) FBUtilities.classForNameWithoutInitialization(className,
+                                                                                             "replication strategy",
+                                                                                             AbstractReplicationStrategy.class);
         return strategyClass;
     }
 
