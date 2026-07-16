@@ -292,13 +292,20 @@ public class TriggerExecutor
         // CreateTriggerStatement#apply.
         // Check that triggerClass is available on the classpath, but do not initialize the class since that would
         // execute static blocks.
-        Class<? extends ITrigger> trigger;
+        Class<? extends ITrigger> trigger = loadTriggerClassWithoutInitialization(triggerClass);
+        // Validate that the class exposes a public no-argument constructor before it is accepted.
+        trigger.getConstructor();
+        return trigger;
+    }
+
+    private Class<? extends ITrigger> loadTriggerClassWithoutInitialization(String triggerClass) throws Exception
+    {
         try
         {
-            trigger = FBUtilities.classForNameWithoutInitialization(triggerClass,
-                                                                    "trigger",
-                                                                    ITrigger.class,
-                                                                    customClassLoader);
+            return FBUtilities.classForNameWithoutInitialization(triggerClass,
+                                                                 "trigger",
+                                                                 ITrigger.class,
+                                                                 customClassLoader);
         }
         catch (ConfigurationException e)
         {
@@ -306,8 +313,6 @@ public class TriggerExecutor
                 throw (ClassNotFoundException) e.getCause();
             throw e;
         }
-        trigger.getConstructor();
-        return trigger;
     }
 
     public synchronized ITrigger loadTriggerInstance(String triggerClass) throws Exception
@@ -321,6 +326,6 @@ public class TriggerExecutor
         // double check.
         if (cachedTriggers.get(triggerClass) != null)
             return cachedTriggers.get(triggerClass);
-        return loadTriggerClass(triggerClass).getConstructor().newInstance();
+        return loadTriggerClassWithoutInitialization(triggerClass).getConstructor().newInstance();
     }
 }
