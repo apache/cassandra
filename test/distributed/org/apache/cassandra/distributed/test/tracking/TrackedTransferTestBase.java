@@ -196,12 +196,12 @@ public abstract class TrackedTransferTestBase extends TestBaseImpl
         assertPendingDirs(validate, KEYSPACE, forPendingUuidDir);
     }
 
-    protected static void assertPendingDirs(Iterable<IInvokableInstance> validate, String keysapce, IIsolatedExecutor.SerializableConsumer<File> forPendingUuidDir)
+    protected static void assertPendingDirs(Iterable<IInvokableInstance> validate, String keyspace, IIsolatedExecutor.SerializableConsumer<File> forPendingUuidDir)
     {
         for (IInvokableInstance instance : validate)
         {
             instance.runOnInstance(() -> {
-                Set<File> allPendingDirs = ColumnFamilyStore.getIfExists(keysapce, TABLE).getDirectories().getPendingLocations();
+                Set<File> allPendingDirs = ColumnFamilyStore.getIfExists(keyspace, TABLE).getDirectories().getPendingLocations();
                 for (File pendingDir : allPendingDirs)
                 {
                     File[] pendingUuidDirs = pendingDir.listUnchecked(File::isDirectory);
