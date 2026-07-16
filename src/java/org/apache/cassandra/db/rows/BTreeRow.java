@@ -172,7 +172,7 @@ public class BTreeRow extends AbstractRow
 
     private static long minDeletionTime(Cell<?> cell)
     {
-        return cell.isTombstone() ? Long.MIN_VALUE : cell.localDeletionTime();
+        return cell.minDeletionTime();
     }
 
     private static long minDeletionTime(LivenessInfo info)
