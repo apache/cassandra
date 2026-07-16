@@ -256,10 +256,9 @@ public class TriggerExecutor
     public synchronized Class<? extends ITrigger> loadTriggerClass(String triggerClass) throws Exception
     {
         // Load without initialization so the type can be verified before the class's static initializer runs.
-        Class<? extends ITrigger> trigger;
         try
         {
-            trigger = FBUtilities.classForNameWithoutInitialization(triggerClass, "trigger", ITrigger.class, customClassLoader);
+            return FBUtilities.classForNameWithoutInitialization(triggerClass, "trigger", ITrigger.class, customClassLoader);
         }
         catch (ConfigurationException e)
         {
@@ -267,8 +266,6 @@ public class TriggerExecutor
                 throw (ClassNotFoundException) e.getCause();
             throw e;
         }
-        trigger.getConstructor();
-        return trigger;
     }
 
     public synchronized ITrigger loadTriggerInstance(String triggerClass) throws Exception
