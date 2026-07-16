@@ -30,17 +30,12 @@ import org.apache.cassandra.utils.memory.ByteBufferCloner;
 
 import static java.lang.String.format;
 
-public class BufferCell extends AbstractCell<ByteBuffer>
+public class BufferCell extends HeapAbstractCell<ByteBuffer>
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new BufferCell(ColumnMetadata.regularColumn("", "", "", ByteType.instance, ColumnMetadata.NO_UNIQUE_ID), 0L, 0, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, null));
 
     // Careful: Adding vars here has an impact on memtable size
-    private final long timestamp;
-    private final int ttl;
-    private final int localDeletionTimeUnsignedInteger;
-
     private final ByteBuffer value;
-    private final CellPath path;
 
     // Please keep both int/long overloaded ctros public. Otherwise silent casts will mess timestamps when one is not
     // available.
@@ -51,14 +46,10 @@ public class BufferCell extends AbstractCell<ByteBuffer>
 
     public BufferCell(ColumnMetadata column, long timestamp, int ttl, int localDeletionTimeUnsignedInteger, ByteBuffer value, CellPath path)
     {
-        super(column);
+        super(column, timestamp, ttl, localDeletionTimeUnsignedInteger, path);
         assert !column.isPrimaryKeyColumn();
         assert column.isComplex() == (path != null) : format("Column %s.%s(%s: %s) isComplex: %b with cellpath: %s", column.ksName, column.cfName, column.name, column.type.toString(), column.isComplex(), path);
-        this.timestamp = timestamp;
-        this.ttl = ttl;
-        this.localDeletionTimeUnsignedInteger = localDeletionTimeUnsignedInteger;
         this.value = value;
-        this.path = path;
     }
 
     public static BufferCell live(ColumnMetadata column, long timestamp, ByteBuffer value)
@@ -92,16 +83,6 @@ public class BufferCell extends AbstractCell<ByteBuffer>
         return new BufferCell(column, timestamp, NO_TTL, nowInSec, ByteBufferUtil.EMPTY_BYTE_BUFFER, path);
     }
 
-    public long timestamp()
-    {
-        return timestamp;
-    }
-
-    public int ttl()
-    {
-        return ttl;
-    }
-
     public ByteBuffer value()
     {
         return value;
@@ -112,10 +93,6 @@ public class BufferCell extends AbstractCell<ByteBuffer>
         return ByteBufferAccessor.instance;
     }
 
-    public CellPath path()
-    {
-        return path;
-    }
 
     public Cell<?> withUpdatedColumn(ColumnMetadata newColumn)
     {
@@ -162,11 +139,5 @@ public class BufferCell extends AbstractCell<ByteBuffer>
     public long unsharedHeapSizeExcludingData()
     {
         return EMPTY_SIZE + ObjectSizes.sizeOnHeapExcludingDataOf(value) + (path == null ? 0 : path.unsharedHeapSizeExcludingData());
-    }
-
-    @Override
-    protected int localDeletionTimeAsUnsignedInt()
-    {
-        return localDeletionTimeUnsignedInteger;
     }
 }
