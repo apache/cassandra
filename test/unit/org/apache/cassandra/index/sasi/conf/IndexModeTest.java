@@ -40,6 +40,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ClassLoadingTestNonAssignable;
 import org.apache.cassandra.utils.ClassLoadingTestSupport;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 
 public class IndexModeTest
 {
@@ -218,15 +220,9 @@ public class IndexModeTest
         ColumnMetadata cd = ColumnMetadata.regularColumn(cfm, ByteBufferUtil.bytes("TestColumnMetadata"), BytesType.instance, ColumnMetadata.NO_UNIQUE_ID);
 
         ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
-        try
-        {
-            IndexMode.getMode(cd, Collections.singletonMap("analyzer_class", ClassLoadingTestNonAssignable.class.getName()));
-            Assert.fail("Should not pass");
-        }
-        catch (ConfigurationException e)
-        {
-            Assert.assertTrue(e.getMessage().contains("must extend or implement " + AbstractAnalyzer.class.getName()));
-        }
+        assertThatThrownBy(() -> IndexMode.getMode(cd, Collections.singletonMap("analyzer_class", ClassLoadingTestNonAssignable.class.getName())))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("must extend or implement " + AbstractAnalyzer.class.getName());
 
         Assert.assertFalse(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class));
     }
@@ -250,15 +246,9 @@ public class IndexModeTest
         ColumnMetadata cd = ColumnMetadata.regularColumn(cfm, ByteBufferUtil.bytes("TestColumnMetadata"), UTF8Type.instance, ColumnMetadata.NO_UNIQUE_ID);
 
         ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
-        try
-        {
-            IndexMode.validateAnalyzer(Collections.singletonMap("analyzer_class", ClassLoadingTestNonAssignable.class.getName()), cd);
-            Assert.fail("Should not pass");
-        }
-        catch (ConfigurationException e)
-        {
-            Assert.assertTrue(e.getMessage().contains("must extend or implement " + AbstractAnalyzer.class.getName()));
-        }
+        assertThatThrownBy(() -> IndexMode.validateAnalyzer(Collections.singletonMap("analyzer_class", ClassLoadingTestNonAssignable.class.getName()), cd))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("must extend or implement " + AbstractAnalyzer.class.getName());
 
         Assert.assertFalse(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class));
     }

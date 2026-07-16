@@ -48,6 +48,7 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
 import org.apache.cassandra.utils.concurrent.Refs;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -65,15 +66,9 @@ public class SecondaryIndexManagerTest extends CQLTester
     public void rejectsNonIndexClassWithoutInitializing()
     {
         ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
-        try
-        {
-            SecondaryIndexManager.loadIndexClass(ClassLoadingTestNonAssignable.class.getName());
-            fail("Should not pass");
-        }
-        catch (ConfigurationException e)
-        {
-            assertTrue(e.getMessage().contains("must extend or implement " + Index.class.getName()));
-        }
+        assertThatThrownBy(() -> SecondaryIndexManager.loadIndexClass(ClassLoadingTestNonAssignable.class.getName()))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("must extend or implement " + Index.class.getName());
 
         assertFalse(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class));
     }

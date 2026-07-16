@@ -28,7 +28,7 @@ import org.apache.cassandra.utils.ClassLoadingTestNonAssignable;
 import org.apache.cassandra.utils.ClassLoadingTestSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.fail;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class DiagnosticEventPersistenceTest
 {
@@ -55,15 +55,9 @@ public class DiagnosticEventPersistenceTest
     {
         ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
 
-        try
-        {
-            getEventClass(ClassLoadingTestNonAssignable.class.getName());
-            fail("Expected InvalidClassException for a non-DiagnosticEvent class");
-        }
-        catch (InvalidClassException e)
-        {
-            assertThat(e.getMessage()).contains("must be of type DiagnosticEvent");
-        }
+        assertThatThrownBy(() -> getEventClass(ClassLoadingTestNonAssignable.class.getName()))
+        .isInstanceOf(InvalidClassException.class)
+        .hasMessageContaining("must be of type DiagnosticEvent");
 
         assertThat(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class)).isFalse();
     }
