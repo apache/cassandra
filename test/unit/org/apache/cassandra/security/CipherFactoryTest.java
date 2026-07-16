@@ -39,6 +39,7 @@ import org.apache.cassandra.utils.ClassLoadingTestNonAssignable;
 import org.apache.cassandra.utils.ClassLoadingTestSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
 
@@ -52,19 +53,11 @@ public class CipherFactoryTest
         TransparentDataEncryptionOptions options = EncryptionContextGenerator.createEncryptionOptions();
         options.key_provider.class_name = ClassLoadingTestNonAssignable.class.getName();
 
-        try
-        {
-            new CipherFactory(options);
-            fail("Expected CipherFactory construction to be rejected for a non-KeyProvider class");
-        }
-        catch (RuntimeException e)
-        {
-            // CipherFactory wraps the load failure; the cause is the type-check ConfigurationException
-            Throwable cause = e.getCause();
-            assertNotNull(cause);
-            assertThat(cause).isInstanceOf(ConfigurationException.class);
-            assertThat(cause.getMessage()).contains("must extend or implement " + KeyProvider.class.getName());
-        }
+        // CipherFactory wraps the load failure; the cause is the type-check ConfigurationException
+        assertThatThrownBy(() -> new CipherFactory(options))
+        .isInstanceOf(RuntimeException.class)
+        .hasCauseInstanceOf(ConfigurationException.class)
+        .hasStackTraceContaining("must extend or implement " + KeyProvider.class.getName());
 
         assertThat(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class)).isFalse();
     }
