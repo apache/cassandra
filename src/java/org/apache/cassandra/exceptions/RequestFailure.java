@@ -56,6 +56,7 @@ public class RequestFailure
     public static final RequestFailure READ_TOO_MANY_INDEXES = new RequestFailure(RequestFailureReason.READ_TOO_MANY_INDEXES);
     public static final RequestFailure RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM = new RequestFailure(RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM);
     public static final RequestFailure INDEX_BUILD_IN_PROGRESS = new RequestFailure(RequestFailureReason.INDEX_BUILD_IN_PROGRESS);
+    public static final RequestFailure TRUNCATE_FAILED = new RequestFailure(RequestFailureReason.TRUNCATE_FAILED);
 
     static
     {
@@ -126,6 +127,9 @@ public class RequestFailure
         if (t instanceof CoordinatorBehindException)
             return COORDINATOR_BEHIND;
 
+        if (t instanceof TruncateException)
+            return TRUNCATE_FAILED;
+
         return new RequestFailure(t);
     }
 
@@ -147,6 +151,7 @@ public class RequestFailure
             case READ_TOO_MANY_INDEXES: return READ_TOO_MANY_INDEXES;
             case INDEX_BUILD_IN_PROGRESS: return INDEX_BUILD_IN_PROGRESS;
             case RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM: return RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM;
+            case TRUNCATE_FAILED: return TRUNCATE_FAILED;
         }
     }
 
