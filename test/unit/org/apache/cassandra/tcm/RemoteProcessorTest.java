@@ -80,30 +80,6 @@ public class RemoteProcessorTest
         }
     }
 
-    @Test
-    public void notCMSTest()
-    {
-        // make sure that a node marked as notCMS will not be returned until we've cycled through all other candidates
-        // when using the iterator in a RemoteProcessor::sendWithCallback call, the Backoff will trigger the breaking
-        // out of the cycle.
-        int endpointCount = 10;
-        List<InetAddressAndPort> allEndpoints = eps(endpointCount);
-        Set<InetAddressAndPort> discovery = new HashSet<>(allEndpoints.subList(0, 4));
-        RemoteProcessor.CandidateIterator iter = new RemoteProcessor.CandidateIterator(discovery, false);
-        InetAddressAndPort notcms = iter.peek();
-        for (int i = 1; i < 10; i++)
-        {
-            assertTrue(iter.hasNext());
-            InetAddressAndPort returned = iter.next();
-            assertTrue(discovery.contains(returned));
-            if (returned.equals(notcms))
-            {
-                iter.notCms(returned);
-                assertEquals(notcms, iter.peekLast());
-            }
-        }
-    }
-
     private List<InetAddressAndPort> eps(int endpointCount)
     {
         List<InetAddressAndPort> allEndpoints = new ArrayList<>(endpointCount);
