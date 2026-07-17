@@ -213,8 +213,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
         int FAILED_REPLICA = 2;
         try (Cluster cluster = init(builder().withNodes(3).withoutVNodes()
                                              .withDataDirCount(1).withConfig((config) ->
-                                                                             config
-                                                                             .with(Feature.NETWORK, Feature.GOSSIP)).start()))
+                                                                             config.with(Feature.NETWORK, Feature.GOSSIP)).start()))
         {
             cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}");
@@ -225,14 +224,20 @@ public class AccordImportSSTableTest extends TestBaseImpl
             cluster.get(1).runOnInstance(() -> {
                 ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
                 Set<String> paths = Set.of(file);
-                Assertions.assertThatThrownBy(() -> cfs.importNewSSTables(paths, true, true, true, true, true, true, true));
+                Assertions.assertThatThrownBy(() -> cfs.importNewSSTables(paths, true, true, true, true, true, true, true))
+                          .isInstanceOf(RuntimeException.class)
+                          .cause();
             });
 
-            assertPendingDirs(cluster.stream().filter(instance -> instance != cluster.get(FAILED_REPLICA)).collect(Collectors.toList()), (File pendingUuidDir) -> {
+            Iterable<IInvokableInstance> up = cluster.stream()
+                                                     .filter(instance -> instance != cluster.get(FAILED_REPLICA))
+                                                     .collect(Collectors.toList());
+
+            assertPendingDirs(up, (File pendingUuidDir) -> {
                 Assertions.assertThat(pendingUuidDir.listUnchecked(File::isFile)).isEmpty();
             });
 
-            assertLocalSelect(cluster, rows -> assertRows(rows, EMPTY_ROWS));
+            assertLocalSelect(up, rows -> assertRows(rows, EMPTY_ROWS));
         }
     }
 
@@ -283,7 +288,6 @@ public class AccordImportSSTableTest extends TestBaseImpl
     }
 
     @Test
-    @Ignore
     public void testSSTableImportBounceAfterPending() throws Throwable
     {
         String file = Files.createTempDirectory(AccordImportSSTableTest.class.getSimpleName()).toString();
@@ -300,9 +304,12 @@ public class AccordImportSSTableTest extends TestBaseImpl
             writer.addRow(3, 1);
         }
 
+        // We disable local delivery so that we can stimulate a network partition by dropping
+        // ACCORD_STABLE_THEN_READ_REQ messages
         try (Cluster cluster = init(builder().withNodes(3).withoutVNodes()
                                              .withDataDirCount(1).withConfig((config) ->
                                                                              config
+                                                                             .set("accord.permit_local_delivery", false)
                                                                              .with(Feature.NETWORK, Feature.GOSSIP)).start()))
         {
             cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
@@ -343,6 +350,8 @@ public class AccordImportSSTableTest extends TestBaseImpl
             writer.addRow(3, 1);
         }
 
+        // We disable local delivery so that we can stimulate a network partition by dropping
+        // ACCORD_STABLE_THEN_READ_REQ messages
         try (Cluster cluster = init(builder().withNodes(3).withoutVNodes()
                                              .withDataDirCount(1).withConfig((config) ->
                                                                              config
