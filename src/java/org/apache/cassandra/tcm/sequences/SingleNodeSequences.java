@@ -92,6 +92,7 @@ public interface SingleNodeSequences
         else if (InProgressSequences.isLeave(inProgress))
         {
             logger.info("Resuming decommission @ {} (current epoch = {}): {}", inProgress.latestModification, metadata.epoch, inProgress.status());
+            StorageService.instance.clearTransientMode();
         }
         else
         {
