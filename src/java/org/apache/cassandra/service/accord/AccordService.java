@@ -1449,7 +1449,7 @@ public class AccordService implements IAccordService, Shutdownable
 
         Preconditions.checkArgument(!nodeStreamingContext.isEmpty());
 
-        CoordinatedTransfer transfer = new CoordinatedTransfer(node().nextCoordinationId(), keyspace, metadata, nodeStreamingContext, topology.epoch(), getTokenRangeSpanningSSTables(sstables, metadata));
+        CoordinatedTransfer transfer = new CoordinatedTransfer(node().nextCoordinatedTransferId(), keyspace, metadata, nodeStreamingContext, topology.epoch(), getTokenRangeSpanningSSTables(sstables, metadata));
 
         transfer.execute();
     }

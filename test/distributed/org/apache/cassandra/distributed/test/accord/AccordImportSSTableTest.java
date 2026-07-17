@@ -346,6 +346,8 @@ public class AccordImportSSTableTest extends TestBaseImpl
         try (Cluster cluster = init(builder().withNodes(3).withoutVNodes()
                                              .withDataDirCount(1).withConfig((config) ->
                                                                              config
+                                                                             .set("accord.recover_txn", "100ms")
+                                                                             .set("accord.permit_local_delivery", false)
                                                                              .with(Feature.NETWORK, Feature.GOSSIP)).start()))
         {
             cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
