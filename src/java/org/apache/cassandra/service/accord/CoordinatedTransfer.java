@@ -369,7 +369,8 @@ public class CoordinatedTransfer
         for (Map.Entry<InetAddressAndPort,Message<TransferFailed>> entry : msgs.entrySet())
             MessagingService.instance().sendWithCallback(entry.getValue(), entry.getKey(), notifyFailure);
 
-        notifyFailure.get();
+        if (!msgs.isEmpty())
+            notifyFailure.get();
     }
 
     public static class NodeStreamingMetadata
