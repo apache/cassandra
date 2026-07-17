@@ -712,7 +712,10 @@ public class FBUtilities
         }
         catch (Exception ex)
         {
-            throw new ConfigurationException("Unable to create instance of ISslContextFactory for " + className, ex);
+            // Surface the underlying load failure (e.g. ClassNotFoundException) as the direct cause rather than the
+            // intermediate ConfigurationException that reports it.
+            Throwable cause = ex instanceof ConfigurationException && ex.getCause() != null ? ex.getCause() : ex;
+            throw new ConfigurationException("Unable to create instance of ISslContextFactory for " + className, cause);
         }
     }
 

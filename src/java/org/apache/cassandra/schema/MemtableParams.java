@@ -236,8 +236,8 @@ public final class MemtableParams
             {
                 Method factoryMethod = clazz.getDeclaredMethod("factory", Map.class);
                 if (!Memtable.Factory.class.isAssignableFrom(factoryMethod.getReturnType()))
-                    throw new ConfigurationException("Memtable factory method on " + className +
-                                                     " must return " + Memtable.Factory.class.getName());
+                    throw new ClassCastException("Memtable factory method on " + className +
+                                                 " must return " + Memtable.Factory.class.getName());
                 factory = (Memtable.Factory) factoryMethod.invoke(null, parametersCopy);
             }
             catch (NoSuchMethodException e)
@@ -245,8 +245,8 @@ public final class MemtableParams
                 // continue with FACTORY field
                 Field factoryField = clazz.getDeclaredField("FACTORY");
                 if (!Memtable.Factory.class.isAssignableFrom(factoryField.getType()))
-                    throw new ConfigurationException("Memtable FACTORY field on " + className +
-                                                     " must be of type " + Memtable.Factory.class.getName());
+                    throw new ClassCastException("Memtable FACTORY field on " + className +
+                                                 " must be of type " + Memtable.Factory.class.getName());
                 factory = (Memtable.Factory) factoryField.get(null);
             }
             if (!parametersCopy.isEmpty())
