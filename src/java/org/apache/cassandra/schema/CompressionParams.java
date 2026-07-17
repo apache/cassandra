@@ -280,7 +280,16 @@ public final class CompressionParams
             return null;
 
         className = className.contains(".") ? className : "org.apache.cassandra.io.compress." + className;
-        return FBUtilities.classForNameWithoutInitialization(className, "compression", ICompressor.class);
+        try
+        {
+            return FBUtilities.classForNameWithoutInitialization(className, "compression", ICompressor.class);
+        }
+        catch (ConfigurationException e)
+        {
+            if (e.getCause() instanceof ClassNotFoundException || e.getCause() instanceof NoClassDefFoundError)
+                throw new ConfigurationException("Could not create Compression for type " + className, e);
+            throw e;
+        }
     }
 
     private static ICompressor createCompressor(Class<? extends ICompressor> compressorClass, Map<String, String> compressionOptions) throws ConfigurationException
