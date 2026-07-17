@@ -695,7 +695,7 @@ public class FBUtilities
 
         try
         {
-            FBUtilities.classForName(className, "Audit logger");
+            FBUtilities.classForNameWithoutInitialization(className, "Audit logger", IAuditLogger.class);
         }
         catch (ConfigurationException e)
         {

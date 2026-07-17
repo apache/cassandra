@@ -52,6 +52,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class FBUtilitiesTest
@@ -99,6 +100,17 @@ public class FBUtilitiesTest
         .hasStackTraceContaining("must extend or implement " + IAuditLogger.class.getName());
 
         assertFalse(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class));
+    }
+
+    @Test
+    public void testIsAuditLoggerClassExistsRejectsWrongTypeWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+        assertFalse(FBUtilities.isAuditLoggerClassExists(ClassLoadingTestNonAssignable.class.getName()));
+        assertFalse(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class));
+
+        assertTrue(FBUtilities.isAuditLoggerClassExists("NoOpAuditLogger"));
+        assertFalse(FBUtilities.isAuditLoggerClassExists("does.not.ExistAuditLogger"));
     }
 
     @Test
