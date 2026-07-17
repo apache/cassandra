@@ -19,6 +19,7 @@
 package org.apache.cassandra.diag;
 
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -39,6 +40,6 @@ public final class ClassLoadingTestDiagnosticEvent extends DiagnosticEvent
     @Override
     public Map<String, Serializable> toMap()
     {
-        return Map.of();
+        return Collections.emptyMap();
     }
 }
