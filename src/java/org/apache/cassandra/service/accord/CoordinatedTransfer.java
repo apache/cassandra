@@ -132,10 +132,10 @@ public class CoordinatedTransfer
     private final long streamingEpoch;
     private final TokenRange allSSTableRanges;
 
-    final Map<InetAddressAndPort, SSTablesForNode> nodeStreamingContext;
+    final Map<InetAddressAndPort, NodeStreamingMetadata> nodeStreamingContext;
     final ConcurrentMap<InetAddressAndPort, SingleTransferResult> streamResults;
 
-    public CoordinatedTransfer(Long id, String keyspace, TableMetadata tableMetadata, Map<InetAddressAndPort, SSTablesForNode> nodeStreamingContext, long streamingEpoch, TokenRange allSSTableRanges)
+    public CoordinatedTransfer(Long id, String keyspace, TableMetadata tableMetadata, Map<InetAddressAndPort, NodeStreamingMetadata> nodeStreamingContext, long streamingEpoch, TokenRange allSSTableRanges)
     {
         this.id = id;
         this.keyspace = keyspace;
@@ -253,7 +253,7 @@ public class CoordinatedTransfer
         // No need to flush, only using non-live SSTables already on disk
         plan.flushBeforeTransfer(false);
 
-        SSTablesForNode sstablesForNode = nodeStreamingContext.get(to);
+        NodeStreamingMetadata sstablesForNode = nodeStreamingContext.get(to);
         List<Range<Token>> ranges = nodeStreamingContext.get(to).ranges;
 
         for (Map.Entry<SSTableReader, List<SSTableReader.PartitionPositionBounds>> entry : sstablesForNode.positionsForSSTables.entrySet())
@@ -372,13 +372,13 @@ public class CoordinatedTransfer
         notifyFailure.get();
     }
 
-    public static class SSTablesForNode
+    public static class NodeStreamingMetadata
     {
         final Node.Id id;
         final List<Range<Token>> ranges;
         final Map<SSTableReader, List<SSTableReader.PartitionPositionBounds>> positionsForSSTables;
 
-        public SSTablesForNode(Node.Id id, Map<SSTableReader, List<SSTableReader.PartitionPositionBounds>> positionsForSSTables, List<Range<Token>> ranges)
+        public NodeStreamingMetadata(Node.Id id, Map<SSTableReader, List<SSTableReader.PartitionPositionBounds>> positionsForSSTables, List<Range<Token>> ranges)
         {
             this.id = id;
             this.positionsForSSTables = positionsForSSTables;
@@ -465,17 +465,20 @@ public class CoordinatedTransfer
         return new TokenRange(minTokenKey, maxTokenKey);
     }
 
-    public static Map<InetAddressAndPort, SSTablesForNode> getNodeStreamingContext(Collection<SSTableReader> sstables, Topology topology, AccordEndpointMapper endpointMapper)
+    public static Map<InetAddressAndPort, NodeStreamingMetadata> getNodeStreamingContext(Collection<SSTableReader> sstables, Topology topology, AccordEndpointMapper endpointMapper)
     {
-        Map<InetAddressAndPort, SSTablesForNode> nodeStreamingContext = new HashMap<>();
+        Map<InetAddressAndPort, NodeStreamingMetadata> nodeStreamingContext = new HashMap<>();
 
         for (Id nodeId : topology.nodes())
         {
+            // Transform the ranges that each node owns to an input that can be used by
+            // getPositionsForRanges
             Ranges rangesForNode = topology.rangesForNode(nodeId);
             List<Range<Token>> ranges = new ArrayList<>();
             for (accord.primitives.Range range : rangesForNode)
                 ranges.add(((TokenRange) range).toKeyspaceRange());
 
+            // Map from SSTables to the portion of the SSTable that the node owns
             Map<SSTableReader, List<SSTableReader.PartitionPositionBounds>> positionsForSSTables = new HashMap<>();
 
             for (SSTableReader sstable : sstables)
@@ -490,7 +493,7 @@ public class CoordinatedTransfer
                 InetAddressAndPort endpoint = endpointMapper.mappedEndpointOrNull(nodeId);
                 if (endpoint == null)
                     throw new RuntimeException("No endpoint for " + nodeId);
-                nodeStreamingContext.put(endpoint, new SSTablesForNode(nodeId, positionsForSSTables, NormalizedRanges.normalizedRanges(ranges)));
+                nodeStreamingContext.put(endpoint, new NodeStreamingMetadata(nodeId, positionsForSSTables, NormalizedRanges.normalizedRanges(ranges)));
             }
         }
 

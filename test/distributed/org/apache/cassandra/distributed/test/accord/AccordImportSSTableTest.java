@@ -395,6 +395,65 @@ public class AccordImportSSTableTest extends TestBaseImpl
         }
     }
 
+    @Test
+    public void testImportOneTokenSSTable() throws Throwable
+    {
+        String file = Files.createTempDirectory(AccordImportSSTableTest.class.getSimpleName()).toString();
+
+        CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
+                                                           .forTable(TABLE_SCHEMA_CQL)
+                                                           .inDirectory(file)
+                                                           .using("INSERT INTO " + KEYSPACE + ".tbl (k, v) " + "VALUES (?, ?)");
+
+        try (CQLSSTableWriter writer = builder.build())
+        {
+            writer.addRow(1, 1);
+        }
+
+        try (Cluster cluster = init(builder().withNodes(3)
+                                             .withoutVNodes()
+                                             .withDataDirCount(1)
+                                             .withConfig((config) ->
+                                                         config
+                                                         .with(Feature.NETWORK, Feature.GOSSIP)).start()))
+        {
+            cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
+            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}");
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE_TABLE + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
+
+            // Disable autocompaction so when we go to check the number of SSTables they correspond to the SSTables that we have imported
+            cluster.forEach(instance -> {
+                instance.runOnInstance(() -> {
+                    ColumnFamilyStore.getIfExists(KEYSPACE, TABLE).disableAutoCompaction();
+                });
+            });
+
+            cluster.get(1).runOnInstance(() -> {
+                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
+                Set<String> paths = Set.of(file);
+                cfs.importNewSSTables(paths, true, true, true, true, true, true, true);
+            });
+
+            Uninterruptibles.sleepUninterruptibly(3, TimeUnit.SECONDS);
+
+            // Assert that each node has 2 SSTables
+            cluster.forEach(instance -> {
+                instance.runOnInstance(() -> {
+                    ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, "tbl");
+                    assertEquals(1, cfs.getLiveSSTables().size());
+                });
+            });
+
+            // Assert that each node has the correct values
+            assertLocalSelect(cluster, rows -> { assertRows(rows, row(1, 1)); });
+
+            // Assert that SSTables are moved from the pending directories
+            assertPendingDirs(cluster, (File pendingUuidDir) -> {
+                Assertions.assertThat(pendingUuidDir.listUnchecked(File::isFile)).isEmpty();
+            });
+        }
+    }
+
     private static void bounce(Cluster cluster)
     {
         cluster.forEach(instance -> {
