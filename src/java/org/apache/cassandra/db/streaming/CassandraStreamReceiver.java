@@ -51,9 +51,11 @@ import org.apache.cassandra.io.sstable.SSTableTxnSingleStreamWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
+import org.apache.cassandra.service.accord.PendingLocalTransfer;
 import org.apache.cassandra.service.accord.TimeOnlyRequestBookkeeping.LatencyRequestBookkeeping;
 import org.apache.cassandra.service.accord.topology.AccordTopology;
 import org.apache.cassandra.streaming.IncomingStream;
+import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -115,6 +117,7 @@ public class CassandraStreamReceiver implements StreamReceiver
         return (CassandraIncomingFile) stream;
     }
 
+    // This method is called for every SSTable within a stream
     @Override
     public synchronized void received(IncomingStream stream)
     {
@@ -257,6 +260,16 @@ public class CassandraStreamReceiver implements StreamReceiver
 
                 // add sstables (this will build non-SSTable-attached secondary indexes too, see CASSANDRA-10130)
                 logger.debug("[Stream #{}] Received {} sstables from {} ({})", session.planId(), readers.size(), session.peer, readers);
+
+                // Accord will coordinate marking these SSTables as live
+                if (session.streamOperation() == StreamOperation.ACCORD_SSTABLE_IMPORT)
+                {
+                    Preconditions.checkState(cfs.metadata().isAccordEnabled());
+                    PendingLocalTransfer transfer = new PendingLocalTransfer(cfs.metadata().id, session.planId(), sstables);
+                    AccordService.instance().receivedSSTableImport(transfer);
+                    return;
+                }
+
                 cfs.addSSTables(readers);
 
                 //invalidate row and counter cache

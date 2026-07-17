@@ -20,8 +20,10 @@ package org.apache.cassandra.service.accord.txn;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -41,6 +43,7 @@ import accord.primitives.Routable.Domain;
 import accord.primitives.Seekable;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
+import accord.utils.Invariants;
 import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
@@ -50,17 +53,21 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.ParameterisedVersionedSerializer;
+import org.apache.cassandra.io.VersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordExecutor;
+import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static accord.primitives.Routables.Slice.Minimal;
 import static accord.utils.Invariants.require;
@@ -87,6 +94,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     private static final byte TYPE_EMPTY_KEY = 0;
     private static final byte TYPE_EMPTY_RANGE = 1;
     private static final byte TYPE_NOT_EMPTY = 2;
+    private static final byte TYPE_IMPORT = 3;
 
     public static TxnRead empty(Domain domain)
     {
@@ -109,34 +117,40 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     // Specifies the domain in case the TxnRead is empty and it can't be inferred
     private final Domain domain;
 
+    @Nullable
+    private final ImportMetadata importMetadata;
+
     private TxnRead(TableMetadatas tables, Domain domain)
     {
         super(new TxnNamedRead[0], domain);
         this.tables = tables;
         this.domain = domain;
         this.cassandraConsistencyLevel = null;
+        this.importMetadata = null;
     }
 
-    private TxnRead(TableMetadatas tables, @Nonnull TxnNamedRead[] items, @Nullable ConsistencyLevel cassandraConsistencyLevel)
+    private TxnRead(TableMetadatas tables, @Nonnull TxnNamedRead[] items, @Nullable ConsistencyLevel cassandraConsistencyLevel, @Nullable ImportMetadata importMetadata)
     {
         super(items, items[0].key().domain());
         this.tables = tables;
         checkArgument(cassandraConsistencyLevel == null || SUPPORTED_READ_CONSISTENCY_LEVELS.contains(cassandraConsistencyLevel), "Unsupported consistency level for read: %s", cassandraConsistencyLevel);
         this.cassandraConsistencyLevel = cassandraConsistencyLevel;
         this.domain = items[0].key().domain();
+        this.importMetadata = importMetadata;
         // TODO (expected): relax this condition, require only that it holds for each equal byte[]
         //  right now this means we don't permit two different range queries in the same transaction touching adjacent ranges
         //  this is a pretty weak restriction and doesn't interfere with current CQL capabilities, but should be addressed eventually
         require(domain == Domain.Key || ((Ranges)keys()).mergeTouching() == keys());
     }
 
-    private TxnRead(TableMetadatas tables, @Nonnull List<TxnNamedRead> items, @Nullable ConsistencyLevel cassandraConsistencyLevel)
+    private TxnRead(TableMetadatas tables, @Nonnull List<TxnNamedRead> items, @Nullable ConsistencyLevel cassandraConsistencyLevel, @Nullable ImportMetadata importMetadata)
     {
         super(items, items.get(0).key().domain());
         this.tables = tables;
         checkArgument(cassandraConsistencyLevel == null || SUPPORTED_READ_CONSISTENCY_LEVELS.contains(cassandraConsistencyLevel), "Unsupported consistency level for read: %s", cassandraConsistencyLevel);
         this.cassandraConsistencyLevel = cassandraConsistencyLevel;
         this.domain = items.get(0).key().domain();
+        this.importMetadata = importMetadata;
         require(domain == Domain.Key || ((Ranges)keys()).mergeTouching() == keys());
     }
 
@@ -151,7 +165,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         if (items.isEmpty())
             return empty(domain);
         sortReads(items);
-        return new TxnRead(tables, items, consistencyLevel);
+        return new TxnRead(tables, items, consistencyLevel, null);
     }
 
     public static TxnRead createSerialRead(List<SinglePartitionReadCommand> readCommands, ConsistencyLevel consistencyLevel, TableMetadatasAndKeys.KeyCollector keyCollector)
@@ -163,13 +177,13 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
             reads.add(new TxnNamedRead(txnDataName(USER, i), keyCollector.collect(readCommand.metadata(), readCommand.partitionKey()), readCommand, keyCollector.tables));
         }
         sortReads(reads);
-        return new TxnRead(keyCollector.tables, reads, consistencyLevel);
+        return new TxnRead(keyCollector.tables, reads, consistencyLevel, null);
     }
 
     public static TxnRead createCasRead(SinglePartitionReadCommand readCommand, ConsistencyLevel consistencyLevel, TableMetadatasAndKeys tablesAndKeys)
     {
         TxnNamedRead read = new TxnNamedRead(txnDataName(CAS_READ), (PartitionKey) tablesAndKeys.keys.get(0), readCommand, tablesAndKeys.tables);
-        return new TxnRead(tablesAndKeys.tables, ImmutableList.of(read), consistencyLevel);
+        return new TxnRead(tablesAndKeys.tables, ImmutableList.of(read), consistencyLevel, null);
     }
 
     // A read that declares it will read from keys but doesn't actually read any data so dependent transactions will
@@ -179,12 +193,22 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         List<TxnNamedRead> reads = new ArrayList<>(keys.size());
         for (int i = 0; i < keys.size(); i++)
             reads.add(new TxnNamedRead(txnDataName(USER, i), keys.get(i), null));
-        return new TxnRead(TableMetadatas.none(), reads, null);
+        return new TxnRead(TableMetadatas.none(), reads, null, null);
     }
 
     public static TxnRead createRangeRead(TableMetadatas tables, PartitionRangeReadCommand command, AbstractBounds<PartitionPosition> range, ConsistencyLevel consistencyLevel)
     {
-        return new TxnRead(tables, ImmutableList.of(new TxnNamedRead(txnDataName(USER), range, command, tables)), consistencyLevel);
+        return new TxnRead(tables, ImmutableList.of(new TxnNamedRead(txnDataName(USER), range, command, tables)), consistencyLevel, null);
+    }
+
+    // SSTable imports are performed through read range txn's. The value of the reads are not returned back to the client, rather
+    // the ImportTxn has custom logic to move SSTables in the pending directory to the live set. Because these txn's are performed
+    // using range reads, clients can see a window of inconsistency for read txn's that are concurrent with the ImportTxn. However,
+    // data will always be consistent.
+    public static TxnRead createImport(TableMetadatas tables, TokenRange range, TimeUUID[] planIds, long streamingEpoch)
+    {
+        ImportMetadata importMetadata = new ImportMetadata(planIds, streamingEpoch);
+        return new TxnRead(tables, ImmutableList.of(new TxnNamedRead(txnDataName(USER), range, null)), null, importMetadata);
     }
 
     public long estimatedSizeOnHeap()
@@ -291,6 +315,11 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
                 throw new UnhandledEnum(select.domain());
         }
 
+        if (isUsedForImport())
+        {
+            Invariants.require(!reads.isEmpty());
+            return new TxnRead(tables, reads, cassandraConsistencyLevel, importMetadata);
+        }
         return createTxnRead(tables, reads, cassandraConsistencyLevel, select.domain());
     }
 
@@ -372,6 +401,11 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
                 break;
             }
         }
+        if (read.isUsedForImport())
+        {
+            Invariants.require(!reads.isEmpty());
+            return new TxnRead(tables, reads, cassandraConsistencyLevel, importMetadata);
+        }
         return createTxnRead(tables, reads, cassandraConsistencyLevel, that.domain);
     }
 
@@ -394,6 +428,10 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
             return AsyncChains.success(new TxnData());
 
         AccordExecutor executor = ((AccordCommandStore)commandStore).executor();
+
+        if (isUsedForImport())
+            return items[0].performSSTableImport(executor, importMetadata, executeAt);
+
         if (items.length == 1 && key.equals(items[0].key()))
             return items[0].read(executor, tables, cassandraConsistencyLevel, key, executeAt);
 
@@ -406,12 +444,99 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         return AsyncChains.reduce(results, Data::merge);
     }
 
+    // Metadata that is needed to be kept track of for ImportTxns
+    public static class ImportMetadata
+    {
+        private final TimeUUID[] planIds;
+        private final Long streamingEpoch;
+
+        public ImportMetadata(TimeUUID[] planIds, Long streamingEpoch)
+        {
+            this.planIds = planIds;
+            this.streamingEpoch = streamingEpoch;
+        }
+
+        public TimeUUID[] getPlanIds()
+        {
+            return planIds;
+        }
+
+        public Long getStreamingEpoch()
+        {
+            return streamingEpoch;
+        }
+
+        @Override
+        public boolean equals(Object that)
+        {
+            return that instanceof ImportMetadata && equals((ImportMetadata) that);
+        }
+
+        public boolean equals(ImportMetadata that)
+        {
+            return Arrays.equals(this.planIds, that.planIds)
+                   && (Objects.equals(this.streamingEpoch, that.streamingEpoch));
+        }
+
+        @Override
+        public int hashCode()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        public static final VersionedSerializer<ImportMetadata, Version> serializer = new VersionedSerializer<>()
+        {
+            @Override
+            public void serialize(ImportMetadata importMetadata, DataOutputPlus out, Version version) throws IOException
+            {
+                serializeArray(importMetadata.getPlanIds(), out, TimeUUID.Serializer.instance);
+                out.writeLong(importMetadata.streamingEpoch);
+            }
+
+            public void skip(DataInputPlus in, Version version) throws IOException
+            {
+                skipArray(in, TimeUUID.Serializer.instance);
+                in.readLong();
+            }
+
+            @Override
+            public ImportMetadata deserialize(DataInputPlus in, Version version) throws IOException
+            {
+                TimeUUID[] planIds = deserializeArray(in, TimeUUID.Serializer.instance, TimeUUID[]::new);
+                Long streamingEpoch = in.readLong();
+                return new ImportMetadata(planIds, streamingEpoch);
+            }
+
+            @Override
+            public long serializedSize(ImportMetadata importMetadata, Version version)
+            {
+                long size = 0;
+                size += serializedArraySize(importMetadata.planIds, TimeUUID.Serializer.instance);
+                size += TypeSizes.LONG_SIZE;
+                return size;
+            }
+        };
+    }
+
+    @Override
+    public boolean isUsedForImport()
+    {
+        return importMetadata != null;
+    }
+
     public static final ParameterisedVersionedSerializer<TxnRead, TableMetadatasAndKeys, Version> serializer = new ParameterisedVersionedSerializer<>()
     {
         @Override
         public void serialize(TxnRead read, TableMetadatasAndKeys tablesAndKeys, DataOutputPlus out, Version version) throws IOException
         {
-            if (read.items.length > 0)
+            if (read.isUsedForImport())
+            {
+                out.write(TYPE_IMPORT);
+                serializeArray(read.items, tablesAndKeys, out, version, TxnNamedRead.serializer);
+                serializeNullable(read.cassandraConsistencyLevel, out, consistencyLevelSerializer);
+                serializeNullable(read.importMetadata, out, version, ImportMetadata.serializer);
+            }
+            else if (read.items.length > 0)
             {
                 out.write(TYPE_NOT_EMPTY);
                 serializeArray(read.items, tablesAndKeys, out, version, TxnNamedRead.serializer);
@@ -428,14 +553,18 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
             byte type = in.readByte();
             switch (type)
             {
-                default:
-                    throw new IllegalStateException("Unhandled type " + type);
                 case TYPE_EMPTY_KEY:
                 case TYPE_EMPTY_RANGE:
                     return;
                 case TYPE_NOT_EMPTY:
                     skipArray(tablesAndKeys, in, version, TxnNamedRead.serializer);
                     deserializeNullable(in, consistencyLevelSerializer);
+                case TYPE_IMPORT:
+                    skipArray(tablesAndKeys, in, version, TxnNamedRead.serializer);
+                    deserializeNullable(in, consistencyLevelSerializer);
+                    deserializeNullable(in, version, ImportMetadata.serializer);
+                default:
+                    throw new IllegalStateException("Unhandled type " + type);
             }
         }
 
@@ -453,9 +582,18 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
                 case TYPE_EMPTY_RANGE:
                     return EMPTY_RANGE;
                 case TYPE_NOT_EMPTY:
+                {
                     TxnNamedRead[] items = deserializeArray(tablesAndKeys, in, version, TxnNamedRead.serializer, TxnNamedRead[]::new);
                     ConsistencyLevel consistencyLevel = deserializeNullable(in, consistencyLevelSerializer);
-                    return new TxnRead(tablesAndKeys.tables, items, consistencyLevel);
+                    return new TxnRead(tablesAndKeys.tables, items, consistencyLevel, null);
+                }
+                case TYPE_IMPORT:
+                {
+                    TxnNamedRead[] items = deserializeArray(tablesAndKeys, in, version, TxnNamedRead.serializer, TxnNamedRead[]::new);
+                    ConsistencyLevel consistencyLevel = deserializeNullable(in, consistencyLevelSerializer);
+                    ImportMetadata importMetadata = deserializeNullable(in, version, ImportMetadata.serializer);
+                    return new TxnRead(tablesAndKeys.tables, items, consistencyLevel, importMetadata);
+                }
             }
         }
 
@@ -463,7 +601,13 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         public long serializedSize(TxnRead read, TableMetadatasAndKeys tablesAndKeys, Version version)
         {
             long size = 1; // type
-            if (read.items.length > 0)
+            if (read.isUsedForImport())
+            {
+                size += serializedArraySize(read.items, tablesAndKeys, version, TxnNamedRead.serializer);
+                size += serializedNullableSize(read.cassandraConsistencyLevel, consistencyLevelSerializer);
+                size += serializedNullableSize(read.importMetadata, version, ImportMetadata.serializer);
+            }
+            else if (read.items.length > 0)
             {
                 size += serializedArraySize(read.items, tablesAndKeys, version, TxnNamedRead.serializer);
                 size += serializedNullableSize(read.cassandraConsistencyLevel, consistencyLevelSerializer);

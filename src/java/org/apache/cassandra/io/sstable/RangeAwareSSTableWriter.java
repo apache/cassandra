@@ -32,6 +32,7 @@ import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
@@ -39,7 +40,7 @@ import org.apache.cassandra.utils.TimeUUID;
 public class RangeAwareSSTableWriter implements SSTableMultiWriter
 {
     private final List<PartitionPosition> boundaries;
-    private final List<Directories.DataDirectory> directories;
+    protected final List<Directories.DataDirectory> directories;
     private final int sstableLevel;
     private final long estimatedKeys;
     private final long repairedAt;
@@ -48,7 +49,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
     private final SSTableFormat<?, ?> format;
     private final SerializationHeader header;
     private final ILifecycleTransaction txn;
-    private int currentIndex = -1;
+    protected int currentIndex = -1;
     public final ColumnFamilyStore cfs;
     private final List<SSTableMultiWriter> finishedWriters = new ArrayList<>();
     private SSTableMultiWriter currentWriter = null;
@@ -95,9 +96,14 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
             if (currentWriter != null)
                 finishedWriters.add(currentWriter);
 
-            Descriptor desc = cfs.newSSTableDescriptor(cfs.getDirectories().getLocationForDisk(directories.get(currentIndex)), format);
+            Descriptor desc = cfs.newSSTableDescriptor(currentFile(), format);
             currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, pendingRepair, isTransient, null, sstableLevel, header, txn);
         }
+    }
+
+    protected File currentFile()
+    {
+        return cfs.getDirectories().getLocationForDisk(directories.get(currentIndex));
     }
 
     public void append(UnfilteredRowIterator partition)
@@ -139,7 +145,8 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
     public SSTableMultiWriter setOpenResult(boolean openResult)
     {
         finishedWriters.forEach((w) -> w.setOpenResult(openResult));
-        currentWriter.setOpenResult(openResult);
+        if (currentWriter != null)
+            currentWriter.setOpenResult(openResult);
         return this;
     }
 

@@ -59,6 +59,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordExecutor;
+import org.apache.cassandra.service.accord.LocalTransfers;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.TokenKey;
@@ -107,6 +108,13 @@ public class TxnNamedRead extends AbstractParameterisedVersionedSerialized<ReadC
         super(bytes);
         this.name = name;
         this.key = key;
+    }
+
+    TxnNamedRead(int name, TokenRange range, ByteBuffer bytes)
+    {
+        super(bytes);
+        this.name = name;
+        this.key = range;
     }
 
     public static TokenRange boundsAsAccordRange(AbstractBounds<PartitionPosition> range, TableId tableId)
@@ -398,6 +406,17 @@ public class TxnNamedRead extends AbstractParameterisedVersionedSerialized<ReadC
             {
                 return command.toCQLString();
             }
+        };
+        return submit(executor, callable, callable);
+    }
+
+    public AsyncChain<Data> performSSTableImport(AccordExecutor executor, TxnRead.ImportMetadata importMetadata, Timestamp executeAt)
+    {
+        Callable<Data> callable = () -> {
+            if (importMetadata.getStreamingEpoch() != executeAt.epoch())
+                throw new RuntimeException("SSTable import failed because of a concurrent topology change");
+            LocalTransfers.instance.activatePendingTransfers(importMetadata);
+            return new TxnData();
         };
         return submit(executor, callable, callable);
     }

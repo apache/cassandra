@@ -74,6 +74,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.snapshot.SnapshotManifest;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
@@ -117,6 +118,7 @@ public class Directories
     public static final String BACKUPS_SUBDIR = "backups";
     public static final String SNAPSHOT_SUBDIR = "snapshots";
     public static final String TMP_SUBDIR = "tmp";
+    public static final String PENDING_SUBDIR = "pending";
     public static final String SECONDARY_INDEX_NAME_SEPARATOR = ".";
     public static final String TABLE_DIRECTORY_NAME_SEPARATOR = "-";
 
@@ -316,10 +318,7 @@ public class Directories
         if (dataDirectory != null)
             for (File dir : dataPaths)
             {
-                // Note that we must compare absolute paths (not canonical) here since keyspace directories might be symlinks
-                Path dirPath = dir.toAbsolute().toPath();
-                Path locationPath = dataDirectory.location.toAbsolute().toPath();
-                if (dirPath.startsWith(locationPath))
+                if (dataDirectory.contains(dir))
                     return dir;
             }
         return null;
@@ -726,6 +725,33 @@ public class Directories
         return new File(snapshotDir, "schema.cql");
     }
 
+    @VisibleForTesting
+    public Set<File> getPendingLocations()
+    {
+        Set<File> result = new HashSet<>();
+        for (DataDirectory dataDirectory : dataDirectories.getAllDirectories())
+        {
+            for (File dir : dataPaths)
+            {
+                if (!dataDirectory.contains(dir))
+                    continue;
+                result.add(getOrCreate(dir, PENDING_SUBDIR));
+            }
+        }
+        return result;
+    }
+
+    public File getPendingLocationForDisk(DataDirectory dataDirectory, TimeUUID planId)
+    {
+        for (File dir : dataPaths)
+        {
+            if (!dataDirectory.contains(dir))
+                continue;
+            return getOrCreate(dir, PENDING_SUBDIR, planId.toString());
+        }
+        throw new RuntimeException("Could not find pending location");
+    }
+
     public static File getBackupsDirectory(Descriptor desc)
     {
         return getBackupsDirectory(desc.directory);
@@ -812,6 +838,13 @@ public class Directories
         public DataDirectory(Path location)
         {
             this.location = new File(location);
+        }
+
+        public boolean contains(File file)
+        {
+            // Note that we must compare absolute paths (not canonical) here since keyspace directories might be symlinks
+            Path path = file.toAbsolute().toPath();
+            return path.startsWith(location.toAbsolute().toPath());
         }
 
         public long getAvailableSpace()

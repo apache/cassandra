@@ -159,9 +159,13 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
 
     private File getDataDir(ColumnFamilyStore cfs, long totalSize) throws IOException
     {
+        boolean isAccordEnabled = cfs.metadata().isAccordEnabled();
         Directories.DataDirectory localDir = cfs.getDirectories().getWriteableLocation(totalSize);
         if (localDir == null)
             throw new IOException(format("Insufficient disk space to store %s", prettyPrintMemory(totalSize)));
+
+        if (isAccordEnabled)
+            return cfs.getDirectories().getPendingLocationForDisk(localDir, session.planId());
 
         File dir = cfs.getDirectories().getLocationForDisk(cfs.getDiskBoundaries().getCorrectDiskForKey(header.firstKey));
 
