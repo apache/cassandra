@@ -333,7 +333,7 @@ public class TrackedImportFailureTest extends TrackedTransferTestBase
             Uninterruptibles.sleepUninterruptibly(5, TimeUnit.SECONDS);
 
             // We exclude the missed instance because the SSTables streamed to the pending directory
-            // are not linked to LocalTransfers and hence cleanup does not know which SSTables to clean up
+            // are not linked to TransferTrackingService and hence cleanup does not know which SSTables to clean up
             assertPendingDirs(cluster.stream().filter(instance -> instance != missed).collect(Collectors.toList()), (File pendingUuidDir) -> {
                 Assertions.assertThat(pendingUuidDir.listUnchecked(File::isFile)).isEmpty();
             });
