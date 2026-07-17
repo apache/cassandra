@@ -559,10 +559,12 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
                 case TYPE_NOT_EMPTY:
                     skipArray(tablesAndKeys, in, version, TxnNamedRead.serializer);
                     deserializeNullable(in, consistencyLevelSerializer);
+                    return;
                 case TYPE_IMPORT:
                     skipArray(tablesAndKeys, in, version, TxnNamedRead.serializer);
                     deserializeNullable(in, consistencyLevelSerializer);
                     deserializeNullable(in, version, ImportMetadata.serializer);
+                    return;
                 default:
                     throw new IllegalStateException("Unhandled type " + type);
             }
