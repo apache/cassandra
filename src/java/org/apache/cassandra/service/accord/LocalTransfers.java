@@ -160,6 +160,7 @@ public class LocalTransfers
                     logger.debug("Deleting pending transfer directory: {}", pendingDir);
                     pendingDir.deleteRecursive();
                 }
+                local.remove(transfer.planId);
             }
         }
         finally
