@@ -45,6 +45,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.ProgressInfo;
+import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
@@ -159,12 +160,12 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
 
     private File getDataDir(ColumnFamilyStore cfs, long totalSize) throws IOException
     {
-        boolean isAccordEnabled = cfs.metadata().isAccordEnabled();
+        boolean performingAccordBulkDataImport = cfs.metadata().isAccordEnabled() && session.streamOperation() == StreamOperation.ACCORD_SSTABLE_IMPORT;
         Directories.DataDirectory localDir = cfs.getDirectories().getWriteableLocation(totalSize);
         if (localDir == null)
             throw new IOException(format("Insufficient disk space to store %s", prettyPrintMemory(totalSize)));
 
-        if (isAccordEnabled)
+        if (performingAccordBulkDataImport)
             return cfs.getDirectories().getPendingLocationForDisk(localDir, session.planId());
 
         File dir = cfs.getDirectories().getLocationForDisk(cfs.getDiskBoundaries().getCorrectDiskForKey(header.firstKey));
