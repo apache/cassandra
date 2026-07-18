@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableId;
@@ -79,9 +80,28 @@ public class PendingLocalTransfer
         File dst = cfs.getDirectories().getDirectoryForNewSSTables();
 
         dst.createFileIfNotExists();
+        Collection<SSTableReader> sstablesPriorToMove = new ArrayList<>(sstables.size());
         Collection<SSTableReader> moved = new ArrayList<>(sstables.size());
+        Collection<Descriptor> movedDescriptors = new ArrayList<>(sstables.size());
         for (SSTableReader sstable : sstables)
-            moved.add(SSTableReader.moveAndOpenSSTable(cfs, sstable.descriptor, cfs.getUniqueDescriptorFor(sstable.descriptor, dst), sstable.getComponents(), true));
+        {
+            try
+            {
+                sstablesPriorToMove.add(sstable);
+                Descriptor newDescriptor = cfs.getUniqueDescriptorFor(sstable.descriptor, dst);
+                movedDescriptors.add(newDescriptor);
+                SSTableReader movedSSTable = SSTableReader.moveAndOpenSSTable(cfs, sstable.descriptor, newDescriptor, sstable.getComponents(), true);
+                moved.add(movedSSTable);
+            }
+            catch (Throwable t)
+            {
+                sstablesPriorToMove.forEach(s -> s.selfRef().release());
+                logger.error("Failed importing sstables");
+                for (Descriptor descriptor : movedDescriptors)
+                    descriptor.getFormat().delete(descriptor);
+                throw new RuntimeException("Failed importing SSTables", t);
+            }
+        }
 
         // Add all SSTables atomically
         cfs.getTracker().addSSTables(moved);

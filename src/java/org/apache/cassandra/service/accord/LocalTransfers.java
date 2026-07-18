@@ -30,8 +30,6 @@ import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.utils.Invariants;
-
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
@@ -52,10 +50,10 @@ public class LocalTransfers
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
     // SSTable imports that we are coordinating
-    private final Map<Long, CoordinatedTransfer> coordinating = new ConcurrentHashMap<>();
+    public final Map<Long, CoordinatedTransfer> coordinating = new ConcurrentHashMap<>();
 
     // Added when we have a streamed SSTable in our pending directory
-    private final Map<TimeUUID, PendingLocalTransfer> local = new ConcurrentHashMap<>();
+    public final Map<TimeUUID, PendingLocalTransfer> local = new ConcurrentHashMap<>();
 
     final ExecutorPlus executor = executorFactory().pooled("LocalTrackedTransfers", Integer.MAX_VALUE);
 
@@ -160,6 +158,7 @@ public class LocalTransfers
                     logger.debug("Deleting pending transfer directory: {}", pendingDir);
                     pendingDir.deleteRecursive();
                 }
+
                 local.remove(transfer.planId);
             }
         }
@@ -218,23 +217,20 @@ public class LocalTransfers
         });
     }
 
+    // This method will be called by every Accord command store executor of
+    // the ranges it intersects
     public void activatePendingTransfers(TxnRead.ImportMetadata metadata)
     {
         lock.readLock().lock();
         try
         {
-            int activatedTransfer = 0;
             for (TimeUUID planId : metadata.getPlanIds())
             {
                 PendingLocalTransfer pendingLocalTransfer = local.get(planId);
                 if (pendingLocalTransfer != null)
-                {
-                    activatedTransfer += 1;
                     pendingLocalTransfer.activate();
-                }
             }
 
-            Invariants.require(activatedTransfer == 1);
         }
         finally
         {
