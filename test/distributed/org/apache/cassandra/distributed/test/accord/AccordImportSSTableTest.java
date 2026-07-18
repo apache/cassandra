@@ -24,6 +24,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -43,10 +44,14 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.io.sstable.CQLSSTableWriter;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.CoordinatedTransfer;
+import org.apache.cassandra.service.accord.LocalTransfers;
 import org.apache.cassandra.utils.Shared;
 
 import org.assertj.core.api.Assertions;
@@ -55,10 +60,12 @@ import org.junit.Test;
 
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static net.bytebuddy.matcher.ElementMatchers.named;
+import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 import static net.bytebuddy.matcher.ElementMatchers.takesNoArguments;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class AccordImportSSTableTest extends TestBaseImpl
 {
@@ -436,7 +443,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
 
             Uninterruptibles.sleepUninterruptibly(3, TimeUnit.SECONDS);
 
-            // Assert that each node has 2 SSTables
+            // Assert that each node has 1 SSTable
             cluster.forEach(instance -> {
                 instance.runOnInstance(() -> {
                     ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, "tbl");
@@ -454,6 +461,62 @@ public class AccordImportSSTableTest extends TestBaseImpl
         }
     }
 
+    @Test
+    public void testWithZeroCopyStreaming() throws Throwable
+    {
+
+    }
+
+    /**
+     * There is a bug with this case, because we are going to be marked as stable and then perform the read which has the
+     * TxnImport logic contained within it. For ImportTxn's, we need to retry the read.
+     */
+    @Test
+    public void testImportSSTableFailsActivation() throws Throwable
+    {
+        String file = Files.createTempDirectory(AccordImportSSTableTest.class.getSimpleName()).toString();
+
+        CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
+                                                           .forTable(TABLE_SCHEMA_CQL)
+                                                           .inDirectory(file)
+                                                           .using("INSERT INTO " + KEYSPACE + ".tbl (k, v) " + "VALUES (?, ?)");
+
+        // We import a 1 token SSTable so the txn read logic is not run multiple of times by different CommandStores
+        try (CQLSSTableWriter writer = builder.build())
+        {
+            writer.addRow(1, 1);
+        }
+
+        try (Cluster cluster = init(builder().withNodes(3).withoutVNodes()
+                                             .withDataDirCount(1)
+                                             .withInstanceInitializer(ByteBuddyInjections.FailDiskMove.install(2))
+                                             .withConfig((config) ->
+                                                         config
+                                                         .with(Feature.NETWORK, Feature.GOSSIP)).start()))
+        {
+            cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
+            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}");
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE_TABLE + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
+
+            cluster.get(1).runOnInstance(() -> {
+                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
+                Set<String> paths = Set.of(file);
+                cfs.importNewSSTables(paths, true, true, true, true, true, true, true);
+            });
+
+            Uninterruptibles.sleepUninterruptibly(30, TimeUnit.SECONDS);
+
+            cluster.forEach(instance -> {
+                instance.runOnInstance(() -> {
+                    ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, "tbl");
+                    assertEquals(1, cfs.getLiveSSTables().size());
+                });
+            });
+
+            assertLocalSelect(cluster, rows -> { assertRows(rows, row(1, 1), row(2, 1), row(3, 1)); });
+        }
+    }
+
     private static void bounce(Cluster cluster)
     {
         cluster.forEach(instance -> {
@@ -467,6 +530,17 @@ public class AccordImportSSTableTest extends TestBaseImpl
             }
             instance.startup();
         });
+    }
+
+    private static void assertLocalTransferIsCleanup(Iterable<IInvokableInstance> validate)
+    {
+        for (IInvokableInstance instance : validate)
+        {
+            instance.runOnInstance(() -> {
+                assertTrue(LocalTransfers.instance.local.isEmpty());
+                assertTrue(LocalTransfers.instance.coordinating.isEmpty());
+            });
+        }
     }
 
     private static void assertPendingDirs(Iterable<IInvokableInstance> validate, IIsolatedExecutor.SerializableConsumer<File> forPendingUuidDir)
@@ -502,6 +576,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
     public static class State
     {
         public static CountDownLatch waitForTopologyChange = new CountDownLatch(1);
+        public static AtomicBoolean shouldFailDisk = new AtomicBoolean(true);
     }
 
     public static class ByteBuddyInjections
@@ -548,6 +623,33 @@ public class AccordImportSSTableTest extends TestBaseImpl
             public static void finished(@This CassandraStreamReceiver self)
             {
                 throw new RuntimeException("Failing incoming stream for test");
+            }
+        }
+
+        public static class FailDiskMove
+        {
+            public static IInstanceInitializer install(int... nodes)
+            {
+                return (ClassLoader cl, ThreadGroup tg, int num, int generation) -> {
+                    for (int node : nodes)
+                        if (node == num)
+                            new ByteBuddy().rebase(SSTableReader.class)
+                                           .method(named("moveAndOpenSSTable").and(takesArguments(5)))
+                                           .intercept(MethodDelegation.to(FailDiskMove.class))
+                                           .make()
+                                           .load(cl, ClassLoadingStrategy.Default.INJECTION);
+                };
+            }
+
+            @SuppressWarnings("unused")
+            public static SSTableReader moveAndOpenSSTable(ColumnFamilyStore cfs, Descriptor oldDescriptor, Descriptor newDescriptor, Set<Component> components, boolean copyData, @SuperCall Callable<SSTableReader> r) throws Exception
+            {
+                if (State.shouldFailDisk.get())
+                {
+                    State.shouldFailDisk.set(false);
+                    throw new RuntimeException("Failing move and open SSTable");
+                }
+                return r.call();
             }
         }
     }
