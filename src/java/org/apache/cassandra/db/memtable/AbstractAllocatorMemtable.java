@@ -34,6 +34,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.Clock;
@@ -128,6 +130,31 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
     {
         return allocator;
     }
+
+    /**
+     * The memory limit is enforced once here, before a mutation starts
+     * and before any memtable-internal locks are taken; once started, a mutation runs to
+     * completion and individual allocations only track usage.
+     */
+    @Override
+    public final long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
+    {
+        allocator.awaitRoomToStart(opGroup);
+        return performPut(update, indexer, opGroup, assumeMissing);
+    }
+
+    /**
+     * CASSANDRA-21019: nested writes skip the room gate -- the enclosing mutation was
+     * gated when it started, and waiting here would run under its memtable-internal
+     * locks, where Barrier.markBlocking() cannot release a queued pre-barrier writer.
+     */
+    @Override
+    public final long putNested(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
+    {
+        return performPut(update, indexer, opGroup, assumeMissing);
+    }
+
+    protected abstract long performPut(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing);
 
     @Override
     public boolean shouldSwitch(ColumnFamilyStore.FlushReason reason, TableMetadata latest)

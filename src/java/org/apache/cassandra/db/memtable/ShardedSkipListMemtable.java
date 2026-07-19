@@ -139,7 +139,8 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
      *
      * commitLogSegmentPosition should only be null if this is a secondary index, in which case it is *expected* to be null
      */
-    public long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
+    @Override
+    protected long performPut(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
     {
         DecoratedKey key = update.partitionKey();
         MemtableShard shard = shards[boundaries.getShardForKey(key)];
@@ -514,7 +515,8 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
          *
          * commitLogSegmentPosition should only be null if this is a secondary index, in which case it is *expected* to be null
          */
-        public long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
+        @Override
+    protected long performPut(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
         {
             DecoratedKey key = update.partitionKey();
             MemtableShard shard = shards[boundaries.getShardForKey(key)];
