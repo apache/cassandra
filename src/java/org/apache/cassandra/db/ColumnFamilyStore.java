@@ -1327,18 +1327,43 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /**
      * Insert/Update the column family for this key.
      * Caller is responsible for acquiring Keyspace.switchLock
-     * param @ lock - lock that needs to be used.
-     * param @ key - key for update/insert
-     * param @ columnFamily - columnFamily changes
+     *
+     * @param update to be applied
+     * @param context write context for current update
+     * @param updateIndexes whether secondary indexes should be updated.
+     *                      When {@code false} this write is treated as a <em>nested</em> write: it skips the
+     *                      memtable pool's room-wait gate ({@link org.apache.cassandra.utils.memory.MemtableAllocator#awaitRoomToStart})
+     *                      and goes straight to {@link Memtable#putNested} instead of {@link Memtable#put}.
+     *                      Callers that pass {@code false} are already executing inside an enclosing mutation
+     *                      (e.g. a legacy 2i index write initiated from {@code indexer.onInserted()} under the
+     *                      base table's memtable-internal locks) and <strong>must not</strong> block for room,
+     *                      because doing so would deadlock the flush write-barrier (CASSANDRA-21019).
+     *                      As a consequence, a nested write may allocate slightly beyond the gated limit.
      */
     public void apply(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, CommitLogPosition commitLogPosition)
+    {
+        apply(update, indexer, opGroup, commitLogPosition, true);
+    }
+
+    /**
+     * CASSANDRA-21019: for the nested index-table write performed from within an
+     * enclosing mutation (CassandraIndex via TableWriteHandler.writeNested); it must not
+     * wait for memtable pool room -- putNested() skips write back-pressure.
+     */
+    public void applyNested(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, CommitLogPosition commitLogPosition)
+    {
+        apply(update, indexer, opGroup, commitLogPosition, false);
+    }
+
+    private void apply(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, CommitLogPosition commitLogPosition, boolean topLevel)
 
     {
         long start = System.nanoTime();
         try
         {
             Memtable mt = data.getMemtableFor(opGroup, commitLogPosition);
-            long timeDelta = mt.put(update, indexer, opGroup);
+            long timeDelta = topLevel ? mt.put(update, indexer, opGroup)
+                                      : mt.putNested(update, indexer, opGroup);
             DecoratedKey key = update.partitionKey();
             invalidateCachedPartition(key);
             metric.topWritePartitionFrequency.addSample(key.getKey(), 1);

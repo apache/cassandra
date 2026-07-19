@@ -24,4 +24,13 @@ import org.apache.cassandra.index.transactions.UpdateTransaction;
 public interface TableWriteHandler
 {
     void write(PartitionUpdate update, WriteContext context, UpdateTransaction updateTransaction);
+
+    /**
+     * CASSANDRA-21019: variant for the nested index-table write performed from within an
+     * enclosing mutation; must not wait for memtable pool room.
+     */
+    default void writeNested(PartitionUpdate update, WriteContext context, UpdateTransaction updateTransaction)
+    {
+        write(update, context, updateTransaction);
+    }
 }

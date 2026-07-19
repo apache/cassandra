@@ -39,4 +39,13 @@ public class CassandraTableWriteHandler implements TableWriteHandler
         Tracing.trace("Adding to {} memtable", update.metadata().name);
         cfs.apply(update, updateTransaction, ctx.getGroup(), ctx.getPosition());
     }
+
+    @Override
+    @SuppressWarnings("resource")
+    public void writeNested(PartitionUpdate update, WriteContext context, UpdateTransaction updateTransaction)
+    {
+        CassandraWriteContext ctx = CassandraWriteContext.fromContext(context);
+        Tracing.trace("Adding to {} memtable", update.metadata().name);
+        cfs.applyNested(update, updateTransaction, ctx.getGroup(), ctx.getPosition());
+    }
 }

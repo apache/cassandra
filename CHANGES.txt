@@ -1,4 +1,5 @@
 4.0.22
+ * Separate memtable memory usage tracking from limit checking, and fixes a a flush writeBarrier deadlock (CASSANDRA-21019)
  * Fixes for fully-expired SSTable index notification in compaction (CASSANDRA-21577)
  * During streaming Bounds.getNonOverlappingBounds produces incorrect bounds leading to row/counter cache not invalidate correctly (CASSANDRA-21594)
  * Make runWithCompactionsDisabled return non-null on success (CASSANDRA-21527)

@@ -297,6 +297,20 @@ public class Memtable implements Comparable<Memtable>
      */
     long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
     {
+        // CASSANDRA-21019: enforce the memory limit once, before the mutation starts;
+        // individual allocations no longer wait for room.
+        allocator.awaitRoomToStart(opGroup);
+        return putNested(update, indexer, opGroup);
+    }
+
+    /**
+     * Put variant for writes performed inside an already-started mutation on the same
+     * thread (legacy 2i applying to its index table's memtable from indexer.onInserted()).
+     * Must not wait for pool room: the enclosing mutation was gated when it started, and
+     * waiting here would hold its locks (CASSANDRA-21019).
+     */
+    long putNested(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
+    {
         Cloner cloner = allocator.cloner(opGroup);
         AtomicBTreePartition previous = partitions.get(update.partitionKey());
 
