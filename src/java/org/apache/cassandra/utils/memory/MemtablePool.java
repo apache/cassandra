@@ -96,9 +96,9 @@ public abstract class MemtablePool
     }
 
     /**
-     * Note the difference between acquire() and allocate(); allocate() makes more resources available to all owners,
-     * and acquire() makes shared resources unavailable but still recorded. An Owner must always acquire resources,
-     * but only needs to allocate if there are none already available. This distinction is not always meaningful.
+     * Tracks memory attributed to this pool. Since CASSANDRA-21019 allocations only
+     * record usage (allocated/reclaiming) and drive cleaning; the limit is enforced
+     * before a mutation starts, via SubAllocator.awaitRoom() against belowLimit().
      */
     public class SubPool
     {
@@ -150,26 +150,12 @@ public abstract class MemtablePool
 
         /** Methods to allocate space **/
 
-        boolean tryAllocate(long size)
+        /** True if the pool is under its limit; reserves nothing. See SubAllocator.awaitRoom(). */
+        boolean belowLimit()
         {
-            long result = allocatedUpdater.addAndGet(this, size);
-            if (result > limit) {
-                // We have switched from CAS loop and a strict limit check
-                // to addAndGet with a possible post-correction for perf reasons.
-                // Why this is OK:
-                // - We may temporarily exceed the limit here, but that also happens in case of blocking op order.
-                // - We decrease the allocated value, but that was also possible as part of the adjustment logic.
-                //
-                // We don’t call released() here because it triggers hasRoom.signalAll(), which would
-                //   immediately wake up the current thread before memory is reclaimed and cause a busy loop.
-                // In a rare case, an unsuccessful attempt of a larger allocation near a limit by one thread
-                // may temporarily block progress on a smaller concurrent allocation by another thread,
-                // but both threads will be signaled and be able to proceed once memory is reclaimed.
-                allocatedUpdater.addAndGet(this, -size);
-                return false;
-            }
-            return true;
+            return allocated < limit;
         }
+
 
         /**
          * apply the size adjustment to allocated, bypassing any limits or constraints. If this reduces the
@@ -190,10 +176,6 @@ public abstract class MemtablePool
             maybeClean();
         }
 
-        void acquired()
-        {
-            maybeClean();
-        }
 
         void released(long size)
         {

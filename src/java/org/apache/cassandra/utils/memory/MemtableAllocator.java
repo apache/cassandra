@@ -78,6 +78,15 @@ public abstract class MemtableAllocator
     }
 
     /**
+     * enforce the memtable memory limits once before a mutation starts
+     */
+    public void awaitRoomToStart(OpOrder.Group opGroup)
+    {
+        onHeap.awaitRoom(opGroup);
+        offHeap.awaitRoom(opGroup);
+    }
+
+    /**
      * Mark this allocator reclaiming; this will permit any outstanding allocations to temporarily
      * overshoot the maximum memory limit so that flushing can begin immediately
      */
@@ -166,34 +175,47 @@ public abstract class MemtableAllocator
                 allocate(size, opGroup);
         }
 
-        // allocate memory in the tracker, and mark ourselves as owning it
+        // account memory in the tracker, and mark ourselves as owning it
         public void allocate(long size, OpOrder.Group opGroup)
         {
             assert size >= 0;
 
+            // CASSANDRA-21019: individual allocations only track usage (which still drives
+            // cleaner/flush triggering via maybeClean); the memory limit is enforced once,
+            // in awaitRoom(), before a mutation starts.
+            allocated(size);
+        }
+
+        /**
+         * Wait, if necessary, until the parent pool is below its limit, without reserving
+         * any memory. CASSANDRA-21019: this is the single point at which the memory limit
+         * pauses writes; call before starting to apply a mutation, before any
+         * memtable-internal locks are taken. Groups marked blocking by
+         * Barrier.markBlocking() skip or are released from this wait, exactly as they
+         * were from allocate(), so a flush can always drain the ops its barrier awaits.
+         */
+        public void awaitRoom(OpOrder.Group opGroup)
+        {
+            // A pool with no limit configured is never allocated from and never signalled
+            // (e.g. the off-heap pool under heap_buffers / unslabbed_heap_buffers, both
+            // created with an off-heap limit of 0)
+            if (parent.limit <= 0)
+                return;
+
             while (true)
             {
-                if (parent.tryAllocate(size))
-                {
-                    acquired(size);
+                if (parent.belowLimit())
                     return;
-                }
                 if (opGroup.isBlocking())
-                {
-                    allocated(size);
                     return;
-                }
                 WaitQueue.Signal signal = parent.hasRoom().register(parent.blockedTimerContext(), Timer.Context::stop);
                 opGroup.notifyIfBlocking(signal);
-                boolean allocated = parent.tryAllocate(size);
-                if (allocated)
+                if (parent.belowLimit())
                 {
                     signal.cancel();
-                    acquired(size);
                     return;
                 }
-                else
-                    signal.awaitThrowUncheckedOnInterrupt();
+                signal.awaitThrowUncheckedOnInterrupt();
             }
         }
 
@@ -214,22 +236,6 @@ public abstract class MemtableAllocator
             }
         }
 
-        /**
-         * Retroactively mark an amount acquired in the tracker, and owned by us. If the state is discarding,
-         * then also update reclaiming since the flush operation is waiting at the barrier for in-flight writes,
-         * and it will flush this memory too.
-         */
-        private void acquired(long size)
-        {
-            parent.acquired();
-            owns.add(size);
-
-            if (state == LifeCycle.DISCARDING)
-            {
-                logger.trace("Allocated {} bytes whilst discarding", size);
-                updateReclaiming();
-            }
-        }
 
         /**
          * If the state is still live, then we update the memory we own here and in the parent.

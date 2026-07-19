@@ -1522,7 +1522,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         {
             Memtable mt = data.getMemtableFor(opGroup, commitLogPosition);
             UpdateTransaction indexer = newUpdateTransaction(update, context, updateIndexes, mt);
-            long timeDelta = mt.put(update, indexer, opGroup);
+            // updateIndexes == false identifies the nested index-table write performed
+            // from within an enclosing mutation (CassandraTableWriteHandler.write via
+            // CassandraIndex); it must not wait for memtable pool room (CASSANDRA-21019).
+            // If a future caller passes false for a top-level write, route it through
+            // put() instead -- putNested() skips write back-pressure.
+            long timeDelta = updateIndexes ? mt.put(update, indexer, opGroup)
+                                           : mt.putNested(update, indexer, opGroup);
             DecoratedKey key = update.partitionKey();
             invalidateCachedPartition(key);
             metric.topWritePartitionFrequency.addSample(key.getKey(), 1);

@@ -204,6 +204,26 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
      */
     long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing);
 
+    /**
+     * Put variant for writes performed inside an already-started mutation on the same
+     * thread, e.g. legacy 2i applying to its index table's memtable from
+     * indexer.onInserted(), which runs under the base table's memtable-internal locks.
+     * Such writes must not wait for memtable pool room: parking there would hold the
+     * enclosing locks and deadlock the flush writeBarrier (CASSANDRA-21019); the memory
+     * limit was already enforced when the enclosing mutation started.
+     * Implementations that apply write back-pressure in put() MUST override this to
+     * bypass it; only implementations without a room gate may keep this default.
+     */
+    default long putNested(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
+    {
+        return put(update, indexer, opGroup, assumeMissing);
+    }
+
+    default long putNested(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
+    {
+        return putNested(update, indexer, opGroup, false);
+    }
+
     // Read operations are provided by the UnfilteredSource interface.
 
     // Statistics
