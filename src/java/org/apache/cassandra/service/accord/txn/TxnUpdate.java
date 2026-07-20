@@ -593,17 +593,18 @@ public final class TxnUpdate extends AccordUpdate
 
     public Keys sortedFragmentKeys(List<PreTransformedBlock> preTransformedBlocks)
     {
-        // The PreTransformedBlock constructor maintains the invariant that
-        // all TxnWrite.Fragments are sorted by key
-        if (preTransformedBlocks.size() == 1)
-            return Keys.of(preTransformedBlocks.get(0).getKeys());
-
         List<Key> keys = new ArrayList<>();
+
         for (PreTransformedBlock preTransformedBlock : preTransformedBlocks)
-            keys.addAll(preTransformedBlock.getKeys());
+            preTransformedBlock.accumulateKeys(keys);
+
+        // The PreTransformedBlock constructor maintains the invariant that
+        // all TxnWrite.Fragments are sorted by key, so we do not need to sort them again
+        if (preTransformedBlocks.size() == 1)
+            return Keys.of(keys);
 
         keys.sort(RoutableKey::compareTo);
-        return Keys.of(keys, k -> k);
+        return Keys.of(keys);
     }
 
     public static class PreTransformedBlock
@@ -631,9 +632,8 @@ public final class TxnUpdate extends AccordUpdate
             return noneConditions != null;
         }
 
-        public List<Key> getKeys()
+        public void accumulateKeys(List<Key> keys)
         {
-            List<Key> keys = new ArrayList<>();
             if (isTrailingUpdate())
             {
                 for (int i = 0; i < noneConditions.size(); i++)
@@ -643,7 +643,6 @@ public final class TxnUpdate extends AccordUpdate
                 for (int i = 0; i < fragmentConditionIndexPair.size(); i++)
                     keys.add(fragmentConditionIndexPair.get(i).left().key);
             }
-            return keys;
         }
 
         public Pair<Integer, Block> generateBlock(int conditionalBlockIndex, TableMetadatas tables)
