@@ -172,9 +172,12 @@ public class GuardrailsConfigCommandsTest extends CQLTester
             for (Method method : entry.getValue())
             {
                 String guardrailName = GuardrailsConfigCommand.toSnakeCase(method.getName().substring(3));
-                if (entry.getValue().size() == 1)
+                // Thresholds are grouped under a collapsed "<name>_threshold" key that intentionally differs from
+                // the field name (e.g. "<name>_fail_threshold"), whether or not the guardrail has both warn and
+                // fail halves. Everything else keys directly by its field name.
+                boolean isThreshold = method.getName().endsWith("Threshold");
+                if (!isThreshold)
                     assertEquals(entry.getKey(), guardrailName);
-                // else it is threshold, so it does not match the key
 
                 // assert converted snake-case guardrail name is actually in Config / cassandra.yaml
                 assertTrue(configFieldNames.contains(guardrailName));
@@ -238,6 +241,7 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     "materialized_views_per_table_threshold       [-1, -1]      \n" +
     "maximum_replication_factor_threshold         [-1, -1]      \n" +
     "maximum_timestamp_threshold                  [null, null]  \n" +
+    "minimum_cms_size_threshold                   -1            \n" +
     "minimum_replication_factor_threshold         [-1, -1]      \n" +
     "minimum_timestamp_threshold                  [null, null]  \n" +
     "page_size_threshold                          [-1, -1]      \n" +
@@ -288,6 +292,7 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     "maximum_replication_factor_warn_threshold         -1   \n" +
     "maximum_timestamp_fail_threshold                  null \n" +
     "maximum_timestamp_warn_threshold                  null \n" +
+    "minimum_cms_size_fail_threshold                   -1   \n" +
     "minimum_replication_factor_fail_threshold         -1   \n" +
     "minimum_replication_factor_warn_threshold         -1   \n" +
     "minimum_timestamp_fail_threshold                  null \n" +
