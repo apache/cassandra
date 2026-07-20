@@ -80,14 +80,12 @@ public class PendingLocalTransfer
         File dst = cfs.getDirectories().getDirectoryForNewSSTables();
 
         dst.createFileIfNotExists();
-        Collection<SSTableReader> sstablesPriorToMove = new ArrayList<>(sstables.size());
         Collection<SSTableReader> moved = new ArrayList<>(sstables.size());
         Collection<Descriptor> movedDescriptors = new ArrayList<>(sstables.size());
         for (SSTableReader sstable : sstables)
         {
             try
             {
-                sstablesPriorToMove.add(sstable);
                 Descriptor newDescriptor = cfs.getUniqueDescriptorFor(sstable.descriptor, dst);
                 movedDescriptors.add(newDescriptor);
                 SSTableReader movedSSTable = SSTableReader.moveAndOpenSSTable(cfs, sstable.descriptor, newDescriptor, sstable.getComponents(), true);
@@ -95,8 +93,7 @@ public class PendingLocalTransfer
             }
             catch (Throwable t)
             {
-                sstablesPriorToMove.forEach(s -> s.selfRef().release());
-                logger.error("Failed importing sstables");
+                moved.forEach(s -> s.selfRef().release());
                 for (Descriptor descriptor : movedDescriptors)
                     descriptor.getFormat().delete(descriptor);
                 throw new RuntimeException("Failed importing SSTables", t);

@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -31,7 +33,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessagingService;
@@ -94,69 +95,35 @@ public class LocalTransfers
         }
     }
 
-    private void cleanupCoordinatedTransfer(CoordinatedTransfer transfer)
+    private void purge(TimeUUID timeUUID)
     {
         lock.writeLock().lock();
         try
         {
-            purge(transfer);
-        }
-        finally
-        {
-            lock.writeLock().unlock();
-        }
-    }
-
-    private void cleanupPendingLocalTransfer(TimeUUID timeUUID)
-    {
-        lock.writeLock().lock();
-        try
-        {
-            purge(local.get(timeUUID));
-        }
-        finally
-        {
-            lock.writeLock().unlock();
-        }
-    }
-
-    private void purge(TransferFailed failed)
-    {
-        lock.writeLock().lock();
-        try
-        {
-            PendingLocalTransfer pending = local.get(failed.planId);
-            if (pending == null)
+            PendingLocalTransfer transfer = local.get(timeUUID);
+            if (transfer == null)
             {
-                logger.warn("Cannot purge unknown local pending transfer {}", failed);
+                logger.warn("Cannot purge unknown local pending transfer {}", transfer);
                 return;
             }
-            purge(pending);
-        }
-        finally
-        {
-            lock.writeLock().unlock();
-        }
-    }
 
-    private void purge(PendingLocalTransfer transfer)
-    {
-        logger.info("Cleaning up pending transfer {}", transfer);
-
-        lock.writeLock().lock();
-        try
-        {
+            logger.info("Cleaning up pending transfer {}", transfer);
             // Delete the entire pending transfer directory /pending/<planId>/
             if (!transfer.sstables.isEmpty())
             {
-                SSTableReader sstable = transfer.sstables.iterator().next();
-                File pendingDir = sstable.descriptor.directory;
+                Set<File> pendingDirs = new HashSet<>();
+                transfer.sstables.forEach(sstable -> {
+                    pendingDirs.add(sstable.descriptor.directory);
+                });
 
-                if (pendingDir.exists())
+                for (File pendingDir : pendingDirs)
                 {
-                    Preconditions.checkState(pendingDir.absolutePath().contains(transfer.planId.toString()));
-                    logger.debug("Deleting pending transfer directory: {}", pendingDir);
-                    pendingDir.deleteRecursive();
+                    if (pendingDir.exists())
+                    {
+                        Preconditions.checkState(pendingDir.absolutePath().contains(transfer.planId.toString()));
+                        logger.debug("Deleting pending transfer directory: {}", pendingDir);
+                        pendingDir.deleteRecursive();
+                    }
                 }
 
                 local.remove(transfer.planId);
@@ -178,10 +145,8 @@ public class LocalTransfers
             coordinating.remove(transfer.id());
 
             CoordinatedTransfer.SingleTransferResult localPending = transfer.streamResults.get(FBUtilities.getBroadcastAddressAndPort());
-            PendingLocalTransfer localTransfer;
-            TimeUUID planId;
-            if (localPending != null && (planId = localPending.planId()) != null && (localTransfer = local.get(planId)) != null)
-                purge(localTransfer);
+            if (localPending != null)
+                purge(localPending.planId());
         }
         finally
         {
@@ -194,7 +159,7 @@ public class LocalTransfers
         executor.submit(() -> {
             try
             {
-                cleanupCoordinatedTransfer(transfer);
+                purge(transfer);
             }
             catch (Throwable t)
             {
@@ -208,7 +173,7 @@ public class LocalTransfers
         executor.submit(() -> {
             try
             {
-                cleanupPendingLocalTransfer(timeUUID);
+                purge(timeUUID);
             }
             catch (Throwable t)
             {
@@ -244,7 +209,7 @@ public class LocalTransfers
     }
 
     public static IVerbHandler<TransferFailed> verbHandler = message -> {
-        LocalTransfers.instance().purge(message.payload);
+        LocalTransfers.instance().purge(message.payload.planId);
         MessagingService.instance().respond(NoPayload.noPayload, message);
     };
 }

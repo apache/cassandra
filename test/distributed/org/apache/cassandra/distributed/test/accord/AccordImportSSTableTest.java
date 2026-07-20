@@ -82,7 +82,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
         CQLSSTableWriter.Builder builder1 = CQLSSTableWriter.builder()
                                                            .forTable(TABLE_SCHEMA_CQL)
                                                            .inDirectory(file)
-                                                           .using("INSERT INTO " + KEYSPACE + ".tbl (k, v) " + "VALUES (?, ?)");
+                                                           .using("INSERT INTO " + KEYSPACE_TABLE + "(k, v) " + "VALUES (?, ?)");
 
         try (CQLSSTableWriter writer = builder1.build())
         {
@@ -93,7 +93,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
         CQLSSTableWriter.Builder builder2 = CQLSSTableWriter.builder()
                                                            .forTable(TABLE_SCHEMA_CQL)
                                                            .inDirectory(file)
-                                                           .using("INSERT INTO " + KEYSPACE + ".tbl (k, v) " + "VALUES (?, ?)");
+                                                           .using("INSERT INTO " + KEYSPACE_TABLE + "(k, v) " + "VALUES (?, ?)");
 
 
         try (CQLSSTableWriter writer = builder2.build())
@@ -128,12 +128,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
             Uninterruptibles.sleepUninterruptibly(3, TimeUnit.SECONDS);
 
             // Assert that each node has 2 SSTables
-            cluster.forEach(instance -> {
-                instance.runOnInstance(() -> {
-                    ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, "tbl");
-                    assertEquals(2, cfs.getLiveSSTables().size());
-                });
-            });
+            assertSSTableCount(cluster, 2);
 
             // Assert that each node has the correct values
             assertLocalSelect(cluster, rows -> { assertRows(rows, row(1, 1), row(2, 1), row(3, 1)); });
@@ -145,6 +140,10 @@ public class AccordImportSSTableTest extends TestBaseImpl
         }
     }
 
+    /**
+     * This might have a potential issue with us throwing an exception instead of having a custom class to notify
+     * that the read was a failure.
+     */
     @Test
     public void testSSTableImportWithConcurrentTopologyChangeFails() throws Throwable
     {
@@ -153,13 +152,11 @@ public class AccordImportSSTableTest extends TestBaseImpl
         CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
                                                            .forTable(TABLE_SCHEMA_CQL)
                                                            .inDirectory(file)
-                                                           .using("INSERT INTO " + KEYSPACE + ".tbl (k, v) " + "VALUES (?, ?)");
+                                                           .using("INSERT INTO " + KEYSPACE_TABLE + "(k, v) " + "VALUES (?, ?)");
 
         try (CQLSSTableWriter writer = builder.build())
         {
             writer.addRow(1, 1);
-            writer.addRow(2, 1);
-            writer.addRow(3, 1);
         }
 
         try (Cluster cluster = init(builder().withNodes(3)
@@ -180,7 +177,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
                     Set<String> paths = Set.of(file);
                     Assertions.assertThatThrownBy(() -> cfs.importNewSSTables(paths, true, true, true, true, true, true, true))
                               .isInstanceOf(RuntimeException.class)
-                              .hasMessageContaining("SSTable import failed because of a concurrent topology change");
+                              .hasMessageContaining("Failed adding SSTables");
                 });
             }, "importer");
             importer.start();
@@ -190,12 +187,11 @@ public class AccordImportSSTableTest extends TestBaseImpl
                 State.waitForTopologyChange.countDown();
             });
 
+            importer.join();
+
             Uninterruptibles.sleepUninterruptibly(3, TimeUnit.SECONDS);
 
-            cluster.forEach(instance -> instance.runOnInstance(() -> {
-                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
-                assertEquals(0, cfs.getLiveSSTables().size());
-            }));
+            assertSSTableCount(cluster, 0);
         }
     }
 
@@ -208,7 +204,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
         CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
                                                            .forTable(TABLE_SCHEMA_CQL)
                                                            .inDirectory(file)
-                                                           .using("INSERT INTO " + KEYSPACE + ".tbl (k, v) " + "VALUES (?, ?)");
+                                                           .using("INSERT INTO " + KEYSPACE_TABLE + "(k, v) " + "VALUES (?, ?)");
 
         try (CQLSSTableWriter writer = builder.build())
         {
@@ -256,7 +252,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
         CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
                                                            .forTable(TABLE_SCHEMA_CQL)
                                                            .inDirectory(file)
-                                                           .using("INSERT INTO " + KEYSPACE + ".tbl (k, v) " + "VALUES (?, ?)");
+                                                           .using("INSERT INTO " + KEYSPACE_TABLE + " (k, v) " + "VALUES (?, ?)");
 
         try (CQLSSTableWriter writer = builder.build())
         {
@@ -302,7 +298,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
         CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
                                                            .forTable(TABLE_SCHEMA_CQL)
                                                            .inDirectory(file)
-                                                           .using("INSERT INTO " + KEYSPACE + ".tbl (k, v) " + "VALUES (?, ?)");
+                                                           .using("INSERT INTO " + KEYSPACE_TABLE + " (k, v) " + "VALUES (?, ?)");
 
         try (CQLSSTableWriter writer = builder.build())
         {
@@ -348,7 +344,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
         CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
                                                            .forTable(TABLE_SCHEMA_CQL)
                                                            .inDirectory(file)
-                                                           .using("INSERT INTO " + KEYSPACE + ".tbl (k, v) " + "VALUES (?, ?)");
+                                                           .using("INSERT INTO " + KEYSPACE_TABLE + " (k, v) " + "VALUES (?, ?)");
 
         try (CQLSSTableWriter writer = builder.build())
         {
@@ -390,7 +386,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
             // Wait until the recovery coordinator picks up the Import Txn
             Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS);
 
-            for (int i = 2; i <= 3; i++)
+            for (int i = 1; i <= 3; i++)
             {
                 cluster.get(i).runOnInstance(() -> {
                     ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
@@ -403,23 +399,111 @@ public class AccordImportSSTableTest extends TestBaseImpl
     }
 
     @Test
-    public void testImportOneTokenSSTable() throws Throwable
+    public void testRecoveryCoordinatorPerformsImport2() throws Throwable
     {
         String file = Files.createTempDirectory(AccordImportSSTableTest.class.getSimpleName()).toString();
 
         CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
                                                            .forTable(TABLE_SCHEMA_CQL)
                                                            .inDirectory(file)
-                                                           .using("INSERT INTO " + KEYSPACE + ".tbl (k, v) " + "VALUES (?, ?)");
+                                                           .using("INSERT INTO " + KEYSPACE_TABLE + " (k, v) " + "VALUES (?, ?)");
 
         try (CQLSSTableWriter writer = builder.build())
         {
             writer.addRow(1, 1);
+            writer.addRow(2, 1);
+            writer.addRow(3, 1);
+        }
+
+        try (Cluster cluster = init(builder().withNodes(3).withoutVNodes()
+                                             .withDataDirCount(1).withConfig((config) ->
+                                                                             config
+                                                                             .set("accord.recover_txn", "100ms")
+                                                                             .set("accord.permit_local_delivery", false)
+                                                                             .with(Feature.NETWORK, Feature.GOSSIP)).start()))
+        {
+            cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
+            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}");
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE_TABLE + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
+
+            // Node 1 sends the StableThenRead message to node 2 and then node 1 fails, so the
+            // only existence of the stable message is at node 2
+            cluster.filters().outbound().messagesMatching((from, to, msg) -> {
+                if (from == 1 && msg.verb() == Verb.ACCORD_STABLE_THEN_READ_REQ.id)
+                {
+                    // We prevent nodes 1 & 3 from receiving the StableThenRead message,
+                    // from node 1 and then prevent node 1 from receiving any more messages
+                    cluster.filters().outbound().from(1).to(1, 3).drop();
+                    cluster.filters().inbound().to(1).drop();
+
+                    // We still want node 2 to receive the message, so the ImportTxn is
+                    // stable, however once that is done we do not want to receive any more messages
+                    // from node 1
+                    if (to == 2)
+                    {
+                        cluster.filters().outbound().from(1).drop();
+                        return false;
+                    }
+                    return true;
+                }
+                return false;
+            }).drop();
+
+            cluster.get(1).runOnInstance(() -> {
+                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
+                Set<String> paths = Set.of(file);
+                Assertions.assertThatThrownBy(() -> cfs.importNewSSTables(paths, true, true, true, true, true, true, true));
+            });
+
+            // Wait until the recovery coordinator picks up the Import Txn
+            Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS);
+
+            Iterable<IInvokableInstance> up = cluster.stream()
+                                                     .filter(instance -> instance != cluster.get(1))
+                                                     .collect(Collectors.toList());
+
+            assertSSTableCount(up, 1);
+
+            assertLocalSelect(up, rows -> { assertRows(rows, row(1, 1), row(2, 1), row(3, 1)); });
+        }
+    }
+
+    @Test
+    public void testImportSSTablesWithZeroCopyStreaming() throws Throwable
+    {
+
+    }
+
+    @Test
+    public void testImportSSTablesCleanupWithMultipleDataDirectories() throws Throwable
+    {
+        String file = Files.createTempDirectory(AccordImportSSTableTest.class.getSimpleName()).toString();
+
+        CQLSSTableWriter.Builder builder1 = CQLSSTableWriter.builder()
+                                                            .forTable(TABLE_SCHEMA_CQL)
+                                                            .inDirectory(file)
+                                                            .using("INSERT INTO " + KEYSPACE_TABLE + "(k, v) " + "VALUES (?, ?)");
+
+        try (CQLSSTableWriter writer = builder1.build())
+        {
+            writer.addRow(1, 1);
+            writer.addRow(2, 1);
+        }
+
+        CQLSSTableWriter.Builder builder2 = CQLSSTableWriter.builder()
+                                                            .forTable(TABLE_SCHEMA_CQL)
+                                                            .inDirectory(file)
+                                                            .using("INSERT INTO " + KEYSPACE_TABLE + "(k, v) " + "VALUES (?, ?)");
+
+
+        try (CQLSSTableWriter writer = builder2.build())
+        {
+            writer.addRow(3, 1);
         }
 
         try (Cluster cluster = init(builder().withNodes(3)
                                              .withoutVNodes()
-                                             .withDataDirCount(1)
+                                             .withDataDirCount(3)
                                              .withConfig((config) ->
                                                          config
                                                          .with(Feature.NETWORK, Feature.GOSSIP)).start()))
@@ -443,16 +527,12 @@ public class AccordImportSSTableTest extends TestBaseImpl
 
             Uninterruptibles.sleepUninterruptibly(3, TimeUnit.SECONDS);
 
-            // Assert that each node has 1 SSTable
-            cluster.forEach(instance -> {
-                instance.runOnInstance(() -> {
-                    ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, "tbl");
-                    assertEquals(1, cfs.getLiveSSTables().size());
-                });
-            });
+            // Assert that each node has 2 SSTables
+            assertSSTableCount(cluster, 2);
 
             // Assert that each node has the correct values
-            assertLocalSelect(cluster, rows -> { assertRows(rows, row(1, 1)); });
+            assertLocalSelect(cluster, rows -> { assertRows(rows, row(1, 1), row(2, 1), row(3, 1)); });
+
 
             // Assert that SSTables are moved from the pending directories
             assertPendingDirs(cluster, (File pendingUuidDir) -> {
@@ -461,15 +541,10 @@ public class AccordImportSSTableTest extends TestBaseImpl
         }
     }
 
-    @Test
-    public void testWithZeroCopyStreaming() throws Throwable
-    {
-
-    }
-
     /**
      * There is a bug with this case, because we are going to be marked as stable and then perform the read which has the
-     * TxnImport logic contained within it. For ImportTxn's, we need to retry the read.
+     * TxnImport logic contained within it. For ImportTxn's we prevent this replica from making any progress in the case,
+     * where we can not properly execute a read import txn. We want to make sure it is marked as stale.
      */
     @Test
     public void testImportSSTableFailsActivation() throws Throwable
@@ -479,7 +554,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
         CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
                                                            .forTable(TABLE_SCHEMA_CQL)
                                                            .inDirectory(file)
-                                                           .using("INSERT INTO " + KEYSPACE + ".tbl (k, v) " + "VALUES (?, ?)");
+                                                           .using("INSERT INTO " + KEYSPACE_TABLE + " (k, v) " + "VALUES (?, ?)");
 
         // We import a 1 token SSTable so the txn read logic is not run multiple of times by different CommandStores
         try (CQLSSTableWriter writer = builder.build())
@@ -506,14 +581,13 @@ public class AccordImportSSTableTest extends TestBaseImpl
 
             Uninterruptibles.sleepUninterruptibly(30, TimeUnit.SECONDS);
 
-            cluster.forEach(instance -> {
-                instance.runOnInstance(() -> {
-                    ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, "tbl");
-                    assertEquals(1, cfs.getLiveSSTables().size());
-                });
-            });
+            Iterable<IInvokableInstance> up = cluster.stream()
+                                                     .filter(instance -> instance != cluster.get(2))
+                                                     .collect(Collectors.toList());
 
-            assertLocalSelect(cluster, rows -> { assertRows(rows, row(1, 1), row(2, 1), row(3, 1)); });
+            assertSSTableCount(up, 1);
+
+            assertLocalSelect(up, rows -> { assertRows(rows, row(1, 1)); });
         }
     }
 
@@ -557,6 +631,17 @@ public class AccordImportSSTableTest extends TestBaseImpl
                         forPendingUuidDir.accept(pendingUuidDir);
                     }
                 }
+            });
+        }
+    }
+
+    private static void assertSSTableCount(Iterable<IInvokableInstance> validate, int count)
+    {
+        for (IInvokableInstance instance : validate)
+        {
+            instance.runOnInstance(() -> {
+                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
+                Assertions.assertThat(cfs.getLiveSSTables().size()).isEqualTo(count);
             });
         }
     }

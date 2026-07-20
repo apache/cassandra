@@ -435,7 +435,7 @@ public class CoordinatedTransfer
 
         public boolean equals(SingleTransferResult that)
         {
-            return state == that.state && planId.equals(that.planId);
+            return state == that.state && (planId == null && that.planId == null || planId.equals(that.planId));
         }
 
         @Override
