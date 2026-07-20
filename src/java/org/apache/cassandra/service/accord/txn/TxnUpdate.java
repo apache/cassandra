@@ -593,6 +593,11 @@ public final class TxnUpdate extends AccordUpdate
 
     public Keys sortedFragmentKeys(List<PreTransformedBlock> preTransformedBlocks)
     {
+        // The PreTransformedBlock constructor maintains the invariant that
+        // all TxnWrite.Fragments are sorted by key
+        if (preTransformedBlocks.size() == 1)
+            return Keys.of(preTransformedBlocks.get(0).getKeys());
+
         List<Key> keys = new ArrayList<>();
         for (PreTransformedBlock preTransformedBlock : preTransformedBlocks)
             keys.addAll(preTransformedBlock.getKeys());
