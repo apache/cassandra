@@ -34,6 +34,7 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.sasi.plan.Expression.Op;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.utils.FBUtilities;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,10 +61,10 @@ public class IndexMode
 
     public final Mode mode;
     public final boolean isAnalyzed, isLiteral;
-    public final Class analyzerClass;
+    public final Class<? extends AbstractAnalyzer> analyzerClass;
     public final long maxCompactionFlushMemoryInBytes;
 
-    private IndexMode(Mode mode, boolean isLiteral, boolean isAnalyzed, Class analyzerClass, long maxMemBytes)
+    private IndexMode(Mode mode, boolean isLiteral, boolean isAnalyzed, Class<? extends AbstractAnalyzer> analyzerClass, long maxMemBytes)
     {
         this.mode = mode;
         this.isLiteral = isLiteral;
@@ -81,7 +82,7 @@ public class IndexMode
             if (isAnalyzed)
             {
                 if (analyzerClass != null)
-                    analyzer = (AbstractAnalyzer) analyzerClass.newInstance();
+                    analyzer = analyzerClass.newInstance();
                 else if (TOKENIZABLE_TYPES.contains(validator))
                     analyzer = new StandardAnalyzer();
             }
@@ -99,21 +100,14 @@ public class IndexMode
         // validate that a valid analyzer class was provided if specified
         if (indexOptions.containsKey(INDEX_ANALYZER_CLASS_OPTION))
         {
-            Class<?> analyzerClass;
-            try
-            {
-                analyzerClass = Class.forName(indexOptions.get(INDEX_ANALYZER_CLASS_OPTION));
-            }
-            catch (ClassNotFoundException e)
-            {
-                throw new ConfigurationException(String.format("Invalid analyzer class option specified [%s]",
-                                                               indexOptions.get(INDEX_ANALYZER_CLASS_OPTION)));
-            }
+            Class<? extends AbstractAnalyzer> analyzerClass = FBUtilities.classForNameWithoutInitialization(indexOptions.get(INDEX_ANALYZER_CLASS_OPTION),
+                                                                                                           "analyzer",
+                                                                                                           AbstractAnalyzer.class);
 
             AbstractAnalyzer analyzer;
             try
             {
-                analyzer = (AbstractAnalyzer) analyzerClass.newInstance();
+                analyzer = analyzerClass.newInstance();
                 analyzer.validate(indexOptions, cd);
             }
             catch (InstantiationException | IllegalAccessException e)
@@ -148,25 +142,30 @@ public class IndexMode
         }
 
         boolean isAnalyzed = false;
-        Class analyzerClass = null;
-        try
+        Class<? extends AbstractAnalyzer> analyzerClass = null;
+        if (indexOptions.get(INDEX_ANALYZER_CLASS_OPTION) != null)
         {
-            if (indexOptions.get(INDEX_ANALYZER_CLASS_OPTION) != null)
+            try
             {
-                analyzerClass = Class.forName(indexOptions.get(INDEX_ANALYZER_CLASS_OPTION));
+                analyzerClass = FBUtilities.classForNameWithoutInitialization(indexOptions.get(INDEX_ANALYZER_CLASS_OPTION),
+                                                                              "analyzer",
+                                                                              AbstractAnalyzer.class);
                 isAnalyzed = indexOptions.get(INDEX_ANALYZED_OPTION) == null
-                              ? true : Boolean.parseBoolean(indexOptions.get(INDEX_ANALYZED_OPTION));
+                             ? true : Boolean.parseBoolean(indexOptions.get(INDEX_ANALYZED_OPTION));
             }
-            else if (indexOptions.get(INDEX_ANALYZED_OPTION) != null)
+            catch (ConfigurationException e)
             {
-                isAnalyzed = Boolean.parseBoolean(indexOptions.get(INDEX_ANALYZED_OPTION));
+                if (!(e.getCause() instanceof ClassNotFoundException))
+                    throw e;
+
+                // Should not happen as we already validated we could instantiate an instance in validateAnalyzer().
+                logger.error("Failed to find specified analyzer class [{}]. Falling back to default analyzer",
+                             indexOptions.get(INDEX_ANALYZER_CLASS_OPTION));
             }
         }
-        catch (ClassNotFoundException e)
+        else if (indexOptions.get(INDEX_ANALYZED_OPTION) != null)
         {
-            // should not happen as we already validated we could instantiate an instance in validateAnalyzer()
-            logger.error("Failed to find specified analyzer class [{}]. Falling back to default analyzer",
-                         indexOptions.get(INDEX_ANALYZER_CLASS_OPTION));
+            isAnalyzed = Boolean.parseBoolean(indexOptions.get(INDEX_ANALYZED_OPTION));
         }
 
         boolean isLiteral = false;

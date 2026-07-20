@@ -34,9 +34,12 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.TriggerMetadata;
 import org.apache.cassandra.schema.Triggers;
+import org.apache.cassandra.utils.ClassLoadingTestSupport;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
@@ -362,6 +365,30 @@ public class TriggerExecutorTest
         {
             int cmp = m1.getKeyspaceName().compareTo(m2.getKeyspaceName());
             return cmp != 0 ? cmp : m1.key().compareTo(m2.key());
+        }
+    }
+
+    @Test
+    public void nonTriggerClassRejectedWithoutInitializing() throws Exception
+    {
+        ClassLoadingTestSupport.assertNotInitialized(NonTrigger.class);
+
+        assertThatExceptionOfType(ConfigurationException.class)
+        .isThrownBy(() -> TriggerExecutor.instance.loadTriggerClass(NonTrigger.class.getName()))
+        .withMessageContaining("must extend or implement " + ITrigger.class.getName());
+
+        assertThat(ClassLoadingTestSupport.wasInitialized(NonTrigger.class)).isFalse();
+    }
+
+    public static class NonTrigger
+    {
+        static
+        {
+            ClassLoadingTestSupport.markInitialized(NonTrigger.class);
+        }
+
+        public NonTrigger()
+        {
         }
     }
 }

@@ -35,6 +35,9 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.utils.ClassLoadingTestNonAssignable;
+import org.apache.cassandra.utils.ClassLoadingTestSupport;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
@@ -50,6 +53,25 @@ public class DatabaseDescriptorTest
     public static void setupDatabaseDescriptor()
     {
         DatabaseDescriptor.daemonInitialization();
+    }
+
+    @Test
+    public void testCreateEndpointSnitchWrongTypeRejectedWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+
+        assertThatThrownBy(() -> DatabaseDescriptor.createEndpointSnitch(false, ClassLoadingTestNonAssignable.class.getName()))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("must extend or implement " + IEndpointSnitch.class.getName());
+
+        assertThat(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class)).isFalse();
+    }
+
+    @Test
+    public void testCreateEndpointSnitchValidClassResolves()
+    {
+        IEndpointSnitch snitch = DatabaseDescriptor.createEndpointSnitch(false, "SimpleSnitch");
+        assertThat(snitch).isNotNull();
     }
 
     // this came as a result of CASSANDRA-995

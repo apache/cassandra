@@ -53,7 +53,7 @@ public interface StorageHook
         String className =  System.getProperty("cassandra.storage_hook");
         if (className != null)
         {
-            return FBUtilities.construct(className, StorageHook.class.getSimpleName());
+            return FBUtilities.construct(className, StorageHook.class.getSimpleName(), StorageHook.class);
         }
 
         return new StorageHook()

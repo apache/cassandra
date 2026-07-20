@@ -60,7 +60,7 @@ public interface GuardrailsConfigProvider
      */
     static GuardrailsConfigProvider build(String customImpl)
     {
-        return FBUtilities.construct(customImpl, "custom guardrails config provider");
+        return FBUtilities.construct(customImpl, "custom guardrails config provider", GuardrailsConfigProvider.class);
     }
 
     /**

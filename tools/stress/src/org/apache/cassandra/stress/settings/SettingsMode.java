@@ -31,6 +31,7 @@ import com.datastax.driver.core.PlainTextAuthProvider;
 import com.datastax.driver.core.ProtocolOptions;
 import com.datastax.driver.core.ProtocolVersion;
 import org.apache.cassandra.stress.util.ResultLogger;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class SettingsMode implements Serializable
 {
@@ -72,9 +73,10 @@ public class SettingsMode implements Serializable
             {
                 try
                 {
-                    Class<?> clazz = Class.forName(authProviderClassname);
-                    if (!AuthProvider.class.isAssignableFrom(clazz))
-                        throw new IllegalArgumentException(clazz + " is not a valid auth provider");
+                    Class<? extends AuthProvider> clazz =
+                        FBUtilities.classForNameWithoutInitialization(authProviderClassname,
+                                                                      "auth provider",
+                                                                      AuthProvider.class);
                     // check we can instantiate it
                     if (PlainTextAuthProvider.class.equals(clazz))
                     {

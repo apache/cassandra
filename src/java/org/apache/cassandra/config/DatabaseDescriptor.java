@@ -326,7 +326,7 @@ public class DatabaseDescriptor
         String loaderClass = System.getProperty(Config.PROPERTY_PREFIX + "config.loader");
         ConfigurationLoader loader = loaderClass == null
                                      ? new YamlConfigurationLoader()
-                                     : FBUtilities.construct(loaderClass, "configuration loading");
+                                     : FBUtilities.construct(loaderClass, "configuration loading", ConfigurationLoader.class);
         Config config = loader.loadConfig();
 
         if (!hasLoggedConfig)
@@ -1199,8 +1199,9 @@ public class DatabaseDescriptor
         }
         try
         {
-            Class<?> seedProviderClass = Class.forName(conf.seed_provider.class_name);
-            seedProvider = (SeedProvider)seedProviderClass.getConstructor(Map.class).newInstance(conf.seed_provider.parameters);
+            Class<? extends SeedProvider> seedProviderClass =
+                FBUtilities.classForNameWithoutInitialization(conf.seed_provider.class_name, "seed provider", SeedProvider.class);
+            seedProvider = seedProviderClass.getConstructor(Map.class).newInstance(conf.seed_provider.parameters);
         }
         // there are about 5 checked exceptions that could be thrown here.
         catch (Exception e)
@@ -1374,7 +1375,7 @@ public class DatabaseDescriptor
     {
         if (!snitchClassName.contains("."))
             snitchClassName = "org.apache.cassandra.locator." + snitchClassName;
-        IEndpointSnitch snitch = FBUtilities.construct(snitchClassName, "snitch");
+        IEndpointSnitch snitch = FBUtilities.construct(snitchClassName, "snitch", IEndpointSnitch.class);
         return dynamic ? new DynamicEndpointSnitch(snitch) : snitch;
     }
 
@@ -1382,7 +1383,7 @@ public class DatabaseDescriptor
     {
         if (!detectorClassName.contains("."))
             detectorClassName = "org.apache.cassandra.gms." + detectorClassName;
-        IFailureDetector detector = FBUtilities.construct(detectorClassName, "failure detector");
+        IFailureDetector detector = FBUtilities.construct(detectorClassName, "failure detector", IFailureDetector.class);
         return detector;
     }
 

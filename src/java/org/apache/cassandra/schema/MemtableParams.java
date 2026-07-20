@@ -171,19 +171,25 @@ public final class MemtableParams
         try
         {
             Memtable.Factory factory;
-            Class<?> clazz = Class.forName(className);
+            Class<?> clazz = Class.forName(className, false, MemtableParams.class.getClassLoader());
             final Map<String, String> parametersCopy = options.parameters != null
                                                        ? new HashMap<>(options.parameters)
                                                        : new HashMap<>();
             try
             {
                 Method factoryMethod = clazz.getDeclaredMethod("factory", Map.class);
+                if (!Memtable.Factory.class.isAssignableFrom(factoryMethod.getReturnType()))
+                    throw new ClassCastException("Memtable factory method on " + className +
+                                                 " must return " + Memtable.Factory.class.getName());
                 factory = (Memtable.Factory) factoryMethod.invoke(null, parametersCopy);
             }
             catch (NoSuchMethodException e)
             {
                 // continue with FACTORY field
                 Field factoryField = clazz.getDeclaredField("FACTORY");
+                if (!Memtable.Factory.class.isAssignableFrom(factoryField.getType()))
+                    throw new ClassCastException("Memtable FACTORY field on " + className +
+                                                 " must be of type " + Memtable.Factory.class.getName());
                 factory = (Memtable.Factory) factoryField.get(null);
             }
             if (!parametersCopy.isEmpty())

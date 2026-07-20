@@ -21,6 +21,8 @@ package org.apache.cassandra.db.marshal;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.fail;
 
@@ -28,6 +30,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.utils.ClassLoadingTestNonAssignable;
+import org.apache.cassandra.utils.ClassLoadingTestSupport;
 
 public class TypeParserTest
 {
@@ -35,6 +39,17 @@ public class TypeParserTest
     public static void initDD()
     {
         DatabaseDescriptor.daemonInitialization();
+    }
+
+    @Test
+    public void testRejectsNonAbstractTypeWithoutInitializing() throws SyntaxException
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+        assertThatThrownBy(() -> TypeParser.parse(ClassLoadingTestNonAssignable.class.getName()))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("must extend or implement " + AbstractType.class.getName());
+
+        assertFalse(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class));
     }
 
     @Test

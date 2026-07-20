@@ -115,7 +115,7 @@ public abstract class Tracing extends ExecutorLocals.Impl
         {
             try
             {
-                tracing = FBUtilities.construct(customTracingClass, "Tracing");
+                tracing = FBUtilities.construct(customTracingClass, "Tracing", Tracing.class);
                 logger.info("Using {} as tracing queries (as requested with -Dcassandra.custom_tracing_class)", customTracingClass);
             }
             catch (Exception e)

@@ -35,7 +35,7 @@ public interface StreamHook
         String className =  System.getProperty("cassandra.stream_hook");
         if (className != null)
         {
-            return FBUtilities.construct(className, StreamHook.class.getSimpleName());
+            return FBUtilities.construct(className, StreamHook.class.getSimpleName(), StreamHook.class);
         }
         else
         {
