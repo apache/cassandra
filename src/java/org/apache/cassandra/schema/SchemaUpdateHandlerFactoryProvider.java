@@ -50,7 +50,8 @@ public class SchemaUpdateHandlerFactoryProvider implements Provider<SchemaUpdate
         }
         else
         {
-            Class<SchemaUpdateHandlerFactory> suhFactoryClass = FBUtilities.classForName(suhFactoryClassName, "schema update handler factory");
+            Class<? extends SchemaUpdateHandlerFactory> suhFactoryClass =
+                FBUtilities.classForNameWithoutInitialization(suhFactoryClassName, "schema update handler factory", SchemaUpdateHandlerFactory.class);
             try
             {
                 return suhFactoryClass.newInstance();

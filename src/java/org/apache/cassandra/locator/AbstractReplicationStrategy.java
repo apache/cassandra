@@ -427,11 +427,11 @@ public abstract class AbstractReplicationStrategy
         if ("org.apache.cassandra.locator.OldNetworkTopologyStrategy".equals(className)) // see CASSANDRA-16301 
             throw new ConfigurationException("The support for the OldNetworkTopologyStrategy has been removed in C* version 4.0. The keyspace strategy should be switch to NetworkTopologyStrategy");
 
-        Class<AbstractReplicationStrategy> strategyClass = FBUtilities.classForName(className, "replication strategy");
-        if (!AbstractReplicationStrategy.class.isAssignableFrom(strategyClass))
-        {
-            throw new ConfigurationException(String.format("Specified replication strategy class (%s) is not derived from AbstractReplicationStrategy", className));
-        }
+        @SuppressWarnings("unchecked")
+        Class<AbstractReplicationStrategy> strategyClass =
+            (Class<AbstractReplicationStrategy>) FBUtilities.classForNameWithoutInitialization(className,
+                                                                                             "replication strategy",
+                                                                                             AbstractReplicationStrategy.class);
         return strategyClass;
     }
 

@@ -25,12 +25,26 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.GuardrailsOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.utils.ClassLoadingTestNonAssignable;
+import org.apache.cassandra.utils.ClassLoadingTestSupport;
 import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
 
 public class GuardrailsConfigProviderTest extends GuardrailTester
 {
+    @Test
+    public void testBuildWrongTypeRejectedWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+
+        Assertions.assertThatThrownBy(() -> GuardrailsConfigProvider.build(ClassLoadingTestNonAssignable.class.getName()))
+                  .isInstanceOf(ConfigurationException.class)
+                  .hasMessageContaining("must extend or implement " + GuardrailsConfigProvider.class.getName());
+
+        Assertions.assertThat(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class)).isFalse();
+    }
+
     @Test
     public void testBuildCustom() throws Throwable
     {

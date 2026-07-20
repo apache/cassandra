@@ -78,7 +78,8 @@ public class MutualTlsAuthenticator implements IAuthenticator
             throw new ConfigurationException(message);
         }
         certificateValidator = ParameterizedClass.newInstance(new ParameterizedClass(certificateValidatorClassName),
-                                                              Arrays.asList("", AuthConfig.class.getPackage().getName()));
+                                                              Arrays.asList("", AuthConfig.class.getPackage().getName()),
+                                                              MutualTlsCertificateValidator.class);
         checkMtlsConfigurationIsValid(DatabaseDescriptor.getRawConfig());
         AuthCacheService.instance.register(identityCache);
     }

@@ -447,8 +447,7 @@ public class TypeParser
 
     private static AbstractType<?> getAbstractType(String compareWith) throws ConfigurationException
     {
-        String className = compareWith.contains(".") ? compareWith : "org.apache.cassandra.db.marshal." + compareWith;
-        Class<? extends AbstractType<?>> typeClass = FBUtilities.<AbstractType<?>>classForName(className, "abstract-type");
+        Class<? extends AbstractType<?>> typeClass = getAbstractTypeClass(compareWith);
         try
         {
             Field field = typeClass.getDeclaredField("instance");
@@ -461,10 +460,22 @@ public class TypeParser
         }
     }
 
-    private static AbstractType<?> getAbstractType(String compareWith, TypeParser parser) throws SyntaxException, ConfigurationException
+    private static Class<? extends AbstractType<?>> getAbstractTypeClass(String compareWith) throws ConfigurationException
     {
         String className = compareWith.contains(".") ? compareWith : "org.apache.cassandra.db.marshal." + compareWith;
-        Class<? extends AbstractType<?>> typeClass = FBUtilities.<AbstractType<?>>classForName(className, "abstract-type");
+        // Defer class initialization until after confirming this is an AbstractType. The static instance field
+        // access or getInstance(TypeParser) invocation below performs the initialization for valid types.
+        @SuppressWarnings("unchecked")
+        Class<? extends AbstractType<?>> typeClass =
+            (Class<? extends AbstractType<?>>) FBUtilities.classForNameWithoutInitialization(className,
+                                                                                             "abstract-type",
+                                                                                             AbstractType.class);
+        return typeClass;
+    }
+
+    private static AbstractType<?> getAbstractType(String compareWith, TypeParser parser) throws SyntaxException, ConfigurationException
+    {
+        Class<? extends AbstractType<?>> typeClass = getAbstractTypeClass(compareWith);
         try
         {
             Method method = typeClass.getDeclaredMethod("getInstance", TypeParser.class);

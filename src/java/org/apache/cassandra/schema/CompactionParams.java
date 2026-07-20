@@ -301,15 +301,7 @@ public final class CompactionParams
         String className = name.contains(".")
                          ? name
                          : "org.apache.cassandra.db.compaction." + name;
-        Class<AbstractCompactionStrategy> strategyClass = FBUtilities.classForName(className, "compaction strategy");
-
-        if (!AbstractCompactionStrategy.class.isAssignableFrom(strategyClass))
-        {
-            throw new ConfigurationException(format("Compaction strategy class %s is not derived from AbstractReplicationStrategy",
-                                                    className));
-        }
-
-        return strategyClass;
+        return FBUtilities.classForNameWithoutInitialization(className, "compaction strategy", AbstractCompactionStrategy.class);
     }
 
     /*

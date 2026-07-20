@@ -868,6 +868,11 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         return indexes.get(indexName);
     }
 
+    static Class<? extends Index> loadIndexClass(String className)
+    {
+        return FBUtilities.classForNameWithoutInitialization(className, "Index", Index.class);
+    }
+
     private Index createInstance(IndexMetadata indexDef)
     {
         Index newIndex;
@@ -880,7 +885,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
             try
             {
-                Class<? extends Index> indexClass = FBUtilities.classForName(className, "Index");
+                Class<? extends Index> indexClass = loadIndexClass(className);
                 Constructor<? extends Index> ctor = indexClass.getConstructor(ColumnFamilyStore.class, IndexMetadata.class);
                 newIndex = ctor.newInstance(baseCfs, indexDef);
             }

@@ -39,11 +39,15 @@ import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.utils.ClassLoadingTestNonAssignable;
+import org.apache.cassandra.utils.ClassLoadingTestSupport;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
 import org.apache.cassandra.utils.concurrent.Refs;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -55,6 +59,17 @@ public class SecondaryIndexManagerTest extends CQLTester
     public void after()
     {
         TestingIndex.clear();
+    }
+
+    @Test
+    public void rejectsNonIndexClassWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+        assertThatThrownBy(() -> SecondaryIndexManager.loadIndexClass(ClassLoadingTestNonAssignable.class.getName()))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("must extend or implement " + Index.class.getName());
+
+        assertFalse(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class));
     }
 
     @Test

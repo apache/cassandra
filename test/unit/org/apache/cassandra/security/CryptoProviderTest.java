@@ -166,7 +166,7 @@ public class CryptoProviderTest
             DatabaseDescriptor.getRawConfig().crypto_provider = new ParameterizedClass(DefaultCryptoProvider.class.getName(),
                                                                                        of("k1", "v1", "k2", "v2"));
 
-            fbUtilitiesMock.when(() -> FBUtilities.classForName(DefaultCryptoProvider.class.getName(), "crypto provider class"))
+            fbUtilitiesMock.when(() -> FBUtilities.classForNameWithoutInitialization(DefaultCryptoProvider.class.getName(), "crypto provider class", AbstractCryptoProvider.class))
                            .thenThrow(new RuntimeException("exception from test"));
 
             fbUtilitiesMock.when(() -> FBUtilities.newCryptoProvider(anyString(), anyMap())).thenCallRealMethod();
