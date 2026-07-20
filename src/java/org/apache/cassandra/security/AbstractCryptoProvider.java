@@ -105,7 +105,7 @@ public abstract class AbstractCryptoProvider
                 return;
             }
 
-            FBUtilities.classForName(getProviderClassAsString(), "crypto provider");
+            FBUtilities.classForNameWithoutInitialization(getProviderClassAsString(), "crypto provider", Provider.class);
 
             String providerName = getProviderName();
             int providerPosition = getProviderPosition(providerName);

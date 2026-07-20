@@ -78,7 +78,7 @@ public class DiskErrorsHandlerService
         String fsErrorHandlerClass = CassandraRelevantProperties.CUSTOM_DISK_ERROR_HANDLER.getString();
         DiskErrorsHandler fsErrorHandler = fsErrorHandlerClass == null
                                            ? new DefaultDiskErrorsHandler()
-                                           : FBUtilities.construct(fsErrorHandlerClass, "disk error handler");
+                                           : FBUtilities.construct(fsErrorHandlerClass, "disk error handler", DiskErrorsHandler.class);
         DiskErrorsHandlerService.set(fsErrorHandler);
     }
 }

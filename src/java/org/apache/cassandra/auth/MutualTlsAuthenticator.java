@@ -101,7 +101,8 @@ public class MutualTlsAuthenticator implements IAuthenticator
             throw new ConfigurationException(message);
         }
         certificateValidator = ParameterizedClass.newInstance(new ParameterizedClass(certificateValidatorClassName),
-                                                              Arrays.asList("", AuthConfig.class.getPackage().getName()));
+                                                              Arrays.asList("", AuthConfig.class.getPackage().getName()),
+                                                              MutualTlsCertificateValidator.class);
 
         Config config = DatabaseDescriptor.getRawConfig();
         certificateValidityPeriodValidator = new MutualTlsCertificateValidityPeriodValidator(config.client_encryption_options.max_certificate_validity_period);

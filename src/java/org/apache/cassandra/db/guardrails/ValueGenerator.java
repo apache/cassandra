@@ -143,8 +143,11 @@ public abstract class ValueGenerator<VALUE>
 
         try
         {
+            Class<? extends ValueGenerator> rawGeneratorClass =
+                FBUtilities.classForNameWithoutInitialization(className, "generator", ValueGenerator.class);
+            @SuppressWarnings("unchecked")
             Class<? extends ValueGenerator<VALUE>> generatorClass =
-            FBUtilities.classForName(className, "generator");
+                (Class<? extends ValueGenerator<VALUE>>) rawGeneratorClass;
 
             @SuppressWarnings("unchecked")
             ValueGenerator<VALUE> generator = generatorClass.getConstructor(CustomGuardrailConfig.class)

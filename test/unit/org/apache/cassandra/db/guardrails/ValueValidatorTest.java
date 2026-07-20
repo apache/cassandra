@@ -26,10 +26,13 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.guardrails.ValueValidator.ValidationViolation;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.ClassLoadingTestNonAssignable;
+import org.apache.cassandra.utils.ClassLoadingTestSupport;
 
 import static java.lang.Boolean.FALSE;
 import static java.lang.String.format;
 import static org.apache.cassandra.db.guardrails.ValueValidator.VALIDATOR_CLASS_NAME_KEY;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -81,6 +84,21 @@ public class ValueValidatorTest
         assertThatThrownBy(() -> ValueValidator.getValidator("boolean validator", config))
         .isInstanceOf(ConfigurationException.class)
         .message().isEqualTo(format("Unable to create instance of validator of class %s: does not contain property 'expecting_true'", BooleanValidator.class.getName()));
+    }
+
+    @Test
+    public void testValidatorWrongTypeRejectedWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+
+        CustomGuardrailConfig config = new CustomGuardrailConfig();
+        config.put(VALIDATOR_CLASS_NAME_KEY, ClassLoadingTestNonAssignable.class.getName());
+
+        assertThatThrownBy(() -> ValueValidator.getValidator("probe validator", config))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("must extend or implement " + ValueValidator.class.getName());
+
+        assertThat(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class)).isFalse();
     }
 
     public static class BooleanValidator extends ValueValidator<Boolean>

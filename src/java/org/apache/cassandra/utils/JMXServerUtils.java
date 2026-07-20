@@ -222,7 +222,7 @@ public class JMXServerUtils
         String authzProxyClass = options.authorizer;
         if (authzProxyClass != null)
         {
-            final InvocationHandler handler = FBUtilities.construct(authzProxyClass, "JMX authz proxy");
+            final InvocationHandler handler = FBUtilities.construct(authzProxyClass, "JMX authz proxy", InvocationHandler.class);
             final Class[] interfaces = { MBeanServerForwarder.class };
 
             Object proxy = Proxy.newProxyInstance(MBeanServerForwarder.class.getClassLoader(), interfaces, handler);

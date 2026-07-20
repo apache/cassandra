@@ -127,8 +127,11 @@ public abstract class ValueValidator<VALUE>
 
         try
         {
+            Class<? extends ValueValidator> rawValidatorClass =
+                FBUtilities.classForNameWithoutInitialization(className, "validator", ValueValidator.class);
+            @SuppressWarnings("unchecked")
             Class<? extends ValueValidator<VALUE>> validatorClass =
-            FBUtilities.classForName(className, "validator");
+                (Class<? extends ValueValidator<VALUE>>) rawValidatorClass;
 
             @SuppressWarnings("unchecked")
             ValueValidator<VALUE> validator = validatorClass.getConstructor(CustomGuardrailConfig.class)

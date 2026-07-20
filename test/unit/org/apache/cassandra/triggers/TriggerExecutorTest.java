@@ -47,9 +47,11 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TriggerMetadata;
 import org.apache.cassandra.schema.Triggers;
+import org.apache.cassandra.utils.ClassLoadingTestSupport;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -112,6 +114,18 @@ public class TriggerExecutorTest
         assertThatExceptionOfType(ConfigurationException.class)
         .isThrownBy(()-> TriggerExecutor.instance.execute(makeCf(metadata, "k1", "v1", null)))
         .withMessageContaining("Trigger class NotExistedTriggerClass couldn't be found.");
+    }
+
+    @Test
+    public void nonTriggerClassRejectedWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(NonTrigger.class);
+
+        assertThatExceptionOfType(ConfigurationException.class)
+        .isThrownBy(() -> TriggerExecutor.instance.loadTriggerClass(NonTrigger.class.getName()))
+        .withMessageContaining("must extend or implement " + ITrigger.class.getName());
+
+        assertThat(ClassLoadingTestSupport.wasInitialized(NonTrigger.class)).isFalse();
     }
 
     @Test
@@ -323,6 +337,18 @@ public class TriggerExecutorTest
         public Collection<Mutation> augment(Partition partition)
         {
             return null;
+        }
+    }
+
+    public static class NonTrigger
+    {
+        static
+        {
+            ClassLoadingTestSupport.markInitialized(NonTrigger.class);
+        }
+
+        public NonTrigger()
+        {
         }
     }
 
