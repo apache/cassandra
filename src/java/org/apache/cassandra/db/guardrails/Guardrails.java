@@ -616,6 +616,21 @@ public final class Guardrails implements GuardrailsMBean
                             what, value, isWarning ? "warning" : "failure", threshold));
 
     /**
+     * Guardrail on the minimum CMS size (aggregate replication factor across DCs).
+     */
+    public static final MinThreshold minimumCmsSize =
+    (MinThreshold) new MinThreshold("minimum_cms_size",
+                     null,
+                     state -> -1,
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumCmsSizeFailThreshold(),
+                     (isWarning, what, value, threshold) ->
+                     format("The CMS size of %s is below the failure threshold of %s. " +
+                            "Reconfigure CMS so its total size (sum of replication factors across all datacenters) is at least %s.",
+                            value, threshold, threshold))
+                     // CMS reconfiguration is a system operation with no ClientState; make it abort rather than just log.
+                     .throwOnNullClientState(true);
+
+    /**
      * Guardrail on the maximum replication factor.
      */
     public static final MaxThreshold maximumReplicationFactor =
@@ -1680,6 +1695,18 @@ public final class Guardrails implements GuardrailsMBean
     public void setMinimumReplicationFactorThreshold(int warn, int fail)
     {
         DEFAULT_CONFIG.setMinimumReplicationFactorThreshold(warn, fail);
+    }
+
+    @Override
+    public int getMinimumCmsSizeFailThreshold()
+    {
+        return DEFAULT_CONFIG.getMinimumCmsSizeFailThreshold();
+    }
+
+    @Override
+    public void setMinimumCmsSizeFailThreshold(int fail)
+    {
+        DEFAULT_CONFIG.setMinimumCmsSizeFailThreshold(fail);
     }
 
     @Override

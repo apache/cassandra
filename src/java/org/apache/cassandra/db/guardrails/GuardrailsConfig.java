@@ -467,6 +467,11 @@ public interface GuardrailsConfig
     int getMinimumReplicationFactorFailThreshold();
 
     /**
+     * @return The threshold to fail when the CMS size (aggregate replication factor across DCs) is below the threshold.
+     */
+    int getMinimumCmsSizeFailThreshold();
+
+    /**
      * @return The threshold to warn when replication factor is greater than threshold.
      */
     int getMaximumReplicationFactorWarnThreshold();

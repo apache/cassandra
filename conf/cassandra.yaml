@@ -2611,6 +2611,12 @@ drop_compact_storage_enabled: false
 # maximum_replication_factor_warn_threshold: -1
 # maximum_replication_factor_fail_threshold: -1
 #
+
+# Guardrail to fail an operator-requested CMS reconfiguration (nodetool cms reconfigure / JMX) when the resulting
+# CMS size would be below this threshold. The CMS size is the aggregate replication factor across all datacenters.
+# The check is skipped when the cluster has fewer nodes than the threshold. Defaults to -1 to disable.
+# minimum_cms_size_fail_threshold: -1
+
 # Guardrail to warn or fail when a statement is prepared without bind markers (parameters).
 # This prevents the Prepared Statement Cache from being flooded with unique entries caused
 # by hardcoded literals. When warned is true, logs a warning on the usage of misprepared statements.

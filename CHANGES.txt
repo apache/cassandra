@@ -1,4 +1,5 @@
 7.0
+ * Add a guardrail to disallow reconfiguring CMS below a minimum size (CASSANDRA-19195)
  * Support pluggable default role initialization (CASSANDRA-21546)
  * Add prepared statement cache stats to nodetool info (CASSANDRA-14366)
  * Don't increment client metrics on messaging service connection unpause (CASSANDRA-21491)
