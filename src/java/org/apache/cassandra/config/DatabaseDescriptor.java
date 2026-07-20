@@ -511,7 +511,7 @@ public class DatabaseDescriptor
         String loaderClass = CONFIG_LOADER.getString();
         ConfigurationLoader loader = loaderClass == null
                                      ? new YamlConfigurationLoader()
-                                     : FBUtilities.construct(loaderClass, "configuration loading");
+                                     : FBUtilities.construct(loaderClass, "configuration loading", ConfigurationLoader.class);
         Config config = loader.loadConfig();
 
         if (!hasLoggedConfig)
@@ -1644,7 +1644,8 @@ public class DatabaseDescriptor
         }
         try
         {
-            Class<?> seedProviderClass = Class.forName(conf.seed_provider.class_name);
+            Class<? extends SeedProvider> seedProviderClass =
+                FBUtilities.classForNameWithoutInitialization(conf.seed_provider.class_name, "seed provider", SeedProvider.class);
             seedProvider = (SeedProvider) seedProviderClass.getConstructor(Map.class).newInstance(conf.seed_provider.parameters);
         }
         // there are about 5 checked exceptions that could be thrown here.
@@ -2021,7 +2022,7 @@ public class DatabaseDescriptor
     {
         if (!snitchClassName.contains("."))
             snitchClassName = "org.apache.cassandra.locator." + snitchClassName;
-        IEndpointSnitch snitch = FBUtilities.construct(snitchClassName, "snitch");
+        IEndpointSnitch snitch = FBUtilities.construct(snitchClassName, "snitch", IEndpointSnitch.class);
         return snitch;
     }
 
@@ -2029,7 +2030,7 @@ public class DatabaseDescriptor
     {
         if (!className.contains("."))
             className = "org.apache.cassandra.locator." + className;
-        NodeProximity sorter = FBUtilities.construct(className, "node proximity measurement");
+        NodeProximity sorter = FBUtilities.construct(className, "node proximity measurement", NodeProximity.class);
         return sorter;
     }
 
@@ -2037,7 +2038,7 @@ public class DatabaseDescriptor
     {
         if (!className.contains("."))
             className = "org.apache.cassandra.locator." + className;
-        InitialLocationProvider provider = FBUtilities.construct(className, "initial location provider");
+        InitialLocationProvider provider = FBUtilities.construct(className, "initial location provider", InitialLocationProvider.class);
         return provider;
     }
 
@@ -2045,7 +2046,7 @@ public class DatabaseDescriptor
     {
         if (!className.contains("."))
             className = "org.apache.cassandra.locator." + className;
-        NodeAddressConfig config = FBUtilities.construct(className, "node address config");
+        NodeAddressConfig config = FBUtilities.construct(className, "node address config", NodeAddressConfig.class);
         return config;
     }
 
@@ -2053,7 +2054,7 @@ public class DatabaseDescriptor
     {
         if (!detectorClassName.contains("."))
             detectorClassName = "org.apache.cassandra.gms." + detectorClassName;
-        IFailureDetector detector = FBUtilities.construct(detectorClassName, "failure detector");
+        IFailureDetector detector = FBUtilities.construct(detectorClassName, "failure detector", IFailureDetector.class);
         return detector;
     }
 

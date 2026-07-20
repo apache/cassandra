@@ -26,9 +26,12 @@ import javax.annotation.Nonnull;
 import org.junit.Test;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.ClassLoadingTestNonAssignable;
+import org.apache.cassandra.utils.ClassLoadingTestSupport;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.db.guardrails.ValueGenerator.GENERATOR_CLASS_NAME_KEY;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -66,6 +69,21 @@ public class ValueGeneratorTest
         assertThatThrownBy(() -> ValueGenerator.getGenerator("boolean generator", config))
         .isInstanceOf(ConfigurationException.class)
         .message().isEqualTo(format("Unable to create instance of generator of class %s: does not contain property 'expecting_true'", BooleanGenerator.class.getName()));
+    }
+
+    @Test
+    public void testGeneratorWrongTypeRejectedWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+
+        CustomGuardrailConfig config = new CustomGuardrailConfig();
+        config.put(GENERATOR_CLASS_NAME_KEY, ClassLoadingTestNonAssignable.class.getName());
+
+        assertThatThrownBy(() -> ValueGenerator.getGenerator("probe generator", config))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("must extend or implement " + ValueGenerator.class.getName());
+
+        assertThat(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class)).isFalse();
     }
 
     public static class BooleanGenerator extends ValueGenerator<Boolean[]>

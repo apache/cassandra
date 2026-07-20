@@ -25,6 +25,7 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -46,6 +47,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.audit.IAuditLogger;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -59,15 +61,87 @@ import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.security.AbstractCryptoProvider;
+import org.apache.cassandra.security.ISslContextFactory;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
 
 public class FBUtilitiesTest
 {
 
     public static final Logger LOGGER = LoggerFactory.getLogger(FBUtilitiesTest.class);
+
+    @Test
+    public void testTypedClassForNameRejectsWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+        assertThatThrownBy(() -> FBUtilities.classForNameWithoutInitialization(ClassLoadingTestNonAssignable.class.getName(), "test class", Runnable.class))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("must extend or implement " + Runnable.class.getName());
+
+        assertFalse(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class));
+    }
+
+    @Test
+    public void testTypedConstructRejectsWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+        assertThatThrownBy(() -> FBUtilities.construct(ClassLoadingTestNonAssignable.class.getName(), "test class", Runnable.class))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("must extend or implement " + Runnable.class.getName());
+
+        assertFalse(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class));
+    }
+
+    @Test
+    public void testTypedInstanceOrConstructRejectsWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+        assertThatThrownBy(() -> FBUtilities.instanceOrConstruct(ClassLoadingTestNonAssignable.class.getName(), "test class", Runnable.class))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("must extend or implement " + Runnable.class.getName());
+
+        assertFalse(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class));
+    }
+
+    @Test
+    public void testNewAuditLoggerRejectsWrongTypeWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+        assertThatThrownBy(() -> FBUtilities.newAuditLogger(ClassLoadingTestNonAssignable.class.getName(), Collections.emptyMap()))
+        .isInstanceOf(ConfigurationException.class)
+        .hasRootCauseInstanceOf(ConfigurationException.class)
+        .hasStackTraceContaining("must extend or implement " + IAuditLogger.class.getName());
+
+        assertFalse(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class));
+    }
+
+    @Test
+    public void testNewSslContextFactoryRejectsWrongTypeWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+        assertThatThrownBy(() -> FBUtilities.newSslContextFactory(ClassLoadingTestNonAssignable.class.getName(), Collections.emptyMap()))
+        .isInstanceOf(ConfigurationException.class)
+        .hasStackTraceContaining("must extend or implement " + ISslContextFactory.class.getName());
+
+        assertFalse(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class));
+    }
+
+    @Test
+    public void testNewCryptoProviderRejectsWrongTypeWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+        assertThatThrownBy(() -> FBUtilities.newCryptoProvider(ClassLoadingTestNonAssignable.class.getName(), Collections.emptyMap()))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("must extend or implement " + AbstractCryptoProvider.class.getName());
+
+        assertFalse(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class));
+    }
 
     @Test
     public void testCompareByteSubArrays()

@@ -36,7 +36,11 @@ import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.Options;
+import org.apache.cassandra.utils.ClassLoadingTestNonAssignable;
+import org.apache.cassandra.utils.ClassLoadingTestSupport;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -505,5 +509,18 @@ public class AutoRepairConfigTest extends CQLTester
         assertEquals(new DurationSpec.IntSecondsBound("5m"), config.global_settings.initial_scheduler_delay);
         assertEquals(new DurationSpec.IntSecondsBound("3h"), config.global_settings.repair_session_timeout);
         assertEquals(new DurationSpec.IntSecondsBound("24h"), config.global_settings.min_repair_interval);
+    }
+
+    @Test
+    public void testTokenRangeSplitterWrongTypeRejectedWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+
+        ParameterizedClass pc = new ParameterizedClass(ClassLoadingTestNonAssignable.class.getName(), Collections.emptyMap());
+        assertThatThrownBy(() -> AutoRepairConfig.newAutoRepairTokenRangeSplitter(repairType, pc))
+        .isInstanceOf(ConfigurationException.class)
+        .hasStackTraceContaining("must extend or implement " + IAutoRepairTokenRangeSplitter.class.getName());
+
+        assertThat(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class)).isFalse();
     }
 }

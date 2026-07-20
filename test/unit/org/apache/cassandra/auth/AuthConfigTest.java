@@ -31,7 +31,10 @@ import org.junit.Test;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.utils.ClassLoadingTestNonAssignable;
+import org.apache.cassandra.utils.ClassLoadingTestSupport;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 import static org.apache.cassandra.auth.AuthCache.MBEAN_NAME_BASE;
@@ -39,6 +42,7 @@ import static org.apache.cassandra.auth.AuthTestUtils.loadCertificateChain;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.INBOUND;
 import static org.apache.cassandra.config.YamlConfigurationLoaderTest.load;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -158,6 +162,75 @@ public class AuthConfigTest
         assertTrue(DatabaseDescriptor.getRoleManager().supportedOptions().containsAll(authenticator.getSupportedRoleOptions()));
         assertTrue(DatabaseDescriptor.getRoleManager().alterableOptions().containsAll(CassandraRoleManager.DEFAULT_ALTERABLE_ROLE_OPTIONS));
         assertTrue(DatabaseDescriptor.getRoleManager().alterableOptions().containsAll(authenticator.getAlterableRoleOptions()));
+    }
+
+    private static final String PROBE = ClassLoadingTestNonAssignable.class.getName();
+
+    private static Config baseConfig()
+    {
+        // Use the default (AllowAll) auth config so the non-probe auth components do not register JMX caches that
+        // would conflict across the per-field probe tests below.
+        Config config = load("cassandra.yaml");
+        DatabaseDescriptor.unsafeDaemonInitialization(() -> config);
+        return config;
+    }
+
+    private static void assertApplyAuthRejectsProbe()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+        AuthConfig.reset();
+        assertThatThrownBy(AuthConfig::applyAuth)
+            .isInstanceOf(ConfigurationException.class)
+            .hasMessageContaining("must extend or implement");
+        assertThat(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class)).isFalse();
+    }
+
+    @Test
+    public void testAuthenticatorWrongTypeRejectedWithoutInitializing()
+    {
+        Config config = baseConfig();
+        config.authenticator = new ParameterizedClass(PROBE, Collections.emptyMap());
+        assertApplyAuthRejectsProbe();
+    }
+
+    @Test
+    public void testAuthorizerWrongTypeRejectedWithoutInitializing()
+    {
+        Config config = baseConfig();
+        config.authorizer = new ParameterizedClass(PROBE, Collections.emptyMap());
+        assertApplyAuthRejectsProbe();
+    }
+
+    @Test
+    public void testRoleManagerWrongTypeRejectedWithoutInitializing()
+    {
+        Config config = baseConfig();
+        config.role_manager = new ParameterizedClass(PROBE, Collections.emptyMap());
+        assertApplyAuthRejectsProbe();
+    }
+
+    @Test
+    public void testInternodeAuthenticatorWrongTypeRejectedWithoutInitializing()
+    {
+        Config config = baseConfig();
+        config.internode_authenticator = new ParameterizedClass(PROBE, Collections.emptyMap());
+        assertApplyAuthRejectsProbe();
+    }
+
+    @Test
+    public void testNetworkAuthorizerWrongTypeRejectedWithoutInitializing()
+    {
+        Config config = baseConfig();
+        config.network_authorizer = new ParameterizedClass(PROBE, Collections.emptyMap());
+        assertApplyAuthRejectsProbe();
+    }
+
+    @Test
+    public void testCidrAuthorizerWrongTypeRejectedWithoutInitializing()
+    {
+        Config config = baseConfig();
+        config.cidr_authorizer = new ParameterizedClass(PROBE, Collections.emptyMap());
+        assertApplyAuthRejectsProbe();
     }
 
     private void unregisterCaches()
