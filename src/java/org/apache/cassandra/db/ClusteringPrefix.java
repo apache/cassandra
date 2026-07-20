@@ -631,6 +631,8 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
      */
     public static class Deserializer
     {
+        private static final ClusteringPrefix.Kind[] KINDS = ClusteringPrefix.Kind.values();
+
         private final ClusteringComparator comparator;
         private final DataInputPlus in;
         private final SerializationHeader serializationHeader;
@@ -657,7 +659,7 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
                 throw new IOException("Corrupt flags value for clustering prefix (isStatic flag set): " + flags);
 
             this.nextIsRow = UnfilteredSerializer.kind(flags) == Unfiltered.Kind.ROW;
-            this.nextKind = nextIsRow ? Kind.CLUSTERING : ClusteringPrefix.Kind.values()[in.readByte()];
+            this.nextKind = nextIsRow ? Kind.CLUSTERING : KINDS[in.readByte()];
             this.nextSize = nextIsRow ? comparator.size() : in.readUnsignedShort();
             this.deserializedSize = 0;
 
