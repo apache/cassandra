@@ -635,14 +635,11 @@ public final class TxnUpdate extends AccordUpdate
         public void accumulateKeys(List<Key> keys)
         {
             if (isTrailingUpdate())
-            {
                 for (int i = 0; i < noneConditions.size(); i++)
                     keys.add(noneConditions.get(i).key);
-            }
-            else {
+            else
                 for (int i = 0; i < fragmentConditionIndexPair.size(); i++)
                     keys.add(fragmentConditionIndexPair.get(i).left().key);
-            }
         }
 
         public Pair<Integer, Block> generateBlock(int conditionalBlockIndex, TableMetadatas tables)
