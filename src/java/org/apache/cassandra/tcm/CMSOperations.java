@@ -33,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.virtual.ClusterMetadataDirectoryTable;
 import org.apache.cassandra.db.virtual.ClusterMetadataLogTable;
 import org.apache.cassandra.schema.ReplicationParams;
@@ -163,13 +164,38 @@ public class CMSOperations implements CMSOperationsMBean
     @Override
     public void reconfigureCMS(int rf)
     {
-        cms.reconfigureCMS(ReplicationParams.simpleMeta(rf, ClusterMetadata.current().directory.knownDatacenters()));
+        ReplicationParams params = ReplicationParams.simpleMeta(rf, ClusterMetadata.current().directory.knownDatacenters());
+        guardMinimumCmsSize(params);
+        cms.reconfigureCMS(params);
     }
 
     @Override
     public void reconfigureCMS(Map<String, Integer> rf)
     {
-        cms.reconfigureCMS(ReplicationParams.ntsMeta(rf));
+        ReplicationParams params = ReplicationParams.ntsMeta(rf);
+        guardMinimumCmsSize(params);
+        cms.reconfigureCMS(params);
+    }
+
+    /**
+     * Enforces the minimum CMS size guardrail against an operator-requested reconfiguration. This is only applied to
+     * explicit reconfigure requests (nodetool / JMX), not to the automatic reconfiguration that happens on topology
+     * changes, which reuses the already-committed replication params.
+     */
+    private void guardMinimumCmsSize(ReplicationParams params)
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+        int minCmsSize = DatabaseDescriptor.getGuardrailsConfig().getMinimumCmsSizeFailThreshold();
+        int totalNodes = metadata.directory.allJoinedEndpoints().size();
+        // Skip clusters smaller than the threshold: they cannot host that many replicas yet (e.g. during bootstrap).
+        // When the guardrail is disabled this is never true, and guard() below is then a no-op.
+        if (totalNodes < minCmsSize)
+            return;
+
+        int cmsSize = params.options.values().stream()
+                                    .mapToInt(Integer::parseInt)
+                                    .sum();
+        Guardrails.minimumCmsSize.guard(cmsSize, "CMS", false, null);
     }
 
     @Override

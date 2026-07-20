@@ -110,6 +110,7 @@ public class GuardrailsOptions implements GuardrailsConfig
         validateDataDiskUsageMaxDiskSize(config.data_disk_usage_max_disk_size);
         validateMinRFThreshold(config.minimum_replication_factor_warn_threshold, config.minimum_replication_factor_fail_threshold);
         validateMaxRFThreshold(config.maximum_replication_factor_warn_threshold, config.maximum_replication_factor_fail_threshold);
+        validateMinCmsSizeThreshold(config.minimum_cms_size_fail_threshold, "minimum_cms_size_fail_threshold");
         validateTimestampThreshold(config.maximum_timestamp_warn_threshold, config.maximum_timestamp_fail_threshold, "maximum_timestamp");
         validateTimestampThreshold(config.minimum_timestamp_warn_threshold, config.minimum_timestamp_fail_threshold, "minimum_timestamp");
         validateMaxLongThreshold(config.sai_sstable_indexes_per_query_warn_threshold,
@@ -1052,6 +1053,21 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    public int getMinimumCmsSizeFailThreshold()
+    {
+        return config.minimum_cms_size_fail_threshold;
+    }
+
+    public void setMinimumCmsSizeFailThreshold(int fail)
+    {
+        validateMinCmsSizeThreshold(fail, "minimum_cms_size_fail_threshold");
+        updatePropertyWithLogging("minimum_cms_size_fail_threshold",
+                                  fail,
+                                  () -> config.minimum_cms_size_fail_threshold,
+                                  x -> config.minimum_cms_size_fail_threshold = x);
+    }
+
+    @Override
     public int getMaximumReplicationFactorWarnThreshold()
     {
         return config.maximum_replication_factor_warn_threshold;
@@ -1517,6 +1533,17 @@ public class GuardrailsOptions implements GuardrailsConfig
             throw new IllegalArgumentException(format("maximum_replication_factor_fail_threshold to be set (%d) " +
                                                       "cannot be lesser than default_keyspace_rf (%d)",
                                                       fail, DatabaseDescriptor.getDefaultKeyspaceRF()));
+    }
+
+    private static void validateMinCmsSizeThreshold(int value, String name)
+    {
+        if (value == -1)
+            return;
+
+        if (value < 3)
+            throw new IllegalArgumentException(format("Invalid value %d for %s: minimum allowed value is 3, " +
+                                                      "as CMS requires at least 3 replicas to maintain quorum safely. " +
+                                                      "Use -1 to disable this guardrail", value, name));
     }
 
     public static void validateTimestampThreshold(DurationSpec.LongMicrosecondsBound warn,
