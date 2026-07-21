@@ -1508,9 +1508,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     /**
      * Insert/Update the column family for this key.
      * Caller is responsible for acquiring Keyspace.switchLock
+     *
      * @param update to be applied
      * @param context write context for current update
-     * @param updateIndexes whether secondary indexes should be updated
+     * @param updateIndexes whether secondary indexes should be updated.
+     *                      When {@code false} this write is treated as a <em>nested</em> write: it skips the
+     *                      memtable pool's room-wait gate ({@link org.apache.cassandra.utils.memory.MemtableAllocator#awaitRoomToStart})
+     *                      and goes straight to {@link Memtable#putNested} instead of {@link Memtable#put}.
+     *                      Callers that pass {@code false} are already executing inside an enclosing mutation
+     *                      (e.g. a legacy 2i index write initiated from {@code indexer.onInserted()} under the
+     *                      base table's memtable-internal locks) and <strong>must not</strong> block for room,
+     *                      because doing so would deadlock the flush write-barrier (CASSANDRA-21019).
+     *                      As a consequence, a nested write may allocate slightly beyond the gated limit.
      */
     public void apply(PartitionUpdate update, CassandraWriteContext context, boolean updateIndexes)
 
