@@ -98,7 +98,7 @@ final class GossipInfoTable extends AbstractVirtualTable
             EndpointState localState = new EndpointState(entry.getValue());
 
             SimpleDataSet dataSet = result.row(endpoint.getAddress(), endpoint.getPort())
-                                          .column(HOSTNAME, endpoint.getHostName())
+                                          .column(HOSTNAME, endpoint.getHostString())
                                           .column(GENERATION, getGeneration(localState))
                                           .column(HEARTBEAT, getHeartBeat(localState));
 
