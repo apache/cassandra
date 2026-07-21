@@ -22,5 +22,17 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 
 public interface TableWriteHandler
 {
+    /**
+     * Apply {@code update} to the table's memtable.
+     *
+     * @param update       the partition update to write
+     * @param context      write context for the current mutation
+     * @param updateIndexes whether secondary indexes should be updated.
+     *                      When {@code false} this is a <em>nested</em> write (e.g. a legacy 2i index-table write
+     *                      issued from {@code indexer.onInserted()} under the base table's memtable-internal locks).
+     *                      Nested writes bypass the memtable pool's room-wait gate to avoid deadlocking the flush
+     *                      write-barrier; as a consequence they may allocate slightly beyond the gated limit
+     *                      (CASSANDRA-21019).
+     */
     void write(PartitionUpdate update, WriteContext context, boolean updateIndexes);
 }
