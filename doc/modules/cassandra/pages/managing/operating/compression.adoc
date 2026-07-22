@@ -265,11 +265,11 @@ management, caching, and training behavior.
 
 === Dictionary Refresh Settings
 
-* `compression_dictionary_refresh_interval` (default: `3600`): How often
+* `compression_dictionary_refresh_interval` (default: `3600s`): How often
 (in seconds) to check for and refresh compression dictionaries
 cluster-wide. Newly trained dictionaries will be picked up by all nodes
 within this interval.
-* `compression_dictionary_refresh_initial_delay` (default: `10`): Initial
+* `compression_dictionary_refresh_initial_delay` (default: `10s`): Initial
 delay (in seconds) before the first dictionary refresh check after node
 startup.
 
@@ -278,7 +278,7 @@ startup.
 * `compression_dictionary_cache_size` (default: `10`): Maximum number of
 compression dictionaries to cache per table. Higher values reduce lookup
 overhead but increase memory usage.
-* `compression_dictionary_cache_expire` (default: `3600`): Dictionary
+* `compression_dictionary_cache_expire` (default: `24h`): Dictionary
 cache entry TTL in seconds. Expired entries are evicted and reloaded on
 next access.
 
@@ -289,10 +289,10 @@ Example configuration:
 [source,yaml]
 ----
 # Dictionary refresh and caching
-compression_dictionary_refresh_interval: 3600
-compression_dictionary_refresh_initial_delay: 10
+compression_dictionary_refresh_interval: 3600s
+compression_dictionary_refresh_initial_delay: 10s
 compression_dictionary_cache_size: 10
-compression_dictionary_cache_expire: 3600
+compression_dictionary_cache_expire: 24h
 ----
 
 === CQL training parameters:
