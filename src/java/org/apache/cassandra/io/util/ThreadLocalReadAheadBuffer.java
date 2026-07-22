@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.io.util;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
@@ -105,7 +106,9 @@ public class ThreadLocalReadAheadBuffer implements Closeable
         Block block = getBlock();
         ByteBuffer blockBuffer = block.buffer;
         if (position >= channelSize)
-            throw new CorruptSSTableException(null, channel.filePath());
+            throw new CorruptSSTableException(new IOException(String.format("Chunk read past EOF: requested position %d must be less than file size %d",
+                                                                              position, channelSize)),
+                                                channel.filePath());
 
         int blockNo = (int) (position / bufferSize);
         long blockPosition = blockNo * (long) bufferSize;
