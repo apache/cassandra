@@ -469,12 +469,6 @@ public class AccordImportSSTableTest extends TestBaseImpl
     }
 
     @Test
-    public void testImportSSTablesWithZeroCopyStreaming() throws Throwable
-    {
-
-    }
-
-    @Test
     public void testImportSSTablesCleanupWithMultipleDataDirectories() throws Throwable
     {
         String file = Files.createTempDirectory(AccordImportSSTableTest.class.getSimpleName()).toString();

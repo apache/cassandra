@@ -20,7 +20,6 @@ package org.apache.cassandra.service.accord.txn;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -205,9 +204,9 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     // the ImportTxn has custom logic to move SSTables in the pending directory to the live set. Because these txn's are performed
     // using range reads, clients can see a window of inconsistency for read txn's that are concurrent with the ImportTxn. However,
     // data will always be consistent.
-    public static TxnRead createImport(TableMetadatas tables, TokenRange range, TimeUUID[] planIds, long streamingEpoch)
+    public static TxnRead createImport(TableMetadatas tables, TokenRange range, TimeUUID planId, long streamingEpoch)
     {
-        ImportMetadata importMetadata = new ImportMetadata(planIds, streamingEpoch);
+        ImportMetadata importMetadata = new ImportMetadata(planId, streamingEpoch);
         return new TxnRead(tables, ImmutableList.of(new TxnNamedRead(txnDataName(USER), range, null)), null, importMetadata);
     }
 
@@ -447,18 +446,18 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     // Metadata that is needed to be kept track of for ImportTxns
     public static class ImportMetadata
     {
-        private final TimeUUID[] planIds;
+        private final TimeUUID planId;
         private final Long streamingEpoch;
 
-        public ImportMetadata(TimeUUID[] planIds, Long streamingEpoch)
+        public ImportMetadata(TimeUUID planId, Long streamingEpoch)
         {
-            this.planIds = planIds;
+            this.planId = planId;
             this.streamingEpoch = streamingEpoch;
         }
 
-        public TimeUUID[] getPlanIds()
+        public TimeUUID getPlanId()
         {
-            return planIds;
+            return planId;
         }
 
         public Long getStreamingEpoch()
@@ -474,7 +473,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
 
         public boolean equals(ImportMetadata that)
         {
-            return Arrays.equals(this.planIds, that.planIds)
+            return Objects.equals(this.planId, that.planId)
                    && (Objects.equals(this.streamingEpoch, that.streamingEpoch));
         }
 
@@ -489,29 +488,29 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
             @Override
             public void serialize(ImportMetadata importMetadata, DataOutputPlus out, Version version) throws IOException
             {
-                serializeArray(importMetadata.getPlanIds(), out, TimeUUID.Serializer.instance);
+                TimeUUID.Serializer.instance.serialize(importMetadata.planId, out);
                 out.writeLong(importMetadata.streamingEpoch);
             }
 
             public void skip(DataInputPlus in, Version version) throws IOException
             {
-                skipArray(in, TimeUUID.Serializer.instance);
+                TimeUUID.Serializer.instance.skip(in);
                 in.readLong();
             }
 
             @Override
             public ImportMetadata deserialize(DataInputPlus in, Version version) throws IOException
             {
-                TimeUUID[] planIds = deserializeArray(in, TimeUUID.Serializer.instance, TimeUUID[]::new);
+                TimeUUID planId = TimeUUID.Serializer.instance.deserialize(in);
                 Long streamingEpoch = in.readLong();
-                return new ImportMetadata(planIds, streamingEpoch);
+                return new ImportMetadata(planId, streamingEpoch);
             }
 
             @Override
             public long serializedSize(ImportMetadata importMetadata, Version version)
             {
                 long size = 0;
-                size += serializedArraySize(importMetadata.planIds, TimeUUID.Serializer.instance);
+                size += TimeUUID.Serializer.instance.serializedSize(importMetadata.planId);
                 size += TypeSizes.LONG_SIZE;
                 return size;
             }

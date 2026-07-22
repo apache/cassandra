@@ -236,7 +236,7 @@ public class SSTableImporter
                 cfs.indexManager.buildSSTableAttachedIndexesBlocking(newSSTables);
 
             if (isAccordEnabled)
-                AccordService.instance().executeTransfer(cfs.keyspace.getName(), newSSTables, metadata);
+                AccordService.instance().executeTransfer(importID, cfs.keyspace.getName(), newSSTables, metadata);
             else
                 cfs.getTracker().addSSTables(newSSTables);
             for (SSTableReader reader : newSSTables)

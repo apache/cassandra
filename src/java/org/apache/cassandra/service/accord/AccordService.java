@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -1439,7 +1440,7 @@ public class AccordService implements IAccordService, Shutdownable
         return journal.configuration();
     }
 
-    public void executeTransfer(String keyspace, Set<SSTableReader> sstables, TableMetadata metadata)
+    public void executeTransfer(UUID importID, String keyspace, Set<SSTableReader> sstables, TableMetadata metadata)
     {
         logger.info("Creating Accord bulk transfer for keyspace '{}' table '{}' SSTables {}...", keyspace, metadata.name, sstables);
 
@@ -1449,7 +1450,7 @@ public class AccordService implements IAccordService, Shutdownable
 
         Preconditions.checkArgument(!nodeStreamingContext.isEmpty());
 
-        CoordinatedTransfer transfer = new CoordinatedTransfer(node().nextCoordinatedTransferId(), keyspace, metadata, nodeStreamingContext, topology.epoch(), getTokenRangeSpanningSSTables(sstables, metadata));
+        CoordinatedTransfer transfer = new CoordinatedTransfer(importID, metadata, nodeStreamingContext, topology.epoch(), getTokenRangeSpanningSSTables(sstables, metadata));
 
         transfer.execute();
     }

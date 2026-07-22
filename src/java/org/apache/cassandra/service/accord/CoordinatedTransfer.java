@@ -22,12 +22,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -47,14 +46,12 @@ import accord.utils.Invariants;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
 import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -83,75 +80,35 @@ import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
 import static accord.primitives.Txn.Kind.Read;
 
-/**
- * Orchestrates the lifecycle of a bulk data transfer for Accord. Bulk data transfers only work on a single shard,
- * where the current instance is coordinating the transfer. This means that the node that the bulk data transfer
- * request is submitted to will only perform the transfer for the ranges of the SSTables that it owns.
- * <p>
- * The transfer proceeds through the following two phases:
- * <ol>
- *   <li>
- *       <b>Streaming</b>
- *       The coordinator streams SSTables to all replicas in parallel. Replicas store received data in a "pending"
- *       location where it's persisted to disk but not yet visible to reads. Once all replicas have received
- *       their streams, the SSTables are activated using a two-phase
- *       commit protocol, making them part of the live set and visible to reads.
- *   </li>
- *   <li>
- *       <b>ImportTxn</b>
- *       Once all replicas have received their streams, the SSTables are activated by creating an ImportTxn. An
- *       ImportTxn is equivalent to a range read txn that atomically activates the SSTables making them part of the live set
- *       and visible to reads. Note that because this is done with a range read txn and not a range write txn, clients
- *       performing concurrent reads against any nodes involved in the SSTable import can see inconsistent reads for
- *       a window of time because read txns can occur concurrently with other read txns. However, there will
- *       not be any data inconsistency, because read txns can not be interleaved with other write txns. In cases where
- *       the coordinator fails when performing the ImportTxn, the recovery protocol for Accord txn's is performed and
- *       a recovery coordinator will push the import to completion.
- *   </li>
- * </ol>
- *
- * For simplicity, the coordinator streams to itself rather than using direct file copy. This ensures we can use the
- * same lifecycle management for crash-safety and atomic add.
- * <p>
- * In cases where there is a topology change that is concurrent with the ImportTxn. We do not import the SSTables, as
- * the node with the streamed SSTables may no longer own those ranges and we rely on the client to reperform the import
- * operation.
- */
 public class CoordinatedTransfer
 {
     private static final Logger logger = LoggerFactory.getLogger(CoordinatedTransfer.class);
 
     String logPrefix()
     {
-        return String.format("[CoordinatedTransfer #%s]", id);
+        return String.format("[CoordinatedTransfer #%s]", importID.toString());
     }
 
-    private final Long id;
-    private final String keyspace;
+    private final UUID importID;
     private final TableMetadata tableMetadata;
     private final long streamingEpoch;
     private final TokenRange allSSTableRanges;
 
     final Map<InetAddressAndPort, NodeStreamingMetadata> nodeStreamingContext;
-    final ConcurrentMap<InetAddressAndPort, SingleTransferResult> streamResults;
+    SingleTransferResult streamResult = SingleTransferResult.Init();
 
-    public CoordinatedTransfer(Long id, String keyspace, TableMetadata tableMetadata, Map<InetAddressAndPort, NodeStreamingMetadata> nodeStreamingContext, long streamingEpoch, TokenRange allSSTableRanges)
+    public CoordinatedTransfer(UUID importID, TableMetadata tableMetadata, Map<InetAddressAndPort, NodeStreamingMetadata> nodeStreamingContext, long streamingEpoch, TokenRange allSSTableRanges)
     {
-        this.id = id;
-        this.keyspace = keyspace;
+        this.importID = importID;
         this.tableMetadata = tableMetadata;
         this.nodeStreamingContext = nodeStreamingContext;
         this.streamingEpoch = streamingEpoch;
         this.allSSTableRanges = allSSTableRanges;
-
-        this.streamResults = new ConcurrentHashMap<>(nodeStreamingContext.size());
-        for (InetAddressAndPort ip: nodeStreamingContext.keySet())
-            this.streamResults.put(ip, SingleTransferResult.Init());
     }
 
-    public long id()
+    public UUID importID()
     {
-        return id;
+        return importID;
     }
 
     void execute()
@@ -160,30 +117,14 @@ public class CoordinatedTransfer
         LocalTransfers.instance().save(this);
 
         stream();
-
-        AbstractReplicationStrategy ars = Keyspace.open(keyspace).getReplicationStrategy();
-        int blockFor = ConsistencyLevel.ALL.blockFor(ars);
-        int responses = 0;
-        for (Map.Entry<InetAddressAndPort, SingleTransferResult> entry : streamResults.entrySet())
-        {
-            if (entry.getValue().state == SingleTransferResult.State.STREAM_COMPLETE)
-                responses++;
-        }
-
-        Invariants.require(responses == blockFor);
         performImportTxn();
         LocalTransfers.instance().scheduleCoordinatedTransferCleanup(this);
     }
 
     private void performImportTxn()
     {
-        Invariants.require(!streamResults.containsValue(SingleTransferResult.Init()));
-        TimeUUID[] planIds = streamResults.values().stream()
-                                          .map(result -> result.planId)
-                                          .toArray(TimeUUID[]::new);
-
         TableMetadatas tables = TableMetadatas.of(tableMetadata);
-        TxnRead read = TxnRead.createImport(tables, allSSTableRanges, planIds, streamingEpoch);
+        TxnRead read = TxnRead.createImport(tables, allSSTableRanges, streamResult.planId, streamingEpoch);
         TableMetadatasAndKeys tablesAndKeys = new TableMetadatasAndKeys(tables, read.keys());
         Txn txn = new Txn.InMemory(Read, read.keys(), read, TxnQuery.NONE, null, tablesAndKeys);
         IAccordService.IAccordResult<TxnResult> accordResult = AccordService.instance().coordinateAsync(tableMetadata.epoch.getEpoch(), txn, ConsistencyLevel.ALL, Dispatcher.RequestTime.forImmediateExecution());
@@ -192,88 +133,71 @@ public class CoordinatedTransfer
 
     private void stream()
     {
-        List<Future<Void>> streaming = new ArrayList<>(streamResults.size());
-        for (InetAddressAndPort to : streamResults.keySet())
-        {
-            Future<Void> stream = LocalTransfers.instance().executor.submit(() -> {
-                SingleTransferResult result;
-                try
-                {
-                    result = streamTask(to);
-                }
-                catch (StreamException | ExecutionException | InterruptedException | TimeoutException e)
-                {
-                    Throwable cause = e instanceof ExecutionException ? e.getCause() : e;
-                    markStreamFailure(to, cause);
-                    throw Throwables.unchecked(cause);
-                }
-
-                streamResults.put(to, result);
-                logger.info("{} Completed streaming to {}, {}", logPrefix(), to, this);
-                return null;
-            });
-            streaming.add(stream);
-        }
-
-        // Wait for all streams to complete, so we can clean up after failures. If we exit at the first failure, a
-        // future stream can complete.
-        LinkedList<Throwable> failures = null;
-        for (Future<Void> stream : streaming)
-        {
+        Future<Void> stream = LocalTransfers.instance().executor.submit(() -> {
+            SingleTransferResult result;
             try
             {
-                stream.get();
+                result = streamTask();
             }
-            catch (InterruptedException | ExecutionException e)
+            catch (StreamException | ExecutionException | InterruptedException | TimeoutException e)
             {
-                if (failures == null)
-                    failures = new LinkedList<>();
-                failures.add(e);
-                logger.error("{} Failed transfer due to", logPrefix(), e);
+                Throwable cause = e instanceof ExecutionException ? e.getCause() : e;
+                streamResult = SingleTransferResult.streamFailed(streamResult, streamResult.planId);
+                throw Throwables.unchecked(cause);
             }
-        }
 
-        if (failures != null && !failures.isEmpty())
+            streamResult = result;
+            logger.info("{} Completed streaming to all nodes", logPrefix());
+            return null;
+        });
+
+        try
         {
-            Throwable failure = failures.element();
-            Throwable cause = failure instanceof ExecutionException ? failure.getCause() : failure;
-            maybeCleanupFailedStreams(cause);
-
-            String msg = String.format("Failed streaming on %s instance(s): %s", failures.size(), failures);
-            throw new RuntimeException(msg, Throwables.unchecked(cause));
+            stream.get();
+            logger.info("{} All streaming completed successfully", logPrefix());
         }
-
-        logger.info("{} All streaming completed successfully", logPrefix());
+        catch (InterruptedException | ExecutionException e)
+        {
+            logger.error("{} Failed transfer due to", logPrefix(), e);
+            Throwable cause = e instanceof ExecutionException ? e.getCause() : e;
+            maybeCleanupFailedStreams(cause);
+            throw new RuntimeException("Failed streaming", Throwables.unchecked(cause));
+        }
     }
 
-    private SingleTransferResult streamTask(InetAddressAndPort to) throws StreamException, ExecutionException, InterruptedException, TimeoutException
+    private SingleTransferResult streamTask() throws StreamException, ExecutionException, InterruptedException, TimeoutException
     {
         StreamPlan plan = new StreamPlan(StreamOperation.ACCORD_SSTABLE_IMPORT);
 
         // No need to flush, only using non-live SSTables already on disk
         plan.flushBeforeTransfer(false);
 
-        NodeStreamingMetadata sstablesForNode = nodeStreamingContext.get(to);
-        List<Range<Token>> ranges = nodeStreamingContext.get(to).ranges;
-
-        for (Map.Entry<SSTableReader, List<SSTableReader.PartitionPositionBounds>> entry : sstablesForNode.positionsForSSTables.entrySet())
+        for (Map.Entry<InetAddressAndPort, NodeStreamingMetadata> entry : nodeStreamingContext.entrySet())
         {
-            SSTableReader sstable = entry.getKey();
-            List<SSTableReader.PartitionPositionBounds> positions = entry.getValue();
-            long estimatedKeys = sstable.estimatedKeysForRanges(ranges);
-            OutgoingStream stream = new CassandraOutgoingFile(StreamOperation.ACCORD_SSTABLE_IMPORT, sstable.ref(), positions, ranges, estimatedKeys);
-            plan.transferStreams(to, Collections.singleton(stream));
+            InetAddressAndPort to = entry.getKey();
+            NodeStreamingMetadata sstablesForNode = entry.getValue();
+            List<Range<Token>> ranges = sstablesForNode.ranges;
+
+            for (Map.Entry<SSTableReader, List<SSTableReader.PartitionPositionBounds>> positionsForSSTables : sstablesForNode.positionsForSSTables.entrySet())
+            {
+                SSTableReader sstable = positionsForSSTables.getKey();
+                List<SSTableReader.PartitionPositionBounds> positions = positionsForSSTables.getValue();
+                long estimatedKeys = sstable.estimatedKeysForRanges(ranges);
+                OutgoingStream stream = new CassandraOutgoingFile(StreamOperation.ACCORD_SSTABLE_IMPORT, sstable.ref(), positions, ranges, estimatedKeys);
+                plan.transferStreams(to, Collections.singleton(stream));
+            }
         }
 
         long timeout = DatabaseDescriptor.getStreamTransferTaskTimeout().toMilliseconds();
 
-        logger.info("{} Starting streaming transfer {} to peer {}", logPrefix(), this, to);
+        logger.info("{} Starting streaming transfer", logPrefix());
+        streamResult = SingleTransferResult.streaming(streamResult, plan.planId());
         StreamResultFuture execute = plan.execute();
         StreamState state;
         try
         {
             state = execute.get(timeout, TimeUnit.MILLISECONDS);
-            logger.debug("{} Completed streaming transfer {} to peer {}", logPrefix(), this, to);
+            logger.debug("{} Completed streaming transfer", logPrefix());
         }
         catch (InterruptedException | ExecutionException | TimeoutException e)
         {
@@ -284,11 +208,7 @@ public class CoordinatedTransfer
         if (state.hasFailedSession() || state.hasAbortedSession())
             throw new StreamException(state, "Stream failed due to failed or aborted sessions");
 
-        // Since we have filtered the SSTables using getPositionsForRanges prior, all sessions created
-        // should contain at least 1 SSTable
-        Invariants.require(!state.sessions().isEmpty());
-
-        return SingleTransferResult.StreamComplete(plan.planId());
+        return SingleTransferResult.streamComplete(streamResult, plan.planId());
     }
 
     /**
@@ -309,21 +229,11 @@ public class CoordinatedTransfer
         }
     }
 
-    private void markStreamFailure(InetAddressAndPort to, Throwable cause)
-    {
-        TimeUUID planId;
-        if (cause instanceof StreamException)
-            planId = ((StreamException) cause).finalState.planId;
-        else
-            planId = null;
-        streamResults.computeIfPresent(to, (peer, result) -> result.streamFailed(planId));
-    }
-
     private void notifyFailure() throws ExecutionException, InterruptedException
     {
         class NotifyFailure extends AsyncFuture<Void> implements RequestCallbackWithFailure<NoPayload>
         {
-            final Set<InetAddressAndPort> responses = ConcurrentHashMap.newKeySet(streamResults.size());
+            final Set<InetAddressAndPort> responses = ConcurrentHashMap.newKeySet(nodeStreamingContext.size());
 
             @Override
             public void onResponse(Message<NoPayload> msg)
@@ -347,23 +257,18 @@ public class CoordinatedTransfer
         Map<InetAddressAndPort, Message<TransferFailed>> msgs = new HashMap<>();
         NotifyFailure notifyFailure = new NotifyFailure();
 
-        for (Map.Entry<InetAddressAndPort, SingleTransferResult> entry : streamResults.entrySet())
+        TimeUUID planId = streamResult.planId;
+        Invariants.require(planId != null);
+
+        for (InetAddressAndPort to : nodeStreamingContext.keySet())
         {
-            InetAddressAndPort to = entry.getKey();
             // Coordinator cleans up CoordinatedTransfer and PendingLocalTransfer separately, does not need to notify
             if (FBUtilities.getBroadcastAddressAndPort().equals(to))
                 continue;
 
-            SingleTransferResult result = entry.getValue();
-            if (result.planId == null)
-            {
-                logger.warn("{} Skipping notification of transfer failure to {} due to unknown planId", logPrefix(), to);
-                continue;
-            }
-
-            logger.debug("{}, Notifying {} of transfer failure for plan {}", logPrefix(), to, result.planId);
+            logger.debug("{}, Notifying {} of transfer failure for plan {}", logPrefix(), to, streamResult.planId);
             notifyFailure.responses.add(to);
-            msgs.put(to, Message.out(Verb.TRACKED_TRANSFER_FAILED_REQ, new TransferFailed(result.planId)));
+            msgs.put(to, Message.out(Verb.TRACKED_TRANSFER_FAILED_REQ, new TransferFailed(streamResult.planId)));
         }
 
         for (Map.Entry<InetAddressAndPort,Message<TransferFailed>> entry : msgs.entrySet())
@@ -392,6 +297,7 @@ public class CoordinatedTransfer
         enum State
         {
             INIT,
+            STREAMING,
             STREAM_FAILED,
             STREAM_COMPLETE;
         }
@@ -411,31 +317,27 @@ public class CoordinatedTransfer
             return new SingleTransferResult(State.INIT, null);
         }
 
-        @VisibleForTesting
-        static SingleTransferResult StreamComplete(TimeUUID planId)
+        public static SingleTransferResult streaming(SingleTransferResult from, TimeUUID planId)
         {
+            Invariants.require(from.state == State.INIT);
+            return new SingleTransferResult(State.STREAMING, planId);
+        }
+
+        public static SingleTransferResult streamComplete(SingleTransferResult from, TimeUUID planId)
+        {
+            Invariants.require(from.state == State.STREAMING);
             return new SingleTransferResult(State.STREAM_COMPLETE, planId);
         }
 
-        public SingleTransferResult streamFailed(TimeUUID planId)
+        public static SingleTransferResult streamFailed(SingleTransferResult from, TimeUUID planId)
         {
+            Invariants.require(from.state == State.STREAMING);
             return new SingleTransferResult(State.STREAM_FAILED, planId);
         }
 
         public TimeUUID planId()
         {
             return planId;
-        }
-
-        @Override
-        public boolean equals(Object that)
-        {
-            return that instanceof SingleTransferResult && equals((SingleTransferResult) that);
-        }
-
-        public boolean equals(SingleTransferResult that)
-        {
-            return state == that.state && (planId == null && that.planId == null || planId.equals(that.planId));
         }
 
         @Override

@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -39,7 +40,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.ExecutorUtils;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -51,7 +51,7 @@ public class LocalTransfers
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
     // SSTable imports that we are coordinating
-    public final Map<Long, CoordinatedTransfer> coordinating = new ConcurrentHashMap<>();
+    public final Map<UUID, CoordinatedTransfer> coordinating = new ConcurrentHashMap<>();
 
     // Added when we have a streamed SSTable in our pending directory
     public final Map<TimeUUID, PendingLocalTransfer> local = new ConcurrentHashMap<>();
@@ -69,7 +69,7 @@ public class LocalTransfers
         lock.writeLock().lock();
         try
         {
-            CoordinatedTransfer existing = coordinating.put(transfer.id(), transfer);
+            CoordinatedTransfer existing = coordinating.put(transfer.importID(), transfer);
             Preconditions.checkState(existing == null);
         }
         finally
@@ -142,9 +142,8 @@ public class LocalTransfers
         lock.writeLock().lock();
         try
         {
-            coordinating.remove(transfer.id());
-
-            CoordinatedTransfer.SingleTransferResult localPending = transfer.streamResults.get(FBUtilities.getBroadcastAddressAndPort());
+            coordinating.remove(transfer.importID());
+            CoordinatedTransfer.SingleTransferResult localPending = transfer.streamResult;
             if (localPending != null)
                 purge(localPending.planId());
         }
@@ -189,13 +188,9 @@ public class LocalTransfers
         lock.readLock().lock();
         try
         {
-            for (TimeUUID planId : metadata.getPlanIds())
-            {
-                PendingLocalTransfer pendingLocalTransfer = local.get(planId);
-                if (pendingLocalTransfer != null)
-                    pendingLocalTransfer.activate();
-            }
-
+            PendingLocalTransfer pendingLocalTransfer = local.get(metadata.getPlanId());
+            if (pendingLocalTransfer != null)
+                pendingLocalTransfer.activate();
         }
         finally
         {
