@@ -41,11 +41,14 @@ public class ReplayMarkers
     }
 
     // TODO (required): add checksummed version and default to this (but support unchecksummed for manual editing)
-    static void writeMarker(File file, long timestamp)
+    public static void writeMarker(File file, long timestamp, long lastUniqueTimeStamp)
     {
         try (FileOutputStreamPlus out = new FileOutputStreamPlus(file))
         {
+            int endingOffset = Long.toString(timestamp).length();
+            out.writeInt(endingOffset);
             out.writeBytes(Long.toString(timestamp));
+            out.writeBytes(Long.toString(lastUniqueTimeStamp));
         }
         catch (IOException e)
         {
@@ -72,6 +75,30 @@ public class ReplayMarkers
         try (FileInputStreamPlus in = new FileInputStreamPlus(file))
         {
             StringBuilder sb = new StringBuilder(8);
+            int endingOffset = in.readInt();
+            for (int i = 0; i < endingOffset; i++)
+                sb.append((char) in.read());
+            return Long.parseLong(sb.toString());
+        }
+        catch (IOException e)
+        {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    public static long readLastUniqueTimeStamp()
+    {
+        File file = safeStopMarker();
+        if (!file.exists())
+            return -1L;
+
+        try (FileInputStreamPlus in = new FileInputStreamPlus(file))
+        {
+            int endingOffset = in.readInt();
+            StringBuilder sb = new StringBuilder(8);
+            for (int i = 0; i < endingOffset; i++)
+                in.read();
+
             for (int b = in.read(); b >= 0 ; b = in.read())
                 sb.append((char)b);
             return Long.parseLong(sb.toString());

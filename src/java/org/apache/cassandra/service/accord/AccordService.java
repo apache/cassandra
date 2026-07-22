@@ -554,6 +554,8 @@ public class AccordService implements IAccordService, Shutdownable
                         rebootstrap = true;
                 }
             }
+
+            node.uniqueNow(ReplayMarkers.readLastUniqueTimeStamp());
         }
 
         logger.info("Starting background compaction of system_accord");
@@ -684,7 +686,7 @@ public class AccordService implements IAccordService, Shutdownable
 
         // we set ourselves to STARTED before starting progress logs as this is the condition we use to decide if we
         // start the progress log on command store initialisation (so creates a synchronisation point)
-        journal.writeStartMarker();
+        journal.writeStartMarker(node.uniqueNow());
         state = State.STARTED;
         instance = requestInstance = this;
         node.commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start());
@@ -1227,7 +1229,7 @@ public class AccordService implements IAccordService, Shutdownable
         AccordCommandStores commandStores = (AccordCommandStores)node.commandStores();
         Set<TableId> tableIds = commandStores.shutdownStores();
         commandStores.waitForQuiescence();
-        journal.writeSafeStopMarker();
+        journal.writeSafeStopMarker(node.uniqueNow());
         scheduler.shutdownNow();
         toFuture(flushCaches()).map(ignore -> {
             return AccordColumnFamilyStores.commandsForKey.forceFlush(DRAIN);
