@@ -74,11 +74,6 @@ public class ShortMutationId implements Serializable
         this.offset = offset;
     }
 
-    public ShortMutationId(MutationId mutationId)
-    {
-        this(mutationId.hostLogId(), mutationId.hostId(), mutationId.offset());
-    }
-
     public int hostId()
     {
         return hostId;

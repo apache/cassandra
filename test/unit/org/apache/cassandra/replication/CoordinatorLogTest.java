@@ -29,7 +29,6 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.replication.CoordinatorLog.CoordinatorLogPrimary;
@@ -103,7 +102,7 @@ public class CoordinatorLogTest
         Token tk = tk("key");
         TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
         TableId tableId = metadata.id;
-        CoordinatorLogPrimary log = new CoordinatorLogPrimary(KEYSPACE, new Range<>(tk, tk), LOCAL_HOST_ID, LOCAL_LOG_ID, PARTICIPANTS);
+        CoordinatorLogPrimary log = new CoordinatorLogPrimary(KEYSPACE, 0L, new Range<>(tk, tk), LOCAL_HOST_ID, LOCAL_LOG_ID, PARTICIPANTS);
         MutationId[] ids = new MutationId[] { log.nextId(), log.nextId(), log.nextId(), };
 
         List<Mutation> mutations = new ArrayList<>(ids.length);
@@ -180,7 +179,7 @@ public class CoordinatorLogTest
         MutationJournal.instance().write(mutation2.id(), mutation2);
 
         CoordinatorLog log =
-            CoordinatorLog.recreate(KEYSPACE, range, LOCAL_HOST_ID, logId, PARTICIPANTS, witnessed, witnessed, unreconciled);
+            CoordinatorLog.recreate(KEYSPACE, 0L, range, LOCAL_HOST_ID, logId, PARTICIPANTS, witnessed, witnessed, unreconciled);
 
         Offsets.Mutable reconciled = new Offsets.Mutable(logId);
         reconciled.add(3, 4);
@@ -193,7 +192,7 @@ public class CoordinatorLogTest
     private static void validatePersistAndLoadRoundtrip(CoordinatorLog log)
     {
         log.persistToSystemTable();
-        List<CoordinatorLog> logs = CoordinatorLog.loadFromSystemTable(KEYSPACE, log.range, LOCAL_HOST_ID);
+        List<CoordinatorLog> logs = CoordinatorLog.loadFromSystemTable(KEYSPACE, 0L, log.range, LOCAL_HOST_ID);
         assertEquals(1, logs.size());
         CoordinatorLog loaded = logs.get(0);
 
@@ -213,93 +212,5 @@ public class CoordinatorLogTest
         assertEquals(log.reconciledOffsets, loaded.reconciledOffsets);
 
         assertTrue(log.unreconciledMutations.equalsForTesting(loaded.unreconciledMutations));
-    }
-
-    @Test
-    public void withParticipantsSameParticipantsTest()
-    {
-        Token tk = Murmur3Partitioner.instance.getMinimumToken();
-        CoordinatorLogPrimary log = new CoordinatorLogPrimary(KEYSPACE, new Range<>(tk, tk), LOCAL_HOST_ID, LOCAL_LOG_ID, PARTICIPANTS);
-        
-        CoordinatorLog newLog = log.withParticipants(PARTICIPANTS);
-        
-        assertSame("Same participants should return same instance", log, newLog);
-    }
-
-    @Test
-    public void withParticipantsReplicaTest()
-    {
-        Token tk = Murmur3Partitioner.instance.getMinimumToken();
-        CoordinatorLogPrimary log = new CoordinatorLogPrimary(KEYSPACE, new Range<>(tk, tk), LOCAL_HOST_ID, LOCAL_LOG_ID, PARTICIPANTS);
-
-        log.witnessedOffsets.get(2).add(300);
-
-        Participants newParticipants = new Participants(List.of(LOCAL_HOST_ID, 5, 6));
-        CoordinatorLog newLog = log.withParticipants(newParticipants);
-        
-        assertTrue("Should be CoordinatorLogPrimary", newLog instanceof CoordinatorLog.CoordinatorLogPrimary);
-        assertTrue("Should have empty witness state for new participants", newLog.witnessedOffsets.get(5).isEmpty());
-        assertTrue("Should have empty witness state for new participants", newLog.witnessedOffsets.get(6).isEmpty());
-    }
-
-    private static Offsets offsetsWithOffsets(CoordinatorLogId logId, int... offsets)
-    {
-        Offsets.Mutable result = new Offsets.Mutable(logId);
-        for (int offset : offsets)
-            result.add(offset);
-        return result;
-    }
-
-    private static Offsets offsetsWithOffsets(int... offsets)
-    {
-        return offsetsWithOffsets(LOCAL_LOG_ID, offsets);
-    }
-
-    @Test
-    public void withParticipantsAddNewParticipantTest()
-    {
-        Token tk = Murmur3Partitioner.instance.getMinimumToken();
-        CoordinatorLogPrimary log = new CoordinatorLogPrimary(KEYSPACE, new Range<>(tk, tk), LOCAL_HOST_ID, LOCAL_LOG_ID, PARTICIPANTS);
-        
-        log.witnessedOffsets.get(LOCAL_HOST_ID).add(1);
-        log.witnessedOffsets.get(2).add(2);
-        log.witnessedOffsets.get(3).add(3);
-
-        log.witnessedOffsets.get(LOCAL_HOST_ID).add(5);
-        log.witnessedOffsets.get(2).add(5);
-        log.witnessedOffsets.get(3).add(5);
-        log.reconciledOffsets.add(5);
-        
-        Participants expandedParticipants = new Participants(List.of(LOCAL_HOST_ID, 2, 3, 4));
-        CoordinatorLog newLog = log.withParticipants(expandedParticipants);
-        
-        assertEquals(offsetsWithOffsets(1, 5), newLog.witnessedOffsets.get(LOCAL_HOST_ID));
-        assertEquals(offsetsWithOffsets(2, 5), newLog.witnessedOffsets.get(2));
-        assertEquals(offsetsWithOffsets(3, 5), newLog.witnessedOffsets.get(3));
-        assertEquals(offsetsWithOffsets( 5), newLog.witnessedOffsets.get(4));
-        assertEquals(offsetsWithOffsets(5), newLog.reconciledOffsets);
-    }
-
-    @Test
-    public void withParticipantsRemoveParticipantTest()
-    {
-        Token tk = Murmur3Partitioner.instance.getMinimumToken();
-        CoordinatorLogPrimary log = new CoordinatorLogPrimary(KEYSPACE, new Range<>(tk, tk), LOCAL_HOST_ID, LOCAL_LOG_ID, PARTICIPANTS);
-        
-        log.witnessedOffsets.get(LOCAL_HOST_ID).addAll(offsetsWithOffsets(10, 40));
-        log.witnessedOffsets.get(2).addAll(offsetsWithOffsets(10, 40));
-        log.witnessedOffsets.get(3).addAll(offsetsWithOffsets(30, 40));
-        log.reconciledOffsets.add(40);
-        
-        Participants reducedParticipants = new Participants(List.of(LOCAL_HOST_ID, 2));
-        CoordinatorLog newLog = log.withParticipants(reducedParticipants);
-        
-        assertEquals(2, newLog.participants.size());
-        assertEquals(offsetsWithOffsets(10, 40), newLog.witnessedOffsets.get(LOCAL_HOST_ID));
-        assertEquals(offsetsWithOffsets(10, 40), newLog.witnessedOffsets.get(2));
-
-        // offset 10 should be promoted to reconciled since the node without it (3) has been removed
-        assertEquals(offsetsWithOffsets(10, 40), newLog.reconciledOffsets);
-        assertTrue(newLog.unreconciledMutations.isEmpty());
     }
 }

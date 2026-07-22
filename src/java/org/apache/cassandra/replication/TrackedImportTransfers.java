@@ -70,7 +70,7 @@ public class TrackedImportTransfers implements Iterable<TrackedImportTransfer>
             if (sstablesForRange.isEmpty())
                 return;
 
-            TrackedImportTransfer transfer = new TrackedImportTransfer(keyspace, range, shard.participants, sstablesForRange, cl, shard::nextId);
+            TrackedImportTransfer transfer = new TrackedImportTransfer(keyspace, shard.sinceEpoch, range, shard.participants, sstablesForRange, cl, shard::nextTransferId);
             transfers.add(transfer);
         });
         return new TrackedImportTransfers(transfers);

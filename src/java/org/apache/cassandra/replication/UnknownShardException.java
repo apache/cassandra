@@ -15,22 +15,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.replication;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 
 public class UnknownShardException extends IllegalStateException
 {
-    public UnknownShardException(Token token, ReplicaGroups groups)
+    public UnknownShardException(Token token, String keyspace)
     {
-        super(String.format("Could not find token %s in %s", token, groups));
+        super(String.format("Could not find token %s in shards for keyspace %s", token, keyspace));
     }
 
-    public UnknownShardException(Range<Token> range, ReplicaGroups groups)
+    public UnknownShardException(Range<Token> range, String keyspace)
     {
-        super(String.format("Could not find range %s in %s", range, groups));
+        super(String.format("Could not find range %s in shards for keyspace %s", range, keyspace));
     }
 }

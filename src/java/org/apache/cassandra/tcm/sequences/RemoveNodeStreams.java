@@ -34,6 +34,8 @@ import org.apache.cassandra.locator.SystemStrategy;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.SealingCoordinator;
 import org.apache.cassandra.streaming.DataMovement;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -58,6 +60,12 @@ public class RemoveNodeStreams implements LeaveStreams
                                             metadata,
                                             startLeave);
         movements.forEach((params, eps) -> logger.info("Removenode movements: {}: {}", params, eps));
+
+        // Before streaming to the new write replicas, seal the pre-leave shards obsoleted
+        // by START_LEAVE among the surviving participants (side-stepping the dead node).
+        if (MutationTrackingService.isEnabled())
+            SealingCoordinator.sealShardsAtMidLeave(metadata, startLeave, leaving, kind());
+
         String operationId = leaving.toUUID().toString();
         responseTracker = DataMovements.instance.registerMovements(RESTORE_REPLICA_COUNT, operationId, movements);
         movements.byEndpoint().forEach((endpoint, epMovements) -> {

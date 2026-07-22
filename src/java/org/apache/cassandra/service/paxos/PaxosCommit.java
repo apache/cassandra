@@ -115,6 +115,7 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
     final int required;
     final OnDone onDone;
     final boolean tracked;
+    final boolean allocatedMutationId;
 
     @Nullable
     final IntHashSet remoteReplicas;
@@ -135,6 +136,7 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
 
         Agreed commitToUse = commit;
         IntHashSet remoteReplicas = null;
+        boolean allocatedMutationId = false;
         if (isTracked)
         {
             // Precondition: for tracked keyspaces, the local node must be a replica
@@ -150,6 +152,7 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
             {
                 Token token = commit.partitionKey().getToken();
                 MutationId mutationId = MutationTrackingService.instance().nextMutationId(commit.metadata().keyspace, token);
+                allocatedMutationId = true;
                 Mutation mutationWithId = commit.makeMutation(mutationId);
                 commitToUse = new Commit.Agreed(commit.ballot, mutationWithId);
             }
@@ -176,6 +179,7 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
         }
 
         this.tracked = isTracked;
+        this.allocatedMutationId = allocatedMutationId;
         this.commit = commitToUse;
         this.allowHints = allowHints;
         this.consistencyForConsensus = consistencyForConsensus;
@@ -428,7 +432,17 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
         {
             // For tracked keyspaces, local execution MUST succeed and write to journal.
             // Use direct execution instead of executeOnSelf to ensure we detect failures.
-            NoPayload response = RequestHandler.execute(commit);
+            NoPayload response;
+            try
+            {
+                response = RequestHandler.execute(commit);
+            }
+            finally
+            {
+                if (allocatedMutationId)
+                    MutationTrackingService.instance().completeLocalWrite(commit.mutation.id());
+            }
+
             if (response == null)
             {
                 throw new IllegalStateException(String.format(

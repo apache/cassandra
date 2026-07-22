@@ -150,7 +150,7 @@ public class StreamSessionOwnedRangesTest
         long startMetricCount = StorageMetrics.totalOpsForInvalidToken.getCount();
 
         session.state(StreamSession.State.PREPARING);
-        session.prepareAsync(requests, Collections.emptySet(), null, null);
+        session.prepareAsync(requests, Collections.emptySet());
 
         assertEquals(2, sent.size());
         assertEquals(PREPARE_SYNACK, sent.get(0).type);
@@ -167,7 +167,7 @@ public class StreamSessionOwnedRangesTest
         long startMetricCount = StorageMetrics.totalOpsForInvalidToken.getCount();
 
         session.state(StreamSession.State.PREPARING);
-        java.util.concurrent.Future<Exception> f = session.prepare(requests, Collections.emptySet(), null, null);
+        java.util.concurrent.Future<Exception> f = session.prepare(requests, Collections.emptySet());
         Exception ex = f.get();
         assertNotNull(ex);
         if (!(ex instanceof StreamRequestOutOfTokenRangeException))

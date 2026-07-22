@@ -200,6 +200,7 @@ public class CounterMutation implements IMutation
         }
     }
 
+    @Override
     public void apply()
     {
         applyCounterMutation();

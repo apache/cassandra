@@ -19,13 +19,11 @@ package org.apache.cassandra.replication;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -62,12 +60,10 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.MutationTrackingMetrics;
 import org.apache.cassandra.net.Message;
@@ -76,7 +72,6 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.SyncTask;
 import org.apache.cassandra.repair.SyncTasks;
 import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
@@ -87,10 +82,10 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.listeners.ChangeListener;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static java.lang.String.format;
@@ -98,8 +93,6 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorSemantics.NORMAL;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 
-// TODO (expected): persistence (handle restarts)
-// TODO (expected): handle topology changes
 public class MutationTrackingService implements MutationTrackingServiceMBean
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=MutationTrackingService";
@@ -173,21 +166,11 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         instance().shutdownBlocking();
     }
 
-    /**
-     * Split ranges into this many shards.
-     * <p>
-     * REVIEW: Reset back to 1 because for transfers, replicas need to know each others' shards, since transfers are
-     * sliced to fit within shards. Can we achieve sharding via split range ownership, instead of it being local-only?
-     * <p>
-     * TODO (expected): ability to rebalance / change this constant
-     */
-    private static final int SHARD_MULTIPLIER = 1;
-
     private static final Logger logger = LoggerFactory.getLogger(MutationTrackingService.class);
 
     private final TrackedLocalReads localReads = new TrackedLocalReads();
     private ConcurrentHashMap<String, KeyspaceShards> keyspaceShards = new ConcurrentHashMap<>();
-    private ConcurrentHashMap<CoordinatorLogId, Shard> log2ShardMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<CoordinatorLogId, Shard> log2ShardMap = new ConcurrentHashMap<>();
     private final ChangeListener tcmListener;
 
     // The highest TCM epoch we have applied to keyspaceShards via onNewClusterMetadata.
@@ -209,6 +192,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     // a better tradeoff for node replacement, but it seems likely that handling token movements will be simpler
     // if we use a copy on write pattern for topology changes.
     // TODO (expected): consider StampedLock or other approaches to avoid theoretical topology change starvation
+    // TODO (expected): review all instances of taking this lock, minimise the scope of what's done within
     private final ReentrantReadWriteLock shardLock = new ReentrantReadWriteLock();
 
     private final ReplicatedOffsetsBroadcaster offsetsBroadcaster = new ReplicatedOffsetsBroadcaster();
@@ -304,26 +288,9 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         offsetsBroadcaster.pauseOffsetBroadcast(pause);
     }
 
-    /**
-     * Creates a ShardReconciledOffsets containing reconciled offsets and ranges for multiple keyspaces.
-     */
-    public ReconciledLogSnapshot snapshotReconciledLogs()
+    public void registerMetadataListener()
     {
-        ReconciledLogSnapshot.Builder builder = ReconciledLogSnapshot.builder();
-
-        shardLock.readLock().lock();
-        try
-        {
-            keyspaceShards.forEach((keyspace, ksShards) -> {
-                ksShards.collectShardReconciledOffsetsToBuilder(builder);
-            });
-        }
-        finally
-        {
-            shardLock.readLock().unlock();
-        }
-
-        return builder.build();
+        ClusterMetadataService.instance().log().addListener(tcmListener);
     }
 
     public synchronized boolean isStarted()
@@ -357,35 +324,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         try
         {
             MutationId id = getOrCreateShards(keyspace).nextMutationId(token);
-            logger.trace("Created new mutation id {}", id);
-            return id;
-        }
-        finally
-        {
-            shardLock.readLock().unlock();
-        }
-    }
-
-    // Requires that ranges is aligned to a single shard
-    public MutationId nextMutationId(String keyspace, Collection<Range<Token>> ranges)
-    {
-        shardLock.readLock().lock();
-        try
-        {
-            KeyspaceShards shards = getOrCreateShards(keyspace);
-            Shard shard = null;
-            for (Range<Token> range : ranges)
-            {
-                Shard curShard = shards.lookUp(range);
-                if (curShard == null)
-                    throw new UnknownShardException(range, shards.groups);
-                if (shard == null)
-                    shard = curShard;
-                else if (shard != curShard)
-                    throw new IllegalStateException(String.format("Cannot generate a mutation ID for ranges (%s) that span across more than one shard (%s, %s)", ranges, shard, curShard));
-            }
-            Preconditions.checkNotNull(shard);
-            MutationId id = shard.nextId();
             logger.trace("Created new mutation id {}", id);
             return id;
         }
@@ -457,12 +395,14 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         activeReconciler.schedule(transfer.id(), onHost, ActiveLogReconciler.Priority.REGULAR);
     }
 
-    public void updateReplicatedOffsets(String keyspace, Range<Token> range, List<? extends Offsets> offsets, boolean durable, InetAddressAndPort onHost)
+    public void updateReplicatedOffsets(String keyspace, long sinceEpoch, Range<Token> range, Participants participants,
+                                        List<? extends Offsets> offsets, boolean durable, InetAddressAndPort onHost)
     {
         shardLock.readLock().lock();
         try
         {
-            getOrCreateShards(keyspace).updateReplicatedOffsets(range, offsets, durable, onHost);
+            Shard shard = getOrCreateShard(keyspace, sinceEpoch, range, participants);
+            shard.updateReplicatedOffsets(offsets, durable, onHost);
         }
         finally
         {
@@ -483,30 +423,15 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         }
     }
 
-    public void recordFullyReconciledOffsets(ReconciledLogSnapshot reconciledSnapshot)
-    {
-        shardLock.readLock().lock();
-        try
-        {
-            reconciledSnapshot.forEach((keyspace, keyspaceOffsets) -> {
-                KeyspaceShards ksShards = getOrCreateShards(keyspace);
-                if (ksShards != null)
-                    ksShards.recordFullyReconciledOffsets(keyspaceOffsets);
-            });
-        }
-        finally
-        {
-            shardLock.readLock().unlock();
-        }
-    }
-
     public boolean startWriting(Mutation mutation)
     {
+        Preconditions.checkArgument(!mutation.id().isNone());
+        // resolve the shard first - might trigger a blocking network call
+        Shard shard = getOrCreateShardForMutation(mutation);
         shardLock.readLock().lock();
         try
         {
-            Preconditions.checkArgument(!mutation.id().isNone());
-            return getOrCreateShards(mutation.getKeyspaceName()).startWriting(mutation);
+            return shard.startWriting(mutation);
         }
         finally
         {
@@ -516,17 +441,98 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
     public void finishWriting(Mutation mutation)
     {
+        Preconditions.checkArgument(!mutation.id().isNone());
         shardLock.readLock().lock();
         try
         {
-            Preconditions.checkArgument(!mutation.id().isNone());
-            getOrCreateShards(mutation.getKeyspaceName()).finishWriting(mutation);
+            getShard(mutation.id().asLogId()).finishWriting(mutation);
             incomingMutations.invokeListeners(mutation.id());
         }
         finally
         {
             shardLock.readLock().unlock();
         }
+    }
+
+    /**
+     * Must be called exactly once per {@code nextId()} invocation.
+     */
+    public void completeLocalWrite(MutationId id)
+    {
+        Preconditions.checkArgument(!id.isNone());
+        Shard shard = getShardNullable(id.asLogId());
+        if (null == shard)
+            throw new IllegalStateException(format("Shard for log %s was not found in log2ShardMap", id.asLogId()));
+        shard.completeLocalWrite();
+    }
+
+    /**
+     * Check the log-to-shard index first; if the log ID is locally unknown, query all peers for the shard metadata,
+     * then find or create the matching shard locally under the read lock.
+     * <p>
+     * The returned shard is safe to write to even if a topology change interleaves between this
+     * call and the subsequent write, because shard recreation carries existing shards forward rather
+     * than discarding them (see {@link KeyspaceShards#withNewShards}).
+     */
+    @Nonnull
+    private Shard getOrCreateShardForMutation(Mutation mutation)
+    {
+        CoordinatorLogId logId = mutation.id().asLogId();
+
+        Shard shard = getShardNullable(logId);
+        if (null != shard)
+            return shard;
+
+        ShardMetadata metadata = queryPeersForShardMetadata(logId, mutation.getKeyspaceName());
+
+        // with the right checks upstream this should never happen, but if it does, we need to throw
+        if (!metadata.participants.contains(ClusterMetadata.current().myNodeId().id()))
+            throw new RuntimeException("Mutation belongs to a shard that this node doesn't participate in");
+
+        shardLock.readLock().lock();
+        try
+        {
+            return getOrCreateShard(metadata.keyspace, metadata.sinceEpoch, metadata.range, metadata.participants);
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * When we see a new coordinator log id for the first time, we may not know what shard to place it into.
+     * Queries all peers for the shard metadata, finds or creates the matching shard locally, and returns it.
+     * Throws if resolution fails entirely.
+     */
+    private ShardMetadata queryPeersForShardMetadata(CoordinatorLogId logId, String keyspace)
+    {
+        // Collect peers: current replicas for the keyspace + the log's originating host.
+        Set<InetAddressAndPort> peers = new HashSet<>();
+        shardLock.readLock().lock();
+        try
+        {
+            KeyspaceShards shards = keyspaceShards.get(keyspace);
+            if (shards != null)
+                shards.forEachShard(s -> peers.addAll(s.remoteReplicas()));
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+
+        InetAddressAndPort hostOfOrigin = ClusterMetadata.current().directory.endpoint(new NodeId(logId.hostId));
+        if (hostOfOrigin != null)
+            peers.add(hostOfOrigin);
+
+        peers.remove(FBUtilities.getBroadcastAddressAndPort());
+
+        AsyncPromise<ShardMetadata> promise = ShardMetadataRequest.queryPeers(logId, peers);
+        promise.awaitUninterruptibly(DatabaseDescriptor.getWriteRpcTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+        ShardMetadata metadata = promise.getNow();
+        if (metadata == null)
+            throw new RuntimeException(String.format("Could not resolve shard metadata for log %s in keyspace %s", logId, keyspace));
+        return metadata;
     }
 
     /**
@@ -629,7 +635,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         {
             if (committed)
             {
-                keyspaceShards.get(keyspace).lookUp(request.range).finishActivation(bounds, request);
+                keyspaceShards.get(keyspace).lookUpForActivation(request.range, request.sinceEpoch).finishActivation(bounds, request);
                 incomingMutations.invokeListeners(request.transferId);
             }
         }
@@ -702,6 +708,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         return count[0];
     }
 
+    // TODO (expected): what? this is not the way; this should grab an immutable snapshot instead
     public Iterable<Shard> getShards()
     {
         List<Shard> shards = new ArrayList<>();
@@ -709,7 +716,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         try
         {
             keyspaceShards.forEach((keyspace, ksShards) -> {
-                ksShards.forEachShard(shards::add);
+                ksShards.forEachShard((shard, into) -> into.add(shard), shards);
             });
         }
         finally
@@ -818,8 +825,28 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         return log2ShardMap.get(logId);
     }
 
+    @Nullable
+    ShardMetadata getShardMetadata(CoordinatorLogId logId)
+    {
+        Shard shard = getShardNullable(logId);
+        return shard != null ? new ShardMetadata(shard.keyspace, shard.sinceEpoch, shard.range, shard.participants) : null;
+    }
+
+    /**
+     * @return participants for an existing log id
+     */
     @Nonnull
-    private Shard getShard(CoordinatorLogId logId)
+    Participants getLogParticipants(CoordinatorLogId logId)
+    {
+        Shard shard = log2ShardMap.get(logId);
+        if (shard == null)
+            throw new IllegalStateException("No Shard found for log id " + logId);
+        return shard.participants;
+    }
+
+    @Nonnull
+    @VisibleForTesting
+    Shard getShard(CoordinatorLogId logId)
     {
         return Preconditions.checkNotNull(log2ShardMap.get(logId));
     }
@@ -841,6 +868,43 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         return keyspaceShards.computeIfAbsent(keyspace, ignore -> KeyspaceShards.make(ksm, csm, this::nextLogId, this::onNewLog));
     }
 
+    /**
+     * Find an existing shard matching the response's (epoch, range), or create a new one from the response metadata.
+     * TODO (expected): validate if this should be called with a shard lock everywhere it's called
+     * TODO (expected): log2Shard map updates even on failed CAS. Need to clean up there(?); Register callbacks?
+     */
+    @Nonnull
+    private Shard getOrCreateShard(
+        String keyspace, long sinceEpoch, Range<Token> range, Participants participants)
+    {
+        int localNodeId = ClusterMetadata.current().myNodeId().id();
+
+        if (!participants.contains(localNodeId))
+            throw new IllegalArgumentException("Attempted to create a shard that this node doesn't participate in");
+
+        // unlikely, but possible to race here, hence the CAS loop
+        while (true)
+        {
+            KeyspaceShards current = getOrCreateShards(keyspace);
+            Shard shard = current.get(range, sinceEpoch);
+            if (shard != null)
+                return shard;
+            shard = new Shard(localNodeId, keyspace, sinceEpoch, range, participants, this::nextLogId, this::onNewLog);
+            KeyspaceShards updated = current.withNewShard(shard);
+            if (keyspaceShards.replace(keyspace, current, updated))
+                return shard;
+        }
+    }
+
+    @Nonnull
+    private Shard getShard(String keyspace, long sinceEpoch, Range<Token> range)
+    {
+        KeyspaceShards shards = keyspaceShards.get(keyspace);
+        Shard shard = shards != null ? shards.get(range, sinceEpoch) : null;
+        if (shard != null) return shard;
+        throw new IllegalStateException(format("Shard for keyspace %s, epoch %d, range %s cannot be found", keyspace, sinceEpoch, range));
+    }
+
     private long nextLogId()
     {
         NodeId nodeId = ClusterMetadata.current().myNodeId();
@@ -852,13 +916,13 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
      * Allocate and persist the next host log id.
      * We only do this on startup and when rotating logs.
      */
-    private int nextHostLogId()
+    private synchronized int nextHostLogId()
     {
         int nextHostLogId = ++prevHostLogId;
         persistHostLogIdToSystemTable(nextHostLogId);
         return nextHostLogId;
     }
-    private int prevHostLogId;
+    private volatile int prevHostLogId;
 
     public boolean isDurablyReconciled(ShortMutationId id)
     {
@@ -923,9 +987,8 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             shardLock.readLock().unlock();
         }
 
-        shardLock.writeLock().lock();
-        ConcurrentHashMap<CoordinatorLogId, Shard> originalLog2ShardMap = log2ShardMap;
         ConcurrentHashMap<String, KeyspaceShards> originalKeyspaceShards = keyspaceShards;
+        shardLock.writeLock().lock();
         try
         {
             if (!next.epoch.isAfter(lastAppliedEpoch))
@@ -934,9 +997,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             if (!shardUpdateNeeded(keyspaceShards, prev, next))
                 return;
 
-            // recalculating the shards will repopulate this via the existing callbacks
-            log2ShardMap = new ConcurrentHashMap<>();
-            keyspaceShards = applyUpdatedMetadata(keyspaceShards, prev, next, this::nextLogId, this::onNewLog);
+            keyspaceShards = applyUpdatedMetadata(keyspaceShards, prev, next, this::nextLogId, this::onNewLog, this::onDroppedLog);
 
             if (!config.background_reconciliation_enabled)
             {
@@ -950,7 +1011,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         }
         catch (Throwable t)
         {
-            log2ShardMap = originalLog2ShardMap;
             keyspaceShards = originalKeyspaceShards;
             throw t;
         }
@@ -983,7 +1043,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         return false;
     }
 
-    private static ConcurrentHashMap<String, KeyspaceShards> applyUpdatedMetadata(Map<String, KeyspaceShards> keyspaceShardsMap, @Nullable ClusterMetadata prev, ClusterMetadata next, LongSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
+    private static ConcurrentHashMap<String, KeyspaceShards> applyUpdatedMetadata(Map<String, KeyspaceShards> keyspaceShardsMap, @Nullable ClusterMetadata prev, ClusterMetadata next, LongSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog, BiConsumer<Shard, CoordinatorLog> onDroppedLog)
     {
         Preconditions.checkNotNull(next);
 
@@ -1010,13 +1070,15 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
                         updated.put(keyspace, current);
                     break;
                 case DROP:
-                    // Don't carry forward the state for the dropped keyspace
+                    // clean up the log2ShardMap when a keyspace is dropped
+                    if (current != null)
+                        current.forEachShard(s -> s.forEachLog(onDroppedLog));
                     break;
                 case REPLICA_GROUP:
                     // if there's an existing keyspace shards instance, update it, otherwise fall through to CREATE
                     if (current != null)
                     {
-                        KeyspaceShards ksShards = current.withUpdatedMetadata(next.schema.getKeyspaceMetadata(keyspace), next, logIdProvider, onNewLog);
+                        KeyspaceShards ksShards = current.withNewShards(next.schema.getKeyspaceMetadata(keyspace), next, logIdProvider, onNewLog);
                         updated.put(keyspace, ksShards);
                         break;
                     }
@@ -1041,18 +1103,14 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         return updated;
     }
 
-    // TODO (expected): when topology and state truncation is implemented, implement cleanup of this map as well
     private void onNewLog(Shard shard, CoordinatorLog log)
     {
-        shardLock.readLock().lock();
-        try
-        {
-            log2ShardMap.put(log.logId, shard);
-        }
-        finally
-        {
-            shardLock.readLock().unlock();
-        }
+        log2ShardMap.put(log.logId, shard);
+    }
+
+    private void onDroppedLog(Shard shard, CoordinatorLog log)
+    {
+        log2ShardMap.remove(log.logId, shard);
     }
 
     private void truncateMutationJournal()
@@ -1074,41 +1132,10 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
     public SyncTasks alignToShardBoundaries(Keyspace keyspace, List<SyncTask> tasks)
     {
-        Preconditions.checkArgument(keyspace.getMetadata().replicationStrategy.replicationType.isTracked(), "Keyspace " + keyspace.getName() + " is not tracked");
-
+        Preconditions.checkArgument(keyspace.getMetadata().replicationStrategy.replicationType.isTracked(),
+                                    "Keyspace " + keyspace.getName() + " is not tracked");
         KeyspaceShards shards = keyspaceShards.get(keyspace.getName());
-        Map<Shard, List<SyncTask>> tasksByShard = new HashMap<>();
-
-        // Shard ranges do not wrap, so unwrap the task ranges before we start comparing them.
-        for (SyncTask task : unwrapped(tasks))
-        {
-            Set<Shard> intersectingShards = new HashSet<>();
-            shards.forEachIntersectingShard(task.rangesToSync, intersectingShards::add);
-            for (Shard shard : intersectingShards)
-            {
-                // Ensure that we don't expand outside the ranges of the original sync tasks.
-                Set<Range<Token>> intersectingSyncRanges = new HashSet<>();
-                for (Range<Token> syncRange : task.rangesToSync)
-                    intersectingSyncRanges.addAll(syncRange.intersectionWith(shard.range));
-
-                if (!intersectingSyncRanges.isEmpty())
-                    tasksByShard.computeIfAbsent(shard, key -> new ArrayList<>()).add(task.withRanges(intersectingSyncRanges));
-            }
-        }
-
-        SyncTasks into = new SyncTasks();
-
-        for (Map.Entry<Shard, List<SyncTask>> entry : tasksByShard.entrySet())
-        {
-            Shard shard = entry.getKey();
-            Collection<SyncTask> syncTasks = entry.getValue();
-
-            // Assign a new transfer ID to each sync task and add to the tasks container
-            for (SyncTask task : syncTasks)
-                into.add(shard, task.withTransferId(shard.nextId()));
-        }
-
-        return into;
+        return shards.alignToShardBoundaries(tasks);
     }
 
     private static List<SyncTask> unwrapped(Collection<SyncTask> tasks)
@@ -1198,26 +1225,44 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         }
 
         private final String keyspace;
-        private final Map<Range<Token>, Shard> shards;
-        private final ReplicaGroups groups;
+        private final ShardIntervalBTree shards;
 
-        private transient final Map<Range<PartitionPosition>, Shard> ppShards;
+        private KeyspaceShards(String keyspace, ShardIntervalBTree shards)
+        {
+            this.keyspace = keyspace;
+            this.shards = shards;
+        }
 
-        private static class ParticipantForRange
+        private static class ParticipantsForRange
         {
             final Participants participants;
             final VersionedEndpoints.ForRange forRange;
 
-            public ParticipantForRange(Participants participants, VersionedEndpoints.ForRange forRange)
+            public ParticipantsForRange(Participants participants, VersionedEndpoints.ForRange forRange)
             {
                 this.participants = participants;
                 this.forRange = forRange;
             }
+
+            @Override
+            public boolean equals(Object o)
+            {
+                if (this == o) return true;
+                if (!(o instanceof ParticipantsForRange)) return false;
+                ParticipantsForRange that = (ParticipantsForRange) o;
+                return participants.equals(that.participants) && forRange.equals(that.forRange);
+            }
+
+            @Override
+            public int hashCode()
+            {
+                return 31 * participants.hashCode() + forRange.hashCode();
+            }
         }
 
-        private static Map<Range<Token>, ParticipantForRange> calculateParticipantsForRange(KeyspaceMetadata keyspace, ClusterMetadata cluster)
+        private static Map<Range<Token>, ParticipantsForRange> calculateParticipantsForRange(KeyspaceMetadata keyspace, ClusterMetadata cluster)
         {
-            Map<Range<Token>, ParticipantForRange> result = new HashMap<>();
+            Map<Range<Token>, ParticipantsForRange> result = new HashMap<>();
             cluster.placements.get(keyspace.params.replication).writes.forEach((fullTokenRange, forRange) -> {
                 if (!forRange.endpoints().contains(FBUtilities.getBroadcastAddressAndPort()))
                     return;
@@ -1227,218 +1272,188 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
                     participantList.add(cluster.directory.peerId(endpoint).id());
                 Participants participants = new Participants(participantList);
 
-                result.put(fullTokenRange, new ParticipantForRange(participants, forRange));
+                result.put(fullTokenRange, new ParticipantsForRange(participants, forRange));
             });
             return result;
-        }
-
-        private static Set<Range<Token>> splitRange(Range<Token> range)
-        {
-            Optional<Splitter> splitter = range.left.getPartitioner().splitter();
-            return splitter.isPresent() && SHARD_MULTIPLIER > 1
-                   ? splitter.get().split(range, SHARD_MULTIPLIER)
-                   : Collections.singleton(range);
         }
 
         static KeyspaceShards make(KeyspaceMetadata keyspace, ClusterMetadata cluster, LongSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
         {
             Preconditions.checkArgument(keyspace.params.replicationType.isTracked() || cluster.mutationTrackingMigrationState.isMigrating(keyspace.name));
 
-            Map<Range<Token>, Shard> shards = new HashMap<>();
-            Map<Range<Token>, VersionedEndpoints.ForRange> groups = new HashMap<>();
+            List<Shard> shards = new ArrayList<>();
 
-            calculateParticipantsForRange(keyspace, cluster).forEach((fullTokenRange, participantForRange) -> {
-                Participants participants = participantForRange.participants;
-                VersionedEndpoints.ForRange forRange = participantForRange.forRange;
-
-                Set<Range<Token>> ranges = splitRange(fullTokenRange);
-
-                for (Range<Token> tokenRange : ranges)
-                {
-                    shards.put(tokenRange, new Shard(cluster.myNodeId().id(), keyspace.name, tokenRange, participants, logIdProvider, onNewLog));
-                    groups.put(tokenRange, forRange.map(original -> original.withRange(tokenRange)));
-                }
+            calculateParticipantsForRange(keyspace, cluster).forEach((tokenRange, participantsForRange) -> {
+                Participants participants = participantsForRange.participants;
+                VersionedEndpoints.ForRange forRange = participantsForRange.forRange;
+                shards.add(new Shard(cluster.myNodeId().id(), keyspace.name, forRange.lastModified().getEpoch(), tokenRange, participants, logIdProvider, onNewLog));
             });
-            KeyspaceShards keyspaceShards = new KeyspaceShards(keyspace.name, shards, new ReplicaGroups(groups));
+            shards.sort(Shard.COMPARATOR);
+            KeyspaceShards keyspaceShards = new KeyspaceShards(keyspace.name, ShardIntervalBTree.fromSorted(shards));
             keyspaceShards.persistToSystemTables();
             return keyspaceShards;
         }
 
-        KeyspaceShards(String keyspace, Map<Range<Token>, Shard> shards, ReplicaGroups groups)
+        KeyspaceShards withNewShards(KeyspaceMetadata keyspace, ClusterMetadata cluster, LongSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
         {
-            this.keyspace = keyspace;
-            this.shards = shards;
-            this.groups = groups;
+            // carry forward all current shards - allow SealingCoordinator to explicitly seal the obsoleted ones
+            List<Shard> newShards = new ArrayList<>();
+            shards.forEach(newShards::add);
 
-            HashMap<Range<PartitionPosition>, Shard> ppShards = new HashMap<>();
-            shards.forEach((range, shard) -> ppShards.put(Range.makeRowRange(range), shard));
-            this.ppShards = ppShards;
+            // add all the new shards for the new topology/epoch
+            for (Map.Entry<Range<Token>, ParticipantsForRange> entry : calculateParticipantsForRange(keyspace, cluster).entrySet())
+            {
+                Range<Token> tokenRange = entry.getKey();
+                ParticipantsForRange participantsForRange = entry.getValue();
+                Participants participants = participantsForRange.participants;
+                VersionedEndpoints.ForRange forRange = participantsForRange.forRange;
+
+                long rangeEpoch = forRange.lastModified().getEpoch();
+                Shard existing = shards.get(tokenRange, rangeEpoch);
+                if (existing == null)
+                    newShards.add(new Shard(cluster.myNodeId().id(), keyspace.name, rangeEpoch, tokenRange, participants, logIdProvider, onNewLog));
+            }
+
+            newShards.sort(Shard.COMPARATOR);
+            newShards.forEach(Shard::reportAllLogsToCallback); // TODO (expected): audit
+            KeyspaceShards keyspaceShards = new KeyspaceShards(keyspace.name, ShardIntervalBTree.fromSorted(newShards));
+            keyspaceShards.persistToSystemTables();
+            return keyspaceShards;
         }
 
-        KeyspaceShards withUpdatedMetadata(KeyspaceMetadata keyspace, ClusterMetadata cluster, LongSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
+        KeyspaceShards withNewShard(Shard shard)
         {
-            Map<Range<Token>, Shard> currentShards = new HashMap<>(shards);
-            Map<Range<Token>, Shard> newShards = new HashMap<>();
-            Map<Range<Token>, VersionedEndpoints.ForRange> newGroups = new HashMap<>();
-
-            calculateParticipantsForRange(keyspace, cluster).forEach((fullTokenRange, participantForRange) -> {
-                Participants participants = participantForRange.participants;
-                VersionedEndpoints.ForRange forRange = participantForRange.forRange;
-
-                Set<Range<Token>> ranges = splitRange(fullTokenRange);
-
-                for (Range<Token> tokenRange : ranges)
-                {
-                    Shard currentShard = currentShards.remove(tokenRange);
-                    if (currentShard != null)
-                    {
-                        newShards.put(tokenRange, currentShard.withParticipants(participants));
-                        newGroups.put(tokenRange, forRange.map(original -> original.withRange(tokenRange)));
-                    }
-                    else
-                    {
-                        newShards.put(tokenRange, new Shard(cluster.myNodeId().id(), keyspace.name, tokenRange, participants, logIdProvider, onNewLog));
-                        newGroups.put(tokenRange, forRange.map(original -> original.withRange(tokenRange)));
-                    }
-                }
-            });
-
-            newShards.values().forEach(Shard::reportAllLogsToCallback);
-
-            return new KeyspaceShards(keyspace.name, newShards, new ReplicaGroups(newGroups));
+            return new KeyspaceShards(keyspace, shards.with(shard));
         }
 
         MutationId nextMutationId(Token token)
         {
-            return lookUp(token).nextId();
-        }
-
-        void updateReplicatedOffsets(Range<Token> range, List<? extends Offsets> offsets, boolean durable, InetAddressAndPort onHost)
-        {
-            Shard shard = shards.get(range);
-            if (shard == null)
-                return;
-            shard.updateReplicatedOffsets(offsets, durable, onHost);
-        }
-
-        boolean startWriting(Mutation mutation)
-        {
-            return lookUp(mutation).startWriting(mutation);
-        }
-
-        void finishWriting(Mutation mutation)
-        {
-            lookUp(mutation).finishWriting(mutation);
+            Shard shard = shards.latestShardCovering(token);
+            if (null == shard)
+                throw new UnknownShardException(token, keyspace);
+            return shard.nextMutationId();
         }
 
         MutationSummary createSummaryForKey(DecoratedKey key, TableId tableId, boolean includePending)
         {
             MutationSummary.Builder builder = new MutationSummary.Builder(tableId);
-            lookUp(key.getToken()).addSummaryForKey(key.getToken(), includePending, builder);
+            shards.forEachCovering(key.getToken(), shard -> shard.addSummaryForKey(key.getToken(), includePending, builder));
             return builder.build();
         }
 
         MutationSummary createSummaryForRange(AbstractBounds<PartitionPosition> range, TableId tableId, boolean includePending)
         {
             MutationSummary.Builder builder = new MutationSummary.Builder(tableId);
-            forEachIntersectingShard(range, shard -> shard.addSummaryForRange(range, includePending, builder));
+            shards.forEachIntersecting(range, shard -> shard.addSummaryForRange(range, includePending, builder));
             return builder.build();
         }
 
-        private void forEachIntersectingShard(AbstractBounds<PartitionPosition> bounds, Consumer<Shard> consumer)
+        // TODO (expected): I think this should be grabbing the shardLock? (AY)
+        SyncTasks alignToShardBoundaries(List<SyncTask> tasks)
         {
-            ppShards.forEach((range, shard) -> {
-                // TODO (expected): partial workaround - is there a better way to do this?
-                //  SELECT * statements create Bounds[min,min], (PartitionKeyRestrictions.java:L174) not Range(min,min],
-                //  which Ranges generally won't intersect with (Range.java:L148), so contains is used here to make it work
-                if (bounds.contains(range.right) || range.intersects(bounds))
-                    consumer.accept(shard);
-            });
-        }
+            Map<Shard, List<SyncTask>> tasksByShard = new HashMap<>();
 
-        private void forEachIntersectingShard(Collection<Range<Token>> ranges, Consumer<Shard> consumer)
-        {
-            shards.forEach((range0, shard) -> {
-                if (shard.range.intersects(ranges))
-                    consumer.accept(shard);
-            });
-        }
+            // Shard ranges do not wrap, so unwrap the task ranges before we start comparing them.
+            for (SyncTask task : unwrapped(tasks))
+            {
+                Set<Shard> intersectingShards = new HashSet<>();
+                shards.forEachIntersecting(task.rangesToSync, intersectingShards::add);
+                for (Shard shard : intersectingShards)
+                {
+                    // Ensure that we don't expand outside the ranges of the original sync tasks.
+                    Set<Range<Token>> intersectingSyncRanges = new HashSet<>();
+                    for (Range<Token> syncRange : task.rangesToSync)
+                        intersectingSyncRanges.addAll(syncRange.intersectionWith(shard.range));
 
-        void collectShardReconciledOffsetsToBuilder(ReconciledLogSnapshot.Builder builder)
-        {
-            ReconciledKeyspaceOffsets.Builder keyspaceBuilder = builder.getKeyspaceBuilder(keyspace);
-            ppShards.values().forEach(shard -> shard.collectShardReconciledOffsetsToBuilder(keyspaceBuilder));
-        }
+                    if (!intersectingSyncRanges.isEmpty())
+                        tasksByShard.computeIfAbsent(shard, key -> new ArrayList<>()).add(task.withRanges(intersectingSyncRanges));
+                }
+            }
 
-        void recordFullyReconciledOffsets(ReconciledKeyspaceOffsets keyspaceOffsets)
-        {
-            keyspaceOffsets.forEach((logId, entry) -> {
-                // Find the shard that should contain this log based on the range
-                Shard shard = shards.get(entry.range);
-                if (shard != null)
-                    shard.recordFullyReconciledOffsets(logId, entry.offsets);
-            });
+            SyncTasks into = new SyncTasks();
+
+            for (Map.Entry<Shard, List<SyncTask>> entry : tasksByShard.entrySet())
+            {
+                Shard shard = entry.getKey();
+                Collection<SyncTask> syncTasks = entry.getValue();
+
+                // Assign a new transfer ID to each sync task and add to the tasks container
+                for (SyncTask task : syncTasks)
+                    into.add(shard, task.withTransferId(shard.nextTransferId()));
+            }
+
+            return into;
         }
 
         void collectDurablyReconciledOffsets(Log2OffsetsMap.Mutable into)
         {
-            forEachShard(shard -> shard.collectDurablyReconciledOffsets(into));
+            shards.forEach(Shard::collectDurablyReconciledOffsets, into);
         }
 
+        /**
+         * Invoke {@code consumer} for every Shard in the tree (exactly once for each shard).
+         */
         void forEachShard(Consumer<Shard> consumer)
         {
-            for (Shard shard : shards.values())
-                consumer.accept(shard);
+            shards.forEach(consumer);
         }
 
-        Shard lookUp(Mutation mutation)
+        /**
+         * Invoke {@code consumer} for every Shard in the tree (exactly once for each shard).
+         * Allows one pass-through arg to avoid allocating some capturing lambdas.
+         */
+        <P> void forEachShard(BiConsumer<Shard, P> consumer, P param)
         {
-            return lookUp(mutation.key());
+            shards.forEach(consumer, param);
         }
 
-        Shard lookUp(DecoratedKey key)
+        /**
+         * Note: a range may be a strict subset of the shard's full range,
+         * so we match by containment rather than exact equality
+         */
+        @Nonnull
+        Shard lookUpForActivation(Range<Token> range, long sinceEpoch)
         {
-            return lookUp(key.getToken());
+            Shard match = shards.foldIntersecting(range, (shard, found) -> {
+                if (shard.sinceEpoch != sinceEpoch || !shard.range.contains(range))
+                    return found;
+                if (found != null)
+                    throw new IllegalStateException(format("Ambiguous shard lookup for keyspace %s, epoch %d, range %s: [%s, %s]",
+                                                          keyspace, sinceEpoch, range, found, shard));
+                return shard;
+            }, null);
+
+            if (match == null)
+                throw new UnknownShardException(range, keyspace);
+
+            return match;
         }
 
-        Shard lookUp(Token token)
+        /**
+         * Look up the shard by *exact* range + sinceEpoch.
+         */
+        @Nullable
+        Shard get(Range<Token> range, long sinceEpoch)
         {
-            VersionedEndpoints.ForRange forRange = groups.matchToken(token);
-            if (forRange == null)
-                throw new UnknownShardException(token, groups);
-            return shards.get(forRange.range());
-        }
-
-        Shard lookUp(Range<Token> range)
-        {
-            VersionedEndpoints.ForRange forRange = groups.matchRange(range);
-            if (forRange == null)
-                throw new UnknownShardException(range, groups);
-            return shards.get(forRange.range());
+            return shards.get(range, sinceEpoch);
         }
 
         void persistToSystemTables()
         {
-            for (Shard shard : shards.values()) shard.persistToSystemTables();
+            shards.forEach(Shard::persistToSystemTables);
         }
 
         static List<KeyspaceShards> loadFromSystemTables(ClusterMetadata cluster, LongSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
         {
-            Map<String, Map<Range<Token>, Shard>> groupedShards = new HashMap<>();
+            Map<String, List<Shard>> groupedShards = new HashMap<>();
             for (Shard shard : Shard.loadFromSystemTables(cluster.myNodeId().id(), logIdProvider, onNewLog))
-                groupedShards.computeIfAbsent(shard.keyspace, k -> new HashMap<>()).put(shard.range, shard);
+                groupedShards.computeIfAbsent(shard.keyspace, k -> new ArrayList<>()).add(shard);
+
             List<KeyspaceShards> keyspaceShards = new ArrayList<>();
-            for (Map.Entry<String, Map<Range<Token>, Shard>> entry : groupedShards.entrySet())
-            {
-                ReplicationParams params = cluster.schema.getKeyspaceMetadata(entry.getKey()).params.replication;
-                ReplicaGroups originalGroups = cluster.placements.get(params).writes; // prior to splitting
-
-                Map<Range<Token>, VersionedEndpoints.ForRange> splitGroups = new HashMap<>();
-                for (Range<Token> splitRange : entry.getValue().keySet())
-                    splitGroups.put(splitRange, originalGroups.matchRange(splitRange));
-
-                keyspaceShards.add(new KeyspaceShards(entry.getKey(), entry.getValue(), new ReplicaGroups(splitGroups)));
-            }
+            groupedShards.forEach((keyspace, shards) -> {
+                shards.sort(Shard.COMPARATOR);
+                keyspaceShards.add(new KeyspaceShards(keyspace, ShardIntervalBTree.fromSorted(shards)));
+            });
             return keyspaceShards;
         }
     }
@@ -1464,6 +1479,94 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             return 0;
         return rows.one().getInt("host_log_id");
     }
+
+    /*
+     * Shard sealing
+     */
+
+    /**
+     * Fence id allocation on an obsoleted shard by transitioning state from ACTIVE to SEALING.
+     */
+    void markShardSealing(String keyspace, long sinceEpoch, Range<Token> range)
+    {
+        shardLock.readLock().lock();
+        try
+        {
+            getShard(keyspace, sinceEpoch, range).markSealing();
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * @return whether the obsoleted shard has drained its in-flight local writes
+     */
+    boolean isShardDrained(String keyspace, long sinceEpoch, Range<Token> range)
+    {
+        shardLock.readLock().lock();
+        try
+        {
+            return getShard(keyspace, sinceEpoch, range).isDrained();
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * @return this node's local-applied ("witnessed by me") offsets for each log of the requested shard
+     */
+    Log2OffsetsMap.Immutable collectLocallyWitnessedOffsets(String keyspace, long sinceEpoch, Range<Token> range)
+    {
+        shardLock.readLock().lock();
+        try
+        {
+            return getShard(keyspace, sinceEpoch, range).collectLocallyWitnessedOffsets();
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * @return whether the specified shard has locally applied every offset in {@code offsets}.
+     */
+    boolean hasWitnessed(String keyspace, long sinceEpoch, Range<Token> range, Log2OffsetsMap<?> offsets)
+    {
+        shardLock.readLock().lock();
+        try
+        {
+            return getShard(keyspace, sinceEpoch, range).hasWitnessed(offsets);
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Promote an obsoleted shard from SEALING to SEALED.
+     */
+    void markShardSealed(String keyspace, long sinceEpoch, Range<Token> range)
+    {
+        shardLock.readLock().lock();
+        try
+        {
+            getShard(keyspace, sinceEpoch, range).markSealed();
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
+    /*
+     * Background processes
+     */
 
     private static class BackgroundReconciler
     {
@@ -1503,6 +1606,9 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
         private void run(Shard shard)
         {
+            if (shard.isSealed())
+                return;
+
             try
             {
                 List<Offsets.Immutable> missing = shard.collectLocallyMissingOffsets();
@@ -1587,11 +1693,14 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         private void run(KeyspaceShards shards, boolean durable)
         {
             if (!isPaused)
-                shards.forEachShard(sh -> run(sh, durable));
+                shards.forEachShard(this::run, durable);
         }
 
         private void run(Shard shard, boolean durable)
         {
+            if (shard.isSealed())
+                return;
+
             BroadcastLogOffsets replicatedOffsets = shard.collectReplicatedOffsets(durable);
             if (replicatedOffsets.isEmpty())
                 return;
@@ -1791,20 +1900,15 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
          */
         public static KeyspaceShards createTestKeyspaceShards(String keyspace, Set<Range<Token>> shardRanges)
         {
-            Map<Range<Token>, Shard> shards = new HashMap<>();
-            Map<Range<Token>, VersionedEndpoints.ForRange> groups = new HashMap<>();
-
+            List<Shard> shards = new ArrayList<>();
             int localNodeId = 1;
             AtomicInteger hostLogId = new AtomicInteger(0);
             LongSupplier logId = () -> CoordinatorLogId.asLong(localNodeId, hostLogId.getAndIncrement());
             Participants participants = new Participants(List.of(localNodeId));
             for (Range<Token> range : shardRanges)
-            {
-                shards.put(range, new Shard(localNodeId, keyspace, range, participants, logId, (s, l) -> {}));
-                groups.put(range, VersionedEndpoints.forRange(Epoch.EMPTY, EndpointsForRange.empty(range)));
-            }
-
-            return new KeyspaceShards(keyspace, shards, new ReplicaGroups(groups));
+                shards.add(new Shard(localNodeId, keyspace, Epoch.EMPTY.getEpoch(), range, participants, logId, (s, l) -> {}));
+            shards.sort(Shard.COMPARATOR);
+            return new KeyspaceShards(keyspace, ShardIntervalBTree.fromSorted(shards));
         }
 
         /**

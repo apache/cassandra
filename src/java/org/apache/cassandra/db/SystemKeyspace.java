@@ -564,8 +564,10 @@ public final class SystemKeyspace
               + "keyspace_name text,"
               + "range_start text,"
               + "range_end text,"
+              + "since_epoch bigint,"
               + "participants frozen<set<int>>,"
-              + "PRIMARY KEY ((keyspace_name, range_start, range_end)))")
+              + "state text,"
+              + "PRIMARY KEY ((keyspace_name, range_start, range_end, since_epoch)))")
               .build();
 
     private static final TableMetadata CoordinatorLogs =
@@ -575,12 +577,13 @@ public final class SystemKeyspace
               + "keyspace_name text,"
               + "range_start text,"
               + "range_end text,"
+              + "since_epoch bigint,"
               + "host_id int,"
               + "host_log_id int,"
               + "participants frozen<set<int>>,"
               + "witnessed_offsets map<int, frozen<list<int>>>,"
               + "persisted_offsets map<int, frozen<list<int>>>,"
-              + "PRIMARY KEY ((keyspace_name, range_start, range_end), host_id, host_log_id))")
+              + "PRIMARY KEY ((keyspace_name, range_start, range_end, since_epoch), host_id, host_log_id))")
               .build();
 
     @Deprecated(since = "4.0")

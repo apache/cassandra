@@ -39,6 +39,8 @@ import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.RangesByEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SystemStrategy;
+import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.SealingCoordinator;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
@@ -71,7 +73,7 @@ public class UnbootstrapStreams implements LeaveStreams
         started.set(true);
         try
         {
-            unbootstrap(Schema.instance.getNonLocalStrategyKeyspaces(), movements);
+            unbootstrap(Schema.instance.getNonLocalStrategyKeyspaces(), movements, startLeave, leaving);
         }
         catch (ExecutionException e)
         {
@@ -111,23 +113,29 @@ public class UnbootstrapStreams implements LeaveStreams
         return allMovements.build();
     }
 
-    private static void unbootstrap(Keyspaces keyspaces, MovementMap movements) throws ExecutionException, InterruptedException
+    private static void unbootstrap(Keyspaces keyspaces, MovementMap movements, PlacementDeltas startLeave, NodeId leaving) throws ExecutionException, InterruptedException
     {
         Supplier<Future<StreamState>> startStreaming = prepareUnbootstrapStreaming(keyspaces, movements);
 
         StorageService.instance.repairPaxosForTopologyChange("decommission");
+
         logger.info("replaying batch log and streaming data to other nodes");
         // Start with BatchLog replay, which may create hints but no writes since this is no longer a valid endpoint.
         Future<?> batchlogReplay = BatchlogManager.instance.startBatchlogReplay();
-        Future<StreamState> streamSuccess = startStreaming.get();
 
         // Wait for batch log to complete before streaming hints.
         logger.debug("waiting for batch log processing.");
         batchlogReplay.get();
 
         logger.info("streaming hints to other nodes");
-
         Future<?> hintsSuccess = StorageService.instance.streamHints();
+
+        // Seal the shards obsoleted by START_LEAVE before streaming this node's data away, mirroring the
+        // pre-streaming seal that BootstrapAndJoin.bootstrap() performs for joins.
+        if (MutationTrackingService.isEnabled())
+            SealingCoordinator.sealShardsAtMidLeave(ClusterMetadata.current(), startLeave, leaving, Kind.UNBOOTSTRAP);
+
+        Future<StreamState> streamSuccess = startStreaming.get();
 
         // wait for the transfer runnables to signal the latch.
         logger.debug("waiting for stream acks.");

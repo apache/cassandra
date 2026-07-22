@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
@@ -60,19 +61,40 @@ public class Shard
 {
     private static final Logger logger = LoggerFactory.getLogger(Shard.class);
 
+    /**
+     * 3 possible shard states:
+     * - ACTIVE: a shard that is allocating new mutation ids and participates in read reconciliations
+     * - SEALING: a shard that is being sealed; doesn't allocate new mutation ids, but participates
+     *     in read reconciliations
+     * - SEALED: a shard that was fully sealed; no new mutation ids get allocated for it, and it doesn't
+     *     get included into mutation summaries.
+     * <p>
+     * See {@link SealingCoordinator} for more context.
+     */
+    enum State
+    {
+        ACTIVE, SEALING, SEALED
+    }
+
     final int localNodeId;
     public final String keyspace;
+    public final long sinceEpoch;
     public final Range<Token> range;
     public final Participants participants;
     private final LongSupplier logIdProvider;
+
     private final BiConsumer<Shard, CoordinatorLog> onNewLog;
     private final NonBlockingHashMapLong<CoordinatorLog> logs;
+
     private volatile CoordinatorLogPrimary currentLocalLog;
+    private volatile State state = State.ACTIVE;
 
     Shard(int localNodeId,
           String keyspace,
+          long sinceEpoch,
           Range<Token> range,
           Participants participants,
+          State state,
           List<CoordinatorLog> logs,
           LongSupplier logIdProvider,
           BiConsumer<Shard, CoordinatorLog> onNewLog)
@@ -81,8 +103,10 @@ public class Shard
 
         this.localNodeId = localNodeId;
         this.keyspace = keyspace;
+        this.sinceEpoch = sinceEpoch;
         this.range = range;
         this.participants = participants;
+        this.state = state;
         this.logIdProvider = logIdProvider;
         this.logs = new NonBlockingHashMapLong<>();
         this.onNewLog = onNewLog;
@@ -94,13 +118,14 @@ public class Shard
         this.currentLocalLog = createNewPrimaryLog();
     }
 
-    Shard(int localNodeId, String keyspace, Range<Token> range, Participants participants, LongSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
+    Shard(int localNodeId, String keyspace, long sinceEpoch, Range<Token> range, Participants participants, LongSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
     {
-        this(localNodeId, keyspace, range, participants, Collections.emptyList(), logIdProvider, onNewLog);
+        this(localNodeId, keyspace, sinceEpoch, range, participants, State.ACTIVE, Collections.emptyList(), logIdProvider, onNewLog);
     }
 
     Shard(int localNodeId,
           String keyspace,
+          long sinceEpoch,
           Range<Token> range,
           Participants participants,
           NonBlockingHashMapLong<CoordinatorLog> logs,
@@ -110,6 +135,7 @@ public class Shard
     {
         this.localNodeId = localNodeId;
         this.keyspace = keyspace;
+        this.sinceEpoch = sinceEpoch;
         this.range = range;
         this.participants = participants;
         this.logIdProvider = logIdProvider;
@@ -123,45 +149,54 @@ public class Shard
      */
     void reportAllLogsToCallback()
     {
-        logs.values().forEach(log -> {
-            onNewLog.accept(this, log);
-        });
+        logs.values().forEach(log -> onNewLog.accept(this, log));
     }
 
-    Shard withParticipants(Participants newParticipants)
+    void forEachLog(BiConsumer<Shard, CoordinatorLog> callback)
     {
-        if (participants.equals(newParticipants))
-            return this;
+        logs.values().forEach(log -> callback.accept(this, log));
+    }
 
-        if (logger.isTraceEnabled())
-            logger.trace("Reconfiguring shard {} participants: {} -> {}",
-                        range, participants, newParticipants);
+    /**
+     * Incremented before this shard allocates a MutationId.
+     * Decremented once the mutation has applied or failed locally.
+     * Used by shard sealing logic for drain() step.
+     */
+    private final AtomicInteger pendingLocalWrites = new AtomicInteger();
 
-        NonBlockingHashMapLong<CoordinatorLog> newLogs = new NonBlockingHashMapLong<>();
-        CoordinatorLog.CoordinatorLogPrimary newCurrentLocalLog = null;
-
-        // FIXME: confirm all new logs are added to the relevant views
-        for (CoordinatorLog log : logs.values())
+    @Nonnull
+    MutationId nextMutationId()
+    {
+        pendingLocalWrites.incrementAndGet();
+        try
         {
-            CoordinatorLog newLog = log.withParticipants(newParticipants);
-            newLogs.put(newLog.logId.asLong(), newLog);
-
-            if (log == currentLocalLog)
-                newCurrentLocalLog = (CoordinatorLog.CoordinatorLogPrimary) newLog;
+            return nextId();
         }
-
-        Shard shard = new Shard(localNodeId, keyspace, range, newParticipants,
-                                newLogs, newCurrentLocalLog, logIdProvider, onNewLog);
-        newLogs.values().forEach(log -> onNewLog.accept(shard, log));
-        return shard;
+        catch (Throwable t)
+        {
+            pendingLocalWrites.decrementAndGet();
+            throw t;
+        }
     }
 
-    MutationId nextId()
+    /*
+     * TODO (expected): drain() should handle tracked transfers as well (later)
+     */
+    @Nonnull
+    MutationId nextTransferId()
     {
+        return nextId();
+    }
+
+    @Nonnull
+    private MutationId nextId()
+    {
+        if (state != State.ACTIVE)
+            throw new IllegalStateException(format("%s cannot assign next id, state: %s", this, state));
         MutationId nextId = currentLocalLog.nextId();
         if (nextId == null)
             nextId = maybeRotateLocalLogAndGetNextId();
-        logger.trace("Issuing next MutationId {}", nextId);
+        logger.trace("Issuing next id {}", nextId);
         return nextId;
     }
 
@@ -174,7 +209,15 @@ public class Shard
         CoordinatorLogId oldLogId = currentLocalLog.logId;
         currentLocalLog = createNewPrimaryLog();
         logger.info("Rotated primary log for {}/{} from {} to {}", keyspace, range, oldLogId, currentLocalLog.logId);
-        return nextId();
+        return currentLocalLog.nextId();
+    }
+
+    /**
+     * Must be called exactly once per {@code nextId()} invocation.
+     */
+    void completeLocalWrite()
+    {
+        pendingLocalWrites.decrementAndGet();
     }
 
     void receivedWriteResponse(ShortMutationId mutationId, InetAddressAndPort fromHost)
@@ -201,17 +244,6 @@ public class Shard
             getOrCreate(logOffsets.logId()).updateReplicatedOffsets(logOffsets, durable, onHostId);
     }
 
-    public void recordFullyReconciledOffsets(CoordinatorLogId logId, Offsets.Immutable reconciled)
-    {
-        CoordinatorLog log = logs.get(logId.asLong());
-
-        // Create the coordinator log if it doesn't exist
-        if (log == null)
-            log = getOrCreate(logId);
-
-        log.recordFullyReconciledOffsets(reconciled);
-    }
-
     boolean startWriting(Mutation mutation)
     {
         return getOrCreate(mutation).startWriting(mutation);
@@ -224,6 +256,12 @@ public class Shard
 
     void addSummaryForKey(Token token, boolean includePending, MutationSummary.Builder builder)
     {
+        // TODO (expected): this is a temporary solutions, which is racy *during* a topology change (SEALING -> SEALED transition);
+        //      instead, should be gating on epochs after transition, decided by read coordinator;
+        //      some of those additional TCM transitions are currently missing however (pending for unhappy path)
+        if (isSealed())
+            return;
+
         logs.forEach((id, log) -> {
             MutationSummary.CoordinatorSummary.Builder summaryBuilder = builder.builderForLog(log.logId);
             log.collectOffsetsFor(token, builder.tableId, includePending, summaryBuilder.unreconciled, summaryBuilder.reconciled);
@@ -232,6 +270,12 @@ public class Shard
 
     void addSummaryForRange(AbstractBounds<PartitionPosition> range, boolean includePending, MutationSummary.Builder builder)
     {
+        // TODO (expected): this is a temporary solutions, which is racy *during* a topology change (SEALING -> SEALED transition);
+        //      instead, should be gating on epochs after transition, decided by read coordinator
+        //      some of those additional TCM transitions are currently missing however (pending for unhappy path)
+        if (isSealed())
+            return;
+
         logs.forEach((id, log) -> {
             MutationSummary.CoordinatorSummary.Builder summaryBuilder = builder.builderForLog(log.logId);
             log.collectOffsetsFor(range, builder.tableId, includePending, summaryBuilder.unreconciled, summaryBuilder.reconciled);
@@ -296,7 +340,7 @@ public class Shard
                 offsets.add(logOffsets);
         }
 
-        return new BroadcastLogOffsets(keyspace, range, offsets, durable);
+        return new BroadcastLogOffsets(keyspace, sinceEpoch, range, participants, offsets, durable);
     }
 
     /**
@@ -363,7 +407,7 @@ public class Shard
      */
     private CoordinatorLog createNewLog(long logId)
     {
-        CoordinatorLog next = CoordinatorLog.create(keyspace, range, localNodeId, new CoordinatorLogId(logId), participants);
+        CoordinatorLog next = CoordinatorLog.create(keyspace, sinceEpoch, range, localNodeId, new CoordinatorLogId(logId), participants);
         CoordinatorLog prev = logs.putIfAbsent(logId, next);
         if (null == prev) onNewLog.accept(this, next);
         return null != prev ? prev : next;
@@ -379,12 +423,12 @@ public class Shard
      */
 
     private static final String INSERT_QUERY =
-        format("INSERT INTO %s.%s (keyspace_name, range_start, range_end, participants) VALUES (?, ?, ?, ?)",
+        format("INSERT INTO %s.%s (keyspace_name, since_epoch, range_start, range_end, participants, state) VALUES (?, ?, ?, ?, ?, ?)",
                SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.SHARDS);
 
     void persistToSystemTables()
     {
-        executeInternal(INSERT_QUERY, keyspace, range.left.toString(), range.right.toString(), participants.asSet());
+        executeInternal(INSERT_QUERY, keyspace, sinceEpoch, range.left.toString(), range.right.toString(), participants.asSet(), state.name());
         for (CoordinatorLog log : logs.values())
             log.persistToSystemTable();
     }
@@ -397,32 +441,99 @@ public class Shard
 
     private static final String SELECT_QUERY =
         format("SELECT * FROM %s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.SHARDS);
-
     static ArrayList<Shard> loadFromSystemTables(int localNodeId, LongSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
     {
         Token.TokenFactory factory = ClusterMetadata.current().partitioner.getTokenFactory();
         ArrayList<Shard> shards = new ArrayList<>();
+        //noinspection DataFlowIssue
         for (UntypedResultSet.Row row : executeInternal(SELECT_QUERY))
         {
             String keyspace = row.getString("keyspace_name");
+            long sinceEpoch = row.getLong("since_epoch");
             String rangeStart = row.getString("range_start");
             String rangeEnd = row.getString("range_end");
             Range<Token> range = new Range<>(factory.fromString(rangeStart), factory.fromString(rangeEnd));
             Set<Integer> participants = row.getFrozenSet("participants", Int32Type.instance);
-            List<CoordinatorLog> logs = CoordinatorLog.loadFromSystemTable(keyspace, range, localNodeId);
-            shards.add(new Shard(localNodeId, keyspace, range, new Participants(participants), logs, logIdProvider, onNewLog));
+            State state = row.has("state") ? State.valueOf(row.getString("state")) : State.ACTIVE;
+            List<CoordinatorLog> logs = CoordinatorLog.loadFromSystemTable(keyspace, sinceEpoch, range, localNodeId);
+            shards.add(new Shard(localNodeId, keyspace, sinceEpoch, range, new Participants(participants), state, logs, logIdProvider, onNewLog));
         }
         return shards;
+    }
+
+    /*
+     * Sealing
+     */
+
+    void markSealing()
+    {
+        if (state == State.SEALED)
+            throw new IllegalStateException(format("%s cannot transition to SEALING from %s", this, state));
+
+        if (state != State.SEALING)
+        {
+            state = State.SEALING;
+            persistToSystemTables();
+        }
+    }
+
+    boolean isDrained()
+    {
+        return state != State.ACTIVE && pendingLocalWrites.get() == 0;
+    }
+
+    /**
+     * @return locally-applied offsets for each log of the shard
+     */
+    Log2OffsetsMap.Immutable collectLocallyWitnessedOffsets()
+    {
+        Log2OffsetsMap.Immutable.Builder builder = new Log2OffsetsMap.Immutable.Builder();
+        for (CoordinatorLog log : logs.values())
+        {
+            Offsets.Immutable witnessed = log.collectReplicatedOffsets(false);
+            if (witnessed != null)
+                builder.add(witnessed);
+        }
+        return builder.build();
+    }
+
+    /**
+     * @return whether the shard has locally applied every offset in {@code offsets}.
+     */
+    boolean hasWitnessed(Log2OffsetsMap<?> offsets)
+    {
+        for (Offsets target : offsets.offsets())
+        {
+            CoordinatorLog log = logs.get(target.logId().asLong());
+            if (log == null)
+                return false;
+            Offsets.Immutable local = log.collectReplicatedOffsets(false);
+            if (local == null || !Offsets.Immutable.difference(target, local).isEmpty())
+                return false;
+        }
+        return true;
+    }
+
+    void markSealed()
+    {
+        if (state == State.ACTIVE)
+            throw new IllegalStateException(format("%s cannot transition to SEALED from %s", this, state));
+
+        if (state != State.SEALED)
+        {
+            state = State.SEALED;
+            persistToSystemTables();
+        }
+    }
+
+    public boolean isSealed()
+    {
+        return state == State.SEALED;
     }
 
     public Range<Token> tokenRange()
     {
         return range;
-    }
-
-    void collectShardReconciledOffsetsToBuilder(ReconciledKeyspaceOffsets.Builder keyspaceBuilder)
-    {
-        logs.values().forEach(log -> keyspaceBuilder.put(log.logId, log.collectReconciledOffsets(), range));
     }
 
     /**
@@ -498,11 +609,11 @@ public class Shard
     @Override
     public String toString()
     {
-        return "Shard{" +
-               "participants=" + participants +
+        return "Shard{keyspace='" + keyspace + '\'' +
+               ", sinceEpoch=" + sinceEpoch +
                ", range=" + range +
-               ", keyspace='" + keyspace + '\'' +
-               ", localNodeId=" + localNodeId +
+               ", participants=" + participants +
+               ", state=" + state +
                '}';
     }
 
@@ -510,27 +621,36 @@ public class Shard
     {
         SortedMap<CoordinatorLogId, CoordinatorLog.DebugInfo> logDebugState = new TreeMap<>(Comparator.comparing(CoordinatorLogId::asLong));
         for (CoordinatorLog log : logs.values())
-        {
             logDebugState.put(log.getLogId(), log.getDebugState());
-        }
-        return new DebugInfo(keyspace, range, localNodeId, participants, logDebugState);
+        return new DebugInfo(keyspace, sinceEpoch, range, localNodeId, participants, logDebugState);
     }
 
     public static class DebugInfo
     {
         public final String keyspace;
+        public final long sinceEpoch;
         public final Range<Token> range;
         public final int localNodeId;
         public final Participants participants;
         public final SortedMap<CoordinatorLogId, CoordinatorLog.DebugInfo> logs;
 
-        private DebugInfo(String keyspace, Range<Token> range, int localNodeId, Participants participants, SortedMap<CoordinatorLogId, CoordinatorLog.DebugInfo> logs)
+        private DebugInfo(
+                String keyspace, long sinceEpoch, Range<Token> range, int localNodeId,
+                Participants participants, SortedMap<CoordinatorLogId, CoordinatorLog.DebugInfo> logs)
         {
             this.keyspace = keyspace;
+            this.sinceEpoch = sinceEpoch;
             this.range = range;
             this.localNodeId = localNodeId;
             this.participants = participants;
             this.logs = logs;
         }
     }
+
+    static final Comparator<Shard> COMPARATOR = (a, b) -> {
+        int c = a.range.left.compareTo(b.range.left);
+        if (c == 0) c = Range.compareRightToken(a.range.right, b.range.right);
+        if (c == 0) c = Long.compare(a.sinceEpoch, b.sinceEpoch);
+        return c;
+    };
 }

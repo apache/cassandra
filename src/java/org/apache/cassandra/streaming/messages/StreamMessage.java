@@ -69,9 +69,7 @@ public abstract class StreamMessage
         KEEP_ALIVE          (7,  5, KeepAliveMessage.serializer    ),
         PREPARE_SYNACK      (8,  5, PrepareSynAckMessage.serializer),
         PREPARE_ACK         (9,  5, PrepareAckMessage.serializer   ),
-        STREAM_INIT         (10, 5, StreamInitMessage.serializer   ),
-        MUTATION_LOG_STREAM (11, 0, IncomingMutationLogStreamMessage.serializer, OutgoingMutationLogStreamMessage.serializer),
-        MUTATION_LOG_RECEIVED(12, 4, MutationLogReceivedMessage.serializer);
+        STREAM_INIT         (10, 5, StreamInitMessage.serializer   );
 
         private static final Map<Integer, Type> idToTypeMap;
 
