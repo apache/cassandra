@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -72,10 +73,11 @@ public class PlacementsChangeListenerTest
     public void testPlacementChange()
     {
         DataPlacements before = OwnershipUtils.randomPlacements(random).withLastModified(e);
+        InetAddressAndPort newEndpoint = MembershipUtils.endpoint(255);
         DataPlacements.Builder builder = before.unbuild();
         before.forEach((params, placement) -> {
             Replica remove = placement.writes.byEndpoint().flattenValues().iterator().next();
-            Replica add = Replica.fullReplica(MembershipUtils.endpoint(99), remove.range());
+            Replica add = Replica.fullReplica(newEndpoint, remove.range());
             DataPlacement newPlacement = placement.unbuild()
                                                   .withoutWriteReplica(e.nextEpoch(), remove)
                                                   .withWriteReplica(e.nextEpoch(), add).build();
