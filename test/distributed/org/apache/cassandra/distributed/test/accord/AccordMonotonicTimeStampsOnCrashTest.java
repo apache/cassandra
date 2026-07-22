@@ -29,47 +29,37 @@ import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.AccordTimeService;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.TokenSupplier;
-import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.utils.Shared;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
-import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class AccordUniqueTimeStampsOnCrashTest extends TestBaseImpl
+public class AccordMonotonicTimeStampsOnCrashTest extends TestBaseImpl
 {
     @Test
-    public void uniqueTimeStampsOnCrashTest() throws Throwable
+    public void monotonicTimeStampsOnCrashTest() throws Throwable
     {
         try (Cluster cluster = Cluster.build().withNodes(3)
-                                      .withoutVNodes()
-                                      .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(3))
-                                      .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(3, "dc0", "rack0"))
                                       .withInstanceInitializer(BBHelper::install)
                                       .withConfig(config -> config
                                                             .with(NETWORK, GOSSIP))
                                       .start())
         {
-            cluster.schemaChange("CREATE KEYSPACE ks WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor':3}");
-            cluster.schemaChange("CREATE TABLE ks.tbl (k int, c int, v int, primary key (k, c)) WITH transactional_mode='full'");
-            cluster.coordinator(1).execute(wrapInTxn("INSERT INTO ks.tbl (k, c, v) VALUES (?, ?, ?)"), ConsistencyLevel.SERIAL, 1, 1, 2);
-
             cluster.get(1).shutdown(false).get();
             State.beforeRestart.set(false);
 
             cluster.get(1).startup();
 
             cluster.get(1).runOnInstance( () -> {
-                AccordService.instance().node().uniqueNow(0);
+                AccordService.instance().node().uniqueNow();
             });
         }
     }
@@ -89,13 +79,13 @@ public class AccordUniqueTimeStampsOnCrashTest extends TestBaseImpl
             if (nodeNumber == 1)
             {
                 new ByteBuddy().rebase(AccordTimeService.class)
-                               .method(named("now").and(takesArguments(0)))
+                               .method(named("now"))
                                .intercept(MethodDelegation.to(BBHelper.class))
                                .make()
                                .load(cl, ClassLoadingStrategy.Default.INJECTION);
 
                 new ByteBuddy().rebase(Node.class)
-                               .method(named("uniqueNow").and(takesArguments(1)))
+                               .method(named("uniqueNow"))
                                .intercept(MethodDelegation.to(BBHelper.class))
                                .make()
                                .load(cl, ClassLoadingStrategy.Default.INJECTION);
@@ -112,10 +102,10 @@ public class AccordUniqueTimeStampsOnCrashTest extends TestBaseImpl
         }
 
         @SuppressWarnings("unused")
-        public static long uniqueNow(long greaterThan, @SuperCall Callable<Long> r) throws Exception
+        public static long uniqueNow(@SuperCall Callable<Long> r) throws Exception
         {
             long newTimestamp = r.call();
-            assert State.timestamp.get() < newTimestamp;
+            assertTrue(State.timestamp.get() < newTimestamp);
             State.timestamp.set(newTimestamp);
 
             return r.call();
