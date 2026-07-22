@@ -19,6 +19,8 @@
 package org.apache.cassandra.distributed.test.accord;
 
 import java.nio.file.Files;
+import java.time.Duration;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -43,6 +45,7 @@ import org.apache.cassandra.distributed.api.IInstanceInitializer;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.io.sstable.CQLSSTableWriter;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.Component;
@@ -136,6 +139,57 @@ public class AccordImportSSTableTest extends TestBaseImpl
             // Assert that SSTables are moved from the pending directories
             assertPendingDirs(cluster, (File pendingUuidDir) -> {
                 Assertions.assertThat(pendingUuidDir.listUnchecked(File::isFile)).isEmpty();
+            });
+        }
+    }
+
+    @Test
+    public void testImportSSTablesBuildsIndex() throws Throwable
+    {
+        String file = Files.createTempDirectory(AccordImportSSTableTest.class.getSimpleName()).toString();
+
+        CQLSSTableWriter.Builder builder1 = CQLSSTableWriter.builder()
+                                                            .forTable(TABLE_SCHEMA_CQL)
+                                                            .inDirectory(file)
+                                                            .using("INSERT INTO " + KEYSPACE_TABLE + "(k, v) " + "VALUES (?, ?)");
+
+        try (CQLSSTableWriter writer = builder1.build())
+        {
+            writer.addRow(1, 1);
+        }
+
+        try (Cluster cluster = init(builder().withNodes(3)
+                                             .withoutVNodes()
+                                             .withDataDirCount(1)
+                                             .withConfig((config) ->
+                                                         config
+                                                         .with(Feature.NETWORK, Feature.GOSSIP)).start()))
+        {
+            cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
+            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}");
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE_TABLE + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
+
+            String indexName = "v_idx";
+            cluster.schemaChange(withKeyspace("CREATE INDEX " + indexName + " ON " + KEYSPACE_TABLE + " (v) USING 'sai'"));
+
+            long mark = cluster.get(1).logs().mark();
+
+            cluster.get(1).runOnInstance(() -> {
+                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
+                Set<String> paths = Set.of(file);
+                cfs.importNewSSTables(paths, true, true, true, true, true, true, true);
+            });
+
+            List<String> logs = cluster.get(1).logs().watchFor(mark, Duration.ofMinutes(1), "Submitting incremental index build of " + indexName).getResult();
+            Assertions.assertThat(logs).isNotEmpty();
+
+            Uninterruptibles.sleepUninterruptibly(3, TimeUnit.SECONDS);
+
+            SAIUtil.assertIndexQueryable(cluster, KEYSPACE, indexName);
+
+            cluster.forEach(instance -> {
+                Object[][] rows = instance.executeInternal(withKeyspace("SELECT * FROM " + KEYSPACE_TABLE + " WHERE v = 1"));
+                assertRows(rows, row(1, 1));
             });
         }
     }
