@@ -65,6 +65,7 @@ import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MonotonicClock;
 
+import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.writeMetrics;
 import static org.apache.cassandra.net.Verb.COUNTER_MUTATION_REQ;
@@ -179,11 +180,24 @@ public class TrackedWriteRequest
      * @param consistencyLevel the consistency level for the write operation
      * @param requestTime object holding times when request got enqueued and started execution
      * @param onComplete callback invoked when the handler is signaled; receives the handler
+     *
+     * TODO (expected): retry on CoordinatorBehindException automatically, similarly to how
+     *      StorageProxy#dispatchMutationsWithRetryOnDifferentSystem() does.
      */
     public static AbstractWriteResponseHandler<?> perform(
-        IMutation mutation, ConsistencyLevel consistencyLevel,
+        IMutation mutation,
+        ConsistencyLevel consistencyLevel,
         Dispatcher.RequestTime requestTime,
         Consumer<AbstractWriteResponseHandler<?>> onComplete)
+    {
+        return perform(mutation, consistencyLevel, requestTime, onComplete, false);
+    }
+
+    private static AbstractWriteResponseHandler<?> perform(
+        IMutation mutation, ConsistencyLevel consistencyLevel,
+        Dispatcher.RequestTime requestTime,
+        Consumer<AbstractWriteResponseHandler<?>> onComplete,
+        boolean isRetry)
     {
         Tracing.trace("Determining replicas for mutation");
 
@@ -192,7 +206,8 @@ public class TrackedWriteRequest
         Keyspace keyspace = Keyspace.open(keyspaceName);
         Token token = mutation.key().getToken();
 
-        ReplicaPlan.ForWrite plan = ReplicaPlans.forWrite(keyspace, consistencyLevel, token, ReplicaPlans.writeAll);
+        ClusterMetadata cm = ClusterMetadata.current();
+        ReplicaPlan.ForWrite plan = ReplicaPlans.forWrite(cm, keyspace, consistencyLevel, token, ReplicaPlans.writeAll);
         AbstractReplicationStrategy rs = plan.replicationStrategy();
 
         if (plan.lookup(FBUtilities.getBroadcastAddressAndPort()) == null)
@@ -202,10 +217,27 @@ public class TrackedWriteRequest
             return ForwardedWrite.forward(mutation, plan, rs, requestTime, onComplete);
         }
 
+        /*
+         * nextMutationId() always allocates from the most recent Shard for the token, so it's possible
+         * for the topology to change *right after* the write plan was created; if the Shard's participants
+         * no longer match the calculated replicas, we need to retry, once.
+         */
+        MutationId id = MutationTrackingService.instance().nextMutationId(keyspaceName, token);
+        Participants participants = MutationTrackingService.instance().getLogParticipants(id.asLogId());
+        if (!participants.matches(plan.liveAndDown(), cm))
+        {
+            MutationTrackingService.instance().completeLocalWrite(id);
+            logger.trace("Topology mismatch between calculated plan and current shard participants {} {}", plan, participants);
+            if (isRetry)
+            {
+                String msg = format("Repeated topology mismatch between calculated plan and shard participants %s %s", plan, participants);
+                throw new IllegalStateException(msg);
+            }
+            return perform(mutation, consistencyLevel, requestTime, onComplete, true);
+        }
+
         logger.trace("Local tracked request {} {}", mutation, plan);
         writeMetrics.localRequests.mark();
-
-        MutationId id = MutationTrackingService.instance().nextMutationId(keyspaceName, token);
 
         mutation = mutation.withMutationId(id);
 

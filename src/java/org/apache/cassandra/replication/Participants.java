@@ -27,6 +27,9 @@ import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ArraySerializers;
 
 public class Participants
@@ -100,6 +103,41 @@ public class Participants
         for (int host : hosts)
             set.add(host);
         return set;
+    }
+
+    private void addTo(IntHashSet set)
+    {
+        for (int i = 0; i < size(); i++)
+            set.add(hosts[i]);
+    }
+
+    static Participants merge(Participants left, Participants right)
+    {
+        IntHashSet merged = new IntHashSet(left.size() + right.size());
+        left.addTo(merged);
+        right.addTo(merged);
+        return new Participants(merged);
+    }
+
+    static Participants fromReplicas(Set<Replica> replicas, ClusterMetadata cm)
+    {
+        int i = 0;
+        int[] hosts = new int[replicas.size()];
+        for (Replica r : replicas)
+            hosts[i++] = cm.directory.peerId(r.endpoint()).id();
+        return new Participants(hosts);
+    }
+
+    boolean matches(EndpointsForToken expected, ClusterMetadata cm)
+    {
+        if (size() != expected.size())
+            return false;
+
+        for (Replica replica : expected)
+            if (!contains(cm.directory.peerId(replica.endpoint()).id()))
+                return false;
+
+        return true;
     }
 
     public static final UnversionedSerializer<Participants> serializer = new UnversionedSerializer<>()
