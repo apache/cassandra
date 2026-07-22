@@ -19,15 +19,17 @@ package org.apache.cassandra.replication;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
 
+import org.agrona.collections.Int2ObjectHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,8 +42,9 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.CoordinatorBehindException;
+import org.apache.cassandra.exceptions.InvalidRoutingException;
 import org.apache.cassandra.exceptions.RequestFailure;
-import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -52,6 +55,7 @@ import org.apache.cassandra.locator.NodeProximity;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageFlag;
@@ -61,13 +65,16 @@ import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
-import org.apache.cassandra.utils.CollectionSerializers;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.net.Verb.MUTATION_REQ;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
@@ -173,27 +180,27 @@ public class ForwardedWrite
     public static class MutationRequest
     {
         private final Mutation mutation;
-        private final Set<NodeId> recipients;
 
-        private static Set<NodeId> nodeIds(ReplicaPlan.ForWrite plan)
-        {
-            ClusterMetadata cm = ClusterMetadata.current();
-            Set<NodeId> recipients = new HashSet<>(plan.liveAndDown().size());
-            for (Replica replica : plan.liveAndDown())
-                recipients.add(cm.directory.peerId(replica.endpoint()));
-            return recipients;
-        }
+        /**
+         * We encode the two sets of nodes separately to make sure that the leader
+         * contacts the same replicas that the coordinator set up its callbacks for.
+         */
+        private final Participants liveReplicas;
+        private final Participants downReplicas;
 
-        MutationRequest(Mutation mutation, ReplicaPlan.ForWrite plan)
-        {
-            this(mutation, nodeIds(plan));
-        }
+        /**
+         * Epoch of the {@link ReplicaPlan.ForWrite} the coordinator built
+         * {@link #liveReplicas} and {@link #downReplicas} from.
+         */
+        private final Epoch planEpoch;
 
-        public MutationRequest(Mutation mutation, Set<NodeId> recipients)
+        public MutationRequest(Mutation mutation, Participants liveReplicas, Participants downReplicas, Epoch planEpoch)
         {
             Preconditions.checkArgument(mutation.id().isNone());
             this.mutation = mutation;
-            this.recipients = recipients;
+            this.liveReplicas = liveReplicas;
+            this.downReplicas = downReplicas;
+            this.planEpoch = planEpoch;
         }
 
         public DecoratedKey key()
@@ -201,25 +208,37 @@ public class ForwardedWrite
             return mutation.key();
         }
 
-        public void applyLocallyAndForwardToReplicas(CoordinatorAckInfo ackTo)
+        public void applyLocallyAndForwardToReplicas(ClusterMetadata cm, VersionedEndpoints.ForToken writePlacements, CoordinatorAckInfo ackTo)
         {
             Preconditions.checkState(ackTo != null);
             Preconditions.checkArgument(mutation.id().isNone());
+
             String keyspaceName = mutation.getKeyspaceName();
             Token token = mutation.key().getToken();
+            String localDataCenter = cm.locator.local().datacenter;
 
+            /*
+             * nextMutationId() always allocates from the most recent Shard for the token, so it's possible
+             * for the topology to change *right after* the verb handler successfully validates coordinator/leader
+             * epochs matching; if Shard's participants no longer match the recepients calculated on
+             * the coordinator, we need to abort here and now.
+             */
             MutationId id = MutationTrackingService.instance().nextMutationId(keyspaceName, token);
+            Participants shardParticipants = MutationTrackingService.instance().getLogParticipants(id.asLogId());
+            Participants liveAndDownParticipants = Participants.merge(liveReplicas, downReplicas);
+            if (!shardParticipants.equals(liveAndDownParticipants))
+            {
+                MutationTrackingService.instance().completeLocalWrite(id);
+                TCMMetrics.instance.coordinatorBehindPlacements.mark();
+                String msg =
+                    format("Mutation id %s: shard participants %s disagree with plan replicas %s; coordinator must refresh and retry",
+                           id, shardParticipants, liveAndDownParticipants);
+                throw new CoordinatorBehindException(msg);
+            }
+            Mutation mutation = this.mutation.withMutationId(id);
+
             // Do not wait for handler completion, since the coordinator is already waiting and we don't want to block the stage
             LeaderCallback handler = new LeaderCallback(id, ackTo);
-            applyLocallyAndForwardToReplicas(mutation.withMutationId(id), recipients, handler, ackTo);
-        }
-
-        // TODO: refactor common with applyLocallyAndSendToReplicas
-        private static void applyLocallyAndForwardToReplicas(Mutation mutation, Set<NodeId> recipients, LeaderCallback handler, CoordinatorAckInfo ackTo)
-        {
-            Preconditions.checkState(ackTo != null);
-            ClusterMetadata cm = ClusterMetadata.current();
-            String localDataCenter = cm.locator.local().datacenter;
 
             boolean applyLocally = false;
 
@@ -233,11 +252,10 @@ public class ForwardedWrite
             Message<Mutation> message = null;
 
             // Expensive, but easier to work with Replica than InetAddressAndPort for now
-            Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
-            EndpointsForToken endpoints = cm.placements.get(keyspace.getMetadata().params.replication).writes.forToken(mutation.key().getToken()).get();
-            Map<NodeId, Replica> replicas = new HashMap<>(recipients.size());
+            Int2ObjectHashMap<Replica> replicas = new Int2ObjectHashMap<>(liveReplicas.size(), 0.65f);
+            EndpointsForToken endpoints = writePlacements.get();
             for (Replica replica : endpoints)
-                replicas.put(cm.directory.peerId(replica.endpoint()), replica);
+                replicas.put(cm.directory.peerId(replica.endpoint()).id(), replica);
 
             try
             {
@@ -250,9 +268,11 @@ public class ForwardedWrite
                 // the current version, but it's just an optimization, and we're ok not optimizing for mixed-version clusters.
                 Mutation.serializer.prepareSerializedBuffer(mutation, MessagingService.current_version);
 
-                for (NodeId recipient : recipients)
+                for (int i = 0; i < liveReplicas.size(); i++)
                 {
-                    if (cm.myNodeId().equals(recipient))
+                    int nodeId = liveReplicas.get(i);
+
+                    if (cm.myNodeId().id() == nodeId)
                     {
                         applyLocally = true;
                         continue;
@@ -265,7 +285,7 @@ public class ForwardedWrite
                                          .withParam(ParamType.COORDINATOR_ACK_INFO, ackTo)
                                          .build();
 
-                    Replica replica = replicas.get(recipient);
+                    Replica replica = replicas.get(nodeId);
                     String dc = cm.locator.location(replica.endpoint()).datacenter;
 
                     if (localDataCenter.equals(dc))
@@ -323,37 +343,47 @@ public class ForwardedWrite
         EndpointsForToken endpoints = cm.placements.get(keyspace.getMetadata().params.replication).writes.forToken(token).get();
         logger.trace("Finding best leader from replicas {}", endpoints);
 
-        // TODO: Should match ReplicaPlans.findCounterLeaderReplica, including DC-local priority, current health, severity, etc.
+        // TODO (consider?) should match ReplicaPlans.findCounterLeaderReplica, including DC-local priority, current health, severity, etc.
         Replica leader = null;
         for (Replica replica : proximity.sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), endpoints))
-        {
             if (plan.isAlive(replica))
                 leader = replica;
-        }
         Preconditions.checkState(leader != null, "Could not find leader for %s", mutation);
 
         // create callback and forward to leader
         logger.trace("Selected {} as leader for mutation with key {}", leader.endpoint(), mutation.key());
 
-        AbstractWriteResponseHandler<Object> handler = strategy.getWriteResponseHandler(plan, onComplete, WriteType.SIMPLE, null, requestTime);
+        AbstractWriteResponseHandler<Object> handler =
+            strategy.getWriteResponseHandler(plan, onComplete, WriteType.SIMPLE, null, requestTime);
 
-        // Add callbacks for replicas to respond directly to coordinator
-        Message<MutationRequest> toLeader = Message.outWithRequestTime(Verb.MT_FORWARD_WRITE_REQ, new MutationRequest(mutation, plan), requestTime);
-        for (Replica endpoint : endpoints)
+        HashSet<Replica> liveReplicas = Sets.newHashSetWithExpectedSize(endpoints.size());
+        HashSet<Replica> downReplicas = Sets.newHashSetWithExpectedSize(endpoints.size());
+        for (Replica replica : endpoints)
+            (plan.isAlive(replica) ? liveReplicas : downReplicas).add(replica);
+
+        MutationRequest request =
+            new MutationRequest(mutation,
+                                Participants.fromReplicas(liveReplicas, cm),
+                                Participants.fromReplicas(downReplicas, cm),
+                                plan.epoch());
+
+        Message<MutationRequest> toLeader =
+            Message.outWithFlags(Verb.MT_FORWARD_WRITE_REQ,
+                                 request,
+                                 requestTime,
+                                 Collections.singletonList(MessageFlag.CALL_BACK_ON_FAILURE));
+
+        // add callbacks for replicas to respond directly to coordinator
+        for (Replica replica : liveReplicas)
         {
-            if (plan.isAlive(endpoint))
-            {
-                logger.trace("Adding forwarding callback for response from {} id {}", endpoint, toLeader.id());
-                MessagingService.instance().callbacks.addWithExpiration(handler, toLeader, endpoint);
-            }
-            else
-            {
-                handler.expired();
-            }
+            logger.trace("Adding forwarding callback for response from {} id {}", replica, toLeader.id());
+            MessagingService.instance().callbacks.addWithExpiration(handler, toLeader, replica);
         }
 
-        MessagingService.instance().send(toLeader, leader.endpoint());
+        for (Replica replica : downReplicas)
+            handler.expired();
 
+        MessagingService.instance().send(toLeader, leader.endpoint());
         return handler;
     }
 
@@ -398,10 +428,20 @@ public class ForwardedWrite
         logger.trace("Forwarding tracked counter mutation to leader replica {}", leader);
 
         // Create response handler for all replicas
-        AbstractWriteResponseHandler<Object> handler = strategy.getWriteResponseHandler(plan, onComplete, WriteType.COUNTER, null, requestTime);
+        AbstractWriteResponseHandler<Object> handler =
+            strategy.getWriteResponseHandler(plan, onComplete, WriteType.COUNTER, null, requestTime);
 
         // Add callbacks for all live replicas to respond directly to coordinator
-        Message<CounterMutation> forwardMessage = Message.outWithRequestTime(Verb.COUNTER_MUTATION_REQ, counterMutation, requestTime);
+        Message<CounterMutation> forwardMessage =
+            Message.outWithFlags(Verb.COUNTER_MUTATION_REQ,
+                                 counterMutation,
+                                 requestTime,
+                                 Collections.singletonList(MessageFlag.CALL_BACK_ON_FAILURE));
+
+        // TODO (expected): the view of what nodes are alive and what aren't may be different between
+        //      the coordinator and the leader, which can result in timing out and/or valid responses
+        //      being ignored by the coordinator (if the coordinator think they were down and expires
+        //      them here, but the leader sees them as up (correctly) and forward the request there)
         for (Replica replica : plan.contacts())
         {
             if (plan.isAlive(replica))
@@ -522,28 +562,36 @@ public class ForwardedWrite
         logger.trace("Tracked counter mutation {} processed, local application and replication initiated", id);
     }
 
+    // TODO (expected): depending on when topology change support lands, bump MT version,
+    //      and add support for the old one
     public static final VersionedSerializer<MutationRequest> serializer = new VersionedSerializer<>()
     {
         @Override
         public void serialize(MutationRequest request, DataOutputPlus out, Version version) throws IOException
         {
             Mutation.serializer.serialize(request.mutation, out, version.messagingVersion());
-            CollectionSerializers.serializeCollection(request.recipients, out, version.messagingVersion(), NodeId.messagingSerializer);
+            Participants.serializer.serialize(request.liveReplicas, out);
+            Participants.serializer.serialize(request.downReplicas, out);
+            Epoch.serializer.serialize(request.planEpoch, out);
         }
 
         @Override
         public MutationRequest deserialize(DataInputPlus in, Version version) throws IOException
         {
             Mutation mutation = Mutation.serializer.deserialize(in, version.messagingVersion());
-            Set<NodeId> recipients = CollectionSerializers.deserializeSet(in, version.messagingVersion(), NodeId.messagingSerializer);
-            return new MutationRequest(mutation, recipients);
+            Participants liveReplicas = Participants.serializer.deserialize(in);
+            Participants downReplicas = Participants.serializer.deserialize(in);
+            Epoch planEpoch = Epoch.serializer.deserialize(in);
+            return new MutationRequest(mutation, liveReplicas, downReplicas, planEpoch);
         }
 
         @Override
         public long serializedSize(MutationRequest request, Version version)
         {
             long size = Mutation.serializer.serializedSize(request.mutation, version.messagingVersion());
-            size += CollectionSerializers.serializedCollectionSize(request.recipients, version.messagingVersion(), NodeId.messagingSerializer);
+            size += Participants.serializer.serializedSize(request.liveReplicas);
+            size += Participants.serializer.serializedSize(request.downReplicas);
+            size += Epoch.serializer.serializedSize(request.planEpoch);
             return size;
         }
     };
@@ -551,27 +599,82 @@ public class ForwardedWrite
     public static final IVerbHandler<MutationRequest> verbHandler = incoming ->
     {
         MutationTrackingService.ensureEnabled();
+
         if (approxTime.now() > incoming.expiresAtNanos())
         {
             Tracing.trace("Discarding mutation from {} (timed out)", incoming.from());
             MessagingService.instance().metrics.recordDroppedMessage(incoming, incoming.elapsedSinceCreated(NANOSECONDS), NANOSECONDS);
             return;
         }
+
         logger.trace("Received incoming ForwardedWriteRequest {} id {}", incoming, incoming.id());
-        CoordinatorAckInfo ackTo = CoordinatorAckInfo.toCoordinator(incoming.from(), incoming.id());
         MutationRequest request = incoming.payload;
 
-        // Once we support epoch changes, check epoch from coordinator here, after potential queueing on the Stage
-        try
+        ClusterMetadata metadata = ClusterMetadata.current();
+
+        Epoch planEpoch = request.planEpoch;
+        String keyspace = request.mutation.getKeyspaceName();
+        DecoratedKey key = request.mutation.key();
+
+        VersionedEndpoints.ForToken writePlacements = writePlacements(metadata, keyspace, key);
+
+        /*
+         * Reconcile leader's metadata epoch with the coordinator's to ensure that the replicas
+         * calculated on the coordinator are the same as replicas calculated on the leader; this is
+         * necessary because replicas will reply directly to the coordinator, and it better always be the same
+         * replicas that the coordinator has set up its callbacks for (and a topology change can make it not so).
+         *
+         * This is the first check out of necessary two: the second one is performed after allocating the mutation id,
+         * to ensure that the most recent shard - the one from which the mutation id will be allocated - has the same
+         * set of participants that the recepients the coordinator has calculated.
+         */
+
+        if (planEpoch.isAfter(metadata.epoch))
         {
-            request.applyLocallyAndForwardToReplicas(ackTo);
+            if (!writePlacements.get().containsSelf())
+            {
+                metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, incoming.from(), planEpoch);
+                writePlacements = writePlacements(metadata, keyspace, key);
+            }
+            else
+            {
+                ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(metadata, incoming.from(), planEpoch); // async
+            }
         }
-        catch (Exception e)
+
+        if (!writePlacements.get().containsSelf())
         {
-            logger.error("Exception while executing forwarded write with key {} on leader", request.key(), e);
-            MessagingService.instance().respondWithFailure(RequestFailureReason.UNKNOWN, incoming);
+            StorageService.instance.incOutOfRangeOperationCount();
+            Keyspace.open(keyspace).metric.outOfRangeTokenWrites.inc();
+            throw InvalidRoutingException.forWrite(incoming.from(), key.getToken(), metadata.epoch, request.mutation);
         }
+
+        if (writePlacements.lastModified().isAfter(planEpoch))
+        {
+            TCMMetrics.instance.coordinatorBehindPlacements.mark();
+            String msg =
+                format("Routing is correct, but coordinator needs to catch-up at least to epoch %s to maintain consistency. " +
+                       "Current coordinator epoch is %s", writePlacements.lastModified(), planEpoch);
+            throw new CoordinatorBehindException(msg);
+        }
+
+        // at this stage it's possible that local (leader) writePlacements.lastModified() is *before* coordinator's
+        // planEpoch and this may be completely fine, or not, so we must compare actual replica sets.
+        Participants liveAndDownParticipants = Participants.merge(request.liveReplicas, request.downReplicas);
+        if (!liveAndDownParticipants.matches(writePlacements.get(), metadata))
+        {
+            // TODO (expected): throw a more fitting exception, but it's not obvious to me which one (AY)
+            throw new RuntimeException("Leader is possibly behind coordinator for tracked write");
+        }
+
+        CoordinatorAckInfo ackTo = CoordinatorAckInfo.toCoordinator(incoming.from(), incoming.id());
+        request.applyLocallyAndForwardToReplicas(metadata, writePlacements, ackTo);
     };
+
+    private static VersionedEndpoints.ForToken writePlacements(ClusterMetadata metadata, String keyspace, DecoratedKey key)
+    {
+        return metadata.placements.get(metadata.schema.getKeyspace(keyspace).getMetadata().params.replication).writes.forToken(key.getToken());
+    }
 
     // Leader just needs to acknowledge propagation for its own log, not for client consistency level
     // See org.apache.cassandra.service.TrackedWriteResponseHandler.onResponse, this class should probably merge with that one

@@ -116,10 +116,7 @@ public final class ShardMetadataRequest
         ShardMetadataRequest request = message.payload;
         logger.trace("Received shard metadata request from {} for log {}", message.from(), request.logId);
 
-        Shard shard = MutationTrackingService.instance().getShardNullable(request.logId);
-        ShardMetadata metadata = shard != null
-            ? new ShardMetadata(shard.keyspace, shard.sinceEpoch, shard.range, shard.participants)
-            : null;
+        ShardMetadata metadata = MutationTrackingService.instance().getShardMetadata(request.logId);
         Message<ShardMetadataResponse> response = message.responseWith(new ShardMetadataResponse(metadata));
         MessagingService.instance().send(response, message.from());
     };

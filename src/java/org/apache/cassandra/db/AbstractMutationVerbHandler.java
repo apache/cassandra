@@ -106,7 +106,7 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
         if (!forToken.get().containsSelf())
         {
             StorageService.instance.incOutOfRangeOperationCount();
-            Keyspace.open(message.payload.getKeyspaceName()).metric.outOfRangeTokenWrites.inc();
+            Keyspace.open(keyspace).metric.outOfRangeTokenWrites.inc();
             NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.SECONDS, logMessageTemplate, respondTo, key.getToken(), message.payload.getKeyspaceName());
             throw InvalidRoutingException.forWrite(respondTo, key.getToken(), metadata.epoch, message.payload);
         }
