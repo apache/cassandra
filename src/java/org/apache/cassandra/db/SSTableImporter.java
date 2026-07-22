@@ -247,8 +247,16 @@ public class SSTableImporter
         }
         catch (Throwable t)
         {
-            logger.error("[{}] Failed adding SSTables", importID, t);
-            throw new RuntimeException("Failed adding SSTables", t);
+            if (isAccordEnabled)
+            {
+                String msg = "Failed adding SSTables on local node; note the import may still have been committed by a recovery coordinator";
+                throw new RuntimeException(msg, t);
+            }
+            else
+            {
+                logger.error("[{}] Failed adding SSTables", importID, t);
+                throw new RuntimeException("Failed adding SSTables", t);
+            }
         }
 
         logger.info("[{}] Done loading load new SSTables for {}/{}", importID, cfs.getKeyspaceName(), cfs.getTableName());

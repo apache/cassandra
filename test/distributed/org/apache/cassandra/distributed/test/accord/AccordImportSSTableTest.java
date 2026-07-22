@@ -140,10 +140,6 @@ public class AccordImportSSTableTest extends TestBaseImpl
         }
     }
 
-    /**
-     * This might have a potential issue with us throwing an exception instead of having a custom class to notify
-     * that the read was a failure.
-     */
     @Test
     public void testSSTableImportWithConcurrentTopologyChangeFails() throws Throwable
     {
@@ -177,9 +173,14 @@ public class AccordImportSSTableTest extends TestBaseImpl
                     Set<String> paths = Set.of(file);
                     Assertions.assertThatThrownBy(() -> cfs.importNewSSTables(paths, true, true, true, true, true, true, true))
                               .isInstanceOf(RuntimeException.class)
-                              .hasMessageContaining("Failed adding SSTables");
+                              .hasMessageContaining("Failed adding SSTables on local node; note the import may still have been committed by a recovery coordinator")
+                              .cause()
+                              .isInstanceOf(RuntimeException.class)
+                              .hasMessageContaining("SSTable import failed because of a concurrent topology change; please retry the operation");
+
                 });
             }, "importer");
+
             importer.start();
 
             cluster.get(1).runOnInstance(() -> {
@@ -228,8 +229,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
                 ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
                 Set<String> paths = Set.of(file);
                 Assertions.assertThatThrownBy(() -> cfs.importNewSSTables(paths, true, true, true, true, true, true, true))
-                          .isInstanceOf(RuntimeException.class)
-                          .cause();
+                          .isInstanceOf(RuntimeException.class);
             });
 
             Iterable<IInvokableInstance> up = cluster.stream()
@@ -380,7 +380,13 @@ public class AccordImportSSTableTest extends TestBaseImpl
             cluster.get(1).runOnInstance(() -> {
                 ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
                 Set<String> paths = Set.of(file);
-                Assertions.assertThatThrownBy(() -> cfs.importNewSSTables(paths, true, true, true, true, true, true, true));
+
+                Assertions.assertThatThrownBy(() -> cfs.importNewSSTables(paths, true, true, true, true, true, true, true))
+                          .isInstanceOf(RuntimeException.class)
+                          .hasMessageContaining("Failed adding SSTables on local node; note the import may still have been committed by a recovery coordinator")
+                          .cause()
+                          .isInstanceOf(RuntimeException.class)
+                          .hasMessageContaining("SSTable import failed locally; however the operation may still be applied by the recovery coordinator");
             });
 
             // Wait until the recovery coordinator picks up the Import Txn
@@ -452,7 +458,13 @@ public class AccordImportSSTableTest extends TestBaseImpl
             cluster.get(1).runOnInstance(() -> {
                 ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
                 Set<String> paths = Set.of(file);
-                Assertions.assertThatThrownBy(() -> cfs.importNewSSTables(paths, true, true, true, true, true, true, true));
+                Assertions.assertThatThrownBy(() -> cfs.importNewSSTables(paths, true, true, true, true, true, true, true))
+                          .isInstanceOf(RuntimeException.class)
+                          .isInstanceOf(RuntimeException.class)
+                          .hasMessageContaining("Failed adding SSTables on local node; note the import may still have been committed by a recovery coordinator")
+                          .cause()
+                          .isInstanceOf(RuntimeException.class)
+                          .hasMessageContaining("SSTable import failed locally; however the operation may still be applied by the recovery coordinator");
             });
 
             // Wait until the recovery coordinator picks up the Import Txn

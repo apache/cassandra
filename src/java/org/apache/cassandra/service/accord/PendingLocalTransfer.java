@@ -33,6 +33,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -66,10 +67,30 @@ public class PendingLocalTransfer
     /**
      * Safely moves SSTables into the live set.
      */
-    public synchronized void activate()
+    public synchronized void activate(TxnRead.ImportMetadata metadata, long executeAtEpoch)
     {
         if (activated)
             return;
+
+        CoordinatedTransfer coordinatedTransfer = LocalTransfers.instance.coordinating.get(metadata.getImportID());
+        boolean isCoordinator = coordinatedTransfer != null;
+
+        if (metadata.getStreamingEpoch() != executeAtEpoch)
+        {
+            logger.info("{} Failing activation of pending SSTables because streaming epoch {} != importTxn executeAt epoch {}",
+                        logPrefix(), metadata.getStreamingEpoch(), executeAtEpoch);
+
+            if (isCoordinator)
+            {
+                coordinatedTransfer.importTxnEpochMismatch = true;
+                LocalTransfers.instance().scheduleCoordinatedTransferCleanup(coordinatedTransfer);
+            }
+            else
+                LocalTransfers.instance().schedulePendingLocalTransferCleanup(planId);
+
+            activated = true;
+            return;
+        }
 
         long startedActivation = currentTimeMillis();
         logger.info("{} Activating transfer {}, {} ms since pending", logPrefix(), this, startedActivation - createdAt);
@@ -117,7 +138,10 @@ public class PendingLocalTransfer
         long finishedActivation = currentTimeMillis();
         logger.info("{} Finished activating transfer {} in {} ms", logPrefix(), this, finishedActivation - startedActivation);
 
-        LocalTransfers.instance().schedulePendingLocalTransferCleanup(planId);
+        if (isCoordinator)
+            LocalTransfers.instance().scheduleCoordinatedTransferCleanup(coordinatedTransfer);
+        else
+            LocalTransfers.instance().schedulePendingLocalTransferCleanup(planId);
     }
 
     @Override

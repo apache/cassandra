@@ -413,9 +413,7 @@ public class TxnNamedRead extends AbstractParameterisedVersionedSerialized<ReadC
     public AsyncChain<Data> performSSTableImport(AccordExecutor executor, TxnRead.ImportMetadata importMetadata, Timestamp executeAt)
     {
         Callable<Data> callable = () -> {
-            if (importMetadata.getStreamingEpoch() != executeAt.epoch())
-                throw new RuntimeException("SSTable import failed because of a concurrent topology change");
-            LocalTransfers.instance.activatePendingTransfers(importMetadata);
+            LocalTransfers.instance.activatePendingTransfers(importMetadata, executeAt.epoch());
             return new TxnData();
         };
         return submit(executor, callable, callable);

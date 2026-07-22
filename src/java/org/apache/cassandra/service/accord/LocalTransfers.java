@@ -181,16 +181,14 @@ public class LocalTransfers
         });
     }
 
-    // This method will be called by every Accord command store executor of
-    // the ranges it intersects
-    public void activatePendingTransfers(TxnRead.ImportMetadata metadata)
+    public void activatePendingTransfers(TxnRead.ImportMetadata metadata, long executeAtEpoch)
     {
         lock.readLock().lock();
         try
         {
             PendingLocalTransfer pendingLocalTransfer = local.get(metadata.getPlanId());
             if (pendingLocalTransfer != null)
-                pendingLocalTransfer.activate();
+                pendingLocalTransfer.activate(metadata, executeAtEpoch);
         }
         finally
         {

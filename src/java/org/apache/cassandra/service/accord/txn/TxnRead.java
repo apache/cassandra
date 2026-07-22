@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -67,6 +68,7 @@ import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.UUIDSerializer;
 
 import static accord.primitives.Routables.Slice.Minimal;
 import static accord.utils.Invariants.require;
@@ -204,9 +206,9 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     // the ImportTxn has custom logic to move SSTables in the pending directory to the live set. Because these txn's are performed
     // using range reads, clients can see a window of inconsistency for read txn's that are concurrent with the ImportTxn. However,
     // data will always be consistent.
-    public static TxnRead createImport(TableMetadatas tables, TokenRange range, TimeUUID planId, long streamingEpoch)
+    public static TxnRead createImport(TableMetadatas tables, TokenRange range, UUID importID, TimeUUID planId, long streamingEpoch)
     {
-        ImportMetadata importMetadata = new ImportMetadata(planId, streamingEpoch);
+        ImportMetadata importMetadata = new ImportMetadata(importID, planId, streamingEpoch);
         return new TxnRead(tables, ImmutableList.of(new TxnNamedRead(txnDataName(USER), range, null)), null, importMetadata);
     }
 
@@ -446,13 +448,20 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     // Metadata that is needed to be kept track of for ImportTxns
     public static class ImportMetadata
     {
+        private final UUID importID;
         private final TimeUUID planId;
         private final Long streamingEpoch;
 
-        public ImportMetadata(TimeUUID planId, Long streamingEpoch)
+        public ImportMetadata(UUID importID, TimeUUID planId, Long streamingEpoch)
         {
+            this.importID = importID;
             this.planId = planId;
             this.streamingEpoch = streamingEpoch;
+        }
+
+        public UUID getImportID()
+        {
+            return importID;
         }
 
         public TimeUUID getPlanId()
@@ -473,7 +482,8 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
 
         public boolean equals(ImportMetadata that)
         {
-            return Objects.equals(this.planId, that.planId)
+            return Objects.equals(this.importID, that.importID)
+                   && Objects.equals(this.planId, that.planId)
                    && (Objects.equals(this.streamingEpoch, that.streamingEpoch));
         }
 
@@ -488,12 +498,14 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
             @Override
             public void serialize(ImportMetadata importMetadata, DataOutputPlus out, Version version) throws IOException
             {
+                UUIDSerializer.serializer.serialize(importMetadata.importID, out);
                 TimeUUID.Serializer.instance.serialize(importMetadata.planId, out);
                 out.writeLong(importMetadata.streamingEpoch);
             }
 
             public void skip(DataInputPlus in, Version version) throws IOException
             {
+                UUIDSerializer.serializer.skip(in);
                 TimeUUID.Serializer.instance.skip(in);
                 in.readLong();
             }
@@ -501,15 +513,17 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
             @Override
             public ImportMetadata deserialize(DataInputPlus in, Version version) throws IOException
             {
+                UUID importID = UUIDSerializer.serializer.deserialize(in);
                 TimeUUID planId = TimeUUID.Serializer.instance.deserialize(in);
                 Long streamingEpoch = in.readLong();
-                return new ImportMetadata(planId, streamingEpoch);
+                return new ImportMetadata(importID, planId, streamingEpoch);
             }
 
             @Override
             public long serializedSize(ImportMetadata importMetadata, Version version)
             {
                 long size = 0;
+                size += UUIDSerializer.serializer.serializedSize(importMetadata.importID);
                 size += TimeUUID.Serializer.instance.serializedSize(importMetadata.planId);
                 size += TypeSizes.LONG_SIZE;
                 return size;

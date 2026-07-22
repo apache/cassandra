@@ -50,6 +50,7 @@ import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
 import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -96,6 +97,8 @@ public class CoordinatedTransfer
 
     final Map<InetAddressAndPort, NodeStreamingMetadata> nodeStreamingContext;
     SingleTransferResult streamResult = SingleTransferResult.Init();
+    // If importTxnEpochMismatch is true, all replicas will deterministically not import the SSTables in the pending directory
+    volatile boolean importTxnEpochMismatch = false;
 
     public CoordinatedTransfer(UUID importID, TableMetadata tableMetadata, Map<InetAddressAndPort, NodeStreamingMetadata> nodeStreamingContext, long streamingEpoch, TokenRange allSSTableRanges)
     {
@@ -117,14 +120,27 @@ public class CoordinatedTransfer
         LocalTransfers.instance().save(this);
 
         stream();
-        performImportTxn();
-        LocalTransfers.instance().scheduleCoordinatedTransferCleanup(this);
+
+        try
+        {
+            performImportTxn();
+            if (importTxnEpochMismatch)
+            {
+                LocalTransfers.instance().scheduleCoordinatedTransferCleanup(this);
+                throw new RuntimeException("SSTable import failed because of a concurrent topology change; please retry the operation");
+            }
+            LocalTransfers.instance().scheduleCoordinatedTransferCleanup(this);
+        }
+        catch (ReadTimeoutException e)
+        {
+            throw new RuntimeException("SSTable import failed locally; however the operation may still be applied by the recovery coordinator", e);
+        }
     }
 
     private void performImportTxn()
     {
         TableMetadatas tables = TableMetadatas.of(tableMetadata);
-        TxnRead read = TxnRead.createImport(tables, allSSTableRanges, streamResult.planId, streamingEpoch);
+        TxnRead read = TxnRead.createImport(tables, allSSTableRanges, importID, streamResult.planId, streamingEpoch);
         TableMetadatasAndKeys tablesAndKeys = new TableMetadatasAndKeys(tables, read.keys());
         Txn txn = new Txn.InMemory(Read, read.keys(), read, TxnQuery.NONE, null, tablesAndKeys);
         IAccordService.IAccordResult<TxnResult> accordResult = AccordService.instance().coordinateAsync(tableMetadata.epoch.getEpoch(), txn, ConsistencyLevel.ALL, Dispatcher.RequestTime.forImmediateExecution());
