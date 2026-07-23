@@ -33,8 +33,8 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 /**
  * Exercises the minimum CMS size guardrail via the real {@code nodetool cms reconfigure} path against a live in-JVM
- * cluster. The guardrail only applies once the cluster has at least as many nodes as the threshold, so multiple nodes
- * are required to trigger it.
+ * cluster. The guardrail applies unless the requested CMS size already uses every joined node (the cluster cannot
+ * host more replicas), so multiple nodes are required to trigger it.
  */
 public class GuardrailCmsSizeReconfigurationTest extends TestBaseImpl
 {
@@ -78,10 +78,38 @@ public class GuardrailCmsSizeReconfigurationTest extends TestBaseImpl
     @Test
     public void reconfigureBelowThresholdIsAllowedWhenClusterTooSmall() throws IOException
     {
-        // The cluster has fewer nodes than the threshold, so it cannot host that many replicas and the guardrail is skipped.
+        // The requested CMS size (2) already uses every node in the cluster, so there is nothing more to enforce.
         try (Cluster cluster = build(2).withConfig(config(THRESHOLD)).start())
         {
             cluster.get(1).nodetoolResult("cms", "reconfigure", "2")
+                   .asserts()
+                   .success();
+        }
+    }
+
+    @Test
+    public void reconfigureBelowClusterCapacityIsRejectedWhenThresholdAboveClusterSize() throws IOException
+    {
+        // Threshold (4) is above the cluster size (3), but the cluster can still host a CMS of 3. Requesting a smaller
+        // size than the cluster can support must be rejected rather than silently skipped, so a high threshold can't
+        // be used to sidestep the floor.
+        try (Cluster cluster = build(3).withConfig(config(4)).start())
+        {
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "2")
+                   .asserts()
+                   .failure()
+                   .stderrContains("failure threshold of 4");
+        }
+    }
+
+    @Test
+    public void reconfigureAtClusterCapacityIsAllowedWhenThresholdAboveClusterSize() throws IOException
+    {
+        // Threshold (4) is above the cluster size (3). A CMS of 3 already uses every node, so it is allowed even though
+        // it is below the threshold: the cluster simply cannot do better, and blocking it would brick reconfiguration.
+        try (Cluster cluster = build(3).withConfig(config(4)).start())
+        {
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "3")
                    .asserts()
                    .success();
         }
