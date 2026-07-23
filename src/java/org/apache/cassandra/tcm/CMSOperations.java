@@ -189,15 +189,7 @@ public class CMSOperations implements CMSOperationsMBean
         int cmsSize = params.options.values().stream()
                                     .mapToInt(Integer::parseInt)
                                     .sum();
-        // A cluster can't host more CMS replicas than it has nodes. If the request already uses every node there's
-        // nothing more to enforce (e.g. during bootstrap), and requiring more would brick reconfiguration. Otherwise
-        // the request must meet the configured minimum, even when the threshold exceeds the current cluster size, so
-        // an operator can't sidestep the floor by setting a high threshold. An operator who genuinely wants a smaller
-        // CMS should disable the guardrail. When it is disabled, guard() below is a no-op.
-        if (cmsSize >= totalNodes)
-            return;
-
-        Guardrails.minimumCmsSize.guard(cmsSize, "CMS", false, null);
+        Guardrails.minimumCmsSize.guard(totalNodes, cmsSize);
     }
 
     @Override
