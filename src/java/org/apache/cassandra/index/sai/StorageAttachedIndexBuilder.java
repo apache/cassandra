@@ -263,9 +263,9 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
     {
         IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable);
 
-        // if per-table files are incomplete, full rebuild is requested, or checksum fails
+        // if per-table files are incomplete or checksum fails. A single-index rebuild must NOT rewrite the
+        // shared per-SSTable components (CASSANDRA-21515).
         if (!indexDescriptor.isPerSSTableIndexBuildComplete()
-            || isFullRebuild
             || !indexDescriptor.validatePerSSTableComponents(IndexValidation.CHECKSUM, true, false))
         {
             CountDownLatch latch = CountDownLatch.newCountDownLatch(1);
