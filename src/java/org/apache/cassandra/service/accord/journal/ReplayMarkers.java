@@ -45,7 +45,6 @@ public class ReplayMarkers
         return new File(getAccordJournalDirectory(), "stop.crc");
     }
 
-    // TODO (required): add checksummed version and default to this (but support unchecksummed for manual editing)
     public static void writeMarker(File file, long timestamp, long lastUniqueTimeStamp)
     {
         try (FileOutputStreamPlus out = new FileOutputStreamPlus(file))
