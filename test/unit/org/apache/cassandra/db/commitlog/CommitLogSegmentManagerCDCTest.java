@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -42,9 +43,11 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.commitlog.CommitLogSegment.CDCState;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.exceptions.CDCWriteException;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileReader;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 
 public class CommitLogSegmentManagerCDCTest extends CQLTester
@@ -57,7 +60,11 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     {
         ServerTestUtils.daemonInitialization();
         DatabaseDescriptor.setCDCEnabled(true);
-        DatabaseDescriptor.setCDCTotalSpaceInMiB(1024);
+        // The bulk writes are sized to commitLogSegmentSize/3, so the suite's disk footprint scales
+        // with the segment size; shrink it to the 1 MiB floor. Cap the default CDC space too: bulkWrite
+        // writes ~2x the CDC limit, so this bounds how much the non-blocking cases flush to disk.
+        DatabaseDescriptor.setCommitLogSegmentSize(1);
+        DatabaseDescriptor.setCDCTotalSpaceInMiB(100);
         CQLTester.setUpClass();
     }
 
@@ -69,6 +76,24 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         CommitLog.instance.stopUnsafe(true);
         CommitLog.instance.start();
         ((CommitLogSegmentManagerCDC)CommitLog.instance.segmentManager).updateCDCTotalSize();
+    }
+
+    @After
+    public void afterTest() throws Throwable
+    {
+        // Reclaim the SSTables this test wrote so data/ doesn't grow across methods; CQLTester#afterTest
+        // only clears schema-tracking state. Do NOT stop/delete the commit log here: super.afterTest()
+        // resets the CMS, whose schema re-application runs asynchronously on the TCM log follower, and
+        // deleting segments underneath it makes CDC hard-linking fail ("hard link to file that does not
+        // exist"). beforeTest() restarts the commit log for the next test instead.
+        Keyspace ks = Schema.instance.getKeyspaceInstance(keyspace());
+        if (ks != null)
+        {
+            for (ColumnFamilyStore cfs : ks.getColumnFamilyStores())
+                cfs.truncateBlockingWithoutSnapshot();
+            LifecycleTransaction.waitForDeletions();
+        }
+        super.afterTest();
     }
 
     @Test
@@ -456,10 +481,14 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     {
         TableMetadata ccfm = Keyspace.open(keyspace()).getColumnFamilyStore(tableName).metadata();
         boolean blockWrites = DatabaseDescriptor.getCDCBlockWrites();
-        // Spin to make sure we hit CDC capacity
+        // Write enough to overflow the configured CDC limit so we reliably hit capacity. Derive the
+        // count from the CDC size and mutation size. Blocking mode stops
+        // early on the first CDCWriteException; non-blocking mode writes the whole run, recycling
+        // older segments (2x the fill count keeps it exercising recycling without over-writing).
+        int writes = 2 * (int) (DatabaseDescriptor.getCDCTotalSpace() / mutationSize);
         try
         {
-            for (int i = 0; i < 1000; i++)
+            for (int i = 0; i < writes; i++)
             {
                 new RowUpdateBuilder(ccfm, 0, i)
                 .add("data", randomizeBuffer(mutationSize))
