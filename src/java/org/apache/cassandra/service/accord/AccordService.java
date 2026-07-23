@@ -154,6 +154,7 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Condition;
@@ -534,28 +535,31 @@ public class AccordService implements IAccordService, Shutdownable
 
         boolean rebootstrap = false;
         {
-            long startMarker = ReplayMarkers.readStartMarker();
-            long stopMarker = ReplayMarkers.readStopMarker();
-            if (stopMarker < startMarker)
+            Pair<Long, Long> startMarkerPair = ReplayMarkers.readStartMarker();
+            Pair<Long, Long> stopMarkerPair = ReplayMarkers.readStopMarker();
+            long startMarkerSegmentId = startMarkerPair.left;
+            long stopMarkerSegmentId = stopMarkerPair.left;
+
+            if (startMarkerSegmentId < stopMarkerSegmentId)
             {
                 switch (getAccord().journal.stopMarkerFailurePolicy)
                 {
                     default: throw new UnhandledEnum(getAccord().journal.stopMarkerFailurePolicy);
                     case EXIT:
-                        throw new RuntimeException("Stop marker is older than start marker (" + stopMarker + '<' + startMarker + ") , so cannot assume we have a complete log of our votes in any consensus groups. Exiting.");
+                        throw new RuntimeException("Stop marker is older than start marker (" + stopMarkerSegmentId + '<' + startMarkerSegmentId + ") , so cannot assume we have a complete log of our votes in any consensus groups. Exiting.");
 
                     case ALLOW_UNSAFE_STARTUP:
                     case UNSAFE_STARTUP:
-                        logger.warn("Stop marker is older than start marker ({}<{}), so cannot assume we have a complete log of our votes in any consensus groups. Continuing to startup as configured.", stopMarker, startMarker);
+                        logger.warn("Stop marker is older than start marker ({}<{}), so cannot assume we have a complete log of our votes in any consensus groups. Continuing to startup as configured.", stopMarkerSegmentId, startMarkerSegmentId);
                         break;
 
                     case REBOOTSTRAP:
-                        logger.info("Stop marker is older than start marker ({}<{}). Rebootstrapping.", stopMarker, startMarker);
+                        logger.info("Stop marker is older than start marker ({}<{}). Rebootstrapping.", stopMarkerSegmentId, startMarkerSegmentId);
                         rebootstrap = true;
                 }
             }
 
-            node.uniqueNow(ReplayMarkers.readLastUniqueTimeStamp());
+            node.uniqueNow(stopMarkerPair.right);
         }
 
         logger.info("Starting background compaction of system_accord");

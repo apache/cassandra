@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.service.accord.serializers;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -29,8 +32,10 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.service.accord.api.AccordTimeService;
 import org.apache.cassandra.service.accord.journal.ReplayMarkers;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
 
 import static accord.utils.Property.qt;
@@ -55,8 +60,35 @@ public class StopMarkerSerializerTest
         qt().forAll(RandomSource::nextLong).check(timestamp -> {
             long lastUniqueTimeStamp = AccordTimeService.nowMicros();
             writeMarker(safeStopMarker(), timestamp, lastUniqueTimeStamp);
-            Assert.assertEquals(timestamp.longValue(), ReplayMarkers.readStopMarker());
-            Assert.assertEquals(lastUniqueTimeStamp, ReplayMarkers.readLastUniqueTimeStamp());
+            Pair<Long, Long> pair = ReplayMarkers.readStopMarker();
+            Assert.assertEquals(timestamp, pair.left);
+            Assert.assertEquals(lastUniqueTimeStamp, (long) pair.right);
+        });
+    }
+
+    @Test
+    public void nonCrcFileSerializerTest()
+    {
+        if (new File(DatabaseDescriptor.getAccordJournalDirectory()).exists())
+            ServerTestUtils.cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
+
+        qt().forAll(RandomSource::nextLong).check(timestamp -> {
+            File file = new File(DatabaseDescriptor.getAccordJournalDirectory(), "stopped");
+            long lastUniqueTimeStamp = AccordTimeService.nowMicros();
+
+            try (FileOutputStreamPlus out = new FileOutputStreamPlus(file))
+            {
+                out.writeLong(timestamp);
+                out.writeLong(lastUniqueTimeStamp);
+            }
+            catch (IOException e)
+            {
+                throw new UncheckedIOException(e);
+            }
+
+            Pair<Long, Long> pair = ReplayMarkers.readStopMarker();
+            Assert.assertEquals(timestamp, pair.left);
+            Assert.assertEquals(lastUniqueTimeStamp, (long) pair.right);
         });
     }
 }

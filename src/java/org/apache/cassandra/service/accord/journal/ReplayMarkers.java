@@ -20,24 +20,29 @@ package org.apache.cassandra.service.accord.journal;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.zip.CRC32;
+
+import com.google.common.primitives.Longs;
 
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.utils.NativeLibrary;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordJournalDirectory;
+import static org.apache.cassandra.utils.Crc.crc32;
 
 public class ReplayMarkers
 {
     public static File startMarker()
     {
-        return new File(getAccordJournalDirectory(), "started");
+        return new File(getAccordJournalDirectory(), "start.crc");
     }
 
     public static File safeStopMarker()
     {
-        return new File(getAccordJournalDirectory(), "stopped");
+        return new File(getAccordJournalDirectory(), "stop.crc");
     }
 
     // TODO (required): add checksummed version and default to this (but support unchecksummed for manual editing)
@@ -45,10 +50,12 @@ public class ReplayMarkers
     {
         try (FileOutputStreamPlus out = new FileOutputStreamPlus(file))
         {
-            int endingOffset = Long.toString(timestamp).length();
-            out.writeInt(endingOffset);
-            out.writeBytes(Long.toString(timestamp));
-            out.writeBytes(Long.toString(lastUniqueTimeStamp));
+            CRC32 crc = crc32();
+            out.writeLong(timestamp);
+            crc.update(Longs.toByteArray(timestamp));
+            out.writeLong(lastUniqueTimeStamp);
+            crc.update(Longs.toByteArray(lastUniqueTimeStamp));
+            out.writeInt((int) crc.getValue());
         }
         catch (IOException e)
         {
@@ -57,28 +64,41 @@ public class ReplayMarkers
         trySyncJournalDirectory();
     }
 
-    public static long readStartMarker()
+    public static Pair<Long, Long> readStartMarker()
     {
-        return readMarker(startMarker());
+        File crcFile = new File(getAccordJournalDirectory(), "start.crc");
+        if (crcFile.exists())
+            return readCrcMarker(crcFile);
+        else
+            return readMarker(new File(getAccordJournalDirectory(), "started"));
     }
 
-    public static long readStopMarker()
+    public static Pair<Long, Long> readStopMarker()
     {
-        return readMarker(safeStopMarker());
+        File crcFile = new File(getAccordJournalDirectory(), "stop.crc");
+        if (crcFile.exists())
+            return readCrcMarker(crcFile);
+        else
+            return readMarker(new File(getAccordJournalDirectory(), "stopped"));
     }
 
-    public static long readMarker(File file)
+    public static Pair<Long, Long> readCrcMarker(File file)
     {
         if (!file.exists())
-            return -1L;
+            return Pair.create(-1L, -1L);
 
         try (FileInputStreamPlus in = new FileInputStreamPlus(file))
         {
-            StringBuilder sb = new StringBuilder(8);
-            int endingOffset = in.readInt();
-            for (int i = 0; i < endingOffset; i++)
-                sb.append((char) in.read());
-            return Long.parseLong(sb.toString());
+            CRC32 crc = crc32();
+            long timestamp = in.readLong();
+            crc.update(Longs.toByteArray(timestamp));
+            long lastUniqueTimeStamp = in.readLong();
+            crc.update(Longs.toByteArray(lastUniqueTimeStamp));
+            int checksum = in.readInt();
+            if (in.read() != -1 || (int) crc.getValue() != checksum)
+                throw new IOException("Stop.crc file corrupted");
+
+            return Pair.create(timestamp, lastUniqueTimeStamp);
         }
         catch (IOException e)
         {
@@ -86,22 +106,16 @@ public class ReplayMarkers
         }
     }
 
-    public static long readLastUniqueTimeStamp()
+    public static Pair<Long, Long> readMarker(File file)
     {
-        File file = safeStopMarker();
         if (!file.exists())
-            return -1L;
+            return Pair.create(-1L, -1L);
 
         try (FileInputStreamPlus in = new FileInputStreamPlus(file))
         {
-            int endingOffset = in.readInt();
-            StringBuilder sb = new StringBuilder(8);
-            for (int i = 0; i < endingOffset; i++)
-                in.read();
-
-            for (int b = in.read(); b >= 0 ; b = in.read())
-                sb.append((char)b);
-            return Long.parseLong(sb.toString());
+            long timestamp = in.readLong();
+            long lastUniqueTimeStamp = in.readLong();
+            return Pair.create(timestamp, lastUniqueTimeStamp);
         }
         catch (IOException e)
         {
@@ -109,7 +123,7 @@ public class ReplayMarkers
         }
     }
 
-    private static void trySyncJournalDirectory()
+    public static void trySyncJournalDirectory()
     {
         trySyncDirectory(getAccordJournalDirectory());
     }
