@@ -122,7 +122,7 @@ public class ReplayMarkers
         }
     }
 
-    public static void trySyncJournalDirectory()
+    private static void trySyncJournalDirectory()
     {
         trySyncDirectory(getAccordJournalDirectory());
     }

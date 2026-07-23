@@ -42,7 +42,7 @@ import static accord.utils.Property.qt;
 import static org.apache.cassandra.service.accord.journal.ReplayMarkers.safeStopMarker;
 import static org.apache.cassandra.service.accord.journal.ReplayMarkers.writeMarker;
 
-public class StopMarkerSerializerTest
+public class ReplayMarkerSerializerTest
 {
     @BeforeClass
     public static void beforeClass() throws Throwable
@@ -52,7 +52,7 @@ public class StopMarkerSerializerTest
     }
 
     @Test
-    public void stopMarkerSerializerTest()
+    public void replayMarkerSerializerTest()
     {
         if (new File(DatabaseDescriptor.getAccordJournalDirectory()).exists())
             ServerTestUtils.cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
@@ -67,7 +67,7 @@ public class StopMarkerSerializerTest
     }
 
     @Test
-    public void nonCrcFileSerializerTest()
+    public void nonCrcReplayMarkerSerializerTest()
     {
         if (new File(DatabaseDescriptor.getAccordJournalDirectory()).exists())
             ServerTestUtils.cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
