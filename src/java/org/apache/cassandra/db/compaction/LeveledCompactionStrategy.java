@@ -50,6 +50,19 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 {
     private static final Logger logger = LoggerFactory.getLogger(LeveledCompactionStrategy.class);
     private static final String SSTABLE_SIZE_OPTION = "sstable_size_in_mb";
+
+    /**
+     * LeveledCompactionStrategy option that lets each level use a different sstable compression than the
+     * table default. The value is a JSON object mapping level to a compression definition, e.g.
+     * {@code {"0":{"class":"LZ4Compressor"},"1":{"class":"ZstdCompressor","compression_level":"9"}}}. Each
+     * level object is a full, independent compression spec, specified exactly like the table
+     * {@code compression} option (it requires a {@code "class"}; extra keys are that compressor's options; it
+     * may also set {@code chunk_length_in_kb} / {@code min_compress_ratio}). Nothing is inherited from the
+     * table compression: unspecified settings use the same defaults as the {@code compression} option (e.g.
+     * the default chunk length). Levels not listed use the table compression.
+     */
+    public static final String PER_LEVEL_COMPRESSION_OPTION = "per_level_compression";
+
     private static final boolean tolerateSstableSize = Boolean.getBoolean(Config.PROPERTY_PREFIX + "tolerate_sstable_size");
     private static final String LEVEL_FANOUT_SIZE_OPTION = "fanout_size";
     private static final String SINGLE_SSTABLE_UPLEVEL_OPTION = "single_sstable_uplevel";
@@ -620,6 +633,10 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
         uncheckedOptions.remove(LEVEL_FANOUT_SIZE_OPTION);
         uncheckedOptions.remove(SINGLE_SSTABLE_UPLEVEL_OPTION);
+
+        // Validate the per-level compression override (levels not listed use the table compression default)
+        CompactionParams.parsePerLevelCompression(options.get(PER_LEVEL_COMPRESSION_OPTION));
+        uncheckedOptions.remove(PER_LEVEL_COMPRESSION_OPTION);
 
         uncheckedOptions.remove(CompactionParams.Option.MIN_THRESHOLD.toString());
         uncheckedOptions.remove(CompactionParams.Option.MAX_THRESHOLD.toString());

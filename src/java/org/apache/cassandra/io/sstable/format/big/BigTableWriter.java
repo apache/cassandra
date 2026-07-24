@@ -80,7 +80,7 @@ public class BigTableWriter extends SSTableWriter
                           TimeUUID pendingRepair,
                           boolean isTransient,
                           TableMetadataRef metadata,
-                          MetadataCollector metadataCollector, 
+                          MetadataCollector metadataCollector,
                           SerializationHeader header,
                           Collection<SSTableFlushObserver> observers,
                           LifecycleNewTracker lifecycleNewTracker)
@@ -122,6 +122,19 @@ public class BigTableWriter extends SSTableWriter
     private CompressionParams compressionFor(final OperationType opType)
     {
         CompressionParams compressionParams = metadata.getLocal().params.compression;
+
+        // Per-level compression (LCS-only per-table option): use the compression configured for this
+        // sstable's level. Each level is a full, independent compression spec (same defaults as the table
+        // compression option; nothing inherited). Keyed on level. Flush is excluded (it has its own
+        // flush_compression policy below). No-op for non-LCS tables, which never carry the option.
+        if (compressionParams.isEnabled() && opType != OperationType.FLUSH)
+        {
+            CompressionParams override = metadata.getLocal().params.compaction
+                                                 .perLevelCompression(metadataCollector.getSSTableLevel());
+            if (override != null)
+                compressionParams = override;
+        }
+
         final ICompressor compressor = compressionParams.getSstableCompressor();
 
         if (null != compressor && opType == OperationType.FLUSH)

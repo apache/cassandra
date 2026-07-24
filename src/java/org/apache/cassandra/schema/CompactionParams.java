@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.schema;
 
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -30,6 +31,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
@@ -42,6 +45,8 @@ import static java.lang.String.format;
 public final class CompactionParams
 {
     private static final Logger logger = LoggerFactory.getLogger(CompactionParams.class);
+
+    private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
 
     public enum Option
     {
@@ -90,6 +95,7 @@ public final class CompactionParams
     private final ImmutableMap<String, String> options;
     private final boolean isEnabled;
     private final TombstoneOption tombstoneOption;
+    private final ImmutableMap<Integer, CompressionParams> perLevelCompression;
 
     private CompactionParams(Class<? extends AbstractCompactionStrategy> klass, Map<String, String> options, boolean isEnabled, TombstoneOption tombstoneOption)
     {
@@ -97,6 +103,19 @@ public final class CompactionParams
         this.options = ImmutableMap.copyOf(options);
         this.isEnabled = isEnabled;
         this.tombstoneOption = tombstoneOption;
+
+        String perLevelSpec = options.get(LeveledCompactionStrategy.PER_LEVEL_COMPRESSION_OPTION);
+        ImmutableMap<Integer, CompressionParams> perLevel;
+        try
+        {
+            perLevel = ImmutableMap.copyOf(parsePerLevelCompression(perLevelSpec));
+        }
+        catch (ConfigurationException e)
+        {
+            logger.warn("Ignoring malformed per_level_compression spec '{}': {}", perLevelSpec, e.getMessage());
+            perLevel = ImmutableMap.of();
+        }
+        this.perLevelCompression = perLevel;
     }
 
     public static CompactionParams create(Class<? extends AbstractCompactionStrategy> klass, Map<String, String> options)
@@ -250,6 +269,68 @@ public final class CompactionParams
     public Map<String, String> options()
     {
         return options;
+    }
+
+    /**
+     * Returns the pre-built compression override for {@code level}, or {@code null} if the level has no
+     * override and should use the table compression. Each level is built independently from its own
+     * compression spec, exactly like the table {@code compression} option (same defaults, e.g. chunk length);
+     * nothing is inherited from the table. See {@link LeveledCompactionStrategy#PER_LEVEL_COMPRESSION_OPTION}.
+     */
+    public CompressionParams perLevelCompression(int level)
+    {
+        return perLevelCompression.get(level);
+    }
+
+    /**
+     * Parses the {@code per_level_compression} spec (see
+     * {@link LeveledCompactionStrategy#PER_LEVEL_COMPRESSION_OPTION} for the grammar) into a level to
+     * {@link CompressionParams} map. Each level value is a compression option map that must specify a
+     * {@code class} and is built and validated exactly like the table {@code compression} option via
+     * {@link CompressionParams#fromMap}. Returns an empty map for a null or blank spec.
+     */
+    public static Map<Integer, CompressionParams> parsePerLevelCompression(String spec) throws ConfigurationException
+    {
+        Map<Integer, CompressionParams> result = new HashMap<>();
+        if (spec == null || spec.trim().isEmpty())
+            return result;
+
+        Map<String, Map<String, String>> raw;
+        try
+        {
+            raw = JSON_MAPPER.readValue(spec, new TypeReference<>() {});
+        }
+        catch (IOException e)
+        {
+            throw new ConfigurationException(
+                format("Invalid per_level_compression JSON '%s': %s", spec, e.getMessage()), e);
+        }
+
+        for (Map.Entry<String, Map<String, String>> entry : raw.entrySet())
+        {
+            int level;
+            try
+            {
+                level = Integer.parseInt(entry.getKey().trim());
+            }
+            catch (NumberFormatException ex)
+            {
+                throw new ConfigurationException(
+                    format("Invalid level '%s' in per_level_compression", entry.getKey()), ex);
+            }
+
+            if (level < 0)
+                throw new ConfigurationException(format("per_level_compression level must be >= 0, but was %s", level));
+
+            Map<String, String> levelOptions = entry.getValue();
+            if (levelOptions == null || !levelOptions.containsKey(CompressionParams.CLASS))
+                throw new ConfigurationException(format("per_level_compression entry for level %s must specify a '%s'",
+                                                        level, CompressionParams.CLASS));
+
+            // A level is built exactly like the table 'compression' option (independently, same defaults).
+            result.put(level, CompressionParams.fromMap(levelOptions));
+        }
+        return result;
     }
 
     public boolean isEnabled()
