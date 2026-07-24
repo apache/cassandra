@@ -168,7 +168,8 @@ public class CompositeType extends AbstractCompositeType
     public static CompositeType getInstance(ImmutableList<AbstractType<?>> types)
     {
         assert types != null && !types.isEmpty();
-        return getInstance(instances, types, () -> new CompositeType(types));
+        ImmutableList<AbstractType<?>> typesCopy = freeze(types);
+        return getInstance(instances, typesCopy, () -> new CompositeType(typesCopy));
     }
 
     protected CompositeType(ImmutableList<AbstractType<?>> types)

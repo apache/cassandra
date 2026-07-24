@@ -450,7 +450,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     }
 
     // use only for offline or "Standalone" operations
-    private static SSTableReader openNoValidation(Descriptor descriptor, TableMetadataRef metadata)
+    @VisibleForTesting
+    public static SSTableReader openNoValidation(Descriptor descriptor, TableMetadataRef metadata)
     {
         return open(descriptor, componentsFor(descriptor), metadata, false, true);
     }

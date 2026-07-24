@@ -66,6 +66,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.apache.cassandra.io.compress.AdaptiveCompressor;
 import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.service.ClientWarn;
@@ -3078,5 +3080,29 @@ public abstract class CQLTester
         return DatabaseDescriptor.shouldUseAdaptiveCompressionByDefault()
                ? AdaptiveCompressor.class.getName()
                : LZ4Compressor.class.getName();
+    }
+
+    @FunctionalInterface
+    public interface ThrowingConsumer<T>
+    {
+        void accept(T t) throws Throwable;
+    }
+
+    public void withLogAppender(Class<?> clazz, ThrowingConsumer<ListAppender<ILoggingEvent>> logAppenderConsumer) throws Throwable
+    {
+        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(clazz);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+
+        try
+        {
+            logAppenderConsumer.accept(appender);
+        }
+        finally
+        {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
     }
 }
