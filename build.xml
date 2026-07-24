@@ -172,7 +172,7 @@
     <property name="chronicle-threads.version" value="2.24ea14" />
     <property name="chronicle-map.version" value="3.24ea4" />
 
-    <property name="netty.version" value="4.1.135.Final" />
+    <property name="netty.version" value="4.1.136.Final" />
 
     <condition property="maven-ant-tasks.jar.exists">
       <available file="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar" />
