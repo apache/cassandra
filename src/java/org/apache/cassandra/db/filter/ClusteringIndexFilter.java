@@ -46,11 +46,18 @@ public interface ClusteringIndexFilter
         SLICE (ClusteringIndexSliceFilter.deserializer),
         NAMES (ClusteringIndexNamesFilter.deserializer);
 
+        private static final Kind[] VALUES = values();
+
         protected final InternalDeserializer deserializer;
 
         private Kind(InternalDeserializer deserializer)
         {
             this.deserializer = deserializer;
+        }
+
+        public static Kind fromOrdinal(int ordinal)
+        {
+            return VALUES[ordinal];
         }
     }
 

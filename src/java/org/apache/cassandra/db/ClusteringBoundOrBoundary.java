@@ -116,7 +116,7 @@ public interface ClusteringBoundOrBoundary<V> extends ClusteringPrefix<V>
 
         public ClusteringBoundOrBoundary<byte[]> deserialize(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException
         {
-            Kind kind = Kind.values()[in.readByte()];
+            Kind kind = Kind.fromOrdinal(in.readByte());
             return deserializeValues(in, kind, version, types);
         }
 

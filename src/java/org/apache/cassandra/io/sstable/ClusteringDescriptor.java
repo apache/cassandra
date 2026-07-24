@@ -61,7 +61,7 @@ public class ClusteringDescriptor extends ResizableByteBuffer
 
     protected void loadClustering(RandomAccessReader dataReader, byte clusteringKind, int clusteringColumnsBound) throws IOException
     {
-        set(ClusteringPrefix.Kind.values()[clusteringKind], clusteringKind, clusteringColumnsBound);
+        set(ClusteringPrefix.Kind.fromOrdinal(clusteringKind), clusteringKind, clusteringColumnsBound);
         if (clusteringKind != STATIC_CLUSTERING_KIND)
             readUnfilteredClustering(dataReader, clusteringTypes, this.clusteringColumnsBound, this);
         else
@@ -103,7 +103,7 @@ public class ClusteringDescriptor extends ResizableByteBuffer
     }
 
     private void set(byte clusteringKindEncoded, int clusteringColumnsBound) {
-        set(ClusteringPrefix.Kind.values()[clusteringKindEncoded], clusteringKindEncoded, clusteringColumnsBound);
+        set(ClusteringPrefix.Kind.fromOrdinal(clusteringKindEncoded), clusteringKindEncoded, clusteringColumnsBound);
     }
 
     private void set(ClusteringPrefix.Kind clusteringKind, byte clusteringKindEncoded, int clusteringColumnsBound)

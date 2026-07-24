@@ -198,6 +198,8 @@ public abstract class ReadCommand extends AbstractReadQuery
         SINGLE_PARTITION (SinglePartitionReadCommand.selectionDeserializer, SinglePartitionReadCommand.accordSelectionDeserializer),
         PARTITION_RANGE  (PartitionRangeReadCommand.selectionDeserializer, ignore -> PartitionRangeReadCommand.selectionDeserializer);
 
+        private static final Kind[] VALUES = values();
+
         private final SelectionDeserializer selectionDeserializer;
         private final Function<Seekable, SelectionDeserializer> accordSelectionDeserializer;
 
@@ -205,6 +207,11 @@ public abstract class ReadCommand extends AbstractReadQuery
         {
             this.selectionDeserializer = selectionDeserializer;
             this.accordSelectionDeserializer = accordSelectionDeserializer;
+        }
+
+        public static Kind fromOrdinal(int ordinal)
+        {
+            return VALUES[ordinal];
         }
     }
 
@@ -1450,7 +1457,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
         public ReadCommand deserialize(DataInputPlus in, int version) throws IOException
         {
-            Kind kind = Kind.values()[in.readByte()];
+            Kind kind = Kind.fromOrdinal(in.readByte());
             int flags = in.readByte();
             // Shouldn't happen or it's a user error (see comment above) but
             // better complain loudly than doing the wrong thing.
@@ -1488,7 +1495,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
         public ReadCommand deserializeForAccord(Seekable key, TableMetadatas tables, DataInputPlus in, int version) throws IOException
         {
-            Kind kind = Kind.values()[in.readByte()];
+            Kind kind = Kind.fromOrdinal(in.readByte());
             int flags = in.readByte();
             if (isDigest(flags) || isForThrift(flags) || acceptsTransient(flags))
                 throw new IllegalStateException("Received an Accord command with a digest/thrift/transient flag set.");
