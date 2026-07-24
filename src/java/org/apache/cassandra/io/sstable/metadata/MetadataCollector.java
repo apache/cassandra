@@ -250,6 +250,11 @@ public class MetadataCollector implements PartitionStatisticsCollector
         return this;
     }
 
+    public int getSSTableLevel()
+    {
+        return sstableLevel;
+    }
+
     public MetadataCollector updateClusteringValues(ClusteringPrefix<?> clustering)
     {
         minClustering = minClustering == null || comparator.compare(clustering, minClustering) < 0 ? clustering.minimize() : minClustering;
