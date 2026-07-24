@@ -35,4 +35,4 @@ OPTIONS
 
         <keyspace> <table> <key>
             The keyspace, the table, and the partition key for which we need to
-            find the replica
+            find the replica (e.g., pk1:pk2:pk3 for compound keys)

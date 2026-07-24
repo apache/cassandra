@@ -44,7 +44,7 @@ public class GetReplicas extends AbstractCommand
     @Parameters(index = "1", arity = "0..1", description = "The table for which we need to find the replica")
     private String table;
 
-    @Parameters(index = "2", arity = "0..1", description = "The partition key for which we need to find the replica")
+    @Parameters(index = "2", arity = "0..1", description = "The partition key for which we need to find the replica (e.g., pk1:pk2:pk3 for compound keys)")
     private String key;
 
     @Mixin
