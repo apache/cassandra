@@ -34,7 +34,7 @@ import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 @Command(name = "getendpoints", description = "Print the end points that owns the key")
 public class GetEndpoints extends AbstractCommand
 {
-    @CassandraUsage(usage = "<keyspace> <table> <key>", description = "The keyspace, the table, and the partition key for which we need to find the endpoint")
+    @CassandraUsage(usage = "<keyspace> <table> <key>", description = "The keyspace, the table, and the partition key for which we need to find the endpoint (e.g., pk1:pk2:pk3 for compound keys)")
     private List<String> args = new ArrayList<>();
 
     @Parameters(index = "0", arity = "0..1", description = "The keyspace for which we need to find the endpoint")
@@ -43,7 +43,7 @@ public class GetEndpoints extends AbstractCommand
     @Parameters(index = "1", arity = "0..1", description = "The table for which we need to find the endpoint")
     private String table;
 
-    @Parameters(index = "2", arity = "0..1", description = "The partition key for which we need to find the endpoint")
+    @Parameters(index = "2", arity = "0..1", description = "The partition key for which we need to find the endpoint (e.g., pk1:pk2:pk3 for compound keys)")
     private String key;
 
     @Mixin

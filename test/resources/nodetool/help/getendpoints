@@ -34,4 +34,4 @@ OPTIONS
 
         <keyspace> <table> <key>
             The keyspace, the table, and the partition key for which we need to
-            find the endpoint
+            find the endpoint (e.g., pk1:pk2:pk3 for compound keys)
