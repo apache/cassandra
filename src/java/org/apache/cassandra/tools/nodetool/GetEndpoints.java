@@ -43,7 +43,7 @@ public class GetEndpoints extends AbstractCommand
     @Parameters(index = "1", arity = "0..1", description = "The table for which we need to find the endpoint")
     private String table;
 
-    @Parameters(index = "2", arity = "0..1", description = "The partition key for which we need to find the endpoint")
+    @Parameters(index = "2", arity = "0..1", description = "The partition key for which we need to find the endpoint (e.g., pk1:pk2:pk3 for compound keys)")
     private String key;
 
     @Mixin
