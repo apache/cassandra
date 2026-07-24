@@ -465,6 +465,13 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         errorHandler.accept(ErrorMessage.wrap(t, streamId));
     }
 
+    /**
+     * For use in the case where the error can't be mapped to a specific stream id,
+     * such as a corrupted frame, or when extracting a CQL message from the frame's
+     * payload fails. This does not attempt to release any resources, as these errors
+     * should only occur before any capacity acquisition is attempted (e.g. on receipt
+     * of a corrupt frame, or failure to extract a CQL message from the envelope).
+     */
     private void handleError(Throwable t)
     {
         errorHandler.accept(t);
@@ -726,12 +733,6 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                 processSubsequentFrameOfLargeMessage(frame);
         }
 
-        // A corrupt frame's bytes can't be reliably mapped back to a specific in-flight request (the
-        // frame may span several streams, and the stream id bytes may themselves be part of the
-        // corruption). We fall back to this connection's STARTUP stream id purely so the client still
-        // receives a diagnostic error frame before we tear the connection down (see the class javadoc
-        // above and CQLConnectionTest#handleFrameCorruptionAfterNegotiation). The exception is fatal, so
-        // the channel is closed as soon as the error has been written.
         handleError(ProtocolException.toFatalException(new ProtocolException(error)));
     }
 

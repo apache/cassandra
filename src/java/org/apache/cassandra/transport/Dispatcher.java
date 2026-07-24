@@ -444,12 +444,10 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
      */
     static Message.Response processRequest(Channel channel, Message.Request request, Overload backpressure, RequestTime requestTime)
     {
+        Message.Response response = null;
         try
         {
-            // decorateResponse must run before the finally below resets ClientWarn, so that it can read the
-            // warnings accumulated during processing. Decorating in the caller (after this method returns)
-            // would observe the reset state and drop all client warnings.
-            return decorateResponse(processRequest((ServerConnection) request.connection(), request, backpressure, requestTime), request);
+            response = processRequest((ServerConnection) request.connection(), request, backpressure, requestTime);
         }
         catch (Throwable t)
         {
@@ -462,14 +460,17 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
             }
 
             Predicate<Throwable> handler = ExceptionHandlers.getUnexpectedExceptionHandler(channel, true);
-            return decorateResponse(ErrorMessage.fromExceptionNoStreamId(t, handler), request);
+            response = ErrorMessage.fromExceptionNoStreamId(t, handler);
         }
         finally
         {
+            if (response != null)
+                response.setWarnings(ClientWarn.instance.getWarnings());
             CoordinatorWarnings.reset();
             CoordinatorWriteWarnings.reset();
             ClientWarn.instance.resetWarnings();
         }
+        return response;
     }
 
     /**
@@ -481,13 +482,6 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
         FlushItem<?> toFlush = forFlusher.toFlushItem(param, channel, request, response);
         Message.logger.trace("Responding: {}, v={}", response, request.connection().getVersion());
         flush(toFlush);
-    }
-
-    private static Message.Response decorateResponse(Message.Response response, Message.Request request)
-    {
-        assert response != null;
-        response.setWarnings(ClientWarn.instance.getWarnings());
-        return response;
     }
 
     private void flush(FlushItem<?> item)
@@ -522,7 +516,7 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
      * for delivering events to registered clients is dependent on protocol version and the configuration
      * of the pipeline. For v5 and newer connections, the event message is encoded into an Envelope,
      * wrapped in a FlushItem and then delivered via the pipeline's flusher, in a similar way to
-     * a Response returned from {@link #processRequest(Channel, Message.Request, FlushItemConverter, P, Overload, RequestTime)}.
+     * a Response returned from {@link #processRequest(Channel, Message.Request, FlushItemConverter, Object, Overload, RequestTime)}.
      * It's worth noting that events are not generally fired as a direct response to a client request,
      * so this flush item has a null request attribute. The dispatcher itself is created when the
      * pipeline is first configured during protocol negotiation and is attached to the channel for

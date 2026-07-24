@@ -277,10 +277,6 @@ public class Envelope
                 // cause the channel to be closed.
                 return new HeaderExtractionResult.Error(e, streamId, bodyLength);
             }
-            catch (ErrorMessage.WrappedException e)
-            {
-                return new HeaderExtractionResult.Error((ProtocolException) e.getCause(), e.getStreamId(), bodyLength);
-            }
         }
 
         public static abstract class HeaderExtractionResult
