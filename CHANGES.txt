@@ -5,6 +5,7 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Fix Accord transaction error message when altering a table (CASSANDRA-20580)
  * Depend only on platform-specific Zstd JNI native libraries (CASSANDRA-21483)
  * Expose immediately-executed tasks in the queries virtual table (CASSANDRA-21471)
  * Avoid potential deadlock between GlobalLogFollower and GossipStage (CASSANDRA-21384)
