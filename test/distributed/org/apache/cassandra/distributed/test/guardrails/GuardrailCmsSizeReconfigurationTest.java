@@ -90,9 +90,8 @@ public class GuardrailCmsSizeReconfigurationTest extends TestBaseImpl
     @Test
     public void reconfigureBelowClusterCapacityIsRejectedWhenThresholdAboveClusterSize() throws IOException
     {
-        // Threshold (4) is above the cluster size (3), but the cluster can still host a CMS of 3. Requesting a smaller
-        // size than the cluster can support must be rejected rather than silently skipped, so a high threshold can't
-        // be used to sidestep the floor.
+        // Threshold (4) is above the cluster size (3), but the cluster can still host a CMS of 3, so a request for 2
+        // is rejected.
         try (Cluster cluster = build(3).withConfig(config(4)).start())
         {
             cluster.get(1).nodetoolResult("cms", "reconfigure", "2")
@@ -105,13 +104,27 @@ public class GuardrailCmsSizeReconfigurationTest extends TestBaseImpl
     @Test
     public void reconfigureAtClusterCapacityIsAllowedWhenThresholdAboveClusterSize() throws IOException
     {
-        // Threshold (4) is above the cluster size (3). A CMS of 3 already uses every node, so it is allowed even though
-        // it is below the threshold: the cluster simply cannot do better, and blocking it would brick reconfiguration.
+        // Threshold (4) is above the cluster size (3). A CMS of 3 already uses every node, so it is allowed even
+        // though it is below the threshold.
         try (Cluster cluster = build(3).withConfig(config(4)).start())
         {
             cluster.get(1).nodetoolResult("cms", "reconfigure", "3")
                    .asserts()
                    .success();
+        }
+    }
+
+    @Test
+    public void reconfigureAboveClusterSizeIsNotBlockedByGuardrail() throws IOException
+    {
+        // Requested size (5) exceeds the cluster size (3), so the guardrail does not apply. The reconfiguration still
+        // fails, but because CMS placement can't find enough nodes, not with the guardrail's "failure threshold" error.
+        try (Cluster cluster = build(3).withConfig(config(10)).start())
+        {
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "5")
+                   .asserts()
+                   .failure()
+                   .stderrContains("not enough nodes");
         }
     }
 

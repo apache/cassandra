@@ -46,11 +46,8 @@ public class CMSSizeGuardrail extends MinThreshold
 
     public void guard(int totalNodes, int cmsSize)
     {
-        // A cluster can't host more CMS replicas than it has nodes. If the request already uses every node there's
-        // nothing more to enforce (e.g. during bootstrap), and requiring more would brick reconfiguration. Otherwise
-        // the request must meet the configured minimum, even when the threshold exceeds the current cluster size, so
-        // an operator can't sidestep the floor by setting a high threshold. An operator who genuinely wants a smaller
-        // CMS should disable the guardrail. When it is disabled, guard() below is a no-op.
+        // If the request already uses every node, the cluster can't do better, so skip the check.
+        // Otherwise the CMS size must meet the configured minimum.
         if (cmsSize >= totalNodes)
             return;
 
