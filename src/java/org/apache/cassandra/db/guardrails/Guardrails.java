@@ -618,7 +618,8 @@ public final class Guardrails implements GuardrailsMBean
     /**
      * Guardrail on the minimum CMS size (aggregate replication factor across DCs).
      */
-    public static final CMSSizeGuardrail minimumCmsSize = new CMSSizeGuardrail(state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumCmsSizeFailThreshold());
+    public static final CMSSizeGuardrail minimumCmsSize =
+    new CMSSizeGuardrail(state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumCmsSizeFailThreshold());
 
     /**
      * Guardrail on the maximum replication factor.
