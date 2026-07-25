@@ -35,7 +35,7 @@ import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 @Command(name = "getreplicas", description = "Print the replicas that own the key")
 public class GetReplicas extends AbstractCommand
 {
-    @CassandraUsage(usage = "<keyspace> <table> <key>", description = "The keyspace, the table, and the partition key for which we need to find the replica")
+    @CassandraUsage(usage = "<keyspace> <table> <key>", description = "The keyspace, the table, and the partition key for which we need to find the replica (e.g., pk1:pk2:pk3 for compound keys)")
     private List<String> args = new ArrayList<>();
 
     @Parameters(index = "0", arity = "0..1", description = "The keyspace for which we need to find the replica")
@@ -44,7 +44,7 @@ public class GetReplicas extends AbstractCommand
     @Parameters(index = "1", arity = "0..1", description = "The table for which we need to find the replica")
     private String table;
 
-    @Parameters(index = "2", arity = "0..1", description = "The partition key for which we need to find the replica")
+    @Parameters(index = "2", arity = "0..1", description = "The partition key for which we need to find the replica (e.g., pk1:pk2:pk3 for compound keys)")
     private String key;
 
     @Mixin
