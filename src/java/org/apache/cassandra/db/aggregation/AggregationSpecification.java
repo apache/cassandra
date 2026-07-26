@@ -65,7 +65,14 @@ public abstract class AggregationSpecification
      */
     public enum Kind
     {
-        AGGREGATE_EVERYTHING, AGGREGATE_BY_PK_PREFIX, AGGREGATE_BY_PK_PREFIX_WITH_SELECTOR
+        AGGREGATE_EVERYTHING, AGGREGATE_BY_PK_PREFIX, AGGREGATE_BY_PK_PREFIX_WITH_SELECTOR;
+
+        private static final Kind[] VALUES = values();
+
+        public static Kind fromOrdinal(int ordinal)
+        {
+            return VALUES[ordinal];
+        }
     }
 
     /**
@@ -253,7 +260,7 @@ public abstract class AggregationSpecification
 
         public AggregationSpecification deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
-            Kind kind = Kind.values()[in.readUnsignedByte()];
+            Kind kind = Kind.fromOrdinal(in.readUnsignedByte());
             switch (kind)
             {
                 case AGGREGATE_EVERYTHING:

@@ -513,7 +513,7 @@ public class SSTableCursorWriter implements AutoCloseable
     public void writeRangeTombstone(UnfilteredDescriptor rangeTombstone, boolean updateClusteringMetadata) throws IOException
     {
         int tombstoneKind = rangeTombstone.clusteringKindEncoded();
-        ClusteringPrefix.Kind kind = ClusteringPrefix.Kind.values()[tombstoneKind];
+        ClusteringPrefix.Kind kind = ClusteringPrefix.Kind.fromOrdinal(tombstoneKind);
         long unfilteredStartPosition = getPosition();
         /** See: {@link org.apache.cassandra.db.rows.UnfilteredSerializer#serialize */
         dataWriter.writeByte((byte)IS_MARKER);
