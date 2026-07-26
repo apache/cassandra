@@ -236,6 +236,12 @@ public class SSTableContextManager
         });
     }
 
+    @VisibleForTesting
+    public int getDescriptorCount()
+    {
+        return sstableDescriptors.size();
+    }
+
     private static Set<IndexContext> contexts(Set<StorageAttachedIndex> indices)
     {
         Set<IndexContext> contexts = Sets.newHashSetWithExpectedSize(indices.size());

@@ -296,7 +296,14 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
     @Override
     public Set<Component> activeComponents(SSTableReader sstable)
     {
-        IndexDescriptor indexDescriptor = descriptorFor(sstable);
+        return activeComponents(descriptorFor(sstable));
+    }
+
+    /**
+     * Returns the active components tracked by the supplied descriptor.
+     */
+    Set<Component> activeComponents(IndexDescriptor indexDescriptor)
+    {
         Set<Component> components = indexDescriptor
                                     .perSSTableComponents()
                                     .all()
