@@ -25,7 +25,7 @@ Python dependencies are found in .build/run-ci.d/requirements.txt
 Custom environment variables can be set in .build/.run-ci.env
 
 lint with:
- `pylint --disable=C0301,W0511,C0103,W0702,C0415,C0116,C0115,R0914,W0603,R0915,R0913,R0911 run-ci`
+ `pylint --disable=C0301,W0511,C0103,W0702,C0415,C0116,C0115,R0914,W0603,R0915,R0913,R0917,R0911,W0212,W0621 run-ci`
 
 test with:
  `python .build/run-ci.d/run-ci-test.py`
@@ -51,9 +51,10 @@ from urllib.request import urlretrieve
 from typing import Optional, Tuple
 
 # External Libraries (`pip install -r .build/run-ci.d/requirements.txt`)
+import requests
+import yaml
 from bs4 import BeautifulSoup
 from kubernetes import client, config, stream
-import requests
 
 try:
     import jenkins
@@ -73,9 +74,9 @@ def base_job_name(args) -> str:
     """
     if not hasattr(base_job_name, "_cached_result"):
         raw_url = args.repository.replace("https://github.com/", "https://raw.githubusercontent.com/").removesuffix(".git") + f"/{args.branch}/build.xml"
-        if 200 != requests.head(raw_url).status_code:
+        if 200 != requests.head(raw_url, timeout=30).status_code:
             raise ValueError(f"GitHub unavailable, or this branch has not been pushed yet: {args.repository} @ {args.branch} (or remote tracking not setup up: `git config --get branch.{args.branch}.remote` and `git config --get branch.{args.branch}.merge`)")
-        response = requests.get(raw_url)
+        response = requests.get(raw_url, timeout=30)
         response.raise_for_status()
         for line in response.text.splitlines():
             if 'property' in line and 'name="base.version"' in line:
@@ -98,7 +99,7 @@ def is_local_git_dirty(args) -> bool:
     # use base_job_name to verify the remote branch exists
     base_job_name(args)
     # check if the working directory is clean
-    clean = subprocess.run(["git", "-C", str(CASSANDRA_DIR), "diff-index", "--quiet", "HEAD", "--"]).returncode
+    clean = subprocess.run(["git", "-C", str(CASSANDRA_DIR), "diff-index", "--quiet", "HEAD", "--"], check=False).returncode
     # check if there are unpushed committed changes
     unpushed_commits = bool(subprocess.run(["git", "-C", str(CASSANDRA_DIR), "log", "@{u}..HEAD", "--name-only"],
                                            capture_output=True, text=True, check=False).stdout.strip())
@@ -191,6 +192,7 @@ def argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("-k", "--dtest-branch", default=DEFAULT_DTEST_REPO_BRANCH, help="DTest repository branch.")
     parser.add_argument("-s", "--setup", action="store_true", help="Set up Jenkins before the build.")
     parser.add_argument("--only-setup", action="store_true", help="Only install Jenkins into the k8s cluster.")
+    parser.add_argument("-f", "--values-override", help="Path to an additional helm values file, applied over .jenkins/k8s/jenkins-deployment.yaml. Required when the target cluster carries site customisations, see .jenkins/k8s/README.md")
     parser.add_argument("--tear-down", action="store_true", help="Tear down Jenkins after the build.")
     parser.add_argument("--only-tear-down", action="store_true", help="Only tear down Jenkins.")
     parser.add_argument("--only-node-cleaner", action="store_true", help="Only run the node cleaner. The node cleaner scans the k8s nodes, eagerly terminating those unused.")
@@ -211,6 +213,8 @@ def parse_arguments() -> argparse.Namespace:
     assert not (args.setup and args.only_setup), "Both --setup or --only-setup cannot be specified."
     assert not (args.tear_down and args.only_tear_down), "Both --tear-down or --only-tear-down cannot be specified."
     assert not ("custom" == args.profile and not args.profile_custom_regexp), "Custom profile requires --profile-custom-regexp."
+    assert not (args.values_override and not (args.setup or args.only_setup)), "--values-override requires --setup or --only-setup."
+    assert not (args.values_override and not Path(args.values_override).is_file()), f"No such values override file: {args.values_override}"
 
     if not args.url and os.environ.get("JENKINS_URL"):
         args.url = os.environ.get("JENKINS_URL")
@@ -252,19 +256,113 @@ def run_kubectl_command(kubeconfig: Optional[str], kubecontext: Optional[str], k
     cmd += command
     return subprocess.run(cmd, capture_output=True, text=True, check=True).stdout.strip()
 
-def install_jenkins(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str):
-    """Installs Jenkins Operator using Helm in the specified K8s namespace."""
-    print("Adding Helm repository for Jenkins Operator...")
-    subprocess.run(["helm", "repo", "add", "jenkins", "https://charts.jenkins.io"], check=True)
-    subprocess.run(["helm", "repo", "update"], check=True)
-
+def run_helm_command(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, command: list,
+                     capture_output: bool = True, check: bool = True) -> subprocess.CompletedProcess:
+    """Runs a helm command with the specified kubeconfig, context and namespace."""
     cmd = ["helm"]
     if kubeconfig:
         cmd += ["--kubeconfig", kubeconfig]
     if kubecontext:
         cmd += ["--kube-context", kubecontext]
-    cmd += ["--namespace", kube_ns, "upgrade", "--install", "-f", DEPLOY_YAML, "cassius", "jenkins/jenkins", "--wait"]
-    result = subprocess.run(cmd, capture_output=True, check=True)
+    cmd += ["--namespace", kube_ns]
+    cmd += command
+    return subprocess.run(cmd, capture_output=capture_output, text=True, check=check)
+
+def install_jenkins(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str,
+                    values_override: Optional[str] = None):
+    """Installs Jenkins Operator using Helm in the specified K8s namespace."""
+
+    def confirm_helm_updates():
+        """Prompts before an upgrade drops any values the deployed jenkins currently has."""
+
+        def helm_values() -> dict:
+            """
+            The values a deployed jenkins was last installed with, or an empty dict when there is no release.
+            These are the user-supplied values, whatever files they came from, so they include any customisations
+            made to the site outside of `.jenkins/k8s/jenkins-deployment.yaml`.
+            """
+            result = run_helm_command(kubeconfig, kubecontext, kube_ns,
+                                      ["get", "values", "cassius", "-o", "yaml"], check=False)
+            if result.returncode != 0:
+                debug(f"No existing cassius release found in namespace {kube_ns}: {result.stderr.strip()}")
+                return {}
+            return yaml.safe_load(result.stdout) or {}
+
+        def merge_values(base: dict, override: dict) -> dict:
+            """Merges two helm values files the way helm does: maps key by key, everything else replaced."""
+            merged = dict(base)
+            for key, value in override.items():
+                if isinstance(value, dict) and isinstance(merged.get(key), dict):
+                    merged[key] = merge_values(merged[key], value)
+                else:
+                    merged[key] = value
+            return merged
+
+        def detect_lost_values(live: dict, proposed: dict) -> dict:
+            """
+            Values the deployed jenkins has that an upgrade would drop, as {dotted.key.path: live value}.
+
+            A key held live but absent from what is about to be applied is either a customisation made to this site,
+            or a key that `.jenkins/k8s/jenkins-deployment.yaml` has removed since the site was last deployed.
+            Note also what this cannot see: a key that exists in both but was given a different value locally, such
+            as an edited `agent.podTemplates` entry, is silently overwritten.
+            Read the diff of `helm template` before deploying an unfamiliar site.
+            """
+            def leaf_values(values, path: str = "") -> dict:
+                """Flattens a values map to {dotted.key.path: value}, lists are leaves (helm replaces them)."""
+                if not isinstance(values, dict):
+                    return {path: values}
+                leaves = {}
+                for key, value in values.items():
+                    leaves.update(leaf_values(value, f"{path}.{key}" if path else str(key)))
+                return leaves
+
+            live_leaves, proposed_leaves = leaf_values(live), leaf_values(proposed)
+            lost = {path: value for path, value in live_leaves.items() if path not in proposed_leaves}
+            # lists are replaced wholesale, so also report items dropped from a list that is otherwise still there
+            for path, value in live_leaves.items():
+                if isinstance(value, list) and isinstance(proposed_leaves.get(path), list):
+                    dropped = [item for item in value if item not in proposed_leaves[path]]
+                    if dropped:
+                        lost[f"{path}[]"] = dropped
+            return lost
+
+        with open(DEPLOY_YAML, encoding="utf-8") as deploy_yaml:
+            proposed = yaml.safe_load(deploy_yaml) or {}
+        if values_override:
+            with open(values_override, encoding="utf-8") as override_yaml:
+                proposed = merge_values(proposed, yaml.safe_load(override_yaml) or {})
+
+        lost = detect_lost_values(helm_values(), proposed)
+        if not lost:
+            return
+
+        print(f"\nWARNING: {len(lost)} value(s) the deployed jenkins has are absent from what is about to be applied.")
+        print("Each is either a customisation of this site, or a key removed from jenkins-deployment.yaml since"
+              " the site was last deployed.  Upgrading drops them:\n")
+        for path in sorted(lost):
+            value = str(lost[path]).replace("\n", " ")
+            print(f"  {path}: {value[:100] + '…' if len(value) > 100 else value}")
+        print(f"\nTo keep any of them, add them to a values override file (see .jenkins/k8s/README.md) and pass"
+              f" `--values-override`{' (the file passed does not contain them)' if values_override else ''}.")
+
+        if not sys.stdin.isatty():
+            print("Refusing to drop them when running non-interactively.")
+            sys.exit(1)
+        if input("\nDrop these values and continue? [y/N] ").strip().lower() not in ("y", "yes"):
+            print("Aborted, nothing was deployed.")
+            sys.exit(1)
+
+    confirm_helm_updates()
+
+    print("Adding Helm repository for Jenkins Operator...")
+    subprocess.run(["helm", "repo", "add", "jenkins", "https://charts.jenkins.io"], check=True)
+    subprocess.run(["helm", "repo", "update"], check=True)
+
+    # site customisations are applied last, helm merges each -f over the previous
+    values_files = ["-f", DEPLOY_YAML] + (["-f", values_override] if values_override else [])
+    result = run_helm_command(kubeconfig, kubecontext, kube_ns,
+                              ["upgrade", "--install"] + values_files + ["cassius", "jenkins/jenkins", "--wait"])
 
     run_kubectl_command(kubeconfig, kubecontext, kube_ns,
                         ["exec", DEFAULT_POD_NAME, "--",
@@ -276,7 +374,7 @@ def install_jenkins(kubeconfig: Optional[str], kubecontext: Optional[str], kube_
         sys.exit(1)
 
 
-def wait_for_jenkins_http(ip: str, timeout: int = 300):
+def wait_for_jenkins_http(ip: str):
     host, port = (ip.rsplit(":", 1)[0], int(ip.rsplit(":", 1)[1])) if ":" in ip else (ip, 80)
     spin_while(f"Waiting for Jenkins HTTP at {host}:{port}… ", lambda: _tcp_connect_ok(host, port))
 
@@ -794,13 +892,10 @@ def cleanup_and_maybe_teardown(kubeconfig: Optional[str], kubecontext: Optional[
     IS_RUNNING = False
     if tear_down:
         print("Cleaning up Jenkins and all resources.")
-        cmd = ["helm"]
-        if kubeconfig:
-            cmd += ["--kubeconfig", kubeconfig]
-        if kubecontext:
-            cmd += ["--kube-context", kubecontext]
-        cmd += ["--namespace", kube_ns, "uninstall", "cassius"]
-        subprocess.run(cmd, check=True)
+        run_helm_command(kubeconfig, kubecontext, kube_ns, ["uninstall", "cassius"], capture_output=False)
+        # the pvc is annotated `helm.sh/resource-policy: keep`, see .jenkins/k8s/jenkins-deployment.yaml
+        print(f"Jenkins uninstalled. The jenkins-home volume was kept, delete it with:\n"
+              f"  kubectl --namespace {kube_ns} delete pvc cassius-jenkins")
 
 
 @contextmanager
@@ -838,7 +933,7 @@ def main():
     if args.setup or args.only_setup:
         init_k8s_namespace(k8s_client, DEFAULT_KUBE_NS)
         with helm_installation_lock(Path("/tmp/.cassandra-run-ci.lock")):
-            install_jenkins(args.kubeconfig, args.kubecontext, DEFAULT_KUBE_NS)
+            install_jenkins(args.kubeconfig, args.kubecontext, DEFAULT_KUBE_NS, args.values_override)
 
     (ip, server) = get_jenkins(k8s_client, args, DEFAULT_KUBE_NS)
     if args.setup or args.only_setup:
