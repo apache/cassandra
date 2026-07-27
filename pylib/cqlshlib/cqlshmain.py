@@ -50,7 +50,7 @@ from cqlshlib.displaying import (ANSI_RESET, BLUE, COLUMN_NAME_COLORS, CYAN,
                                  TablePrinter, TabularTablePrinter, CsvTablePrinter, JsonTablePrinter)
 from cqlshlib.formatting import (DEFAULT_DATE_FORMAT, DEFAULT_NANOTIME_FORMAT,
                                  DEFAULT_TIMESTAMP_FORMAT, CqlType, DateTimeFormat,
-                                 format_by_type)
+                                 format_by_type, format_json_value)
 from cqlshlib.helptopics import get_html_anchor, get_html_topics
 from cqlshlib.tracing import print_trace, print_trace_session
 from cqlshlib.util import get_file_encoding_bomsize, is_file_secure
@@ -1044,6 +1044,28 @@ class Shell(cmd.Cmd):
             ks_name = table_meta.keyspace_name if table_meta else self.current_keyspace
             ks_meta = self.conn.metadata.keyspaces.get(ks_name, None)
             cql_types = [CqlType(cql_typename(t), ks_meta) for t in result.column_types]
+
+        if isinstance(printer, JsonTablePrinter):
+            dtformats = DateTimeFormat(timestamp_format=self.display_timestamp_format,
+                                       date_format=self.display_date_format,
+                                       nanotime_format=self.display_nanotime_format,
+                                       timezone=self.display_timezone)
+            json_rows = []
+            for row in result.current_rows:
+                json_row = []
+                for i, c in enumerate(column_names):
+                    cqltype = cql_types[i] if i < len(cql_types) else None
+                    precision = self.display_double_precision if cqltype and cqltype.type_name == 'double' \
+                        else self.display_float_precision
+                    json_row.append(format_json_value(row[c], cqltype=cqltype,
+                                                      encoding=self.output_codec.name,
+                                                      date_time_format=dtformats,
+                                                      float_precision=precision))
+                json_rows.append(json_row)
+            if with_header:
+                printer.print_header(formatted_names)
+            printer.print_rows(formatted_names, json_rows)
+            return
 
         formatted_values = [list(map(self.myformat_value, [row[c] for c in column_names], cql_types)) for row in result.current_rows]
 

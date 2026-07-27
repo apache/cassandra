@@ -214,8 +214,8 @@ class JsonTablePrinter(TablePrinter):
         if formatted_values is None:
             return
         for row in formatted_values:
-            row_dict = {self._colnames[i]: col.strval for i, col in enumerate(row)}
-            serialized = json.dumps(row_dict)
+            row_dict = {self._colnames[i]: val for i, val in enumerate(row)}
+            serialized = json.dumps(row_dict, ensure_ascii=False)
             if self._first_row:
                 self._shell.writeresult('  ' + serialized, newline=False)
                 self._first_row = False

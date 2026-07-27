@@ -1161,6 +1161,7 @@ class TestCqlshOutput(BaseTestCase):
         except ValueError as e:
             self.fail("Output is not valid JSON: %s\nOutput was:\n%s" % (e, output))
 
+        # Collections and maps should be native JSON types, not strings
         query2 = "SELECT num, setcol, listcol, mapcol FROM has_all_types WHERE num = 0;"
         output2, result2 = cqlsh_testcall(args=('--mode', 'json'), prompt=None, env=self.default_env,
                                           tty=False, input=query2 + '\n')
@@ -1169,24 +1170,54 @@ class TestCqlshOutput(BaseTestCase):
             rows2 = json.loads(output2)
             self.assertEqual(len(rows2), 1)
             row = rows2[0]
-            self.assertIsInstance(row['setcol'], str,
-                                  msg='setcol should be a JSON string, got: %r' % type(row['setcol']))
-            self.assertIsInstance(row['listcol'], str,
-                                  msg='listcol should be a JSON string, got: %r' % type(row['listcol']))
-            self.assertIsInstance(row['mapcol'], str,
-                                  msg='mapcol should be a JSON string, got: %r' % type(row['mapcol']))
+            self.assertIsInstance(row['setcol'], list,
+                                  msg='setcol (set<text>) should be a JSON array, got: %r' % type(row['setcol']))
+            self.assertIsInstance(row['listcol'], list,
+                                  msg='listcol (list<text>) should be a JSON array, got: %r' % type(row['listcol']))
+            self.assertIsInstance(row['mapcol'], dict,
+                                  msg='mapcol (map<text, int>) should be a JSON object, got: %r' % type(row['mapcol']))
+            # map values should be native ints, not strings
+            for v in row['mapcol'].values():
+                self.assertIsInstance(v, int,
+                                      msg='mapcol values should be int, got: %r' % type(v))
         except ValueError as e:
             self.fail("Output is not valid JSON: %s\nOutput was:\n%s" % (e, output2))
 
-        query3 = "SELECT num, varintcol FROM has_all_types WHERE num = 0;"
+        # Integer types should be native JSON numbers, not quoted strings
+        query3 = "SELECT num, varintcol, bigintcol, intcol FROM has_all_types WHERE num = 0;"
         output3, result3 = cqlsh_testcall(args=('--mode', 'json'), prompt=None, env=self.default_env,
                                           tty=False, input=query3 + '\n')
         self.assertEqual(0, result3)
         try:
             rows3 = json.loads(output3)
-            self.assertEqual(rows3[0]['varintcol'], '10000000000000000000000000')
+            self.assertEqual(rows3[0]['varintcol'], 10000000000000000000000000)
+            self.assertIsInstance(rows3[0]['varintcol'], int,
+                                  msg='varintcol should be int, got: %r' % type(rows3[0]['varintcol']))
+            self.assertIsInstance(rows3[0]['bigintcol'], int,
+                                  msg='bigintcol should be int, got: %r' % type(rows3[0]['bigintcol']))
+            self.assertIsInstance(rows3[0]['intcol'], int,
+                                  msg='intcol should be int, got: %r' % type(rows3[0]['intcol']))
         except ValueError as e:
             self.fail("Output is not valid JSON: %s\nOutput was:\n%s" % (e, output3))
+
+        # null values should be JSON null (Python None), not the string "null"
+        q3b = "SELECT num, setcol, listcol, mapcol, bigintcol FROM has_all_types WHERE num = 999;"
+        output3b, result3b = cqlsh_testcall(args=('--mode', 'json'), prompt=None, env=self.default_env,
+                                            tty=False, input=q3b + '\n')
+        self.assertEqual(0, result3b)
+        try:
+            rows3b = json.loads(output3b)
+            if rows3b:
+                row3b = rows3b[0]
+                for col in ('setcol', 'listcol', 'mapcol', 'bigintcol'):
+                    if col in row3b and row3b[col] is None:
+                        # None is correctly JSON null
+                        pass
+                    elif col in row3b:
+                        self.assertNotEqual(row3b[col], 'null',
+                                            msg='%s null should be JSON null, not the string "null"' % col)
+        except ValueError as e:
+            self.fail("Null-value JSON output is not valid JSON: %s\nOutput: %s" % (e, output3b))
 
         q4 = "SELECT num, uuidcol, decimalcol, timestampcol FROM has_all_types WHERE num = 0;"
         output4, result4 = cqlsh_testcall(args=('--mode', 'json'), prompt=None,
