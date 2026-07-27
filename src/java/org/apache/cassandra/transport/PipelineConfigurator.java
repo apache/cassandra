@@ -392,7 +392,7 @@ public class PipelineConfigurator
         pipeline.addBefore(INITIAL_HANDLER, MESSAGE_DECOMPRESSOR, Envelope.Decompressor.instance);
         pipeline.addBefore(INITIAL_HANDLER, MESSAGE_COMPRESSOR, Envelope.Compressor.instance);
         pipeline.addBefore(INITIAL_HANDLER, MESSAGE_DECODER, PreV5Handlers.ProtocolDecoder.instance);
-        pipeline.addBefore(INITIAL_HANDLER, MESSAGE_ENCODER, PreV5Handlers.ProtocolEncoder.instance);
+        pipeline.addBefore(INITIAL_HANDLER, MESSAGE_ENCODER, PreV5Handlers.EventMessageEncoder.instance);
         pipeline.addBefore(INITIAL_HANDLER, LEGACY_MESSAGE_PROCESSOR, new PreV5Handlers.LegacyDispatchHandler(dispatcher, queueBackpressure, limits));
         pipeline.remove(INITIAL_HANDLER);
         onNegotiationComplete(pipeline);

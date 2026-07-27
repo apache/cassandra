@@ -141,6 +141,11 @@ public class Envelope
         public final Message.Type type;
         public final long bodySizeInBytes;
 
+        public static Header dummy(int streamId, Message.Type type)
+        {
+            return new Header(ProtocolVersion.CURRENT, Flag.deserialize(0), streamId, type, 0);
+        }
+
         private Header(ProtocolVersion version, EnumSet<Flag> flags, int streamId, Message.Type type, long bodySizeInBytes)
         {
             this.version = version;
@@ -242,7 +247,7 @@ public class Envelope
                 // This throws a protocol exception if the version number is unsupported,
                 // the opcode is unknown or invalid flags are set for the version
                 version = ProtocolVersion.decode(versionNum, DatabaseDescriptor.getNativeTransportAllowOlderProtocols());
-                decodedFlags = decodeFlags(version, flags);
+                decodedFlags = decodeFlags(version, flags, streamId);
                 type = Message.Type.fromOpcode(opcode, direction);
                 return new HeaderExtractionResult.Success(new Header(version, decodedFlags, streamId, type, bodyLength));
             }
@@ -255,6 +260,10 @@ public class Envelope
                 // further errors and once it breaches its threshold for consecutive errors, it will
                 // cause the channel to be closed.
                 return new HeaderExtractionResult.Error(e, streamId, bodyLength);
+            }
+            catch (ErrorMessage.WrappedException e)
+            {
+                return new HeaderExtractionResult.Error((ProtocolException) e.getCause(), e.getStreamId(), bodyLength);
             }
         }
 
@@ -354,7 +363,8 @@ public class Envelope
             Message.Direction direction = Message.Direction.extractFromVersion(firstByte);
             int versionNum = firstByte & PROTOCOL_VERSION_MASK;
 
-            ProtocolVersion version;
+            ProtocolVersion version = null;
+            ProtocolException protocolException = null;
             
             try
             {
@@ -362,19 +372,43 @@ public class Envelope
             }
             catch (ProtocolException e)
             {
-                // Skip the remaining useless bytes. Otherwise the channel closing logic may try to decode again. 
-                buffer.skipBytes(readableBytes);
-                throw e;
+                // defer throw to attempt to extract the stream id
+                protocolException = e;
             }
 
             // Wait until we have the complete header
             if (readableBytes < Header.LENGTH)
+            {
+                if (protocolException != null)
+                {
+                    // Skip the remaining useless bytes. Otherwise the channel closing logic may try to decode again.
+                    buffer.skipBytes(readableBytes);
+                    // The header is incomplete, so there is no stream id to recover. Wrap with the unset
+                    // sentinel; the channel-level exception handler sees it has no routable stream id and
+                    // closes the connection rather than emit an unroutable error frame.
+                    throw protocolException;
+                }
                 return null;
+            }
 
             int flags = buffer.getByte(idx++);
-            EnumSet<Header.Flag> decodedFlags = decodeFlags(version, flags);
-
             int streamId = buffer.getShort(idx);
+
+            if (protocolException != null)
+            {
+                // Protocol versions 1 and 2 use a shorter header with a single-byte stream id. Reading a
+                // 16-bit stream id from such a header splices the stream id byte together with the opcode
+                // byte and recovers a bogus id, routing the error to a stream the client never used
+                // (CASSANDRA-21508). A v1/v2 client that downgrades would then never see the error and time
+                // out, so recover the stream id using the attempted version's header layout.
+                int recoveredStreamId = versionNum < ProtocolVersion.V3.asInt() ? buffer.getByte(idx) : streamId;
+                // Skip the remaining useless bytes. Otherwise the channel closing logic may try to decode again.
+                buffer.skipBytes(readableBytes);
+                throw ErrorMessage.wrap(protocolException, recoveredStreamId);
+            }
+
+            EnumSet<Header.Flag> decodedFlags = decodeFlags(version, flags, streamId);
+
             idx += 2;
 
             // This throws a protocol exceptions if the opcode is unknown
@@ -420,13 +454,14 @@ public class Envelope
             return new Envelope(new Header(version, decodedFlags, streamId, type, bodyLength), body);
         }
 
-        private EnumSet<Header.Flag> decodeFlags(ProtocolVersion version, int flags)
+        private EnumSet<Header.Flag> decodeFlags(ProtocolVersion version, int flags, int streamId)
         {
             EnumSet<Header.Flag> decodedFlags = Header.Flag.deserialize(flags);
 
             if (version.isBeta() && !decodedFlags.contains(Header.Flag.USE_BETA))
-                throw new ProtocolException(String.format("Beta version of the protocol used (%s), but USE_BETA flag is unset", version),
-                                            version);
+                throw ErrorMessage.wrap(new ProtocolException(String.format("Beta version of the protocol used (%s), but USE_BETA flag is unset", version),
+                                                              version),
+                                        streamId);
             return decodedFlags;
         }
 
