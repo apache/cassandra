@@ -34,8 +34,9 @@ import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.execution.Unstoppable;
 
-class AccordDurableOnFlush implements BiConsumer<Long, TableMetadata>
+public class AccordDurableOnFlush implements BiConsumer<Long, TableMetadata>
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordDurableOnFlush.class);
 
@@ -97,6 +98,11 @@ class AccordDurableOnFlush implements BiConsumer<Long, TableMetadata>
         public String toString()
         {
             return redundantBefore.toString();
+        }
+
+        public static void reportMaybeTerminate(AccordCommandStore commandStore, int flags)
+        {
+            commandStore.maybeTerminated(ReportDurable.isCommandStoreFlush(flags), ReportDurable.isDataStoreFlush(flags));
         }
     }
 
@@ -185,7 +191,7 @@ class AccordDurableOnFlush implements BiConsumer<Long, TableMetadata>
     static void notifyNow(CommandStore commandStore, ReportDurable report)
     {
         logger.debug("{} reporting flush with {}", commandStore, report);
-        commandStore.execute((AccordExecutor.Unstoppable) () -> "Report Durable", safeStore -> {
+        commandStore.execute((Unstoppable) () -> "Report Durable", safeStore -> {
             safeStore.reportDurable(report.redundantBefore, report.flags);
         }, commandStore.agent());
     }

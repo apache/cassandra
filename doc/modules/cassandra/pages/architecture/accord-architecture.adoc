@@ -103,11 +103,11 @@ to ensure transactional integrity, changes to commands are tracked and
 are recorded into `Journal` for crash-recovery. `ProgressLog` and
 `CommandsForKey` are up
 
-On Cassandra side, concurrent execution is controlled by `AccordTask`,
+On Cassandra side, concurrent execution is controlled by `SafeTask`,
 which contains cache loading logic and persistence callbacks. Since
 Accord may potentially hold a large number of command states in memory,
 their states may be _shrunk_ to their binary representation to save some
-memory, or they can get fully evicted. This also means that `AccordTask`
+memory, or they can get fully evicted. This also means that `SafeTask`
 will have to reload relevant dependencies from preload context before
 command execution can begin.
 

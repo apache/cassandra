@@ -132,11 +132,8 @@ import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.AccordCache;
-import org.apache.cassandra.service.accord.AccordCacheEntry;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandStores;
-import org.apache.cassandra.service.accord.AccordExecutor;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordOperations;
 import org.apache.cassandra.service.accord.AccordService;
@@ -154,6 +151,10 @@ import org.apache.cassandra.service.accord.debug.DebugTxnDepsAll;
 import org.apache.cassandra.service.accord.debug.DebugTxnDepsOrdered;
 import org.apache.cassandra.service.accord.debug.DebugTxnGraph;
 import org.apache.cassandra.service.accord.debug.TxnKindsAndDomains;
+import org.apache.cassandra.service.accord.execution.AccordCache;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
+import org.apache.cassandra.service.accord.execution.TaskInfo;
 import org.apache.cassandra.service.accord.journal.AccordJournal;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.service.consensus.migration.TableMigrationState;
@@ -331,8 +332,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 int executorId = executor.executorId();
                 collector.partition(executorId).collect(rows -> {
                     int uniquePos = 0;
-                    AccordExecutor.TaskInfo prev = null;
-                    for (AccordExecutor.TaskInfo info : executor.taskSnapshot())
+                    TaskInfo prev = null;
+                    for (TaskInfo info : executor.taskSnapshot())
                     {
                         if (prev != null && info.status() == prev.status() && info.position() == prev.position()) ++uniquePos;
                         else uniquePos = 0;

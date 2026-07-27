@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.execution;
 
 import java.util.Objects;
 
@@ -24,25 +24,24 @@ import accord.api.RoutingKey;
 import accord.local.cfk.CommandsForKey;
 import accord.local.cfk.NotifySink;
 import accord.local.cfk.SafeCommandsForKey;
-import accord.utils.Invariants;
 
-import org.apache.cassandra.service.accord.AccordCacheEntry.LockMode;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry.LockMode;
 
-public class AccordSafeCommandsForKey extends SafeCommandsForKey implements AccordSafeState<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>
+public class SaferCommandsForKey extends SafeCommandsForKey implements SaferState<RoutingKey, CommandsForKey, SaferCommandsForKey>
 {
-    public static class CommandsForKeyCacheEntry extends AccordCacheEntry<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>
+    public static class CommandsForKeyCacheEntry extends AccordCacheEntry<RoutingKey, CommandsForKey, SaferCommandsForKey>
     {
         private NotifySink overrideSink;
 
-        CommandsForKeyCacheEntry(RoutingKey key, AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance owner)
+        CommandsForKeyCacheEntry(RoutingKey key, AccordCache.Type<RoutingKey, CommandsForKey, SaferCommandsForKey>.Instance owner)
         {
             super(key, owner);
         }
     }
 
-    private final AccordCacheEntry<RoutingKey, CommandsForKey, AccordSafeCommandsForKey> global;
+    private final AccordCacheEntry<RoutingKey, CommandsForKey, SaferCommandsForKey> global;
 
-    public AccordSafeCommandsForKey(AccordCacheEntry<RoutingKey, CommandsForKey, AccordSafeCommandsForKey> global)
+    public SaferCommandsForKey(AccordCacheEntry<RoutingKey, CommandsForKey, SaferCommandsForKey> global)
     {
         super(global.key());
         this.global = global;
@@ -53,7 +52,7 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
     {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        AccordSafeCommandsForKey that = (AccordSafeCommandsForKey) o;
+        SaferCommandsForKey that = (SaferCommandsForKey) o;
         return Objects.equals(current, that.current);
     }
 
@@ -73,13 +72,13 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
                '}';
     }
 
-    public final AccordCacheEntry<RoutingKey, CommandsForKey, AccordSafeCommandsForKey> global()
+    public final AccordCacheEntry<RoutingKey, CommandsForKey, SaferCommandsForKey> global()
     {
         return global;
     }
 
     @Override
-    public void postExecute(AccordTask<?> owner)
+    public void postExecute(SafeTask<?> owner)
     {
         global.releaseExclusive(this, owner);
     }
@@ -96,7 +95,7 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
         return ((CommandsForKeyCacheEntry)global).overrideSink;
     }
 
-    public void preExecute(AccordTask<?> owner, LockMode lockMode)
+    public void preExecute(SafeTask<?> owner, LockMode lockMode)
     {
         requireUninitialised();
         current = global.lockExclusive(owner, lockMode);

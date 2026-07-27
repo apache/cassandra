@@ -54,13 +54,19 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.journal.Descriptor;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordCommandStore.DurablyAppliedTo;
-import org.apache.cassandra.service.accord.AccordExecutor.AccordExecutorFactory;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
+import org.apache.cassandra.service.accord.execution.AccordExecutor.AccordExecutorFactory;
+import org.apache.cassandra.service.accord.execution.AccordExecutorAsyncSubmit;
+import org.apache.cassandra.service.accord.execution.AccordExecutorSemiSyncSubmit;
+import org.apache.cassandra.service.accord.execution.AccordExecutorSignalLoop;
+import org.apache.cassandra.service.accord.execution.AccordExecutorSimple;
+import org.apache.cassandra.service.accord.execution.AccordExecutorSyncSubmit;
 
 import static org.apache.cassandra.config.AccordConfig.QueueShardModel.THREAD_PER_SHARD;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccord;
-import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITHOUT_LOCK;
-import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITH_LOCK;
-import static org.apache.cassandra.service.accord.AccordExecutor.constant;
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.Mode.RUN_WITHOUT_LOCK;
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.Mode.RUN_WITH_LOCK;
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.constant;
 import static org.apache.cassandra.service.accord.journal.ReplayMarkers.saveDirectory;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 

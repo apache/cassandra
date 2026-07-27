@@ -77,10 +77,15 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordCommandStore.ExclusiveCaches;
-import org.apache.cassandra.service.accord.AccordExecutor.ExclusiveGlobalCaches;
+import org.apache.cassandra.service.accord.execution.AccordCache;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
+import org.apache.cassandra.service.accord.execution.AccordExecutor.ExclusiveGlobalCaches;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.execution.SaferCommand;
+import org.apache.cassandra.service.accord.execution.SafeTask;
 import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Condition;
@@ -95,12 +100,12 @@ import static org.apache.cassandra.service.accord.AccordService.getBlocking;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createAccordCommandStore;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialTxn;
 import static org.apache.cassandra.service.accord.AccordTestUtils.keys;
-import static org.apache.cassandra.service.accord.AccordTestUtils.loaded;
 import static org.apache.cassandra.service.accord.AccordTestUtils.txnId;
+import static org.apache.cassandra.service.accord.execution.AccordExecutionTestUtils.loaded;
 
-public class AccordTaskTest
+public class SafeTaskTest
 {
-    private static final Logger logger = LoggerFactory.getLogger(AccordTaskTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(SafeTaskTest.class);
     private static final AtomicLong clock = new AtomicLong(0);
 
     @BeforeClass
@@ -173,7 +178,7 @@ public class AccordTaskTest
     private static Command createStableAndPersist(AccordCommandStore commandStore, TxnId txnId, Timestamp executeAt)
     {
         Command command = AccordTestUtils.Commands.stable(txnId, createPartialTxn(0), executeAt);
-        AccordSafeCommand safeCommand = new AccordSafeCommand(loaded(txnId, null));
+        SaferCommand safeCommand = new SaferCommand(loaded(txnId, null));
         safeCommand.set(command);
 
         appendDiffToLog(commandStore).accept(null, command);
@@ -313,7 +318,7 @@ public class AccordTaskTest
                                                               throw new NullPointerException("txn_id " + txnId);
                                                           });
                 }
-                AccordTask<Void> o1 = AccordTask.create(commandStore, ctx, consumer);
+                SafeTask<Void> o1 = SafeTask.create(commandStore, ctx, consumer);
                 AssertionUtils.assertThatThrownBy(() -> getBlocking(o1.chain()))
                               .hasRootCause()
                               .isInstanceOf(NullPointerException.class)
@@ -334,7 +339,7 @@ public class AccordTaskTest
                         return cmd;
                     });
                 }
-                AccordTask<Void> o2 = AccordTask.create(commandStore, ctx, store -> {
+                SafeTask<Void> o2 = SafeTask.create(commandStore, ctx, store -> {
                     ids.forEach(id -> {
                         store.ifInitialised(id).readyToExecute(store);
                     });
@@ -370,7 +375,7 @@ public class AccordTaskTest
             String errorMsg = "txn_ids " + ids;
             Mockito.doThrow(new NullPointerException(errorMsg)).when(consumer).accept(Mockito.any());
 
-            AccordTask<Void> operation = AccordTask.create(commandStore, ctx, consumer);
+            SafeTask<Void> operation = SafeTask.create(commandStore, ctx, consumer);
 
             AssertionUtils.assertThatThrownBy(() -> getBlocking(operation.chain()))
                           .hasRootCause()

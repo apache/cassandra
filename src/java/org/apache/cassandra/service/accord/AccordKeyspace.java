@@ -26,6 +26,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -122,6 +123,7 @@ import static org.apache.cassandra.config.AccordConfig.RangeIndexMode.journal_sa
 import static org.apache.cassandra.db.partitions.PartitionUpdate.singleRowUpdate;
 import static org.apache.cassandra.db.rows.BTreeRow.singleCellRow;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class AccordKeyspace
 {
@@ -353,9 +355,15 @@ public class AccordKeyspace
                                                  BufferCell.live(CFKAccessor.data, timestampMicros, bytes)));
         }
 
-        public static Runnable systemTableUpdater(int storeId, TokenKey key, CommandsForKey update, Object serialized, long timestampMicros)
+        private static final AtomicLong lastSystemTimestampMicros = new AtomicLong();
+        private static long nextSystemTimestampMicros()
         {
-            PartitionUpdate upd = makeUpdate(storeId, key, update, serialized, timestampMicros);
+            return lastSystemTimestampMicros.accumulateAndGet(currentTimeMillis(), (a, b) -> Math.max(a + 1, b));
+        }
+
+        public static Runnable systemTableUpdater(int storeId, TokenKey key, CommandsForKey update, Object serialized)
+        {
+            PartitionUpdate upd = makeUpdate(storeId, key, update, serialized, nextSystemTimestampMicros());
             return () -> {
                 ColumnFamilyStore cfs = AccordColumnFamilyStores.commandsForKey;
                 try (OpOrder.Group group = Keyspace.writeOrder.start())

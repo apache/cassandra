@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.execution;
 
 import java.util.Objects;
 
@@ -25,14 +25,14 @@ import accord.local.Command;
 import accord.local.SafeCommand;
 import accord.primitives.TxnId;
 
-import org.apache.cassandra.service.accord.AccordCacheEntry.LockMode;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry.LockMode;
 
-public class AccordSafeCommand extends SafeCommand implements AccordSafeState<TxnId, Command, AccordSafeCommand>
+public class SaferCommand extends SafeCommand implements SaferState<TxnId, Command, SaferCommand>
 {
-    private final AccordCacheEntry<TxnId, Command, AccordSafeCommand> global;
+    private final AccordCacheEntry<TxnId, Command, SaferCommand> global;
     private Command original;
 
-    public AccordSafeCommand(AccordCacheEntry<TxnId, Command, AccordSafeCommand> global)
+    public SaferCommand(AccordCacheEntry<TxnId, Command, SaferCommand> global)
     {
         super(global.key());
         this.global = global;
@@ -43,7 +43,7 @@ public class AccordSafeCommand extends SafeCommand implements AccordSafeState<Tx
     {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        AccordSafeCommand that = (AccordSafeCommand) o;
+        SaferCommand that = (SaferCommand) o;
         return Objects.equals(this.original, that.original) && Objects.equals(this.current(), that.current());
     }
 
@@ -64,13 +64,13 @@ public class AccordSafeCommand extends SafeCommand implements AccordSafeState<Tx
                '}';
     }
 
-    public AccordCacheEntry<TxnId, Command, AccordSafeCommand> global()
+    public AccordCacheEntry<TxnId, Command, SaferCommand> global()
     {
         return global;
     }
 
     @Override
-    public void postExecute(AccordTask<?> owner)
+    public void postExecute(SafeTask<?> owner)
     {
         global.releaseExclusive(this, owner);
     }
@@ -80,7 +80,7 @@ public class AccordSafeCommand extends SafeCommand implements AccordSafeState<Tx
         return new Journal.CommandUpdate(original, current());
     }
 
-    public void preExecute(AccordTask<?> owner, LockMode lockMode)
+    public void preExecute(SafeTask<?> owner, LockMode lockMode)
     {
         requireUninitialised();
         original = global.lockExclusive(owner, lockMode);

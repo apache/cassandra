@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.execution;
 
 import java.util.function.Predicate;
 
@@ -46,19 +46,20 @@ import accord.utils.Invariants;
 import accord.utils.UnhandledEnum;
 
 import org.apache.cassandra.metrics.LogLinearDecayingHistograms;
+import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandStore.ExclusiveCaches;
 import org.apache.cassandra.service.accord.AccordCommandStore.SafeRedundantBefore;
 import org.apache.cassandra.service.accord.AccordDurableOnFlush.ReportDurable;
 import org.apache.cassandra.service.paxos.PaxosState;
 
 import static accord.utils.Invariants.illegalState;
-import static org.apache.cassandra.service.accord.AccordCacheEntry.LockMode.UNQUEUED;
+import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.LockMode.UNQUEUED;
 
-public final class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeCommand, AccordSafeCommandsForKey, AccordCommandStore.ExclusiveCaches>
+public final class SaferCommandStore extends AbstractSafeCommandStore<SaferCommand, SaferCommandsForKey, ExclusiveCaches>
 {
-    final AccordTask<?> task;
+    final SafeTask<?> task;
 
-    AccordSafeCommandStore(AccordTask<?> task, ExecutionContext context)
+    SaferCommandStore(SafeTask<?> task, ExecutionContext context)
     {
         super(context);
         this.task = task;
@@ -73,9 +74,9 @@ public final class AccordSafeCommandStore extends AbstractSafeCommandStore<Accor
     }
 
     @Override
-    protected AccordSafeCommand getInternal(TxnId txnId)
+    protected SaferCommand getInternal(TxnId txnId)
     {
-        return (AccordSafeCommand) task.refs.get(txnId);
+        return (SaferCommand) task.refs.get(txnId);
     }
 
     @Override
@@ -92,7 +93,7 @@ public final class AccordSafeCommandStore extends AbstractSafeCommandStore<Accor
         return commandStore().tryLockCaches();
     }
 
-    protected AccordSafeCommand add(AccordSafeCommand safeCommand, ExclusiveCaches caches)
+    protected SaferCommand add(SaferCommand safeCommand, ExclusiveCaches caches)
     {
         Object check = task.refs.putIfAbsent(safeCommand.txnId(), safeCommand);
         if (check == null)
@@ -122,11 +123,7 @@ public final class AccordSafeCommandStore extends AbstractSafeCommandStore<Accor
 
         if (updates.newRedundantBefore != null)
         {
-            long ticket = AccordCommandStore.nextSafeRedundantBeforeTicket.incrementAndGet();
-            SafeRedundantBefore update = new SafeRedundantBefore(ticket, updates.newRedundantBefore);
-            Runnable reportRedundantBefore = () -> {
-                AccordCommandStore.safeRedundantBeforeUpdater.accumulateAndGet(commandStore(), update, SafeRedundantBefore::max);
-            };
+            Runnable reportRedundantBefore = SafeRedundantBefore.updater(commandStore(), updates.newRedundantBefore);
             Runnable prevOnDone = onDone;
             onDone = prevOnDone == null ? reportRedundantBefore : () -> {
                 try { reportRedundantBefore.run(); }
@@ -136,7 +133,7 @@ public final class AccordSafeCommandStore extends AbstractSafeCommandStore<Accor
         commandStore().persistFieldUpdates(updates, onDone);
     }
 
-    protected AccordSafeCommandsForKey add(AccordSafeCommandsForKey safeCfk, ExclusiveCaches caches)
+    protected SaferCommandsForKey add(SaferCommandsForKey safeCfk, ExclusiveCaches caches)
     {
         Object check = task.refs.putIfAbsent(safeCfk.key(), safeCfk);
         if (check == null)
@@ -152,9 +149,9 @@ public final class AccordSafeCommandStore extends AbstractSafeCommandStore<Accor
     }
 
     @Override
-    protected AccordSafeCommandsForKey getInternal(RoutingKey key)
+    protected SaferCommandsForKey getInternal(RoutingKey key)
     {
-        AccordSafeCommandsForKey safeCfk = (AccordSafeCommandsForKey) task.refs.get(key);
+        SaferCommandsForKey safeCfk = (SaferCommandsForKey) task.refs.get(key);
         if (safeCfk == null || safeCfk.isUninitialised())
             return null;
         return safeCfk;
@@ -177,7 +174,7 @@ public final class AccordSafeCommandStore extends AbstractSafeCommandStore<Accor
     public void reportDurable(RedundantBefore addRedundantBefore, int flags)
     {
         upsertRedundantBefore(addRedundantBefore);
-        commandStore().maybeTerminated(ReportDurable.isCommandStoreFlush(flags), ReportDurable.isDataStoreFlush(flags));
+        ReportDurable.reportMaybeTerminate(commandStore(), flags);
     }
 
     @Override
@@ -239,7 +236,7 @@ public final class AccordSafeCommandStore extends AbstractSafeCommandStore<Accor
                 Unseekables<?> skip = context.keys().without(keysOrRanges);
                 for (SafeState<?> safeState : task.refs.values())
                 {
-                    if (!(safeState instanceof AccordSafeCommandsForKey))
+                    if (!(safeState instanceof SaferCommandsForKey))
                         continue;
 
                     SafeCommandsForKey safeCfk = (SafeCommandsForKey) safeState;

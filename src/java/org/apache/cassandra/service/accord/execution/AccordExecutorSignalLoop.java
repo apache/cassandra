@@ -16,33 +16,33 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.execution;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 
 import javax.annotation.Nullable;
 
 import accord.api.Agent;
 import accord.utils.Invariants;
-import accord.utils.QuadFunction;
-import accord.utils.QuintConsumer;
 
 import org.apache.cassandra.service.accord.debug.DebugExecution.DebugTask;
 import org.apache.cassandra.utils.concurrent.SignalLock;
 
 import static accord.utils.Invariants.nonNull;
-import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.UNINITIALIZED;
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXECUTION;
+import static org.apache.cassandra.service.accord.execution.Task.State.UNINITIALIZED;
 
-public class AccordExecutorSignalLoop extends AccordExecutorAbstractLoop
+public class AccordExecutorSignalLoop extends AbstractLoop
 {
     private static class ShutdownException extends RuntimeException {}
 
     private static final int MAX_LOOPS = 1000; // limit the amount of time we hold the lock for
     private final SignalLock lock;
-    private final AccordExecutorLoops loops;
+    private final Loops loops;
     private int readyToRunTarget = 1;
     private final int readyToRunLimit;
     // TODO (desired): intrusive queue using Task.next, but a little challenging because we reuse SequentialQueueTask so have ABA problem
@@ -64,13 +64,13 @@ public class AccordExecutorSignalLoop extends AccordExecutorAbstractLoop
         super(lock, executorId, agent);
         Invariants.require(threads <= SignalLock.MAX_THREADS);
         this.lock = lock;
-        this.loops = new AccordExecutorLoops(mode, threads, name, this::task);
+        this.loops = new Loops(mode, threads, name, this::task);
         this.readyToRunLimit = Math.min(threads * 4, SignalLock.MAX_SIGNAL_COUNT);
     }
 
-    <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Task> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
+    <P1> void submit(Consumer<P1> sync, Function<P1, Task> async, P1 p1)
     {
-        Task next = async.apply(p1a, p2, p3, p4);
+        Task next = async.apply(p1);
         Task prev = push(next);
         if (prev == null)
             lock.signalLockWork();
@@ -134,7 +134,7 @@ public class AccordExecutorSignalLoop extends AccordExecutorAbstractLoop
         {
             Task next = submit.next;
             submit.next = null;
-            submit.submitExclusive(this);
+            submit.submitExclusive();
             submit = next;
         }
     }
@@ -159,7 +159,7 @@ public class AccordExecutorSignalLoop extends AccordExecutorAbstractLoop
             pendingNewHead = destructiveNext(submit);
             if (pendingNewHead == null)
                 pendingNewTail = null;
-            submit.submitExclusive(this);
+            submit.submitExclusive();
         }
         return true;
     }
@@ -315,7 +315,7 @@ public class AccordExecutorSignalLoop extends AccordExecutorAbstractLoop
         return hasAlreadyWaitingToRun();
     }
 
-    class LoopTask extends AccordExecutorLoops.LoopTask
+    class LoopTask extends Loops.LoopTask
     {
         final int index;
 
@@ -325,7 +325,7 @@ public class AccordExecutorSignalLoop extends AccordExecutorAbstractLoop
             this.index = index;
         }
 
-        private Task awaitWork(AccordTaskRunner self)
+        private Task awaitWork(TaskRunner self)
         {
             while (true)
             {
@@ -353,7 +353,7 @@ public class AccordExecutorSignalLoop extends AccordExecutorAbstractLoop
             }
         }
 
-        private Task executedAndMaybeGetWork(AccordTaskRunner self, @Nullable Task executed)
+        private Task executedAndMaybeGetWork(TaskRunner self, @Nullable Task executed)
         {
             if (lock.tryAcquireAsyncWork())
             {
@@ -394,7 +394,7 @@ public class AccordExecutorSignalLoop extends AccordExecutorAbstractLoop
             return result;
         }
 
-        final boolean tryLock(AccordTaskRunner self)
+        final boolean tryLock(TaskRunner self)
         {
             if (self.accordLockedExecutor() != null)
                 return false;
@@ -402,7 +402,7 @@ public class AccordExecutorSignalLoop extends AccordExecutorAbstractLoop
             return onTryLock(self, lock.tryLock(index));
         }
 
-        final boolean unlockAndAcquire(AccordTaskRunner self)
+        final boolean unlockAndAcquire(TaskRunner self)
         {
             self.exitAccordLockedExecutor();
             if (DEBUG_EXECUTION) debug.onExitLock();
@@ -413,7 +413,7 @@ public class AccordExecutorSignalLoop extends AccordExecutorAbstractLoop
         public void run()
         {
             Thread thread = Thread.currentThread();
-            AccordTaskRunner self = AccordTaskRunner.get(thread);
+            TaskRunner self = TaskRunner.get(thread);
             self.setAccordActiveExecutor(AccordExecutorSignalLoop.this);
             setWrapped(self);
 
@@ -482,7 +482,7 @@ public class AccordExecutorSignalLoop extends AccordExecutorAbstractLoop
     }
 
     @Override
-    AccordExecutorLoops loops()
+    Loops loops()
     {
         return loops;
     }
@@ -494,7 +494,7 @@ public class AccordExecutorSignalLoop extends AccordExecutorAbstractLoop
     }
 
     @Override
-    boolean isOwningThread()
+    public boolean isOwningThread()
     {
         return lock.isOwner();
     }

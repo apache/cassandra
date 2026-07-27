@@ -16,20 +16,20 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.execution;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 
 import accord.api.Agent;
-import accord.utils.QuadFunction;
-import accord.utils.QuintConsumer;
 
-public class AccordExecutorSyncSubmit extends AccordExecutorAbstractLockLoop
+public class AccordExecutorSyncSubmit extends AbstractLockLoop
 {
-    private final AccordExecutorLoops loops;
+    private final Loops loops;
     private final ReentrantLock lock;
     private final Condition hasWork;
 
@@ -48,7 +48,7 @@ public class AccordExecutorSyncSubmit extends AccordExecutorAbstractLockLoop
         super(lock, executorId, agent);
         this.lock = lock;
         this.hasWork = lock.newCondition();
-        this.loops = new AccordExecutorLoops(mode, threads, name, this::task);
+        this.loops = new Loops(mode, threads, name, this::task);
     }
 
     @Override
@@ -58,7 +58,7 @@ public class AccordExecutorSyncSubmit extends AccordExecutorAbstractLockLoop
     }
 
     @Override
-    AccordExecutorLoops loops()
+    Loops loops()
     {
         return loops;
     }
@@ -70,7 +70,7 @@ public class AccordExecutorSyncSubmit extends AccordExecutorAbstractLockLoop
     }
 
     @Override
-    boolean isOwningThread()
+    public boolean isOwningThread()
     {
         return lock.isHeldByCurrentThread();
     }
@@ -89,13 +89,13 @@ public class AccordExecutorSyncSubmit extends AccordExecutorAbstractLockLoop
         hasWork.signal();
     }
 
-    <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Task> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
+    <P1> void submitExternal(Consumer<P1> sync, Function<P1, Task> async, P1 p1)
     {
-        AccordTaskRunner self = AccordTaskRunner.get();
+        TaskRunner self = TaskRunner.get();
         lock(self);
         try
         {
-            submitExternalExclusive(sync, p1s, p2, p3, p4);
+            submitExternalExclusive(sync, async, p1);
         }
         finally
         {

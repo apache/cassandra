@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.execution;
 
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.locks.Lock;
@@ -27,17 +27,17 @@ import accord.utils.Invariants;
 
 import org.apache.cassandra.concurrent.DebuggableTask.DebuggableTaskRunner;
 
-abstract class AccordExecutorAbstractLoop extends AccordExecutor
+abstract class AbstractLoop extends AccordExecutor
 {
     volatile Task unqueued;
-    static final AtomicReferenceFieldUpdater<AccordExecutorAbstractLoop, Task> unqueuedUpdater = AtomicReferenceFieldUpdater.newUpdater(AccordExecutorAbstractLoop.class, Task.class, "unqueued");
+    static final AtomicReferenceFieldUpdater<AbstractLoop, Task> unqueuedUpdater = AtomicReferenceFieldUpdater.newUpdater(AbstractLoop.class, Task.class, "unqueued");
 
-    AccordExecutorAbstractLoop(Lock lock, int executorId, Agent agent)
+    AbstractLoop(Lock lock, int executorId, Agent agent)
     {
         super(lock, executorId, agent);
     }
 
-    abstract AccordExecutorLoops loops();
+    abstract Loops loops();
 
     boolean hasUnqueued()
     {
@@ -62,7 +62,7 @@ abstract class AccordExecutorAbstractLoop extends AccordExecutor
         if (hasUnqueued() || tasks > 0)
             return true;
 
-        AccordTaskRunner self = AccordTaskRunner.get();
+        TaskRunner self = TaskRunner.get();
         lock(self);
         try
         {
@@ -84,7 +84,7 @@ abstract class AccordExecutorAbstractLoop extends AccordExecutor
         Invariants.require(cur != null);
         Task next = cur.next;
         cur.next = null;
-        if (cur.is(Task.State.UNINITIALIZED)) cur.submitExclusive(this);
+        if (cur.is(Task.State.UNINITIALIZED)) cur.submitExclusive();
         else cleanupTaskExclusive(cur, true);
         return next;
     }

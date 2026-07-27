@@ -16,26 +16,26 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.execution;
 
 import java.util.concurrent.locks.Lock;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 import accord.api.Agent;
-import accord.utils.QuadFunction;
-import accord.utils.QuintConsumer;
 
 import org.apache.cassandra.concurrent.CassandraThread;
-import org.apache.cassandra.service.accord.AccordExecutorLoops.LoopTask;
+import org.apache.cassandra.service.accord.execution.Loops.LoopTask;
 
-import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITH_LOCK;
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXECUTION;
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.Mode.RUN_WITH_LOCK;
 
-abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
+abstract class AbstractLockLoop extends AbstractLoop
 {
     int runningThreads;
     boolean shutdown;
 
-    AccordExecutorAbstractLockLoop(Lock lock, int executorId, Agent agent)
+    AbstractLockLoop(Lock lock, int executorId, Agent agent)
     {
         super(lock, executorId, agent);
     }
@@ -43,17 +43,17 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
     abstract void notifyWork();
     abstract void notifyWorkExclusive();
     abstract void awaitExclusive() throws InterruptedException;
-    abstract <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Task> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4);
+    abstract <P1> void submitExternal(Consumer<P1> sync, Function<P1, Task> async, P1 p1);
 
-    final <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Task> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
+    final <P1> void submit(Consumer<P1> sync, Function<P1, Task> async, P1 p1)
     {
         // if we're a loop thread, we will poll the waitingToRun queue when we come around
         // NOTE: this assumes no synchronous blocking tasks are submitted to this executor
-        if (isInLoop() || isOwningThread()) push(async.apply(p1a, p2, p3, p4));
-        else submitExternal(sync, async, p1s, p1a, p2, p3, p4);
+        if (isInLoop() || isOwningThread()) push(async.apply(p1));
+        else submitExternal(sync, async, p1);
     }
 
-    final <P1s, P2, P3, P4> void submitExternalExclusive(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, P1s p1s, P2 p2, P3 p3, P4 p4)
+    final <P1> void submitExternalExclusive(Consumer<P1> sync, Function<P1, Task> async, P1 p1)
     {
         try
         {
@@ -63,11 +63,11 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
             }
             catch (Throwable t)
             {
-                try { sync.accept(this, p1s, p2, p3, p4); }
+                try { sync.accept(p1); }
                 catch (Throwable t2) { t.addSuppressed(t2); }
                 throw t;
             }
-            sync.accept(this, p1s, p2, p3, p4);
+            sync.accept(p1);
         }
         finally
         {
@@ -142,7 +142,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
         while (cur != null)
         {
             Task next = cur.next;
-            cur.submitExclusive(this);
+            cur.submitExclusive();
             cur.next = null;
             cur = next;
         }
@@ -195,8 +195,8 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
             public void run()
             {
                 Thread thread = Thread.currentThread();
-                AccordTaskRunner self = AccordTaskRunner.get(thread);
-                self.setAccordActiveExecutor(AccordExecutorAbstractLockLoop.this);
+                TaskRunner self = TaskRunner.get(thread);
+                self.setAccordActiveExecutor(AbstractLockLoop.this);
                 setWrapped(self);
 
                 Task task;
@@ -271,7 +271,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
             public void run()
             {
                 CassandraThread self = (CassandraThread) Thread.currentThread();
-                self.setAccordActiveExecutor(AccordExecutorAbstractLockLoop.this);
+                self.setAccordActiveExecutor(AbstractLockLoop.this);
                 setWrapped(self);
 
                 Task task = null;

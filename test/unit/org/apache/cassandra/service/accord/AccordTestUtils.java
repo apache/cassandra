@@ -57,7 +57,6 @@ import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.NodeCommandStoreService;
 import accord.local.SafeCommandStore;
-import accord.local.SafeState;
 import accord.local.StoreParticipants;
 import accord.local.TimeService;
 import accord.local.durability.DurabilityService;
@@ -85,8 +84,6 @@ import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 
 import org.apache.cassandra.ServerTestUtils;
-import org.apache.cassandra.concurrent.ExecutorPlus;
-import org.apache.cassandra.concurrent.ManualExecutor;
 import org.apache.cassandra.config.AccordConfig;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
@@ -103,10 +100,12 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.accord.AccordCacheEntry.LoadExecutor;
-import org.apache.cassandra.service.accord.AccordExecutor.IOTask;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
+import org.apache.cassandra.service.accord.execution.AccordExecutorSyncSubmit;
+import org.apache.cassandra.service.accord.execution.SaferCommand;
 import org.apache.cassandra.service.accord.journal.AccordJournal;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
@@ -123,9 +122,9 @@ import static accord.primitives.SaveStatus.PreAccepted;
 import static accord.primitives.Status.Durability.NotDurable;
 import static accord.primitives.Txn.Kind.Write;
 import static java.lang.String.format;
-import static org.apache.cassandra.service.accord.AccordCacheEntry.LockMode.RELEASE_QUEUE;
-import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITH_LOCK;
 import static org.apache.cassandra.service.accord.AccordService.getBlocking;
+import static org.apache.cassandra.service.accord.execution.AccordExecutionTestUtils.loaded;
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.Mode.RUN_WITH_LOCK;
 
 public class AccordTestUtils
 {
@@ -163,17 +162,10 @@ public class AccordTestUtils
         }
     }
 
-    public static <K, V, S extends SafeState<V> & AccordSafeState<K, V, S>> AccordCacheEntry<K, V, S> loaded(K key, V value)
+    public static SaferCommand safeCommand(Command command)
     {
-        AccordCacheEntry<K, V, S> global = new AccordCacheEntry<>(key, null);
-        global.initialize(value);
-        return global;
-    }
-
-    public static AccordSafeCommand safeCommand(Command command)
-    {
-        AccordCacheEntry<TxnId, Command, AccordSafeCommand> global = loaded(command.txnId(), command);
-        return new AccordSafeCommand(global);
+        AccordCacheEntry<TxnId, Command, SaferCommand> global = loaded(command.txnId(), command);
+        return new SaferCommand(global);
     }
 
     public static <K, V> Function<K, V> testableLoad(K key, V val)
@@ -182,39 +174,6 @@ public class AccordTestUtils
             Assert.assertEquals(key, k);
             return val;
         };
-    }
-
-    private static <P1, P2> LoadExecutor<P1, P2> loadExecutor(ExecutorPlus executor)
-    {
-        return new LoadExecutor<>()
-        {
-            @Override
-            public <K, V> IOTask load(P1 p1, P2 p2, AccordCacheEntry<K, V, ?> entry)
-            {
-                executor.submit(() -> {
-                    V v;
-                    try { v = entry.owner.parent().adapter().load(entry.owner.commandStore, entry.key()); }
-                    catch (Throwable t)
-                    {
-                        entry.failedToLoad();
-                        throw t;
-                    }
-                    entry.loaded(v);
-                });
-                return null;
-            }
-        };
-    }
-
-    public static <K, V, S extends SafeState<V> & AccordSafeState<K, V, S>> void testLoad(ManualExecutor executor, S safeState, V val)
-    {
-        Assert.assertEquals(AccordCacheEntry.Status.WAITING_TO_LOAD, safeState.global().status());
-        safeState.global().load(loadExecutor(executor), null, null);
-        Assert.assertEquals(AccordCacheEntry.Status.LOADING, safeState.global().status());
-        executor.runOne();
-        Assert.assertEquals(AccordCacheEntry.Status.LOADED, safeState.global().status());
-        safeState.preExecute(new AccordTask<>(null, (ExecutionContext.Empty)() -> "Test", null), RELEASE_QUEUE);
-        Assert.assertEquals(val, safeState.current());
     }
 
     public static TxnId txnId(long epoch, long hlc, int node)

@@ -21,19 +21,21 @@ package org.apache.cassandra.concurrent;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 import org.apache.cassandra.metrics.ThreadLocalMetrics;
-import org.apache.cassandra.service.accord.AccordExecutor;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
+import org.apache.cassandra.service.accord.execution.Task;
+import org.apache.cassandra.service.accord.execution.TaskRunner;
 
 import io.netty.util.concurrent.FastThreadLocalThread;
 
-public class CassandraThread extends FastThreadLocalThread implements AccordExecutor.AccordTaskRunner
+public class CassandraThread extends FastThreadLocalThread implements TaskRunner
 {
     private ThreadLocalMetrics threadLocalMetrics;
     private ExecutorLocals executorLocals;
     private AccordExecutor accordActiveExecutor;
     private AccordExecutor accordLockedExecutor;
     private int accordLockedExecutorDepth;
-    private volatile AccordExecutor.Task accordActiveTask;
-    private static final AtomicReferenceFieldUpdater<CassandraThread, AccordExecutor.Task> accordActiveTaskUpdater = AtomicReferenceFieldUpdater.newUpdater(CassandraThread.class, AccordExecutor.Task.class, "accordActiveTask");
+    private volatile Task accordActiveTask;
+    private static final AtomicReferenceFieldUpdater<CassandraThread, Task> accordActiveTaskUpdater = AtomicReferenceFieldUpdater.newUpdater(CassandraThread.class, Task.class, "accordActiveTask");
 
     private final ImmediateTaskHolder immediateTaskHolder;
 
@@ -129,19 +131,19 @@ public class CassandraThread extends FastThreadLocalThread implements AccordExec
             accordLockedExecutor = null;
     }
 
-    public final AccordExecutor.Task accordActiveTask()
+    public final Task accordActiveTask()
     {
         return accordActiveTask;
     }
 
     // to be called only by the thread itself, so can (eventually) avoid any memory barriers
-    public final AccordExecutor.Task accordActiveSelfTask()
+    public final Task accordActiveSelfTask()
     {
         // TODO (expected): with newer JDK use accordActiveTaskUpdater.getPlain
         return accordActiveTask;
     }
 
-    public final void setAccordActiveTask(AccordExecutor.Task newActiveTask)
+    public final void setAccordActiveTask(Task newActiveTask)
     {
         accordActiveTaskUpdater.lazySet(this, newActiveTask);
     }

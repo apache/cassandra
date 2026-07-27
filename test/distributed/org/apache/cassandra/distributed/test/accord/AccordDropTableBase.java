@@ -24,7 +24,6 @@ import org.assertj.core.api.Assertions;
 
 import accord.local.CommandStores;
 import accord.local.ExecutionContext;
-import accord.local.LoadKeys;
 import accord.local.Node;
 import accord.local.cfk.CommandsForKey;
 import accord.local.cfk.SafeCommandsForKey;
@@ -42,11 +41,10 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordCommandStore;
-import org.apache.cassandra.service.accord.AccordSafeCommandStore;
+import org.apache.cassandra.service.accord.execution.SaferCommandStore;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.TokenRange;
 
-import static accord.local.LoadKeysFor.READ_WRITE;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.service.accord.AccordService.getBlocking;
 
@@ -140,7 +138,7 @@ public class AccordDropTableBase extends TestBaseImpl
                 {
                     AccordCommandStore store = (AccordCommandStore) stores.forId(storeId);
                     getBlocking(store.chain(ctx, input -> {
-                        AccordSafeCommandStore safe = (AccordSafeCommandStore) input;
+                        SaferCommandStore safe = (SaferCommandStore) input;
                         for (SafeCommandsForKey safeCfk : safe.safeCommandsForKeys())
                         {
                             CommandsForKey cfk = safeCfk.current();

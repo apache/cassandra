@@ -245,7 +245,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
                     logger.info("Reporting failure of plan {} for bootstrap of {} from {}", planId, range, from, fail);
                     fail(from, Ranges.of(range), fail);
                 }
-            }, ((AccordCommandStore) commandStore()).taskExecutor());
+            }, ((AccordCommandStore) commandStore()).exclusiveExecutor());
         }
     }
 
