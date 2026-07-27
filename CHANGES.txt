@@ -6,6 +6,7 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Reduce allocations in DefaultQueryOptions (CASSANDRA-21467)
  * Allow unreserved keywords as user and identity names in USER and IDENTITY statements (CASSANDRA-21510)
  * Reduce allocations in DefaultQueryOptions (CASSANDRA-21467)
  * Reduce number of scheduledTasks on metric id release in ThreadLocalMetrics (CASSANDRA-21475)
