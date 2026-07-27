@@ -44,7 +44,7 @@ public class LexicalUUIDType extends AbstractType<UUID>
 
     LexicalUUIDType()
     {
-        super(ComparisonType.CUSTOM);
+        super(ComparisonType.CUSTOM, 16);
     } // singleton
 
     @Override
@@ -146,12 +146,6 @@ public class LexicalUUIDType extends AbstractType<UUID>
     public ArgumentDeserializer getArgumentDeserializer()
     {
         return ARGUMENT_DESERIALIZER;
-    }
-
-    @Override
-    public int valueLengthIfFixed()
-    {
-        return 16;
     }
 
     @Override

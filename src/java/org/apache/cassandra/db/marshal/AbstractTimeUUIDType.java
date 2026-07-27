@@ -39,7 +39,7 @@ public abstract class AbstractTimeUUIDType<T> extends TemporalType<T>
 {
     AbstractTimeUUIDType()
     {
-        super(ComparisonType.CUSTOM);
+        super(ComparisonType.CUSTOM, 16);
     } // singleton
 
     @Override
@@ -191,12 +191,6 @@ public abstract class AbstractTimeUUIDType<T> extends TemporalType<T>
         if (value instanceof TimeUUID)
             return TimeUUID.Serializer.instance.serialize((TimeUUID) value);
         return super.decomposeUntyped(value);
-    }
-
-    @Override
-    public int valueLengthIfFixed()
-    {
-        return 16;
     }
 
     @Override

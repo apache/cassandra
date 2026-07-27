@@ -1,4 +1,5 @@
 7.0
+ * Avoid megamorphic calls when serializing and deserializing fixed-length values (CASSANDRA-21536)
  * Don't increment client metrics on messaging service connection unpause (CASSANDRA-21491)
  * Add nodetool getreplicas (CASSANDRA-17665)
  * Implementation of CEP-49: Hardware-accelerated compression (CASSANDRA-20975)
@@ -8662,5 +8663,4 @@ Full list of issues resolved in 0.4 is at https://issues.apache.org/jira/secure/
  * Combined blocking and non-blocking versions of insert APIs
  * Added FlushPeriodInMinutes configuration parameter to force
    flushing of infrequently-updated ColumnFamilies
-
 

@@ -740,6 +740,12 @@ public class AbstractTypeTest
     }
 
     @Test
+    public void valueLengthIfFixedIsFinal() throws NoSuchMethodException
+    {
+        assertThat(Modifier.isFinal(AbstractType.class.getMethod("valueLengthIfFixed").getModifiers())).isTrue();
+    }
+
+    @Test
     @SuppressWarnings({"rawtypes", "unchecked"})
     public void serde()
     {
