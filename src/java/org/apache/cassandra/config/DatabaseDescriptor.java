@@ -334,6 +334,7 @@ public class DatabaseDescriptor
     private static void clear()
     {
         sstableFormats = null;
+        defaultReadThresholds = null;
         clearMBean("org.apache.cassandra.db:type=DynamicEndpointSnitch");
         clearMBean("org.apache.cassandra.db:type=EndpointSnitchInfo");
         clearMBean("org.apache.cassandra.db:type=LocationInfo");
@@ -5590,7 +5591,7 @@ public class DatabaseDescriptor
     {
         logger.info("updating  coordinator_read_size_warn_threshold to {}", value);
         conf.coordinator_read_size_warn_threshold = value;
-        defaultReadThresholds = new QueryOptions.DefaultReadThresholds(value, getCoordinatorReadSizeFailThreshold());
+        defaultReadThresholds = null;
     }
 
     @Nullable
@@ -5603,7 +5604,7 @@ public class DatabaseDescriptor
     {
         logger.info("updating  coordinator_read_size_fail_threshold to {}", value);
         conf.coordinator_read_size_fail_threshold = value;
-        defaultReadThresholds = new QueryOptions.DefaultReadThresholds(getCoordinatorReadSizeWarnThreshold(), value);
+        defaultReadThresholds = null;
     }
 
     @Nullable
