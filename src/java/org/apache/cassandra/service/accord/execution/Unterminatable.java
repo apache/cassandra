@@ -16,26 +16,9 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.execution;
 
-import java.util.concurrent.locks.Lock;
-
-import accord.api.Agent;
-import accord.utils.QuadFunction;
-import accord.utils.QuintConsumer;
-
-abstract class AccordExecutorAbstractSemiSyncSubmit extends AccordExecutorAbstractLockLoop
+// run the task even on a terminated commandStore
+public interface Unterminatable extends Unstoppable
 {
-    AccordExecutorAbstractSemiSyncSubmit(Lock lock, int executorId, Agent agent)
-    {
-        super(lock, executorId, agent);
-    }
-
-    abstract void awaitExclusive() throws InterruptedException;
-
-    <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Task> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
-    {
-        if (push(async.apply(p1a, p2, p3, p4)) == null && !isInLoop())
-            notifyWork();
-    }
 }

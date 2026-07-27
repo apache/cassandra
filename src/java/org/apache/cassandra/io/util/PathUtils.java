@@ -662,7 +662,6 @@ public final class PathUtils
         DeleteOnExit.clearOnExitThreads();
     }
 
-
     private static final class DeleteOnExit implements Runnable
     {
         private boolean isRegistered;

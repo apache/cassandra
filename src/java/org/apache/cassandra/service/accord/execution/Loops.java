@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.execution;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -29,19 +29,19 @@ import accord.utils.Invariants;
 import accord.utils.TriFunction;
 
 import org.apache.cassandra.concurrent.DebuggableTask.DebuggableTaskRunner;
-import org.apache.cassandra.service.accord.AccordExecutor.Mode;
-import org.apache.cassandra.service.accord.AccordExecutor.TaskRunner;
+import org.apache.cassandra.service.accord.execution.AccordExecutor.Mode;
+import org.apache.cassandra.service.accord.execution.TaskRunner.DebuggableWrapper;
 import org.apache.cassandra.utils.concurrent.Condition;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorThreadTag.INFINITE_LOOP;
 import static org.apache.cassandra.concurrent.ExecutorFactory.SystemThreadTag.NON_DAEMON;
-import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITH_LOCK;
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.Mode.RUN_WITH_LOCK;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
-class AccordExecutorLoops
+class Loops
 {
-    static abstract class LoopTask extends TaskRunner implements Runnable
+    static abstract class LoopTask extends DebuggableWrapper implements Runnable
     {
         final String id;
         LoopTask(String id) { this.id = id; }
@@ -54,7 +54,7 @@ class AccordExecutorLoops
     private final AtomicInteger running = new AtomicInteger();
     private final Condition terminated = Condition.newOneTimeCondition();
 
-    public AccordExecutorLoops(Mode mode, int threads, IntFunction<String> loopName, TriFunction<Integer, String, Mode, LoopTask> loopFactory)
+    public Loops(Mode mode, int threads, IntFunction<String> loopName, TriFunction<Integer, String, Mode, LoopTask> loopFactory)
     {
         Invariants.require(mode == RUN_WITH_LOCK ? threads == 1 : threads >= 1);
         running.addAndGet(threads);

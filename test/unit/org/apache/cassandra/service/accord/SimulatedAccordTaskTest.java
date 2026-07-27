@@ -53,6 +53,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.SimulatedAccordCommandStore.FunctionWrapper;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.execution.SafeTask;
 import org.apache.cassandra.utils.Pair;
 
 import static accord.utils.Property.qt;
@@ -179,12 +180,12 @@ public class SimulatedAccordTaskTest extends SimulatedAccordCommandStoreTestBase
 
     private enum Action { SUCCESS, FAILURE, LOAD_FAILURE }
 
-    private static AccordTask<Void> operation(SimulatedAccordCommandStore instance, ExecutionContext ctx, Action action, BooleanSupplier delay)
+    private static SafeTask<Void> operation(SimulatedAccordCommandStore instance, ExecutionContext ctx, Action action, BooleanSupplier delay)
     {
 
         Function<SafeCommandStore, Void> function = action == Action.FAILURE ? safeStore -> { throw new SimulatedFault("Operation failed for keys " + ctx.keys()); }
                                                                              : safeStore -> null;
-        return AccordTask.create(instance.commandStore, ctx, function);
+        return SafeTask.create(instance.commandStore, ctx, function);
     }
 
     private static class Counter implements BiConsumer<Object, Throwable>

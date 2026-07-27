@@ -62,7 +62,7 @@ import org.apache.cassandra.harry.checker.ModelChecker;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.AccordSafeCommandStore;
+import org.apache.cassandra.service.accord.execution.SaferCommandStore;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.IAccordService.DelegatingAccordService;
@@ -209,7 +209,7 @@ public class AccordIncrementalRepairTest extends TestBaseImpl
         Node node = accordService().node();
         AtomicReference<TxnId> waitFor = new AtomicReference<>(null);
         getBlocking(node.commandStores().forEach("Test", RoutingKeys.of(key), Long.MIN_VALUE, Long.MAX_VALUE, safeStore -> {
-            AccordSafeCommandStore store = (AccordSafeCommandStore) safeStore;
+            SaferCommandStore store = (SaferCommandStore) safeStore;
             SafeCommandsForKey safeCfk = store.ifLoadedAndInitialised(key);
             if (safeCfk == null)
                 return;

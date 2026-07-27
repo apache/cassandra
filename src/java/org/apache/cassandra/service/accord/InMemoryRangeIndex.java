@@ -44,6 +44,7 @@ import accord.primitives.Unseekables;
 import accord.utils.async.Cancellable;
 
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry;
 import org.apache.cassandra.service.accord.serializers.CommandStoreSerializers;
 
 import static org.apache.cassandra.io.util.CompressedFrameDataInputPlus.readList;

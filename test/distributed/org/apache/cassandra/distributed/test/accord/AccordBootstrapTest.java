@@ -46,7 +46,7 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordCommandStore;
-import org.apache.cassandra.service.accord.AccordSafeCommandStore;
+import org.apache.cassandra.service.accord.execution.SaferCommandStore;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.streaming.StreamEvent;
 import org.apache.cassandra.streaming.StreamEventHandler;
@@ -262,7 +262,7 @@ public class AccordBootstrapTest extends AccordBootstrapTestBase
                         getBlocking(service().node().commandStores().forEach("Test", RoutingKeys.of(partitionKey.toUnseekable()), Long.MIN_VALUE, Long.MAX_VALUE, safeStore -> {
                             if (safeStore.ranges().currentRanges().contains(partitionKey))
                             {
-                                AccordSafeCommandStore ss = (AccordSafeCommandStore) safeStore;
+                                SaferCommandStore ss = (SaferCommandStore) safeStore;
                                 Assert.assertFalse(ss.bootstrapBeganAt().isEmpty());
                                 Assert.assertFalse(ss.safeToReadAt().isEmpty());
 
