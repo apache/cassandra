@@ -155,10 +155,10 @@ public class SimpleClientPerfTest
     {
         ResultMessage.Rows response = generateRows(0, responseCaps);
         QueryMessage requestMessage = generateQueryMessage(0, requestCaps, version);
-        Envelope message = requestMessage.encode(version);
+        Envelope message = requestMessage.encode(version, 0);
         int requestSize = message.body.readableBytes();
         message.release();
-        message = response.encode(version);
+        message = response.encode(version, 0);
         int responseSize = message.body.readableBytes();
         message.release();
 

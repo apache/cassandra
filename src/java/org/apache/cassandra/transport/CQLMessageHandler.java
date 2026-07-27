@@ -106,7 +106,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
 
     interface MessageConsumer<M extends Message>
     {
-        void dispatch(Channel channel, M message, Dispatcher.FlushItemConverter toFlushItem, Overload backpressure);
+        <P> void dispatch(Channel channel, M message, Dispatcher.FlushItemConverter<P> toFlushItem, P param, Overload backpressure);
         boolean hasQueueCapacity();
     }
 
@@ -389,7 +389,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         try
         {
             message = messageDecoder.decode(channel, request);
-            dispatcher.dispatch(channel, message, this::toFlushItem, backpressure);
+            dispatcher.dispatch(channel, message, CQLMessageHandler::toFlushItem, this, backpressure);
             
             // sucessfully delivered a CQL message to the execution
             // stage, so reset the counter of consecutive errors
@@ -485,7 +485,8 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         // The Dispatcher will call this to obtain the FlushItem to enqueue with its Flusher once
         // a dispatched request has been processed.
 
-        Envelope responseFrame = response.encode(request.getSource().header.version);
+        Envelope.Header header = request.getSource().header;
+        Envelope responseFrame = response.encode(header.version, header.streamId);
         int responseSize = envelopeSize(responseFrame.header);
         ClientMessageSizeMetrics.bytesSent.inc(responseSize);
         ClientMessageSizeMetrics.bytesSentPerResponse.update(responseSize);
@@ -500,9 +501,9 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
     @Override
     public void cleanup(Flusher.FlushItem<Envelope> flushItem)
     {
-        release(flushItem.request.header);
-        flushItem.request.release();
-        flushItem.response.release();
+        release(flushItem.requestEnvelope.header);
+        flushItem.requestEnvelope.release();
+        flushItem.responseEnvelope.release();
     }
 
     private void release(Envelope.Header header)
@@ -524,8 +525,9 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
             if (!extracted.isSuccess())
             {
                 // Hard fail on any decoding error as we can't trust the subsequent frames of
-                // the large message
-                handleError(ProtocolException.toFatalException(extracted.error()));
+                // the large message. The stream id is a best-effort value read before extraction
+                // failed, so route it back where possible rather than defaulting.
+                handleError(ProtocolException.toFatalException(extracted.error()), extracted.streamId());
                 return false;
             }
 
@@ -542,7 +544,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                 // not make sense to continue processing subsequent frames
                 handleError(ProtocolException.toFatalException(new OversizedAuthMessageException(
                             MULTI_FRAME_AUTH_ERROR_MESSAGE_PREFIX +
-                            "type = " + header.type + ", size = " + header.bodySizeInBytes)));
+                            "type = " + header.type + ", size = " + header.bodySizeInBytes)), header.streamId);
                 ClientMetrics.instance.markRequestDiscarded();
                 return false;
             }

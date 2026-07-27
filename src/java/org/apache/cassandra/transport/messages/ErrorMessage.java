@@ -423,25 +423,49 @@ public class ErrorMessage extends Message.Response
         this.error = error;
     }
 
-    private ErrorMessage(TransportException error, int streamId)
+    public static ErrorMessage fromTransportException(TransportException e)
     {
-        this(error);
-        setStreamId(streamId);
+        ErrorMessage message = new ErrorMessage(e);
+        if (e instanceof ProtocolException)
+        {
+            // if the driver attempted to connect with a protocol version not supported then
+            // respond with the appropiate version, see ProtocolVersion.decode()
+            ProtocolVersion forcedProtocolVersion = ((ProtocolException) e).getForcedProtocolVersion();
+            if (forcedProtocolVersion != null)
+                message.forcedProtocolVersion = forcedProtocolVersion;
+        }
+        return message;
     }
 
-    public static ErrorMessage fromException(Throwable e)
+    public static ErrorMessage fromExceptionNoStreamId(Throwable e)
     {
-        return fromException(e, null);
+        return fromExceptionNoStreamId(e, null);
     }
 
+    public static ErrorMessage fromExceptionNoStreamId(Throwable e, Predicate<Throwable> unexpectedExceptionHandler)
+    {
+        return fromException(e, unexpectedExceptionHandler).message;
+    }
+
+    public static class WithStreamId
+    {
+        public final ErrorMessage message;
+        public final int streamId;
+
+        WithStreamId(ErrorMessage message, int streamId)
+        {
+            this.message = message;
+            this.streamId = streamId;
+        }
+    }
     /**
      * @param e the exception
      * @param unexpectedExceptionHandler a callback for handling unexpected exceptions. If null, or if this
      *                                   returns false, the error is logged at ERROR level via sl4fj
      */
-    public static ErrorMessage fromException(Throwable e, Predicate<Throwable> unexpectedExceptionHandler)
+    public static WithStreamId fromException(Throwable e, Predicate<Throwable> unexpectedExceptionHandler)
     {
-        int streamId = 0;
+        int streamId = UNSET_STREAM_ID;
 
         // Netty will wrap exceptions during decoding in a CodecException. If the cause was one of our ProtocolExceptions
         // or some other internal exception, extract that and use it.
@@ -469,23 +493,15 @@ public class ErrorMessage extends Message.Response
 
         if (e instanceof TransportException)
         {
-            ErrorMessage message = new ErrorMessage((TransportException) e, streamId);
-            if (e instanceof ProtocolException)
-            {
-                // if the driver attempted to connect with a protocol version not supported then
-                // respond with the appropiate version, see ProtocolVersion.decode()
-                ProtocolVersion forcedProtocolVersion = ((ProtocolException) e).getForcedProtocolVersion();
-                if (forcedProtocolVersion != null)
-                    message.forcedProtocolVersion = forcedProtocolVersion;
-            }
-            return message;
+            ErrorMessage message = fromTransportException((TransportException) e);
+            return new WithStreamId(message, streamId);
         }
 
         // Unexpected exception
         if (unexpectedExceptionHandler == null || !unexpectedExceptionHandler.apply(e))
             logger.error("Unexpected exception during request", e);
 
-        return new ErrorMessage(new ServerError(e), streamId);
+        return new WithStreamId(new ErrorMessage(new ServerError(e)), streamId);
     }
 
     @Override
