@@ -90,11 +90,18 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public final ComparisonType comparisonType;
     public final boolean isByteOrderComparable;
     public final ValueComparators comparatorSet;
+    private final int valueLengthIfFixed;
 
     protected AbstractType(ComparisonType comparisonType)
     {
+        this(comparisonType, VARIABLE_LENGTH);
+    }
+
+    protected AbstractType(ComparisonType comparisonType, int valueLengthIfFixed)
+    {
         this.comparisonType = comparisonType;
         this.isByteOrderComparable = comparisonType == ComparisonType.BYTE_ORDER;
+        this.valueLengthIfFixed = valueLengthIfFixed;
         reverseComparator = (o1, o2) -> AbstractType.this.compare(o2, o1);
         try
         {
@@ -384,12 +391,12 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     /**
      * Similar to {@link #isValueCompatibleWith(AbstractType)}, but takes into account {@link Cell} encoding.
      * In particular, this method doesn't consider two types serialization compatible if one of them has fixed
-     * length (overrides {@link #valueLengthIfFixed()}, and the other one doesn't.
+     * length, and the other one doesn't.
      */
     public boolean isSerializationCompatibleWith(AbstractType<?> previous)
     {
         return isValueCompatibleWith(previous)
-               && valueLengthIfFixed() == previous.valueLengthIfFixed()
+               && valueLengthIfFixed == previous.valueLengthIfFixed
                && isMultiCell() == previous.isMultiCell();
     }
 
@@ -498,7 +505,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
      */
     public int valueLengthIfFixed()
     {
-        return VARIABLE_LENGTH;
+        return valueLengthIfFixed;
     }
 
     /**
@@ -508,7 +515,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
      */
     public final boolean isValueLengthFixed()
     {
-        return valueLengthIfFixed() != VARIABLE_LENGTH;
+        return valueLengthIfFixed != VARIABLE_LENGTH;
     }
 
     /**
@@ -570,7 +577,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public  <V> void writeValue(V value, ValueAccessor<V> accessor, DataOutputPlus out) throws IOException
     {
         assert !isNull(value, accessor) : "bytes should not be null for type " + this;
-        int expectedValueLength = valueLengthIfFixed();
+        int expectedValueLength = valueLengthIfFixed;
         if (expectedValueLength >= 0)
         {
             int actualValueLength = accessor.size(value);
@@ -589,7 +596,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public  <V> void writeValue(IndexedValueHolder<V> valueHolder, int i, ValueAccessor<V> accessor, DataOutputPlus out) throws IOException
     {
         assert !valueHolder.isNull(i) : "bytes should not be null for type " + this;
-        int expectedValueLength = valueLengthIfFixed();
+        int expectedValueLength = valueLengthIfFixed;
         if (expectedValueLength >= 0)
         {
             int actualValueLength = valueHolder.size(i);
@@ -613,7 +620,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public <V> long writtenLength(V value, ValueAccessor<V> accessor)
     {
         assert !accessor.isEmpty(value) : "bytes should not be empty for type " + this;
-        return valueLengthIfFixed() >= 0
+        return valueLengthIfFixed >= 0
                ? accessor.size(value) // if the size is wrong, this will be detected in writeValue
                : accessor.sizeWithVIntLength(value);
     }
@@ -621,7 +628,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public <V> long writtenLength(IndexedValueHolder<V> valueHolder, int i, ValueAccessor<V> accessor)
     {
         assert !valueHolder.isNull(i) : "bytes should not be null for type " + this;
-        return valueLengthIfFixed() >= 0
+        return valueLengthIfFixed >= 0
                ? valueHolder.size(i) // if the size is wrong, this will be detected in writeValue
                : accessor.sizeWithVIntLength(valueHolder, i);
     }
@@ -643,7 +650,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
     public <V> V read(ValueAccessor<V> accessor, DataInputPlus in, int maxValueSize) throws IOException
     {
-        int length = valueLengthIfFixed();
+        int length = valueLengthIfFixed;
 
         if (length >= 0)
             return accessor.read(in, length);
@@ -664,7 +671,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
     public void skipValue(DataInputPlus in) throws IOException
     {
-        int length = valueLengthIfFixed();
+        int length = valueLengthIfFixed;
         if (length >= 0)
             in.skipBytesFully(length);
         else

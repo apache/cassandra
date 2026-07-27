@@ -37,6 +37,11 @@ public abstract class TemporalType<T> extends AbstractType<T>
         super(comparisonType);
     }
 
+    protected TemporalType(ComparisonType comparisonType, int valueLengthIfFixed)
+    {
+        super(comparisonType, valueLengthIfFixed);
+    }
+
     /**
      * Returns the current temporal value.
      * @return the current temporal value.

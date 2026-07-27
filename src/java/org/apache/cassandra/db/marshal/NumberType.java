@@ -34,6 +34,11 @@ public abstract class NumberType<T extends Number> extends AbstractType<T>
         super(comparisonType);
     }
 
+    protected NumberType(ComparisonType comparisonType, int valueLengthIfFixed)
+    {
+        super(comparisonType, valueLengthIfFixed);
+    }
+
     /**
      * Checks if this type support floating point numbers.
      * @return {@code true} if this type support floating point numbers, {@code false} otherwise.
