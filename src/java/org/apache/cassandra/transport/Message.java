@@ -65,6 +65,12 @@ public abstract class Message
 {
     protected static final Logger logger = LoggerFactory.getLogger(Message.class);
 
+    /**
+     * Sentinel default for a {@link Response}'s stream id;
+     * must be overwritten before {@link #encode}.
+     **/
+    public static final int UNSET_STREAM_ID = Integer.MIN_VALUE;
+
     public interface Codec<M extends Message> extends CBCodec<M> {}
 
     public enum Direction
@@ -160,7 +166,6 @@ public abstract class Message
 
     public final Type type;
     protected Connection connection;
-    private int streamId;
     private Envelope source;
     private Map<String, ByteBuffer> customPayload;
     protected ProtocolVersion forcedProtocolVersion = null;
@@ -178,17 +183,6 @@ public abstract class Message
     public Connection connection()
     {
         return connection;
-    }
-
-    public Message setStreamId(int streamId)
-    {
-        this.streamId = streamId;
-        return this;
-    }
-
-    public int getStreamId()
-    {
-        return streamId;
     }
 
     public void setSource(Envelope source)
@@ -214,7 +208,7 @@ public abstract class Message
     @Override
     public String toString()
     {
-        return String.format("(%s:%s:%s)", type, streamId, connection == null ? "null" :  connection.getVersion().asInt());
+        return String.format("(%s:%s)", type, connection == null ? "null" :  connection.getVersion().asInt());
     }
 
     public static abstract class Request extends Message
@@ -342,8 +336,16 @@ public abstract class Message
         }
     }
 
-    public Envelope encode(ProtocolVersion version)
+    public Envelope encode(ProtocolVersion version, int streamId)
     {
+        // A Response's stream id must be stamped before it is serialized to the wire. UNSET_STREAM_ID here
+        // means a server code path produced a response without routing information; sending it would risk
+        // delivering it to an unrelated in-flight request (CASSANDRA-21508). Fail fatally so the connection
+        // is torn down rather than mis-route a response. Checked before the try below so it is not caught and
+        // re-wrapped (which would carry the unset id forward).
+        if (streamId == UNSET_STREAM_ID)
+            throw ProtocolException.toFatalException(new ProtocolException("Attempted to encode a response with an unset stream id: " + this));
+
         int flags = Flag.none();
         @SuppressWarnings("unchecked")
         Codec<Message> codec = (Codec<Message>)this.type.codec;
@@ -430,11 +432,11 @@ public abstract class Message
             if (responseVersion.isBeta())
                 flags = Flag.add(flags, Flag.USE_BETA);
 
-            return Envelope.create(type, getStreamId(), responseVersion, flags, body);
+            return Envelope.create(type, streamId, responseVersion, flags, body);
         }
         catch (Throwable e)
         {
-            throw ErrorMessage.wrap(e, getStreamId());
+            throw ErrorMessage.wrap(e, streamId);
         }
     }
 
@@ -455,7 +457,6 @@ public abstract class Message
                 throw new ProtocolException("Received frame with CUSTOM_PAYLOAD flag for native protocol version < 4");
 
             Message message = inbound.header.type.codec.decode(inbound.body, inbound.header.version);
-            message.setStreamId(inbound.header.streamId);
             message.setSource(inbound);
             message.setCustomPayload(customPayload);
 

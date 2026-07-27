@@ -207,7 +207,7 @@ public class ExecuteMessage extends Message.Request
         {
             QueryEvents.instance.notifyExecuteFailure(prepared, options, state, e);
             JVMStabilityInspector.inspectThrowable(e);
-            return ErrorMessage.fromException(e);
+            return ErrorMessage.fromExceptionNoStreamId(e);
         }
     }
 

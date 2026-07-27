@@ -38,6 +38,7 @@ import org.apache.cassandra.exceptions.OversizedCQLMessageException;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.transport.messages.ErrorMessage;
+import org.apache.cassandra.transport.messages.ErrorMessage.WithStreamId;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Throwables;
@@ -76,23 +77,53 @@ public class ExceptionHandlers
             if (ctx.channel().isOpen())
             {
                 Predicate<Throwable> handler = getUnexpectedExceptionHandler(ctx.channel(), false);
-                ErrorMessage errorMessage = ErrorMessage.fromException(cause, handler);
-                Envelope response = errorMessage.encode(version);
-                FrameEncoder.Payload payload = allocator.allocate(true, CQLMessageHandler.envelopeSize(response.header));
+                // No request in scope at the channel level; a WrappedException cause carries the frame's
+                // stream id and overrides this fallback.
+                WithStreamId withStreamId = ErrorMessage.fromException(cause, handler);
+                ErrorMessage errorMessage = withStreamId.message;
                 try
                 {
-                    response.encodeInto(payload.buffer);
-                    response.release();
-                    payload.finish();
-                    ChannelPromise promise = ctx.newPromise();
-                    // On protocol exception, close the channel as soon as the message has been sent
-                    if (isFatal(cause))
-                        promise.addListener(future -> ctx.close());
-                    ctx.writeAndFlush(payload, promise);
+                    int streamId = withStreamId.streamId;
+                    boolean isFatal = isFatal(cause);
+                    if (streamId == Message.UNSET_STREAM_ID)
+                    {
+                        // No stream id could be recovered, so we have no request to route a response to.
+                        // Close the connection rather than emit an unroutable frame (CASSANDRA-21508).
+                        isFatal = true;
+                        streamId = 0;
+                    }
+
+                    Envelope response = errorMessage.encode(version, streamId);
+                    FrameEncoder.Payload payload = allocator.allocate(true, CQLMessageHandler.envelopeSize(response.header));
+                    try
+                    {
+                        response.encodeInto(payload.buffer);
+                        response.release();
+                        payload.finish();
+                        ChannelPromise promise = ctx.newPromise();
+                        // On a fatal error, close the channel only once the error frame has been written,
+                        // so the client receives the diagnostic before the connection is torn down. Closing
+                        // synchronously here can abort the in-flight flush and drop the frame when the socket
+                        // can't drain it immediately (TCP backpressure, TLS buffering, or a large frame).
+                        // Matches PreV5Handlers.ExceptionHandler and InitialConnectionHandler.
+                        //
+                        // Trade-off of deferring the close (CASSANDRA-21508):
+                        //  - There is a slim chance we send two frames with the same streamId. Responses
+                        //    already queued on this connection will have a chance to flush before the close
+                        //    fires. For the majority of cases, each frame will carry its own unique stream
+                        //    id, so nothing is misrouted. These are valid responses to requests that were
+                        //    correctly-decoded earlier.
+                        if (isFatal)
+                            promise.addListener(future -> ctx.close());
+                        ctx.writeAndFlush(payload, promise);
+                    }
+                    finally
+                    {
+                        payload.release();
+                    }
                 }
                 finally
                 {
-                    payload.release();
                     JVMStabilityInspector.inspectThrowable(cause);
                 }
             }
