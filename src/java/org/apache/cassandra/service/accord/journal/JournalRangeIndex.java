@@ -54,13 +54,13 @@ import accord.utils.UnhandledEnum;
 import accord.utils.btree.BTree;
 import accord.utils.btree.IntervalBTree;
 
-import org.apache.cassandra.service.accord.AccordCache;
-import org.apache.cassandra.service.accord.AccordCacheEntry;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandStore.Caches;
 import org.apache.cassandra.service.accord.RangeIndex;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.execution.AccordCache;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry;
 
 import static accord.local.CommandSummaries.Relevance.IRRELEVANT;
 import static accord.local.LoadKeysFor.RECOVERY;
@@ -199,7 +199,7 @@ public class JournalRangeIndex extends SemiSyncIntervalTree<Object[]> implements
         }
 
         @Override
-        protected void finish(Map<Timestamp, Summary> into)
+        public void finish(Map<Timestamp, Summary> into)
         {
         }
 
@@ -233,7 +233,7 @@ public class JournalRangeIndex extends SemiSyncIntervalTree<Object[]> implements
         }
 
         @Override
-        protected void cleanupExclusive(Caches caches)
+        public void cleanupExclusive(Caches caches)
         {
             if (commandWatcher != null)
             {

@@ -70,6 +70,7 @@ import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.execution.SaferCommand;
 import org.apache.cassandra.utils.CassandraGenerators;
 
 import static accord.local.Command.Committed.committed;
@@ -82,6 +83,7 @@ import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor.findAllKeysBetween;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor.makeSystemTableKeyBytes;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;
+import static org.apache.cassandra.service.accord.execution.AccordExecutionTestUtils.loaded;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.getTypeSupport;
 import static org.apache.cassandra.utils.AccordGenerators.fromQT;
 
@@ -120,7 +122,7 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
         Command.Committed committed = committed(id, SaveStatus.Committed, Status.Durability.NotDurable,
                                                 participants, Ballot.ZERO, id, partialTxn, deps.intersecting(scope),
                                                 Ballot.ZERO, waitingOn);
-        AccordSafeCommand safeCommand = new AccordSafeCommand(AccordTestUtils.loaded(id, null));
+        SaferCommand safeCommand = new SaferCommand(loaded(id, null));
         safeCommand.set(committed);
 
         AccordTestUtils.appendCommandsBlocking(store, null, committed);

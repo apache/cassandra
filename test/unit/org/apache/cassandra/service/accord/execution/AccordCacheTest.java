@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.execution;
 
 import java.util.function.Function;
 
@@ -30,12 +30,12 @@ import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.ManualExecutor;
 import org.apache.cassandra.metrics.AccordCacheMetrics;
-import org.apache.cassandra.service.accord.AccordCacheEntry.LockMode;
-import org.apache.cassandra.service.accord.AccordCacheEntry.SaveExecutor;
-import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry.LockMode;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry.SaveExecutor;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status;
 
-import static org.apache.cassandra.service.accord.AccordCacheEntry.LockMode.RELEASE_QUEUE;
-import static org.apache.cassandra.service.accord.AccordTestUtils.testLoad;
+import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.LockMode.RELEASE_QUEUE;
+import static org.apache.cassandra.service.accord.execution.AccordExecutionTestUtils.testLoad;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.Mockito.mock;
@@ -45,7 +45,7 @@ public class AccordCacheTest
 {
     private static final long DEFAULT_NODE_SIZE = nodeSize(0);
 
-    private static abstract class TestSafeState<T, S extends SafeState<T> & AccordSafeState<T, T, S>> extends SafeState<T> implements AccordSafeState<T, T, S>
+    private static abstract class TestSafeState<T, S extends SafeState<T> & SaferState<T, T, S>> extends SafeState<T> implements SaferState<T, T, S>
     {
         protected final AccordCacheEntry<T, T, S> global;
 
@@ -61,7 +61,7 @@ public class AccordCacheTest
 
         public final T key() { return global.key(); }
 
-        public void preExecute(AccordTask<?> owner, LockMode lockMode)
+        public void preExecute(SafeTask<?> owner, LockMode lockMode)
         {
             requireUninitialised();
             current = global.lockExclusive(owner, lockMode);
@@ -77,7 +77,7 @@ public class AccordCacheTest
         }
 
         @Override
-        public void postExecute(AccordTask<?> owner)
+        public void postExecute(SafeTask<?> owner)
         {
             global.releaseExclusive(this, owner);
         }
@@ -91,7 +91,7 @@ public class AccordCacheTest
         }
 
         @Override
-        public void postExecute(AccordTask<?> owner)
+        public void postExecute(SafeTask<?> owner)
         {
             global.releaseExclusive(this, owner);
         }
@@ -240,7 +240,7 @@ public class AccordCacheTest
         assertCacheMetrics(cacheMetrics, 0, 3, 3, 3);
 
         SafeString safeString = instance.acquire("1");
-        safeString.preExecute(new AccordTask<>(null, (ExecutionContext.Empty)() -> "Test", null), RELEASE_QUEUE);
+        safeString.preExecute(new SafeTask<>(null, (ExecutionContext.Empty)() -> "Test", null), RELEASE_QUEUE);
         Assert.assertEquals(Status.LOADED, safeString.global.status());
 
         assertCacheState(cache, 1, 3, nodeSize(1) * 3);
@@ -369,7 +369,7 @@ public class AccordCacheTest
         assertCacheState(cache, 1, 1, nodeSize(1));
 
         SafeString safeString2 = instance.acquire("0");
-        safeString2.preExecute(new AccordTask<>(null, (ExecutionContext.Empty)() -> "Test", null), RELEASE_QUEUE);
+        safeString2.preExecute(new SafeTask<>(null, (ExecutionContext.Empty)() -> "Test", null), RELEASE_QUEUE);
         Assert.assertEquals("0", safeString2.current());
         Assert.assertEquals(Status.LOADED, safeString1.global.status());
         Assert.assertEquals(2, instance.references("0", SafeString.class));

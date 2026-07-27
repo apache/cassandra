@@ -24,8 +24,8 @@ import java.util.function.ToLongFunction;
 
 import com.codahale.metrics.Gauge;
 
-import org.apache.cassandra.service.accord.AccordExecutor;
 import org.apache.cassandra.service.accord.IAccordService;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
 
 import static org.apache.cassandra.metrics.AccordMetricUtils.fromAccordService;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;

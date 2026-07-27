@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.execution;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
@@ -26,9 +26,9 @@ import java.util.function.IntFunction;
 import accord.api.Agent;
 
 // WARNING: experimental - needs more testing
-public class AccordExecutorSemiSyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
+public class AccordExecutorSemiSyncSubmit extends AbstractSemiSyncSubmit
 {
-    private final AccordExecutorLoops loops;
+    private final Loops loops;
     private final ReentrantLock lock;
     private final Condition hasWork;
     private int waiting;
@@ -43,7 +43,7 @@ public class AccordExecutorSemiSyncSubmit extends AccordExecutorAbstractSemiSync
         super(lock, executorId, agent);
         this.lock = lock;
         this.hasWork = lock.newCondition();
-        this.loops = new AccordExecutorLoops(mode, threads, name, this::task);
+        this.loops = new Loops(mode, threads, name, this::task);
     }
 
     @Override
@@ -61,7 +61,7 @@ public class AccordExecutorSemiSyncSubmit extends AccordExecutorAbstractSemiSync
     }
 
     @Override
-    AccordExecutorLoops loops()
+    Loops loops()
     {
         return loops;
     }
@@ -87,7 +87,7 @@ public class AccordExecutorSemiSyncSubmit extends AccordExecutorAbstractSemiSync
     }
 
     @Override
-    boolean isOwningThread()
+    public boolean isOwningThread()
     {
         return lock.isHeldByCurrentThread();
     }

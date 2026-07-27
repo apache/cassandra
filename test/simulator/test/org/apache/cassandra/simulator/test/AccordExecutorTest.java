@@ -47,15 +47,16 @@ import accord.utils.async.Cancellable;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableSupplier;
-import org.apache.cassandra.service.accord.AccordExecutor;
-import org.apache.cassandra.service.accord.AccordExecutorAsyncSubmit;
-import org.apache.cassandra.service.accord.AccordExecutorSignalLoop;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
+import org.apache.cassandra.service.accord.execution.AccordExecutorAsyncSubmit;
+import org.apache.cassandra.service.accord.execution.AccordExecutorSignalLoop;
 import org.apache.cassandra.service.accord.api.AccordAgent;
+import org.apache.cassandra.simulator.test.AccordExecutorTest.Submitted.Consequences;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.SignalLock;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITHOUT_LOCK;
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.Mode.RUN_WITHOUT_LOCK;
 
 // TODO (required): have simulator intercept ReentantLock so we can test SyncSubmit and SemiSyncSubmit
 public class AccordExecutorTest extends SimulationTestBase
@@ -114,18 +115,37 @@ public class AccordExecutorTest extends SimulationTestBase
             return true;
         }
 
-        Collection<Future<?>> start()
+        class Consequences extends ConcurrentLinkedQueue<Future<?>>
         {
-            ConcurrentLinkedQueue<Future<?>> result = new ConcurrentLinkedQueue<>();
+            volatile boolean started;
 
-            while (true)
+            void ensureStarted()
             {
-                int id = nextId.get();
-                Object prev = consequences.putIfAbsent(id, result);
-                nextId.compareAndSet(id, id + 1);
-                if (prev == null)
-                    return result;
+                if (started)
+                    return;
+
+                synchronized (this)
+                {
+                    if (started)
+                        return;
+
+                    while (true)
+                    {
+                        int id = nextId.get();
+                        Object prev = consequences.putIfAbsent(id, this);
+                        nextId.compareAndSet(id, id + 1);
+                        if (prev == null)
+                            break;
+                    }
+
+                    started = true;
+                }
             }
+        }
+
+        Consequences allocate()
+        {
+            return new Consequences();
         }
     }
 
@@ -148,19 +168,20 @@ public class AccordExecutorTest extends SimulationTestBase
             this.processChance = processChance;
         }
 
-        void submit(AsyncExecutor executor, Collection<Future<?>> consequences, Consumer<Collection<Future<?>>> run)
+        void submit(AsyncExecutor executor, Consequences consequences, Consumer<Consequences> run)
         {
             AsyncPromise<?> future = new AsyncPromise<>();
+            consequences.add(future);
             Cancellable cancel = executor.chain(() -> run.accept(consequences)).begin((success, fail) -> {
                 if (fail == null) future.trySuccess(null);
                 else
                 {
                     future.tryFailure(fail);
                     if (fail instanceof CancellationException)
-                        run.accept(submitted.start());
+                        run.accept(submitted.allocate());
                 }
             });
-            consequences.add(future);
+            consequences.ensureStarted();
 
             if (cancel != null && ThreadLocalRandom.current().nextFloat() <= cancelChance)
             {
@@ -249,7 +270,7 @@ public class AccordExecutorTest extends SimulationTestBase
             List<Collection<Future<?>>> allAwaitSubmitted = new ArrayList<>();
             for (int i = 0; i < innerLoop; ++i)
             {
-                Collection<Future<?>> awaitSubmitted = submitted.start();
+                Consequences awaitSubmitted = submitted.allocate();
                 allAwaitSubmitted.add(awaitSubmitted);
                 submitRecursive(lock, executor, sequentialExecutor, 1 + i, awaitSubmitted, awaitConsequences, submitted, sleepChance, lockChance, control);
             }
@@ -264,7 +285,7 @@ public class AccordExecutorTest extends SimulationTestBase
         }
     }
 
-    private static void submitRecursive(Lock lock, AccordExecutor executor, ExclusiveAsyncExecutor sequentialExecutor, int count, Collection<Future<?>> consequences, Collection<Future<?>> awaitConsequences, Submitted submitted, float sleepChance, float lockChance, Control control)
+    private static void submitRecursive(Lock lock, AccordExecutor executor, ExclusiveAsyncExecutor sequentialExecutor, int count, Consequences consequences, Collection<Future<?>> awaitConsequences, Submitted submitted, float sleepChance, float lockChance, Control control)
     {
         AsyncExecutor submitTo = ThreadLocalRandom.current().nextBoolean() ? executor : sequentialExecutor;
 

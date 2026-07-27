@@ -29,7 +29,7 @@ import accord.local.Command;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.metrics.LogLinearHistogram;
-import org.apache.cassandra.service.accord.AccordExecutor.Task;
+import org.apache.cassandra.service.accord.execution.Task;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.WithResources;
 

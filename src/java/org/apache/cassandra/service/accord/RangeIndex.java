@@ -41,6 +41,7 @@ import accord.utils.Invariants;
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry;
 import org.apache.cassandra.service.accord.journal.CommandChanges;
 import org.apache.cassandra.service.accord.serializers.Version;
 
@@ -59,10 +60,10 @@ public interface RangeIndex
 
         protected abstract AccordCommandStore commandStore();
 
-        protected abstract void loadExclusive(Map<Timestamp, CommandSummaries.Summary> into, AccordCommandStore.Caches caches);
-        protected abstract void load(Map<Timestamp, CommandSummaries.Summary> into, BooleanSupplier abort);
-        protected abstract void finish(Map<Timestamp, CommandSummaries.Summary> into);
-        protected abstract void cleanupExclusive(AccordCommandStore.Caches caches);
+        public abstract void loadExclusive(Map<Timestamp, CommandSummaries.Summary> into, AccordCommandStore.Caches caches);
+        public abstract void load(Map<Timestamp, CommandSummaries.Summary> into, BooleanSupplier abort);
+        public abstract void finish(Map<Timestamp, CommandSummaries.Summary> into);
+        public abstract void cleanupExclusive(AccordCommandStore.Caches caches);
 
         protected CommandSummaries.Summary loadFromDisk(TxnId txnId)
         {

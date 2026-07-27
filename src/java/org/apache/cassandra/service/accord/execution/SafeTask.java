@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.execution;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -69,15 +69,16 @@ import accord.utils.async.Cancellable;
 
 import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.metrics.LogLinearDecayingHistograms;
-import org.apache.cassandra.service.accord.AccordCacheEntry.LockMode;
-import org.apache.cassandra.service.accord.AccordCacheEntry.RunnableStatus;
-import org.apache.cassandra.service.accord.AccordCacheEntry.Loading;
-import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
+import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandStore.Caches;
-import org.apache.cassandra.service.accord.AccordExecutor.Task;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
+import org.apache.cassandra.service.accord.RangeIndex;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.debug.DebugExecution.DebugTask;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry.Loading;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry.LockMode;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry.RunnableStatus;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Closeable;
@@ -90,50 +91,50 @@ import static accord.local.LoadKeys.SYNC;
 import static accord.local.LoadKeysFor.RECOVERY;
 import static accord.local.LoadKeysFor.WRITE;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
-import static org.apache.cassandra.service.accord.AccordCacheEntry.LockMode.HOLD_QUEUE;
-import static org.apache.cassandra.service.accord.AccordCacheEntry.LockMode.RELEASE_QUEUE;
-import static org.apache.cassandra.service.accord.AccordCacheEntry.RunnableStatus.NOT_RUNNABLE;
-import static org.apache.cassandra.service.accord.AccordCacheEntry.RunnableStatus.STILL_RUNNABLE;
-import static org.apache.cassandra.service.accord.AccordCacheEntry.RunnableStatus.STILL_RUNNABLE_NEWLY_BLOCKING;
-import static org.apache.cassandra.service.accord.AccordExecutor.NONSYNC_BLOCKED_LIMIT;
-import static org.apache.cassandra.service.accord.AccordExecutor.NONSYNC_ENABLED;
-import static org.apache.cassandra.service.accord.AccordExecutor.NONSYNC_MIN_BATCH_SIZE;
-import static org.apache.cassandra.service.accord.AccordExecutor.Task.GlobalGroup.LOAD;
-import static org.apache.cassandra.service.accord.AccordExecutor.Task.GlobalGroup.RANGE_LOAD;
-import static org.apache.cassandra.service.accord.AccordExecutor.Task.RunState.PERSISTING;
-import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.CANCELLED;
-import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.INCOMPLETE;
-import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.LOADING_OPTIONAL;
-import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.LOADING_REQUIRED;
-import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.RUNNING;
-import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.SCANNING_RANGES;
-import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.WAITING;
-import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.WAITING_ON_OPTIONAL;
-import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.WAITING_ON_REQUIRED;
-import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.WAITING_OR_RUNNING;
-import static org.apache.cassandra.service.accord.AccordExecutor.Task.State.WAITING_TO_RUN;
-import static org.apache.cassandra.service.accord.AccordSafeState.global;
-import static org.apache.cassandra.service.accord.AccordSafeState.postExecute;
-import static org.apache.cassandra.service.accord.AccordSafeState.preExecute;
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXECUTION;
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DebugTask.SANITY_CHECK;
+import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.LockMode.HOLD_QUEUE;
+import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.LockMode.RELEASE_QUEUE;
+import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.RunnableStatus.NOT_RUNNABLE;
+import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.RunnableStatus.STILL_RUNNABLE;
+import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.RunnableStatus.STILL_RUNNABLE_NEWLY_BLOCKING;
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.NONSYNC_BLOCKED_LIMIT;
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.NONSYNC_ENABLED;
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.NONSYNC_MIN_BATCH_SIZE;
+import static org.apache.cassandra.service.accord.execution.SaferState.global;
+import static org.apache.cassandra.service.accord.execution.SaferState.postExecute;
+import static org.apache.cassandra.service.accord.execution.SaferState.preExecute;
+import static org.apache.cassandra.service.accord.execution.Task.GlobalGroup.LOAD;
+import static org.apache.cassandra.service.accord.execution.Task.GlobalGroup.RANGE_LOAD;
+import static org.apache.cassandra.service.accord.execution.Task.RunState.PERSISTING;
+import static org.apache.cassandra.service.accord.execution.Task.State.CANCELLED;
+import static org.apache.cassandra.service.accord.execution.Task.State.INCOMPLETE;
+import static org.apache.cassandra.service.accord.execution.Task.State.LOADING_OPTIONAL;
+import static org.apache.cassandra.service.accord.execution.Task.State.LOADING_REQUIRED;
+import static org.apache.cassandra.service.accord.execution.Task.State.RUNNING;
+import static org.apache.cassandra.service.accord.execution.Task.State.SCANNING_RANGES;
+import static org.apache.cassandra.service.accord.execution.Task.State.WAITING;
+import static org.apache.cassandra.service.accord.execution.Task.State.WAITING_ON_OPTIONAL;
+import static org.apache.cassandra.service.accord.execution.Task.State.WAITING_ON_REQUIRED;
+import static org.apache.cassandra.service.accord.execution.Task.State.WAITING_OR_RUNNING;
+import static org.apache.cassandra.service.accord.execution.Task.State.WAITING_TO_RUN;
 
-public final class AccordTask<R> extends Task implements Cancellable, DebuggableTask
+public final class SafeTask<R> extends Task implements Cancellable, DebuggableTask
 {
-    private static final Logger logger = LoggerFactory.getLogger(AccordTask.class);
+    private static final Logger logger = LoggerFactory.getLogger(SafeTask.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
 
-    public static AccordTask<Void> create(CommandStore commandStore, ExecutionContext context, Consumer<? super SafeCommandStore> consumer)
+    public static SafeTask<Void> create(CommandStore commandStore, ExecutionContext context, Consumer<? super SafeCommandStore> consumer)
     {
-        return new AccordTask<>((AccordCommandStore) commandStore, context, safeStore -> {
+        return new SafeTask<>((AccordCommandStore) commandStore, context, safeStore -> {
             consumer.accept(safeStore);
             return null;
         });
     }
 
-    public static <R> AccordTask<R> create(CommandStore commandStore, ExecutionContext context, Function<? super SafeCommandStore, R> function)
+    public static <R> SafeTask<R> create(CommandStore commandStore, ExecutionContext context, Function<? super SafeCommandStore, R> function)
     {
-        return new AccordTask<>((AccordCommandStore) commandStore, context, function);
+        return new SafeTask<>((AccordCommandStore) commandStore, context, function);
     }
 
     final class NonSyncState extends ExecutionContext.Wrapped implements ExecutionContext
@@ -221,7 +222,7 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
                 if ((blocking == null || !populate(keys, blocking)) && notBlocking != null)
                     populate(keys, notBlocking);
 
-                keys.forEach(key -> preExecute(refs.get(key), AccordTask.this, RELEASE_QUEUE));
+                keys.forEach(key -> preExecute(refs.get(key), SafeTask.this, RELEASE_QUEUE));
                 keys.sort(RoutingKey::compareTo);
                 active = RoutingKeys.of(keys);
             }
@@ -258,7 +259,7 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
             if (active != null)
             {
                 for (RoutingKey key : active)
-                    postExecute(refs.remove(key), AccordTask.this);
+                    postExecute(refs.remove(key), SafeTask.this);
                 active = null;
             }
             ready = readyCount();
@@ -301,7 +302,7 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
 
     private BiConsumer<? super R, Throwable> callback;
 
-    public AccordTask(@Nonnull AccordCommandStore commandStore, ExecutionContext executionContext, Function<? super SafeCommandStore, R> function)
+    public SafeTask(@Nonnull AccordCommandStore commandStore, ExecutionContext executionContext, Function<? super SafeCommandStore, R> function)
     {
         super(executionContext, commandStore.executor().uniqueCreatedAt);
         this.commandStore = commandStore;
@@ -332,7 +333,7 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
         return toBriefString() + ": "
                + (queued() == null ? "unqueued" : describeState())
                + ", primaryTxnId: " + executionContext.primaryTxnId()
-               + ", state: " + summarise(refs, AccordSafeState::global);
+               + ", state: " + summarise(refs, SaferState::global);
 
     }
 
@@ -383,8 +384,8 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
             protected Cancellable start(BiConsumer<? super R, Throwable> callback)
             {
                 preSetup(callback);
-                executor().submit(AccordTask.this);
-                return AccordTask.this;
+                executor().submit(SafeTask.this);
+                return SafeTask.this;
             }
         };
     }
@@ -393,11 +394,18 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
     {
         Invariants.require(this.callback == null);
         this.callback = callback;
-        commandStore.tryPreSetup(this);
+        TaskRunner self = TaskRunner.get();
+        Task task = self.accordActiveSelfTask();
+        if (task instanceof SafeTask<?>)
+        {
+            SafeTask<?> parent = (SafeTask<?>) task;
+            if (parent.commandStore == commandStore)
+                preSetup(parent);
+        }
     }
 
     // to be invoked only by the CommandStore owning thread, to take references to objects already in use by the current execution
-    public void preSetup(AccordTask<?> parent)
+    public void preSetup(SafeTask<?> parent)
     {
         this.position = parent.position;
         setInheritedWithTranche(parent.tranche());
@@ -441,7 +449,7 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
             {
                 // TODO (desired): custom map we can more cheaply fork/copy
                 parent.refs.forEach((key, val) -> {
-                    if (val instanceof AccordSafeCommandsForKey)
+                    if (val instanceof SaferCommandsForKey)
                         preSetup((RoutingKey) key, parent.refs, commandStore.cachesUnsafe().commandsForKeys());
                 });
             }
@@ -457,7 +465,7 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
                     case Range:
                         AbstractRanges ranges = (AbstractRanges) keysOrRanges;
                         parent.refs.forEach((key, val) -> {
-                            if (val instanceof AccordSafeCommandsForKey && ranges.contains((RoutingKey) key))
+                            if (val instanceof SaferCommandsForKey && ranges.contains((RoutingKey) key))
                                 preSetup((RoutingKey) key, parent.refs, commandStore.cachesUnsafe().commandsForKeys());
                         });
                         break;
@@ -470,14 +478,10 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
     }
 
     @Override
-    void submitExclusive(AccordExecutor owner)
+    void submitExclusive()
     {
-        owner.registerExclusive(this);
-        setupInternal(commandStore.cachesExclusive());
-    }
-
-    private void setupInternal(Caches caches)
-    {
+        Caches caches = commandStore.cachesExclusive();
+        executor().registerExclusive(this);
         boolean hasPreSetup = hasInherited();
         LoadKeys loadKeys = loadKeys(executionContext);
         if (loadKeys != NONE)
@@ -496,8 +500,8 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
                 case Range:
                     if (!hasInheritedRangeScan()) setupRangeLoadsExclusive(caches);
                     else refs.forEach((k, v) -> {
-                        if (v instanceof AccordSafeCommandsForKey)
-                            completePresetupExclusive((AccordSafeCommandsForKey)v);
+                        if (v instanceof SaferCommandsForKey)
+                            completePresetupExclusive((SaferCommandsForKey)v);
                     });
                     break;
                 case Key:
@@ -551,7 +555,7 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
     }
 
     // expects mutual exclusivity only on the command store
-    private <K, V, S extends SafeState<V> & AccordSafeState<K, V, S>> void preSetup(K k, Map<Object, SafeState<?>> parentMap, AccordCache.Type<K, V, S>.Instance cache)
+    private <K, V, S extends SafeState<V> & SaferState<K, V, S>> void preSetup(K k, Map<Object, SafeState<?>> parentMap, AccordCache.Type<K, V, S>.Instance cache)
     {
         S ref = (S) parentMap.get(k);
         if (ref == null)
@@ -566,7 +570,7 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
             keys++;
     }
 
-    private <K, V, S extends SafeState<V> & AccordSafeState<K, V, S>> boolean completePresetupExclusive(K k)
+    private <K, V, S extends SafeState<V> & SaferState<K, V, S>> boolean completePresetupExclusive(K k)
     {
         S preacquired = (S) refs.get(k);
         if (preacquired != null)
@@ -577,7 +581,7 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
         return false;
     }
 
-    private <K, V, S extends SafeState<V> & AccordSafeState<K, V, S>> void completePresetupExclusive(S preacquired)
+    private <K, V, S extends SafeState<V> & SaferState<K, V, S>> void completePresetupExclusive(S preacquired)
     {
         AccordCacheEntry<K, V, S> entry = preacquired.global();
         if (entry.isLoaded()) completeSetupOfLoaded(entry);
@@ -585,7 +589,7 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
     }
 
     // expects to hold lock
-    private <K, V, S extends SafeState<V> & AccordSafeState<K, V, S>> void setupExclusive(K k, AccordCache.Type<K, V, S>.Instance cache, int waitForIncrement)
+    private <K, V, S extends SafeState<V> & SaferState<K, V, S>> void setupExclusive(K k, AccordCache.Type<K, V, S>.Instance cache, int waitForIncrement)
     {
         S safeRef = cache.acquire(k);
         AccordCacheEntry<K, V, ?> entry = safeRef.global();
@@ -706,7 +710,7 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
         Invariants.require(waitingForState == 0);
         onLoaded();
         executor().runnable.incrementArrivals(this);
-        commandStore.exclusiveExecutor.incrementArrivals(this);
+        commandStore.exclusiveExecutor().incrementArrivals(this);
 
         this.refs.forEach((key, safeState) -> {
             AccordCacheEntry<?, ?, ?> entry = global(safeState);
@@ -838,7 +842,7 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
             else
             {
                 // TODO (expected): this is potentially costly; maybe we don't want to swap these in and out (but harder to maintain invariants)
-                unqueue(commandStore.exclusiveExecutor);
+                unqueue(commandStore.exclusiveExecutor());
                 setStateExclusive(WAITING_ON_REQUIRED);
                 executor().waitingOnCacheQueues.enqueue(this);
             }
@@ -875,7 +879,7 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
                 nonSync.onNotHead(entry);
                 if (is(WAITING_TO_RUN) && !nonSync.isWaitReady())
                 {
-                    unqueue(commandStore.exclusiveExecutor);
+                    unqueue(commandStore.exclusiveExecutor());
                     setStateExclusive(WAITING_ON_OPTIONAL);
                     executor().waitingOnCacheQueues.enqueue(this);
                 }
@@ -904,7 +908,7 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
     void waitToRunExclusive()
     {
         setStateExclusive(WAITING_TO_RUN);
-        commandStore.exclusiveExecutor.enqueue(this, false);
+        commandStore.exclusiveExecutor().enqueue(this, false);
     }
 
     public ExecutionContext executionContext()
@@ -979,13 +983,13 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
     public void run()
     {
         onRunning();
-        AccordSafeCommandStore safeStore = null;
+        SaferCommandStore safeStore = null;
         try (Closeable close = resources.get())
         {
             if (Tracing.isTracing())
                 Tracing.trace(executionContext.describe());
 
-            commandStore.begin(safeStore = new AccordSafeCommandStore(this, isSync() ? executionContext : nonSync));
+            commandStore.begin(safeStore = new SaferCommandStore(this, isSync() ? executionContext : nonSync));
 
             R result = function.apply(safeStore);
 
@@ -995,9 +999,9 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
                 List<Journal.CommandUpdate> changes = new ArrayList<>();
                 // TODO (expected): save any TxnId we add so that we don't need to iterate all of refs
                 refs.forEach((key, value) -> {
-                    if (value instanceof AccordSafeCommand)
+                    if (value instanceof SaferCommand)
                     {
-                        AccordSafeCommand safeCommand = (AccordSafeCommand) value;
+                        SaferCommand safeCommand = (SaferCommand) value;
                         Journal.CommandUpdate diff = safeCommand.update();
                         if (diff != null)
                         {
@@ -1060,7 +1064,7 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
         }
     }
 
-    private void maybeSanityCheck(AccordSafeCommand safeCommand)
+    private void maybeSanityCheck(SaferCommand safeCommand)
     {
         if (SANITY_CHECK)
         {
@@ -1112,25 +1116,50 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
     public void cancel()
     {
         if (!state().hasStarted())
-            executor().cancel(this);
+            executor().submit(Task::cancelExclusive, CancelTask::new, this);
     }
 
     void cancelExclusive()
     {
-        logger.info("Cancelling {}", executionContext);
-        setStateExclusive(CANCELLED);
-        if (rangeScanner != null)
-            rangeScanner.cancelled = true;
-        if (callback != null)
+        State state = state();
+        switch (state)
         {
-            if (executor().isInLoop()) callback.accept(null, new CancellationException());
-            else executor().submit(() -> callback.accept(null, new CancellationException()));
+            default: throw new UnhandledEnum(state);
+            case SCANNING_RANGES:
+            case LOADING_REQUIRED:
+            case LOADING_OPTIONAL:
+            case WAITING_ON_REQUIRED:
+            case WAITING_ON_OPTIONAL:
+            case WAITING_TO_RUN:
+                if (!hasIncrementalStarted())
+                {
+                    unqueueIfQueued();
+                    setStateExclusive(CANCELLED);
+                    if (rangeScanner != null)
+                        rangeScanner.cancelled = true;
+                    try
+                    {
+                        logger.info("Cancelling {}", executionContext);
+                        if (callback != null)
+                        {
+                            if (executor().isInLoop()) callback.accept(null, new CancellationException());
+                            else executor().submit(() -> callback.accept(null, new CancellationException()));
+                        }
+                    }
+                    finally
+                    {
+                        executor().cleanupTaskExclusive(this, false);
+                    }
+                    break;
+                }
+            case UNINITIALIZED: // TODO (expected): preferable to be able to cancel at this stage, even if unlikely to trigger at this phase
+            case RUNNING:
+            case INCOMPLETE:
+            case EXECUTED:
+            case CANCELLED:
+            case FAILED_TO_LOAD:
+                // cannot safely cancel
         }
-    }
-
-    void cancelExclusive(AccordExecutor owner)
-    {
-        owner.cancelExclusive(this);
     }
 
     private void finish(R result, Throwable failure)
@@ -1155,7 +1184,7 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
             }
 
             refs.forEach((key, safeState) -> {
-                AccordSafeState.postExecute(safeState, this);
+                SaferState.postExecute(safeState, this);
             });
             if (DEBUG_EXECUTION) DebugTask.get(this).onReleasedState();
         }
@@ -1178,7 +1207,7 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
         refs.forEach((k, safeState) -> {
             if (!safeState.isReleased())
             {
-                try { AccordSafeState.postExecute(safeState, this); }
+                try { SaferState.postExecute(safeState, this); }
                 catch (Throwable t) { suppressedBy.addSuppressed(t); }
             }
         });
@@ -1193,16 +1222,16 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
             public void onUpdate(AccordCacheEntry<RoutingKey, CommandsForKey, ?> state)
             {
                 if (ranges.contains(state.key()))
-                    reference((AccordCacheEntry<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>) state);
+                    reference((AccordCacheEntry<RoutingKey, CommandsForKey, SaferCommandsForKey>) state);
             }
         }
 
         final Set<TokenKey> intersectingKeys = new ObjectHashSet<>();
         final Ranges ranges = ((AbstractRanges) executionContext.keys()).toRanges();
-        final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeyCache;
+        final AccordCache.Type<RoutingKey, CommandsForKey, SaferCommandsForKey>.Instance commandsForKeyCache;
         KeyWatcher keyWatcher = new KeyWatcher();
 
-        public RangeTxnAndKeyScanner(AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeyCache)
+        public RangeTxnAndKeyScanner(AccordCache.Type<RoutingKey, CommandsForKey, SaferCommandsForKey>.Instance commandsForKeyCache)
         {
             this.commandsForKeyCache = commandsForKeyCache;
         }
@@ -1223,7 +1252,7 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
             super.runInternal();
         }
 
-        private void reference(AccordCacheEntry<RoutingKey, CommandsForKey, AccordSafeCommandsForKey> entry)
+        private void reference(AccordCacheEntry<RoutingKey, CommandsForKey, SaferCommandsForKey> entry)
         {
             switch (entry.status())
             {
@@ -1306,7 +1335,7 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
         }
     }
 
-    public class RangeTxnScanner extends AccordExecutor.AbstractIOTask
+    public class RangeTxnScanner extends IOTaskWrapper.WrappableIOTask
     {
         final Map<Timestamp, Summary> summaries = new HashMap<>();
         final Map<Timestamp, Summary> guardedSummaries = Collections.synchronizedMap(summaries);
@@ -1330,7 +1359,7 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
         @Override
         protected void postRunExclusive()
         {
-            executor().onScannedRangesExclusive(AccordTask.this, failure);
+            executor().onScannedRangesExclusive(SafeTask.this, failure);
         }
 
         @Override
@@ -1343,9 +1372,9 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
         {
             Caches caches = commandStore.cachesExclusive();
             setStateExclusive(SCANNING_RANGES);
-            executor().scanningRanges.enqueue(AccordTask.this);
+            executor().scanningRanges.enqueue(SafeTask.this);
             startInternal(caches);
-            executor().submitPlainExclusive(AccordTask.this, GlobalGroup.RANGE_SCAN, this);
+            executor().submitExclusive(SafeTask.this, GlobalGroup.RANGE_SCAN, this);
         }
 
         void startInternal(Caches caches)
@@ -1356,7 +1385,7 @@ public final class AccordTask<R> extends Task implements Cancellable, Debuggable
 
         public void scannedExclusive()
         {
-            Invariants.require(is(SCANNING_RANGES), "Expected SCANNING_RANGES; found %s", AccordTask.this, AccordTask::toDescription);
+            Invariants.require(is(SCANNING_RANGES), "Expected SCANNING_RANGES; found %s", SafeTask.this, SafeTask::toDescription);
             scanned = true;
             scannedInternal();
             unqueue(executor().scanningRanges);

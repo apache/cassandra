@@ -83,17 +83,14 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordCommandStore;
-import org.apache.cassandra.service.accord.AccordExecutor;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static accord.local.ExecutionContext.contextFor;
 import static accord.local.ExecutionContext.unsequencedReadWrite;
-import static accord.local.LoadKeys.SYNC;
-import static accord.local.LoadKeysFor.READ_WRITE;
 import static accord.local.RedundantStatus.SomeStatus.GC_BEFORE_AND_LOCALLY_DURABLE;
 import static accord.primitives.Routable.Domain.Range;
 import static accord.primitives.Timestamp.Flag.HLC_BOUND;
