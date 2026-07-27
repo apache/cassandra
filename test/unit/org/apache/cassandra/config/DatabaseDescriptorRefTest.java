@@ -123,6 +123,8 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.Config$CorruptedTombstoneStrategy",
     "org.apache.cassandra.config.Config$BatchlogEndpointStrategy",
     "org.apache.cassandra.config.Config$TombstonesMetricGranularity",
+    "org.apache.cassandra.cql3.QueryOptions$DefaultReadThresholds",
+    "org.apache.cassandra.cql3.QueryOptions$ReadThresholds",
     "org.apache.cassandra.service.consensus.UnsupportedTransactionConsistencyLevel",
     "org.apache.cassandra.repair.autorepair.AutoRepairConfig",
     "org.apache.cassandra.repair.autorepair.AutoRepairConfig$Options",
