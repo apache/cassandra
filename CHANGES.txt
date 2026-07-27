@@ -12,6 +12,7 @@
 Merged from 4.1:
  * Add Paxos v2 option and informatin in cassandra.yaml (CASSANDRA-21316)
 Merged from 4.0:
+ * Bound declared value length against readable bytes in CBUtil (CASSANDRA-21521)
  * Verify extension type before initializing reflectively-loaded classes (CASSANDRA-21525)
  * Rename conflicting nodetool import --copy-data short option from -p to -cd (CASSANDRA-20214)
  * Fix PasswordObfuscator failing to obfuscate certain passwords (CASSANDRA-21113)
