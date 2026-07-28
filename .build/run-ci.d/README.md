@@ -3,7 +3,7 @@
 ```
 ➤ .build/run-ci --help
 usage: run-ci [-h] [-c KUBECONFIG] [-x KUBECONTEXT] [-i URL] [-u USER] [-r REPOSITORY] [-b BRANCH] [-p {packaging,skinny,pre-commit,pre-commit w/ upgrades,post-commit,custom}] [-e PROFILE_CUSTOM_REGEXP] [-j JDK] [-d DTEST_REPOSITORY] [-k DTEST_BRANCH]
-              [-s] [--only-setup] [--tear-down] [--only-tear-down] [--only-node-cleaner] [-o DOWNLOAD_RESULTS]
+              [-s] [--only-setup] [-v VALUES_OVERRIDE] [--tear-down] [--only-tear-down] [--only-node-cleaner] [-o DOWNLOAD_RESULTS]
 
 Run CI pipeline for Cassandra on K8s using Jenkins.
 
@@ -30,6 +30,8 @@ options:
                         DTest repository branch.
   -s, --setup           Set up Jenkins before the build.
   --only-setup          Only install Jenkins into the k8s cluster.
+  -v VALUES_OVERRIDE, --values-override VALUES_OVERRIDE
+                        Path to an additional helm values file, applied over .jenkins/k8s/jenkins-deployment.yaml. Required when the target cluster carries site customisations, see .jenkins/k8s/README.md
   --tear-down           Tear down Jenkins after the build.
   --only-tear-down      Only tear down Jenkins.
   --only-node-cleaner   Only run the node cleaner. The node cleaner scans the k8s nodes, eagerly terminating those unused.
@@ -63,7 +65,15 @@ Setup/Update Jenkins Helm into your current kubeconfig
 .build/run-ci --only-setup
 ```
 
-Uninstall Jenkins from your current kubeconfig
+Setup/Update Jenkins Helm into a cluster that carries site customisations, e.g. pre-ci.cassandra.apache.org
+```
+.build/run-ci --only-setup --values-override ~/.cassandra-ci/pre-ci-overrides.yaml
+```
+
+Before any setup, the values already deployed are compared against those about to be applied.  Any value the deployed jenkins holds that the new files lack is listed, and confirmation is asked for before it is dropped; running non-interactively aborts instead.  See `.jenkins/k8s/README.md` for what this can and cannot catch.
+
+Uninstall Jenkins from your current kubeconfig.
 ```
 .build/run-ci --only-tear-down
 ```
+The jenkins-home volume is kept; delete it separately with `kubectl delete pvc cassius-jenkins`
