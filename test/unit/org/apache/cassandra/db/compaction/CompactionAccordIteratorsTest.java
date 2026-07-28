@@ -285,11 +285,11 @@ public class CompactionAccordIteratorsTest
         try (AccordExecutor.ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
         {
             cacheSize = cache.global.capacity();
-            cache.global.setCapacity(0);
+            commandStore.executor().setCapacity(0);
         }
         try (AccordExecutor.ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
         {
-            cache.global.setCapacity(cacheSize);
+            commandStore.executor().setCapacity(cacheSize);
         }
         commandsForKey.forceBlockingFlush(FlushReason.UNIT_TESTS);
         while (commandStore.executor().hasTasks())

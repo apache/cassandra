@@ -46,7 +46,7 @@ public class AccordCacheMetrics
         public AccordCacheGlobalMetrics()
         {
             DefaultNameFactory factory = new DefaultNameFactory(ACCORD_CACHE);
-            this.usedBytes = Metrics.gauge(factory.createMetricName("UsedBytes"), fromAccordService(sumExecutors(executor -> executor.cacheUnsafe().weightedSize()), 0L));
+            this.usedBytes = Metrics.gauge(factory.createMetricName("UsedBytes"), fromAccordService(sumExecutors(AccordExecutor::weightedSize), 0L));
             this.unreferencedBytes = Metrics.gauge(factory.createMetricName("UnreferencedBytes"), fromAccordService(sumExecutors(executor -> executor.cacheUnsafe().unreferencedBytes()), 0L));
         }
 

@@ -96,25 +96,7 @@ public class AccordExecutorSimple extends AccordExecutor
                     return;
                 }
 
-                // TODO (expected): dedup with AbstractLockLoop, and cleanup (executed flag is a bit ugly)
-                self.setAccordActiveTask(task);
-                boolean executed = false;
-                try
-                {
-                    task.preRunExclusive();
-                    executed = true;
-                    task.run();
-                }
-                catch (Throwable t)
-                {
-                    executed = false;
-                    task.failExecution(t);
-                }
-                finally
-                {
-                    cleanupTaskExclusive(task, executed);
-                    self.setAccordActiveTask(null);
-                }
+                prepareRunComplete(self, task);
             }
         }
         finally

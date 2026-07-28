@@ -29,9 +29,9 @@ final class CancelTask extends Task
     }
 
     @Override
-    void submitExclusive()
+    void submitExclusiveMayThrow()
     {
-        cancel.cancelExclusive();
+        cancel.tryCancelExclusive();
     }
 
     @Override
@@ -41,13 +41,23 @@ final class CancelTask extends Task
     }
 
     @Override
-    String toDescription()
+    public String description()
     {
-        return "Cancel " + cancel.toDescription();
+        return "Cancel " + cancel.description();
     }
 
-    @Override void preRunExclusive() { throw new UnsupportedOperationException(); }
-    @Override void run() { throw new UnsupportedOperationException(); }
-    @Override void reportFailure(Throwable fail) { throw new UnsupportedOperationException(); }
+    @Override
+    public String briefDescription()
+    {
+        return "Cancel " + cancel.briefDescription();
+    }
+
+    @Override void unqueueIfQueued() { throw new UnsupportedOperationException(); }
+    @Override
+    void maybeCompleteExclusiveMayThrow() { throw new UnsupportedOperationException(); }
+    @Override void tryCancelExclusive() { throw new UnsupportedOperationException(); }
+    @Override void reportFailureMayThrow(Throwable fail) { throw new UnsupportedOperationException(); }
+    @Override boolean runMayThrow() { throw new UnsupportedOperationException(); }
     @Override public void cancel() { throw new UnsupportedOperationException(); }
+    @Override AccordExecutor executor() { throw new UnsupportedOperationException(); }
 }

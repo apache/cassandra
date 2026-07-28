@@ -22,14 +22,12 @@ import javax.annotation.Nullable;
 
 import accord.local.ExecutionContext;
 
-import org.apache.cassandra.concurrent.DebuggableTask;
-
 public class TaskInfo implements Comparable<TaskInfo>
 {
     // sorted in name order for reporting to virtual tables
     public enum Status
     {
-        LOADING, RUNNING, SCANNING_RANGES, WAITING_TO_LOAD, WAITING_TO_RUN
+        RUNNING, LOADING, WAITING_TO_RUN
     }
 
     final Status status;
@@ -64,8 +62,8 @@ public class TaskInfo implements Comparable<TaskInfo>
         if (task instanceof SafeTask)
             return ((SafeTask<?>) task).executionContext().reason();
 
-        if (task instanceof DebuggableTask)
-            return ((DebuggableTask) task).description();
+        if (task != null)
+            return task.description();
 
         return null;
     }

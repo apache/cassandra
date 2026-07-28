@@ -33,11 +33,13 @@ import accord.utils.async.AsyncChains;
 import accord.utils.async.Cancellable;
 
 import org.apache.cassandra.service.accord.debug.DebugExecution;
+import org.apache.cassandra.service.accord.execution.Task.GroupKind;
 
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXECUTION;
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.EXCLUSIVE_QUEUE_LIMITS;
+import static org.apache.cassandra.service.accord.execution.Task.ExecutorQueue.RUNNABLE;
 import static org.apache.cassandra.service.accord.execution.Task.GlobalGroup.COMMAND_STORE;
 import static org.apache.cassandra.service.accord.execution.Task.State.WAITING_TO_RUN;
-import static org.apache.cassandra.service.accord.execution.TaskQueueRunnable.RUNNABLE;
 
 public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements ExclusiveAsyncExecutor
 {
@@ -53,40 +55,59 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
             this.queue = queue;
         }
 
-        @Override void submitExclusive() { throw new UnsupportedOperationException(); }
+        @Override AccordExecutor executor() { return queue.executor; }
+        @Override void submitExclusiveMayThrow() { throw new UnsupportedOperationException(); }
         @Override boolean isNewWork() { throw new UnsupportedOperationException(); }
         @Override public void cancel() { throw new UnsupportedOperationException(); }
+        @Override boolean runMayThrow() { throw new UnsupportedOperationException(); }
+        @Override void unqueueIfQueued() {}
+        @Override void reportFailureMayThrow(Throwable t) { throw new UnsupportedOperationException(); }
+        @Override void tryCancelExclusive() { throw new UnsupportedOperationException(); }
 
-        @Override
-        void preRunExclusive()
+        boolean prepareTask()
         {
-            super.preRunExclusive();
-            queue.preRunTask();
+            Task task = queue.task;
+            try
+            {
+                task.prepareExclusiveMayThrow();
+                task.setStateExclusive(State.PREPARED);
+                setStateExclusive(State.PREPARED);
+                return true;
+            }
+            catch (Throwable t)
+            {
+                task.setStateExclusive(State.FAILED);
+                task.reportFailureNoExcept(t);
+                maybeCompleteExclusiveMayThrow();
+                return false;
+            }
         }
 
         @Override
-        void run()
+        void maybeCompleteExclusiveMayThrow()
         {
-            queue.runTask();
+            try
+            {
+                unsafeSetStateExclusive(WAITING_TO_RUN);
+                executor().runnable.cleanup(this);
+                queue.completeTask();
+            }
+            catch (Throwable t)
+            {
+                onException(t);
+            }
         }
 
         @Override
-        void cleanupExclusive(AccordExecutor executor, boolean executed)
+        public String description()
         {
-            unsafeSetStateExclusive(WAITING_TO_RUN);
-            queue.cleanupTask(executed);
+            return queue.task.description();
         }
 
         @Override
-        void reportFailure(Throwable t)
+        public String briefDescription()
         {
-            queue.task.reportFailure(t);
-        }
-
-        @Override
-        String toDescription()
-        {
-            return queue.task.toDescription();
+            return queue.task.briefDescription();
         }
 
         protected boolean isInHeap()
@@ -113,48 +134,43 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
 
     ExclusiveExecutor(AccordExecutor executor, int commandStoreId)
     {
-        super(RUNNABLE, commandStoreId < 0 ? Task.GroupKind.NONE : Task.GroupKind.EXCLUSIVE, AccordExecutor.EXCLUSIVE_QUEUE_LIMITS);
+        super(RUNNABLE, commandStoreId < 0 ? GroupKind.NONE : GroupKind.EXCLUSIVE, EXCLUSIVE_QUEUE_LIMITS);
         this.executor = executor;
         this.commandStoreId = commandStoreId;
         this.selfTask = new ExclusiveExecutorTask(this);
         this.debug = DebugExecution.DebugExclusiveExecutor.maybeDebug(executor.debug, commandStoreId);
     }
 
-    void preRunTask()
+    void runTask(TaskRunner self)
     {
-        task.preRunExclusive();
-    }
-
-    void runTask()
-    {
-        Thread self = Thread.currentThread();
-        if (!ownerUpdater.compareAndSet(this, null, self))
+        Thread thread = Thread.currentThread();
+        if (!ownerUpdater.compareAndSet(this, null, thread))
         {
             if (DEBUG_EXECUTION) debug.onWaiting();
             Invariants.require(waiting == null);
-            waiting = self;
+            waiting = thread;
             outer:
             do
             {
                 while (true)
                 {
                     Thread owner = this.owner;
-                    if (owner == self) break outer;
+                    if (owner == thread) break outer;
                     if (owner == null) continue outer;
                     LockSupport.park();
                 }
             }
-            while (!ownerUpdater.compareAndSet(this, null, self));
-            Invariants.require(waiting == self);
+            while (!ownerUpdater.compareAndSet(this, null, thread));
+            Invariants.require(waiting == thread);
             waiting = null;
         }
 
         try
         {
             if (stopped && reject(task))
-                task.reportFailure(new RejectedExecutionException(commandStoreId + " is terminated. Cannot execute " + ((SafeTask<?>) task).executionContext()));
+                task.rejectAtRuntime(new RejectedExecutionException(commandStoreId + " is terminated. Cannot execute " + task.description()));
             else
-                task.run();
+                task.runNoExcept(self);
         }
         finally
         {
@@ -173,12 +189,12 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
         return !(terminated ? (context instanceof Unterminatable) : (context instanceof Unstoppable));
     }
 
-    void cleanupTask(boolean executed)
+    void completeTask()
     {
         try
         {
-            task.unsetQueue(this);
-            task.cleanupExclusive(executor, executed);
+            task.unsetQueue(kind);
+            task.completeExclusiveNoExcept();
         }
         finally
         {
@@ -212,7 +228,7 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
                 incrementArrivals(newTask);
             incrementDispatches(newTask);
             task = newTask;
-            task.setQueue(this);
+            task.setQueue(kind);
             selfTask.position = newTask.position;
             selfTask.unsafeSetStateExclusive(WAITING_TO_RUN);
             executor.runnable.enqueue(selfTask, incrementArrivals);
@@ -249,7 +265,7 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
         // but can for other tasks that don't track their own state
 
         decrementDispatches(task);
-        task.unsetQueue(this);
+        task.unsetQueue(kind);
         task = pollMulti();
         if (DEBUG_EXECUTION) debug.onSetTask(task);
         if (executor.runnable.isWaiting(selfTask))
@@ -315,31 +331,23 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
         return AsyncChains.flatChain(this, call);
     }
 
-    Task inherit()
-    {
-        Thread thread = Thread.currentThread();
-        if (thread == owner)
-            return Task.unwrap(task);
-
-        return executor.inherit(thread);
-    }
-
     @Override
     public void execute(Runnable run)
     {
-        Task inherit = inherit();
-        PlainRunnable submit = inherit == null ? new PlainRunnable(executor, null, run, this, Task.ExclusiveGroup.OTHER)
-                                               : new PlainRunnable(executor, null, run, this, Task.ExclusiveGroup.OTHER, inherit.position, inherit.tranche());
-        executor.submit(submit);
+        Task inherit = executor.inherit();
+        PlainRunnable task = new PlainRunnable(executor, null, run, this, Task.ExclusiveGroup.OTHER);
+        if (inherit != null) inherit.addConsequence(task);
+        else executor.submitTask(task);
     }
 
     @Override
     public Cancellable execute(AsyncCallbacks.RunOrFail runOrFail)
     {
-        Task inherit = inherit();
-        PlainChain submit = inherit == null ? new PlainChain(executor, runOrFail, ExclusiveExecutor.this, Task.ExclusiveGroup.OTHER)
-                                            : new PlainChain(executor, runOrFail, ExclusiveExecutor.this, Task.ExclusiveGroup.OTHER, inherit.position, inherit.tranche());
-        return executor.submit(submit);
+        Task inherit = executor.inherit();
+        PlainChain task = new PlainChain(executor, runOrFail, ExclusiveExecutor.this, Task.ExclusiveGroup.OTHER);
+        if (inherit != null) inherit.addConsequence(task);
+        else executor.submitTask(task);
+        return task;
     }
 
     @Override
@@ -367,7 +375,7 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
         }
         catch (Throwable t)
         {
-            executor.agent.onException(t);
+            selfTask.onException(t);
         }
         finally
         {

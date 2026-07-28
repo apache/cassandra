@@ -38,6 +38,7 @@ import accord.api.ProgressLog;
 import accord.local.CommandStores;
 import accord.local.NodeCommandStoreService;
 import accord.local.ShardDistributor;
+import accord.utils.Invariants;
 import accord.utils.RandomSource;
 import accord.utils.Reduce;
 import accord.utils.async.AsyncChain;
@@ -63,6 +64,7 @@ import org.apache.cassandra.service.accord.execution.AccordExecutorSimple;
 import org.apache.cassandra.service.accord.execution.AccordExecutorSyncSubmit;
 
 import static org.apache.cassandra.config.AccordConfig.QueueShardModel.THREAD_PER_SHARD;
+import static org.apache.cassandra.config.AccordConfig.QueueShardModel.THREAD_PER_SHARD_SYNC_QUEUE;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccord;
 import static org.apache.cassandra.service.accord.execution.AccordExecutor.Mode.RUN_WITHOUT_LOCK;
 import static org.apache.cassandra.service.accord.execution.AccordExecutor.Mode.RUN_WITH_LOCK;
@@ -123,19 +125,21 @@ public class AccordCommandStores extends CommandStores implements CacheSize, Shu
                     break;
                 case EXEC_ST:
                     factory = AccordExecutorSimple::new;
+                    Invariants.require(executors.length == 1, "Executors that hold their lock during execution cannot support multiple executor shards, as they cannot lock multiple executors at once");
                     maxThreads = 1;
                     break;
             }
 
+            QueueShardModel shardModel = config.queue_shard_model;
+            Invariants.require(shardModel != THREAD_PER_SHARD_SYNC_QUEUE || executors.length == 1, "Executors that hold their lock during execution cannot support multiple executor shards, as they cannot lock multiple executors at once");
             for (int id = 0; id < executors.length; id++)
             {
-                QueueShardModel shardModel = config.queue_shard_model;
                 String baseName = AccordExecutor.class.getSimpleName() + '[' + id;
                 switch (shardModel)
                 {
                     case THREAD_PER_SHARD:
                     case THREAD_PER_SHARD_SYNC_QUEUE:
-                        executors[id] = factory.get(id, shardModel == THREAD_PER_SHARD ? RUN_WITHOUT_LOCK : RUN_WITH_LOCK, 1, constant(baseName + ']'), agent);
+                        executors[id] = factory.get(id, shardModel == THREAD_PER_SHARD_SYNC_QUEUE ? RUN_WITH_LOCK : RUN_WITHOUT_LOCK, 1, constant(baseName + ']'), agent);
                         break;
                     case THREAD_POOL_PER_SHARD:
                         int threads = Math.min(maxThreads, Math.max(DatabaseDescriptor.getAccordConcurrentOps() / executors.length, 1));

@@ -379,7 +379,7 @@ public class AccordTestUtils
         Node.Id node = new Id(1);
         Topology topology = new Topology(1, Shard.create(range, new SortedArrayList<>(new Id[] { node }), Sets.newHashSet(node)));
         AccordCommandStore store = createAccordCommandStore(node, now, topology);
-        store.execute((ExecutionContext.Empty)()->"Test", safeStore -> ((AccordCommandStore)safeStore.commandStore()).executor().cacheUnsafe().setCapacity(1 << 20));
+        store.execute((ExecutionContext.Empty)()->"Test", safeStore -> ((AccordCommandStore)safeStore.commandStore()).executor().setCapacity(1 << 20));
         return store;
     }
 

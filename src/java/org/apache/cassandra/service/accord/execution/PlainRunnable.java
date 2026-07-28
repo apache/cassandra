@@ -22,7 +22,6 @@ import javax.annotation.Nullable;
 
 import accord.utils.async.Cancellable;
 
-import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
 class PlainRunnable extends Plain implements Cancellable
@@ -31,28 +30,12 @@ class PlainRunnable extends Plain implements Cancellable
     final Runnable run;
     final @Nullable ExclusiveExecutor exclusiveExecutor;
 
-    PlainRunnable(AccordExecutor executor, AsyncPromise<Void> result, Runnable run, GlobalGroup group, long position, int tranche)
-    {
-        super(executor, group, position, tranche);
-        this.result = result;
-        this.run = run;
-        this.exclusiveExecutor = null;
-    }
-
     PlainRunnable(AccordExecutor executor, AsyncPromise<Void> result, Runnable run, GlobalGroup group)
     {
         super(executor, group);
         this.result = result;
         this.run = run;
         this.exclusiveExecutor = null;
-    }
-
-    PlainRunnable(AccordExecutor executor, AsyncPromise<Void> result, Runnable run, ExclusiveExecutor exclusiveExecutor, ExclusiveGroup group, long position, int tranche)
-    {
-        super(executor, group, position, tranche);
-        this.result = result;
-        this.run = run;
-        this.exclusiveExecutor = exclusiveExecutor;
     }
 
     PlainRunnable(AccordExecutor executor, AsyncPromise<Void> result, Runnable run, ExclusiveExecutor exclusiveExecutor, ExclusiveGroup group)
@@ -64,31 +47,35 @@ class PlainRunnable extends Plain implements Cancellable
     }
 
     @Override
-    String toDescription()
+    protected boolean runMayThrow()
+    {
+        run.run();
+        if (result != null)
+        {
+            try { result.trySuccess(null); }
+            catch (Throwable t) { onException(t); }
+        }
+        return true;
+    }
+
+    @Override
+    public String description()
     {
         // TODO (expected): ensure this is usefully descriptive, or accept a separate description
         return run.toString();
     }
 
     @Override
-    protected void run()
+    public String briefDescription()
     {
-        onRunning();
-        try (Closeable close = resources.get())
-        {
-            run.run();
-        }
-        if (result != null)
-            result.trySuccess(null);
-        onRunComplete();
+        return description();
     }
 
     @Override
-    protected void reportFailure(Throwable t)
+    void reportFailureMayThrow(Throwable t)
     {
         if (result != null)
             result.tryFailure(t);
-        executor.agent.onException(t);
     }
 
     @Override

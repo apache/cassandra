@@ -1795,7 +1795,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         SafeCommand safeCommand = safeStore.unsafeGet(txnId);
                         Command command = safeCommand.current();
                         if (command.saveStatus() == SaveStatus.Applying)
-                            return Commands.applyChain(safeStore, command);
+                            return Commands.applyChain(safeStore, command.asExecuted());
                         Commands.maybeExecute(safeStore, safeCommand, command, true, true, NotifyWaitingOnPlus.adapter(ignore -> {}, true, true));
                         return AsyncChains.success(null);
                     });

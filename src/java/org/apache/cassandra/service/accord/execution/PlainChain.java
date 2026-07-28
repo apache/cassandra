@@ -22,8 +22,6 @@ import javax.annotation.Nullable;
 
 import accord.utils.async.AsyncCallbacks;
 
-import org.apache.cassandra.utils.Closeable;
-
 class PlainChain extends Plain
 {
     final AsyncCallbacks.RunOrFail runOrFail;
@@ -36,52 +34,34 @@ class PlainChain extends Plain
         this.exclusiveExecutor = exclusiveExecutor;
     }
 
-    PlainChain(AccordExecutor executor, AsyncCallbacks.RunOrFail runOrFail, ExclusiveExecutor exclusiveExecutor, ExclusiveGroup group, long position, int tranche)
+    @Override
+    public String description()
     {
-        super(executor, group, position, tranche);
-        this.runOrFail = runOrFail;
-        this.exclusiveExecutor = exclusiveExecutor;
+        return runOrFail.toString();
+    }
+
+    @Override
+    public String briefDescription()
+    {
+        return description();
+    }
+
+    @Override
+    boolean runMayThrow()
+    {
+        runOrFail.run();
+        return true;
+    }
+
+    @Override
+    void reportFailureMayThrow(Throwable fail)
+    {
+        runOrFail.fail(fail);
     }
 
     @Override
     ExclusiveExecutor exclusiveExecutor()
     {
         return exclusiveExecutor;
-    }
-
-    @Override
-    String toDescription()
-    {
-        return runOrFail.toString();
-    }
-
-    @Override
-    protected void run()
-    {
-        onRunning();
-        try (Closeable close = resources.get())
-        {
-            runOrFail.run();
-        }
-        catch (Throwable t)
-        {
-            // shouldn't throw exceptions
-            executor.agent.onException(t);
-        }
-        onRunComplete();
-    }
-
-    @Override
-    protected void reportFailure(Throwable fail)
-    {
-        try
-        {
-            runOrFail.fail(fail);
-        }
-        catch (Throwable t)
-        {
-            fail.addSuppressed(t);
-            executor.agent.onException(fail);
-        }
     }
 }

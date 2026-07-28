@@ -35,33 +35,9 @@ class PlainChainDebuggable extends PlainChain implements DebuggableTask
         this.describe = Invariants.nonNull(describe);
     }
 
-    PlainChainDebuggable(AccordExecutor executor, AsyncCallbacks.RunOrFail runOrFail, @Nullable ExclusiveExecutor exclusiveExecutor, long position, int tranche, Object describe)
-    {
-        super(executor, runOrFail, exclusiveExecutor, ExclusiveGroup.OTHER, position, tranche);
-        this.describe = Invariants.nonNull(describe);
-    }
-
-    @Override
-    public long creationTimeNanos()
-    {
-        return createdAt;
-    }
-
-    @Override
-    public long startTimeNanos()
-    {
-        return runningAt;
-    }
-
     @Override
     public String description()
     {
         return describe.toString();
-    }
-
-    @Override
-    public DebuggableTask debuggable()
-    {
-        return this;
     }
 }

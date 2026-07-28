@@ -102,7 +102,7 @@ import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.Sta
  *
  * TODO (required): we only iterate over unreferenced entries
  */
-public class AccordCache implements CacheSize
+public class AccordCache
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCache.class);
     private static final NoSpamLogStatement evictNoEvict = NoSpamLogger.getStatement(logger, "Found and expired {} marked no evict, with age {}, exceeding its expected max age of {}", 1L, TimeUnit.MINUTES);
@@ -180,8 +180,8 @@ public class AccordCache implements CacheSize
     }
 
     // note: only affects current contents after lock is released
-    @Override
-    public void setCapacity(long sizeInBytes)
+    // should NOT be called directly, should be called via AccordExecutor.setCapacity, so it may refresh its derived values
+    void setCapacity(long sizeInBytes)
     {
         maxSizeInBytes = sizeInBytes;
         tryShrinkOrEvict = true;
@@ -192,7 +192,6 @@ public class AccordCache implements CacheSize
         this.shrinkingOn = shrinkingOn;
     }
 
-    @Override
     public long capacity()
     {
         return maxSizeInBytes;
@@ -945,14 +944,12 @@ public class AccordCache implements CacheSize
         return unreferencedBytes;
     }
 
-    @Override
-    public int size()
+    int size()
     {
         return cacheSize();
     }
 
-    @Override
-    public long weightedSize()
+    long weightedSize()
     {
         return bytesCached;
     }

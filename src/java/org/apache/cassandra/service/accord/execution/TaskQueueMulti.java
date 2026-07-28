@@ -21,6 +21,11 @@ package org.apache.cassandra.service.accord.execution;
 import accord.utils.Invariants;
 import accord.utils.UnhandledEnum;
 
+import org.apache.cassandra.service.accord.execution.Task.ExecutorQueue;
+import org.apache.cassandra.service.accord.execution.Task.GroupKind;
+
+import static org.apache.cassandra.service.accord.execution.Task.ExecutorQueue.RUNNABLE;
+
 /**
  * A {@link TaskQueue} sub-divided into up to eight per-group sub-queues (groups are phases for the exclusive
  * executor, or work classes globally) plus a policy for choosing which sub-queue to serve next. The policy balances
@@ -130,9 +135,9 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
 
     int waitingCount;
 
-    TaskQueueMulti(int waitingStates, Task.GroupKind groups, long limits)
+    TaskQueueMulti(ExecutorQueue kind, GroupKind groups, long limits)
     {
-        super(waitingStates);
+        super(kind);
         this.limits = limits;
         int queueCount = groups.count;
         Invariants.require(queueCount <= 8);
@@ -149,14 +154,14 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
         return (task.info >>> groupShift) & Task.GROUP_MASK;
     }
 
-    void stop(int group)
+    void stop(long groupOverflowBits)
     {
-        stopped |= overflowBit(group);
+        stopped |= groupOverflowBits;
     }
 
-    void restart(int group)
+    void restart(long groupOverflowBits)
     {
-        stopped &= ~overflowBit(group);
+        stopped &= ~groupOverflowBits;
     }
 
     final TaskQueue<T> queue(Task task)
@@ -172,7 +177,7 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
     {
         TaskQueue<T> queue = queues[group];
         if (queue == null)
-            queues[group] = queue = new TaskQueue<>(0);
+            queues[group] = queue = new TaskQueue<>(RUNNABLE);
 
         return queue;
     }
@@ -439,7 +444,7 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
 
     final void enqueueMulti(T task, boolean incrementArrivals)
     {
-        task.setQueue(this);
+        task.setQueue(kind);
         int group = group(task);
         if (group < 0)
         {
@@ -492,7 +497,7 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
 
     private void unqueue(T task, int group, TaskQueue<T> queue)
     {
-        task.unsetQueue(this);
+        task.unsetQueue(kind);
         boolean dirty = queue.unqueueSingle(task);
         --waitingCount;
         if (group >= 0)
@@ -565,6 +570,11 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
         arrivals |= overflow - (overflow >>> 7);
     }
 
+    final boolean hasWaitingToRunExcluding(long groupOverflowBits)
+    {
+        return (unsaturatedWithWork() & ~groupOverflowBits) != 0;
+    }
+
     final void setHasWork(int group)
     {
         hasWork |= overflowBit(group);
@@ -600,13 +610,18 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
         return waitingCount;
     }
 
-    final long lowBit(int group)
+    static long lowBit(int group)
     {
         return 1L << (group * 8);
     }
 
-    final long overflowBit(int group)
+    static long overflowBit(int group)
     {
         return 0x80L << (group * 8);
+    }
+
+    static long overflowBit(Enum<?> group)
+    {
+        return overflowBit(group.ordinal());
     }
 }

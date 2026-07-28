@@ -34,7 +34,7 @@ import org.apache.cassandra.utils.concurrent.SignalLock;
 
 import static accord.utils.Invariants.nonNull;
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXECUTION;
-import static org.apache.cassandra.service.accord.execution.Task.State.UNINITIALIZED;
+import static org.apache.cassandra.service.accord.execution.Task.State.REGISTERED;
 
 public class AccordExecutorSignalLoop extends AbstractLoop
 {
@@ -134,7 +134,7 @@ public class AccordExecutorSignalLoop extends AbstractLoop
         {
             Task next = submit.next;
             submit.next = null;
-            submit.submitExclusive();
+            submit.submitExclusiveNoExcept();
             submit = next;
         }
     }
@@ -151,7 +151,7 @@ public class AccordExecutorSignalLoop extends AbstractLoop
             pendingExecutedHead = destructiveNext(executed);
             if (pendingExecutedHead == null)
                 pendingExecutedTail = null;
-            cleanupTaskExclusive(executed, true);
+            executed.completeExclusiveNoExcept();
         }
         else
         {
@@ -159,7 +159,7 @@ public class AccordExecutorSignalLoop extends AbstractLoop
             pendingNewHead = destructiveNext(submit);
             if (pendingNewHead == null)
                 pendingNewTail = null;
-            submit.submitExclusive();
+            submit.submitExclusiveNoExcept();
         }
         return true;
     }
@@ -227,19 +227,9 @@ public class AccordExecutorSignalLoop extends AbstractLoop
                     return;
                 }
             }
-            else
+            else if (task.prepareExclusiveNoExcept())
             {
-                try { task.preRunExclusive(); }
-                catch (Throwable t)
-                {
-                    try { task.failExclusive(t, Task.State.FAILED_OTHER); }
-                    catch (Throwable t2) { try { t.addSuppressed(t2); } catch (Throwable t3) {} }
-                    try { cleanupTaskExclusive(task, false); }
-                    catch (Throwable t2) { try { t.addSuppressed(t2); } catch (Throwable t3) {} }
-                    continue;
-                }
                 if (DEBUG_EXECUTION) DebugTask.get(task).onPreRun();
-
                 addReadyToRun(task);
                 boolean incremented = lock.incrementAsyncWork(false);
                 Invariants.require(incremented);
@@ -260,7 +250,7 @@ public class AccordExecutorSignalLoop extends AbstractLoop
             while (cur != null)
             {
                 Task next = cur.next;
-                if (cur.is(UNINITIALIZED))
+                if (cur.compareTo(REGISTERED) < 0)
                 {
                     if (addNewHead == null) addNewHead = addNewTail = setNextNull(cur);
                     else addNewHead = reverseOne(addNewHead, cur);
@@ -368,7 +358,8 @@ public class AccordExecutorSignalLoop extends AbstractLoop
 
             try
             {
-                cleanupTaskExclusive(executed, true);
+                if (executed != null)
+                    executed.completeExclusiveNoExcept();
                 fetchWorkExclusive();
             }
             catch (Throwable t)
@@ -431,24 +422,7 @@ public class AccordExecutorSignalLoop extends AbstractLoop
                     if (task == null)
                         task = awaitWork(self);
 
-                    try
-                    {
-                        self.setAccordActiveTask(task);
-                        task.run();
-                    }
-                    catch (Throwable t)
-                    {
-                        try { task.failExecution(t); }
-                        catch (Throwable t2)
-                        {
-                            try
-                            {
-                                t2.addSuppressed(t);
-                                agent.onException(t2);
-                            }
-                            catch (Throwable t3) { /* empty to ensure we definitely loop so we cleanup the task */ }
-                        }
-                    }
+                    task.runNoExcept(self);
                 }
                 catch (ShutdownException ignore)
                 {
@@ -457,10 +431,6 @@ public class AccordExecutorSignalLoop extends AbstractLoop
                 catch (Throwable t)
                 {
                     agent.onException(t);
-                }
-                finally
-                {
-                    self.setAccordActiveTask(null);
                 }
             }
         }
