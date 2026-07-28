@@ -503,7 +503,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
      *  <li> see {@link #skipValue} </li>
      * </lu>
      */
-    public final int valueLengthIfFixed()
+    public int valueLengthIfFixed()
     {
         return valueLengthIfFixed;
     }
