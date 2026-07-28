@@ -19,16 +19,17 @@
 package org.apache.cassandra.service.accord.execution;
 
 import accord.utils.IntrusivePriorityHeap;
-import accord.utils.TinyEnumSet;
+
+import org.apache.cassandra.service.accord.execution.Task.ExecutorQueue;
 
 // has xSingle methods to distinguish from within MultiTaskQueue whether we're invoking the multi or single variation
 class TaskQueue<T extends Task> extends IntrusivePriorityHeap<T>
 {
-    final int states;
+    final ExecutorQueue kind;
 
-    public TaskQueue(int states)
+    public TaskQueue(ExecutorQueue kind)
     {
-        this.states = states;
+        this.kind = kind;
     }
 
     void unqueue(T task)
@@ -105,6 +106,6 @@ class TaskQueue<T extends Task> extends IntrusivePriorityHeap<T>
     @Override
     public String toString()
     {
-        return TinyEnumSet.toString(states, Task.State::forOrdinal);
+        return kind.toString();
     }
 }

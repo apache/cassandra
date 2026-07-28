@@ -18,21 +18,16 @@
 
 package org.apache.cassandra.service.accord.execution;
 
-import accord.utils.TinyEnumSet;
-
-import static org.apache.cassandra.service.accord.execution.Task.State.RUNNING;
-import static org.apache.cassandra.service.accord.execution.Task.State.WAITING_TO_RUN;
+import static org.apache.cassandra.service.accord.execution.Task.ExecutorQueue.RUNNABLE;
 
 final class TaskQueueRunnable<T extends Task> extends TaskQueueMulti<T>
 {
-    static final int RUNNABLE = TinyEnumSet.encode(WAITING_TO_RUN, RUNNING);
-
     final TaskQueue<T> assigned;
 
     TaskQueueRunnable()
     {
         super(RUNNABLE, Task.GroupKind.GLOBAL, AccordExecutor.GLOBAL_QUEUE_LIMITS);
-        this.assigned = new TaskQueue<>(0);
+        this.assigned = new TaskQueue<>(RUNNABLE);
     }
 
     T poll()
@@ -58,7 +53,7 @@ final class TaskQueueRunnable<T extends Task> extends TaskQueueMulti<T>
             if (group >= 0)
                 decrementActive(group);
 
-            unqueue.unsetQueue(this);
+            unqueue.unsetQueue(kind);
             assigned.unqueueSingle(unqueue);
         }
         else
@@ -94,7 +89,7 @@ final class TaskQueueRunnable<T extends Task> extends TaskQueueMulti<T>
             int group = group(task);
             if (group >= 0)
                 decrementActive(group);
-            task.unsetQueue(this);
+            task.unsetQueue(kind);
         }
     }
 }

@@ -73,6 +73,11 @@ public class LogLinearDecayingHistograms
             buffer[bufferCount++] = value;
         }
 
+        public void clear()
+        {
+            bufferCount = 0;
+        }
+
         public void flush(long at)
         {
             for (int i = 0 ; i < bufferCount ; ++i)

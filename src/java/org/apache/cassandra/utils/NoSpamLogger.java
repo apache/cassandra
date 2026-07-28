@@ -18,6 +18,11 @@
 package org.apache.cassandra.utils;
 
 import java.time.Duration;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -78,16 +83,18 @@ public class NoSpamLogger
     @VisibleForTesting
     static Ticker TICKER = Ticker.systemTicker();
 
-    public class NoSpamLogStatement extends AtomicLong
+    public static class NoSpamLogStatement extends AtomicLong
     {
         private static final long serialVersionUID = 1L;
 
+        private final Logger wrapped;
         private final String statement;
         private final long minIntervalNanos;
 
-        public NoSpamLogStatement(String statement, long minIntervalNanos)
+        public NoSpamLogStatement(Logger wrapped, String statement, long minIntervalNanos)
         {
             super(Long.MIN_VALUE);
+            this.wrapped = wrapped;
             this.statement = statement;
             this.minIntervalNanos = minIntervalNanos;
         }
@@ -175,6 +182,154 @@ public class NoSpamLogger
         public long expiry()
         {
             return minIntervalNanos;
+        }
+    }
+
+    public static class NoDuplicateSpamLogStatement
+    {
+        private static final long serialVersionUID = 1L;
+        private static final int PRUNE_SIZE = 32;
+
+        private final Logger wrapped;
+        private final String statement;
+        private final long minIntervalNanos;
+        private final ConcurrentHashMap<Long, Long> lastLogged = new ConcurrentHashMap<>();
+        private final AtomicLong nextPruneAt = new AtomicLong();
+
+        public NoDuplicateSpamLogStatement(Logger wrapped, String statement, long minInterval, TimeUnit units)
+        {
+            this(wrapped, statement, units.toNanos(minInterval));
+        }
+
+        public NoDuplicateSpamLogStatement(Logger wrapped, String statement, long minIntervalNanos)
+        {
+            this.wrapped = wrapped;
+            this.statement = statement;
+            this.minIntervalNanos = minIntervalNanos;
+        }
+
+        private boolean shouldLog(long id, long nowNanos)
+        {
+            Long expected = lastLogged.getOrDefault(id, Long.MIN_VALUE);
+            if (nowNanos < expected || !lastLogged.replace(id, expected, nowNanos + minIntervalNanos))
+                return false;
+
+            if (lastLogged.size() >= PRUNE_SIZE)
+            {
+                long pruneAt = nextPruneAt.get();
+                if (nowNanos >= pruneAt && nextPruneAt.compareAndSet(pruneAt, nowNanos + minIntervalNanos))
+                {
+                    for (Map.Entry<Long, Long> e : lastLogged.entrySet())
+                    {
+                        if (nowNanos < e.getValue())
+                            lastLogged.remove(e.getKey(), e.getValue());
+                    }
+                }
+            }
+            return true;
+        }
+
+        public boolean log(Level l, long id, long nowNanos, Object... objects)
+        {
+            if (!shouldLog(id, nowNanos)) return false;
+            return logNoCheck(l, objects);
+        }
+
+        private boolean logNoCheck(Level l, Object... objects)
+        {
+            switch (l)
+            {
+                case DEBUG:
+                    wrapped.debug(statement, objects);
+                    break;
+                case INFO:
+                    wrapped.info(statement, objects);
+                    break;
+                case WARN:
+                    wrapped.warn(statement, objects);
+                    break;
+                case ERROR:
+                    wrapped.error(statement, objects);
+                    break;
+                default:
+                    throw new AssertionError();
+            }
+            return true;
+        }
+
+        public boolean debug(long id, long nowNanos, Object... objects)
+        {
+            return log(Level.DEBUG, id, nowNanos, objects);
+        }
+
+        public boolean debug(long id, Object... objects)
+        {
+            return debug(id, CLOCK.nanoTime(), objects);
+        }
+
+        public boolean info(long id, long nowNanos, Object... objects)
+        {
+            return log(Level.INFO, id, nowNanos, objects);
+        }
+
+        public boolean info(long id, Object... objects)
+        {
+            return info(id, CLOCK.nanoTime(), objects);
+        }
+
+        public boolean warn(long id, long nowNanos, Object... objects)
+        {
+            return log(Level.WARN, id, nowNanos, objects);
+        }
+
+        public boolean warn(long id, Object... objects)
+        {
+            return warn(id, CLOCK.nanoTime(), objects);
+        }
+
+        public boolean error(long id, long nowNanos, Object... objects)
+        {
+            return log(Level.ERROR, id, nowNanos, objects);
+        }
+
+        public boolean error(long id, Object... objects)
+        {
+            return error(id, CLOCK.nanoTime(), objects);
+        }
+
+        public static long exceptionId(Throwable throwable)
+        {
+            return exceptionId(throwable, Collections.newSetFromMap(new IdentityHashMap<>()));
+        }
+
+        private static long exceptionId(Throwable throwable, Set<Throwable> visited)
+        {
+            long id = throwable.getClass().hashCode();
+            for (StackTraceElement ste : throwable.getStackTrace())
+            {
+                id *= 31;
+                id += ste.getClassName().hashCode();
+                id *= 31;
+                id += ste.getLineNumber();
+            }
+
+            for (Throwable suppressed : throwable.getSuppressed())
+            {
+                if (!visited.add(suppressed))
+                    continue;
+
+                id *= 31;
+                id += exceptionId(suppressed, visited);
+            }
+            for (Throwable cause = throwable.getCause() ; cause != null ; cause = cause.getCause())
+            {
+                if (!visited.add(cause))
+                    break;
+
+                id *= 31;
+                id += exceptionId(cause, visited);
+            }
+            return id;
         }
     }
 
@@ -356,6 +511,6 @@ public class NoSpamLogger
 
     public NoSpamLogStatement getStatement(String key, String s, long minIntervalNanos)
     {
-        return lastMessage.get(key, k -> new NoSpamLogStatement(s, minIntervalNanos));
+        return lastMessage.get(key, k -> new NoSpamLogStatement(wrapped, s, minIntervalNanos));
     }
 }

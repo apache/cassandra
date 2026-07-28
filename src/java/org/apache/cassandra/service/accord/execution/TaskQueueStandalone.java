@@ -18,29 +18,33 @@
 
 package org.apache.cassandra.service.accord.execution;
 
-import accord.utils.TinyEnumSet;
+import org.apache.cassandra.service.accord.execution.Task.ExecutorQueue;
 
 final class TaskQueueStandalone<T extends Task> extends TaskQueue<T>
 {
-    TaskQueueStandalone(int states)
+    TaskQueueStandalone(ExecutorQueue kind)
     {
-        super(states);
-    }
-
-    TaskQueueStandalone(Task.State state)
-    {
-        super(TinyEnumSet.encode(state));
+        super(kind);
     }
 
     void enqueue(T enqueue)
     {
-        enqueue.setQueue(this);
+        enqueue.setQueue(kind);
         enqueueSingle(enqueue);
+    }
+
+    boolean tryUnqueue(T unqueue)
+    {
+        if (!containsNode(unqueue))
+            return false;
+
+        unqueue(unqueue);
+        return true;
     }
 
     void unqueue(T unqueue)
     {
-        unqueue.unsetQueue(this);
+        unqueue.unsetQueue(kind);
         removeNode(unqueue);
     }
 

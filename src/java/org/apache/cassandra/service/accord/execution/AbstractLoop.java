@@ -27,6 +27,8 @@ import accord.utils.Invariants;
 
 import org.apache.cassandra.concurrent.DebuggableTask.DebuggableTaskRunner;
 
+import static org.apache.cassandra.service.accord.execution.Task.State.REGISTERED;
+
 abstract class AbstractLoop extends AccordExecutor
 {
     volatile Task unqueued;
@@ -84,8 +86,8 @@ abstract class AbstractLoop extends AccordExecutor
         Invariants.require(cur != null);
         Task next = cur.next;
         cur.next = null;
-        if (cur.is(Task.State.UNINITIALIZED)) cur.submitExclusive();
-        else cleanupTaskExclusive(cur, true);
+        if (cur.compareTo(REGISTERED) < 0) cur.submitExclusiveNoExcept();
+        else cur.completeExclusiveNoExcept();
         return next;
     }
 

@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.service.accord.execution;
 
-import org.apache.cassandra.utils.Closeable;
-
 import static org.apache.cassandra.service.accord.execution.Task.GlobalGroup.SAVE;
 
 class IOTaskSave extends IOTask
@@ -40,31 +38,22 @@ class IOTaskSave extends IOTask
     }
 
     @Override
-    void postRunExclusive()
+    void maybeCompleteExclusiveMayThrow()
     {
         executor.onSavedExclusive(entry, identity, failure);
+        super.maybeCompleteExclusiveMayThrow();
     }
 
     @Override
-    String toDescription()
+    public boolean runMayThrow()
     {
-        return "Save " + entry.key();
-    }
-
-    @Override
-    public void run()
-    {
-        onRunning();
-        try (Closeable close = resources.get())
-        {
-            run.run();
-        }
-        onRunComplete();
+        run.run();
         failure = null;
+        return true;
     }
 
     @Override
-    protected void reportFailure(Throwable t)
+    void reportFailureMayThrow(Throwable t)
     {
         failure = t;
     }
@@ -73,5 +62,11 @@ class IOTaskSave extends IOTask
     public String description()
     {
         return "Save " + entry;
+    }
+
+    @Override
+    String briefDescription()
+    {
+        return description();
     }
 }

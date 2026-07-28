@@ -25,40 +25,14 @@ import org.apache.cassandra.concurrent.DebuggableTask;
 // a task that may be submitted to this executor or another
 public abstract class IOTask extends Plain implements Cancellable, DebuggableTask
 {
-    IOTask(AccordExecutor executor, GlobalGroup group, long position, int tranche)
-    {
-        super(executor, group, position, tranche);
-    }
-
     IOTask(AccordExecutor executor, GlobalGroup group)
     {
         super(executor, group);
-    }
-
-    abstract void postRunExclusive();
-
-    @Override
-    void cleanupExclusive(AccordExecutor executor, boolean executed)
-    {
-        super.cleanupExclusive(executor, executed);
-        postRunExclusive();
     }
 
     @Override
     ExclusiveExecutor exclusiveExecutor()
     {
         return null;
-    }
-
-    @Override
-    public long creationTimeNanos()
-    {
-        return createdAt;
-    }
-
-    @Override
-    public long startTimeNanos()
-    {
-        return runningAt;
     }
 }

@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord.execution;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
@@ -39,7 +40,6 @@ import accord.local.cfk.CommandsForKey;
 import accord.primitives.TxnId;
 import accord.utils.ArrayBuffers;
 import accord.utils.Invariants;
-import accord.utils.TinyEnumSet;
 import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncCallbacks.CallAndCallback;
 import accord.utils.async.AsyncCallbacks.RunOrFail;
@@ -70,8 +70,8 @@ import org.apache.cassandra.service.accord.execution.AccordCacheEntry.UniqueSave
 import org.apache.cassandra.service.accord.execution.ExclusiveExecutor.ExclusiveExecutorTask;
 import org.apache.cassandra.service.accord.execution.IOTaskWrapper.WrappableIOTask;
 import org.apache.cassandra.service.accord.execution.Task.ExclusiveGroup;
+import org.apache.cassandra.service.accord.execution.Task.ExecutorQueue;
 import org.apache.cassandra.service.accord.execution.Task.GlobalGroup;
-import org.apache.cassandra.service.accord.execution.Task.State;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Condition;
@@ -86,13 +86,11 @@ import static org.apache.cassandra.service.accord.execution.Task.GlobalGroup.LOA
 import static org.apache.cassandra.service.accord.execution.Task.GlobalGroup.OTHER;
 import static org.apache.cassandra.service.accord.execution.Task.GlobalGroup.RANGE_LOAD;
 import static org.apache.cassandra.service.accord.execution.Task.GlobalGroup.RANGE_SCAN;
-import static org.apache.cassandra.service.accord.execution.Task.State.FAILED_TO_LOAD;
-import static org.apache.cassandra.service.accord.execution.Task.State.LOADING_OPTIONAL;
-import static org.apache.cassandra.service.accord.execution.Task.State.LOADING_REQUIRED;
-import static org.apache.cassandra.service.accord.execution.Task.State.SCANNING_RANGES;
-import static org.apache.cassandra.service.accord.execution.Task.State.WAITING_ON_OPTIONAL;
-import static org.apache.cassandra.service.accord.execution.Task.State.WAITING_ON_REQUIRED;
+import static org.apache.cassandra.service.accord.execution.Task.State.EXECUTED;
+import static org.apache.cassandra.service.accord.execution.Task.State.FAILED;
+import static org.apache.cassandra.service.accord.execution.Task.State.UNREGISTERED;
 import static org.apache.cassandra.service.accord.execution.TaskQueueMulti.COUNTER_MASKS;
+import static org.apache.cassandra.service.accord.execution.TaskQueueMulti.overflowBit;
 import static org.apache.cassandra.service.accord.execution.TaskQueueMulti.selectByOverflowBits;
 import static org.apache.cassandra.service.accord.execution.TaskQueueMulti.setOverflowWhenLessEqual;
 
@@ -113,6 +111,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
     static final long GLOBAL_QUEUE_LIMITS, EXCLUSIVE_QUEUE_LIMITS;
     static final int NONSYNC_MIN_BATCH_SIZE, NONSYNC_MAX_BATCH_SIZE, NONSYNC_BLOCKED_LIMIT;
     static final boolean NONSYNC_ENABLED;
+    private static final long LOADING_GROUPS = overflowBit(LOAD) | overflowBit(RANGE_LOAD) | overflowBit(RANGE_SCAN);
 
     static
     {
@@ -217,9 +216,8 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
     private long maxWorkingSetSizeInBytes;
     private long maxWorkingCapacityInBytes;
 
-    final TaskQueueStandalone<SafeTask<?>> scanningRanges = new TaskQueueStandalone<>(TinyEnumSet.encode(SCANNING_RANGES)); // never queried, just parked here while scanning
-    final TaskQueueStandalone<SafeTask<?>> loading = new TaskQueueStandalone<>(TinyEnumSet.encode(LOADING_REQUIRED, LOADING_OPTIONAL));
-    final TaskQueueStandalone<SafeTask<?>> waitingOnCacheQueues = new TaskQueueStandalone<>(TinyEnumSet.encode(WAITING_ON_REQUIRED, WAITING_ON_OPTIONAL));
+    final TaskQueueStandalone<SafeTask<?>> loading = new TaskQueueStandalone<>(ExecutorQueue.LOADING);
+    final TaskQueueStandalone<SafeTask<?>> waiting = new TaskQueueStandalone<>(ExecutorQueue.WAITING);
     final TaskQueueRunnable<Task> runnable = new TaskQueueRunnable<>();
 
     private final Tranches tranches = new Tranches(this);
@@ -409,17 +407,17 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         }
     }
 
+    private boolean hasNonLoadingWaitingToRun()
+    {
+        return runnable.hasWaitingToRunExcluding(LOADING_GROUPS);
+    }
+
     final void maybeUnpauseLoading()
     {
-        if (!hasPausedLoading)
-            return;
-
-        if (cache.weightedSize() < maxWorkingCapacityInBytes && !runnable.hasWaitingToRun())
+        if (hasPausedLoading && (cache.weightedSize() < maxWorkingCapacityInBytes || !hasNonLoadingWaitingToRun()))
         {
             hasPausedLoading = false;
-            runnable.restart(RANGE_SCAN.ordinal());
-            runnable.restart(LOAD.ordinal());
-            runnable.restart(RANGE_LOAD.ordinal());
+            runnable.restart(LOADING_GROUPS);
         }
     }
 
@@ -428,13 +426,11 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         if (hasPausedLoading)
             return;
 
-        if (cache.weightedSize() >= maxWorkingCapacityInBytes || !runnable.hasWaitingToRun())
+        if (!hasPausedLoading && cache.weightedSize() >= maxWorkingCapacityInBytes && hasNonLoadingWaitingToRun())
         {
             AccordSystemMetrics.metrics.pausedExecutorLoading.inc();
             hasPausedLoading = true;
-            runnable.stop(RANGE_SCAN.ordinal());
-            runnable.stop(LOAD.ordinal());
-            runnable.stop(RANGE_LOAD.ordinal());
+            runnable.stop(LOADING_GROUPS);
         }
     }
 
@@ -452,46 +448,48 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
     public <K, V> IOTaskLoad<?, ?> load(SafeTask<?> parent, Boolean isForRange, AccordCacheEntry<K, V, ?> entry)
     {
         IOTaskLoad<?, ?> result = newLoad(entry, isForRange);
-        result.submitExclusive(null, parent);
+        result.inherit(parent).submitExclusiveNoExcept();
         return result;
     }
 
     @Override
     public Cancellable save(AccordCacheEntry<?, ?, ?> entry, UniqueSave identity, Runnable save)
     {
-        return new IOTaskSave(this, entry, identity, save).submitExclusive(null, null);
+        IOTaskSave task = new IOTaskSave(this, entry, identity, save);
+        task.submitExclusiveNoExcept();
+        return task;
     }
 
-    Cancellable submit(Task task)
+    void submitTask(Task task)
     {
-        submit(Task::submitExclusive, i -> i, task);
-        return task;
+        submit(Task::submitExclusiveNoExcept, i -> i, task);
     }
 
     public Future<?> submit(Runnable run)
     {
         Task inherit = inherit();
-        PlainRunnable task = inherit == null ? new PlainRunnable(this, new AsyncPromise<>(), run, OTHER)
-                                             : new PlainRunnable(this, new AsyncPromise<>(), run, OTHER, inherit.position, inherit.tranche());
-        submit(task);
+        PlainRunnable task = new PlainRunnable(this, new AsyncPromise<>(), run, OTHER);
+        if (inherit != null) inherit.addConsequence(task);
+        else submitTask(task);
         return task.result;
     }
 
     public void execute(Runnable run)
     {
         Task inherit = inherit();
-        PlainRunnable task = inherit == null ? new PlainRunnable(this, null, run, OTHER)
-                                             : new PlainRunnable(this, null, run, OTHER, inherit.position, inherit.tranche());
-        submit(task);
+        PlainRunnable task = new PlainRunnable(this, null, run, OTHER);
+        if (inherit != null) inherit.addConsequence(task);
+        else submitTask(task);
     }
 
     @Override
     public Cancellable execute(RunOrFail runOrFail)
     {
         Task inherit = inherit();
-        PlainChain submit = inherit == null ? new PlainChain(this, runOrFail, null, ExclusiveGroup.OTHER)
-                                            : new PlainChain(this, runOrFail, null, ExclusiveGroup.OTHER, inherit.position, inherit.tranche());
-        return submit(submit);
+        PlainChain task = new PlainChain(this, runOrFail, null, ExclusiveGroup.OTHER);
+        if (inherit != null) inherit.addConsequence(task);
+        else submitTask(task);
+        return task;
     }
 
     public <T> AsyncChain<T> buildDebuggable(Callable<T> call, Object describe)
@@ -502,30 +500,29 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
             protected Cancellable start(BiConsumer<? super T, Throwable> callback)
             {
                 Task inherit = inherit();
-                return submit(inherit == null ? new PlainChainDebuggable(AccordExecutor.this, new CallAndCallback<>(call, callback), null, describe)
-                                              : new PlainChainDebuggable(AccordExecutor.this, new CallAndCallback<>(call, callback), null, inherit.position, inherit.tranche(), describe));
+                PlainChainDebuggable task = new PlainChainDebuggable(AccordExecutor.this, new CallAndCallback<>(call, callback), null, describe);
+                if (inherit != null) inherit.addConsequence(task);
+                else submitTask(task);
+                return task;
             }
         };
     }
 
     public void submitExclusive(Runnable runnable)
     {
-        new PlainRunnable(this, null, runnable, OTHER).submitExclusive(null, null);
+        new PlainRunnable(this, null, runnable, OTHER).submitExclusiveNoExcept();
     }
 
-    Cancellable submitExclusive(Task parent, GlobalGroup group, WrappableIOTask task)
+    Cancellable submitExclusive(Task parent, GlobalGroup group, WrappableIOTask wrap)
     {
-        return new IOTaskWrapper(this, task, group, parent.position, parent.tranche()).submitExclusive(null, parent);
+        IOTaskWrapper task = new IOTaskWrapper(this, wrap, group);
+        task.inherit(parent).submitExclusiveNoExcept();
+        return task;
     }
 
     Task inherit()
     {
-        return inherit(Thread.currentThread());
-    }
-
-    Task inherit(Thread thread)
-    {
-        TaskRunner self = TaskRunner.get(thread);
+        TaskRunner self = TaskRunner.get();
 
         if (self.accordActiveExecutor() != this)
             return null;
@@ -536,17 +533,10 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         return task;
     }
 
-    void registerConsequenceExclusive(Task parent, Task task)
-    {
-        ++tasks;
-        int tranche = parent.tranche();
-        tranches.addInherited(tranche, parent.position);
-        task.position = parent.position;
-        task.setInheritedWithTranche(tranche);
-    }
-
     void registerExclusive(Task task)
     {
+        Invariants.require(isOwningThread());
+        Invariants.require(task.is(UNREGISTERED));
         ++tasks;
         if (task.hasInherited())
         {
@@ -573,15 +563,14 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         }
     }
 
-    final void cleanupTaskExclusive(Task task, boolean executed)
+    final void completedTaskExclusive(Task task)
     {
+        Invariants.require(task.compareTo(EXECUTED) >= 0);
+        if (DEBUG_EXECUTION) DebugTask.get(task).onCompleted(debug);
+        unregisterExclusive(task);
         runnable.cleanup(task);
-        try { task.cleanupExclusive(this, executed); }
-        finally
-        {
-            cache.tryShrinkOrEvict(lock);
-            maybeUnpauseLoading();
-        }
+        cache.tryShrinkOrEvict(lock);
+        maybeUnpauseLoading();
     }
 
     final void unregisterExclusive(Task task)
@@ -594,25 +583,13 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
     void onScannedRangesExclusive(SafeTask<?> task, Throwable fail)
     {
         // the task may have already been cancelled, in which case we don't need to fail it
-        if (task.state().isExecuted())
+        if (task.state().isDone())
             return;
 
-        if (fail != null) failExclusive(task, fail, FAILED_TO_LOAD);
-        else task.rangeScanner().scannedExclusive();
-    }
-
-    private void failExclusive(SafeTask<?> task, Throwable fail, State newState)
-    {
-        if (task.state().isExecuted())
-            return;
-
-        try { task.failExclusive(fail, newState); }
-        catch (Throwable t) { agent.onException(t); }
-        finally
-        {
-            task.unqueueIfQueued();
-            cleanupTaskExclusive(task, false);
-        }
+        SafeTask<?>.RangeTxnScanner scanner = task.rangeScanner();
+        if (scanner == null && fail == null) fail = new CancellationException();
+        if (fail != null) task.tryFailAndCompleteExclusive(fail, FAILED);
+        else scanner.scannedExclusive();
     }
 
     <K, V> void onSavedExclusive(AccordCacheEntry<K, V, ?> state, Object identity, Throwable fail)
@@ -630,7 +607,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
             if (fail != null)
             {
                 for (SafeTask<?> task : tasks)
-                    failExclusive(task, fail, FAILED_TO_LOAD);
+                    task.tryFailAndCompleteExclusive(fail, FAILED);
                 cache.failedToLoad(loaded);
             }
             else
@@ -666,13 +643,18 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
     {
         Invariants.require(isOwningThread());
         cache.setCapacity(bytes);
-        maxWorkingCapacityInBytes = cache.capacity() + maxWorkingSetSizeInBytes;
+        refreshCapacity();
     }
 
     public void setWorkingSetSize(long bytes)
     {
         Invariants.require(isOwningThread());
         maxWorkingSetSizeInBytes = bytes;
+        refreshCapacity();
+    }
+
+    private void refreshCapacity()
+    {
         maxWorkingCapacityInBytes = cache.capacity() + maxWorkingSetSizeInBytes;
         if (maxWorkingCapacityInBytes < maxWorkingSetSizeInBytes)
             maxWorkingCapacityInBytes = Long.MAX_VALUE;
@@ -698,7 +680,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
 
     public int unsafePreparingToRunCount()
     {
-        return loading.size() + scanningRanges.size();
+        return loading.size();
     }
 
     public int unsafeWaitingToRunCount()
@@ -738,8 +720,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         lock(self);
         try
         {
-            addToSnapshot(result, scanningRanges, TaskInfo.Status.SCANNING_RANGES, TaskInfo.Status.SCANNING_RANGES);
-            addToSnapshot(result, loading, TaskInfo.Status.WAITING_TO_LOAD, TaskInfo.Status.WAITING_TO_LOAD);
+            addToSnapshot(result, loading, TaskInfo.Status.LOADING, TaskInfo.Status.LOADING);
             for (TaskQueue queue : runnable.queues)
             {
                 if (queue != null)
@@ -819,5 +800,14 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         }
 
         return result;
+    }
+
+    protected static void prepareRunComplete(TaskRunner self, Task task)
+    {
+        if (task.prepareExclusiveNoExcept())
+        {
+            try { task.runNoExcept(self); }
+            finally { task.completeExclusiveNoExcept(); }
+        }
     }
 }

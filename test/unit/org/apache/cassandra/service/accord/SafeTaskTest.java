@@ -84,7 +84,6 @@ import org.apache.cassandra.service.accord.execution.AccordExecutor.ExclusiveGlo
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.TokenKey;
-import org.apache.cassandra.service.accord.execution.SaferCommand;
 import org.apache.cassandra.service.accord.execution.SafeTask;
 import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -101,7 +100,6 @@ import static org.apache.cassandra.service.accord.AccordTestUtils.createAccordCo
 import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialTxn;
 import static org.apache.cassandra.service.accord.AccordTestUtils.keys;
 import static org.apache.cassandra.service.accord.AccordTestUtils.txnId;
-import static org.apache.cassandra.service.accord.execution.AccordExecutionTestUtils.loaded;
 
 public class SafeTaskTest
 {
@@ -178,9 +176,6 @@ public class SafeTaskTest
     private static Command createStableAndPersist(AccordCommandStore commandStore, TxnId txnId, Timestamp executeAt)
     {
         Command command = AccordTestUtils.Commands.stable(txnId, createPartialTxn(0), executeAt);
-        SaferCommand safeCommand = new SaferCommand(loaded(txnId, null));
-        safeCommand.set(command);
-
         appendDiffToLog(commandStore).accept(null, command);
         return command;
     }
@@ -215,12 +210,12 @@ public class SafeTaskTest
         try (ExclusiveGlobalCaches cache = commandStore.executor().lockCaches())
         {
             cacheSize = cache.global.capacity();
-            cache.global.setCapacity(0);
+            commandStore.executor().setCapacity(0);
         }
 
         try (ExclusiveGlobalCaches cache = commandStore.executor().lockCaches())
         {
-            cache.global.setCapacity(cacheSize);
+            commandStore.executor().setCapacity(cacheSize);
         }
 
         while (commandStore.executor().hasTasks())
@@ -265,11 +260,11 @@ public class SafeTaskTest
         try (ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
         {
             cacheSize = cache.global.capacity();
-            cache.global.setCapacity(0);
+            commandStore.executor().setCapacity(0);
         }
         try (ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
         {
-            cache.global.setCapacity(cacheSize);
+            commandStore.executor().setCapacity(cacheSize);
         }
 
         while (commandStore.executor().hasTasks())
@@ -287,7 +282,7 @@ public class SafeTaskTest
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         try (AccordExecutor.ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
         {
-            cache.global.setCapacity(0);
+            commandStore.executor().setCapacity(0);
         }
         Gen<TxnId> txnIdGen = rs -> txnId(1, clock.incrementAndGet(), 1);
 

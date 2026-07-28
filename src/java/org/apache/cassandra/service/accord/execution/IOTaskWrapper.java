@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.service.accord.execution;
 
-import org.apache.cassandra.utils.Closeable;
-
 class IOTaskWrapper extends IOTask
 {
     static abstract class WrappableIOTask
@@ -32,33 +30,24 @@ class IOTaskWrapper extends IOTask
 
     final WrappableIOTask wrapped;
 
-    IOTaskWrapper(AccordExecutor executor, WrappableIOTask wrap, GlobalGroup group, long position, int tranche)
+    IOTaskWrapper(AccordExecutor executor, WrappableIOTask wrap, GlobalGroup group)
     {
-        super(executor, group, position, tranche);
+        super(executor, group);
         this.wrapped = wrap;
     }
 
     @Override
-    String toDescription()
+    protected boolean runMayThrow()
     {
-        return wrapped.description();
+        wrapped.runInternal();
+        return true;
     }
 
     @Override
-    protected void run()
-    {
-        onRunning();
-        try (Closeable close = resources.get())
-        {
-            wrapped.runInternal();
-        }
-        onRunComplete();
-    }
-
-    @Override
-    void postRunExclusive()
+    void maybeCompleteExclusiveMayThrow()
     {
         wrapped.postRunExclusive();
+        super.maybeCompleteExclusiveMayThrow();
     }
 
     @Override
@@ -68,7 +57,13 @@ class IOTaskWrapper extends IOTask
     }
 
     @Override
-    protected void reportFailure(Throwable fail)
+    public String briefDescription()
+    {
+        return description();
+    }
+
+    @Override
+    void reportFailureMayThrow(Throwable fail)
     {
         wrapped.fail(fail);
     }

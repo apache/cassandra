@@ -98,7 +98,7 @@ public class AccordCommandTest
     public void basicCycleTest() throws Throwable
     {
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-        getBlocking(commandStore.execute((ExecutionContext.Empty)() -> "Test", unused -> commandStore.executor().cacheUnsafe().setCapacity(0)));
+        getBlocking(commandStore.execute((ExecutionContext.Empty)() -> "Test", unused -> commandStore.executor().setCapacity(0)));
 
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
         Txn txn = createWriteTxn(1);
@@ -191,7 +191,7 @@ public class AccordCommandTest
     public void computeDeps() throws Throwable
     {
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-        getBlocking(commandStore.execute((ExecutionContext.Empty)()->"Test", unused -> commandStore.executor().cacheUnsafe().setCapacity(0)));
+        getBlocking(commandStore.execute((ExecutionContext.Empty)()->"Test", unused -> commandStore.executor().setCapacity(0)));
 
         TxnId txnId1 = txnId(1, clock.incrementAndGet(), 1);
         Txn txn = createWriteTxn(2);

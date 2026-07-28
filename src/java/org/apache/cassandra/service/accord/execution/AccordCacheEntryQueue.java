@@ -31,6 +31,8 @@ import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.Run
 
 class AccordCacheEntryQueue
 {
+    static final AccordCacheEntryQueue EMPTY = new AccordCacheEntryQueue(0);
+
     private static final int DEFAULT_CAPACITY = 4;
     static final int LOCKED_INDEX = 0;
     static final int PRIORITY_START_INDEX = LOCKED_INDEX + 1;
@@ -49,9 +51,14 @@ class AccordCacheEntryQueue
 
     public AccordCacheEntryQueue()
     {
-        tasks = new SafeTask[DEFAULT_CAPACITY];
+        this(DEFAULT_CAPACITY);
+    }
+
+    public AccordCacheEntryQueue(int capacity)
+    {
+        tasks = new SafeTask[capacity];
         priorityHead = priorityTail = PRIORITY_START_INDEX;
-        fifoHead = fifoTail = DEFAULT_CAPACITY - 1;
+        fifoHead = fifoTail = capacity - 1;
     }
 
     AccordCacheEntryQueue(AccordCacheEntryQueue copy)
@@ -412,18 +419,7 @@ class AccordCacheEntryQueue
             if (tasks[priorityHead] == task)
                 return priorityHead;
 
-            int i = SortedArrays.binarySearch(tasks, priorityHead + 1, priorityTail, task, AccordCacheEntryQueue::compare, SortedArrays.Search.CEIL);
-            if (i < 0)
-                return -1;
-
-            while (i < priorityTail)
-            {
-                if (tasks[i] == task)
-                    return i;
-                if (compare(task, tasks[i]) != 0)
-                    break;
-                ++i;
-            }
+            return Arrays.binarySearch(tasks, priorityHead + 1, priorityTail, task, AccordCacheEntryQueue::compare);
         }
 
         for (int i = priorityHead; i < priorityTail; ++i)
@@ -504,10 +500,6 @@ class AccordCacheEntryQueue
             c = a.executionContext().executionKind().compareTo(b.executionContext().executionKind());
         if (c == 0)
             c = Long.compare(a.createdAt, b.createdAt);
-        if (c == 0)
-            c = Long.compare(a.loadedAt, b.loadedAt);
-        if (c == 0)
-            c = a.loggingId().compareTo(b.loggingId());
         return c;
     }
 
