@@ -1571,7 +1571,8 @@ class Shell(cmd.Cmd):
                          request_timeout=self.session.default_timeout,
                          connect_timeout=self.conn.connect_timeout,
                          is_subshell=True,
-                         auth_provider=self.auth_provider)
+                         auth_provider=self.auth_provider,
+                         mode=self.mode)
         # duplicate coverage related settings in subshell
         if self.coverage:
             subshell.coverage = True

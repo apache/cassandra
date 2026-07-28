@@ -1266,3 +1266,49 @@ class TestCqlshOutput(BaseTestCase):
             cleanup_q2 = "DELETE FROM %s.has_all_types WHERE num = 9999;" % ks
             cqlsh_testcall(args=('--mode', 'json'), prompt=None, env=self.default_env,
                            tty=False, input=cleanup_q2 + '\n')
+
+    def test_source_inherits_mode(self):
+        """SOURCE subshell must inherit --mode from the parent shell (not revert to tabular)."""
+        import json
+        import tempfile
+        import os
+
+        ks = get_keyspace()
+        query = "SELECT a, b FROM twenty_rows_table WHERE a IN ('1', '2');\n"
+
+        # Write the query to a temporary SOURCE file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.cql', delete=False) as f:
+            f.write(query)
+            source_file = f.name
+
+        try:
+            # Run cqlsh --mode json and SOURCE the file
+            source_cmd = "SOURCE '%s';\n" % source_file
+            output, result = cqlsh_testcall(args=('--mode', 'json'), prompt=None,
+                                            env=self.default_env, tty=False,
+                                            input=source_cmd)
+            self.assertEqual(0, result)
+            try:
+                rows = json.loads(output)
+                self.assertIsInstance(rows, list,
+                                      msg='SOURCE with --mode json must produce a JSON array')
+                self.assertEqual(len(rows), 2)
+                results = {(item['a'], item['b']) for item in rows}
+                self.assertIn(('1', '1'), results)
+                self.assertIn(('2', '2'), results)
+            except ValueError as e:
+                self.fail("SOURCE output is not valid JSON (mode not inherited): %s\nOutput: %r"
+                          % (e, output))
+
+            # Also verify CSV mode is inherited
+            output_csv, result_csv = cqlsh_testcall(args=('--mode', 'csv'), prompt=None,
+                                                    env=self.default_env, tty=False,
+                                                    input=source_cmd)
+            self.assertEqual(0, result_csv)
+            import csv, io
+            reader = csv.reader(io.StringIO(output_csv.strip()))
+            csv_rows = list(reader)
+            self.assertGreater(len(csv_rows), 1, msg='SOURCE with --mode csv must produce CSV rows')
+            self.assertIn('a', csv_rows[0], msg='First CSV row must be a header')
+        finally:
+            os.unlink(source_file)
