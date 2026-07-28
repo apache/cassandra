@@ -339,6 +339,108 @@ public class ReadResponseTest
     }
 
     @Test
+    public void inMemoryResponseClosesRowIteratorOnceWhenAllInMemory()
+    {
+        // Nothing overflows, so the row iterator is only ever closed by the response builder itself.
+        assertRowIteratorClosedOnce()
+            .rows(3)
+            .maxRows(10)
+            .expectInMemory()
+            .verify();
+    }
+
+    @Test
+    public void inMemoryResponseClosesRowIteratorOnceOnRowLimitOverflow()
+    {
+        assertRowIteratorClosedOnce()
+            .rows(5)
+            .maxRows(2)
+            .expectSerialized()
+            .verify();
+    }
+
+    @Test
+    public void inMemoryResponseClosesRowIteratorOnceOnSizeLimitOverflow()
+    {
+        assertRowIteratorClosedOnce()
+            .rows(5)
+            .maxSize(1)
+            .expectSerialized()
+            .verify();
+    }
+
+    private CloseAssertionBuilder assertRowIteratorClosedOnce()
+    {
+        return new CloseAssertionBuilder();
+    }
+
+    /**
+     * Builds an in-memory response over a row iterator that counts how often it is closed, and asserts the count is
+     * exactly one. On overflow the iterator is passed on to the serializer, which closes every partition it
+     * serializes, so the response builder must not close it again. Closing a partition is what triggers the recording
+     * of per-read metrics (see {@link ReadCommand#withMetricsRecording}) and similar end-of-partition work, and a
+     * second close would count all of it twice. The count is taken on a wrapper handed straight to the response
+     * builder rather than through the transform framework, whose iterators swallow repeated closes internally
+     * ({@code BaseIterator.close}) and would therefore hide the problem.
+     */
+    private class CloseAssertionBuilder
+    {
+        private int rows = 0;
+        private int maxRows = 0;   // 0 = row-count limit disabled
+        private long maxSize = 0;  // 0 = heap-size limit disabled
+        // true = the response is expected to stay in memory, false = a limit is crossed and it is serialized in full
+        private Boolean expectInMemory = null;
+
+        CloseAssertionBuilder rows(int rows) { this.rows = rows; return this; }
+        CloseAssertionBuilder maxRows(int maxRows) { this.maxRows = maxRows; return this; }
+        CloseAssertionBuilder maxSize(long maxSize) { this.maxSize = maxSize; return this; }
+        CloseAssertionBuilder expectInMemory() { this.expectInMemory = true; return this; }
+        CloseAssertionBuilder expectSerialized() { this.expectInMemory = false; return this; }
+
+        void verify()
+        {
+            int partitionKey = key();
+            ReadCommand command = command(partitionKey, metadataWithClustering);
+            StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
+            PartitionUpdate update = buildMultiRowUpdate(metadataWithClustering, partitionKey, rows);
+
+            CloseCountingRowIterator rowIter = new CloseCountingRowIterator(update.unfilteredIterator());
+            ReadResponse response = ReadResponse.createInMemoryDataResponse(singlePartitionIterator(rowIter), command, rdi, maxRows, maxSize);
+
+            // Guards against the assertion below passing on a path it was not meant to cover: a serialized response
+            // keeps nothing in memory, one that stayed in memory holds every row.
+            assertEquals("response took the wrong path", expectInMemory ? rows : 0, response.inMemoryUnfilteredCount());
+            assertEquals("row iterator must be closed exactly once", 1, rowIter.closeCount);
+        }
+    }
+
+    /**
+     * Passes everything through to the wrapped iterator, counting the calls to close().
+     */
+    private static class CloseCountingRowIterator implements WrappingUnfilteredRowIterator
+    {
+        private final UnfilteredRowIterator wrapped;
+        private int closeCount = 0;
+
+        CloseCountingRowIterator(UnfilteredRowIterator wrapped)
+        {
+            this.wrapped = wrapped;
+        }
+
+        public UnfilteredRowIterator wrapped()
+        {
+            return wrapped;
+        }
+
+        @Override
+        public void close()
+        {
+            closeCount++;
+            wrapped.close();
+        }
+    }
+
+    @Test
     public void inMemoryResponseWithOverflowMatchesLocalDataResponse()
     {
         // Row limit crossed: the whole response is serialized.
@@ -676,12 +778,16 @@ public class ReadResponseTest
     }
     private UnfilteredPartitionIterator singlePartitionIterator(PartitionUpdate update, boolean reversed)
     {
-        UnfilteredRowIterator rowIter = update.unfilteredIterator(ColumnFilter.SelectionColumnFilter.all(update.columns()), Slices.ALL, reversed);
+        return singlePartitionIterator(update.unfilteredIterator(ColumnFilter.SelectionColumnFilter.all(update.columns()), Slices.ALL, reversed));
+    }
+
+    private UnfilteredPartitionIterator singlePartitionIterator(UnfilteredRowIterator rowIter)
+    {
         return new AbstractUnfilteredPartitionIterator()
         {
             private boolean returned = false;
 
-            public TableMetadata metadata() { return update.metadata(); }
+            public TableMetadata metadata() { return rowIter.metadata(); }
 
             public boolean hasNext() { return !returned; }
 
@@ -822,7 +928,7 @@ public class ReadResponseTest
         // Wraps the row iterator so that close() marks rdi as consumed, simulating RepairedDataInfo
         // updating its digest lazily after the partition has been fully read.
         UnfilteredRowIterator baseRowIter = update.unfilteredIterator();
-        UnfilteredRowIterator wrappedRowIter = new WrappingUnfilteredRowIterator()
+        return singlePartitionIterator(new WrappingUnfilteredRowIterator()
         {
             public UnfilteredRowIterator wrapped() { return baseRowIter; }
 
@@ -832,21 +938,7 @@ public class ReadResponseTest
                 rdi.markConsumed();
                 baseRowIter.close();
             }
-        };
-        return new AbstractUnfilteredPartitionIterator()
-        {
-            private boolean returned = false;
-
-            public TableMetadata metadata() { return update.metadata(); }
-
-            public boolean hasNext() { return !returned; }
-
-            public UnfilteredRowIterator next()
-            {
-                returned = true;
-                return wrappedRowIter;
-            }
-        };
+        });
     }
 
     private static class StubReadCommand extends SinglePartitionReadCommand

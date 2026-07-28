@@ -58,9 +58,10 @@ public abstract class ReadResponse
     // Serializer for single partition read response
     public static final IVersionedSerializer<ReadResponse> serializer = new Serializer();
 
-    // Per-request limits for the in-memory portion of a local single-partition read response. Unfiltered objects are
-    // kept as an in-memory partition until either enabled limit is reached; the remainder is serialized into an
-    // overflow buffer. Each limit is disabled independently by setting it to <= 0.
+    // Per-request limits for keeping a local single-partition read response in memory. Unfiltered objects are
+    // kept as an in-memory partition, and once either enabled limit is reached the whole response is serialized
+    // instead, so a response is either fully in memory or fully serialized. Each limit is disabled independently
+    // by setting it to <= 0.
     //   - IN_MEMORY_MAX_ROWS: maximum number of in-memory Unfiltered objects (rows and range tombstone markers).
     //   - IN_MEMORY_MAX_SIZE: maximum accumulated unshared heap size (in bytes) of the in-memory Unfiltered objects.
     // ONE/LOCAL_ONE reads use separate higher limits: the local read is consumed directly
@@ -74,19 +75,19 @@ public abstract class ReadResponse
     {
     }
 
-    private static int maxRows(boolean localReplicaOnly)
+    private static int inMemoryMaxRows(boolean localReplicaOnly)
     {
         return localReplicaOnly ? IN_MEMORY_MAX_ROWS_CL_ONE : IN_MEMORY_MAX_ROWS;
     }
 
-    private static long maxSize(boolean localReplicaOnly)
+    private static long inMemoryMaxHeapSize(boolean localReplicaOnly)
     {
         return localReplicaOnly ? IN_MEMORY_MAX_SIZE_CL_ONE : IN_MEMORY_MAX_SIZE;
     }
 
     static boolean inMemoryLocalResponseEnabled(boolean localReplicaOnly)
     {
-        return maxRows(localReplicaOnly) > 0 || maxSize(localReplicaOnly) > 0;
+        return inMemoryMaxRows(localReplicaOnly) > 0 || inMemoryMaxHeapSize(localReplicaOnly) > 0;
     }
 
     @VisibleForTesting
@@ -107,13 +108,14 @@ public abstract class ReadResponse
 
     static ReadResponse createInMemoryDataResponse(UnfilteredPartitionIterator data, ReadCommand command, RepairedDataInfo rdi, boolean oneOrLocalOne)
     {
-        return createInMemoryDataResponse(data, command, rdi, maxRows(oneOrLocalOne), maxSize(oneOrLocalOne));
+        return createInMemoryDataResponse(data, command, rdi, inMemoryMaxRows(oneOrLocalOne), inMemoryMaxHeapSize(oneOrLocalOne));
     }
 
     @VisibleForTesting
-    static ReadResponse createInMemoryDataResponse(UnfilteredPartitionIterator data, ReadCommand command, RepairedDataInfo rdi, int maxRows, long maxHeapSize)
+    static ReadResponse createInMemoryDataResponse(UnfilteredPartitionIterator data, ReadCommand command, RepairedDataInfo rdi,
+                                                   int inMemoryMaxRows, long inMemoryMaxHeapSize)
     {
-        return InMemoryDataResponse.build(data, command, rdi, maxRows, maxHeapSize);
+        return InMemoryDataResponse.build(data, command, rdi, inMemoryMaxRows, inMemoryMaxHeapSize);
     }
 
     @VisibleForTesting
@@ -419,7 +421,8 @@ public abstract class ReadResponse
         // the whole response as an in-memory partition; null if the response was empty
         private final ImmutableBTreePartition partition;
 
-        static ReadResponse build(UnfilteredPartitionIterator iter, ReadCommand command, RepairedDataInfo rdi, int maxRows, long maxHeapSize)
+        static ReadResponse build(UnfilteredPartitionIterator iter, ReadCommand command, RepairedDataInfo rdi,
+                                  int inMemoryMaxRows, long inMemoryMaxHeapSize)
         {
             if (!iter.hasNext())
             {
@@ -428,10 +431,13 @@ public abstract class ReadResponse
             }
 
             ImmutableBTreePartition partition;
-            ByteBuffer serialized;
-            try (UnfilteredRowIterator rowIter = iter.next())
+            ByteBuffer serialized = null;
+            // Closing rowIter is our job, LimitedUnfilteredRowIterator deliberately never closes what it wraps.
+            // The only exception is the overflow path, where serialize() takes it over, hence no try-with-resources.
+            UnfilteredRowIterator rowIter = iter.next();
+            try
             {
-                LimitedUnfilteredRowIterator limitedIter = new LimitedUnfilteredRowIterator(rowIter, maxRows, maxHeapSize);
+                LimitedUnfilteredRowIterator limitedIter = new LimitedUnfilteredRowIterator(rowIter, inMemoryMaxRows, inMemoryMaxHeapSize);
                 partition = ImmutableBTreePartition.create(limitedIter);
 
                 if (limitedIter.hasOverflow())
@@ -440,11 +446,13 @@ public abstract class ReadResponse
                     (limitedIter.overflowedByRowLimit() ? ReadResponseMetrics.inMemoryRowLimitHits
                                                         : ReadResponseMetrics.inMemorySizeLimitHits).inc();
                     serialized = serialize(command, partition, rowIter);
+                    rowIter = null;
                 }
-                else
-                {
-                    serialized = null;
-                }
+            }
+            finally
+            {
+                if (rowIter != null)
+                    rowIter.close();
             }
 
             // Capture digest after consuming and closing the iterator so any RepairedDataInfo transformations are reflected.
@@ -489,8 +497,8 @@ public abstract class ReadResponse
         private static class LimitedUnfilteredRowIterator extends AbstractUnfilteredRowIterator
         {
             private final UnfilteredRowIterator wrapped;
-            private final int maxRows;
-            private final long maxHeapSize;
+            private final int inMemoryMaxRows;
+            private final long inMemoryMaxHeapSize;
 
             private int unfilteredCount = 0;
             private long accumulatedHeapSize = 0;
@@ -498,7 +506,7 @@ public abstract class ReadResponse
             private boolean overflowByRowLimit = false;
             private boolean insideOpenMarker = false;
 
-            private LimitedUnfilteredRowIterator(UnfilteredRowIterator wrapped, int maxRows, long maxHeapSize)
+            private LimitedUnfilteredRowIterator(UnfilteredRowIterator wrapped, int inMemoryMaxRows, long inMemoryMaxHeapSize)
             {
                 super(wrapped.metadata(),
                       wrapped.partitionKey(),
@@ -508,8 +516,8 @@ public abstract class ReadResponse
                       wrapped.isReverseOrder(),
                       wrapped.stats());
                 this.wrapped = wrapped;
-                this.maxRows = maxRows;
-                this.maxHeapSize = maxHeapSize;
+                this.inMemoryMaxRows = inMemoryMaxRows;
+                this.inMemoryMaxHeapSize = inMemoryMaxHeapSize;
             }
 
             boolean hasOverflow()
@@ -530,9 +538,9 @@ public abstract class ReadResponse
 
                 if (!insideOpenMarker)
                 {
-                    if (maxRows > 0 && unfilteredCount >= maxRows)
+                    if (inMemoryMaxRows > 0 && unfilteredCount >= inMemoryMaxRows)
                         return overflow(true);
-                    if (maxHeapSize > 0 && accumulatedHeapSize >= maxHeapSize)
+                    if (inMemoryMaxHeapSize > 0 && accumulatedHeapSize >= inMemoryMaxHeapSize)
                         return overflow(false);
                 }
 
@@ -544,7 +552,7 @@ public abstract class ReadResponse
                 }
                 unfilteredCount++;
                 // Compute the heap size only when the size limit is enabled to avoid overheads if it is not needed
-                if (maxHeapSize > 0)
+                if (inMemoryMaxHeapSize > 0)
                     accumulatedHeapSize += unsharedHeapSize(next);
                 return next;
             }
