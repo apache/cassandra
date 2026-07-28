@@ -283,6 +283,7 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
                 status &= ~LOCKED_MASK;
                 q.unlock(task);
             }
+            else if (isLoading()) remove = true;
             else if (task.isUnsequenced(this))
             {
                 if (task.isCacheQueued())
@@ -326,7 +327,14 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
         {
             Invariants.require(!ownsLock);
             if (task.isUnsequenced(this) && task.isCacheQueued())
-                --unsequenced; // nothing to release if we hit zero
+            {
+                if (--unsequenced == 0 && queue != null && isLoaded())
+                {
+                    SafeTask<?> head = (SafeTask<?>) queue;
+                    if (head.holdsLocksBetweenRuns())
+                        head.onChangeOptionalHeadStatus(this, NEWLY_RUNNABLE);
+                }
+            }
         }
     }
 
@@ -479,7 +487,7 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
     private void onChangedHead(AccordCacheEntryQueue q, @Nullable SafeTask<?> notifyNewHead, @Nullable SafeTask<?> notifyPrevHead)
     {
         if (notifyNewHead != null && isRunnable(notifyNewHead))
-            notifyNewHead.onChangeHeadStatus(this, q.totalSize() == 1 ? NEWLY_RUNNABLE : NEWLY_BLOCKING_RUNNABLE);
+            notifyNewHead.onChangeHeadStatus(this, q.totalSize() <= 1 ? NEWLY_RUNNABLE : NEWLY_BLOCKING_RUNNABLE);
         if (notifyPrevHead != null && isRunnable(notifyPrevHead))
             notifyPrevHead.onChangeHeadStatus(this, NOT_RUNNABLE);
     }
@@ -583,7 +591,7 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
         if (--unsequenced == 0)
         {
             SafeTask<?> head = q.peek();
-            if (head != null && head.holdsLocksBetweenRuns())
+            if (head != null && head.holdsLocksBetweenRuns() && isLoaded())
                 onChangedHead(q, head, null);
         }
     }

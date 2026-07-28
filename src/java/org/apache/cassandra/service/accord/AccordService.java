@@ -385,6 +385,11 @@ public class AccordService implements IAccordService, Shutdownable
             AccordService as = new AccordService(tcmIdToAccord(tcmId));
             unsafeInstance = replyInstance = as;
             as.localStartup();
+
+            AccordReplicaMetrics.touch();
+            AccordSystemMetrics.touch();
+            AccordExecutorMetrics.touch();
+            AccordViolationHandler.setup();
         }
     }
 
@@ -398,11 +403,6 @@ public class AccordService implements IAccordService, Shutdownable
             return as;
 
         as.distributedStartupInternal();
-
-        AccordReplicaMetrics.touch();
-        AccordSystemMetrics.touch();
-        AccordExecutorMetrics.touch();
-        AccordViolationHandler.setup();
         return as;
     }
 

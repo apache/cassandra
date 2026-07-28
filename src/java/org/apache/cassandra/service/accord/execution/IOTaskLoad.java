@@ -20,8 +20,6 @@ package org.apache.cassandra.service.accord.execution;
 
 import accord.utils.Invariants;
 
-import org.apache.cassandra.utils.Closeable;
-
 import static org.apache.cassandra.service.accord.execution.IOTaskLoad.FailureHolder.NOT_STARTED;
 import static org.apache.cassandra.service.accord.execution.Task.GlobalGroup.LOAD;
 import static org.apache.cassandra.service.accord.execution.Task.GlobalGroup.RANGE_LOAD;
@@ -50,33 +48,25 @@ public class IOTaskLoad<K, V> extends IOTask
         this.entry = entry;
     }
 
-    void postRunExclusive()
+    @Override
+    void maybeCompleteExclusiveMayThrow()
     {
         if (!(result instanceof FailureHolder))
             executor.onLoadedExclusive(entry, (V) result, null);
         else
             executor.onLoadedExclusive(entry, null, ((FailureHolder) result).fail);
+        super.maybeCompleteExclusiveMayThrow();
     }
 
     @Override
-    String toDescription()
+    public boolean runMayThrow()
     {
-        return "Load " + entry.key();
+        result = entry.owner.parent().adapter().load(entry.owner.commandStore, entry.key());
+        return true;
     }
 
     @Override
-    public void run()
-    {
-        onRunning();
-        try (Closeable close = resources.get())
-        {
-            result = entry.owner.parent().adapter().load(entry.owner.commandStore, entry.key());
-        }
-        onRunComplete();
-    }
-
-    @Override
-    void reportFailure(Throwable t)
+    void reportFailureMayThrow(Throwable t)
     {
         result = new FailureHolder(t);
     }
@@ -84,6 +74,12 @@ public class IOTaskLoad<K, V> extends IOTask
     @Override
     public String description()
     {
-        return "Loading " + entry;
+        return "Load " + entry.key();
+    }
+
+    @Override
+    public String briefDescription()
+    {
+        return description();
     }
 }

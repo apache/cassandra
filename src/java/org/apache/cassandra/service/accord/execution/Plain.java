@@ -20,27 +20,15 @@ package org.apache.cassandra.service.accord.execution;
 
 import java.util.concurrent.CancellationException;
 
-import accord.utils.Invariants;
 import accord.utils.async.Cancellable;
 
 import static org.apache.cassandra.service.accord.execution.Task.State.CANCELLED;
 import static org.apache.cassandra.service.accord.execution.Task.State.WAITING_TO_RUN;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 abstract class Plain extends Task implements Cancellable
 {
     final AccordExecutor executor;
-
-    Plain(AccordExecutor executor, GlobalGroup group, long position, int tranche)
-    {
-        super(group, position, tranche);
-        this.executor = executor;
-    }
-
-    Plain(AccordExecutor executor, ExclusiveGroup group, long position, int tranche)
-    {
-        super(group, position, tranche);
-        this.executor = executor;
-    }
 
     Plain(AccordExecutor executor, GlobalGroup group)
     {
@@ -57,54 +45,59 @@ abstract class Plain extends Task implements Cancellable
     abstract ExclusiveExecutor exclusiveExecutor();
 
     @Override
-    public void cancel()
+    public final void cancel()
     {
-        executor.submit(Task::cancelExclusive, CancelTask::new, this);
+        executor.submit(Task::tryCancelExclusive, CancelTask::new, this);
     }
 
-    void cancelExclusive()
+    @Override
+    final void tryCancelExclusive()
     {
+        tryFailAndCompleteExclusive(new CancellationException(), CANCELLED);
+    }
+
+    @Override
+    final void submitExclusiveMayThrow()
+    {
+        executor.registerExclusive(this);
+        setStateExclusive(WAITING_TO_RUN);
         ExclusiveExecutor exclusiveExecutor = exclusiveExecutor();
-        if ((exclusiveExecutor == null ? executor.runnable : exclusiveExecutor).tryUnqueueWaiting(this))
+        if (exclusiveExecutor == null) executor.runnable.enqueue(this, true);
+        else exclusiveExecutor.enqueue(this, true);
+    }
+
+    @Override
+    void maybeCompleteExclusiveMayThrow()
+    {
+        if (completeState())
         {
-            try
-            {
-                failExclusive(new CancellationException(), CANCELLED);
-            }
-            catch (Throwable t)
-            {
-                executor.agent.onException(t);
-            }
-            finally
-            {
-                executor.cleanupTaskExclusive(this, false);
-            }
+            long completeAt = nanoTime();
+            executor.elapsedWaitingToRun.increment(runningAt - createdAt, runningAt);
+            executor.elapsedRunning.increment(completeAt - runningAt, completeAt);
+            executor.elapsed.increment(completeAt - createdAt, completeAt);
         }
     }
 
     @Override
-    final void submitExclusive()
+    void unqueueIfQueued()
     {
-        submitExclusive(exclusiveExecutor(), null);
-    }
-
-    final Cancellable submitExclusive(ExclusiveExecutor exclusiveExecutor, Task parent)
-    {
-        Invariants.require(executor.isOwningThread());
-        setStateExclusive(WAITING_TO_RUN);
-
-        if (parent == null) executor.registerExclusive(this);
-        else executor.registerConsequenceExclusive(parent, this);
-        onLoaded();
-
-        if (exclusiveExecutor == null) executor.runnable.enqueue(this, true);
-        else exclusiveExecutor.enqueue(this, true);
-        return this;
+        if (isQueued())
+        {
+            ExclusiveExecutor exclusiveExecutor = exclusiveExecutor();
+            if (exclusiveExecutor != null) exclusiveExecutor.unqueue(this);
+            else executor.runnable.unqueue(this);
+        }
     }
 
     @Override
     protected boolean isNewWork()
     {
         return true;
+    }
+
+    @Override
+    AccordExecutor executor()
+    {
+        return executor;
     }
 }

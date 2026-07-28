@@ -56,6 +56,7 @@ import accord.primitives.AbstractRanges;
 import accord.primitives.AbstractUnseekableKeys;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
+import accord.primitives.Routable;
 import accord.primitives.RoutingKeys;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -81,7 +82,6 @@ import org.apache.cassandra.service.accord.execution.AccordCacheEntry.RunnableSt
 import org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.Condition;
 
@@ -90,6 +90,7 @@ import static accord.local.LoadKeys.NONE;
 import static accord.local.LoadKeys.SYNC;
 import static accord.local.LoadKeysFor.RECOVERY;
 import static accord.local.LoadKeysFor.WRITE;
+import static accord.primitives.Routable.Domain.Key;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXECUTION;
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DebugTask.SANITY_CHECK;
@@ -106,18 +107,26 @@ import static org.apache.cassandra.service.accord.execution.SaferState.postExecu
 import static org.apache.cassandra.service.accord.execution.SaferState.preExecute;
 import static org.apache.cassandra.service.accord.execution.Task.GlobalGroup.LOAD;
 import static org.apache.cassandra.service.accord.execution.Task.GlobalGroup.RANGE_LOAD;
-import static org.apache.cassandra.service.accord.execution.Task.RunState.PERSISTING;
+import static org.apache.cassandra.service.accord.execution.Task.RunState.RUN_FAILED;
+import static org.apache.cassandra.service.accord.execution.Task.RunState.NOT_YET_RUN;
+import static org.apache.cassandra.service.accord.execution.Task.RunState.RUN_PERSISTING;
+import static org.apache.cassandra.service.accord.execution.Task.RunState.RUN_INCOMPLETE;
+import static org.apache.cassandra.service.accord.execution.Task.RunState.RUNNING;
 import static org.apache.cassandra.service.accord.execution.Task.State.CANCELLED;
+import static org.apache.cassandra.service.accord.execution.Task.State.CANCELLED_UNREGISTERED;
+import static org.apache.cassandra.service.accord.execution.Task.State.FAILED;
 import static org.apache.cassandra.service.accord.execution.Task.State.INCOMPLETE;
 import static org.apache.cassandra.service.accord.execution.Task.State.LOADING_OPTIONAL;
 import static org.apache.cassandra.service.accord.execution.Task.State.LOADING_REQUIRED;
-import static org.apache.cassandra.service.accord.execution.Task.State.RUNNING;
+import static org.apache.cassandra.service.accord.execution.Task.State.PREPARED;
+import static org.apache.cassandra.service.accord.execution.Task.State.REGISTERED;
 import static org.apache.cassandra.service.accord.execution.Task.State.SCANNING_RANGES;
 import static org.apache.cassandra.service.accord.execution.Task.State.WAITING;
 import static org.apache.cassandra.service.accord.execution.Task.State.WAITING_ON_OPTIONAL;
 import static org.apache.cassandra.service.accord.execution.Task.State.WAITING_ON_REQUIRED;
-import static org.apache.cassandra.service.accord.execution.Task.State.WAITING_OR_RUNNING;
+import static org.apache.cassandra.service.accord.execution.Task.State.WAITING_OR_PREPARED;
 import static org.apache.cassandra.service.accord.execution.Task.State.WAITING_TO_RUN;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public final class SafeTask<R> extends Task implements Cancellable, DebuggableTask
 {
@@ -137,47 +146,46 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         return new SafeTask<>((AccordCommandStore) commandStore, context, function);
     }
 
-    final class NonSyncState extends ExecutionContext.Wrapped implements ExecutionContext
+    static class NonSyncState extends ExecutionContext.Wrapped implements ExecutionContext
     {
         RoutingKeys active;
-        ObjectHashSet<RoutingKey> notBlocking;
-        ObjectHashSet<RoutingKey> blocking; // cache entries on which we're blocking work
+        ObjectHashSet<RoutingKey> blocking, notBlocking;
         int loaded, processed;
-        int ready;
+        boolean alwaysReady;
 
-        public NonSyncState()
+        public NonSyncState(ExecutionContext context)
         {
-            super(executionContext);
+            super(context);
         }
 
         @Override
-        public Unseekables<?> keys()
+        public final Unseekables<?> keys()
         {
             return active;
         }
 
-        void addLoaded()
+        final void addLoaded()
         {
             ++loaded;
         }
 
-        void onNotHead(AccordCacheEntry<?, ?, ?> entry)
+        final void onNotHead(AccordCacheEntry<?, ?, ?> entry)
         {
             if ((notBlocking == null || !notBlocking.remove((RoutingKey) entry.key())) && blocking != null)
                 blocking.remove((RoutingKey) entry.key());
         }
 
-        void onNewHead(AccordCacheEntry<?, ?, ?> entry)
+        final void onNewHead(AccordCacheEntry<?, ?, ?> entry)
         {
             ensureNotBlocking().add((RoutingKey) entry.key());
         }
 
-        void onNewBlockingHead(AccordCacheEntry<?, ?, ?> entry)
+        final void onNewBlockingHead(AccordCacheEntry<?, ?, ?> entry)
         {
             ensureBlocking().add((RoutingKey) entry.key());
         }
 
-        void onStillHeadNewBlocking(AccordCacheEntry<?, ?, ?> entry)
+        final void onStillHeadNewBlocking(AccordCacheEntry<?, ?, ?> entry)
         {
             notBlocking.remove((RoutingKey) entry.key());
             ensureBlocking().add((RoutingKey) entry.key());
@@ -202,33 +210,33 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             return (blocking == null ? 0 : blocking.size()) + (notBlocking == null ? 0 : notBlocking.size());
         }
 
-        boolean isLoaded()
+        final boolean isLoaded(SafeTask<?> owner)
         {
-            return loaded >= Math.min(keys, NONSYNC_MIN_BATCH_SIZE);
+            return loaded >= Math.min(owner.keys, alwaysReady ? 1 : NONSYNC_MIN_BATCH_SIZE);
         }
 
-        boolean isWaitReady()
+        final boolean isWaitReady(SafeTask<?> owner)
         {
-            if (readyCount() >= Math.min(keys - processed, NONSYNC_MIN_BATCH_SIZE))
+            if (readyCount() >= Math.min(owner.keys - processed, alwaysReady ? 1 : NONSYNC_MIN_BATCH_SIZE))
                 return true;
 
             return blocking != null && blocking.size() >= NONSYNC_BLOCKED_LIMIT;
         }
 
-        void preRunExclusive()
+        void prepareExclusive(SafeTask<?> owner)
         {
             try (BufferList<RoutingKey> keys = new BufferList<>())
             {
                 if ((blocking == null || !populate(keys, blocking)) && notBlocking != null)
                     populate(keys, notBlocking);
 
-                keys.forEach(key -> preExecute(refs.get(key), SafeTask.this, RELEASE_QUEUE));
+                keys.forEach(key -> preExecute(owner.refs.get(key), owner, RELEASE_QUEUE));
                 keys.sort(RoutingKey::compareTo);
                 active = RoutingKeys.of(keys);
             }
             processed += active.size();
-            if (processed == keys && isIncremental())
-                setIncrementalFinishingExclusive();
+            if (processed == owner.keys && owner.isIncremental())
+                owner.setIncrementalFinishingExclusive();
         }
 
         private boolean populate(List<RoutingKey> keys, ObjectHashSet<RoutingKey> from)
@@ -254,20 +262,35 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             return false;
         }
 
-        void postRunExclusive()
+        void postRunExclusive(SafeTask<?> owner)
         {
             if (active != null)
             {
                 for (RoutingKey key : active)
-                    postExecute(refs.remove(key), SafeTask.this);
+                    postExecute(owner.refs.remove(key), owner);
                 active = null;
             }
-            ready = readyCount();
+        }
+    }
+
+    static class IncrementalState extends NonSyncState
+    {
+        long waiting, running;
+
+        public IncrementalState(ExecutionContext context)
+        {
+            super(context);
+        }
+
+        void updateMetrics(long waiting, long running)
+        {
+            this.running += running;
+            this.waiting += waiting;
         }
     }
 
     final AccordCommandStore commandStore;
-    private final ExecutionContext executionContext;
+    private final ExecutionContext context;
     private final Function<? super SafeCommandStore, R> function;
 
     // TODO (expected): simple custom map that allows (at least):
@@ -296,17 +319,17 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
     int keys; // TODO (expected): not counting keys we add during execution
     LogLinearDecayingHistograms.Buffer histogramBuffer;
-    @Nullable RangeTxnScanner rangeScanner;
-    @Nullable CommandSummaries commandsForRanges;
-    byte runState;
+
+    @Nullable Object ranges;
+    long loadedAt;
 
     private BiConsumer<? super R, Throwable> callback;
 
-    public SafeTask(@Nonnull AccordCommandStore commandStore, ExecutionContext executionContext, Function<? super SafeCommandStore, R> function)
+    public SafeTask(@Nonnull AccordCommandStore commandStore, ExecutionContext context, Function<? super SafeCommandStore, R> function)
     {
-        super(executionContext, commandStore.executor().uniqueCreatedAt);
+        super(context, commandStore.executor().uniqueCreatedAt);
         this.commandStore = commandStore;
-        this.executionContext = executionContext;
+        this.context = context;
         this.function = function;
         if (logger.isTraceEnabled())
             logger.trace("Created {} on {}", this, commandStore);
@@ -320,21 +343,19 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     @Override
     public String toString()
     {
-        return "@[" + commandStore.id() + ',' + commandStore.node().id() + "] " + executionContext.describe() + ' ' + toBriefString();
+        return "@[" + commandStore.id() + ',' + commandStore.node().id() + "] " + context.describe() + ' ' + toBriefString();
     }
 
     public String toBriefString()
     {
-        return '{' + loggingId() + ',' + describeState() + '}';
+        return '{' + loggingId() + ',' + currentState() + '}';
     }
 
-    public String toDescription()
+    public String summarise()
     {
-        return toBriefString() + ": "
-               + (queued() == null ? "unqueued" : describeState())
-               + ", primaryTxnId: " + executionContext.primaryTxnId()
+        return loggingId() + ' ' + context.executionKind()
+               + ": primaryTxnId: " + context.primaryTxnId()
                + ", state: " + summarise(refs, SaferState::global);
-
     }
 
     private static <V> String summarise(Map<?, V> map, Function<V, Object> transform)
@@ -383,66 +404,79 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             @Override
             protected Cancellable start(BiConsumer<? super R, Throwable> callback)
             {
-                preSetup(callback);
-                executor().submit(SafeTask.this);
+                if (!preSetup(callback))
+                    executor().submitTask(SafeTask.this);
                 return SafeTask.this;
             }
         };
     }
 
-    private void preSetup(BiConsumer<? super R, Throwable> callback)
+    private boolean preSetup(BiConsumer<? super R, Throwable> callback)
     {
         Invariants.require(this.callback == null);
         this.callback = callback;
-        TaskRunner self = TaskRunner.get();
-        Task task = self.accordActiveSelfTask();
-        if (task instanceof SafeTask<?>)
+        Task inherit = executor().inherit();
+        if (inherit == null)
+            return false;
+
+        Invariants.require(inherit.is(PREPARED));
+        if (!inherit.is(RUNNING))
+            return false;
+
+        if (inherit instanceof SafeTask<?>)
         {
-            SafeTask<?> parent = (SafeTask<?>) task;
-            if (parent.commandStore == commandStore)
-                preSetup(parent);
+            SafeTask<?> inheritRefs = (SafeTask<?>) inherit;
+            if (inheritRefs.commandStore == commandStore)
+                preSetup(inheritRefs);
         }
+        inherit.addConsequence(this);
+        return true;
     }
 
     // to be invoked only by the CommandStore owning thread, to take references to objects already in use by the current execution
-    public void preSetup(SafeTask<?> parent)
+    private void preSetup(SafeTask<?> parent)
     {
-        this.position = parent.position;
-        setInheritedWithTranche(parent.tranche());
-
         // note we use the caches "unsafely" here deliberately, as we only reference commands we already have references to
         // so we do not mutate anything, except the atomic counter of references
-
-        LoadKeys loadKeys = loadKeys(executionContext);
+        LoadKeys loadKeys = loadKeys(context);
         if (loadKeys != NONE)
         {
-            Unseekables<?> parentKeysOrRanges = parent.executionContext.keys();
-            Unseekables<?> keysOrRanges = executionContext.keys();
+            Unseekables<?> parentKeysOrRanges = parent.context.keys();
+            Unseekables<?> keysOrRanges = context.keys();
 
             boolean isKeySubset = parent.isIncremental() ? parent.nonSync.active.containsAll(keysOrRanges) : parentKeysOrRanges.containsAll(keysOrRanges);
             if (isKeySubset)
                 setInheritedRangeScan();
 
-            setSequencedExclusive(executionContext.executionSequence());
-            if (isSequencedByPriorityAtomic())
-            {
-                boolean isTxnIdSubset = executionContext.isTxnIdSubsetOf(parent.executionContext);
-                Invariants.require(isKeySubset, "Must start ATOMIC tasks from a task declaring a superset of the required keys (for ASYNC/INCR tasks this means the keys active for the batch in question)");
-                Invariants.require(isTxnIdSubset, "Must start ATOMIC tasks from a task declaring a superset of the required TxnIds");
-                // TODO (required): we're appending to the fifo queue - does this maintain correct order?
-                setCacheQueuedFifoExclusive();
-            }
-
+            setSequencedExclusive(context.executionSequence());
             if (loadKeys != SYNC)
             {
                 setNonSyncExclusive();
-                nonSync = new NonSyncState();
                 if (loadKeys == INCR)
                 {
+                    nonSync = new IncrementalState(context);
                     setIncrementalExclusive();
                     // forbid BY_PRIORITY sequencing to avoid priority inversion deadlocks on INCR tasks that lock a TxnId but await some key that has a higher priority task (that is waiting on our locked TxnId) - solvable in future if necessary
                     Invariants.require(isSequencedByPriorityAtomic() || isUnsequenced(), "INCR tasks may currently only be ATOMIC or UNSEQUENCED");
                 }
+                else
+                {
+                    nonSync = new NonSyncState(context);
+                }
+            }
+
+            if (isSequencedByPriorityAtomic())
+            {
+                boolean isTxnIdSubset = context.isTxnIdSubsetOf(parent.context);
+                if (!isKeySubset)
+                {
+                    Invariants.require(keysOrRanges.domain() == Key, "ATOMIC tasks over ranges must declare a subset of their parent's task keys() to avoid a range scan across which we would not impose sequencing");
+                    // to avoid priority inversion deadlocks, if we are not a strict subset of the parent task we permit running with a single key ready
+                    nonSync.alwaysReady = true;
+                }
+                Invariants.require(isTxnIdSubset, "ATOMIC tasks must declare a subset of their parent's task txnIds() to avoid a priority inversion deadlock");
+                // TODO (required): we're appending to the fifo queue - does this maintain correct order?
+                setCacheQueuedFifoExclusive();
             }
 
             if (keysOrRanges.equals(parentKeysOrRanges))
@@ -473,28 +507,32 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             }
         }
 
-        for (TxnId txnId : executionContext.txnIds())
+        for (TxnId txnId : context.txnIds())
             preSetup(txnId, parent.refs, commandStore.cachesUnsafe().commands());
     }
 
     @Override
-    void submitExclusive()
+    void submitExclusiveMayThrow()
     {
         Caches caches = commandStore.cachesExclusive();
         executor().registerExclusive(this);
+        setStateExclusive(REGISTERED);
         boolean hasPreSetup = hasInherited();
-        LoadKeys loadKeys = loadKeys(executionContext);
+        LoadKeys loadKeys = loadKeys(context);
         if (loadKeys != NONE)
         {
             if (loadKeys != SYNC && !hasPreSetup)
             {
                 setNonSyncExclusive();
-                nonSync = new NonSyncState();
-                if (loadKeys == INCR)
+                if (loadKeys != INCR) nonSync = new NonSyncState(context);
+                else
+                {
+                    nonSync = new IncrementalState(context);
                     setIncrementalExclusive();
+                }
             }
 
-            Unseekables<?> keysOrRanges = executionContext.keys();
+            Unseekables<?> keysOrRanges = context.keys();
             switch (keysOrRanges.domain())
             {
                 case Range:
@@ -510,7 +548,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             }
         }
 
-        for (TxnId txnId : executionContext.txnIds())
+        for (TxnId txnId : context.txnIds())
         {
             if (hasPreSetup && completePresetupExclusive(txnId))
                 continue;
@@ -525,14 +563,15 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
     private void setupKeyLoadsExclusive(boolean hasPreSetup, Caches caches, Iterable<? extends RoutingKey> setupKeys, boolean doNotScanRanges)
     {
-        if (executionContext.loadKeys() == NONE)
+        if (context.loadKeys() == NONE)
             return;
 
-        if (!doNotScanRanges && executionContext.loadKeysFor() == RECOVERY)
+        if (!doNotScanRanges && context.loadKeysFor() == RECOVERY)
         {
-            Invariants.require(rangeScanner == null);
-            rangeScanner = new RangeTxnScanner();
-            rangeScanner.start();
+            Invariants.require(ranges == null);
+            RangeTxnScanner scanner = new RangeTxnScanner();
+            ranges = scanner;
+            scanner.start();
         }
 
         int waitsForIncrement = isSync() ? 1 : 0;
@@ -547,11 +586,12 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
     private void setupRangeLoadsExclusive(Caches caches)
     {
-        if (executionContext.loadKeysFor() == WRITE)
+        if (context.loadKeysFor() == WRITE)
             return;
 
-        rangeScanner = new RangeTxnAndKeyScanner(caches.commandsForKeys());
-        rangeScanner.start();
+        RangeTxnAndKeyScanner scanner = new RangeTxnAndKeyScanner(caches.commandsForKeys());
+        ranges = scanner;
+        scanner.start();
     }
 
     // expects mutual exclusivity only on the command store
@@ -679,7 +719,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
     private void onLoadedRequiredExclusive()
     {
-        if (isSync() || nonSync.isLoaded())
+        if (isSync() || nonSync.isLoaded(this) || isCacheQueuedFifo())
         {
             waitOnCacheQueuesExclusive();
         }
@@ -702,13 +742,13 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
     boolean holdsLocksBetweenRuns()
     { // TODO (desired): encode as a state bit
-        return isIncremental() && executionContext.primaryTxnId() != null;
+        return isIncremental() && context.primaryTxnId() != null;
     }
 
     private void waitOnCacheQueuesExclusive()
     {
         Invariants.require(waitingForState == 0);
-        onLoaded();
+        loadedAt = nanoTime();
         executor().runnable.incrementArrivals(this);
         commandStore.exclusiveExecutor().incrementArrivals(this);
 
@@ -731,17 +771,17 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         else
         {
             setStateExclusive(WAITING_ON_REQUIRED);
-            executor().waitingOnCacheQueues.enqueue(this);
+            executor().waiting.enqueue(this);
         }
     }
 
     private void waitOnOptionalCacheQueuesExclusive()
     {
-        if (isSync() || nonSync.isWaitReady()) waitToRunExclusive();
+        if (isSync() || nonSync.isWaitReady(this)) waitToRunExclusive();
         else
         {
             setStateExclusive(WAITING_ON_OPTIONAL);
-            executor().waitingOnCacheQueues.enqueue(this);
+            executor().waiting.enqueue(this);
         }
     }
 
@@ -765,7 +805,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
                 case WAITING_ON_REQUIRED:
                 case WAITING_ON_OPTIONAL:
                 case WAITING_TO_RUN:
-                case RUNNING:
+                case PREPARED:
                     RunnableStatus status = addToCacheQueue(loaded, false);
                     if (status != NOT_RUNNABLE)
                         addQueuedOptionalKey(loaded, status);
@@ -796,7 +836,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     void addLoadedOptionalKey()
     {
         nonSync.addLoaded();
-        if (is(LOADING_OPTIONAL) && nonSync.isLoaded())
+        if (is(LOADING_OPTIONAL) && nonSync.isLoaded(this))
         {
             unqueue(executor().loading);
             waitOnCacheQueuesExclusive();
@@ -820,16 +860,16 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
                 break;
         }
 
-        if (is(WAITING_ON_OPTIONAL) && nonSync.isWaitReady())
+        if (is(WAITING_ON_OPTIONAL) && nonSync.isWaitReady(this))
         {
-            unqueue(executor().waitingOnCacheQueues);
+            unqueue(executor().waiting);
             waitToRunExclusive();
         }
     }
 
     void onChangeHeadStatus(AccordCacheEntry<?, ?, ?> entry, RunnableStatus status)
     {
-        if (isSync() || !entry.isCommandsForKey()) onChangeRequiredHeadStatus(entry, status);
+        if (isSync() || !entry.isCommandsForKey()) onChangeRequiredHeadStatus(status);
         if (isNonSync() && entry.isCommandsForKey()) onChangeOptionalHeadStatus(entry, status);
     }
 
@@ -844,14 +884,14 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
                 // TODO (expected): this is potentially costly; maybe we don't want to swap these in and out (but harder to maintain invariants)
                 unqueue(commandStore.exclusiveExecutor());
                 setStateExclusive(WAITING_ON_REQUIRED);
-                executor().waitingOnCacheQueues.enqueue(this);
+                executor().waiting.enqueue(this);
             }
         }
         Invariants.require(waitingForState < refs.size());
         ++waitingForState;
     }
 
-    void onChangeRequiredHeadStatus(AccordCacheEntry<?, ?, ?> entry, RunnableStatus newStatus)
+    void onChangeRequiredHeadStatus(RunnableStatus newStatus)
     {
         if (newStatus == NOT_RUNNABLE)
         {
@@ -862,7 +902,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             Invariants.require(is(WAITING_ON_REQUIRED));
             if (--waitingForState == 0)
             {
-                unqueue(executor().waitingOnCacheQueues);
+                unqueue(executor().waiting);
                 waitOnOptionalCacheQueuesExclusive();
             }
         }
@@ -870,18 +910,18 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
     void onChangeOptionalHeadStatus(AccordCacheEntry<?, ?, ?> entry, RunnableStatus status)
     {
-        Invariants.require(isState(WAITING_OR_RUNNING));
+        Invariants.require(isState(WAITING_OR_PREPARED));
         switch (status)
         {
             default: throw UnhandledEnum.unknown(status);
             case STILL_RUNNABLE: throw UnhandledEnum.invalid(STILL_RUNNABLE); // onChange -> changed (but this means no change)
             case NOT_RUNNABLE:
                 nonSync.onNotHead(entry);
-                if (is(WAITING_TO_RUN) && !nonSync.isWaitReady())
+                if (is(WAITING_TO_RUN) && !nonSync.isWaitReady(this))
                 {
                     unqueue(commandStore.exclusiveExecutor());
                     setStateExclusive(WAITING_ON_OPTIONAL);
-                    executor().waitingOnCacheQueues.enqueue(this);
+                    executor().waiting.enqueue(this);
                 }
                 return;
 
@@ -898,9 +938,9 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
                 break;
         }
 
-        if (is(WAITING_ON_OPTIONAL) && nonSync.isWaitReady())
+        if (is(WAITING_ON_OPTIONAL) && nonSync.isWaitReady(this))
         {
-            unqueue(executor().waitingOnCacheQueues);
+            unqueue(executor().waiting);
             waitToRunExclusive();
         }
     }
@@ -913,135 +953,134 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
     public ExecutionContext executionContext()
     {
-        return executionContext;
+        return context;
     }
 
     @Override
-    protected void preRunExclusive()
+    protected void prepareExclusiveMayThrow()
     {
-        super.preRunExclusive();
-        if (rangeScanner != null)
+        try
         {
-            commandsForRanges = rangeScanner.finish(commandStore.cachesExclusive());
-            rangeScanner = null;
-        }
+            if (ranges instanceof SafeTask<?>.RangeTxnScanner)
+                ranges = ((SafeTask<?>.RangeTxnScanner)ranges).finish(commandStore.cachesExclusive());
 
-        if (isSync())
-        {
-            refs.forEach((k, v) -> {
-                preExecute(v, this, RELEASE_QUEUE);
-            });
-        }
-        else
-        {
-            if (!hasIncrementalStarted())
+            if (isSync())
             {
-                TxnId primaryTxnId = executionContext.primaryTxnId();
-                if (primaryTxnId != null)
-                {
-                    LockMode lockMode = holdsLocksBetweenRuns() ? HOLD_QUEUE : RELEASE_QUEUE;
-                    preExecute(refs.get(primaryTxnId), this, lockMode);
-                    TxnId additionalTxnId = executionContext.additionalTxnId();
-                    if (additionalTxnId != null)
-                        preExecute(refs.get(additionalTxnId), this, lockMode);
-                }
-
-                if (isIncremental() && isSequencedByPriorityAtomic() && !isCacheQueuedFifo())
-                {
-                    setCacheQueuedFifoExclusive();
-                    refs.forEach((key, safeState) -> {
-                        AccordCacheEntry<?, ?, ?> entry = global(safeState);
-                        RunnableStatus status = entry.moveToFifo(this);
-                        if (entry.isLoaded())
-                        {
-                            switch (status)
-                            {
-                                default: throw UnhandledEnum.unknown(status);
-                                case NOT_RUNNABLE:
-                                case STILL_RUNNABLE:
-                                case STILL_RUNNABLE_NEWLY_BLOCKING:
-                                    break;
-                                case NEWLY_RUNNABLE:
-                                    nonSync.onNewHead(entry);
-                                    break;
-                                case NEWLY_BLOCKING_RUNNABLE:
-                                    nonSync.onNewBlockingHead(entry);
-                                    break;
-                            }
-                        }
-                    });
-                }
-
-                if (isIncremental())
-                    setIncrementalStartedExclusive();
-            }
-            nonSync.preRunExclusive();
-        }
-    }
-
-    @Override
-    public void run()
-    {
-        onRunning();
-        SaferCommandStore safeStore = null;
-        try (Closeable close = resources.get())
-        {
-            if (Tracing.isTracing())
-                Tracing.trace(executionContext.describe());
-
-            commandStore.begin(safeStore = new SaferCommandStore(this, isSync() ? executionContext : nonSync));
-
-            R result = function.apply(safeStore);
-
-            boolean finished = !isIncremental() || isIncrementalFinishing();
-            if (finished)
-            {
-                List<Journal.CommandUpdate> changes = new ArrayList<>();
-                // TODO (expected): save any TxnId we add so that we don't need to iterate all of refs
-                refs.forEach((key, value) -> {
-                    if (value instanceof SaferCommand)
-                    {
-                        SaferCommand safeCommand = (SaferCommand) value;
-                        Journal.CommandUpdate diff = safeCommand.update();
-                        if (diff != null)
-                        {
-                            changes.add(diff);
-                            maybeSanityCheck(safeCommand);
-                        }
-                    }
+                refs.forEach((k, v) -> {
+                    preExecute(v, this, RELEASE_QUEUE);
                 });
-
-                boolean flush = !changes.isEmpty() || safeStore.fieldUpdates() != null;
-                if (flush)
-                {
-                    setRunState(PERSISTING);
-                    Runnable onFlush = () -> finish(result, null);
-                    safeStore.persistFieldUpdatesInternal(changes.isEmpty() ? onFlush : null);
-                    if (!changes.isEmpty())
-                        save(changes, onFlush);
-                    finished = false;
-                }
             }
+            else
+            {
+                if (!hasIncrementalStarted())
+                {
+                    TxnId primaryTxnId = context.primaryTxnId();
+                    if (primaryTxnId != null)
+                    {
+                        LockMode lockMode = holdsLocksBetweenRuns() ? HOLD_QUEUE : RELEASE_QUEUE;
+                        preExecute(refs.get(primaryTxnId), this, lockMode);
+                        TxnId additionalTxnId = context.additionalTxnId();
+                        if (additionalTxnId != null)
+                            preExecute(refs.get(additionalTxnId), this, lockMode);
+                    }
 
-            // TODO (required): exception handling here needs improving
-            safeStore.postExecute();
-            commandStore.complete(safeStore);
-            safeStore = null;
+                    if (isIncremental() && isSequencedByPriorityAtomic() && !isCacheQueuedFifo())
+                    {
+                        setCacheQueuedFifoExclusive();
+                        refs.forEach((key, safeState) -> {
+                            AccordCacheEntry<?, ?, ?> entry = global(safeState);
+                            RunnableStatus status = entry.moveToFifo(this);
+                            if (entry.isLoaded())
+                            {
+                                switch (status)
+                                {
+                                    default: throw UnhandledEnum.unknown(status);
+                                    case NOT_RUNNABLE:
+                                    case STILL_RUNNABLE:
+                                    case STILL_RUNNABLE_NEWLY_BLOCKING:
+                                        break;
+                                    case NEWLY_RUNNABLE:
+                                        nonSync.onNewHead(entry);
+                                        break;
+                                    case NEWLY_BLOCKING_RUNNABLE:
+                                        nonSync.onNewBlockingHead(entry);
+                                        break;
+                                }
+                            }
+                        });
+                    }
 
-            if (finished)
-                finish(result, null);
+                    if (isIncremental())
+                        setIncrementalStartedExclusive();
+                }
+                nonSync.prepareExclusive(this);
+            }
         }
         catch (Throwable t)
         {
-            if (safeStore != null)
-                refs.forEach((k, v) -> v.setAbandoned());
+            refs.forEach((k, v) -> { v.setAbandoned(); });
             throw t;
         }
-        finally
+    }
+
+    @Override
+    public boolean runMayThrow()
+    {
+        try
         {
-            if (safeStore != null)
+            SaferCommandStore safeStore = new SaferCommandStore(this, isSync() ? context : nonSync);
+            commandStore.begin(safeStore);
+            try
+            {
+                if (Tracing.isTracing())
+                    Tracing.trace(context.describe());
+
+                R result = function.apply(safeStore);
+                boolean finished = !isIncremental() || isIncrementalFinishing();
+                if (!finished) setRunState(RUN_INCOMPLETE);
+                else
+                {
+                    List<Journal.CommandUpdate> changes = new ArrayList<>();
+                    // TODO (expected): save any TxnId we add so that we don't need to iterate all of refs
+                    refs.forEach((key, value) -> {
+                        if (value instanceof SaferCommand)
+                        {
+                            SaferCommand safeCommand = (SaferCommand) value;
+                            Journal.CommandUpdate diff = safeCommand.update();
+                            if (diff != null)
+                            {
+                                changes.add(diff);
+                                maybeSanityCheck(safeCommand);
+                            }
+                        }
+                    });
+
+                    boolean flush = !changes.isEmpty() || safeStore.fieldUpdates() != null;
+                    if (flush)
+                    {
+                        setRunState(RUN_PERSISTING);
+                        Runnable onFlush = () -> finish(result);
+                        safeStore.persistFieldUpdatesInternal(changes.isEmpty() ? onFlush : null);
+                        if (!changes.isEmpty())
+                            save(changes, onFlush);
+                        finished = false;
+                    }
+                }
+
+                safeStore.postExecute();
+                if (finished)
+                    finish(result);
+                return finished;
+            }
+            finally
+            {
                 commandStore.complete(safeStore);
-            onRunComplete();
+            }
+        }
+        catch (Throwable t)
+        {
+            refs.forEach((k, v) -> v.setAbandoned());
+            throw t;
         }
     }
 
@@ -1075,40 +1114,77 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         }
     }
 
-    public void reportFailure(Throwable throwable)
+    void reportFailureMayThrow(Throwable failure)
     {
-        try
+        if (callback == null) executor().agent.onException(failure);
+        else
         {
-            if (callback != null)
-                callback.accept(null, throwable);
-        }
-        finally
-        {
-            commandStore.agent().onException(throwable);
+            BiConsumer<?, Throwable> reportTo = callback;
+            callback = null;
+
+            if (executor().isInLoop()) reportTo.accept(null, failure);
+            else executor().submit(() -> reportTo.accept(null, failure));
         }
     }
 
     @Override
-    protected void cleanupExclusive(AccordExecutor executor, boolean executed)
+    void maybeCompleteExclusiveMayThrow()
     {
-        if (is(RUNNING) && isNonSync())
+        if (isNonSync() && !isEither(NOT_YET_RUN, RUN_FAILED))
         {
-            nonSync.postRunExclusive();
-            if (isIncremental() && !isIncrementalFinishing())
+            if (is(PREPARED))
             {
-                setStateExclusive(INCOMPLETE);
-                waitOnOptionalCacheQueuesExclusive();
-                return;
+                nonSync.postRunExclusive(this);
+                if (isIncremental())
+                {
+                    long now = nanoTime();
+                    ((IncrementalState)nonSync).updateMetrics(now - runningAt, runningAt - loadedAt);
+                    if (!isIncrementalFinishing())
+                    {
+                        setStateExclusive(INCOMPLETE);
+                        waitOnOptionalCacheQueuesExclusive();
+                        return;
+                    }
+                }
+            }
+            else
+            {
+                Invariants.expect(is(FAILED));
+                Invariants.expect(isIncremental());
+                setRunState(RUN_FAILED);
+                refs.forEach((k, v) -> v.setAbandoned());
             }
         }
 
-        executor.keys.increment(keys, runningAt);
         releaseResourcesExclusive(commandStore.cachesExclusive());
-        super.cleanupExclusive(executor, executed);
-        if (histogramBuffer != null)
+
+        AccordExecutor executor = executor();
+        if (completeState())
         {
-            histogramBuffer.flush(completeAt);
-            histogramBuffer = null;
+            long completeAt = nanoTime();
+            executor.elapsedPreparingToRun.increment(loadedAt - createdAt, runningAt);
+            if (isIncremental())
+            {
+                IncrementalState incrementalState = (IncrementalState) nonSync;
+                executor.elapsedWaitingToRun.increment(incrementalState.waiting, runningAt);
+                executor.elapsedRunning.increment(incrementalState.running, completeAt);
+            }
+            else
+            {
+                executor.elapsedWaitingToRun.increment(runningAt - loadedAt, runningAt);
+                executor.elapsedRunning.increment(completeAt - runningAt, completeAt);
+            }
+            executor.elapsed.increment(completeAt - createdAt, completeAt);
+            executor.keys.increment(keys, runningAt);
+            if (histogramBuffer != null)
+            {
+                histogramBuffer.flush(runningAt);
+                histogramBuffer = null;
+            }
+        }
+        else if (histogramBuffer != null)
+        {
+            histogramBuffer.clear();
         }
     }
 
@@ -1116,15 +1192,20 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     public void cancel()
     {
         if (!state().hasStarted())
-            executor().submit(Task::cancelExclusive, CancelTask::new, this);
+            executor().submit(Task::tryCancelExclusive, CancelTask::new, this);
     }
 
-    void cancelExclusive()
+    void tryCancelExclusive()
     {
         State state = state();
         switch (state)
         {
             default: throw new UnhandledEnum(state);
+            case UNREGISTERED:
+                failExclusive(new CancellationException(), CANCELLED_UNREGISTERED);
+                break;
+
+            case REGISTERED:
             case SCANNING_RANGES:
             case LOADING_REQUIRED:
             case LOADING_OPTIONAL:
@@ -1132,41 +1213,53 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             case WAITING_ON_OPTIONAL:
             case WAITING_TO_RUN:
                 if (!hasIncrementalStarted())
-                {
-                    unqueueIfQueued();
-                    setStateExclusive(CANCELLED);
-                    if (rangeScanner != null)
-                        rangeScanner.cancelled = true;
-                    try
-                    {
-                        logger.info("Cancelling {}", executionContext);
-                        if (callback != null)
-                        {
-                            if (executor().isInLoop()) callback.accept(null, new CancellationException());
-                            else executor().submit(() -> callback.accept(null, new CancellationException()));
-                        }
-                    }
-                    finally
-                    {
-                        executor().cleanupTaskExclusive(this, false);
-                    }
-                    break;
-                }
-            case UNINITIALIZED: // TODO (expected): preferable to be able to cancel at this stage, even if unlikely to trigger at this phase
-            case RUNNING:
+                    cancelExclusive();
+                break;
+
+            case CANCELLED_UNREGISTERED:
             case INCOMPLETE:
+            case PREPARED:
             case EXECUTED:
             case CANCELLED:
-            case FAILED_TO_LOAD:
+            case FAILED:
                 // cannot safely cancel
         }
     }
 
-    private void finish(R result, Throwable failure)
+    void cancelExclusive()
     {
-        setRunState(failure == null ? RunState.SUCCESS : RunState.FAILED);
+        if (ranges instanceof SafeTask<?>.RangeTxnScanner)
+            ((SafeTask<?>.RangeTxnScanner)ranges).cancelled = true; // TODO (expected): should we try to cancel this directly?
+        failAndCompleteExclusive(new CancellationException(), CANCELLED);
+    }
+
+    void unqueueIfQueued()
+    {
+        TaskQueue expected;
+        switch (queued())
+        {
+            default: throw UnhandledEnum.unknown(queued());
+            case NONE: return;
+            case LOADING:
+                expected = executor().loading;
+                break;
+            case WAITING:
+                expected = executor().waiting;
+                break;
+            case RUNNABLE:
+                expected = commandStore.exclusiveExecutor();
+                break;
+        }
+        expected.unqueue(this);
+    }
+
+    private void finish(R result)
+    {
         if (callback != null)
-            callback.accept(result, failure);
+        {
+            try { callback.accept(result, null); }
+            catch (Throwable t) { commandStore.agent().onException(t); }
+        }
     }
 
     void releaseResourcesExclusive(Caches caches)
@@ -1176,12 +1269,12 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
         try
         {
-            if (rangeScanner != null)
+            if (ranges instanceof SafeTask<?>.RangeTxnScanner)
             {
-                rangeScanner.cleanup(caches);
-                rangeScanner = null;
+                ((SafeTask<?>.RangeTxnScanner)ranges).cleanup(caches);
                 if (DEBUG_EXECUTION) DebugTask.get(this).onReleasedRangeScanner();
             }
+            ranges = null;
 
             refs.forEach((key, safeState) -> {
                 SaferState.postExecute(safeState, this);
@@ -1227,7 +1320,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         }
 
         final Set<TokenKey> intersectingKeys = new ObjectHashSet<>();
-        final Ranges ranges = ((AbstractRanges) executionContext.keys()).toRanges();
+        final Ranges ranges = ((AbstractRanges) context.keys()).toRanges();
         final AccordCache.Type<RoutingKey, CommandsForKey, SaferCommandsForKey>.Instance commandsForKeyCache;
         KeyWatcher keyWatcher = new KeyWatcher();
 
@@ -1353,7 +1446,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
         ExecutionContext preLoadContext()
         {
-            return executionContext;
+            return context;
         }
 
         @Override
@@ -1371,24 +1464,24 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         public void start()
         {
             Caches caches = commandStore.cachesExclusive();
-            setStateExclusive(SCANNING_RANGES);
-            executor().scanningRanges.enqueue(SafeTask.this);
+            SafeTask.this.setStateExclusive(SCANNING_RANGES);
+            executor().loading.enqueue(SafeTask.this);
             startInternal(caches);
             executor().submitExclusive(SafeTask.this, GlobalGroup.RANGE_SCAN, this);
         }
 
         void startInternal(Caches caches)
         {
-            loader = commandStore.rangeIndex().loader(executionContext.primaryTxnId(), executionContext.executeAt(), executionContext.loadKeysFor(), executionContext.keys());
+            loader = commandStore.rangeIndex().loader(context.primaryTxnId(), context.executeAt(), context.loadKeysFor(), context.keys());
             loader.loadExclusive(guardedSummaries, caches);
         }
 
         public void scannedExclusive()
         {
-            Invariants.require(is(SCANNING_RANGES), "Expected SCANNING_RANGES; found %s", SafeTask.this, SafeTask::toDescription);
+            Invariants.require(is(SCANNING_RANGES), "Expected SCANNING_RANGES; found %s", SafeTask.this, SafeTask::description);
             scanned = true;
             scannedInternal();
-            unqueue(executor().scanningRanges);
+            unqueue(executor().loading); // likely to be requeued to same queue, but simpler invariants if we remove here
             onSetupOrScannedExclusive();
         }
 
@@ -1414,7 +1507,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         @Override
         public String description()
         {
-            return "Scanning range intersections for " + executionContext.reason() + ' ' + toBriefString();
+            return "Scanning range intersections for " + context.reason() + ' ' + toBriefString();
         }
 
         @Override
@@ -1425,30 +1518,18 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     }
 
     @Override
-    public DebuggableTask debuggable()
-    {
-        return this;
-    }
-
-    @Override
-    public long creationTimeNanos()
-    {
-        return createdAt;
-    }
-
-    @Override
-    public long startTimeNanos()
-    {
-        return runningAt;
-    }
-
-    @Override
     public String description()
     {
-        return executionContext.describe();
+        return context.describe();
     }
 
-    private AccordExecutor executor()
+    @Override
+    public String briefDescription()
+    {
+        return context.reason();
+    }
+
+    final AccordExecutor executor()
     {
         return commandStore.executor();
     }
@@ -1459,10 +1540,18 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         return true;
     }
 
-    @Nullable
-    public RangeTxnScanner rangeScanner()
+    public @Nullable SafeTask<?>.RangeTxnScanner rangeScanner()
     {
-        return rangeScanner;
+        if (ranges instanceof SafeTask<?>.RangeTxnScanner)
+            return ((SafeTask<?>.RangeTxnScanner) ranges);
+        return null;
+    }
+
+    public @Nullable CommandSummaries commandsForRanges()
+    {
+        if (ranges instanceof CommandSummaries)
+            return (CommandSummaries) ranges;
+        return null;
     }
 
     private static LoadKeys loadKeys(ExecutionContext context)

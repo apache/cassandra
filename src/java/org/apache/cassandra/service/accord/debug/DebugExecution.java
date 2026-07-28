@@ -132,15 +132,16 @@ public class DebugExecution
         public void onComplete(Task completed)
         {
             long readyAt = setTaskAt;
+            long runningAt = DebugTask.get(completed).runningAt;
             if (waitingAt > setTaskAt)
             {
                 readyAt = waitingAt;
-                long waitingMicros = (completed.runningAt - waitingAt)/1000;
+                long waitingMicros = (runningAt - waitingAt)/1000;
                 owner.sequentialExecutorWaitingToRunLatency.increment(waitingMicros);
                 if (waitingMicros > REPORT_MAX_LATENCY_MICROS)
                     report("{} spent {}us blocked by a direct execution on queue {}", completed, waitingMicros, commandStoreId);
             }
-            long atHeadMicros = (completed.runningAt - readyAt)/1000;
+            long atHeadMicros = (runningAt - readyAt)/1000;
             owner.sequentialExecutorSetHeadToRunLatency.increment(atHeadMicros);
             if (atHeadMicros > REPORT_MAX_LATENCY_MICROS)
             {
@@ -172,7 +173,7 @@ public class DebugExecution
         }
 
         public List<Command> sanityCheck; // for AccordTask only
-        long polledAt, preRunAt, runCompleteAt, completedAt;
+        long polledAt, preRunAt, runningAt, runCompleteAt, completeAt, completedAt;
         long releasedRangeScannerAt, releasedStateAt;
         long runningAtCpu, runCompleteAtCpu;
         Thread thread;
@@ -191,6 +192,7 @@ public class DebugExecution
         {
             thread = Thread.currentThread();
             runningAtCpu = nowCpu();
+            runningAt = nanoTime();
         }
 
         public void onRunComplete()
@@ -209,22 +211,27 @@ public class DebugExecution
             releasedStateAt = nanoTime();
         }
 
+        public void onComplete()
+        {
+            completeAt = nanoTime();
+        }
+
         public void onCompleted(DebugExecutor owner)
         {
             completedAt = nanoTime();
-            if (task.runningAt > 0 && polledAt > 0)
+            if (runningAt > 0 && polledAt > 0)
             {
-                long pollToRunMicros = (task.runningAt - polledAt)/1000;
+                long pollToRunMicros = (runningAt - polledAt)/1000;
                 owner.pollToRun.increment(pollToRunMicros);
                 long runningMicros = -1;
                 if (runCompleteAt > 0)
                 {
-                    runningMicros = (runCompleteAt - task.runningAt) / 1000;
+                    runningMicros = (runCompleteAt - runningAt) / 1000;
                     owner.running.increment(runningMicros);
                 }
-                long runToCleanMicros = (task.completeAt - runCompleteAt) / 1000;
+                long runToCleanMicros = (completeAt - runCompleteAt) / 1000;
                 owner.runToCleanup.increment(runToCleanMicros);
-                long cleanupMicros = (completedAt - task.completeAt) / 1000;
+                long cleanupMicros = (completedAt - completeAt) / 1000;
                 owner.cleanup.increment(cleanupMicros);
                 long totalMicros = (completedAt - polledAt)/1000;
                 owner.taskTotal.increment(totalMicros);

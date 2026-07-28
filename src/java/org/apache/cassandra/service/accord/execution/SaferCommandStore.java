@@ -30,6 +30,7 @@ import accord.api.RoutingKey;
 import accord.impl.AbstractSafeCommandStore;
 import accord.local.Command;
 import accord.local.CommandStores;
+import accord.local.CommandSummaries;
 import accord.local.ExecutionContext;
 import accord.local.NodeCommandStoreService;
 import accord.local.RedundantBefore;
@@ -214,7 +215,8 @@ public final class SaferCommandStore extends AbstractSafeCommandStore<SaferComma
             task.histogramBuffer = commandStore().metricsBuffer;
             if (task.histogramBuffer == null)
                 task.histogramBuffer = commandStore().metricsBuffer = new LogLinearDecayingHistograms.Buffer(commandStore().executor().histograms);
-            Invariants.require(task.histogramBuffer.isEmpty());
+            if (!Invariants.expect(task.histogramBuffer.isEmpty()))
+                task.histogramBuffer.clear();
         }
         return task.histogramBuffer;
     }
@@ -254,15 +256,19 @@ public final class SaferCommandStore extends AbstractSafeCommandStore<SaferComma
     public <P1, P2> void visit(Unseekables<?> keysOrRanges, Timestamp startedBefore, Kinds testKind, ActiveCommandVisitor<P1, P2> visitor, P1 p1, P2 p2)
     {
         visitForKey(keysOrRanges, cfk -> { cfk.visit(startedBefore, testKind, visitor, p1, p2); return true; });
-        if (task.commandsForRanges != null)
-            task.commandsForRanges.visit(keysOrRanges, startedBefore, testKind, visitor, p1, p2);
+        CommandSummaries commandsForRanges = task.commandsForRanges();
+        if (commandsForRanges != null)
+            commandsForRanges.visit(keysOrRanges, startedBefore, testKind, visitor, p1, p2);
     }
 
     @Override
     public boolean visit(Unseekables<?> keysOrRanges, TxnId testTxnId, Kinds testKind, SupersedingCommandVisitor visit)
     {
-        return visitForKey(keysOrRanges, cfk -> cfk.visit(testTxnId, testKind, visit))
-               && (task.commandsForRanges == null || task.commandsForRanges.visit(keysOrRanges, testTxnId, testKind, visit));
+        if (!visitForKey(keysOrRanges, cfk -> cfk.visit(testTxnId, testKind, visit)))
+            return false;
+
+        CommandSummaries commandsForRanges = task.commandsForRanges();
+        return commandsForRanges == null || commandsForRanges.visit(keysOrRanges, testTxnId, testKind, visit);
     }
 
     @Override

@@ -31,7 +31,6 @@ public class AccordExecutorSemiSyncSubmit extends AbstractSemiSyncSubmit
     private final Loops loops;
     private final ReentrantLock lock;
     private final Condition hasWork;
-    private int waiting;
 
     public AccordExecutorSemiSyncSubmit(int executorId, Mode mode, int threads, IntFunction<String> name, Agent agent)
     {
@@ -55,9 +54,7 @@ public class AccordExecutorSemiSyncSubmit extends AbstractSemiSyncSubmit
 
     private void awaitWork() throws InterruptedException
     {
-        waiting++;
-        try { hasWork.await(); }
-        finally { waiting--; }
+        hasWork.await();
     }
 
     @Override

@@ -142,7 +142,7 @@ abstract class AbstractLockLoop extends AbstractLoop
         while (cur != null)
         {
             Task next = cur.next;
-            cur.submitExclusive();
+            cur.submitExclusiveNoExcept();
             cur.next = null;
             cur = next;
         }
@@ -209,28 +209,7 @@ abstract class AbstractLockLoop extends AbstractLoop
                         while (true)
                         {
                             task = pollWaitingToRunExclusive();
-
-                            if (task != null)
-                            {
-                                self.setAccordActiveTask(task);
-                                boolean executed = false;
-                                try
-                                {
-                                    task.preRunExclusive();
-                                    executed = true;
-                                    task.run();
-                                }
-                                catch (Throwable t)
-                                {
-                                    executed = false;
-                                    task.failExecution(t);
-                                }
-                                finally
-                                {
-                                    cleanupTaskExclusive(task, executed);
-                                    self.setAccordActiveTask(null);
-                                }
-                            }
+                            if (task != null) prepareRunComplete(self, task);
                             else
                             {
                                 if (shutdown)
@@ -250,7 +229,6 @@ abstract class AbstractLockLoop extends AbstractLoop
                     catch (Throwable t)
                     {
                         exitLockLoop();
-
                         try { agent.onException(t); }
                         catch (Throwable t2) { }
                     }
@@ -285,18 +263,20 @@ abstract class AbstractLockLoop extends AbstractLoop
                         {
                             Task tmp = task;
                             task = null;
-                            cleanupTaskExclusive(tmp, true);
-                            self.setAccordActiveTask(null);
+                            tmp.completeExclusiveNoExcept();
                         }
 
                         while (true)
                         {
                             task = pollWaitingToRunExclusive();
-
                             if (task != null)
                             {
-                                self.setAccordActiveTask(task);
-                                task.preRunExclusive();
+                                if (!task.prepareExclusiveNoExcept())
+                                {
+                                    task = null;
+                                    continue;
+                                }
+
                                 if (DEBUG_EXECUTION) debug.onExitLock();
                                 exitLockLoop();
                                 break;
@@ -319,21 +299,8 @@ abstract class AbstractLockLoop extends AbstractLoop
                     }
                     catch (Throwable t)
                     {
-                        if (task != null)
-                        {
-                            try { task.failExecution(t); }
-                            catch (Throwable t2) { t.addSuppressed(t2); }
-                            try { cleanupTaskExclusive(task, false); }
-                            catch (Throwable t2) { t.addSuppressed(t2); }
-                            try { agent.onException(t); }
-                            catch (Throwable t2) { /* nothing we can sensibly do after already reporting */ }
-                            task = null;
-                        }
-                        else
-                        {
-                            try { agent.onException(t); }
-                            catch (Throwable t2) { /* nothing we can sensibly do after already reporting */ }
-                        }
+                        try { agent.onException(t); }
+                        catch (Throwable t2) { }
                         exitLockLoop();
                         continue;
                     }
@@ -343,26 +310,7 @@ abstract class AbstractLockLoop extends AbstractLoop
                         unlock(self);
                     }
 
-                    try
-                    {
-                        task.run();
-                    }
-                    catch (Throwable t)
-                    {
-                        try { task.failExecution(t); }
-                        catch (Throwable t2)
-                        {
-                            try
-                            {
-                                t2.addSuppressed(t);
-                                agent.onException(t2);
-                            }
-                            catch (Throwable t3)
-                            {
-                                // empty to ensure we definitely loop so we cleanup the task
-                            }
-                        }
-                    }
+                    task.runNoExcept(self);
                 }
             }
         };
