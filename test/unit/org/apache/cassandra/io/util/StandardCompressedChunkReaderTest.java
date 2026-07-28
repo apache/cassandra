@@ -130,7 +130,7 @@ public class StandardCompressedChunkReaderTest extends CompressedChunkReaderTest
 
         long longsToWrite = 600; // 4800 uncompressed bytes -> 2 compressed chunks (second one partial)
         CompressionMetadata metadata;
-        try (CompressedSequentialWriter writer = new CompressedSequentialWriter(f, offsets, digest, writerOption, params,new MetadataCollector(new ClusteringComparator())))
+        try (CompressedSequentialWriter writer = new CompressedSequentialWriter(f, offsets, digest, writerOption, params, new MetadataCollector(new ClusteringComparator())))
         {
             for (long i = 0; i < longsToWrite; i++)
                 writer.writeLong(i);
@@ -139,9 +139,7 @@ public class StandardCompressedChunkReaderTest extends CompressedChunkReaderTest
             metadata = writer.open(0);
         }
 
-        // Sanity: read-ahead must actually engage for this test to exercise the scan path
-        Assert.assertTrue("read-ahead must be larger than chunk length for scanReader to be non-null",
-                          DatabaseDescriptor.getCompressedReadAheadBufferSize() > metadata.chunkLength());
+        DatabaseDescriptor.setCompressedReadAheadBufferSizeInKb(256);
 
         // Truncate file so that chunk metadata expects a chunk to extend further than the actual file size
         long originalSize = Files.size(f.toPath());
