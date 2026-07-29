@@ -142,11 +142,13 @@ public class PlacementDeltas extends ReplicationMap<PlacementDeltas.PlacementDel
 
         public PlacementDelta onlyReads()
         {
+            assert reads instanceof NodeIdDelta;
             return new PlacementDelta(reads, NodeIdDelta.empty());
         }
 
         public PlacementDelta onlyWrites()
         {
+            assert writes instanceof NodeIdDelta;
             return new PlacementDelta(NodeIdDelta.empty(), writes);
         }
 
