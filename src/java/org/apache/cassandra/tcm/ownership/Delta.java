@@ -50,7 +50,7 @@ public interface Delta
     Collection<Range<Token>> addedRanges();
     Collection<Range<Token>> removedRanges();
     // todo this should be Set<NodeId>
-    Set<InetAddressAndPort> allEndpoints();
+    Set<NodeId> allPeers(Function<InetAddressAndPort, NodeId> nodeIdLookup);
 
     class Serializer implements MetadataSerializer<Delta>
     {

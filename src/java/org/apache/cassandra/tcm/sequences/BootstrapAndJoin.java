@@ -191,11 +191,11 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
     @Override
     public Set<NodeId> affectedPeers(Directory directory)
     {
-        Set<InetAddressAndPort> affectedEndpoints = new HashSet<>();
-        affectedEndpoints.addAll(startJoin.affectedEndpoints());
-        affectedEndpoints.addAll(midJoin.affectedEndpoints());
-        affectedEndpoints.addAll(finishJoin.affectedEndpoints());
-        return endpointsToIds(affectedEndpoints, directory);
+        Set<NodeId> affectedPeers = new HashSet<>();
+        affectedPeers.addAll(startJoin.affectedPeers(directory::peerId));
+        affectedPeers.addAll(midJoin.affectedPeers(directory::peerId));
+        affectedPeers.addAll(finishJoin.affectedPeers(directory::peerId));
+        return affectedPeers;
     }
 
     @Override

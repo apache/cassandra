@@ -161,11 +161,11 @@ public class PlacementDeltas extends ReplicationMap<PlacementDeltas.PlacementDel
             return builder.build();
         }
 
-        public Set<InetAddressAndPort> affectedEndpoints()
+        public Set<NodeId> affectedPeers(Function<InetAddressAndPort, NodeId> nodeIdLookup)
         {
-            Set<InetAddressAndPort> affectedEndpoints = new HashSet<>(reads.allEndpoints());
-            affectedEndpoints.addAll(writes.allEndpoints());
-            return affectedEndpoints;
+            Set<NodeId> affectedPeers = new HashSet<>(reads.allPeers(nodeIdLookup));
+            affectedPeers.addAll(writes.allPeers(nodeIdLookup));
+            return affectedPeers;
         }
 
         public PlacementDelta merge(PlacementDelta other)

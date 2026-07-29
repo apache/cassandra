@@ -164,11 +164,11 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
     @Override
     public Set<NodeId> affectedPeers(Directory directory)
     {
-        Set<InetAddressAndPort> affectedEndpoints = new HashSet<>();
-        affectedEndpoints.addAll(startLeave.affectedEndpoints());
-        affectedEndpoints.addAll(midLeave.affectedEndpoints());
-        affectedEndpoints.addAll(finishLeave.affectedEndpoints());
-        return endpointsToIds(affectedEndpoints, directory);
+        Set<NodeId> affectedPeers = new HashSet<>();
+        affectedPeers.addAll(startLeave.affectedPeers(directory::peerId));
+        affectedPeers.addAll(midLeave.affectedPeers(directory::peerId));
+        affectedPeers.addAll(finishLeave.affectedPeers(directory::peerId));
+        return affectedPeers;
     }
 
     @Override

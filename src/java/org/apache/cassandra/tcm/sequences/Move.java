@@ -253,11 +253,11 @@ public class Move extends MultiStepOperation<Epoch>
     @Override
     public Set<NodeId> affectedPeers(Directory directory)
     {
-        Set<InetAddressAndPort> affectedEndpoints = new HashSet<>();
-        affectedEndpoints.addAll(startMove.affectedEndpoints());
-        affectedEndpoints.addAll(midMove.affectedEndpoints());
-        affectedEndpoints.addAll(finishMove.affectedEndpoints());
-        return endpointsToIds(affectedEndpoints, directory);
+        Set<NodeId> affectedPeers = new HashSet<>();
+        affectedPeers.addAll(startMove.affectedPeers(directory::peerId));
+        affectedPeers.addAll(midMove.affectedPeers(directory::peerId));
+        affectedPeers.addAll(finishMove.affectedPeers(directory::peerId));
+        return affectedPeers;
     }
 
     @Override

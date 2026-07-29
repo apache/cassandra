@@ -132,12 +132,11 @@ public class NodeIdDelta implements Delta
         return removals.values().stream().map(rn -> rn.range).collect(Collectors.toSet());
     }
 
-    public Set<InetAddressAndPort> allEndpoints()
+    public Set<NodeId> allPeers(Function<InetAddressAndPort, NodeId> nodeIdLookup)
     {
-        Set<NodeId> endpoints = new HashSet<>(removals.keySet());
-        endpoints.addAll(additions.keySet());
-//        return endpoints;
-        return null;
+        Set<NodeId> peers = new HashSet<>(removals.keySet());
+        peers.addAll(additions.keySet());
+        return peers;
     }
 
     public boolean equals(Object o)

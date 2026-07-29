@@ -185,11 +185,11 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
     @Override
     public Set<NodeId> affectedPeers(Directory directory)
     {
-        Set<InetAddressAndPort> affectedEndpoints = new HashSet<>();
-        affectedEndpoints.addAll(startReplace.affectedEndpoints());
-        affectedEndpoints.addAll(midReplace.affectedEndpoints());
-        affectedEndpoints.addAll(finishReplace.affectedEndpoints());
-        return endpointsToIds(affectedEndpoints, directory);
+        Set<NodeId> affectedPeers = new HashSet<>();
+        affectedPeers.addAll(startReplace.affectedPeers(directory::peerId));
+        affectedPeers.addAll(midReplace.affectedPeers(directory::peerId));
+        affectedPeers.addAll(finishReplace.affectedPeers(directory::peerId));
+        return affectedPeers;
     }
 
     @Override

@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -109,11 +110,11 @@ public class EndpointDelta implements Delta
     }
 
     @Override
-    public Set<InetAddressAndPort> allEndpoints()
+    public Set<NodeId> allPeers(Function<InetAddressAndPort, NodeId> nodeIdLookup)
     {
         Set<InetAddressAndPort> endpoints = new HashSet<>(removals.keySet());
         endpoints.addAll(additions.keySet());
-        return endpoints;
+        return endpoints.stream().map(nodeIdLookup).collect(Collectors.toSet());
     }
 
     public boolean equals(Object o)
