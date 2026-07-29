@@ -5,6 +5,7 @@
  * Avoid using ObjectUtils.getFirstNonNull in Schema (CASSANDRA-21394)
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
+ * Remove hostname from ClientsTable and GossipInfoTable (CASSANDRA-21539)
 Merged from 6.0:
  * Reduce allocations in DefaultQueryOptions (CASSANDRA-21467)
  * Allow unreserved keywords as user and identity names in USER and IDENTITY statements (CASSANDRA-21510)
