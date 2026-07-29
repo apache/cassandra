@@ -20,7 +20,6 @@ package org.apache.cassandra.gms;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -60,8 +59,14 @@ public class NewGossiper
     public Map<InetAddressAndPort, EndpointState> doShadowRound()
     {
         Set<InetAddressAndPort> peers = new HashSet<>(SystemKeyspace.loadHostIds().keySet());
-        peers.addAll(DatabaseDescriptor.getSeeds());
-        if (peers.equals(Collections.singleton(getBroadcastAddressAndPort())))
+        for (InetAddressAndPort seed : DatabaseDescriptor.getSeeds())
+        {
+            if (!seed.equals(getBroadcastAddressAndPort()))
+                peers.add(seed);
+        }
+
+        // implies a single node cluster with only that one node configured as a seed
+        if (peers.isEmpty())
             return GossipHelper.storedEpstate();
 
         ShadowRoundHandler shadowRoundHandler = new ShadowRoundHandler(peers);
@@ -84,6 +89,9 @@ public class NewGossiper
             }
         }
         logger.warn("Not able to construct initial cluster metadata from gossip, using system tables instead");
+        // Mark done here so that future gossip messages don't get routed to the shadow round handler (see
+        // GossipDigestSynVerbHandler & GossipDigestAckVerbHandler)
+        handler.markDone();
         return GossipHelper.storedEpstate();
     }
 
@@ -119,8 +127,14 @@ public class NewGossiper
             this.peers = ConcurrentHashMap.newKeySet();
             this.peers.addAll(peers);
             responses = new ConcurrentHashMap<>();
-            requiredResponses = this.peers.size() < 3 ? 1 : Math.max(this.peers.size() / 5, 2); // require response from 20% of the cluster
+            requiredResponses = this.peers.size() <= 3 ? 1 : Math.max(this.peers.size() / 5, 2); // require response from 20% of the cluster
             this.messageDelivery = messageDelivery;
+        }
+
+        public void markDone()
+        {
+            logger.info("Marking NewGossiper shadow round done");
+            isDone = true;
         }
 
         public boolean isDone()
