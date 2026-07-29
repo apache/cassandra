@@ -601,11 +601,6 @@ public class AccordImportSSTableTest extends TestBaseImpl
         }
     }
 
-    /**
-     * There is a bug with this case, because we are going to be marked as stable and then perform the read which has the
-     * TxnImport logic contained within it. For ImportTxn's we prevent this replica from making any progress in the case,
-     * where we can not properly execute a read import txn. We want to make sure it is marked as stale.
-     */
     @Test
     public void testImportSSTableFailsActivation() throws Throwable
     {
@@ -639,15 +634,11 @@ public class AccordImportSSTableTest extends TestBaseImpl
                 cfs.importNewSSTables(paths, true, true, true, true, true, true, true);
             });
 
-            Uninterruptibles.sleepUninterruptibly(30, TimeUnit.SECONDS);
+            Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS);
 
-            Iterable<IInvokableInstance> up = cluster.stream()
-                                                     .filter(instance -> instance != cluster.get(2))
-                                                     .collect(Collectors.toList());
+            assertSSTableCount(cluster, 1);
 
-            assertSSTableCount(up, 1);
-
-            assertLocalSelect(up, rows -> { assertRows(rows, row(1, 1)); });
+            assertLocalSelect(cluster, rows -> { assertRows(rows, row(1, 1)); });
         }
     }
 

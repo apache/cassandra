@@ -129,6 +129,8 @@ public class CoordinatedTransfer
                 LocalTransfers.instance().scheduleCoordinatedTransferCleanup(this);
                 throw new RuntimeException("SSTable import failed because of a concurrent topology change; please retry the operation");
             }
+
+            Invariants.require(LocalTransfers.instance.local.get(streamResult.planId()) == null);
             LocalTransfers.instance().scheduleCoordinatedTransferCleanup(this);
         }
         catch (ReadTimeoutException e)
@@ -235,6 +237,7 @@ public class CoordinatedTransfer
         try
         {
             notifyFailure();
+            LocalTransfers.instance().schedulePendingLocalTransferCleanup(streamResult.planId());
             LocalTransfers.instance().scheduleCoordinatedTransferCleanup(this);
         }
         catch (Throwable t)

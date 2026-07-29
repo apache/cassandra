@@ -143,9 +143,6 @@ public class LocalTransfers
         try
         {
             coordinating.remove(transfer.importID());
-            CoordinatedTransfer.SingleTransferResult localPending = transfer.streamResult;
-            if (localPending != null)
-                purge(localPending.planId());
         }
         finally
         {

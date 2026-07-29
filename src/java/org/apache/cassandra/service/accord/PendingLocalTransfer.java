@@ -81,12 +81,9 @@ public class PendingLocalTransfer
                         logPrefix(), metadata.getStreamingEpoch(), executeAtEpoch);
 
             if (isCoordinator)
-            {
                 coordinatedTransfer.importTxnEpochMismatch = true;
-                LocalTransfers.instance().scheduleCoordinatedTransferCleanup(coordinatedTransfer);
-            }
-            else
-                LocalTransfers.instance().schedulePendingLocalTransferCleanup(planId);
+
+            LocalTransfers.instance().schedulePendingLocalTransferCleanup(planId);
 
             activated = true;
             return;
@@ -138,10 +135,7 @@ public class PendingLocalTransfer
         long finishedActivation = currentTimeMillis();
         logger.info("{} Finished activating transfer {} in {} ms", logPrefix(), this, finishedActivation - startedActivation);
 
-        if (isCoordinator)
-            LocalTransfers.instance().scheduleCoordinatedTransferCleanup(coordinatedTransfer);
-        else
-            LocalTransfers.instance().schedulePendingLocalTransferCleanup(planId);
+        LocalTransfers.instance().schedulePendingLocalTransferCleanup(planId);
     }
 
     @Override
