@@ -82,20 +82,16 @@ public final class VectorType<T> extends MultiElementType<List<T>>
     public final AbstractType<T> elementType;
     public final int dimension;
     private final TypeSerializer<T> elementSerializer;
-    private final int valueLengthIfFixed;
     private final VectorSerializer serializer;
 
     private VectorType(AbstractType<T> elementType, int dimension)
     {
-        super(ComparisonType.CUSTOM);
+        super(ComparisonType.CUSTOM, valueLengthIfFixed(elementType, dimension));
         if (dimension <= 0)
             throw new InvalidRequestException(String.format("vectors may only have positive dimensions; given %d", dimension));
         this.elementType = elementType;
         this.dimension = dimension;
         this.elementSerializer = elementType.getSerializer();
-        this.valueLengthIfFixed = elementType.isValueLengthFixed() ?
-                                  elementType.valueLengthIfFixed() * dimension :
-                                  super.valueLengthIfFixed();
         this.serializer = elementType.isValueLengthFixed() ?
                           new FixedLengthSerializer() :
                           new VariableLengthSerializer();
@@ -126,10 +122,10 @@ public final class VectorType<T> extends MultiElementType<List<T>>
         return getSerializer().compareCustom(left, accessorL, right, accessorR);
     }
 
-    @Override
-    public int valueLengthIfFixed()
+    private static int valueLengthIfFixed(AbstractType<?> elementType, int dimension)
     {
-        return valueLengthIfFixed;
+        int elementLength = elementType.valueLengthIfFixed();
+        return elementLength >= 0 ? elementLength * dimension : elementLength;
     }
 
     @Override

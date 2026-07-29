@@ -53,7 +53,7 @@ public class TimestampType extends TemporalType<Date>
 
     private static final ByteBuffer MASKED_VALUE = instance.decompose(new Date(0));
 
-    private TimestampType() {super(ComparisonType.CUSTOM);} // singleton
+    private TimestampType() {super(ComparisonType.CUSTOM, 8);} // singleton
 
     @Override
     public boolean allowsEmpty()
@@ -164,12 +164,6 @@ public class TimestampType extends TemporalType<Date>
     public TypeSerializer<Date> getSerializer()
     {
         return TimestampSerializer.instance;
-    }
-
-    @Override
-    public int valueLengthIfFixed()
-    {
-        return 8;
     }
 
     @Override
