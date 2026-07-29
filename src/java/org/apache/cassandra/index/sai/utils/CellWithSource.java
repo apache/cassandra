@@ -104,6 +104,12 @@ public class CellWithSource<T> extends Cell<T>
     }
 
     @Override
+    public long minDeletionTime()
+    {
+        return cell.minDeletionTime();
+    }
+
+    @Override
     public boolean isTombstone()
     {
         return cell.isTombstone();

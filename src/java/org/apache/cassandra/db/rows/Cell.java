@@ -150,6 +150,8 @@ public abstract class Cell<V> extends ColumnData
         return deletionTimeUnsignedIntegerToLong(localDeletionTimeAsUnsignedInt());
     }
 
+    public abstract long minDeletionTime();
+
     /**
      * Whether the cell is a tombstone or not.
      *
