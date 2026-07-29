@@ -104,10 +104,18 @@ public class PlacementTransitionPlan
 
     public PlacementTransitionPlan withEndpointDeltas(Function<NodeId, InetAddressAndPort> endpointLookup)
     {
-        return new PlacementTransitionPlan(toSplit.withEndpointDeltas(endpointLookup),
-                                           toMaximal.withEndpointDeltas(endpointLookup),
-                                           toFinal.withEndpointDeltas(endpointLookup),
-                                           toMerged.withEndpointDeltas(endpointLookup));
+        if (addToWrites == null || moveReads == null || removeFromWrites == null || affectedRanges == null)
+            compile();
+        PlacementTransitionPlan ptp = new PlacementTransitionPlan(toSplit.withEndpointDeltas(endpointLookup),
+                                                                  toMaximal.withEndpointDeltas(endpointLookup),
+                                                                  toFinal.withEndpointDeltas(endpointLookup),
+                                                                  toMerged.withEndpointDeltas(endpointLookup));
+        // avoid recompiling
+        ptp.addToWrites = addToWrites.withEndpointDeltas(endpointLookup);
+        ptp.moveReads = moveReads.withEndpointDeltas(endpointLookup);
+        ptp.removeFromWrites = removeFromWrites.withEndpointDeltas(endpointLookup);
+        ptp.affectedRanges = affectedRanges;
+        return ptp;
     }
 
     private void compile()
