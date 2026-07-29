@@ -50,7 +50,7 @@ spec:
   resources:
     requests:
       # holds several multi-arch build/test images; the largest (ubuntu-test) is ~35Gi.
-      # registry:2 proxy also purges cached content past REGISTRY_PROXY_TTL (default 168h).
+      # the registry proxy also evicts content untouched past REGISTRY_PROXY_TTL (336h below).
       storage: 200Gi
   # .build/run-ci injects storageClassName here from the Jenkins values' persistence.storageClass
   # (see install_jenkins), so a site declares its storage class once.  Applying this manifest by
@@ -81,7 +81,7 @@ spec:
         cassandra.jenkins.controller: "true"
       containers:
         - name: registry
-          image: registry:2
+          image: registry:3.1.1
           ports:
             - containerPort: 5000
           env:
@@ -107,6 +107,11 @@ spec:
               value: ":5000"
             - name: REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY
               value: /var/lib/registry
+            # evict cached content untouched for the TTL, bounding the PVC over time
+            - name: REGISTRY_STORAGE_DELETE_ENABLED
+              value: "true"
+            - name: REGISTRY_PROXY_TTL
+              value: "336h"
           volumeMounts:
             - name: storage
               mountPath: /var/lib/registry
@@ -117,18 +122,24 @@ spec:
             limits:
               cpu: "2"
               memory: 4Gi
+          # generous timeout/failureThreshold: when many agents start at once the cache serves a
+          # burst of pulls and can be slow to answer the probe
           readinessProbe:
             httpGet:
               path: /v2/
               port: 5000
             initialDelaySeconds: 5
             periodSeconds: 10
+            timeoutSeconds: 20
+            failureThreshold: 5
           livenessProbe:
             httpGet:
               path: /v2/
               port: 5000
             initialDelaySeconds: 15
             periodSeconds: 30
+            timeoutSeconds: 20
+            failureThreshold: 5
       volumes:
         - name: storage
           persistentVolumeClaim:

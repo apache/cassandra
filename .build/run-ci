@@ -288,6 +288,10 @@ def apply_docker_cache(kubeconfig: Optional[str], kubecontext: Optional[str], ku
         cmd += ["--context", kubecontext]
     cmd += ["--namespace", kube_ns, "apply", "-f", "-"]
     subprocess.run(cmd, input=yaml.safe_dump_all(docs), text=True, check=True)
+    # apply returning 0 only means the objects were accepted; wait for the pod to actually roll out
+    # (e.g. the PVC binds) so a stuck cache surfaces here rather than failing silently
+    run_kubectl_command(kubeconfig, kubecontext, kube_ns,
+                        ["rollout", "status", "deploy/docker-cache", "--timeout=120s"])
 
 def run_helm_command(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, command: list,
                      capture_output: bool = True, check: bool = True) -> subprocess.CompletedProcess:
@@ -928,9 +932,13 @@ def cleanup_and_maybe_teardown(kubeconfig: Optional[str], kubecontext: Optional[
     IS_RUNNING = False
     if tear_down:
         print("Cleaning up Jenkins and all resources.")
-        # the pull-through cache is disposable; its PVC is not annotated to keep, so this drops it too
-        run_kubectl_command(kubeconfig, kubecontext, kube_ns, ["delete", "-f", DOCKER_CACHE_YAML, "--ignore-not-found"])
         run_helm_command(kubeconfig, kubecontext, kube_ns, ["uninstall", "cassius"], capture_output=False)
+        # the pull-through cache is disposable; its PVC is not annotated to keep, so this drops it too.
+        # done after the helm uninstall, and non-fatal, so a cache cleanup hiccup never leaves Jenkins up
+        try:
+            run_kubectl_command(kubeconfig, kubecontext, kube_ns, ["delete", "-f", DOCKER_CACHE_YAML, "--ignore-not-found"])
+        except subprocess.CalledProcessError as e:
+            print(f"Warning: failed to delete the docker-cache resources, remove them manually: {e}")
         # the pvc is annotated `helm.sh/resource-policy: keep`, see .jenkins/k8s/jenkins-deployment.yaml
         print(f"Jenkins uninstalled. The jenkins-home volume was kept, delete it with:\n"
               f"  kubectl --namespace {kube_ns} delete pvc cassius-jenkins")
