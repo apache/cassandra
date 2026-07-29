@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import org.apache.cassandra.io.compress.BufferType;
+import org.apache.cassandra.io.compress.CorruptBlockException;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.memory.MemoryUtil;
@@ -100,12 +101,14 @@ public class ThreadLocalReadAheadBuffer implements Closeable
         return blockMap.get().computeIfAbsent(channel.filePath(), k -> new Block());
     }
 
-    public void fill(long position)
+    public void fill(long position) throws CorruptBlockException
     {
         Block block = getBlock();
         ByteBuffer blockBuffer = block.buffer;
-        long realPosition = Math.min(channelSize, position);
-        int blockNo = (int) (realPosition / bufferSize);
+        if (position >= channelSize)
+            throw new CorruptBlockException(channel.filePath(), position, bufferSize);
+
+        int blockNo = (int) (position / bufferSize);
         long blockPosition = blockNo * (long) bufferSize;
 
         long remaining = channelSize - blockPosition;
@@ -119,7 +122,7 @@ public class ThreadLocalReadAheadBuffer implements Closeable
 
         blockBuffer.flip();
         blockBuffer.limit(sizeToRead);
-        blockBuffer.position((int) (realPosition - blockPosition));
+        blockBuffer.position((int) (position - blockPosition));
     }
 
     protected void loadBlock(ByteBuffer blockBuffer, long blockPosition, int sizeToRead)
