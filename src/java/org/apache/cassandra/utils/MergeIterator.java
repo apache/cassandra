@@ -21,6 +21,8 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
+import net.nicoulaj.compilecommand.annotations.DontInline;
+
 import accord.utils.Invariants;
 
 /** Merges sorted input iterators which individually contain unique items. */
@@ -307,9 +309,36 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
                 heap[currIdx] = heap[nextIdx];
                 currIdx = nextIdx;
             }
+            // If the candidate has no children in the binary-heap section it is already in its final position, so we can
+            // skip the (rarely needed) sink below. nextIdx is the candidate's left child; anything >= size means there
+            // are no children. The single-child (nextIdx == size - 1) and two-children cases still have to go through
+            // sinkInBinaryHeap, which compares against the child(ren) and may swap or update the equalParent flag.
+            nextIdx = (currIdx * 2) - (sortedSectionSize - 1);
+            if (nextIdx >= size)
+            {
+                heap[currIdx] = candidate;
+                return;
+            }
+            // The candidate did not settle within the sorted section; sink it through the binary-heap section. This is
+            // rarely reached for typical narrow, lightly-overlapping merges, so it is split into its own method to keep
+            // the hot sorted-section path above small enough to be inlined into advance().
+            sinkInBinaryHeap(candidate, currIdx, size, sortedSectionSize);
+        }
+
+        /**
+         * Sink {@code candidate} down the binary-heap section of the queue (the part below the sorted section), pulling
+         * up the lighter child at each level, and place it in its final position.
+         *
+         * Split out of {@link #replaceAndSink} so that the common case, where the candidate settles within the sorted
+         * section, stays compact and inlinable.
+         */
+        @DontInline
+        private void sinkInBinaryHeap(Candidate<In> candidate, int currIdx, final int size, final int sortedSectionSize)
+        {
             // If size <= SORTED_SECTION_SIZE, nextIdx below will be no less than size,
             // because currIdx == sortedSectionSize == size - 1 and nextIdx becomes
             // (size - 1) * 2) - (size - 1 - 1) == size.
+            int nextIdx;
 
             // Advance in the binary heap, pulling up the lighter element from the two at each level.
             while ((nextIdx = (currIdx * 2) - (sortedSectionSize - 1)) + 1 < size)
