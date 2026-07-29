@@ -1,0 +1,148 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# In-cluster Docker Hub pull-through cache, applied by `.build/run-ci --only-setup`
+# (see install_jenkins) into the same namespace as the Jenkins release.
+#
+# Why: every agent runs its own docker-in-docker daemon on an emptyDir, so nothing
+# is shared between agents.  Each therefore pulls the same build/test images (the
+# ~35Gi cassandra-ubuntu-test among them) afresh.  At hundreds of concurrent agents
+# that is slow, wasteful, and trips Docker Hub's pull-rate limits.  This registry:2
+# proxy fetches each image from Docker Hub once, then serves it to every agent over
+# the cluster LAN.
+#
+# Why Docker Hub and not apache.jfrog.io: the build scripts consume the images by
+# their Docker Hub names -- `docker pull apache/cassandra-<image>:<md5>` in
+# .build/docker/run-tests.sh and _docker_run.sh, plus `alpine:3.19.1`.  Docker's
+# --registry-mirror (set on the agents' dind in jenkins-deployment.yaml) can only
+# mirror Docker Hub; a transparent pull-through cache for an arbitrary registry such
+# as apache.jfrog.io is not possible via --registry-mirror.  If the mirror is
+# unreachable dind falls back to Docker Hub directly, so agents keep working.
+#
+# Runs on the always-on controller node; the agent node pools autoscale to zero.
+#
+# Assumes agent pods launch in the Jenkins release's namespace (the kubernetes-plugin
+# default), so `docker-cache` resolves for them.  Validate the cache is serving with:
+#   kubectl -n <ns> exec deploy/docker-cache -- wget -qO- http://localhost:5000/v2/
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: docker-cache
+  labels:
+    app: docker-cache
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      # holds several multi-arch build/test images; the largest (ubuntu-test) is ~35Gi.
+      # registry:2 proxy also purges cached content past REGISTRY_PROXY_TTL (default 168h).
+      storage: 200Gi
+  # .build/run-ci injects storageClassName here from the Jenkins values' persistence.storageClass
+  # (see install_jenkins), so a site declares its storage class once.  Applying this manifest by
+  # hand on a cluster with no default StorageClass needs it set, e.g. `storageClassName: gp2` on EKS.
+  #storageClassName: gp2
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docker-cache
+  labels:
+    app: docker-cache
+spec:
+  replicas: 1
+  # a pull-through cache's local store is the whole point; never run two pods over one RWO PVC
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: docker-cache
+  template:
+    metadata:
+      labels:
+        app: docker-cache
+    spec:
+      # pin to the always-on controller node; agent pools autoscale to zero
+      nodeSelector:
+        cassandra.jenkins.controller: "true"
+      containers:
+        - name: registry
+          image: registry:2
+          ports:
+            - containerPort: 5000
+          env:
+            - name: REGISTRY_PROXY_REMOTEURL
+              value: "https://registry-1.docker.io"
+            # Optional Docker Hub credentials lift the anonymous pull-rate limit that
+            # the whole cluster would otherwise share through this one cache.  Create with:
+            #   kubectl -n <ns> create secret generic docker-cache-dockerhub \
+            #     --from-literal=username=<user> --from-literal=password=<access-token>
+            - name: REGISTRY_PROXY_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: docker-cache-dockerhub
+                  key: username
+                  optional: true
+            - name: REGISTRY_PROXY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: docker-cache-dockerhub
+                  key: password
+                  optional: true
+            - name: REGISTRY_HTTP_ADDR
+              value: ":5000"
+            - name: REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY
+              value: /var/lib/registry
+          volumeMounts:
+            - name: storage
+              mountPath: /var/lib/registry
+          resources:
+            requests:
+              cpu: "1"
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          readinessProbe:
+            httpGet:
+              path: /v2/
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /v2/
+              port: 5000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: docker-cache
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: docker-cache
+  labels:
+    app: docker-cache
+spec:
+  selector:
+    app: docker-cache
+  ports:
+    - port: 5000
+      targetPort: 5000

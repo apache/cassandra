@@ -130,6 +130,7 @@ def get_tracking_remote_url() -> str:
 DEFAULT_KUBE_NS = "default"
 CASSANDRA_DIR = Path(__file__).resolve().parent.parent
 DEPLOY_YAML = str(CASSANDRA_DIR / ".jenkins/k8s/jenkins-deployment.yaml")
+DOCKER_CACHE_YAML = str(CASSANDRA_DIR / ".jenkins/k8s/docker-cache.yaml")
 DEFAULT_REPO_BRANCH = get_current_branch()
 DEFAULT_REPO_URL = get_tracking_remote_url()
 DEFAULT_DTEST_REPO_URL = "https://github.com/apache/cassandra-dtest.git"
@@ -256,6 +257,38 @@ def run_kubectl_command(kubeconfig: Optional[str], kubecontext: Optional[str], k
     cmd += command
     return subprocess.run(cmd, capture_output=True, text=True, check=True).stdout.strip()
 
+def resolve_storage_class(values_override: Optional[str]) -> Optional[str]:
+    """The persistence.storageClass a site set for Jenkins, reused for the cache PVC.
+    The override wins over jenkins-deployment.yaml (where it is normally commented out)."""
+    def storage_class(path: str) -> Optional[str]:
+        try:
+            with open(path, encoding="utf-8") as f:
+                return ((yaml.safe_load(f) or {}).get("persistence") or {}).get("storageClass")
+        except FileNotFoundError:
+            return None
+    return (storage_class(values_override) if values_override else None) or storage_class(DEPLOY_YAML)
+
+def apply_docker_cache(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str,
+                       values_override: Optional[str] = None):
+    """Applies .jenkins/k8s/docker-cache.yaml, injecting the PVC's storageClassName from the Jenkins
+    values so the cache binds on clusters (e.g. EKS) that mark no default StorageClass."""
+    with open(DOCKER_CACHE_YAML, encoding="utf-8") as f:
+        docs = [d for d in yaml.safe_load_all(f) if d]
+    storage_class = resolve_storage_class(values_override)
+    if storage_class:
+        for doc in docs:
+            if doc.get("kind") == "PersistentVolumeClaim":
+                doc.setdefault("spec", {})["storageClassName"] = storage_class
+    print(f"Applying the Docker Hub pull-through cache (docker-cache"
+          f"{f', storageClass={storage_class}' if storage_class else ''})...")
+    cmd = ["kubectl"]
+    if kubeconfig:
+        cmd += ["--kubeconfig", kubeconfig]
+    if kubecontext:
+        cmd += ["--context", kubecontext]
+    cmd += ["--namespace", kube_ns, "apply", "-f", "-"]
+    subprocess.run(cmd, input=yaml.safe_dump_all(docs), text=True, check=True)
+
 def run_helm_command(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, command: list,
                      capture_output: bool = True, check: bool = True) -> subprocess.CompletedProcess:
     """Runs a helm command with the specified kubeconfig, context and namespace."""
@@ -372,6 +405,9 @@ def install_jenkins(kubeconfig: Optional[str], kubecontext: Optional[str], kube_
     if result.returncode != 0:
         print("Failed to install Jenkins Operator using Helm. Check the configuration and/or `kubectl logs cassius-jenkins-0`.")
         sys.exit(1)
+
+    # in-cluster Docker Hub pull-through cache for the agents' dind --registry-mirror, see .jenkins/k8s/docker-cache.yaml
+    apply_docker_cache(kubeconfig, kubecontext, kube_ns, values_override)
 
 
 def wait_for_jenkins_http(ip: str):
@@ -892,6 +928,8 @@ def cleanup_and_maybe_teardown(kubeconfig: Optional[str], kubecontext: Optional[
     IS_RUNNING = False
     if tear_down:
         print("Cleaning up Jenkins and all resources.")
+        # the pull-through cache is disposable; its PVC is not annotated to keep, so this drops it too
+        run_kubectl_command(kubeconfig, kubecontext, kube_ns, ["delete", "-f", DOCKER_CACHE_YAML, "--ignore-not-found"])
         run_helm_command(kubeconfig, kubecontext, kube_ns, ["uninstall", "cassius"], capture_output=False)
         # the pvc is annotated `helm.sh/resource-policy: keep`, see .jenkins/k8s/jenkins-deployment.yaml
         print(f"Jenkins uninstalled. The jenkins-home volume was kept, delete it with:\n"

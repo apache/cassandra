@@ -502,18 +502,22 @@ def buildJVMDTestJars(cell, script_vars, logfile) {
 }
 
 def fetchDockerImages(dockerfiles) {
-  // prefetch, from apache jfrog, reduces risking dockerhub pull rate limits
-  // also prefetch alpine:latest as its used as a utility in the scripts
+  // prefetch the build/test images so they are warm before the build needs them, and prefetch
+  // alpine:3.19.1 as the scripts use it as a utility.  Pull the Docker Hub names the build scripts
+  // actually consume (`docker pull apache/cassandra-<image>:<md5>` in .build/docker/run-tests.sh and
+  // _docker_run.sh); these route through the in-cluster Docker Hub pull-through cache configured on
+  // dind's --registry-mirror (.jenkins/k8s/docker-cache.yaml), so each image is fetched from Docker
+  // Hub once per cache rather than once per agent, sidestepping Docker Hub's pull-rate limits.
   def dockerfilesVar = dockerfiles.join(' ')
   sh label: "fetching docker images...", script: """#!/bin/bash
       for dockerfile in ${dockerfilesVar} ; do
         image_tag="\$(md5sum .build/docker/\${dockerfile}.docker | cut -d' ' -f1)"
         image_name="apache/cassandra-\${dockerfile}:\${image_tag}"
         if ! ( [[ "" != "\$(docker images -q \${image_name} 2>/dev/null)" ]] ) ; then
-          docker pull -q apache.jfrog.io/cassan-docker/\${image_name} &
+          docker pull -q \${image_name} &
         fi
       done
-      docker pull -q apache.jfrog.io/cassan-docker/alpine:3.19.1 &
+      docker pull -q alpine:3.19.1 &
       wait
       # debug how much space the images have taken.  df reports the node's filesystem: an emptyDir has no
       # size of its own, so this sees node pressure coming, never the docker-storage sizeLimit

@@ -209,8 +209,6 @@ agent:
               - envVar:
                   key: JENKINS_JAVA_OPTS
                   value: '-Dorg.jenkinsci.plugins.durabletask.BourneShellScript.USE_BINARY_WRAPPER=true -Xlog:gc+heap+exit -XX:+HeapDumpOnOutOfMemoryError'
-            # there's a lot of docker pulls,
-            # TODO implement option for docker registry caches :: https://medium.com/@elementtech.dev/kubernetes-image-proxy-cache-from-minutes-to-milliseconds-fd14173e831f
             image: apache.jfrog.io/cassan-docker/apache/cassandra-jenkins-k8s
             livenessProbe:
               failureThreshold: '0'
@@ -238,7 +236,12 @@ agent:
                 key: "DOCKER_IPTABLES_LEGACY"
                 value: "1"
             image: docker:dind
-            args: "--default-address-pool base=192.168.96.0/20,size=24"  # overwrite docker subnet in case of overlapping
+            # default-address-pool: overwrite docker subnet in case of overlapping.
+            # registry-mirror: route Docker Hub pulls through the in-cluster pull-through cache
+            #   (.jenkins/k8s/docker-cache.yaml) so each image is fetched once, not once per agent;
+            #   dind falls back to Docker Hub directly if the cache is unreachable.
+            # insecure-registry: the cache is served over plain HTTP inside the cluster.
+            args: "--default-address-pool base=192.168.96.0/20,size=24 --registry-mirror=http://docker-cache:5000 --insecure-registry=docker-cache:5000"
             livenessProbe:
               failureThreshold: '0'
               initialDelaySeconds: '0'
@@ -344,7 +347,12 @@ agent:
                 key: "DOCKER_IPTABLES_LEGACY"
                 value: "1"
             image: docker:dind
-            args: "--default-address-pool base=192.168.96.0/20,size=24"  # overwrite docker subnet in case of overlapping
+            # default-address-pool: overwrite docker subnet in case of overlapping.
+            # registry-mirror: route Docker Hub pulls through the in-cluster pull-through cache
+            #   (.jenkins/k8s/docker-cache.yaml) so each image is fetched once, not once per agent;
+            #   dind falls back to Docker Hub directly if the cache is unreachable.
+            # insecure-registry: the cache is served over plain HTTP inside the cluster.
+            args: "--default-address-pool base=192.168.96.0/20,size=24 --registry-mirror=http://docker-cache:5000 --insecure-registry=docker-cache:5000"
             livenessProbe:
               failureThreshold: '0'
               initialDelaySeconds: '0'
@@ -450,7 +458,12 @@ agent:
                 key: "DOCKER_IPTABLES_LEGACY"
                 value: "1"
             image: docker:dind
-            args: "--default-address-pool base=192.168.96.0/20,size=24"  # overwrite docker subnet in case of overlapping
+            # default-address-pool: overwrite docker subnet in case of overlapping.
+            # registry-mirror: route Docker Hub pulls through the in-cluster pull-through cache
+            #   (.jenkins/k8s/docker-cache.yaml) so each image is fetched once, not once per agent;
+            #   dind falls back to Docker Hub directly if the cache is unreachable.
+            # insecure-registry: the cache is served over plain HTTP inside the cluster.
+            args: "--default-address-pool base=192.168.96.0/20,size=24 --registry-mirror=http://docker-cache:5000 --insecure-registry=docker-cache:5000"
             livenessProbe:
               failureThreshold: '0'
               initialDelaySeconds: '0'
