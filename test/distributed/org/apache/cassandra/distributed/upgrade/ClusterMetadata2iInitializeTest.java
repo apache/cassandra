@@ -55,7 +55,7 @@ public class ClusterMetadata2iInitializeTest extends UpgradeTestBase
         .nodes(3)
         .withConfig((cfg) -> cfg.with(Feature.GOSSIP))
         .withBuilder(builderUpdater)
-        .upgradesToCurrentFrom(v41)
+        .singleUpgradeToCurrentFrom(v50)
         .setup((cluster) -> {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             cluster.schemaChange(withKeyspace("create index iii2 on %s.tbl (v)"));
