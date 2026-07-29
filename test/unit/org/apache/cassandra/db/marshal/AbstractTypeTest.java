@@ -740,9 +740,9 @@ public class AbstractTypeTest
     }
 
     @Test
-    public void valueLengthIfFixedIsFinal() throws NoSuchMethodException
+    public void valueLengthIfFixedIsNotFinal() throws NoSuchMethodException
     {
-        assertThat(Modifier.isFinal(AbstractType.class.getMethod("valueLengthIfFixed").getModifiers())).isTrue();
+        assertThat(Modifier.isFinal(AbstractType.class.getMethod("valueLengthIfFixed").getModifiers())).isFalse();
     }
 
     @Test
