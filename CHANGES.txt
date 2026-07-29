@@ -6,6 +6,7 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Fix operationMode reporting DECOMMISSION_FAILED instead of LEAVING when resuming a failed decommission (CASSANDRA-21493)
  * Avoid megamorphic calls for Cell.timestamp/ttl/path/localDeletionTimeAsUnsignedInt methods (CASSANDRA-21526)
  * Reduce allocations in DefaultQueryOptions (CASSANDRA-21467)
  * Allow unreserved keywords as user and identity names in USER and IDENTITY statements (CASSANDRA-21510)
@@ -73,8 +74,6 @@ Merged from 5.0:
  * Use estimated compressed size for tables to check if there is enough free space for a compaction (CASSANDRA-21245)
  * Fix failing select on system_views.settings for non-string keys (CASSANDRA-21348)
 Merged from 4.0:
- * Bound declared value length against readable bytes in CBUtil (CASSANDRA-21521)
- * Verify extension type before initializing reflectively-loaded classes (CASSANDRA-21525)
  * Rename conflicting nodetool import --copy-data short option from -p to -cd (CASSANDRA-20214)
  * Fix PasswordObfuscator failing to obfuscate certain passwords (CASSANDRA-21113)
  * Fix negative memtable allocator ownership when an update is shadowed by an existing row deletion (CASSANDRA-21469)
@@ -97,7 +96,6 @@ Merged from 4.0:
  * Fix a removed TTLed row re-appearance in a materialized view after a cursor compaction (CASSANDRA-21152)
  * Rework ZSTD dictionary compression logic to create a trainer per training (CASSANDRA-21209)
 Merged from 5.0:
- * SAI Component Checksum Validation Should be Segment-Aware (CASSANDRA-21516)
  * Ensure SAI sends range tombstones to the coordinator for queries on static columns (CASSANDRA-21332)
 Merged from 4.1:
  * Add Paxos v2 option and informatin in cassandra.yaml (CASSANDRA-21316)
