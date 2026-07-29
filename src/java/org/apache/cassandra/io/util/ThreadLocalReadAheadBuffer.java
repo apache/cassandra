@@ -101,13 +101,12 @@ public class ThreadLocalReadAheadBuffer implements Closeable
         return blockMap.get().computeIfAbsent(channel.filePath(), k -> new Block());
     }
 
-    public void fill(long position)
+    public void fill(long position) throws CorruptBlockException
     {
         Block block = getBlock();
         ByteBuffer blockBuffer = block.buffer;
         if (position >= channelSize)
-            throw new CorruptSSTableException(new CorruptBlockException(channel.filePath(), position, bufferSize),
-                                              channel.filePath());
+            throw new CorruptBlockException(channel.filePath(), position, bufferSize);
 
         int blockNo = (int) (position / bufferSize);
         long blockPosition = blockNo * (long) bufferSize;
