@@ -61,7 +61,27 @@ public class EndpointDelta implements Delta
      */
     public Delta merge(Delta other)
     {
-        throw new IllegalStateException("We only merge when constructing new deltas, EndpointDeltas are only constructed when deserializing existing ones");
+        if (!(other instanceof EndpointDelta))
+            throw new IllegalStateException("Can't merge EndpointDelta with a NodeIdDelta");
+        EndpointDelta otherEpDelta = (EndpointDelta)other;
+        RangesByEndpoint.Builder removalsBuilder = new RangesByEndpoint.Builder();
+        RangesByEndpoint.Builder additionsBuilder = new RangesByEndpoint.Builder();
+        addChange(removals, otherEpDelta.additions, removalsBuilder);
+        addChange(otherEpDelta.removals, additions, removalsBuilder);
+        addChange(additions, otherEpDelta.removals, additionsBuilder);
+        addChange(otherEpDelta.additions, removals, additionsBuilder);
+        return new EndpointDelta(removalsBuilder.build(),
+                                 additionsBuilder.build());
+    }
+
+    private static void addChange(RangesByEndpoint change, RangesByEndpoint opposite, RangesByEndpoint.Builder builder)
+    {
+        change.asMap().forEach((ep, replicas) -> {
+            replicas.forEach(replica -> {
+                if (!opposite.get(ep).contains(replica) && !builder.get(ep).contains(replica))
+                    builder.put(ep, replica);
+            });
+        });
     }
 
     public Delta invert()
