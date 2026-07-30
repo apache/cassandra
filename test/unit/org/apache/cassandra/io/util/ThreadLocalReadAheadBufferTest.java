@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.io.compress.BufferType;
+import org.apache.cassandra.io.compress.CorruptBlockException;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.utils.Pair;
 import org.quicktheories.WithQuickTheories;
@@ -119,7 +120,7 @@ public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
                             copied += trlab.read(buf2, trlab.remaining());
                     }
                 }
-                catch (CorruptSSTableException e)
+                catch (CorruptSSTableException | CorruptBlockException e)
                 {
                     throw new RuntimeException(e);
                 }

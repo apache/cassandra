@@ -25,6 +25,7 @@ import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.filesystem.ListenableFileSystem;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.schema.CompressionParams;
 import org.assertj.core.api.Assertions;
@@ -33,6 +34,8 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.Files;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -137,5 +140,56 @@ public class CompressedChunkReaderTest
                 default: throw new UnsupportedOperationException(kind.name());
             }
         };
+    }
+
+    @Test(timeout = 10_000)
+    public void scanReaderShouldNotHangOnTruncatedFile() throws Exception
+    {
+        SequentialWriterOption writerOption = SequentialWriterOption.newBuilder().finishOnClose(false).bufferSize(1 << 10).build();
+        CompressionParams params = CompressionParams.snappy(4096, 1.1);
+
+        FileSystems.newGlobalInMemoryFileSystem();
+        File f = new File("/truncated_hang_repro.db");
+        File offsets = new File("/truncated_hang_repro.offset");
+        File digest = new File("/truncated_hang_repro.digest");
+
+        long longsToWrite = 600; // 4800 uncompressed bytes -> 2 compressed chunks (second one partial)
+        CompressionMetadata metadata;
+        try (CompressedSequentialWriter writer = new CompressedSequentialWriter(f, offsets, digest, writerOption, params, new MetadataCollector(new ClusteringComparator())))
+        {
+            for (long i = 0; i < longsToWrite; i++)
+                writer.writeLong(i);
+
+            writer.sync();
+            metadata = writer.open(0);
+        }
+
+        DatabaseDescriptor.setCompressedReadAheadBufferSizeInKb(256);
+
+        // Truncate file so that chunk metadata expects a chunk to extend further than the actual file size
+        long originalSize = Files.size(f.toPath());
+        long truncatedSize = originalSize - (params.chunkLength() / 2);
+        try (FileChannel fc = FileChannel.open(f.toPath(), StandardOpenOption.WRITE))
+        {
+            fc.truncate(truncatedSize);
+        }
+        long uncompressedTotal = longsToWrite * Long.BYTES;
+        long lastChunkUncompressedStart = ((uncompressedTotal - 1) / metadata.chunkLength()) * metadata.chunkLength();
+
+        ByteBuffer buffer = ByteBuffer.allocateDirect(metadata.chunkLength());
+        try (ChannelProxy channel = new ChannelProxy(f);
+             CompressedChunkReader reader = new CompressedChunkReader.Standard(channel, metadata, () -> 1.1);
+             metadata)
+        {
+            reader.forScan();
+
+            Assertions.assertThatThrownBy(() -> reader.readChunk(lastChunkUncompressedStart, buffer))
+                    .as("readChunk() reading past truncated EOF via the scan path")
+                    .isInstanceOf(CorruptSSTableException.class);
+        }
+        finally
+        {
+            FileUtils.clean(buffer);
+        }
     }
 }
