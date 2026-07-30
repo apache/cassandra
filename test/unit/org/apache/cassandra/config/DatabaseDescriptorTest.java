@@ -944,4 +944,28 @@ public class DatabaseDescriptorTest
                 assertThat(DatabaseDescriptor.getCommitLogWriteDiskAccessMode()).isEqualTo(mode);
         }
     }
+
+    @Test
+    public void testSetCompressedReadAheadBufferSizeInKb()
+    {
+        int original = DatabaseDescriptor.getCompressedReadAheadBufferSizeInKB();
+        try
+        {
+            // 0 should be a legal value, and represents disabling read-ahead buffer
+            DatabaseDescriptor.setCompressedReadAheadBufferSizeInKb(0);
+            assertEquals(0, DatabaseDescriptor.getCompressedReadAheadBufferSizeInKB());
+            assertEquals(0, DatabaseDescriptor.getCompressedReadAheadBufferSize());
+
+            Assertions.assertThatThrownBy(() -> DatabaseDescriptor.setCompressedReadAheadBufferSizeInKb(255))
+                      .isInstanceOf(IllegalArgumentException.class)
+                      .hasMessage("compressed_read_ahead_buffer_size_in_kb must be at least 256KiB (set to 0 to disable)");
+
+            DatabaseDescriptor.setCompressedReadAheadBufferSizeInKb(256);
+            assertEquals(256, DatabaseDescriptor.getCompressedReadAheadBufferSizeInKB());
+        }
+        finally
+        {
+            DatabaseDescriptor.setCompressedReadAheadBufferSizeInKb(original);
+        }
+    }
 }
