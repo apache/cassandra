@@ -468,12 +468,13 @@ public class Move extends MultiStepOperation<Epoch>
             RangesByEndpoint targets = delta.writes.additions(metadata.directory::endpoint);
             ReplicaGroups oldOwners = placements.get(params).reads;
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
+            Iterable<Replica> replicaRemovals = midDeltas.get(params).reads.removals(metadata.directory::endpoint).flattenValues();
             targets.flattenValues().forEach(destination -> {
                 SourceHolder sources = new SourceHolder(fd, metadata, destination, toSplitRanges.get(params), strictConsistency);
                 AtomicBoolean needsRelaxedSources = new AtomicBoolean();
                 // first, try to find strict sources for the ranges we need to stream - these are the ranges that
                 // instances are losing.
-                midDeltas.get(params).reads.removals(metadata.directory::endpoint).flattenValues().forEach(strictSource -> {
+                replicaRemovals.forEach(strictSource -> {
                     if (strictSource.range().equals(destination.range()) && !strictSource.endpoint().equals(destination.endpoint()))
                         if (!sources.addSource(strictSource))
                         {
