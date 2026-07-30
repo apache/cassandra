@@ -87,7 +87,7 @@ public class AccordExecutorTest extends SimulationTestBase
     {
         final AtomicInteger nextId = new AtomicInteger();
         final AtomicInteger doneBefore = new AtomicInteger();
-        final ConcurrentHashMap<Integer, Collection<Future<?>>> consequences = new ConcurrentHashMap<>();
+        final ConcurrentHashMap<Integer, Consequences> consequences = new ConcurrentHashMap<>();
 
         boolean isDone()
         {
@@ -106,11 +106,8 @@ public class AccordExecutorTest extends SimulationTestBase
         {
             for (int id = from ; id < before ; ++id)
             {
-                for (Future<?> future : consequences.get(id))
-                {
-                    if (!future.isDone())
-                        return false;
-                }
+                if (!consequences.get(id).isDone())
+                    return false;
             }
             return true;
         }
@@ -118,6 +115,34 @@ public class AccordExecutorTest extends SimulationTestBase
         class Consequences extends ConcurrentLinkedQueue<Future<?>>
         {
             volatile boolean started;
+
+            /**
+             * The number of submissions in this group that have not yet invoked their callback.
+             * <p>
+             * We cannot decide this by iterating the queue: each level of the recursion appends the next level's
+             * future while it runs, i.e. strictly before its own future completes, so the queue is still growing
+             * while it is being consumed - and {@link ConcurrentLinkedQueue}'s iterator prefetches, so an iterator
+             * that has reached the tail terminates and never sees the later additions. A counter is exact, because
+             * for the same reason it can only reach zero once the whole group has finished: a consequence is
+             * registered before its parent's future completes.
+             */
+            final AtomicInteger outstanding = new AtomicInteger();
+
+            void submitted(Future<?> future)
+            {
+                outstanding.incrementAndGet();
+                add(future);
+            }
+
+            void completed()
+            {
+                outstanding.decrementAndGet();
+            }
+
+            boolean isDone()
+            {
+                return outstanding.get() == 0;
+            }
 
             void ensureStarted()
             {
@@ -171,14 +196,29 @@ public class AccordExecutorTest extends SimulationTestBase
         void submit(AsyncExecutor executor, Consequences consequences, Consumer<Consequences> run)
         {
             AsyncPromise<?> future = new AsyncPromise<>();
-            consequences.add(future);
+            consequences.submitted(future);
             Cancellable cancel = executor.chain(() -> run.accept(consequences)).begin((success, fail) -> {
-                if (fail == null) future.trySuccess(null);
-                else
+                try
                 {
-                    future.tryFailure(fail);
-                    if (fail instanceof CancellationException)
-                        run.accept(submitted.allocate());
+                    if (fail == null) future.trySuccess(null);
+                    else
+                    {
+                        future.tryFailure(fail);
+                        // replace the cancelled work with an equivalent submission, so that cancelling does not
+                        // simply reduce the amount of work we perform.
+                        //
+                        // NOTE: this callback may be invoked from inside the executor (e.g. while cancelling, which
+                        // happens with the executor's lock held), so we must not run the body here: it re-enters the
+                        // executor (afterSubmittedAndConsequences, and the lock itself), which is forbidden for a
+                        // thread that already holds it. Submit it as ordinary work instead, so it runs in a legal
+                        // context - this also widens the set of interleavings we explore.
+                        if (fail instanceof CancellationException)
+                            submit(executor, submitted.allocate(), run);
+                    }
+                }
+                finally
+                {
+                    consequences.completed();
                 }
             });
             consequences.ensureStarted();
@@ -248,8 +288,16 @@ public class AccordExecutorTest extends SimulationTestBase
                                      for (Future<?> f : done)
                                          f.get();
 
+                                     // the awaits in submitLoop only wait for the submissions they can see, and the
+                                     // deeper levels of each group are only registered as they run, so work may still
+                                     // be in flight here; drain the executor before verifying that everything we
+                                     // recorded has in fact run
+                                     executor.waitForQuiescence();
                                      if (!submitted.isDone())
                                          throw new AssertionError();
+                                     // nothing is running, so we can now safely inspect every future we recorded
+                                     for (int id = 0 ; id < submitted.nextId.get() ; ++id)
+                                         await(submitted.consequences.get(id), CancellationException.class);
                                  }
                              }
                          }
@@ -350,6 +398,11 @@ public class AccordExecutorTest extends SimulationTestBase
         });
     }
 
+    /**
+     * Waits for those submissions that are visible in {@code await}; note that this deliberately does not wait for
+     * the whole tree of consequences (which is still being appended to as each level runs), so that submission
+     * threads continue to overlap their outer loops - {@link Submitted#isDone} is verified once the executor drains.
+     */
     private static void await(Collection<Future<?>> await, @Nullable Class<? extends Throwable> ignore) throws InterruptedException, ExecutionException
     {
         for (Future<?> future : await)

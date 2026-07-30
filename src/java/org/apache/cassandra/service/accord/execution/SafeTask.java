@@ -748,7 +748,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     private void waitOnCacheQueuesExclusive()
     {
         Invariants.require(waitingForState == 0);
-        loadedAt = nanoTime();
+        loadedAt = Math.max(createdAt, nanoTime());
         executor().runnable.incrementArrivals(this);
         commandStore.exclusiveExecutor().incrementArrivals(this);
 

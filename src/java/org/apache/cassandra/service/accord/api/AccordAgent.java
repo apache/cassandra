@@ -39,6 +39,7 @@ import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.api.Tracing;
 import accord.coordinate.Coordination;
+import accord.coordinate.CoordinationFailed;
 import accord.coordinate.Exhausted;
 import accord.coordinate.Preempted;
 import accord.coordinate.Timeout;
@@ -222,11 +223,17 @@ public class AccordAgent implements Agent, OwnershipEventListener
             return;
 
         AccordSystemMetrics.metrics.errors.inc();
-        if (t instanceof CancellationException || t instanceof TimeoutException || t instanceof Timeout || t instanceof Preempted || t instanceof Exhausted || t instanceof LogUnavailableException)
-            // TODO (required): leaky logger, permitting multiple messages per time period and reporting how many were dropped
+        if (expectedException(t)) // TODO (required): leaky logger, permitting multiple messages per time period and reporting how many were dropped
             noSpamException.warn(exceptionId(t), t);
         else
             JVMStabilityInspector.uncaughtException(Thread.currentThread(), t);
+    }
+
+    public static boolean expectedException(Throwable t)
+    {
+        if (t instanceof CancellationException)
+            return t.getCause() == null;
+        return t instanceof TimeoutException || t instanceof LogUnavailableException || t instanceof CoordinationFailed;
     }
 
     @Override

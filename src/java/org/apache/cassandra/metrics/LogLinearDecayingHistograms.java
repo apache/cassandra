@@ -59,6 +59,9 @@ public class LogLinearDecayingHistograms
 
         private void add(long histogramIndex, long value)
         {
+            if (!Invariants.expect(value >= 0, "Negative value reported: %s", value))
+                return;
+
             Invariants.require(histogramIndex <= HISTOGRAM_INDEX_MASK);
             Invariants.require(value >= 0);
             if (value <= LARGE_VALUE) value <<= HISTOGRAM_INDEX_BITS;
@@ -117,6 +120,9 @@ public class LogLinearDecayingHistograms
 
         public void increment(long value, long at)
         {
+            if (!Invariants.expect(value >= 0, "Negative value reported: %s", value))
+                return;
+
             int index = index(value);
             if (bufferCount >= buffer.length)
             {
@@ -127,6 +133,7 @@ public class LogLinearDecayingHistograms
             updateDecay(at);
             long v = Double.doubleToRawLongBits(increment) & VALUE_MASK;
             v |= histogramIndex | ((long)index << HISTOGRAM_INDEX_BITS);
+            Invariants.require(Double.longBitsToDouble(v & VALUE_MASK) > 0);
             buffer[bufferCount++] = v;
         }
 

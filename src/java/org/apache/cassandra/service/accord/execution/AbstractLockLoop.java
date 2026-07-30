@@ -24,7 +24,6 @@ import java.util.function.Function;
 
 import accord.api.Agent;
 
-import org.apache.cassandra.concurrent.CassandraThread;
 import org.apache.cassandra.service.accord.execution.Loops.LoopTask;
 
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXECUTION;
@@ -248,7 +247,8 @@ abstract class AbstractLockLoop extends AbstractLoop
             @Override
             public void run()
             {
-                CassandraThread self = (CassandraThread) Thread.currentThread();
+                Thread thread = Thread.currentThread();
+                TaskRunner self = TaskRunner.get(thread);
                 self.setAccordActiveExecutor(AbstractLockLoop.this);
                 setWrapped(self);
 

@@ -601,7 +601,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
     {
         Invariants.require(is(PREPARED));
         Invariants.require(is(NOT_YET_RUN) || is(RUN_INCOMPLETE));
-        runningAt = nanoTime();
+        runningAt = Math.max(createdAt, nanoTime());
         setRunState(RunState.RUNNING);
         if (DEBUG_EXECUTION) ((DebugTask) resources).onRunning();
     }

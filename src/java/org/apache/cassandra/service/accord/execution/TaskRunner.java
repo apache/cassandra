@@ -48,6 +48,7 @@ public interface TaskRunner
     final class ThreadLocalTaskRunner implements TaskRunner
     {
         private AccordExecutor lockedExecutor;
+        private int lockedExecutorDepth;
         private AccordExecutor activeExecutor;
         volatile Task activeTask;
 
@@ -74,16 +75,17 @@ public interface TaskRunner
         @Override
         public boolean tryEnterAccordLockedExecutor(AccordExecutor newLockedExecutor)
         {
-            if (lockedExecutor != null)
-                return false;
-            lockedExecutor = newLockedExecutor;
+            if (lockedExecutor == null) lockedExecutor = newLockedExecutor;
+            else if (lockedExecutor != newLockedExecutor) return false;
+            ++lockedExecutorDepth;
             return true;
         }
 
         @Override
         public void exitAccordLockedExecutor()
         {
-            lockedExecutor = null;
+            if (--lockedExecutorDepth == 0)
+                lockedExecutor = null;
         }
 
         @Override
