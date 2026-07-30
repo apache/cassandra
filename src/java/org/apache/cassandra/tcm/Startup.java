@@ -389,7 +389,9 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         }
         else
         {
-            throw new RuntimeException(String.format("Unable to identify a quorum of CMS members (found %s, required %s)",
+            throw new RuntimeException(String.format("Unable to identify a quorum of CMS members (found %s, required %s). " +
+                                                     "If attemping rediscovery after multiple endpoint changes, check that" +
+                                                     "seeds have been correctly updated.",
                                                      confirmedCMS.size(), quorum));
         }
     }

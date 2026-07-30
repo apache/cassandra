@@ -225,7 +225,15 @@ public class Discovery
                     break;
                 case TCM_DISCOVER_PEERS_REQ:
                     logger.info("Responding to {} request from {}", message.verb(), message.from());
-                    discoveredNodes = new DiscoveredNodes(new HashSet<>(discovered), DiscoveredNodes.Kind.KNOWN_PEERS);
+                    HashSet<InetAddressAndPort> knownPeers = new HashSet<>(discovered);
+                    // Include the current view of CMS membership. If this node is itself in the process of a
+                    // (re)discovery, then this could contain outdated addresses, but that is harmless as the recipient
+                    // will only include them in a survey. Alternatively, if this node has not participated in a recent
+                    // discovery the content of its discovered set is probably useless to the requester as it is very
+                    // likely empty (or more accurately, it will contain only the address of the requester). In this
+                    // case, including the CMS membership to be fed into a survey by the requester is also useful.
+                    knownPeers.addAll(cms);
+                    discoveredNodes = new DiscoveredNodes(knownPeers, DiscoveredNodes.Kind.KNOWN_PEERS);
                     messaging.get().send(message.responseWith(discoveredNodes), message.from());
                     break;
             }
