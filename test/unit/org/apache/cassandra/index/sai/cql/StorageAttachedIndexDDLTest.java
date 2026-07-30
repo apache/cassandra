@@ -1007,11 +1007,8 @@ public class StorageAttachedIndexDDLTest extends SAITester
     @Test
     public void rebuildingOneIndexNotRewriteSharedPerSSTableComponents() throws Throwable
     {
-        SSTableContext.class.getName();
-
         Injections.Counter sharedContextBuilds = Injections.newCounter("SharedPerSSTableContextBuilds")
-                                                           .add(InvokePointBuilder.newInvokePoint().onClass(SSTableContext.class)
-                                                                                  .onMethod("create"))
+                                                           .add(InvokePointBuilder.newInvokePoint().onClass(SSTableContext.class).onMethod("create"))
                                                            .build();
 
         Injections.inject(sharedContextBuilds);
@@ -1023,6 +1020,8 @@ public class StorageAttachedIndexDDLTest extends SAITester
         execute("INSERT INTO %s (id1, v1, v2) VALUES ('0', 0, '100')");
         execute("INSERT INTO %s (id1, v1, v2) VALUES ('1', 1, '101')");
         flush();
+
+        assertEquals(1, sharedContextBuilds.get());
 
         assertEquals(1, execute("SELECT id1 FROM %s WHERE v1 = 0").size());
         assertEquals(1, execute("SELECT id1 FROM %s WHERE v2 = '101'").size());
