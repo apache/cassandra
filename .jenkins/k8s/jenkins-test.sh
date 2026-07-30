@@ -76,39 +76,44 @@ k8s_dir = Path(sys.argv[1])
 errors = 0
 
 for path in sorted(k8s_dir.glob("*.yaml")):
+    # plain k8s manifests (e.g. docker-cache.yaml) hold several `---`-separated documents;
+    # helm values files (jenkins-deployment.yaml) hold one.  safe_load_all handles both.
     try:
-        values = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        documents = list(yaml.safe_load_all(path.read_text(encoding="utf-8")))
     except yaml.YAMLError as error:
         print(f"  INVALID {path.name}: {error}")
         errors += 1
         continue
     print(f"  {path.name} parses")
 
-    # the values in these two maps are themselves yaml documents, and a chart never validates them —
-    # a misindented pod template reaches the kubernetes plugin and silently loses its agents
-    for keys in (("agent", "podTemplates"), ("controller", "JCasC", "configScripts")):
-        embedded = values
-        for key in keys:
-            embedded = embedded.get(key, {}) if isinstance(embedded, dict) else {}
-        for name, document in (embedded or {}).items():
-            location = f"{path.name} {'.'.join(keys)}.{name}"
-            try:
-                parsed = yaml.safe_load(document)
-            except yaml.YAMLError as error:
-                print(f"  INVALID {location}: {error}")
-                errors += 1
-                continue
-            print(f"  {location} parses")
-            # each pod template may carry a raw kubernetes pod spec in a nested `yaml` key
-            for template in parsed if isinstance(parsed, list) else []:
-                if isinstance(template, dict) and "yaml" in template:
-                    try:
-                        yaml.safe_load(template["yaml"])
-                    except yaml.YAMLError as error:
-                        print(f"  INVALID {location}.yaml: {error}")
-                        errors += 1
-                    else:
-                        print(f"  {location}.yaml parses")
+    for values in documents:
+        if not isinstance(values, dict):
+            continue
+        # the values in these two maps are themselves yaml documents, and a chart never validates them —
+        # a misindented pod template reaches the kubernetes plugin and silently loses its agents
+        for keys in (("agent", "podTemplates"), ("controller", "JCasC", "configScripts")):
+            embedded = values
+            for key in keys:
+                embedded = embedded.get(key, {}) if isinstance(embedded, dict) else {}
+            for name, document in (embedded or {}).items():
+                location = f"{path.name} {'.'.join(keys)}.{name}"
+                try:
+                    parsed = yaml.safe_load(document)
+                except yaml.YAMLError as error:
+                    print(f"  INVALID {location}: {error}")
+                    errors += 1
+                    continue
+                print(f"  {location} parses")
+                # each pod template may carry a raw kubernetes pod spec in a nested `yaml` key
+                for template in parsed if isinstance(parsed, list) else []:
+                    if isinstance(template, dict) and "yaml" in template:
+                        try:
+                            yaml.safe_load(template["yaml"])
+                        except yaml.YAMLError as error:
+                            print(f"  INVALID {location}.yaml: {error}")
+                            errors += 1
+                        else:
+                            print(f"  {location}.yaml parses")
 
 sys.exit(1 if errors else 0)
 EOF

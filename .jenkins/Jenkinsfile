@@ -502,22 +502,24 @@ def buildJVMDTestJars(cell, script_vars, logfile) {
 }
 
 def fetchDockerImages(dockerfiles) {
-  // prefetch the build/test images so they are warm before the build needs them, and prefetch
-  // alpine:3.19.1 as the scripts use it as a utility.  Pull the Docker Hub names the build scripts
-  // actually consume (`docker pull apache/cassandra-<image>:<md5>` in .build/docker/run-tests.sh and
-  // _docker_run.sh); these route through the in-cluster Docker Hub pull-through cache configured on
-  // dind's --registry-mirror (.jenkins/k8s/docker-cache.yaml), so each image is fetched from Docker
-  // Hub once per cache rather than once per agent, sidestepping Docker Hub's pull-rate limits.
+  // prefetch the build|test image so they are warm before the build needs them, and the base alpine:3.19.1
+  // where dind advertises a registry mirror (see use of .jenkins/k8s/docker-cache.yaml), use it, otherwise use apache.jfrog.io
   def dockerfilesVar = dockerfiles.join(' ')
   sh label: "fetching docker images...", script: """#!/bin/bash
+      # empty prefix when a registry mirror is present (pulls route through it), else use apache.jfrog.io
+      registry_prefix=""
+      if ! docker info --format '{{.RegistryConfig.Mirrors}}' 2>/dev/null | grep -q '://' ; then
+        # xxx – a custom registry for behind firewalls can be also defined here
+        registry_prefix="apache.jfrog.io/cassan-docker/"
+      fi
       for dockerfile in ${dockerfilesVar} ; do
         image_tag="\$(md5sum .build/docker/\${dockerfile}.docker | cut -d' ' -f1)"
         image_name="apache/cassandra-\${dockerfile}:\${image_tag}"
         if ! ( [[ "" != "\$(docker images -q \${image_name} 2>/dev/null)" ]] ) ; then
-          docker pull -q \${image_name} &
+          docker pull -q \${registry_prefix}\${image_name} &
         fi
       done
-      docker pull -q alpine:3.19.1 &
+      docker pull -q \${registry_prefix}alpine:3.19.1 &
       wait
       # debug how much space the images have taken.  df reports the node's filesystem: an emptyDir has no
       # size of its own, so this sees node pressure coming, never the docker-storage sizeLimit
