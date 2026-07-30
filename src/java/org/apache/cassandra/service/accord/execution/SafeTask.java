@@ -467,13 +467,16 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
             if (isSequencedByPriorityAtomic())
             {
-                boolean isTxnIdSubset = context.isTxnIdSubsetOf(parent.context);
                 if (!isKeySubset)
                 {
                     Invariants.require(keysOrRanges.domain() == Key, "ATOMIC tasks over ranges must declare a subset of their parent's task keys() to avoid a range scan across which we would not impose sequencing");
                     // to avoid priority inversion deadlocks, if we are not a strict subset of the parent task we permit running with a single key ready
                     nonSync.alwaysReady = true;
                 }
+
+                boolean isTxnIdSubset = true;
+                for (TxnId txnId : context.txnIds())
+                    isTxnIdSubset &= parent.refs.containsKey(txnId);
                 Invariants.require(isTxnIdSubset, "ATOMIC tasks must declare a subset of their parent's task txnIds() to avoid a priority inversion deadlock");
                 // TODO (required): we're appending to the fifo queue - does this maintain correct order?
                 setCacheQueuedFifoExclusive();

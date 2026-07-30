@@ -273,13 +273,13 @@ public class CommandStoreSerializers
             }
         }
 
-        private short cast(long v)
+        private int cast(long v)
         {
             if (v < 0 || v >= (1 << RedundantStatus.Property.WAS_OWNED.ordinal()))
                 throw new IllegalStateException("Should not be serializing WAS_OWNED or NOT_OWNED statuses");
             if ((v & ~0xFFFF) != 0) // retain this
                 throw new IllegalStateException("Cannot serialize RedundantStatus larger than 0xFFFF. Requires serialization changes.");
-            return (short)v;
+            return (int) v;
         }
 
         @Override
@@ -301,7 +301,7 @@ public class CommandStoreSerializers
                 bounds[i] = CommandSerializers.txnId.deserialize(in);
             int[] statuses = new int[count * 2];
             for (int i = 0 ; i < statuses.length ; ++i)
-                statuses[i] = in.readShort();
+                statuses[i] = in.readShort() & 0xFFFF;
 
             return new RedundantBefore.Bounds(range, startEpoch, endEpoch, bounds, statuses, staleUntilAtLeast);
         }

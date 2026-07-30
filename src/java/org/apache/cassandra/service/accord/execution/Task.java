@@ -262,7 +262,6 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
     Task next;
     Task consequences;
 
-    // the queue position until run is invoked, at which point it is assigned a nanoTime() value
     long position;
     int info;
 

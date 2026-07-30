@@ -153,7 +153,7 @@ configuration changes in the near future.
 `@Replaces` is the annotation to be used when you make changes to any configuration parameters in `Config` class and `cassandra.yaml`, and you want to add backward
 compatibility with previous Cassandra versions. `Converters` class enumerates the different methods used for backward compatibility.
 `IDENTITY` is the one used for name change only. For more information about the other Converters, please, check the JavaDoc in the class.
-For backward compatibility virtual table `LoadSettings` contains both the old and the new
+For backward compatibility virtual table `Settings` contains both the old and the new
 parameters with the old and the new value format. Only exception at the moment are the following three parameters: `key_cache_save_period`,
 `row_cache_save_period` and `counter_cache_save_period` which appear only once with the new value format.
 The old names and value format still can be used at least until the next major release. Deprecation warning is emitted on startup.
