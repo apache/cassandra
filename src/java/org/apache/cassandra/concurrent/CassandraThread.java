@@ -20,6 +20,8 @@ package org.apache.cassandra.concurrent;
 
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
+import accord.utils.Invariants;
+
 import org.apache.cassandra.metrics.ThreadLocalMetrics;
 import org.apache.cassandra.service.accord.execution.AccordExecutor;
 import org.apache.cassandra.service.accord.execution.Task;
@@ -127,8 +129,20 @@ public class CassandraThread extends FastThreadLocalThread implements TaskRunner
     @Override
     public final void exitAccordLockedExecutor()
     {
-        if (--accordLockedExecutorDepth == 0)
+        int depth = --accordLockedExecutorDepth;
+        if (depth <= 0)
             accordLockedExecutor = null;
+        if (!Invariants.expect(depth >= 0))
+            accordLockedExecutorDepth = 0;
+    }
+
+    @Override
+    public final int resetAccordLockedExecutor()
+    {
+        int discarded = accordLockedExecutorDepth;
+        accordLockedExecutorDepth = 0;
+        accordLockedExecutor = null;
+        return discarded;
     }
 
     public final Task accordActiveTask()

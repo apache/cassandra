@@ -49,11 +49,17 @@ abstract class AbstractLoop extends AccordExecutor
     final Task push(Task submit)
     {
         Invariants.require(submit.next == null);
+        return push(submit, submit);
+    }
+
+    final Task push(Task submitHead, Task submitTail)
+    {
+        Invariants.require(submitTail.next == null);
         while (true)
         {
             Task next = unqueued;
-            submit.next = next;
-            if (unqueuedUpdater.compareAndSet(this, next, submit))
+            submitTail.next = next;
+            if (unqueuedUpdater.compareAndSet(this, next, submitHead))
                 return next;
         }
     }

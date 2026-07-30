@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.function.BiConsumer;
-import java.util.function.BiPredicate;
 
 import javax.annotation.Nullable;
 
@@ -33,22 +32,22 @@ import accord.utils.ArrayBuffers.BufferList;
 import accord.utils.IntrusiveLinkedList;
 import accord.utils.IntrusiveLinkedListNode;
 import accord.utils.Invariants;
+import accord.utils.TriFunction;
 import accord.utils.UnhandledEnum;
 import accord.utils.async.Cancellable;
 
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.execution.AccordCache.Adapter;
 import org.apache.cassandra.service.accord.execution.AccordCache.Adapter.Shrink;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntryQueue.RemoveMode;
 import org.apache.cassandra.utils.ObjectSizes;
 
-import static accord.utils.Invariants.nonNull;
 import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.LockMode.HOLD_QUEUE;
 import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.LockMode.UNLOCKED;
-import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.RunnableStatus.NEWLY_BLOCKING_RUNNABLE;
+import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.LockMode.UNQUEUED;
 import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.RunnableStatus.NEWLY_RUNNABLE;
 import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.RunnableStatus.NOT_RUNNABLE;
 import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.RunnableStatus.STILL_RUNNABLE;
-import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.RunnableStatus.STILL_RUNNABLE_NEWLY_BLOCKING;
 import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status.EVICTED;
 import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status.FAILED_TO_LOAD;
 import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status.FAILED_TO_SAVE;
@@ -59,7 +58,10 @@ import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.Sta
 import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status.WAITING_TO_LOAD;
 import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status.WAITING_TO_SAVE;
 import static org.apache.cassandra.service.accord.execution.AccordCacheEntryQueue.PRIORITY_START_INDEX;
-import static org.apache.cassandra.service.accord.execution.AccordCacheEntryQueue.compare;
+import static org.apache.cassandra.service.accord.execution.AccordCacheEntryQueue.RemoveMode.IF_PRESENT;
+import static org.apache.cassandra.service.accord.execution.AccordCacheEntryQueue.RemoveMode.REQUIRE_PRESENT;
+import static org.apache.cassandra.service.accord.execution.AccordCacheEntryQueue.RemoveMode.REQUIRE_RUNNABLE;
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.CACHE_QUEUES_ENABLED;
 
 /**
  * Global (per CommandStore) state of a cached entity (Command or CommandsForKey).
@@ -112,6 +114,7 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
             MODIFIED.permittedFrom |= 1 << FAILED_TO_SAVE.ordinal();
             LOADED.permittedFrom |= 1 << SAVING.ordinal();
             LOADED.permittedFrom |= 1 << MODIFIED.ordinal();
+            LOADED.permittedFrom |= 1 << WAITING_TO_SAVE.ordinal(); // if nothing to do when saving then we return to LOADED directly
             for (Status status : VALUES)
             {
                 if (status.name().startsWith("UNUSED")) continue;
@@ -165,14 +168,13 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
 
     private Object state;
     /**
-     * Either a single AccordTask or a Queue object. The meaning of a single task is defined by various flags.
+     * Either a single SafeTask or a Queue object. The meaning of a single task is defined by various flags.
      * If locked, then the task is not logically part of the queue unless LOCKED_HOLDING_QUEUE.
      * If unlocked, or LOCKED_HOLDING_QUEUE, the task represents a single-item queue.
      * If the task forms a single-item queue, whether it is FIFO or prioritised is determined by the task's isCacheQueuedFifo flag.
      */
-    private Object queue; //
+    private Object queue;
     private int status;
-    private int unsequenced;
     int sizeOnHeap;
     private volatile int references;
     private static final AtomicIntegerFieldUpdater<AccordCacheEntry> referencesUpdater = AtomicIntegerFieldUpdater.newUpdater(AccordCacheEntry.class, "references");
@@ -183,55 +185,63 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
         this.owner = owner;
     }
 
-    private RunnableStatus validate(RunnableStatus status)
-    {
-        Invariants.require(queue != null);
-        SafeTask<?> head = queue instanceof AccordCacheEntryQueue ? ((AccordCacheEntryQueue) queue).peek() : (SafeTask<?>) queue;
-        Invariants.require(isRunnable(head) || status == NOT_RUNNABLE);
-        return status;
-    }
-
     // TODO (expected): don't unwrap when only one entry, since this may cause us to flap when locking unsequenced tasks
     private void maybeUnwrap(AccordCacheEntryQueue q)
     {
-        int size = q.sequencedSize();
+        // q.remove notifies the new head, and a notification can reentrantly lock this queue which could
+        // replace this queue if it were empty; to avoid errors we make sure we are replacing the correct queue
+
+        int size = q.totalSize();
         switch (size)
         {
             case 0:
-                Invariants.require(q.unsequencedSize() == 0);
-                queue = isLocked() ? nonNull(q.lockedBy()) : null;
+                if (q == queue)
+                    queue = q.lockedBy();
                 break;
 
             case 1:
-                if (isLocked() || q.unsequencedSize() > 0)
-                    break;
-                queue = q.peek();
+                SafeTask<?> head = q.peekAny();
+                if ((!isLocked() || q.lockedBy() == head) && q == queue)
+                    queue = head;
         }
     }
 
     private boolean maybeUnwrap(AccordCacheEntryQueue q, SafeTask<?> lockedBy)
     {
-        if (q.sequencedSize() == 0)
+        if (q.totalSize() == 0)
         {
-            Invariants.require(q.unsequencedSize() == 0);
             queue = lockedBy;
             return true;
         }
         return false;
     }
 
+    private AccordCacheEntryMiniQueue miniQueue()
+    {
+        Invariants.require(isLocked(), "a mini queue must not outlive the lock it was created for");
+        return (AccordCacheEntryMiniQueue) queue;
+    }
+
     // assumes already queued with priority
     final RunnableStatus moveToFifo(SafeTask<?> task)
     {
-        if (queue != task)
+        if (queue == task)
+            return STILL_RUNNABLE;
+
+        if (queue instanceof AccordCacheEntryMiniQueue)
         {
-            AccordCacheEntryQueue q = (AccordCacheEntryQueue) queue;
-            RunnableStatus status = q.ensureHeadFifo(task);
-            if (status == NEWLY_BLOCKING_RUNNABLE && isLoaded())
-                onChangedHead(q, null, q.peekBehind());
-            return validate(isRunnable(task) ? status : NOT_RUNNABLE);
+            AccordCacheEntryMiniQueue q = miniQueue();
+            if (task == q.lockedBy)
+                return STILL_RUNNABLE;
+
+            Invariants.require(task == q.next);
+            return isLockedHoldingQueue() ? NOT_RUNNABLE : STILL_RUNNABLE;
         }
-        return validate(isRunnable(task) ? STILL_RUNNABLE : NOT_RUNNABLE);
+
+        Invariants.require(queue instanceof AccordCacheEntryQueue,
+                           "%s cannot move to fifo on %s: queue is %s", task, key, queue == null ? "null" : queue.getClass().getSimpleName() + " " + queue);
+        AccordCacheEntryQueue q = (AccordCacheEntryQueue) queue;
+        return q.moveToFifo(this, task);
     }
 
     // drains ONLY those queued with addWaitingToLoad; addFifo are included in the result but are not removed from the collection
@@ -245,12 +255,13 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
             if (queue instanceof AccordCacheEntryQueue)
             {
                 AccordCacheEntryQueue q = (AccordCacheEntryQueue) queue;
-                for (int i = q.priorityHead ; i < q.priorityTail ; ++i)
+                for (int i = q.priorityHead ; i < q.priorityTail + q.unsequencedSize ; ++i)
                 {
                     list.add(q.tasks[i]);
                     q.tasks[i] = null;
                 }
                 q.priorityHead = q.priorityTail = PRIORITY_START_INDEX;
+                q.unsequencedSize = 0;
                 for (int i = q.fifoHead ; i > q.fifoTail ; --i)
                     list.add(q.tasks[i]);
 
@@ -258,6 +269,8 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
             }
             else
             {
+                // a mini queue exists only while locked, and this requires !isLocked(), so it cannot be one here
+                Invariants.require(!(queue instanceof AccordCacheEntryMiniQueue), "a locked entry has no waiters to drain");
                 SafeTask<?> task = (SafeTask<?>) queue;
                 list.add(task);
                 Invariants.require(!isLocked());
@@ -268,74 +281,78 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
         return list;
     }
 
-    final void remove(SafeTask<?> task, boolean ownsLock)
+    final boolean contains(SafeTask<?> task)
+    {
+        if (queue instanceof AccordCacheEntryQueue)
+            return ((AccordCacheEntryQueue) queue).contains(task);
+        if (queue instanceof AccordCacheEntryMiniQueue)
+            return miniQueue().contains(this, task);
+        return queue == task;
+    }
+
+    final void remove(SafeTask<?> task, boolean ownsLock, @Nullable RemoveMode removeMode)
     {
         if (queue instanceof AccordCacheEntryQueue)
         {
             AccordCacheEntryQueue q = (AccordCacheEntryQueue) queue;
-            boolean remove;
             boolean isLocked = isLocked() && q.isLocked(task);
             Invariants.require(isLocked || !ownsLock);
+            boolean remove = !isLocked;
             if (isLocked)
             {
-                // if locked, we've already released unsequenced/pririty/fifo positions unless isLockedHoldingQueue
+                Invariants.expect(ownsLock);
+                // if locked, we've already released unsequenced/priority/fifo positions unless isLockedHoldingQueue
                 remove = isLockedHoldingQueue();
                 status &= ~LOCKED_MASK;
                 q.unlock(task);
             }
-            else if (isLoading()) remove = true;
-            else if (task.isUnsequenced(this))
-            {
-                if (task.isCacheQueued())
-                {
-                    if (!q.removeUnsequenced(task))
-                        releaseUnsequenced(q, task);
-                }
-                remove = false;
-            }
-            else remove = task.isCacheQueued();
 
             if (remove)
-            {
-                boolean wasHead = remove && q.removeFifoOrPriority(task, false);
-                if (isLoaded() && wasHead)
-                {
-                    unsequenced += q.drainUnsequenced(SafeTask::onChangeHeadStatus, this, NEWLY_RUNNABLE);
-                    onChangedHead(q, q.peek(), null);
-                }
-            }
+                q.remove(this, task, removeMode(removeMode, task));
 
             if (remove || isLocked)
                 maybeUnwrap(q);
         }
-        else if (queue == task)
+        else if (queue instanceof AccordCacheEntryMiniQueue)
         {
-            boolean isLocked = isLocked();
+            AccordCacheEntryMiniQueue q = miniQueue();
+            boolean isLocked = isLocked() && q.lockedBy == task;
             Invariants.require(isLocked || !ownsLock);
             if (isLocked)
             {
+                Invariants.expect(ownsLock);
+                boolean wasLockedHoldingQueue = isLockedHoldingQueue();
+                queue = q.next;
                 status &= ~LOCKED_MASK;
+                if (wasLockedHoldingQueue)
+                    q.next.onChangeRunnableStatus(this, NEWLY_RUNNABLE);
             }
-            else if (task.isUnsequenced(this))
+            else
             {
-                if (task.isCacheQueued()) --unsequenced; // nothing to release if we hit zero
-                else Invariants.require(isLoading());
+                if (q.next == task) queue = q.lockedBy;
+                else Invariants.require(removeMode(removeMode, task) == IF_PRESENT);
             }
-            queue = null;
         }
         else
         {
-            Invariants.require(!ownsLock);
-            if (task.isUnsequenced(this) && task.isCacheQueued())
+            boolean isLocked = isLocked();
+            Invariants.require(isLocked || !ownsLock);
+            if (queue != task)
             {
-                if (--unsequenced == 0 && queue != null && isLoaded())
-                {
-                    SafeTask<?> head = (SafeTask<?>) queue;
-                    if (head.holdsLocksBetweenRuns())
-                        head.onChangeOptionalHeadStatus(this, NEWLY_RUNNABLE);
-                }
+                Invariants.require(!ownsLock);
+                Invariants.require(removeMode(removeMode, task) == IF_PRESENT);
+                return;
             }
+
+            if (isLocked)
+                status &= ~LOCKED_MASK;
+            queue = null;
         }
+    }
+
+    private RemoveMode removeMode(RemoveMode param, SafeTask<?> task)
+    {
+        return param != null ? param : CACHE_QUEUES_ENABLED &&  task.isCacheQueued() && !is(FAILED_TO_LOAD) ? REQUIRE_PRESENT : IF_PRESENT;
     }
 
     final boolean isCommandsForKey()
@@ -343,16 +360,21 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
         return getClass() == SaferCommandsForKey.CommandsForKeyCacheEntry.class;
     }
 
-    final RunnableStatus headStatus(SafeTask<?> task)
+    final RunnableStatus statusIfPresent(SafeTask<?> task)
     {
         if (queue == task)
-            return validate(isRunnable(task) ? NEWLY_RUNNABLE : NOT_RUNNABLE);
+        {
+            return NEWLY_RUNNABLE;
+        }
 
+        if (queue instanceof AccordCacheEntryMiniQueue)
+            return miniQueue().head(this) == task ? NEWLY_RUNNABLE : NOT_RUNNABLE;
+
+        Invariants.require(queue instanceof AccordCacheEntryQueue);
         AccordCacheEntryQueue q = (AccordCacheEntryQueue) queue;
-        if (q.peek() != task || !isRunnable(task))
-            return NOT_RUNNABLE;
+        Invariants.paranoid(q.contains(task));
 
-        return validate(q.totalSize() == 1 ? NEWLY_RUNNABLE : NEWLY_BLOCKING_RUNNABLE);
+        return q.statusIfPresent(task);
     }
 
     private AccordCacheEntryQueue ensureQueue()
@@ -360,18 +382,36 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
         if (queue instanceof AccordCacheEntryQueue)
             return (AccordCacheEntryQueue) queue;
 
-        SafeTask<?> head = (SafeTask<?>) this.queue;
         AccordCacheEntryQueue q = new AccordCacheEntryQueue();
-        if (isLocked())
+        if (queue instanceof AccordCacheEntryMiniQueue)
         {
+            AccordCacheEntryMiniQueue prevq = miniQueue();
             if (isLockedHoldingQueue())
-                q.addFifo(head);
-            q.lock(head);
+                q.addFifo(null, prevq.lockedBy);
+            q.lock(prevq.lockedBy);
+            addToQueue(q, prevq.next);
         }
-        else if (head.isCacheQueuedFifo()) q.addFifo(head);
-        else q.addPrioritised(head);
+        else
+        {
+            SafeTask<?> head = (SafeTask<?>) this.queue;
+            if (isLocked())
+            {
+                if (isLockedHoldingQueue())
+                    q.addFifo(null, head);
+                q.lock(head);
+            }
+            else addToQueue(q, head);
+        }
+
         this.queue = q;
         return q;
+    }
+
+    private void addToQueue(AccordCacheEntryQueue q, SafeTask<?> item)
+    {
+        if (item.isCacheQueuedFifo()) q.addFifo(null, item);
+        else if (item.isUnsequenced(this)) q.addUnsequenced(null, item);
+        else q.addPrioritised(null, item);
     }
 
     final void addWaitingToLoad(SafeTask<?> task)
@@ -381,96 +421,48 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
         else ensureQueue().addWaitingToLoad(task);
     }
 
-    final SafeTask<?> head()
-    {
-        if (queue == null)
-            return null;
-
-        if (queue instanceof AccordCacheEntryQueue)
-            return ((AccordCacheEntryQueue) queue).peek();
-
-        if (isLocked() && !isLockedHoldingQueue())
-            return null;
-
-        return (SafeTask<?>) queue;
-    }
-
-    final RunnableStatus addUnsequenced(SafeTask<?> task)
-    {
-        Invariants.require(isLoaded());
-
-        SafeTask<?> head = head();
-        if (head != null && head.holdsLocksBetweenRuns())
-        {
-            boolean wait = compare(task, head) > 0 || (unsequenced == 0 && head.hasIncrementalStarted());
-            if (wait)
-            {
-                if (ensureQueue().addUnsequenced(task) && isLoaded() && unsequenced == 0)
-                    head.onChangeHeadStatus(this, STILL_RUNNABLE_NEWLY_BLOCKING);
-                return NOT_RUNNABLE;
-            }
-            else
-            {
-                ++unsequenced;
-                if (unsequenced == 1 && isLoaded())
-                    head.onChangeHeadStatus(this, NOT_RUNNABLE);
-                return NEWLY_RUNNABLE;
-            }
-        }
-
-        ++unsequenced;
-        return NEWLY_RUNNABLE;
-    }
-
     final int waitingCount()
     {
         Invariants.require(isLoading());
-        return queue == null ? 0 : queue instanceof AccordCacheEntryQueue
-                                   ? ((AccordCacheEntryQueue)queue).sequencedSize()
-                                   : isLocked() == isLockedHoldingQueue() ? 1 : 0;
+        // totalSize(), not sequencedSize(): while loading, waiters are unsequenced rather than ordered
+        if (queue == null)
+            return 0;
+        if (queue instanceof AccordCacheEntryQueue)
+            return ((AccordCacheEntryQueue) queue).totalSize();
+        if (queue instanceof AccordCacheEntryMiniQueue)
+            return isLockedHoldingQueue() ? 2 : 1;
+        return isLocked() == isLockedHoldingQueue() ? 1 : 0;
     }
 
     public enum RunnableStatus
     {
-        NOT_RUNNABLE, STILL_RUNNABLE, NEWLY_RUNNABLE, NEWLY_BLOCKING_RUNNABLE, STILL_RUNNABLE_NEWLY_BLOCKING
+        NOT_RUNNABLE,
+        STILL_RUNNABLE,
+        STILL_RUNNABLE_NEWLY_BLOCKING,
+        NEWLY_RUNNABLE,
+        NEWLY_BLOCKING_RUNNABLE,
     }
 
-    private boolean isRunnable(SafeTask<?> head)
-    {
-        return !head.holdsLocksBetweenRuns() || unsequenced == 0;
-    }
-
-    private RunnableStatus add(SafeTask<?> task, BiPredicate<AccordCacheEntryQueue, SafeTask<?>> add)
+    // RunnableStatus IF LOADED
+    private RunnableStatus add(SafeTask<?> task, TriFunction<AccordCacheEntryQueue, AccordCacheEntry<?, ?, ?>, SafeTask<?>, RunnableStatus> add)
     {
         Object prev = this.queue;
         if (prev == null)
         {
             queue = task;
-            return validate(isRunnable(task) ? NEWLY_RUNNABLE : NOT_RUNNABLE);
+            return NEWLY_RUNNABLE;
         }
 
-        AccordCacheEntryQueue q = ensureQueue();
-        if (!add.test(q, task))
+        if (isLocked() && prev instanceof SafeTask<?>)
         {
-            if (isLoaded() && q.totalSize() == 2)
-            {
-                SafeTask<?> head = q.peek();
-                if (isRunnable(head))
-                    head.onChangeHeadStatus(this, STILL_RUNNABLE_NEWLY_BLOCKING);
-            }
-            return NOT_RUNNABLE;
+            queue = new AccordCacheEntryMiniQueue((SafeTask<?>) prev, task);
+            return isLockedHoldingQueue() ? NOT_RUNNABLE : NEWLY_RUNNABLE;
         }
 
-        boolean isRunnable = isRunnable(task);
-        int sequencedSize = q.sequencedSize();
-        int unsequencedSize = q.unsequencedSize();
-        if (sequencedSize + unsequencedSize == 1) // could have one locked and one waiting
-            return validate(isRunnable ? NEWLY_RUNNABLE : NOT_RUNNABLE);
-
-        if (isLoaded() && sequencedSize > 1)
-            onChangedHead(q, null, q.peekBehind());
-
-        return validate(isRunnable ? NEWLY_BLOCKING_RUNNABLE : NOT_RUNNABLE);
+        // nothing is runnable while we load, so a claim that arrives meanwhile - a fifo task queues on a loading entry -
+        // must not change anyone's status; the drain on load completion re-adds everyone
+        boolean isLoaded = isLoaded();
+        return add.apply(ensureQueue(), isLoaded ? this : null, task);
     }
 
     final RunnableStatus addPrioritised(SafeTask<?> task)
@@ -479,17 +471,15 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
         return add(task, AccordCacheEntryQueue::addPrioritised);
     }
 
+    final RunnableStatus addUnsequenced(SafeTask<?> task)
+    {
+        Invariants.require(!isLoading());
+        return add(task, AccordCacheEntryQueue::addUnsequenced);
+    }
+
     final RunnableStatus addFifo(SafeTask<?> task)
     {
         return add(task, AccordCacheEntryQueue::addFifo);
-    }
-
-    private void onChangedHead(AccordCacheEntryQueue q, @Nullable SafeTask<?> notifyNewHead, @Nullable SafeTask<?> notifyPrevHead)
-    {
-        if (notifyNewHead != null && isRunnable(notifyNewHead))
-            notifyNewHead.onChangeHeadStatus(this, q.totalSize() <= 1 ? NEWLY_RUNNABLE : NEWLY_BLOCKING_RUNNABLE);
-        if (notifyPrevHead != null && isRunnable(notifyPrevHead))
-            notifyPrevHead.onChangeHeadStatus(this, NOT_RUNNABLE);
     }
 
     public enum LockMode
@@ -521,28 +511,22 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
     /**
      * On lock we remove ourselves from the priority/fifo queues and notify the new head
      */
-    public final V lockExclusive(SafeTask<?> owner, LockMode lockMode)
+    public final V lockExclusive(SafeTask<?> task, LockMode lockMode)
     {
         Invariants.require(!isLocked());
-        Invariants.require(isRunnable(owner) || owner.isUnsequenced(this));
-
-        if (queue == owner)
+        if (queue == task)
         {
-            Invariants.require(lockMode != UNLOCKED);
+            if (lockMode == HOLD_QUEUE)
+            {
+                Invariants.require(task.isCacheQueuedFifo());
+                Invariants.require(!task.isUnsequenced());
+            }
+            else Invariants.require(lockMode != UNLOCKED);
         }
         else if (queue == null)
         {
-            queue = owner;
-            switch (lockMode)
-            {
-                default: throw UnhandledEnum.unknown(lockMode);
-                case UNLOCKED: throw UnhandledEnum.invalid(UNLOCKED);
-                case HOLD_QUEUE: throw UnhandledEnum.invalid(HOLD_QUEUE, "Must already be head of the queue");
-                case RELEASE_QUEUE:
-                    Invariants.require(owner.isUnsequenced(this) && owner.isCacheQueued(), "Must already be head of the queue");
-                    --unsequenced;
-                case UNQUEUED:
-            }
+            Invariants.require(lockMode == UNQUEUED || !CACHE_QUEUES_ENABLED, "Must already be queued");
+            queue = task;
         }
         else
         {
@@ -552,48 +536,29 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
                 default: throw UnhandledEnum.unknown(lockMode);
                 case UNLOCKED: throw UnhandledEnum.invalid(UNLOCKED);
                 case HOLD_QUEUE:
-                    Invariants.require(!owner.isUnsequenced(this));
-                    if (q.hasFifo()) Invariants.require(q.peekFifo() == owner);
+                    if (q.hasFifo()) Invariants.require(q.peekFifo() == task);
                     else
                     {
-                        boolean wasHead = q.removeIfPriorityHead(owner);
-                        Invariants.require(wasHead);
-                        q.addFifo(owner);
+                        Invariants.require(!task.isUnsequenced(this));
+                        q.removePriorityHeadNoNotify(task);
+                        q.addFifo(null, task); // pass null owner so we don't notify of changes, since we're not logically changing the queue
                     }
-                    q.lock(owner);
+                    q.lock(task);
                     break;
                 case RELEASE_QUEUE:
-                    if (owner.isUnsequenced(this)) releaseUnsequenced(q, owner);
-                    else
-                    {
-                        boolean wasHead = q.removeIfHead(owner);
-                        Invariants.require(wasHead);
-                        if (isLoaded())
-                        {
-                            unsequenced += q.drainUnsequenced(SafeTask::onChangeHeadStatus, this, NEWLY_RUNNABLE);
-                            onChangedHead(q, q.peek(), null);
-                        }
-                        if (maybeUnwrap(q, owner))
-                            break;
-                    }
+                    q.remove(this, task, REQUIRE_RUNNABLE);
+                    Invariants.require(!isLocked(), "%s was locked reentrantly while %s was taking the lock", key, task);
+                    if (maybeUnwrap(q, task))
+                        break;
+                    Invariants.expect(queue == q, "%s: queue was replaced reentrantly while %s was taking the lock", key, task);
                 case UNQUEUED:
-                    q.lock(owner);
+                    Invariants.paranoidLinearCost(!q.contains(task));
+                    q.lock(task);
             }
         }
 
         status |= lockMode.ordinal() << LOCKED_SHIFT;
         return getExclusive();
-    }
-
-    private void releaseUnsequenced(AccordCacheEntryQueue q, SafeTask<?> release)
-    {
-        Invariants.require(release.isCacheQueued());
-        if (--unsequenced == 0)
-        {
-            SafeTask<?> head = q.peek();
-            if (head != null && head.holdsLocksBetweenRuns() && isLoaded())
-                onChangedHead(q, head, null);
-        }
     }
 
     final boolean hasFifoOrLocked()
@@ -610,6 +575,20 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
         return ((AccordCacheEntryQueue)queue).hasFifo();
     }
 
+    final boolean hasFifo()
+    {
+        if (queue == null)
+            return false;
+
+        if (queue instanceof SafeTask<?>)
+            return (!isLocked() || isLockedHoldingQueue()) && ((SafeTask<?>) queue).isCacheQueuedFifo();
+
+        if (queue instanceof AccordCacheEntryMiniQueue)
+            return isLockedHoldingQueue() || miniQueue().next.isCacheQueuedFifo();
+
+        return ((AccordCacheEntryQueue)queue).hasFifo();
+    }
+
     final void unlink()
     {
         remove();
@@ -618,6 +597,12 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
     final boolean isUnqueued()
     {
         return isFree();
+    }
+
+    /** whether no task holds a position here, nor our lock: nothing can be notified of this entry again */
+    final boolean isUnclaimed()
+    {
+        return queue == null;
     }
 
     public final K key()
@@ -645,9 +630,123 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
         return (status & LOCKED_MASK) != 0;
     }
 
+    /** whether {@code task} holds our lock: for a bare queue it is the lone occupant, otherwise the queue records it */
+    final boolean isLockedBy(SafeTask<?> task)
+    {
+        if (!isLocked())
+            return false;
+
+        if (queue instanceof SafeTask<?>)
+            return queue == task;
+
+        if (queue instanceof AccordCacheEntryMiniQueue)
+            return miniQueue().lockedBy == task;
+        return ((AccordCacheEntryQueue) queue).isLocked(task);
+    }
+
+    final SafeTask<?> lockedBy()
+    {
+        if (!isLocked())
+            return null;
+
+        if (queue instanceof SafeTask<?>)
+            return (SafeTask<?>) queue;
+
+        if (queue instanceof AccordCacheEntryMiniQueue)
+            return miniQueue().lockedBy;
+
+        return ((AccordCacheEntryQueue) queue).lockedBy();
+    }
+
     final boolean isLockedHoldingQueue()
     {
         return (status & LOCKED_MASK) == LOCKED_HOLDING_QUEUE;
+    }
+
+    /**
+     * Whether {@code q} is still the queue this entry is using: a mutation holds a local reference across the
+     * notifications it issues, and a reentrant {@code lockExclusive} may unwrap the queue in between.
+     */
+    final boolean isLiveQueue(Object q)
+    {
+        return queue == q;
+    }
+
+    /** either a lone SafeTask or an AccordCacheEntryQueue */
+    @VisibleForTesting
+    Object unsafeGetQueue()
+    {
+        return queue;
+    }
+
+    /** force a status without the usual transition check */
+    @VisibleForTesting
+    void unsafeSetStatus(Status status)
+    {
+        setStatusUnsafe(status);
+    }
+
+    /** every task holding a position here, in wait order, runnable prefix first. Excludes the lock holder. */
+    @VisibleForTesting
+    List<SafeTask<?>> unsafeQueuedTasks()
+    {
+        List<SafeTask<?>> tasks = new ArrayList<>();
+        if (queue == null)
+            return tasks;
+
+        if (queue instanceof SafeTask<?>)
+        {
+            SafeTask<?> lone = (SafeTask<?>) queue;
+            // a locked entry that is not holding its queue records only the holder, which occupies no position
+            if (!isLocked() || isLockedHoldingQueue())
+                tasks.add(lone);
+            return tasks;
+        }
+
+        if (queue instanceof AccordCacheEntryMiniQueue)
+        {
+            AccordCacheEntryMiniQueue q = miniQueue();
+            // a locked entry that is not holding its queue records only the holder, which occupies no position
+            if (isLockedHoldingQueue())
+                tasks.add(q.lockedBy);
+            tasks.add(q.next);
+            return tasks;
+        }
+
+        AccordCacheEntryQueue q = (AccordCacheEntryQueue) queue;
+        for (int i = q.fifoHead ; i > q.fifoTail ; --i)
+            tasks.add(q.tasks[i]);
+        for (int i = q.priorityHead ; i < q.priorityTail + q.unsequencedSize ; ++i)
+            tasks.add(q.tasks[i]);
+        return tasks;
+    }
+
+    /** how many of {@link #unsafeQueuedTasks()} may run: the fifo or sorted head, else the whole bag */
+    @VisibleForTesting
+    int unsafeRunnablePrefix()
+    {
+        if (queue == null) return 0;
+        if (queue instanceof AccordCacheEntryQueue) return ((AccordCacheEntryQueue) queue).runnablePrefix();
+        if (queue instanceof AccordCacheEntryMiniQueue) return 1;
+        return unsafeQueuedTasks().size();
+    }
+
+    /** how many of {@link #unsafeQueuedTasks()} are fifo claims; they are the leading entries of that list */
+    @VisibleForTesting
+    int unsafeFifoSize()
+    {
+        if (queue == null) return 0;
+        if (queue instanceof AccordCacheEntryQueue) return ((AccordCacheEntryQueue) queue).fifoSize();
+        if (queue instanceof AccordCacheEntryMiniQueue)
+        {
+            // the holder leads the fifo region if it kept its position, and the other claim follows it, so the fifo
+            // claims remain the leading entries of unsafeQueuedTasks()
+            int size = isLockedHoldingQueue() ? 1 : 0;
+            if (miniQueue().next.isCacheQueuedFifo())
+                ++size;
+            return size;
+        }
+        return hasFifo() ? unsafeQueuedTasks().size() : 0;
     }
 
     final boolean isLoaded()
@@ -895,7 +994,7 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
         if (is(WAITING_TO_SAVE))
         {
             ((WaitingToSave<K, V>) state).state = value;
-            if (owner.parent().adapter().canSave(value, null))
+            if (canSave())
                 save();
         }
         else
@@ -965,11 +1064,22 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
         return state == null;
     }
 
+    private boolean canSave()
+    {
+        V full = tryGetFull();
+        Object shrunk = tryGetShrunk();
+        return owner.parent().adapter().canSave(full, shrunk);
+    }
+
+    /**
+     * @return whether a save or wait is now in flight (otherwise we have saved already)
+     */
     boolean saveWhenReady()
     {
-        V full = isShrunk() ? null : (V)state;
-        Object shrunk = isShrunk() ? state : null;
-        if (owner.parent().adapter().canSave(full, shrunk))
+        if (is(WAITING_TO_SAVE))
+            return !canSave() || save();
+
+        if (canSave())
             return save();
 
         setStatus(WAITING_TO_SAVE);
@@ -997,6 +1107,7 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
             setStatus(LOADED);
             if (waitingToSave != null)
                 this.state = state;
+            owner.parent().parent().enqueueIfEvictable(this);
             UniqueSave.notify(identity.onSuccess);
             return false;
         }

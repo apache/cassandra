@@ -79,10 +79,12 @@ import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.ReducingRangeMap;
 import accord.utils.UnhandledEnum;
+import accord.utils.async.AsyncCallbacks;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults.CountingResult;
+import accord.utils.async.Cancellable;
 
 import org.apache.cassandra.config.AccordConfig;
 import org.apache.cassandra.config.AccordConfig.JournalConfig.ReplayMode;
@@ -197,8 +199,8 @@ public class AccordCommandStore extends CommandStore
         @Override
         public void close()
         {
-            global().tryShrinkOrEvict(owner.unsafeLock());
-            owner.unlock(TaskRunner.get());
+            try { global().tryShrinkOrEvict(owner.unsafeLock()); }
+            finally { owner.unlock(TaskRunner.get()); }
         }
     }
 
@@ -271,12 +273,21 @@ public class AccordCommandStore extends CommandStore
         this.exclusiveExecutor = sharedExecutor.newExclusiveExecutor(id);
 
         {
-            AccordConfig.RangeIndexMode mode = getAccord().range_index_mode;
-            switch (mode)
+            // a test may supply its own index, so that a range scan can be driven without one populated behind it
+            java.util.function.Function<AccordCommandStore, RangeIndex> factory = unsafeRangeIndexFactory;
+            if (factory != null)
             {
-                default: throw new UnhandledEnum(mode);
-                case journal_sai: rangeIndex = new JournalRangeIndex(this); break;
-                case in_memory: rangeIndex = new InMemoryRangeIndex(this); break;
+                rangeIndex = factory.apply(this);
+            }
+            else
+            {
+                AccordConfig.RangeIndexMode mode = getAccord().range_index_mode;
+                switch (mode)
+                {
+                    default: throw new UnhandledEnum(mode);
+                    case journal_sai: rangeIndex = new JournalRangeIndex(this); break;
+                    case in_memory: rangeIndex = new InMemoryRangeIndex(this); break;
+                }
             }
         }
 
@@ -289,6 +300,13 @@ public class AccordCommandStore extends CommandStore
         return (id, node, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch, journal) ->
                new AccordCommandStore(id, node, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch, journal, executorFactory.apply(id));
     }
+
+    /**
+     * Test-only override for {@code range_index_mode}. Supplies a whole {@link RangeIndex} rather than intercepting a
+     * scan, so that {@code SafeTask.RangeTxnScanner} needs no test-only branches.
+     */
+    @VisibleForTesting
+    public static volatile java.util.function.Function<AccordCommandStore, RangeIndex> unsafeRangeIndexFactory = null;
 
     public RangeIndex rangeIndex()
     {
@@ -381,9 +399,27 @@ public class AccordCommandStore extends CommandStore
     }
 
     @Override
+    public AsyncChain<Void> continuationChain(Runnable run)
+    {
+        return exclusiveExecutor().continuationChain(run);
+    }
+
+    @Override
     public void execute(Runnable run)
     {
         exclusiveExecutor().execute(run);
+    }
+
+    @Override
+    public Cancellable execute(AsyncCallbacks.RunOrFail run)
+    {
+        return exclusiveExecutor().execute(run);
+    }
+
+    @Override
+    public Cancellable executeContinuation(AsyncCallbacks.RunOrFail run)
+    {
+        return exclusiveExecutor().executeContinuation(run);
     }
 
     @Override
@@ -471,7 +507,7 @@ public class AccordCommandStore extends CommandStore
                 if (!syncPointsDurable)
                     logger.error("{} has flushed command and data stores, but sync points recorded in RedundantBefore are not durable: {}", this, DurablyAppliedTo.summarise(unsafeGetRedundantBefore()));
 
-                exclusiveExecutor.terminate();
+                exclusiveExecutor.fullStop();
                 terminated.signalAll();
             }
         }

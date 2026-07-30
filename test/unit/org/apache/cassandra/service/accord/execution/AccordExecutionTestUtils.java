@@ -18,6 +18,11 @@
 
 package org.apache.cassandra.service.accord.execution;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+
 import org.junit.Assert;
 
 import accord.local.ExecutionContext;
@@ -26,7 +31,8 @@ import accord.local.SafeState;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.ManualExecutor;
 
-import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.LockMode.RELEASE_QUEUE;
+import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.LockMode.UNQUEUED;
+
 
 public class AccordExecutionTestUtils
 {
@@ -66,7 +72,47 @@ public class AccordExecutionTestUtils
         Assert.assertEquals(AccordCacheEntry.Status.LOADING, safeState.global().status());
         executor.runOne();
         Assert.assertEquals(AccordCacheEntry.Status.LOADED, safeState.global().status());
-        safeState.preExecute(new SafeTask<>(null, (ExecutionContext.Empty)() -> "Test", null), RELEASE_QUEUE);
+        preExecute(safeState);
         Assert.assertEquals(val, safeState.current());
     }
+
+    /**
+     * Lock a state for a task with no store behind it. UNQUEUED is the mode for an entry nobody has claimed: a lock is
+     * otherwise only granted to a task that already holds a position, which these tests never take.
+     */
+    public static <K, V, S extends SafeState<V> & SaferState<K, V, S>> SafeTask<?> preExecute(S safeState)
+    {
+        SafeTask<?> task = new SafeTask<>(null, (ExecutionContext.Empty)() -> "Test", null, new AtomicLong());
+        safeState.preExecute(task, UNQUEUED);
+        owners.put(safeState, task);
+        return task;
+    }
+
+    /**
+     * The task that locked this state: the entry expects the same task to release it.
+     *
+     * <p>Throws rather than returning null for a state that was never locked. A null owner is the untracked
+     * {@code release(x, null)} form these tests were deliberately moved away from, so silently returning it would let a
+     * forgotten {@link #preExecute} revert to it - and the release would then not be checked against the lock holder at
+     * all, which is the property the {@code owner()} call sites exist to check.
+     */
+    public static SafeTask<?> owner(Object safeState)
+    {
+        SafeTask<?> owner = owners.get(safeState);
+        if (owner == null)
+            throw new IllegalStateException(safeState + " was never locked by preExecute, so it has no owner to release it");
+        return owner;
+    }
+
+    /** drop every recorded owner; called from an @After so the registry does not retain a JVM's worth of test state */
+    public static void clearOwners()
+    {
+        owners.clear();
+    }
+
+    /**
+     * Identity-keyed, because a safe state is identified by reference here (two references to one entry are distinct
+     * owners), and synchronised because nothing stops a suite calling {@link #preExecute} from more than one thread.
+     */
+    private static final Map<Object, SafeTask<?>> owners = Collections.synchronizedMap(new IdentityHashMap<>());
 }

@@ -38,10 +38,10 @@ class IOTaskSave extends IOTask
     }
 
     @Override
-    void maybeCompleteExclusiveMayThrow()
+    void completeExclusiveMayThrow()
     {
         executor.onSavedExclusive(entry, identity, failure);
-        super.maybeCompleteExclusiveMayThrow();
+        super.completeExclusiveMayThrow();
     }
 
     @Override

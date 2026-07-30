@@ -49,13 +49,13 @@ public class IOTaskLoad<K, V> extends IOTask
     }
 
     @Override
-    void maybeCompleteExclusiveMayThrow()
+    void completeExclusiveMayThrow()
     {
         if (!(result instanceof FailureHolder))
             executor.onLoadedExclusive(entry, (V) result, null);
         else
             executor.onLoadedExclusive(entry, null, ((FailureHolder) result).fail);
-        super.maybeCompleteExclusiveMayThrow();
+        super.completeExclusiveMayThrow();
     }
 
     @Override

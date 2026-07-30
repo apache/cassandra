@@ -22,6 +22,8 @@ import javax.annotation.Nullable;
 
 import accord.utils.async.AsyncCallbacks;
 
+import static org.apache.cassandra.service.accord.execution.Task.RunState.RUN_FAILED;
+
 class PlainChain extends Plain
 {
     final AsyncCallbacks.RunOrFail runOrFail;
@@ -49,8 +51,26 @@ class PlainChain extends Plain
     @Override
     boolean runMayThrow()
     {
-        runOrFail.run();
-        return true;
+        boolean success;
+        try
+        {
+            success = runOrFail.runMayThrow();
+        }
+        catch (Throwable t)
+        {
+            // RunOrFail throws only callback exceptions, so just report them
+            try { executor.agent.onException(t); }
+            catch (Throwable t2) { /* nothing more to be safely done */ }
+            return true;
+        }
+
+        if (success)
+            return true;
+
+        // If runOrFail internally failed, we should record this as RUN_FAILED,
+        // in particular to ensure continuation cancellation is performed
+        setRunState(RUN_FAILED);
+        return false;
     }
 
     @Override

@@ -92,11 +92,12 @@ public class AccordExecutorSimple extends AccordExecutor
                 Task task = pollWaitingToRunExclusive();
                 if (task == null)
                 {
-                    notifyQuiescentExclusive();
+                    if (tasks == 0)
+                        notifyQuiescentExclusive();
                     return;
                 }
 
-                prepareRunComplete(self, task);
+                task.prepareRunAndCompleteExclusive(self);
             }
         }
         finally

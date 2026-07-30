@@ -24,7 +24,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
-import javax.annotation.Nullable;
+import javax.annotation.Nonnull;
 
 import accord.api.Agent;
 import accord.utils.Invariants;
@@ -32,7 +32,13 @@ import accord.utils.Invariants;
 import org.apache.cassandra.service.accord.debug.DebugExecution.DebugTask;
 import org.apache.cassandra.utils.concurrent.SignalLock;
 
+import static accord.utils.Invariants.Paranoia.CONSTANT;
+import static accord.utils.Invariants.Paranoia.LINEAR;
+import static accord.utils.Invariants.ParanoiaCostFactor.LOW;
+import static accord.utils.Invariants.createIllegalState;
+import static accord.utils.Invariants.illegalState;
 import static accord.utils.Invariants.nonNull;
+import static accord.utils.Invariants.testParanoia;
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXECUTION;
 import static org.apache.cassandra.service.accord.execution.Task.State.REGISTERED;
 
@@ -48,8 +54,7 @@ public class AccordExecutorSignalLoop extends AbstractLoop
     // TODO (desired): intrusive queue using Task.next, but a little challenging because we reuse SequentialQueueTask so have ABA problem
     private final ConcurrentLinkedQueue<Task> readyToRun = new ConcurrentLinkedQueue<>();
 
-    private Task pendingExecutedHead, pendingExecutedTail;
-    private Task pendingNewHead, pendingNewTail;
+    private Task pendingHead, pendingTail;
     private int pendingCount;
 
     private boolean shutdown;
@@ -79,6 +84,10 @@ public class AccordExecutorSignalLoop extends AbstractLoop
     @Override
     final void beforeUnlockExternal()
     {
+        // work may arrive at the runnable queue directly;
+        // we must ensure the lock work bit is set, to ensure this is processed into readyToRun
+        if (hasAlreadyWaitingToRun())
+            lock.signalLockWorkExclusive();
     }
 
     private Task pollReadyToRun()
@@ -98,16 +107,19 @@ public class AccordExecutorSignalLoop extends AbstractLoop
 
     private LoopTask task(int index, String id, Mode mode)
     {
+        Invariants.require(mode == Mode.RUN_WITHOUT_LOCK, "%s does not support %s", AccordExecutorSignalLoop.this, mode);
         return new LoopTask(index, id);
     }
 
+    // NOTE: some consequences MUST be processed before their parent task completes. So draining NEW work first is safe
+    //  but draining completions first is NOT
     @Override
     final void drainUnqueuedNewWorkExclusive()
     {
         updatePendingUnqueued();
         Task requeue = null, requeueTail = null;
         Task submit = null, submitTail = null;
-        Task cur = pendingNewHead;
+        Task cur = pendingHead;
         while (cur != null)
         {
             Task next = cur.next;
@@ -128,14 +140,20 @@ public class AccordExecutorSignalLoop extends AbstractLoop
             cur = next;
         }
 
-        pendingNewHead = requeue;
-        pendingNewTail = requeueTail;
+        pendingHead = requeue;
+        pendingTail = requeueTail;
         while (submit != null)
         {
             Task next = submit.next;
             submit.next = null;
             submit.submitExclusiveNoExcept();
             submit = next;
+        }
+
+        if (Invariants.isParanoid() && testParanoia(LINEAR, CONSTANT, LOW))
+        {
+            for (Task check = pendingHead ; check != null ; check = check.next)
+                Invariants.require(!check.isNewWork(), "%s is new work left pending by drainUnqueuedNewWorkExclusive", check);
         }
     }
 
@@ -145,22 +163,13 @@ public class AccordExecutorSignalLoop extends AbstractLoop
             return false;
 
         --pendingCount;
-        if (pendingExecutedHead != null)
-        {
-            Task executed = pendingExecutedHead;
-            pendingExecutedHead = destructiveNext(executed);
-            if (pendingExecutedHead == null)
-                pendingExecutedTail = null;
-            executed.completeExclusiveNoExcept();
-        }
-        else
-        {
-            Task submit = pendingNewHead;
-            pendingNewHead = destructiveNext(submit);
-            if (pendingNewHead == null)
-                pendingNewTail = null;
-            submit.submitExclusiveNoExcept();
-        }
+        Task next = pendingHead;
+        pendingHead = destructiveNext(next);
+        if (pendingHead == null)
+            pendingTail = null;
+
+        if (next.compareTo(REGISTERED) < 0) next.submitExclusiveNoExcept();
+        else next.completeExclusiveNoExcept();
         return true;
     }
 
@@ -243,40 +252,25 @@ public class AccordExecutorSignalLoop extends AbstractLoop
             return false;
 
         int count = 0;
-        Task addExecutedHead = null, addExecutedTail = null;
-        Task addNewHead = null, addNewTail = null;
+        Task addHead = null, addTail = null;
         {
-            Task cur = Task.reverse(acquireUnqueuedExclusive());
+            Task cur = acquireUnqueuedExclusive();
             while (cur != null)
             {
                 Task next = cur.next;
-                if (cur.compareTo(REGISTERED) < 0)
-                {
-                    if (addNewHead == null) addNewHead = addNewTail = setNextNull(cur);
-                    else addNewHead = reverseOne(addNewHead, cur);
-                }
-                else
-                {
-                    if (addExecutedHead == null) addExecutedHead = addExecutedTail = setNextNull(cur);
-                    else addExecutedHead = reverseOne(addExecutedHead, cur);
-                }
+                if (addHead == null) addHead = addTail = setNextNull(cur);
+                else addHead = reverseOne(addHead, cur);
                 ++count;
                 cur = next;
             }
         }
 
         pendingCount += count;
-        if (addExecutedHead != null)
+        if (addHead != null)
         {
-            if (pendingExecutedHead == null) pendingExecutedHead = addExecutedHead;
-            else pendingExecutedTail.next = addExecutedHead;
-            pendingExecutedTail = addExecutedTail;
-        }
-        if (addNewHead != null)
-        {
-            if (pendingNewHead == null) pendingNewHead = addNewHead;
-            else pendingNewTail.next = addNewHead;
-            pendingNewTail = addNewTail;
+            if (pendingHead == null) pendingHead = addHead;
+            else pendingTail.next = addHead;
+            pendingTail = addTail;
         }
         return true;
     }
@@ -321,68 +315,206 @@ public class AccordExecutorSignalLoop extends AbstractLoop
             {
                 if (lock.awaitAsyncOrLock(index))
                 {
-                    try
-                    {
-                        if (DEBUG_EXECUTION) debug.onEnterLock();
-                        fetchWorkExclusive();
-                    }
-                    catch (Throwable t)
-                    {
-                        unlock(self);
-                        throw t;
-                    }
+                    if (!enterLock(self))
+                        continue;
 
-                    if (!unlockAndAcquire(self))
+                    if (!fetchWorkExclusiveAndUnlock(self))
                         continue;
                 }
 
-                if (shutdown)
+                // we must not discard a task we have already been granted: it is PREPARED, so it holds cache locks
+                // and queue positions that only its completion releases. Run it, and exit on shutdown once we hold
+                // nothing (shutdown()'s signalAllRegistered wakes us without granting a permit, so a null poll here
+                // is how a shutdown wakeup is normally observed)
+                Task next = pollReadyToRun();
+                if (next == null && shutdown)
                     throw new ShutdownException();
 
-                return nonNull(pollReadyToRun());
+                return nonNull(next);
             }
         }
 
-        private Task executedAndMaybeGetWork(TaskRunner self, @Nullable Task executed)
+        /**
+         * Register the lock we have just acquired with our {@link TaskRunner}, so that the reentrancy guards see that
+         * we hold it, and so that the {@code exitAccordLockedExecutor} performed when we release it is balanced.
+         */
+        private boolean enterLock(TaskRunner self)
         {
-            if (lock.tryAcquireAsyncWork())
+            if (self.tryEnterAccordLockedExecutor(AccordExecutorSignalLoop.this))
             {
-                if (shutdown)
-                    throw new ShutdownException();
-
-                return pushExecutedAndReturn(executed, nonNull(pollReadyToRun()));
+                if (DEBUG_EXECUTION) debug.onEnterLock();
+                return true;
             }
 
-            if (!tryLock(self))
-                return pushExecutedAndReturn(executed, null);
+            lock.unlock();
+            AccordExecutor locked = self.accordLockedExecutor();
+            int depth = self.resetAccordLockedExecutor();
+            throw illegalState("%s TaskRunner holding %s lock to depth %s", AccordExecutorSignalLoop.this, locked, depth);
+        }
 
+        /**
+         * Complete {@code executed} (if any), fetch more work, and release the lock, returning true if we acquired
+         * async work to run as we did so.
+         *
+         * The lock is released however we exit: any failure - including one that leaves a nested acquisition
+         * unreleased - must not leave the executor locked, as no other thread could then make progress and this thread
+         * would fail its next {@link SignalLock#awaitAsyncOrLock} on discovering it is still the owner.
+         */
+        private boolean completeAndFetchWorkExclusiveAndUnlock(TaskRunner self, Task complete)
+        {
             try
             {
-                if (executed != null)
-                    executed.completeExclusiveNoExcept();
+                complete.completeExclusiveNoExcept();
                 fetchWorkExclusive();
             }
             catch (Throwable t)
             {
-                unlock(self);
+                unlockOnFailure(self, t);
                 throw t;
             }
-
-            if (unlockAndAcquire(self))
-            {
-                if (shutdown)
-                    throw new ShutdownException();
-
-                return nonNull(pollReadyToRun());
-            }
-            return null;
+            return exitLockAndAcquireAsyncWork(self);
         }
 
-        private Task pushExecutedAndReturn(Task complete, Task result)
+        private boolean fetchWorkExclusiveAndUnlock(TaskRunner self)
         {
-            if (push(complete) == null)
-                lock.signalLockWork();
+            try
+            {
+                fetchWorkExclusive();
+            }
+            catch (Throwable t)
+            {
+                unlockOnFailure(self, t);
+                throw t;
+            }
+            return exitLockAndAcquireAsyncWork(self);
+        }
+
+        /**
+         * Release the lock while unwinding a failure. We deliberately do not acquire async work as we do so: the
+         * permit is paired 1:1 with a {@code readyToRun} entry we are in no position to run.
+         */
+        private void unlockOnFailure(TaskRunner self, Throwable t)
+        {
+            try
+            {
+                // release the lock first: an assertion in exitLock must not be able to leave the executor locked
+                lock.unlock();
+                exitLock(self);
+            }
+            catch (Throwable t2)
+            {
+                try { t.addSuppressed(t2); }
+                catch (Throwable t3) { }
+            }
+        }
+
+        private boolean exitLockAndAcquireAsyncWork(TaskRunner self)
+        {
+            exitLock(self);
+            return lock.unlockAndAcquireAsyncWork();
+        }
+
+        private void completeExclusiveAndUnlock(TaskRunner self, Task complete)
+        {
+            try
+            {
+                complete.completeExclusiveNoExcept();
+            }
+            catch (Throwable t)
+            {
+                unlockOnFailure(self, t);
+                throw t;
+            }
+            exitLock(self);
+            lock.unlock();
+        }
+
+        /**
+         * Balance the {@code tryEnterAccordLockedExecutor} performed by {@link #enterLock}. This must happen on every
+         * release: {@link #tryLock}, {@link #ensureLockNotHeld} and {@link AccordExecutor#lock(TaskRunner)} on any
+         * other executor all read this state, and a leaked acquisition would silently disable inline completion,
+         * report a bogus illegal state on every task exception, and forbid this thread from ever locking another
+         * executor.
+         */
+        private void exitLock(TaskRunner self)
+        {
+            if (DEBUG_EXECUTION) debug.onExitLock();
+            self.exitAccordLockedExecutor();
+            Invariants.require(self.accordLockedExecutor() == null, "%s still holds %s as it releases the lock", id, self.accordLockedExecutor());
+        }
+
+        private void ensureLockNotHeld(TaskRunner self)
+        {
+            if (self.accordLockedExecutor() != null || lock.isOwner())
+            {
+                AccordExecutor locked = self.accordLockedExecutor();
+                int lockDepth = lock.unlockAll(1);
+                int runnerDepth = self.resetAccordLockedExecutor();
+                try
+                {
+                    if (locked != null && locked != AccordExecutorSignalLoop.this)
+                        agent.onException(createIllegalState("Invalid lock state encountered on %s: TaskRunner reports another executor locked (%s) and %s acquisitions; lock reports %s", id, locked, runnerDepth, lockDepth));
+                    else
+                        agent.onException(createIllegalState("Invalid lock state encountered on %s: TaskRunner reports %s acquisition(s), lock reports %s", id, runnerDepth, lockDepth));
+                }
+                catch (Throwable t2) {}
+            }
+        }
+
+
+        private Task completeAndMaybeGetWork(TaskRunner self, @Nonnull Task complete)
+        {
+            if (lock.tryAcquireAsyncWork())
+                pushCompleted(complete); // we have a permit; fall-through
+            else if (!tryLock(self))
+                return pushCompletedAndReturn(complete, null);
+            else if (!completeAndFetchWorkExclusiveAndUnlock(self, complete))
+                return null;
+
+            Task next = pollReadyToRun();
+            if (next == null)
+            {
+                Invariants.expect(shutdown);
+                // make sure any pending work is drained
+                lock(self);
+                try { drainUnqueuedNewWorkExclusive(); }
+                finally { unlock(self); }
+                next = pollReadyToRun();
+                if (next == null)
+                    throw new ShutdownException();
+            }
+
+            return nonNull(next);
+        }
+
+        private Task pushCompletedAndReturn(@Nonnull Task complete, Task result)
+        {
+            pushCompleted(complete);
             return result;
+        }
+
+        private void pushCompleted(@Nonnull Task complete)
+        {
+            Task wrapped = complete.unwrap();
+            Task head, tail;
+            if (wrapped.next == null) head = tail = complete;
+            else
+            {
+                Task cur = wrapped.next;
+                wrapped.next = null;
+                Task.prepareConsequences(wrapped, cur);
+
+                // every consequence is submitted before the parent completes (see Task.completeExclusiveNoExcept), so
+                // they all belong in the tail, as the list is reversed when consumed
+                head = complete;
+                complete.next = cur;
+                while (cur.next != null)
+                    cur = cur.next;
+                tail = cur;
+            }
+
+            if (push(head, tail) == null)
+                lock.signalLockWork();
         }
 
         final boolean tryLock(TaskRunner self)
@@ -390,14 +522,7 @@ public class AccordExecutorSignalLoop extends AbstractLoop
             if (self.accordLockedExecutor() != null)
                 return false;
 
-            return onTryLock(self, lock.tryLock(index));
-        }
-
-        final boolean unlockAndAcquire(TaskRunner self)
-        {
-            self.exitAccordLockedExecutor();
-            if (DEBUG_EXECUTION) debug.onExitLock();
-            return lock.unlockAndAcquireAsyncWork();
+            return lock.tryLock(index) && enterLock(self);
         }
 
         @Override
@@ -416,7 +541,7 @@ public class AccordExecutorSignalLoop extends AbstractLoop
                 {
                     if (task != null)
                     {
-                        try { task = executedAndMaybeGetWork(self, task); }
+                        try { task = completeAndMaybeGetWork(self, task); }
                         catch (Throwable t) { task = null; throw t; }
                     }
                     if (task == null)
@@ -430,7 +555,11 @@ public class AccordExecutorSignalLoop extends AbstractLoop
                 }
                 catch (Throwable t)
                 {
-                    agent.onException(t);
+                    // an agent that throws (e.g. an in-JVM dtest instance kill) must not silently kill the loop,
+                    // as the executor would then stall for everyone else with nothing reported
+                    try { agent.onException(t); }
+                    catch (Throwable t2) { }
+                    finally { ensureLockNotHeld(self); }
                 }
             }
         }

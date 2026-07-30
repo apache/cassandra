@@ -94,6 +94,7 @@ public final class SignalLock implements Lock
     public SignalLock(boolean allowStealing, int threadCount, long spinInterval, long stopCheckInterval, TimeUnit units)
     {
         Invariants.requireArgument(threadCount <= MAX_THREADS, "Supports at most " + MAX_THREADS + " registered threads");
+        Invariants.require(MAX_SIGNAL_COUNT >= MAX_THREADS, "%d permits cannot serve %d threads", MAX_SIGNAL_COUNT, MAX_THREADS);
         this.allowStealing = allowStealing;
         this.registered = new Thread[threadCount];
         this.state = (long)threadCount << ENABLED_THREAD_COUNT_SHIFT;
@@ -167,6 +168,7 @@ public final class SignalLock implements Lock
     {
         Invariants.require(thread >= 0 && thread < registered.length);
         Thread self = registeredThread(thread);
+        Invariants.require(self == Thread.currentThread(), "caller is not the thread registered at index %d", thread);
         return tryLock(thread, self);
     }
 
@@ -208,9 +210,11 @@ public final class SignalLock implements Lock
     {
         long threadBit = threadBit(thread);
         Thread self = registered[thread];
-        Invariants.require(self == Thread.currentThread());
-        Invariants.require(owner != self);
-        Invariants.require((state & threadBit) == 0);
+        Invariants.require(self == Thread.currentThread(), "%s is not the thread registered at index %d (%s)", Thread.currentThread(), thread, self);
+        // if we still own the lock we have leaked it, most likely by unwinding a failure without releasing every
+        // (re)acquisition
+        Invariants.require(owner != self, "%s already owns this lock with depth %d (state %s)", self, depth, Long.toHexString(state));
+        Invariants.require((state & threadBit) == 0, "thread %d is already registered as waiting (state %s)", thread, Long.toHexString(state));
 
         boolean hasPaused = false;
         if (spinIntervalNanos > 0)
@@ -273,6 +277,8 @@ public final class SignalLock implements Lock
 
     private boolean tryTakeLockInAwaitLoop(long cur, int thread, long threadBitIfWaiting, Thread self, boolean hasPaused)
     {
+        // expects caller to have already checked for direct signal, so that the xor below can only clear our bit
+        Invariants.require((cur & threadBitIfWaiting) == threadBitIfWaiting);
         long upd = setLockThread(clearLockThread(cur), thread, LOCK_OWNED) ^ threadBitIfWaiting;
         if (!stateUpdater.compareAndSet(this, cur, upd))
             return false;
@@ -332,11 +338,30 @@ public final class SignalLock implements Lock
         return unlock(burstSignal, true);
     }
 
+    /**
+     * Release the lock entirely, however many times the calling thread has (re)acquired it, returning the number of
+     * acquisitions released (i.e. {@code 0} if we did not hold the lock).
+     *
+     * For loops that must not leak the lock when unwinding a failure: a plain {@link #unlock()} pops only one level of a
+     * reentrant hold, so a nested acquisition that failed to unlock would silently leave the lock held.
+     */
+    public int unlockAll(int burstSignal)
+    {
+        if (owner != Thread.currentThread())
+            return 0;
+
+        int released = depth;
+        depth = 1;
+        unlock(burstSignal, false);
+        return released;
+    }
+
     private boolean unlock(int burstSignal, boolean acquire)
     {
         Thread self = owner;
         Invariants.require(self == Thread.currentThread());
         Invariants.require(!acquire || depth == 1, "Cannot acquire async work with reentrancy (depth " + depth + ')');
+        Invariants.require(isLockOwned(state), "releasing a lock that state %d does not report as owned", state);
         return --depth == 0 && releaseAndSignalExclusive(burstSignal, acquire);
     }
 
@@ -400,20 +425,25 @@ public final class SignalLock implements Lock
 
     private boolean tryAcquireAsyncInAwaitLoop(long cur, int thread, long threadBitIfWaiting, boolean hasPaused, int burstSignalOnAcquire)
     {
+        // expects caller to have already checked for direct signal
+        Invariants.require((cur & threadBitIfWaiting) == threadBitIfWaiting);
         while (true)
         {
             int signals = asyncSignalCount(cur);
             if (signals == 0)
                 return false;
 
-            if ((cur & threadBitIfWaiting) != 0)
-                return false;
-
+            // iff we have a waiting bit, it is known to be set, so the xor clears it: we are no longer waiting, we own a permit
             long upd = (cur - ASYNC_SIGNAL_INCREMENT) ^ threadBitIfWaiting;
             if (!stateUpdater.compareAndSet(this, cur, upd))
             {
-                cur = state;
-                continue;
+                cur = upd = state;
+
+                // confirm our signalled state hasn't changed (can only change if threadBitIfWaiting != 0)
+                if ((cur & threadBitIfWaiting) == threadBitIfWaiting)
+                    continue;
+
+                // if it's changed, it must now be zero, which is the same as us taking it directly
             }
 
             propagateAsyncWorkSignals(upd, burstSignalOnAcquire);
@@ -611,7 +641,8 @@ public final class SignalLock implements Lock
 
     public int addAndGetEnabledThreadCount(int delta)
     {
-        Invariants.require(delta > 0 && delta < threadCount());
+        // note: delta may meet or exceed threadCount(), as the new count is clamped to it below
+        Invariants.require(delta > 0, "%d is not a positive delta", delta);
         while (true)
         {
             long cur = state;
@@ -670,6 +701,12 @@ public final class SignalLock implements Lock
         return Thread.currentThread() == owner;
     }
 
+    // no between-thread visibility guarantees; use isLockedOwned for visibility
+    public Thread unsafeOwner()
+    {
+        return owner;
+    }
+
     public void setAutoPreferRegistered(boolean autoPreferRegistered)
     {
         this.autoPreferRegistered = autoPreferRegistered;
@@ -695,19 +732,32 @@ public final class SignalLock implements Lock
         return 63 - Long.numberOfLeadingZeros(state & threadMask(enabledThreadCount(state)));
     }
 
-    private static int lockThread(long state)
+    public static boolean isLockOwned(long state)
+    {
+        return 0 != (state & LOCK_OWNED);
+    }
+
+    public static int lockThread(long state)
     {
         return (int) ((state & LOCK_THREAD_MASK) >>> LOCK_THREAD_SHIFT) - 2;
+    }
+
+    public static String toString(long state)
+    {
+        return String.format("%016x[owned=%s,lockedBy=%d,hasLockWork=%s,asyncSignals=%d,enabled=%d,waiting=%d]",
+                             state, isLockOwned(state), lockThread(state), hasLockWork(state),
+                             asyncSignalCount(state), enabledThreadCount(state), waitingThreadCount(state));
+    }
+
+    @Override
+    public String toString()
+    {
+        return "SignalLock" + toString(state);
     }
 
     private static boolean isLockOwnedOrSignalled(long state)
     {
         return 0 != (state & LOCK_THREAD_MASK);
-    }
-
-    private static boolean isLockOwned(long state)
-    {
-        return 0 != (state & LOCK_OWNED);
     }
 
     private static long setLockThread(long state, int thread, long owned)

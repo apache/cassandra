@@ -21,13 +21,26 @@ package org.apache.cassandra.service.accord.execution;
 import javax.annotation.Nullable;
 
 import accord.local.ExecutionContext;
+import accord.utils.Invariants;
 
 public class TaskInfo implements Comparable<TaskInfo>
 {
     // sorted in name order for reporting to virtual tables
     public enum Status
     {
-        RUNNING, LOADING, WAITING_TO_RUN
+        LOADING, RUNNING, WAITING_TO_RUN;
+        static
+        {
+            if (Invariants.isParanoid())
+            {
+                Status prev = null;
+                for (Status v : values())
+                {
+                    Invariants.require(prev == null || v.name().compareTo(prev.name()) > 0);
+                    prev = v;
+                }
+            }
+        }
     }
 
     final Status status;

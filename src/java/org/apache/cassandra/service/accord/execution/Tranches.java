@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord.execution;
 
 import java.util.ArrayDeque;
+import java.util.Arrays;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -99,7 +100,9 @@ final class Tranches
 
     private int trancheToIndex(int tranche)
     {
-        return firstIndex + trancheToIndexOffset(tranche);
+        int offset = trancheToIndexOffset(tranche);
+        Invariants.require(offset < size(), "tranche %d is no longer tracked (first=%d next=%d)", tranche, firstTranche, nextTranche);
+        return firstIndex + offset;
     }
 
     private int trancheToIndexOffset(int tranche)
@@ -147,15 +150,18 @@ final class Tranches
     {
         if (tranche == nextTranche)
         {
+            Invariants.require(nextCount > 0);
             --nextCount;
         }
         else
         {
-
             if (counts[trancheToIndex(tranche)] == 1)
                 owner.drainUnqueuedNewWorkExclusive(); // make sure we don't have any pending
 
-            if (--counts[trancheToIndex(tranche)] == 0 && tranche == firstTranche)
+            // recompute as drainUnqueued may reentrantly modify the backing array
+            int trancheIndex = trancheToIndex(tranche);
+            Invariants.require(counts[trancheIndex] > 0);
+            if (--counts[trancheIndex] == 0 && tranche == firstTranche)
             {
                 do
                 {
@@ -182,6 +188,7 @@ final class Tranches
     private void advance()
     {
         Runnable run = runs[firstIndex];
+        counts[firstIndex] = 0;
         runs[firstIndex] = null;
         ++firstIndex;
         if (firstTranche == MAX_TRANCHE) firstTranche = 0;
@@ -221,8 +228,15 @@ final class Tranches
 
     private void compact()
     {
-        if (size() <= capacity() / 4 && capacity() > 8) resize(capacity() / 2);
-        else compact(mins, counts, runs);
+        int size = size();
+        if (size <= capacity() / 4 && capacity() > 8) resize(capacity() / 2);
+        else
+        {
+            compact(mins, counts, runs);
+            Arrays.fill(runs, size, runs.length, null);
+            Arrays.fill(mins, size, mins.length, 0);
+            Arrays.fill(counts, size, counts.length, 0);
+        }
     }
 
     private void growOrCompact()

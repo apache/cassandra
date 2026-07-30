@@ -52,12 +52,15 @@ final class CancelTask extends Task
         return "Cancel " + cancel.briefDescription();
     }
 
-    @Override void unqueueIfQueued() { throw new UnsupportedOperationException(); }
-    @Override
-    void maybeCompleteExclusiveMayThrow() { throw new UnsupportedOperationException(); }
-    @Override void tryCancelExclusive() { throw new UnsupportedOperationException(); }
-    @Override void reportFailureMayThrow(Throwable fail) { throw new UnsupportedOperationException(); }
+    @Override void unqueueIfQueued() {}
+    @Override void completeExclusiveMayThrow() {}
+    @Override void tryCancelExclusive() {}
     @Override boolean runMayThrow() { throw new UnsupportedOperationException(); }
     @Override public void cancel() { throw new UnsupportedOperationException(); }
     @Override AccordExecutor executor() { throw new UnsupportedOperationException(); }
+    @Override void reportFailureMayThrow(Throwable fail)
+    {
+        Thread thread = Thread.currentThread();
+        thread.getUncaughtExceptionHandler().uncaughtException(thread, fail);
+    }
 }

@@ -23,6 +23,7 @@ import java.util.concurrent.CancellationException;
 import accord.utils.async.Cancellable;
 
 import static org.apache.cassandra.service.accord.execution.Task.State.CANCELLED;
+import static org.apache.cassandra.service.accord.execution.Task.State.UNREGISTERED;
 import static org.apache.cassandra.service.accord.execution.Task.State.WAITING_TO_RUN;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -53,7 +54,7 @@ abstract class Plain extends Task implements Cancellable
     @Override
     final void tryCancelExclusive()
     {
-        tryFailAndCompleteExclusive(new CancellationException(), CANCELLED);
+        tryFailAndCompleteUnexecutedExclusive(new CancellationException(), CANCELLED);
     }
 
     @Override
@@ -67,7 +68,7 @@ abstract class Plain extends Task implements Cancellable
     }
 
     @Override
-    void maybeCompleteExclusiveMayThrow()
+    void completeExclusiveMayThrow()
     {
         if (completeState())
         {
@@ -92,7 +93,7 @@ abstract class Plain extends Task implements Cancellable
     @Override
     protected boolean isNewWork()
     {
-        return true;
+        return is(UNREGISTERED);
     }
 
     @Override

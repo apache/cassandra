@@ -31,7 +31,13 @@ import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Stream;
 
+import javax.annotation.Nullable;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.api.Agent;
+import accord.api.AsyncExecutor;
 import accord.api.ExclusiveAsyncExecutor;
 import accord.api.RoutingKey;
 import accord.impl.AbstractAsyncExecutor;
@@ -41,6 +47,7 @@ import accord.primitives.TxnId;
 import accord.utils.ArrayBuffers;
 import accord.utils.Invariants;
 import accord.utils.UnhandledEnum;
+import accord.utils.async.AsyncCallbacks;
 import accord.utils.async.AsyncCallbacks.CallAndCallback;
 import accord.utils.async.AsyncCallbacks.RunOrFail;
 import accord.utils.async.AsyncChain;
@@ -100,17 +107,19 @@ import static org.apache.cassandra.service.accord.execution.TaskQueueMulti.setOv
  */
 public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask<?>, Boolean>, SaveExecutor, Shutdownable, AbstractAsyncExecutor
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordExecutor.class);
+
     static final QueuePriorityModel PRIORITY_MODEL;
     static final QueueBalancingModel BALANCING_MODEL;
     static final long AGE_TO_FIFO;
-    // PRIORITY_FAIR blends two strategies (flow: least fairly serviced; age: earliest-queued work) by deficit
+    // BLENDED_PRIORITY_PHASE_FAIR blends two strategies (flow: least fairly serviced; age: earliest-queued work) by deficit
     // round-robin; weights of BLEND_TOTAL come from a single imbalance ramp (onset..onset+width) trading age->flow.
     static final int BLEND_SHIFT = 6, BLEND_TOTAL = 1 << BLEND_SHIFT;
     static final int FLOW_ONSET, FLOW_WIDTH_SHIFT;
     static final boolean BALANCE_BY_POSITION;
     static final long GLOBAL_QUEUE_LIMITS, EXCLUSIVE_QUEUE_LIMITS;
     static final int NONSYNC_MIN_BATCH_SIZE, NONSYNC_MAX_BATCH_SIZE, NONSYNC_BLOCKED_LIMIT;
-    static final boolean NONSYNC_ENABLED;
+    static final boolean NONSYNC_ENABLED, CACHE_QUEUES_ENABLED;
     private static final long LOADING_GROUPS = overflowBit(LOAD) | overflowBit(RANGE_LOAD) | overflowBit(RANGE_SCAN);
 
     static
@@ -123,9 +132,12 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         FLOW_WIDTH_SHIFT  = config.queue_flow_imbalance_width_shift == null ? 5 : config.queue_flow_imbalance_width_shift;
         NONSYNC_MIN_BATCH_SIZE = config.queue_nonsync_min_batch_size == null ? 16 : config.queue_nonsync_min_batch_size;
         NONSYNC_MAX_BATCH_SIZE = config.queue_nonsync_max_batch_size == null ? 64 : config.queue_nonsync_max_batch_size;
-        NONSYNC_ENABLED = config.queue_nonsync_enabled == null || config.queue_nonsync_enabled;
+        CACHE_QUEUES_ENABLED = config.queue_key_ordering_enabled == null || config.queue_key_ordering_enabled;
+        NONSYNC_ENABLED = CACHE_QUEUES_ENABLED && (config.queue_nonsync_enabled == null || config.queue_nonsync_enabled);
+        if (!CACHE_QUEUES_ENABLED && (config.queue_nonsync_enabled == null || config.queue_nonsync_enabled))
+            logger.info("config.queue_key_ordering_enabled is false; accord.queue_nonsync_enabled forced to false as well");
         NONSYNC_BLOCKED_LIMIT = config.queue_nonsync_blocked_limit == null ? 8 : config.queue_nonsync_blocked_limit;
-        Invariants.require(FLOW_ONSET >= 0 && FLOW_WIDTH_SHIFT >= 0);
+        Invariants.require(FLOW_ONSET >= 0 && FLOW_WIDTH_SHIFT >= 0 && FLOW_WIDTH_SHIFT < 10);
         switch (BALANCING_MODEL)
         {
             default: throw new UnhandledEnum(BALANCING_MODEL);
@@ -146,7 +158,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
             {
                 long[] limits = parseEnumParams(config.queue_active_limits, "queue_active_limits");
                 global = selectByOverflowBits(setOverflowWhenLessEqual(limits[0], 0), global, limits[0]);
-                exclusive = selectByOverflowBits(setOverflowWhenLessEqual(limits[1], 0), global, limits[1]);
+                exclusive = selectByOverflowBits(setOverflowWhenLessEqual(limits[1], 0), exclusive, limits[1]);
             }
             GLOBAL_QUEUE_LIMITS = global;
             EXCLUSIVE_QUEUE_LIMITS = exclusive;
@@ -177,9 +189,17 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         @Override
         public void close()
         {
-            executor.beforeUnlockExternal();
-            global.tryShrinkOrEvict(executor.lock);
-            executor.unlock(TaskRunner.get());
+            try
+            {
+                // eviction may submit work, so beforeUnlock must run after to ensure notification is sent
+                try { global.tryShrinkOrEvict(executor.lock); }
+                finally { executor.beforeUnlockExternal(); }
+            }
+            finally
+            {
+                // must unlock however we exit, or we leak the lock (and, for a loop thread, wedge the executor)
+                executor.unlock(TaskRunner.get());
+            }
         }
     }
 
@@ -278,8 +298,16 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         long startAt = DEBUG_EXECUTION ? Clock.Global.nanoTime() : 0;
         if (!self.tryEnterAccordLockedExecutor(this))
             throw new UnsupportedOperationException("To ensure system performance, it is not permitted to utilise multiple AccordExecutor simultaneously with the same thread");
-        //noinspection LockAcquiredButNotSafelyReleased
-        lock.lock();
+        try
+        {
+            //noinspection LockAcquiredButNotSafelyReleased
+            lock.lock();
+        }
+        catch (Throwable t)
+        {
+            self.exitAccordLockedExecutor();
+            throw t;
+        }
         if (DEBUG_EXECUTION) debug.onEnterLock(startAt);
     }
 
@@ -296,6 +324,10 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         if (active != null && active != this)
             return false;
 
+        AccordExecutor locked = self.accordLockedExecutor();
+        if (locked != null && locked != this)
+            return false;
+
        return onTryLock(self, lock.tryLock());
     }
 
@@ -305,7 +337,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         {
             // shouldn't be possible, we should have checked this already
             lock.unlock();
-            throw new IllegalStateException();
+            throw Invariants.illegalState("%s already holds %s, so cannot lock %s", Thread.currentThread(), self.accordLockedExecutor(), this);
         }
         return result;
     }
@@ -360,6 +392,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         lock(self);
         try
         {
+            drainUnqueuedNewWorkExclusive();
             if (tasks == 0)
                 return;
 
@@ -492,7 +525,20 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         return task;
     }
 
-    public <T> AsyncChain<T> buildDebuggable(Callable<T> call, Object describe)
+    public Cancellable executeContinuation(RunOrFail runOrFail)
+    {
+        Task inherit = inherit();
+        PlainChain task = new PlainChain(this, runOrFail, null, ExclusiveGroup.OTHER);
+        if (inherit == null) submitTask(task);
+        else
+        {
+            task.setIsContinuation();
+            inherit.addConsequence(task);
+        }
+        return task;
+    }
+
+    public <T> AsyncChain<T> buildDebuggableContinuation(Callable<T> call, Object describe)
     {
         return new AsyncChains.Head<>()
         {
@@ -501,8 +547,12 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
             {
                 Task inherit = inherit();
                 PlainChainDebuggable task = new PlainChainDebuggable(AccordExecutor.this, new CallAndCallback<>(call, callback), null, describe);
-                if (inherit != null) inherit.addConsequence(task);
-                else submitTask(task);
+                if (inherit == null) submitTask(task);
+                else
+                {
+                    task.setIsContinuation();
+                    inherit.addConsequence(task);
+                }
                 return task;
             }
         };
@@ -537,7 +587,6 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
     {
         Invariants.require(isOwningThread());
         Invariants.require(task.is(UNREGISTERED));
-        ++tasks;
         if (task.hasInherited())
         {
             tranches.addInherited(task.tranche(), task.position);
@@ -561,6 +610,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
             }
             task.setTranche(tranches.addNew(position));
         }
+        ++tasks;
     }
 
     final void completedTaskExclusive(Task task)
@@ -588,7 +638,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
 
         SafeTask<?>.RangeTxnScanner scanner = task.rangeScanner();
         if (scanner == null && fail == null) fail = new CancellationException();
-        if (fail != null) task.tryFailAndCompleteExclusive(fail, FAILED);
+        if (fail != null) task.tryFailAndCompleteUnexecutedExclusive(fail, FAILED);
         else scanner.scannedExclusive();
     }
 
@@ -606,15 +656,25 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         {
             if (fail != null)
             {
+                // every task that was waiting for this load must be cleaned up, so one failing to do so cannot be
+                // allowed to abandon the others in a queue they will never leave
                 for (SafeTask<?> task : tasks)
-                    task.tryFailAndCompleteExclusive(fail, FAILED);
+                {
+                    try { task.onFailedToLoadExclusive(fail); }
+                    catch (Throwable t) { task.unhandledException(t); }
+                }
                 cache.failedToLoad(loaded);
             }
             else
             {
                 cache.loaded(loaded, value);
+                // we sort to avoid unsafe reentry within queue updates, which can corrupt the state
+                tasks.sort(AccordCacheEntryQueue::compareForNotify);
                 for (SafeTask<?> task : tasks)
-                    task.onLoadOneExclusive(loaded);
+                {
+                    try { task.onLoadOneExclusive(loaded); }
+                    catch (Throwable t) { task.unhandledException(t); }
+                }
             }
         }
 
@@ -625,6 +685,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
     {
         TaskRunner self = TaskRunner.get();
         lock(self);
+        AccordExecutor prevActive = self.accordActiveExecutor();
         try
         {
             self.setAccordActiveExecutor(this);
@@ -633,7 +694,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         finally
         {
             beforeUnlockExternal();
-            self.setAccordActiveExecutor(null);
+            self.setAccordActiveExecutor(prevActive);
             unlock(self);
         }
     }
@@ -800,14 +861,5 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         }
 
         return result;
-    }
-
-    protected static void prepareRunComplete(TaskRunner self, Task task)
-    {
-        if (task.prepareExclusiveNoExcept())
-        {
-            try { task.runNoExcept(self); }
-            finally { task.completeExclusiveNoExcept(); }
-        }
     }
 }

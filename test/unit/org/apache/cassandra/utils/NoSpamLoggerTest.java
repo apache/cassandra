@@ -18,7 +18,9 @@
 */
 package org.apache.cassandra.utils;
 
+import java.lang.reflect.Field;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Queue;
@@ -34,6 +36,7 @@ import org.slf4j.helpers.SubstituteLogger;
 
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.utils.NoSpamLogger.Level;
+import org.apache.cassandra.utils.NoSpamLogger.NoDuplicateSpamLogStatement;
 import org.apache.cassandra.utils.NoSpamLogger.NoSpamLogStatement;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER;
@@ -560,5 +563,149 @@ public class NoSpamLoggerTest
                              expected, loggers[i].getStatementsCount());
             }
         }
+    }
+
+    // BELOW TESTS WERE AUTHORED BY CLAUDE
+    // ---------------------------------------------------------------------------------------------------------------
+    // NoDuplicateSpamLogStatement: per-identity rate limiting. The state it keeps to recognise a duplicate must be
+    // bounded (it is fed by error storms), and recognising a duplicate must be cheap (it is on the storm path).
+    // ---------------------------------------------------------------------------------------------------------------
+
+    private static final long INTERVAL_NANOS = 100;
+    /**
+     * Upper bound we are willing to see retained. The implementation's own cap is 1024; we assert against a bound
+     * that is generous but still independent of {@link #DISTINCT_IDS}, so the test states "bounded", not "exactly
+     * 1024", and does not have to be edited if the cap is retuned.
+     */
+    private static final int RETAINED_BOUND = 4096;
+    private static final int DISTINCT_IDS = 20_000;
+
+    private static Map<?, ?> lastLoggedOf(NoDuplicateSpamLogStatement statement) throws Exception
+    {
+        // Reflection, deliberately: the class exposes no accessor for its suppression state, and the alternative
+        // (asserting only on behaviour) cannot say *how many* entries were retained, which is the whole finding.
+        // The behavioural assertion in the same test is the primary one; this is here so that the failure message
+        // names the actual defect (a map of N entries) rather than only its symptom.
+        Field field = NoDuplicateSpamLogStatement.class.getDeclaredField("lastLogged");
+        field.setAccessible(true);
+        return (Map<?, ?>) field.get(statement);
+    }
+
+    /**
+     * Pins: {@code NoDuplicateSpamLogStatement}'s duplicate-suppression state is bounded.
+     *
+     * Eviction is driven by the very event it is meant to bound: entries are pruned only from inside a call that
+     * passes the gate (i.e. only while logging continues), only once per interval, and only if already expired.
+     * A burst of distinct identities followed by quiescence therefore used to retain one entry per identity for the
+     * lifetime of the process - the number of identities is not bounded by code paths (line numbers x cause chains
+     * x suppressed sets), and this statement is fed by AccordAgent's uncaught-exception path, i.e. a storm.
+     *
+     * The clock is held still for the whole test, so no entry can expire and the prune loop can remove nothing:
+     * the only thing that can shrink the map is a hard size cap. Two assertions, in order:
+     *  - behavioural (public API only): an identity logged before the cap was reached is loggable again, because a
+     *    bounded map must have forgotten it. Without a cap it stays suppressed for ever.
+     *  - state: the retained entry count does not grow with the number of distinct identities.
+     *
+     * If the cap is removed, both fail; the first with "still suppressed", the second with the actual map size.
+     */
+    @Test
+    public void testNoDuplicateSpamLoggerStateIsBounded() throws Exception
+    {
+        now = 5;
+        NoDuplicateSpamLogStatement nospam = new NoDuplicateSpamLogStatement(mock, statement, INTERVAL_NANOS, TimeUnit.NANOSECONDS);
+
+        long firstId = 0;
+        assertTrue(nospam.warn(firstId, param));
+        assertFalse("an identity repeated inside the interval must be suppressed", nospam.warn(firstId, param));
+        assertLoggedSizes(0, 1, 0);
+
+        // a burst of distinct identities, with the clock frozen: nothing expires, so nothing can be pruned
+        for (long id = 1; id <= DISTINCT_IDS; ++id)
+            assertTrue("a never-before-seen identity must always be logged (id " + id + ')', nospam.warn(id, param));
+        assertLoggedSizes(0, 1 + DISTINCT_IDS, 0);
+
+        assertTrue("identity " + firstId + " is still suppressed after " + DISTINCT_IDS + " further distinct " +
+                   "identities were logged with the clock frozen: nothing evicted it, i.e. the suppression state has " +
+                   "no size cap and grows for the lifetime of the process (only expired entries are pruned, and only " +
+                   "on a call that logs)",
+                   nospam.warn(firstId, param));
+
+        int retained = lastLoggedOf(nospam).size();
+        assertTrue("lastLogged retained " + retained + " entries after " + (DISTINCT_IDS + 1) + " distinct " +
+                   "identities with the clock frozen (expected at most " + RETAINED_BOUND + "): the duplicate-" +
+                   "suppression map is unbounded",
+                   retained <= RETAINED_BOUND);
+    }
+
+    /**
+     * Pins: bounding the state did not break what the state is for. Same identity inside the interval is logged
+     * once, distinct identities are independent, and the interval still applies to each identity separately.
+     *
+     * Deliberately stays well below the cap (and below the prune threshold of 32) so that it is only about the
+     * suppression contract. A cap that cleared the map too eagerly, or a gate that ignored the identity, would show
+     * up here as a duplicate message.
+     */
+    @Test
+    public void testNoDuplicateSpamLoggerSuppression()
+    {
+        now = 5;
+        NoDuplicateSpamLogStatement nospam = new NoDuplicateSpamLogStatement(mock, statement, INTERVAL_NANOS, TimeUnit.NANOSECONDS);
+
+        assertTrue(nospam.warn(1L, param));
+        assertFalse(nospam.warn(1L, param));
+        assertFalse(nospam.warn(1L, param));
+        assertLoggedSizes(0, 1, 0);
+
+        assertTrue("a distinct identity must not be suppressed by another identity's interval", nospam.warn(2L, param));
+        assertFalse(nospam.warn(2L, param));
+        assertLoggedSizes(0, 2, 0);
+
+        // one nanosecond before identity 1's interval expires
+        now = 5 + INTERVAL_NANOS - 1;
+        assertFalse("the interval must still be enforced per identity", nospam.warn(1L, param));
+        assertLoggedSizes(0, 2, 0);
+
+        now = 5 + INTERVAL_NANOS;
+        assertTrue("the identity must be logged again once its interval has elapsed", nospam.warn(1L, param));
+        assertFalse(nospam.warn(1L, param));
+        assertLoggedSizes(0, 3, 0);
+
+        // and the arguments still reach the wrapped logger unchanged
+        Pair<String, Object[]> p = logged.get(Level.WARN).poll();
+        assertNotNull(p);
+        assertEquals(statement, p.left);
+        assertArrayEquals(new Object[]{ param }, p.right);
+    }
+
+    /**
+     * Pins: the cheap gate is still discriminating enough to tell distinct exception *shapes* apart - it walks the
+     * cause chain, it is not just the type of the outermost throwable. Otherwise the cost fix would have bought
+     * itself by swallowing genuinely different failures under one message per interval.
+     *
+     * Version-neutral by construction (it holds no opinion on stack traces), so it is a guard on the gate's
+     * fidelity rather than a detector; the detector for the gate itself is
+     * {@link #testSuppressedExceptionDoesNotWalkTheStackTrace}.
+     */
+    @Test
+    public void testDistinctCauseChainsAreLoggedSeparately()
+    {
+        now = 5;
+        NoDuplicateSpamLogStatement nospam = new NoDuplicateSpamLogStatement(mock, statement, INTERVAL_NANOS, TimeUnit.NANOSECONDS);
+
+        Throwable ise = new RuntimeException("a", new IllegalStateException("inner"));
+        assertTrue(nospam.warn(ise));
+        assertTrue("a different cause type is a different failure and must be logged",
+                   nospam.warn(new RuntimeException("a", new IllegalArgumentException("inner"))));
+        assertLoggedSizes(0, 2, 0);
+
+        // differing only at the third level of the cause chain
+        assertTrue(nospam.warn(new RuntimeException("b", new RuntimeException("m", new IllegalStateException("deep")))));
+        assertTrue("the gate must walk the whole cause chain, not only the outermost throwable",
+                   nospam.warn(new RuntimeException("b", new RuntimeException("m", new IllegalArgumentException("deep")))));
+        assertLoggedSizes(0, 4, 0);
+
+        // ... and each of those shapes is now suppressed for the interval
+        assertFalse("a throwable already logged in this interval must be suppressed", nospam.warn(ise));
+        assertLoggedSizes(0, 4, 0);
     }
 }

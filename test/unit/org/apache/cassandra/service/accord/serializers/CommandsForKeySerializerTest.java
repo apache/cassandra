@@ -551,6 +551,8 @@ public class CommandsForKeySerializerTest
         {
             super(command.txnId);
             current = command;
+            // a state is only readable once locked by the task that owns it; there is no task here, so say so directly
+            setSafe();
         }
     }
 

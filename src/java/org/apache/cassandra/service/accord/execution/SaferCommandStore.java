@@ -89,6 +89,9 @@ public final class SaferCommandStore extends AbstractSafeCommandStore<SaferComma
             //  - touching keys we have scheduled to process later
             //  - touching txnIds we may have to logically lock until the whole processing completes to
             //    ensure persistent state machine updates are consistent with incremental updates to cache
+            //  - priority inversion deadlock - likely conflicts with the above, since lock acquisition order becomes
+            //    non-deterministic so we can introduce cycles, so at least TxnId may need to be forbidden, and keys
+            //    must release their locks immediately after the run that processes them
             return null;
         }
         return commandStore().tryLockCaches();
@@ -113,7 +116,7 @@ public final class SaferCommandStore extends AbstractSafeCommandStore<SaferComma
     @Override
     protected void persistFieldUpdates()
     {
-        // Field persistence is handled by AccordTask
+        // Field persistence is handled by SafeTask
     }
 
     void persistFieldUpdatesInternal(Runnable onDone)
@@ -152,10 +155,7 @@ public final class SaferCommandStore extends AbstractSafeCommandStore<SaferComma
     @Override
     protected SaferCommandsForKey getInternal(RoutingKey key)
     {
-        SaferCommandsForKey safeCfk = (SaferCommandsForKey) task.refs.get(key);
-        if (safeCfk == null || safeCfk.isUninitialised())
-            return null;
-        return safeCfk;
+        return (SaferCommandsForKey) task.refs.get(key);
     }
 
     @Override
@@ -231,6 +231,8 @@ public final class SaferCommandStore extends AbstractSafeCommandStore<SaferComma
                 AbstractUnseekableKeys keys = (AbstractUnseekableKeys) context.keys();
                 return Routables.foldl(keys, keysOrRanges, (self, f, key, v, index) -> {
                     SafeCommandsForKey safeCfk = (SafeCommandsForKey) self.task.refs.get(key);
+                    if (safeCfk == null || safeCfk.isUninitialised())
+                        return v;
                     return f.test(safeCfk.current());
                 }, this, forEach, Boolean.TRUE, cont -> !cont);
 
@@ -242,7 +244,7 @@ public final class SaferCommandStore extends AbstractSafeCommandStore<SaferComma
                         continue;
 
                     SafeCommandsForKey safeCfk = (SafeCommandsForKey) safeState;
-                    if (skip.contains(safeCfk.key()))
+                    if (safeCfk.isUninitialised() || skip.contains(safeCfk.key()))
                         continue;
 
                     if (!forEach.test(safeCfk.current()))

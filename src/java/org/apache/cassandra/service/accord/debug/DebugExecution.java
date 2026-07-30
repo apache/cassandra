@@ -64,6 +64,7 @@ public class DebugExecution
 
         long lockedAt, lockedAtCpu;
         long unlockedAt, unlockedAtCpu;
+        int depth;
 
         public void onEnterLock()
         {
@@ -72,6 +73,9 @@ public class DebugExecution
 
         public void onEnterLock(long lockAt)
         {
+            if (++depth > 1)
+                return;
+
             lockedAt = nanoTime();
             lockedAtCpu = nowCpu();
             if (lockAt > 0)
@@ -87,6 +91,9 @@ public class DebugExecution
 
         public void onExitLock()
         {
+            if (--depth > 0)
+                return;
+
             // TODO (expected): specialise this for despatch loop, which can reasonably handle longer lock hold periods
             unlockedAt = nanoTime();
             unlockedAtCpu = nowCpu();
@@ -96,7 +103,7 @@ public class DebugExecution
             {
                 report("Held lock for {}us (cpu:{}us)", lockedForMicros, lockedForCpuMicros);
             }
-            else if (lockedForMicros >= REPORT_MIN_LATENCY_MICROS && (lockedForMicros / lockedForCpuMicros) >= REPORT_CPU_RATIO)
+            else if (lockedForMicros >= REPORT_MIN_LATENCY_MICROS && (lockedForCpuMicros == 0 || (lockedForMicros / lockedForCpuMicros) >= REPORT_CPU_RATIO))
             {
                 report("Held lock for {}us with cpu time only {}us", lockedForMicros, lockedForCpuMicros);
             }

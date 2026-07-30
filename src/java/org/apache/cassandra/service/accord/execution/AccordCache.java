@@ -93,6 +93,7 @@ import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.GEN
 import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status.EVICTED;
 import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status.LOADED;
 import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status.MODIFIED;
+import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status.SAVING;
 
 /**
  * Cache for AccordCommand and AccordCommandsForKey, available memory is shared between the two object types.
@@ -301,13 +302,15 @@ public class AccordCache
                 node.loading().loading.cancel();
             case WAITING_TO_LOAD:
             case LOADED:
+            case FAILED_TO_LOAD:
                 node.unlink();
                 evict(node, true);
                 break;
             case MODIFIED:
                 node.save();
             case SAVING: // we can be in evict queue and already be saving if save was requested for durability rather than eviction
-                boolean evict = node.status() == LOADED;
+            case WAITING_TO_SAVE:
+                boolean evict = node.status() == LOADED; // we can become LOADED by calling save()
                 node.unlink();
                 if (evict) evict(node, true);
                 break;
@@ -316,10 +319,16 @@ public class AccordCache
 
     public void saveWhenReadyExclusive(AccordCacheEntry<?, ?, ?> entry, Runnable onSuccess)
     {
-        if (!entry.isSavingOrWaiting() && !entry.saveWhenReady())
+        if (!entry.is(SAVING) && !entry.saveWhenReady())
             onSuccess.run();
         else
             entry.savingOrWaitingToSave().identity.onSuccess(onSuccess);
+    }
+
+    void enqueueIfEvictable(AccordCacheEntry<?, ?, ?> node)
+    {
+        if (node.isUnqueued() && node.references() == 0)
+            evictQueue.addFirst(node); // add to front, as for a completed save: we were eligible for eviction
     }
 
     private <K> void evict(AccordCacheEntry<K, ?, ?> node, boolean updateUnreferenced)
@@ -328,6 +337,10 @@ public class AccordCache
             logger.trace("Evicting {}", node);
 
         require(node.isUnqueued());
+        // pre-patch this asserted that nothing was waiting on the entry (the waiter list is now the claim queue): an
+        // entry evicted while a claim remained would never notify that task again, i.e. a permanent hang, and nothing
+        // else here looks at the queue. Implied by references() == 0, since every position implies a reference.
+        require(node.isUnclaimed(), "%s still has claims (%s) at eviction", node, node.unsafeGetQueue());
 
         if (updateUnreferenced)
         {
@@ -365,7 +378,14 @@ public class AccordCache
 
     <K, V> void failedToLoad(AccordCacheEntry<K, V, ?> node)
     {
-        Invariants.require(node.references() == 0);
+        if (node.references() > 0)
+        {
+            // a task that was running when the load failed could not be failed along with the waiters, and it still
+            // holds the entry; record the failure and leave the eviction to whoever releases it last
+            node.failedToLoad();
+            return;
+        }
+
         if (node.isUnqueued())
         {
             Invariants.require(node.status() == EVICTED);
@@ -572,7 +592,7 @@ public class AccordCache
                 {
                     evict = node.is(LOADED) && node.isNull();
                 }
-                node.remove(owner, safeRef.setReleased());
+                node.remove(owner, safeRef.setReleased(), null);
 
                 if (node.decrement() == 0)
                 {
@@ -593,6 +613,7 @@ public class AccordCache
                         case LOADING:
                         case LOADED:
                         case MODIFIED:
+                        case FAILED_TO_LOAD:
                             logger.trace("Moving {} with status {} to eviction queue", key, status);
                             evictQueue.addLast(node);
 
@@ -819,6 +840,18 @@ public class AccordCache
             if (adapter.getClass() != SettableWrapper.class)
                 adapter = new SettableWrapper<>(adapter);
             return ((SettableWrapper<K, V, S>)adapter).load;
+        }
+
+        /**
+         * Replace the function that persists an entry, so that a test may exercise the save path (and its failures)
+         * without the schema, cluster metadata and commit log the real one needs.
+         */
+        @VisibleForTesting
+        public void unsafeSetSaveFunction(QuadFunction<AccordCommandStore, K, V, Object, Runnable> saveFunction)
+        {
+            if (adapter.getClass() != SettableWrapper.class)
+                adapter = new SettableWrapper<>(adapter);
+            ((SettableWrapper<K, V, S>)adapter).save = saveFunction;
         }
 
         final Adapter<K, V, S> adapter()
@@ -1126,11 +1159,13 @@ public class AccordCache
     static class SettableWrapper<K, V, S extends SafeState<V> & SaferState<K, V, S>> extends FunctionalAdapter<K, V, S>
     {
         volatile BiFunction<AccordCommandStore, K, V> load;
+        volatile QuadFunction<AccordCommandStore, K, V, Object, Runnable> save;
 
         SettableWrapper(Adapter<K, V, S> wrapper)
         {
             super(wrapper);
             this.load = super.load;
+            this.save = super.save;
         }
 
         public static <K, V, S extends SafeState<V> & SaferState<K, V, S>> Adapter<K, V, S> loadOnly(BiFunction<AccordCommandStore, K, V> load)
@@ -1144,6 +1179,12 @@ public class AccordCache
         public V load(AccordCommandStore commandStore, K key)
         {
             return load.apply(commandStore, key);
+        }
+
+        @Override
+        public Runnable save(AccordCommandStore commandStore, K key, @Nullable V value, @Nullable Object shrunk)
+        {
+            return save.apply(commandStore, key, value, shrunk);
         }
     }
 
