@@ -24,6 +24,7 @@ import java.util.Map;
 
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.io.compress.BufferType;
+import org.apache.cassandra.io.compress.CorruptBlockException;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 
 public final class ThreadLocalReadAheadBuffer
@@ -92,12 +93,14 @@ public final class ThreadLocalReadAheadBuffer
         return blockMap.get().computeIfAbsent(channel.filePath(), k -> new Block());
     }
 
-    public void fill(long position)
+    public void fill(long position) throws CorruptBlockException
     {
         Block block = getBlock();
         ByteBuffer blockBuffer = block.buffer;
-        long realPosition = Math.min(channelSize, position);
-        int blockNo = (int) (realPosition / bufferSize);
+        if (position >= channelSize)
+            throw new CorruptBlockException(channel.filePath(), position, bufferSize);
+
+        int blockNo = (int) (position / bufferSize);
         long blockPosition = blockNo * (long) bufferSize;
 
         long remaining = channelSize - blockPosition;
@@ -114,7 +117,7 @@ public final class ThreadLocalReadAheadBuffer
 
         blockBuffer.flip();
         blockBuffer.limit(sizeToRead);
-        blockBuffer.position((int) (realPosition - blockPosition));
+        blockBuffer.position((int) (position - blockPosition));
     }
 
     public int read(ByteBuffer dest, int length)
