@@ -27,6 +27,7 @@ import accord.api.ProtocolModifiers.CoordinatorBacklogExecution;
 import accord.api.ProtocolModifiers.FastExecution;
 import accord.api.ProtocolModifiers.ReplicaExecution;
 import accord.api.ProtocolModifiers.SendStableMessages;
+import accord.api.ProtocolModifiers.UniqueTimestampOnConflict;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 
@@ -34,7 +35,6 @@ import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
-import static org.apache.cassandra.config.AccordConfig.QueuePriorityModel.HLC_FIFO;
 import static org.apache.cassandra.config.AccordConfig.QueueShardModel.THREAD_POOL_PER_SHARD;
 import static org.apache.cassandra.config.AccordConfig.QueueSubmissionModel.SYNC;
 import static org.apache.cassandra.config.AccordConfig.RangeIndexMode.in_memory;
@@ -171,6 +171,13 @@ public class AccordConfig
          * Within a phase, pick by priority.
          */
         BLENDED_PRIORITY_PHASE_FAIR,
+    }
+
+    public enum UniqueTimestampReservations
+    {
+        NONE,
+        SMALL_SHARED,
+        HISTOGRAM
     }
 
     public QueueShardModel queue_shard_model = THREAD_POOL_PER_SHARD;
@@ -336,6 +343,9 @@ public class AccordConfig
     public Boolean send_minimal;
     // note: simulator incompatible (for now)
     public Boolean precise_micros;
+    public UniqueTimestampReservations unique_timestamp_reservations;
+    public UniqueTimestampOnConflict unique_timestamp_on_conflict;
+    public DurationSpec.IntMillisecondsBound unique_timestamp_reservation_range;
 
     public boolean ephemeral_reads = true;
     public boolean state_cache_listener_jfr_enabled = false;

@@ -63,6 +63,9 @@ import accord.local.CommandStores;
 import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.ShardDistributor.EvenSplit;
+import accord.local.TimeService;
+import accord.local.UniqueTimeService;
+import accord.local.UniqueTimeService.AtomicUniqueTime;
 import accord.local.UniqueTimeService.AtomicUniqueTimeWithStaleReservation;
 import accord.local.durability.DurabilityService;
 import accord.local.durability.ShardDurability;
@@ -93,7 +96,9 @@ import accord.utils.async.AsyncResults;
 
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.AccordConfig;
+import org.apache.cassandra.config.AccordConfig.CatchupFallbackMode;
 import org.apache.cassandra.config.AccordConfig.JournalConfig.ReplaySavePoint;
+import org.apache.cassandra.config.AccordConfig.UniqueTimestampReservations;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -175,16 +180,20 @@ import static accord.primitives.Txn.Kind.ExclusiveSyncPoint;
 import static accord.primitives.Txn.Kind.Write;
 import static accord.primitives.TxnId.MediumPath.NoMediumPath;
 import static accord.primitives.TxnId.MediumPath.TrackStable;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorThreadTag.JOB;
 import static org.apache.cassandra.concurrent.ExecutorFactory.SystemThreadTag.DAEMON;
+import static org.apache.cassandra.config.AccordConfig.CatchupFallbackMode.EXIT;
 import static org.apache.cassandra.config.AccordConfig.CatchupFallbackMode.REBOOTSTRAP;
+import static org.apache.cassandra.config.AccordConfig.CatchupFallbackMode.REBOOTSTRAP_AND_CATCHUP;
 import static org.apache.cassandra.config.AccordConfig.JournalConfig.ReplayMode.REBOOTSTRAP_INCOMPLETE;
 import static org.apache.cassandra.config.AccordConfig.JournalConfig.ReplayMode.REBOOTSTRAP_RESET;
 import static org.apache.cassandra.config.AccordConfig.JournalConfig.ReplayMode.RESET;
+import static org.apache.cassandra.config.AccordConfig.UniqueTimestampReservations.HISTOGRAM;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccord;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordGlobalDurabilityCycle;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurabilityCycle;
@@ -479,7 +488,7 @@ public class AccordService implements IAccordService, Shutdownable
         this.node = new Node(localId,
                              messageSink,
                              topologyService,
-                             time, new AtomicUniqueTimeWithStaleReservation(time),
+                             time, uniqueTimeService(time),
                              () -> dataStore,
                              new KeyspaceSplitter(new EvenSplit<>(getAccord().commandStoreShardCount(), getPartitioner().accordSplitter())),
                              agent,
@@ -531,6 +540,8 @@ public class AccordService implements IAccordService, Shutdownable
             ProtocolModifiers.Configure.setSendStableMessages(config.send_stable);
         if (config.send_minimal != null)
             ProtocolModifiers.Configure.setSendMinimal(config.send_minimal);
+        if (config.unique_timestamp_on_conflict != null)
+            ProtocolModifiers.Configure.setUniqueTimestampOnConflict(config.unique_timestamp_on_conflict);
     }
 
     @Override
@@ -720,8 +731,8 @@ public class AccordService implements IAccordService, Shutdownable
 
     void catchup()
     {
-        AccordConfig spec = DatabaseDescriptor.getAccord();
-        if (!spec.catchup_on_start)
+        AccordConfig config = DatabaseDescriptor.getAccord();
+        if (!config.catchup_on_start)
         {
             logger.info("Catchup disabled; continuing to startup");
             return;
@@ -733,22 +744,17 @@ public class AccordService implements IAccordService, Shutdownable
             node.commandStores().forAllUnsafe(commandStore -> ((DefaultProgressLog)commandStore.unsafeProgressLog()).setMode(CATCH_UP));
             try
             {
-                AccordConfig.CatchupFallbackMode onError = spec.catchup_on_start_on_error;
-                AccordConfig.CatchupFallbackMode onTimeout = spec.catchup_on_start_on_timeout;
+                CatchupFallbackMode onError = config.catchup_on_start_on_error;
+                CatchupFallbackMode onTimeout = config.catchup_on_start_on_timeout;
 
-                long maxLatencyNanos = spec.catchup_on_start_fail_latency.toNanoseconds();
+                long maxLatencyNanos = config.catchup_on_start_fail_latency.toNanoseconds();
                 int attempts = 1;
                 while (true)
                 {
                     logger.info("Catchup with quorum...");
                     long start = nanoTime();
                     long failAt = start + maxLatencyNanos;
-                    Future<Unsuccessful> f;
-                    {
-                        AsyncChain<Unsuccessful> submit = Catchup.catchup(node, failAt, NANOSECONDS);
-                        f = toFuture(submit);
-                    }
-
+                    Future<Unsuccessful> f = toFuture(Catchup.catchup(node, failAt, NANOSECONDS));
                     f.awaitThrowUncheckedOnInterrupt();
                     Throwable failed = f.cause();
                     Unsuccessful result = f.getNow();
@@ -771,7 +777,7 @@ public class AccordService implements IAccordService, Shutdownable
                                 if (onError == REBOOTSTRAP)
                                     return;
                                 ++attempts;
-                                onError = onTimeout = spec.catchup_on_start_on_rebootstrap_fallback;
+                                onError = onTimeout = rebootstrapFallbackMode(config);
                                 continue;
                         }
                     }
@@ -782,10 +788,10 @@ public class AccordService implements IAccordService, Shutdownable
 
                     if (result == null)
                     {
-                        if (seconds <= spec.catchup_on_start_success_latency.toSeconds())
+                        if (seconds <= config.catchup_on_start_success_latency.toSeconds())
                             return;
 
-                        if (attempts < spec.catchup_on_start_max_attempts)
+                        if (attempts < config.catchup_on_start_max_attempts)
                         {
                             logger.info("Catchup was slow, so we may behind again; retrying");
                             ++attempts;
@@ -812,7 +818,7 @@ public class AccordService implements IAccordService, Shutdownable
                             if (onTimeout == REBOOTSTRAP)
                                 return;
                             ++attempts;
-                            onError = onTimeout = spec.catchup_on_start_on_rebootstrap_fallback;
+                            onError = onTimeout = rebootstrapFallbackMode(config);
                             continue;
                     }
                 }
@@ -826,6 +832,18 @@ public class AccordService implements IAccordService, Shutdownable
         {
             logger.info("No catchup, as bootstrap state is {}", bootstrapState);
         }
+    }
+
+    private static CatchupFallbackMode rebootstrapFallbackMode(AccordConfig config)
+    {
+        CatchupFallbackMode mode = config.catchup_on_start_on_rebootstrap_fallback;
+        if (mode == REBOOTSTRAP_AND_CATCHUP)
+        {
+            CatchupFallbackMode newMode = EXIT;
+            logger.warn("Converting {} to {} after first failed rebootstrap, to avoid infinite loop", mode, newMode);
+            mode = newMode;
+        }
+        return mode;
     }
 
     /**
@@ -1474,5 +1492,23 @@ public class AccordService implements IAccordService, Shutdownable
     public Params journalConfiguration()
     {
         return journal.configuration();
+    }
+
+    private static UniqueTimeService uniqueTimeService(TimeService time)
+    {
+        AccordConfig config = getAccord();
+        UniqueTimestampReservations reservations = config.unique_timestamp_reservations;
+        if (reservations == null)
+            reservations = HISTOGRAM;
+
+        switch (reservations)
+        {
+            default: throw UnhandledEnum.unknown(reservations);
+            case NONE: return new AtomicUniqueTime(time);
+            case SMALL_SHARED: return new AtomicUniqueTimeWithStaleReservation(time);
+            case HISTOGRAM:
+                long millis = config.unique_timestamp_reservation_range == null ? 50 : config.unique_timestamp_reservation_range.toMilliseconds();
+                return new UniqueTimeService.AtomicUniqueAutoStaleTimes(time, millis, MILLISECONDS);
+        }
     }
 }

@@ -148,6 +148,7 @@ public class AccordDataStore implements DataStore
                     case SUCCESS:
                         callback.fetched(ranges);
                         syncResult.trySuccess(null);
+                        // fall-through to ensure started
                     case START:
                         reportStarted();
                         break;
@@ -173,7 +174,11 @@ public class AccordDataStore implements DataStore
                 node.commandStores().mapReduceConsume(new RestrictedStoreSelector(ranges, 0, Long.MAX_VALUE), new MapReduceConsumeCommandStores<Ranges, Timestamp>(ranges)
                 {
                     @Override public Timestamp reduce(Timestamp o1, Timestamp o2) { return Timestamp.max(o1, o2); }
-                    @Override public void accept(Timestamp result, Throwable failure) { start.started(result); }
+                    @Override public void accept(Timestamp result, Throwable failure)
+                    {
+                        if (failure != null) syncResult.tryFailure(failure);
+                        else start.started(result);
+                    }
                     @Override public TxnId primaryTxnId() { return null; }
                     @Override public String reason() { return "Compute MaxConflict to report for fetch"; }
                     @Override protected Timestamp applyInternal(SafeCommandStore safeStore) { return safeStore.commandStore().maxConflict(TxnId.NONE, ranges); }
