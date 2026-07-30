@@ -112,9 +112,10 @@ public class ReplayMarkers
 
         try (FileInputStreamPlus in = new FileInputStreamPlus(file))
         {
-            long timestamp = in.readLong();
-            long lastUniqueTimeStamp = in.readLong();
-            return Pair.create(timestamp, lastUniqueTimeStamp);
+            StringBuilder sb = new StringBuilder(8);
+            for (int b = in.read(); b >= 0 ; b = in.read())
+                sb.append((char)b);
+            return Pair.create(Long.parseLong(sb.toString()), -1L);
         }
         catch (IOException e)
         {

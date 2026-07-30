@@ -40,6 +40,7 @@ import org.apache.cassandra.utils.StorageCompatibilityMode;
 
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.service.accord.journal.ReplayMarkers.safeStopMarker;
+import static org.apache.cassandra.service.accord.journal.ReplayMarkers.startMarker;
 import static org.apache.cassandra.service.accord.journal.ReplayMarkers.writeMarker;
 
 public class ReplayMarkerSerializerTest
@@ -57,6 +58,16 @@ public class ReplayMarkerSerializerTest
         if (new File(DatabaseDescriptor.getAccordJournalDirectory()).exists())
             ServerTestUtils.cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
 
+        // Start marker
+        qt().forAll(RandomSource::nextLong).check(timestamp -> {
+            long lastUniqueTimeStamp = AccordTimeService.nowMicros();
+            writeMarker(startMarker(), timestamp, lastUniqueTimeStamp);
+            Pair<Long, Long> pair = ReplayMarkers.readStartMarker();
+            Assert.assertEquals(timestamp, pair.left);
+            Assert.assertEquals(lastUniqueTimeStamp, (long) pair.right);
+        });
+
+        // Stop marker
         qt().forAll(RandomSource::nextLong).check(timestamp -> {
             long lastUniqueTimeStamp = AccordTimeService.nowMicros();
             writeMarker(safeStopMarker(), timestamp, lastUniqueTimeStamp);
@@ -72,14 +83,30 @@ public class ReplayMarkerSerializerTest
         if (new File(DatabaseDescriptor.getAccordJournalDirectory()).exists())
             ServerTestUtils.cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
 
+        // Start marker
         qt().forAll(RandomSource::nextLong).check(timestamp -> {
-            File file = new File(DatabaseDescriptor.getAccordJournalDirectory(), "stopped");
-            long lastUniqueTimeStamp = AccordTimeService.nowMicros();
+            File file = new File(DatabaseDescriptor.getAccordJournalDirectory(), "started");
 
             try (FileOutputStreamPlus out = new FileOutputStreamPlus(file))
             {
-                out.writeLong(timestamp);
-                out.writeLong(lastUniqueTimeStamp);
+                out.writeBytes(Long.toString(timestamp));
+            }
+            catch (IOException e)
+            {
+                throw new UncheckedIOException(e);
+            }
+
+            Pair<Long, Long> pair = ReplayMarkers.readStartMarker();
+            Assert.assertEquals(timestamp, pair.left);
+        });
+
+        // Stop marker
+        qt().forAll(RandomSource::nextLong).check(timestamp -> {
+            File file = new File(DatabaseDescriptor.getAccordJournalDirectory(), "stopped");
+
+            try (FileOutputStreamPlus out = new FileOutputStreamPlus(file))
+            {
+                out.writeBytes(Long.toString(timestamp));
             }
             catch (IOException e)
             {
@@ -88,7 +115,6 @@ public class ReplayMarkerSerializerTest
 
             Pair<Long, Long> pair = ReplayMarkers.readStopMarker();
             Assert.assertEquals(timestamp, pair.left);
-            Assert.assertEquals(lastUniqueTimeStamp, (long) pair.right);
         });
     }
 }

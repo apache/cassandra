@@ -19,7 +19,6 @@
 package org.apache.cassandra.distributed.test.accord;
 
 import accord.local.Node;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -29,6 +28,8 @@ import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+
+import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.AccordTimeService;
 import org.junit.Test;
@@ -37,7 +38,6 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.utils.Shared;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
-
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -108,7 +108,7 @@ public class AccordMonotonicTimeStampsOnCrashTest extends TestBaseImpl
             assertTrue(State.timestamp.get() < newTimestamp);
             State.timestamp.set(newTimestamp);
 
-            return r.call();
+            return newTimestamp;
         }
     }
 }
