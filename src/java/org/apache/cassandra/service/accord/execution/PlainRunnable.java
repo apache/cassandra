@@ -53,7 +53,7 @@ class PlainRunnable extends Plain implements Cancellable
         if (result != null)
         {
             try { result.trySuccess(null); }
-            catch (Throwable t) { onException(t); }
+            catch (Throwable t) { unhandledException(t); }
         }
         return true;
     }
@@ -76,6 +76,8 @@ class PlainRunnable extends Plain implements Cancellable
     {
         if (result != null)
             result.tryFailure(t);
+        else
+            executor.agent.onException(t);
     }
 
     @Override

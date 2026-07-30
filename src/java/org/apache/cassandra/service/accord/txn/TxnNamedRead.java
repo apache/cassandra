@@ -404,7 +404,8 @@ public class TxnNamedRead extends AbstractParameterisedVersionedSerialized<ReadC
 
     private AsyncChain<Data> submit(AccordExecutor executor, Callable<Data> readCallable, Object describe)
     {
-        return executor.buildDebuggable(readCallable, describe);
+        // a local read "continues" the work of its submitting task, so should be abandoned if that task fails
+        return executor.buildDebuggableContinuation(readCallable, describe);
     }
 
     static final ParameterisedVersionedSerializer<TxnNamedRead, TableMetadatasAndKeys, Version> serializer = new ParameterisedVersionedSerializer<>()

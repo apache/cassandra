@@ -27,9 +27,10 @@ import accord.primitives.TxnId;
 
 import org.apache.cassandra.service.accord.execution.AccordCacheEntry.LockMode;
 
-public class SaferCommand extends SafeCommand implements SaferState<TxnId, Command, SaferCommand>
+public final class SaferCommand extends SafeCommand implements SaferState<TxnId, Command, SaferCommand>
 {
     private final AccordCacheEntry<TxnId, Command, SaferCommand> global;
+
     private Command original;
 
     public SaferCommand(AccordCacheEntry<TxnId, Command, SaferCommand> global)
@@ -44,7 +45,8 @@ public class SaferCommand extends SafeCommand implements SaferState<TxnId, Comma
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SaferCommand that = (SaferCommand) o;
-        return Objects.equals(this.original, that.original) && Objects.equals(this.current(), that.current());
+        // NOTE: not current() may throw, so cannot use it safely here
+        return Objects.equals(this.original, that.original) && Objects.equals(this.current, that.current);
     }
 
     @Override

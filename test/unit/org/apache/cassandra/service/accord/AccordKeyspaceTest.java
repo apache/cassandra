@@ -84,6 +84,7 @@ import static org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyA
 import static org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor.makeSystemTableKeyBytes;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;
 import static org.apache.cassandra.service.accord.execution.AccordExecutionTestUtils.loaded;
+import static org.apache.cassandra.service.accord.execution.AccordExecutionTestUtils.preExecute;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.getTypeSupport;
 import static org.apache.cassandra.utils.AccordGenerators.fromQT;
 
@@ -123,6 +124,8 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
                                                 participants, Ballot.ZERO, id, partialTxn, deps.intersecting(scope),
                                                 Ballot.ZERO, waitingOn);
         SaferCommand safeCommand = new SaferCommand(loaded(id, null));
+        // a state may only be mutated by the task that locked it
+        preExecute(safeCommand);
         safeCommand.set(committed);
 
         AccordTestUtils.appendCommandsBlocking(store, null, committed);

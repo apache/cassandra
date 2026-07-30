@@ -39,9 +39,7 @@ import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.api.Tracing;
 import accord.coordinate.Coordination;
-import accord.coordinate.Exhausted;
-import accord.coordinate.Preempted;
-import accord.coordinate.Timeout;
+import accord.coordinate.CoordinationFailed;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.LogUnavailableException;
@@ -109,7 +107,6 @@ import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retry
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowRead;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowTxnPreaccept;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.txn_data;
-import static org.apache.cassandra.utils.NoSpamLogger.NoDuplicateSpamLogStatement.exceptionId;
 
 // TODO (expected): merge with AccordService
 public class AccordAgent implements Agent, OwnershipEventListener
@@ -222,11 +219,17 @@ public class AccordAgent implements Agent, OwnershipEventListener
             return;
 
         AccordSystemMetrics.metrics.errors.inc();
-        if (t instanceof CancellationException || t instanceof TimeoutException || t instanceof Timeout || t instanceof Preempted || t instanceof Exhausted || t instanceof LogUnavailableException)
-            // TODO (required): leaky logger, permitting multiple messages per time period and reporting how many were dropped
-            noSpamException.warn(exceptionId(t), t);
+        if (expectedException(t)) // TODO (required): leaky logger, permitting multiple messages per time period and reporting how many were dropped
+            noSpamException.warn(t);
         else
             JVMStabilityInspector.uncaughtException(Thread.currentThread(), t);
+    }
+
+    public static boolean expectedException(Throwable t)
+    {
+        if (t instanceof CancellationException)
+            return t.getCause() == null;
+        return t instanceof TimeoutException || t instanceof LogUnavailableException || t instanceof CoordinationFailed;
     }
 
     @Override

@@ -44,37 +44,39 @@ import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.WithResources;
 
 import static accord.local.ExecutionContext.ExecutionSequence.BY_PRIORITY;
-import static accord.local.ExecutionContext.ExecutionSequence.BY_PRIORITY_ATOMIC;
+import static accord.local.ExecutionContext.ExecutionSequence.ATOMIC_CONSEQUENCE;
 import static accord.primitives.Routable.Domain.Range;
+import static accord.utils.Invariants.illegalState;
 import static org.apache.cassandra.config.AccordConfig.QueuePriorityModel.ORIG_HLC_FIFO;
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXECUTION;
 import static org.apache.cassandra.service.accord.execution.Task.ExclusiveGroup.APPLY;
 import static org.apache.cassandra.service.accord.execution.Task.ExclusiveGroup.COMMIT;
 import static org.apache.cassandra.service.accord.execution.Task.ExclusiveGroup.STABLE;
 import static org.apache.cassandra.service.accord.execution.Task.RunState.NOT_YET_RUN;
+import static org.apache.cassandra.service.accord.execution.Task.RunState.RUNNING;
 import static org.apache.cassandra.service.accord.execution.Task.RunState.RUN_FAILED;
 import static org.apache.cassandra.service.accord.execution.Task.RunState.RUN_INCOMPLETE;
-import static org.apache.cassandra.service.accord.execution.Task.RunState.RUNNING;
-import static org.apache.cassandra.service.accord.execution.Task.State.CANCELLED;
 import static org.apache.cassandra.service.accord.execution.Task.State.CANCELLED_UNREGISTERED;
 import static org.apache.cassandra.service.accord.execution.Task.State.EXECUTED;
 import static org.apache.cassandra.service.accord.execution.Task.State.FAILED;
 import static org.apache.cassandra.service.accord.execution.Task.State.LOADING_OPTIONAL;
 import static org.apache.cassandra.service.accord.execution.Task.State.LOADING_REQUIRED;
 import static org.apache.cassandra.service.accord.execution.Task.State.PREPARED;
-import static org.apache.cassandra.service.accord.execution.Task.State.PREPARED_OR_EXECUTED;
+import static org.apache.cassandra.service.accord.execution.Task.State.REGISTERED;
+import static org.apache.cassandra.service.accord.execution.Task.State.RUNNING_OR_EXECUTED;
+import static org.apache.cassandra.service.accord.execution.Task.State.RUNNING_WHILE_FAILED;
 import static org.apache.cassandra.service.accord.execution.Task.State.SCANNING_RANGES;
 import static org.apache.cassandra.service.accord.execution.Task.State.UNREGISTERED;
-import static org.apache.cassandra.service.accord.execution.Task.State.WAITING_ON_OPTIONAL;
-import static org.apache.cassandra.service.accord.execution.Task.State.WAITING_ON_REQUIRED;
+import static org.apache.cassandra.service.accord.execution.Task.State.WAITING_ON_KEY;
+import static org.apache.cassandra.service.accord.execution.Task.State.WAITING_ON_TXN;
 import static org.apache.cassandra.service.accord.execution.Task.State.WAITING_TO_RUN;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public abstract class Task extends IntrusiveHeapNode implements Cancellable, DebuggableTask
 {
-    private static final int WAITING_ON_OPTIONAL_BIT = 1 << 7;
+    private static final int WAITING_ON_KEY_BIT = 1 << 7;
     private static final int WAITING_TO_RUN_BIT = 1 << 8;
-    private static final int INCOMPLETE_BIT = 1 << 10;
+    private static final int INCOMPLETE_BIT = 1 << 11;
 
     enum State
     {
@@ -84,20 +86,34 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
         SCANNING_RANGES(REGISTERED),
         LOADING_REQUIRED(REGISTERED, SCANNING_RANGES),
         LOADING_OPTIONAL(REGISTERED, SCANNING_RANGES, LOADING_REQUIRED),
-        WAITING_ON_REQUIRED(WAITING_ON_OPTIONAL_BIT | WAITING_TO_RUN_BIT, REGISTERED, SCANNING_RANGES, LOADING_REQUIRED, LOADING_OPTIONAL),
-        WAITING_ON_OPTIONAL(WAITING_TO_RUN_BIT | INCOMPLETE_BIT, REGISTERED, SCANNING_RANGES, LOADING_REQUIRED, LOADING_OPTIONAL, WAITING_ON_REQUIRED),
-        WAITING_TO_RUN(INCOMPLETE_BIT, UNREGISTERED, REGISTERED, SCANNING_RANGES, LOADING_REQUIRED, LOADING_OPTIONAL, WAITING_ON_REQUIRED, WAITING_ON_OPTIONAL),
-        PREPARED(WAITING_TO_RUN),
+        WAITING_ON_TXN(WAITING_ON_KEY_BIT | WAITING_TO_RUN_BIT, REGISTERED, SCANNING_RANGES, LOADING_REQUIRED, LOADING_OPTIONAL),
+        WAITING_ON_KEY(WAITING_TO_RUN_BIT | INCOMPLETE_BIT, REGISTERED, SCANNING_RANGES, LOADING_REQUIRED, LOADING_OPTIONAL, WAITING_ON_TXN),
+        WAITING_TO_RUN(INCOMPLETE_BIT, UNREGISTERED, REGISTERED, SCANNING_RANGES, LOADING_REQUIRED, LOADING_OPTIONAL, WAITING_ON_TXN, WAITING_ON_KEY),
+        PREPARING(WAITING_TO_RUN),
+        PREPARED(WAITING_TO_RUN, PREPARING),
         INCOMPLETE(PREPARED),
+        /**
+         * We were failed while running - a cache entry we hold failed to load - and cannot be completed from outside,
+         * as our run is in flight. We finish the iteration, then abandon and release everything as we complete. Only a
+         * run that cannot be its task's last may enter this state, so it can never complete the callback.
+         */
+        RUNNING_WHILE_FAILED(PREPARED, INCOMPLETE),
         EXECUTED(PREPARED),
-        FAILED(UNREGISTERED, REGISTERED, SCANNING_RANGES, LOADING_REQUIRED, LOADING_OPTIONAL, WAITING_ON_REQUIRED, WAITING_ON_OPTIONAL, WAITING_TO_RUN, PREPARED, INCOMPLETE),
-        CANCELLED(UNREGISTERED, REGISTERED, SCANNING_RANGES, LOADING_REQUIRED, LOADING_OPTIONAL, WAITING_ON_REQUIRED, WAITING_ON_OPTIONAL, WAITING_TO_RUN),
+        FAILED(UNREGISTERED, REGISTERED, SCANNING_RANGES, LOADING_REQUIRED, LOADING_OPTIONAL, WAITING_ON_TXN, WAITING_ON_KEY, WAITING_TO_RUN, PREPARING, PREPARED, INCOMPLETE, RUNNING_WHILE_FAILED),
+        CANCELLED(UNREGISTERED, REGISTERED, SCANNING_RANGES, LOADING_REQUIRED, LOADING_OPTIONAL, WAITING_ON_TXN, WAITING_ON_KEY, WAITING_TO_RUN, PREPARING),
         ;
 
         private final int permittedFrom;
-        public static final int WAITING = TinyEnumSet.encode(WAITING_ON_REQUIRED, WAITING_ON_OPTIONAL, WAITING_TO_RUN);
-        public static final int WAITING_OR_PREPARED = WAITING | TinyEnumSet.encode(PREPARED);
-        public static final int PREPARED_OR_EXECUTED = TinyEnumSet.encode(PREPARED, EXECUTED);
+        public static final int LOADING_OR_WAITING_REQUIRED = TinyEnumSet.encode(SCANNING_RANGES, LOADING_REQUIRED, WAITING_ON_TXN, WAITING_ON_KEY);
+        public static final int WAITING = TinyEnumSet.encode(WAITING_ON_TXN, WAITING_ON_KEY, WAITING_TO_RUN);
+        public static final int WAITING_OR_RUNNING = WAITING | TinyEnumSet.encode(PREPARING, PREPARED, RUNNING_WHILE_FAILED);
+        /** the states in which a run is in flight, or has just finished, so may record its run state */
+        public static final int RUNNING_OR_EXECUTED = TinyEnumSet.encode(PREPARED, RUNNING_WHILE_FAILED, EXECUTED);
+        /** the states from which nothing further will run, so any position or reference we still hold is dead */
+        public static final int TERMINAL_FAILURE = TinyEnumSet.encode(CANCELLED_UNREGISTERED, CANCELLED, FAILED);
+        public static final int FAILURE = TERMINAL_FAILURE | TinyEnumSet.encode(RUNNING_WHILE_FAILED);
+        /** the states in which we have begun executing, so precede anything that has not, whatever compare says */
+        public static final int HAS_RUN = TinyEnumSet.encode(PREPARED, INCOMPLETE, RUNNING_WHILE_FAILED, EXECUTED);
         static final State[] VALUES = values();
 
         static
@@ -105,7 +121,8 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
             // hack to allow us to create loops in our enum transition declarations
             Invariants.require(INCOMPLETE_BIT == 1 << INCOMPLETE.ordinal());
             Invariants.require(WAITING_TO_RUN_BIT == 1 << WAITING_TO_RUN.ordinal());
-            Invariants.require(WAITING_ON_OPTIONAL_BIT == 1 << WAITING_ON_OPTIONAL.ordinal());
+            Invariants.require(WAITING_ON_KEY_BIT == 1 << WAITING_ON_KEY.ordinal());
+            Invariants.require(VALUES.length <= 16);
         }
 
         State()
@@ -138,7 +155,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
 
         boolean hasStarted()
         {
-            return this.compareTo(PREPARED) >= 0;
+            return this.compareTo(WAITING_TO_RUN) > 0;
         }
 
         static State forOrdinal(int ordinal)
@@ -201,7 +218,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
     {
         NONE(),
         LOADING(SCANNING_RANGES, LOADING_OPTIONAL, LOADING_REQUIRED),
-        WAITING(WAITING_ON_OPTIONAL, WAITING_ON_REQUIRED),
+        WAITING(WAITING_ON_TXN, WAITING_ON_KEY),
         RUNNABLE(WAITING_TO_RUN);
 
         private static final ExecutorQueue[] VALUES = values();
@@ -225,11 +242,18 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
     private static final int GLOBAL_GROUP_SHIFT = 7;
 
     private static final int NONSYNC_BIT = 1 << 10;
-    private static final int CACHE_QUEUED_BIT = 1 << 11;
 
-    private static final int HAS_TRANCHE_BIT = 1 << 12;
-    private static final int HAS_INHERITED_BIT = 1 << 13;
-    private static final int HAS_INHERITED_RANGE_SCAN_BIT = 1 << 14;
+    // used for validation only, can be repurposed if needed; marked only when waiting on keys and txns
+    private static final int VALIDATE_CACHE_QUEUED_BIT = 1 << 11;
+
+    private static final int IS_CONTINUATION = 1 << 12;
+    private static final int HAS_PRESETUP_BIT = 1 << 13;
+
+    private static final int HAS_SETUP_SHIFT = 14;
+    private static final int HAS_SETUP_MASK = 0x3 << HAS_SETUP_SHIFT;
+    private static final int HAS_TRANCHE = 0x1 << HAS_SETUP_SHIFT;
+    private static final int HAS_INHERITED_TRANCHE = 0x2 << HAS_SETUP_SHIFT;
+    private static final int HAS_INHERITED_RANGE_SCAN = 0x3 << HAS_SETUP_SHIFT;
 
     private static final int EXECUTOR_QUEUE_SHIFT = 16;
     private static final int EXECUTOR_QUEUE_UNSHIFTED_MASK = 0x3;
@@ -253,16 +277,14 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
     static
     {
         Invariants.require(SEQUENCED_PRIORITY == BY_PRIORITY.ordinal() << SEQUENCED_SHIFT);
-        Invariants.require(SEQUENCED_ATOMIC == BY_PRIORITY_ATOMIC.ordinal() << SEQUENCED_SHIFT);
+        Invariants.require(SEQUENCED_ATOMIC == ATOMIC_CONSEQUENCE.ordinal() << SEQUENCED_SHIFT);
         Invariants.require(ExecutionContext.ExecutionSequence.values().length <= 3);
     }
 
     // TODO (desired): quite heavy to pass-through tracing session state we mostly don't use
     public final WithResources resources;
     Task next;
-    Task consequences;
 
-    // the queue position until run is invoked, at which point it is assigned a nanoTime() value
     long position;
     int info;
 
@@ -400,7 +422,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
     abstract void submitExclusiveMayThrow();
     /** Return true if COMPLETED successfully. false indicates more work is being done. Should not throw any exceptions related to reporting success. */
     abstract boolean runMayThrow();
-    abstract void maybeCompleteExclusiveMayThrow();
+    abstract void completeExclusiveMayThrow();
     abstract void tryCancelExclusive();
     abstract void reportFailureMayThrow(Throwable fail);
 
@@ -416,10 +438,15 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
             try { submitExclusiveMayThrow(); }
             catch (Throwable t)
             {
-                tryFailAndCompleteExclusive(t, State.FAILED);
-                onException(t);
+                tryFailAndCompleteUnexecutedExclusive(t, State.FAILED);
+                unhandledException(t);
             }
         }
+        else if (is(CANCELLED_UNREGISTERED))
+        {
+            releaseResourcesExclusiveNoExcept();
+        }
+        else throw illegalState("Invalid submission (%s): %s", state(), description());
     }
 
     /**
@@ -479,6 +506,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
             }
             finally
             {
+                if (DEBUG_EXECUTION) ((DebugTask) resources).onRunComplete();
                 self.setAccordActiveTask(null);
             }
         }
@@ -492,29 +520,35 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
 
     final void completeExclusiveNoExcept()
     {
-        try
+        if (this instanceof ExclusiveExecutorTask)
         {
-            if (DEBUG_EXECUTION) DebugTask.get(this).onComplete();
-            maybeCompleteExclusiveMayThrow();
+            completeExclusiveMayThrow();
         }
-        catch (Throwable t)
+        else
         {
-            onException(t);
-            if (compareTo(EXECUTED) < 0)
-                failExclusive(t, State.FAILED);
-        }
-        finally
-        {
-            if (compareTo(EXECUTED) >= 0)
+            try
             {
-                try { submitConsequencesExclusive(is(EXECUTED)); }
-                catch (Throwable t) { onException(t); }
-                executor().completedTaskExclusive(this);
+                // we submit before completing to ensure that consequences are setup correctly in ExclusiveExecutor before we poll the next task
+                submitConsequencesExclusive(prepareConsequencesExclusive());
+                if (DEBUG_EXECUTION) DebugTask.get(this).onComplete();
+                completeExclusiveMayThrow();
+            }
+            catch (Throwable t)
+            {
+                releaseResourcesExclusiveNoExcept();
+                unhandledException(t);
+                if (compareTo(EXECUTED) < 0)
+                    failExclusive(t, State.FAILED);
+            }
+            finally
+            {
+                if (compareTo(EXECUTED) >= 0) // this is to handle INCR tasks - it is too implicit though, need to improve
+                    executor().completedTaskExclusive(this);
             }
         }
     }
 
-    final void onException(Throwable t)
+    final void unhandledException(Throwable t)
     {
         try { executor().agent.onException(t); }
         catch (Throwable t2) { }
@@ -527,7 +561,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
         {
             try { fail.addSuppressed(t); }
             catch (Throwable t2) { }
-            onException(fail);
+            unhandledException(fail);
         }
     }
 
@@ -543,7 +577,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
             case RUN_INCOMPLETE: throw UnhandledEnum.invalid(runState);
             case NOT_YET_RUN:
                 Invariants.expect(state().isDone());
-                Invariants.expect(consequences == null);
+                Invariants.expect(next == null);
                 success = false;
                 break;
 
@@ -563,13 +597,41 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
         return success;
     }
 
-    final void tryFailAndCompleteExclusive(Throwable fail, State newState)
+    final void tryFailAndCompleteUnexecutedExclusive(Throwable fail, State newState)
     {
-        if (is(UNREGISTERED))
-            failExclusive(fail, CANCELLED_UNREGISTERED);
-        else if (compareTo(WAITING_TO_RUN) <= 0)
-            failAndCompleteExclusive(fail, newState);
+        try
+        {
+            if (is(UNREGISTERED))
+            {
+                releaseResourcesExclusiveNoExcept();
+                failExclusive(fail, CANCELLED_UNREGISTERED);
+            }
+            else if (compareTo(REGISTERED) >= 0 && compareTo(WAITING_TO_RUN) <= 0)
+            {
+                failAndCompleteExclusive(fail, newState);
+            }
+        }
+        catch (Throwable t)
+        {
+            try { t.addSuppressed(fail); }
+            catch (Throwable t2) { /* unsafe to do anything */ }
+            unhandledException(t);
+        }
     }
+
+    /**
+     * Fail a task whose run is in flight, so cannot be completed from here: it will see that it is no longer PREPARED as
+     * it completes, and abandon and release everything then. Only legal for a run that cannot be its task's last, as we
+     * report the failure now and a final run would then complete the callback twice.
+     */
+    final void failWhileRunningExclusive(Throwable fail)
+    {
+        Invariants.require(is(PREPARED) || is(State.INCOMPLETE));
+        setStateExclusive(RUNNING_WHILE_FAILED);
+        reportFailureNoExcept(fail);
+    }
+
+    void releaseResourcesExclusiveNoExcept() {}
 
     final void failExclusive(Throwable fail, State newState)
     {
@@ -601,7 +663,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
     {
         Invariants.require(is(PREPARED));
         Invariants.require(is(NOT_YET_RUN) || is(RUN_INCOMPLETE));
-        runningAt = nanoTime();
+        runningAt = Math.max(createdAt, nanoTime());
         setRunState(RunState.RUNNING);
         if (DEBUG_EXECUTION) ((DebugTask) resources).onRunning();
     }
@@ -609,7 +671,26 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
     final void onSuccess()
     {
         setRunState(RunState.RUN_SUCCESS);
-        if (DEBUG_EXECUTION) ((DebugTask) resources).onRunComplete();
+    }
+
+    /** whether we have failed or been cancelled, so will never run again and must not keep a queue position */
+    boolean isTerminalFailure()
+    {
+        return isState(State.TERMINAL_FAILURE);
+    }
+
+    /**
+     * whether we have already been failed, so must not be failed again: {@link State#TERMINAL_FAILURE}, or
+     * {@code RUNNING_WHILE_FAILED} - which keeps its positions until its run completes, so is still notified
+     */
+    final boolean hasAlreadyFailed()
+    {
+        return isState(State.FAILURE);
+    }
+
+    boolean hasStartedRunning()
+    {
+        return isState(State.HAS_RUN);
     }
 
     final State state()
@@ -694,7 +775,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
 
     final void setRunState(RunState state)
     {
-        Invariants.require(isState(PREPARED_OR_EXECUTED) || (state == RUN_FAILED && is(FAILED)));
+        Invariants.require(isState(RUNNING_OR_EXECUTED) || (state == RUN_FAILED && is(FAILED)));
         setRunState(state.ordinal());
     }
 
@@ -793,6 +874,15 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
         return (info & SEQUENCED_MASK) == SEQUENCED_PRIORITY;
     }
 
+    /** the sequence we were set up with, ignoring the fifo-claim upgrade that shares the same field */
+    final boolean isSequencedBy(ExecutionContext.ExecutionSequence sequence)
+    {
+        int sequenced = info & SEQUENCED_MASK;
+        if (sequenced == SEQUENCED_ATOMIC_AND_QUEUED)
+            sequenced = SEQUENCED_ATOMIC;
+        return sequenced == sequence.ordinal() << SEQUENCED_SHIFT;
+    }
+
     final boolean isSequencedByPriorityAtomic()
     {
         return (info & SEQUENCED_MASK) >= SEQUENCED_ATOMIC;
@@ -805,7 +895,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
 
     final boolean isCacheQueued()
     {
-        return 0 != (info & CACHE_QUEUED_BIT);
+        return 0 != (info & VALIDATE_CACHE_QUEUED_BIT);
     }
 
     final boolean isQueued()
@@ -833,89 +923,148 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
     // supersedes priority, in whichever order they're called
     final void setCacheQueuedFifoExclusive()
     {
-        Invariants.require(isSequencedByPriorityAtomic());
-        info |= SEQUENCED_ATOMIC_AND_QUEUED | CACHE_QUEUED_BIT;
+        // An incremental task over txnId holds its txnId locks across runs and is upgraded to atomic when it starts,
+        // so this is reached by a task that was BY_PRIORITY until now: from that point it holds a fifo position on
+        // every entry it claims and keeps it across its runs, putting it ahead of every sorted or bagged claim. An
+        // incremental task that holds no lock between runs is not upgraded, and so never reaches this.
+        Invariants.require(isSequencedByPriorityAtomic() || isIncremental());
+        info |= SEQUENCED_ATOMIC_AND_QUEUED | VALIDATE_CACHE_QUEUED_BIT;
     }
 
     final void setCacheQueuedExclusive()
     {
-        info |= CACHE_QUEUED_BIT;
+        info |= VALIDATE_CACHE_QUEUED_BIT;
     }
 
     final int tranche()
     {
-        Invariants.require((info & HAS_TRANCHE_BIT) != 0);
+        Invariants.require((info & HAS_SETUP_MASK) != 0);
         return info >>> TRANCHE_SHIFT;
     }
 
     final void setTranche(int tranche)
     {
         Invariants.require(tranche <= MAX_TRANCHE);
-        info = info | (tranche << TRANCHE_SHIFT) | HAS_TRANCHE_BIT;
+        Invariants.require((info & HAS_SETUP_MASK) == 0);
+        info = info | (tranche << TRANCHE_SHIFT) | HAS_TRANCHE;
     }
 
     final Task inherit(Task parent)
     {
-        Invariants.require(!hasInherited());
         position = parent.position;
         setInheritedWithTranche(parent.tranche());
         return this;
     }
 
+    static
+    {
+        /** see {@link #setInheritedWithTranche}, where we permit setting inherited flag after inherited range scan */
+        Invariants.require((HAS_INHERITED_TRANCHE | HAS_INHERITED_RANGE_SCAN) == HAS_INHERITED_RANGE_SCAN);
+    }
+
     final void setInheritedWithTranche(int tranche)
     {
         Invariants.require(tranche <= MAX_TRANCHE);
-        info = info | (tranche << TRANCHE_SHIFT) | HAS_TRANCHE_BIT | HAS_INHERITED_BIT;
+        Invariants.require(!hasInherited() || hasInheritedRangeScan()); // we allow setting inherit range scan in advance because it composes cleanly
+        info = info | (tranche << TRANCHE_SHIFT) | HAS_INHERITED_TRANCHE;
+    }
+
+    final boolean isContinuation()
+    {
+        return 0 != (info & IS_CONTINUATION);
+    }
+
+    final void setIsContinuation()
+    {
+        info |= IS_CONTINUATION;
+    }
+
+    final boolean hasPreSetup()
+    {
+        return 0 != (info & HAS_PRESETUP_BIT);
+    }
+
+    final void setHasPreSetupExclusive()
+    {
+        Invariants.require(!hasPreSetup());
+        info |= HAS_PRESETUP_BIT;
     }
 
     final boolean hasInherited()
     {
-        return (info & HAS_INHERITED_BIT) != 0;
+        return (info & HAS_SETUP_MASK) >= HAS_INHERITED_TRANCHE;
     }
 
     final void setInheritedRangeScan()
     {
-        info = info | HAS_INHERITED_RANGE_SCAN_BIT;
+        info |= HAS_INHERITED_RANGE_SCAN;
     }
 
     final boolean hasInheritedRangeScan()
     {
-        return (info & HAS_INHERITED_RANGE_SCAN_BIT) != 0;
+        return (info & HAS_SETUP_MASK) == HAS_INHERITED_RANGE_SCAN;
     }
 
     void addConsequence(Task task)
     {
-        Task prev = consequences;
+        Invariants.require(!(this instanceof ExclusiveExecutorTask));
+        Task prev = next;
         Invariants.require(prev == null || prev.is(UNREGISTERED));
+        task.inherit(this);
         task.next = prev;
-        consequences = task;
+        next = task;
     }
 
-    final void submitConsequencesExclusive(boolean success)
+    Task prepareConsequencesExclusive()
     {
-        if (consequences == null)
-            return;
+        // keep only those still awaiting submission, and terminate the chain at whatever ends up last
+        Invariants.require(!(this instanceof ExclusiveExecutorTask));
+        Task head = next;
+        if (head == null)
+            return null;
 
-        Task cur = Task.reverse(consequences);
-        consequences = null;
+        next = null;
+        prepareConsequences(this, head);
+        return reverse(head);
+    }
 
+    static void submitConsequencesExclusive(Task cur)
+    {
         while (cur != null)
         {
             Task next = cur.next;
             cur.next = null;
-            if (cur.is(UNREGISTERED))
-            {
-                if (success || !(cur instanceof SafeTask<?> || this instanceof SafeTask<?>))
-                {
-                    cur.inherit(this);
-                    cur.submitExclusiveNoExcept();
-                }
-                else
-                {
-                    cur.failExclusive(new CancellationException("Parent task failed"), CANCELLED);
-                }
-            }
+            try { cur.submitExclusiveNoExcept(); }
+            catch (Throwable t) { cur.unhandledException(t); }
             cur = next;
+        }
+    }
+
+    static void prepareConsequences(Task parent, Task consqeuences)
+    {
+        if (parent.is(RUN_FAILED))
+            cancelSafeTasksAndContinuations(parent instanceof SafeTask<?>, consqeuences);
+    }
+
+    static void cancelSafeTasksAndContinuations(boolean isSafeParent, Task cur)
+    {
+        while (cur != null)
+        {
+            if (Invariants.expect(cur.is(UNREGISTERED)) && ((isSafeParent && cur instanceof SafeTask<?>) || cur.isContinuation()))
+            {
+                cur.setStateExclusive(CANCELLED_UNREGISTERED);
+                cur.reportFailureNoExcept(new CancellationException("Parent task failed"));
+            }
+            cur = cur.next;
+        }
+    }
+
+    void prepareRunAndCompleteExclusive(TaskRunner self)
+    {
+        if (prepareExclusiveNoExcept())
+        {
+            try { runNoExcept(self); }
+            finally { completeExclusiveNoExcept(); }
         }
     }
 

@@ -64,7 +64,6 @@ import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.execution.SaferCommand;
 import org.apache.cassandra.service.accord.execution.SaferCommandsForKey;
-import org.apache.cassandra.service.accord.execution.SafeTask;
 import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializerTest.TestSafeCommandStore;
 import org.apache.cassandra.service.accord.txn.TxnDataResult;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
@@ -74,7 +73,6 @@ import org.apache.cassandra.utils.Pair;
 import static accord.primitives.Status.Durability.AllQuorums;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
-import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.LockMode.RELEASE_QUEUE;
 import static org.apache.cassandra.service.accord.AccordService.getBlocking;
 import static org.apache.cassandra.service.accord.AccordTestUtils.Commands.preaccepted;
 import static org.apache.cassandra.service.accord.AccordTestUtils.ballot;
@@ -83,6 +81,7 @@ import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialT
 import static org.apache.cassandra.service.accord.AccordTestUtils.timestamp;
 import static org.apache.cassandra.service.accord.AccordTestUtils.txnId;
 import static org.apache.cassandra.service.accord.execution.AccordExecutionTestUtils.loaded;
+import static org.apache.cassandra.service.accord.execution.AccordExecutionTestUtils.preExecute;
 
 public class AccordCommandStoreTest
 {
@@ -142,7 +141,7 @@ public class AccordCommandStoreTest
                                                      promised, executeAt, txn, dependencies, accepted,
                                                      waitingOn, result.left, TxnDataResult.PERSISTABLE);
         SaferCommand safeCommand = new SaferCommand(loaded(txnId, null));
-        safeCommand.preExecute(new SafeTask<>(null, ExecutionContext.unsequenced(txnId, "Test"), null), RELEASE_QUEUE);
+        preExecute(safeCommand);
         safeCommand.set(expected);
         // In practice we should never need to save it with the condition boolean set
         // Not sure why this test does that
@@ -171,7 +170,7 @@ public class AccordCommandStoreTest
         Command command2 = preaccepted(txnId2, txn, timestamp(1, clock.incrementAndGet(), 1));
 
         SaferCommandsForKey cfk = new SaferCommandsForKey(loaded(key, null));
-        cfk.preExecute(new SafeTask<>(null, ExecutionContext.unsequenced(txnId1, "Test"), null), RELEASE_QUEUE);
+        preExecute(cfk);
 
         cfk.set(cfk.current().update(new TestSafeCommandStore(ExecutionContext.unsequenced(command1.txnId(), "Test")), command1).cfk());
         cfk.set(cfk.current().update(new TestSafeCommandStore(ExecutionContext.unsequenced(command1.txnId(), "Test")), command2).cfk());

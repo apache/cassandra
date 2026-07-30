@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service.accord.execution;
 
+import accord.utils.Invariants;
+
 import org.apache.cassandra.concurrent.CassandraThread;
 import org.apache.cassandra.concurrent.DebuggableTask;
 
@@ -29,6 +31,11 @@ public interface TaskRunner
     AccordExecutor accordLockedExecutor();
     boolean tryEnterAccordLockedExecutor(AccordExecutor newLockedExecutor);
     void exitAccordLockedExecutor();
+
+    /**
+     * Forget that we hold any executor's lock, returning the depth to which the lock is held
+     */
+    int resetAccordLockedExecutor();
 
     // to be called only by the thread itself, so can (eventually) avoid any memory barriers
     Task accordActiveSelfTask();
@@ -48,6 +55,7 @@ public interface TaskRunner
     final class ThreadLocalTaskRunner implements TaskRunner
     {
         private AccordExecutor lockedExecutor;
+        private int lockedExecutorDepth;
         private AccordExecutor activeExecutor;
         volatile Task activeTask;
 
@@ -74,16 +82,29 @@ public interface TaskRunner
         @Override
         public boolean tryEnterAccordLockedExecutor(AccordExecutor newLockedExecutor)
         {
-            if (lockedExecutor != null)
-                return false;
-            lockedExecutor = newLockedExecutor;
+            if (lockedExecutor == null) lockedExecutor = newLockedExecutor;
+            else if (lockedExecutor != newLockedExecutor) return false;
+            ++lockedExecutorDepth;
             return true;
         }
 
         @Override
         public void exitAccordLockedExecutor()
         {
+            int depth = --lockedExecutorDepth;
+            if (depth <= 0)
+                lockedExecutor = null;
+            if (!Invariants.expect(depth >= 0))
+                lockedExecutorDepth = 0;
+        }
+
+        @Override
+        public int resetAccordLockedExecutor()
+        {
+            int discarded = lockedExecutorDepth;
+            lockedExecutorDepth = 0;
             lockedExecutor = null;
+            return discarded;
         }
 
         @Override

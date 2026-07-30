@@ -44,10 +44,10 @@ class IOTaskWrapper extends IOTask
     }
 
     @Override
-    void maybeCompleteExclusiveMayThrow()
+    void completeExclusiveMayThrow()
     {
         wrapped.postRunExclusive();
-        super.maybeCompleteExclusiveMayThrow();
+        super.completeExclusiveMayThrow();
     }
 
     @Override

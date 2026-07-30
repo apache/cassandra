@@ -43,6 +43,13 @@ import static org.mockito.Mockito.when;
 
 public class AccordCacheTest
 {
+    @org.junit.After
+    public void clearOwners()
+    {
+        // AccordExecutionTestUtils.owners is static, so without this it retains every safe state and task this JVM created
+        AccordExecutionTestUtils.clearOwners();
+    }
+
     private static final long DEFAULT_NODE_SIZE = nodeSize(0);
 
     private static abstract class TestSafeState<T, S extends SafeState<T> & SaferState<T, T, S>> extends SafeState<T> implements SaferState<T, T, S>
@@ -147,7 +154,7 @@ public class AccordCacheTest
         testLoad(executor, safeString1, "1");
         Assert.assertTrue(!cache.evictionQueue().iterator().hasNext());
 
-        instance.release(safeString1, null);
+        instance.release(safeString1, AccordExecutionTestUtils.owner(safeString1));
         assertCacheState(cache, 0, 1, nodeSize(1));
         Assert.assertSame(safeString1.global, cache.head());
         Assert.assertSame(safeString1.global, cache.tail());
@@ -155,7 +162,7 @@ public class AccordCacheTest
         SafeString safeString2 = instance.acquire("2");
         assertCacheState(cache, 1, 2, DEFAULT_NODE_SIZE + nodeSize(1));
         testLoad(executor, safeString2, "2");
-        instance.release(safeString2, null);
+        instance.release(safeString2, AccordExecutionTestUtils.owner(safeString2));
         assertCacheState(cache, 0, 2, nodeSize(1) + nodeSize(1));
 
         Assert.assertSame(safeString1.global, cache.head());
@@ -183,20 +190,20 @@ public class AccordCacheTest
 
         SafeString safeString1 = stringInstance.acquire("1");
         testLoad(executor, safeString1, "1");
-        stringInstance.release(safeString1, null);
+        stringInstance.release(safeString1, AccordExecutionTestUtils.owner(safeString1));
         SafeString safeString2 = stringInstance.acquire("2");
         testLoad(executor, safeString2, "2");
-        stringInstance.release(safeString2, null);
+        stringInstance.release(safeString2, AccordExecutionTestUtils.owner(safeString2));
 
         SafeInt safeInt1 = intInstance.acquire(3);
         testLoad(executor, safeInt1, 3);
-        intInstance.release(safeInt1, null);
+        intInstance.release(safeInt1, AccordExecutionTestUtils.owner(safeInt1));
         SafeInt safeInt2 = intInstance.acquire(4);
         testLoad(executor, safeInt2, 4);
-        intInstance.release(safeInt2, null);
+        intInstance.release(safeInt2, AccordExecutionTestUtils.owner(safeInt2));
         SafeInt safeInt3 = intInstance.acquire(5);
         testLoad(executor, safeInt3, 5);
-        intInstance.release(safeInt3, null);
+        intInstance.release(safeInt3, AccordExecutionTestUtils.owner(safeInt3));
 
         assertCacheState(cache, 0, 5, nodeSize(Integer.BYTES) * 3 + nodeSize(1) * 2);
         assertThat(stringType.size()).isEqualTo(2);
@@ -231,7 +238,7 @@ public class AccordCacheTest
             Assert.assertNotNull(safeString);
             testLoad(executor, safeString, Integer.toString(i));
             Assert.assertTrue(instance.isReferenced(safeString.key()));
-            instance.release(safeString, null);
+            instance.release(safeString, AccordExecutionTestUtils.owner(safeString));
         }
 
         Assert.assertSame(items[0].global, cache.head());
@@ -240,14 +247,14 @@ public class AccordCacheTest
         assertCacheMetrics(cacheMetrics, 0, 3, 3, 3);
 
         SafeString safeString = instance.acquire("1");
-        safeString.preExecute(new SafeTask<>(null, (ExecutionContext.Empty)() -> "Test", null), RELEASE_QUEUE);
+        AccordExecutionTestUtils.preExecute(safeString);
         Assert.assertEquals(Status.LOADED, safeString.global.status());
 
         assertCacheState(cache, 1, 3, nodeSize(1) * 3);
         assertCacheMetrics(cacheMetrics, 1, 3, 4, 3);
 
         // releasing item should return it to the tail
-        instance.release(safeString, null);
+        instance.release(safeString, AccordExecutionTestUtils.owner(safeString));
         assertCacheState(cache, 0, 3, nodeSize(1) * 3);
         Assert.assertSame(items[0].global, cache.head());
         Assert.assertSame(items[1].global, cache.tail());
@@ -274,7 +281,7 @@ public class AccordCacheTest
             items[i] = safeString;
             testLoad(executor, safeString, Integer.toString(i));
             Assert.assertTrue(instance.isReferenced(safeString.key()));
-            instance.release(safeString, null);
+            instance.release(safeString, AccordExecutionTestUtils.owner(safeString));
             cache.tryShrinkOrEvict(lock);
         }
 
@@ -296,7 +303,7 @@ public class AccordCacheTest
         assertCacheMetrics(cacheMetrics, 0, 6, 6, 5);
 
         testLoad(executor, safeString, "5");
-        instance.release(safeString, null);
+        instance.release(safeString, AccordExecutionTestUtils.owner(safeString));
         assertCacheState(cache, 0, 5, nodeSize(1) * 5);
         Assert.assertSame(items[1].global, cache.head());
         Assert.assertSame(safeString.global, cache.tail());
@@ -332,14 +339,14 @@ public class AccordCacheTest
         Assert.assertNull(cache.head());
         Assert.assertNull(cache.tail());
 
-        instance.release(items[2], null);
+        instance.release(items[2], AccordExecutionTestUtils.owner(items[2]));
         cache.tryShrinkOrEvict(lock);
         assertCacheState(cache, 4, 4, nodeSize(1) * 4);
         assertCacheMetrics(cacheMetrics, 0, 5, 5, 5);
         Assert.assertNull(cache.head());
         Assert.assertNull(cache.tail());
 
-        instance.release(items[4], null);
+        instance.release(items[4], AccordExecutionTestUtils.owner(items[4]));
         cache.tryShrinkOrEvict(lock);
         assertCacheState(cache, 3, 4, nodeSize(1) * 4);
         assertCacheMetrics(cacheMetrics, 0, 5, 5, 5);
@@ -369,15 +376,19 @@ public class AccordCacheTest
         assertCacheState(cache, 1, 1, nodeSize(1));
 
         SafeString safeString2 = instance.acquire("0");
-        safeString2.preExecute(new SafeTask<>(null, (ExecutionContext.Empty)() -> "Test", null), RELEASE_QUEUE);
-        Assert.assertEquals("0", safeString2.current());
+        // a second reference sees the same loaded value, but cannot lock the entry while the first reference holds it
+        Assert.assertEquals("0", safeString2.global.getExclusive());
         Assert.assertEquals(Status.LOADED, safeString1.global.status());
         Assert.assertEquals(2, instance.references("0", SafeString.class));
         assertCacheState(cache, 1, 1, nodeSize(1));
         assertCacheMetrics(cacheMetrics, 1, 1, 2, 1);
 
-        instance.release(safeString1, null);
+        // release the locked reference first: an entry cannot be released through another reference while it is locked
+        instance.release(safeString1, AccordExecutionTestUtils.owner(safeString1));
         assertCacheState(cache, 1, 1, nodeSize(1));
+        // safeString2 never locked the entry - it could not, while safeString1 held it - so it has no owner to release
+        // it as. This is the one release here that is legitimately owner-less; owner() throws rather than returning null
+        // so that a forgotten preExecute elsewhere cannot silently become this case.
         instance.release(safeString2, null);
         assertCacheState(cache, 0, 1, nodeSize(1));
     }
@@ -400,14 +411,14 @@ public class AccordCacheTest
         testLoad(executor, item, Integer.toString(0));
         item.set("0*");
         Assert.assertTrue(instance.isReferenced(item.key()));
-        instance.release(item, null);
+        instance.release(item, AccordExecutionTestUtils.owner(item));
 
         for (int i=1; i<4; i++)
         {
             item = instance.acquire(Integer.toString(i));
             testLoad(executor, item, Integer.toString(i));
             Assert.assertTrue(instance.isReferenced(item.key()));
-            instance.release(item, null);
+            instance.release(item, AccordExecutionTestUtils.owner(item));
             cache.tryShrinkOrEvict(lock);
         }
 
@@ -451,7 +462,7 @@ public class AccordCacheTest
         assertCacheState(cache, 1, 1, nodeSize(1));
 
         safeString.set("11");
-        instance.release(safeString, null);
+        instance.release(safeString, AccordExecutionTestUtils.owner(safeString));
         assertCacheState(cache, 0, 1, nodeSize(2));
         Assert.assertSame(safeString.global, cache.head());
         Assert.assertSame(safeString.global, cache.tail());
@@ -459,13 +470,66 @@ public class AccordCacheTest
         assertCacheMetrics(cacheMetrics, 0, 1, 1, 1);
     }
 
-    private CacheSize mockCacheSize(long capacity, long size, int entries)
+    /**
+     * This test has been authored entirely by Claude.
+     *
+     * A save the adapter refuses (CommandsForKeyAdapter refuses while the value isLoadingPruned) parks the entry in
+     * WAITING_TO_SAVE. tryEvict must then unlink it without evicting it - it holds an unsaved modification - so the
+     * entry is off the eviction queue with no reference, and only the durability path revisits it. This asserts that
+     * path retries the deferred save and that the entry is returned to the eviction queue when it resolves, including
+     * when it resolves inline (a null mutation, so no SAVING episode and no AccordCache.saved to do it).
+     */
+    @Test
+    public void deferredSaveIsRetriedAndReturnedToEvictQueue()
     {
-        CacheSize cacheSize = mock(CacheSize.class);
-        when(cacheSize.capacity()).thenReturn(capacity);
-        when(cacheSize.weightedSize()).thenReturn(size);
-        when(cacheSize.size()).thenReturn(entries);
-        return cacheSize;
+        AccordCacheMetrics cacheMetrics = new AccordCacheMetrics(nextMetricId());
+        NoOpLock lock = new NoOpLock();
+        AccordCacheMetrics.Shard shard = cacheMetrics.newShard(lock);
+
+        ManualExecutor executor = new ManualExecutor();
+        AccordCache cache = new AccordCache(saveExecutor(executor), nodeSize(1));
+        boolean[] canSave = new boolean[] { false };
+        // the save function returns a null Runnable, i.e. the "null mutation -> no change on disk" resolution
+        AccordCache.Adapter<String, String, SafeString> adapter =
+            new AccordCache.FunctionalAdapter<String, String, SafeString>((s, k) -> k, (s, k, v, o) -> null,
+                                                                          Function.identity(), (k, v) -> null, (s, k, o) -> null,
+                                                                          (s, k, v) -> true, String::length, o -> 0,
+                                                                          SafeString::new, AccordCacheEntry::createReadyToLoad)
+            {
+                @Override public boolean canSave(String value, Object shrunk) { return canSave[0]; }
+            };
+        AccordCache.Type<String, String, SafeString> type = cache.newType(String.class, adapter, shard);
+        AccordCache.Type<String, String, SafeString>.Instance instance = type.newInstance(null);
+
+        SafeString safeString = instance.acquire("0");
+        testLoad(executor, safeString, "0");
+        safeString.set("modified");
+        instance.release(safeString, AccordExecutionTestUtils.owner(safeString));
+        AccordCacheEntry<String, String, SafeString> entry = safeString.global();
+        Assert.assertEquals(Status.MODIFIED, entry.status());
+        Assert.assertSame(entry, cache.head());
+
+        // the durability path asks for a save the adapter refuses
+        int[] saved = new int[] { 0 };
+        cache.saveWhenReadyExclusive(entry, () -> ++saved[0]);
+        Assert.assertEquals(Status.WAITING_TO_SAVE, entry.status());
+        Assert.assertEquals(0, saved[0]);
+
+        // over capacity, so tryEvict sees it: not evictable, and unlinked
+        cache.tryShrinkOrEvict(lock);
+        Assert.assertEquals(Status.WAITING_TO_SAVE, entry.status());
+        Assert.assertNull(cache.head());
+        Assert.assertTrue(entry.isUnqueued());
+        Assert.assertEquals(0, entry.references());
+
+        // the reason the adapter refused has cleared. The next durability pass (which iterates every modified entry,
+        // not the eviction queue, so it still sees this one) must retry, resolve, and re-queue it
+        canSave[0] = true;
+        cache.saveWhenReadyExclusive(entry, () -> ++saved[0]);
+        Assert.assertEquals(Status.LOADED, entry.status());
+        Assert.assertEquals(2, saved[0]);
+        Assert.assertSame(entry, cache.head());
+        Assert.assertFalse(entry.isUnqueued());
     }
 
     private static SaveExecutor saveExecutor(ExecutorPlus executor)

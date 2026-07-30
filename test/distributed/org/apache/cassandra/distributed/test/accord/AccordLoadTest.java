@@ -921,7 +921,7 @@ public class AccordLoadTest extends AccordTestBase
                 cluster.forEach(() -> {
                     refresh(AccordExecutorMetrics.INSTANCE.elapsedRunning);
                     refresh(AccordExecutorMetrics.INSTANCE.elapsed);
-                    System.out.printf("%tT.%tL (%d %d %d %d %d %d)ms (%d %d %d %d %d %d)ms (%d %d %d)us %d %.0f (%d %d %d)us %d %d %d\n", nowMillis, nowMillis,
+                    System.out.printf("%tT.%tL (%d %d %d %d %d %d)ms (%d %d %d %d %d %d)ms (%d %d %d)us %d %.0f (%d %d %d)us %d %d %d %d %d\n", nowMillis, nowMillis,
                                       getLatency(AccordCoordinatorMetrics.readMetrics.preacceptLatency, 0.5),
                                       getLatency(AccordCoordinatorMetrics.readMetrics.executeLatency, 0.5),
                                       getLatency(AccordCoordinatorMetrics.readMetrics.applyLatency, 0.5),
@@ -942,9 +942,11 @@ public class AccordLoadTest extends AccordTestBase
                                       getLatency(AccordExecutorMetrics.INSTANCE.elapsed, 0.5),
                                       getLatency(AccordExecutorMetrics.INSTANCE.elapsed, 0.9),
                                       getLatency(AccordExecutorMetrics.INSTANCE.elapsed, 0.999),
-                                      AccordExecutorMetrics.INSTANCE.running.getValue(),
                                       AccordExecutorMetrics.INSTANCE.waitingToRun.getValue(),
-                                      AccordExecutorMetrics.INSTANCE.preparingToRun.getValue()
+                                      AccordExecutorMetrics.INSTANCE.preparingToRun.getValue(),
+                                      AccordExecutorMetrics.INSTANCE.running.getValue(),
+                                      AccordCoordinatorMetrics.readMetrics.timeouts.getCount(),
+                                      AccordCoordinatorMetrics.writeMetrics.timeouts.getCount()
                     );
                     clear(AccordExecutorMetrics.INSTANCE.elapsedRunning);
                     clear(AccordExecutorMetrics.INSTANCE.elapsed);

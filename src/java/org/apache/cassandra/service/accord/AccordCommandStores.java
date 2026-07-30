@@ -63,7 +63,6 @@ import org.apache.cassandra.service.accord.execution.AccordExecutorSignalLoop;
 import org.apache.cassandra.service.accord.execution.AccordExecutorSimple;
 import org.apache.cassandra.service.accord.execution.AccordExecutorSyncSubmit;
 
-import static org.apache.cassandra.config.AccordConfig.QueueShardModel.THREAD_PER_SHARD;
 import static org.apache.cassandra.config.AccordConfig.QueueShardModel.THREAD_PER_SHARD_SYNC_QUEUE;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccord;
 import static org.apache.cassandra.service.accord.execution.AccordExecutor.Mode.RUN_WITHOUT_LOCK;
@@ -326,11 +325,15 @@ public class AccordCommandStores extends CommandStores implements CacheSize, Shu
 
     private static int executorShards(AccordConfig config)
     {
+        if (config.queue_submission_model == AccordConfig.QueueSubmissionModel.EXEC_ST)
+            return 1;
+
         switch (config.queue_shard_model)
         {
             default: throw new AssertionError("Unhandled queue_shard_model: " + config.queue_shard_model);
-            case THREAD_PER_SHARD:
             case THREAD_PER_SHARD_SYNC_QUEUE:
+                return 1;
+            case THREAD_PER_SHARD:
                 return config.queue_shard_count.or(DatabaseDescriptor::getAvailableProcessors);
             case THREAD_POOL_PER_SHARD:
                 return Math.max(1, config.queue_shard_count.or(DatabaseDescriptor.getAvailableProcessors() / 8));

@@ -57,7 +57,7 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
 
         @Override AccordExecutor executor() { return queue.executor; }
         @Override void submitExclusiveMayThrow() { throw new UnsupportedOperationException(); }
-        @Override boolean isNewWork() { throw new UnsupportedOperationException(); }
+        @Override boolean isNewWork() { return false; }
         @Override public void cancel() { throw new UnsupportedOperationException(); }
         @Override boolean runMayThrow() { throw new UnsupportedOperationException(); }
         @Override void unqueueIfQueued() {}
@@ -78,13 +78,13 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
             {
                 task.setStateExclusive(State.FAILED);
                 task.reportFailureNoExcept(t);
-                maybeCompleteExclusiveMayThrow();
+                completeExclusiveMayThrow();
                 return false;
             }
         }
 
         @Override
-        void maybeCompleteExclusiveMayThrow()
+        void completeExclusiveMayThrow()
         {
             try
             {
@@ -94,7 +94,7 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
             }
             catch (Throwable t)
             {
-                onException(t);
+                unhandledException(t);
             }
         }
 
@@ -121,9 +121,9 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
     final ExclusiveExecutorTask selfTask;
     Task task;
     volatile Thread owner, waiting;
-    private boolean stopped;
-    private volatile boolean visibleStopped;
-    private boolean terminated;
+    private boolean isStopped;
+    private volatile boolean visibleIsStopped;
+    private boolean isTerminated;
 
     final DebugExecution.DebugExclusiveExecutor debug;
 
@@ -167,15 +167,15 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
 
         try
         {
-            if (stopped && reject(task))
+            if (isStopped && reject(task))
                 task.rejectAtRuntime(new RejectedExecutionException(commandStoreId + " is terminated. Cannot execute " + task.description()));
             else
                 task.runNoExcept(self);
         }
         finally
         {
-            // NOTE: we can ONLY safely release owner here due to AccordCacheEntry locking, which remains in place until AccordTask.releaseResourcesExclusive
-            //       this also relies on AccordSafeCommandStore$ExclusiveCaches.acquireIfLoaded returning false when the entry is locked
+            // NOTE: we can ONLY safely release owner here due to AccordCacheEntry locking, which remains in place until SafeTask.releaseResourcesExclusive
+            //       this also relies on SaferCommandStore$ExclusiveCaches.acquireIfLoaded returning false when the entry is locked
             owner = null;
         }
     }
@@ -186,7 +186,7 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
             return true;
 
         ExecutionContext context = ((SafeTask<?>) task).executionContext();
-        return !(terminated ? (context instanceof Unterminatable) : (context instanceof Unstoppable));
+        return !(isTerminated ? (context instanceof Unterminatable) : (context instanceof Unstoppable));
     }
 
     void completeTask()
@@ -195,6 +195,11 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
         {
             task.unsetQueue(kind);
             task.completeExclusiveNoExcept();
+        }
+        catch (Throwable t)
+        {
+            task.releaseResourcesExclusiveNoExcept();
+            throw t;
         }
         finally
         {
@@ -212,7 +217,6 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
 
     void enqueue(Task newTask, boolean incrementArrivals)
     {
-
         if (task != null)
         {
             if (incrementArrivals)
@@ -223,7 +227,7 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
         }
         else
         {
-            Invariants.require(isEmptySingle());
+            Invariants.require(waitingCount == 0);
             if (incrementArrivals)
                 incrementArrivals(newTask);
             incrementDispatches(newTask);
@@ -260,32 +264,21 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
 
     private void removeCurrentTask(IntrusiveHeapNode remove)
     {
+        Invariants.require(executor.runnable.isWaiting(selfTask));
         Invariants.require(remove == task);
-        // cannot overwrite task while it is being executed - this cannot happen for AccordTask
+        // cannot overwrite task while it is being executed - this cannot happen for SafeTask
         // but can for other tasks that don't track their own state
 
         decrementDispatches(task);
         task.unsetQueue(kind);
+        active = 0;
         task = pollMulti();
         if (DEBUG_EXECUTION) debug.onSetTask(task);
-        if (executor.runnable.isWaiting(selfTask))
-        {
-            if (task == null) executor.runnable.unqueue(selfTask);
-            else
-            {
-                selfTask.position = task.position;
-                executor.runnable.requeue(selfTask);
-            }
-        }
+        if (task == null) executor.runnable.unqueue(selfTask);
         else
         {
-            Invariants.expect(false, "%s should have been queued to run as it had the task %s pending, that has now been cancelled", this, remove);
-            if (task != null)
-            {
-                selfTask.position = task.position;
-                selfTask.unsafeSetStateExclusive(WAITING_TO_RUN);
-                executor.runnable.enqueue(selfTask, false);
-            }
+            selfTask.position = task.position;
+            executor.runnable.requeue(selfTask);
         }
         Invariants.require(task == null || executor.runnable.isWaiting(selfTask));
     }
@@ -297,26 +290,32 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
 
     public boolean stopped()
     {
-        return visibleStopped;
+        return visibleIsStopped;
     }
 
     public void stop()
     {
         Invariants.require(inExecutor());
-        this.stopped = true;
-        this.visibleStopped = true;
+        this.isStopped = true;
+        this.visibleIsStopped = true;
     }
 
-    public void terminate()
+    public void fullStop()
     {
         Invariants.require(inExecutor());
-        this.visibleStopped = this.terminated = this.stopped = true;
+        this.visibleIsStopped = this.isTerminated = this.isStopped = true;
     }
 
     @Override
     public AsyncChain<Void> chain(Runnable run)
     {
         return AsyncChains.chain(this, run);
+    }
+
+    @Override
+    public AsyncChain<Void> continuationChain(Runnable run)
+    {
+        return AsyncChains.continuationChain(this, run);
     }
 
     @Override
@@ -351,6 +350,20 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
     }
 
     @Override
+    public Cancellable executeContinuation(AsyncCallbacks.RunOrFail runOrFail)
+    {
+        Task inherit = executor.inherit();
+        PlainChain task = new PlainChain(executor, runOrFail, ExclusiveExecutor.this, Task.ExclusiveGroup.OTHER);
+        if (inherit == null) executor.submitTask(task);
+        else
+        {
+            task.setIsContinuation();
+            inherit.addConsequence(task);
+        }
+        return task;
+    }
+
+    @Override
     public boolean tryExecuteImmediately(Runnable run)
     {
         Thread thread = Thread.currentThread();
@@ -375,14 +388,14 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
         }
         catch (Throwable t)
         {
-            selfTask.onException(t);
+            selfTask.unhandledException(t);
         }
         finally
         {
             if (owner == null)
             {
                 Thread waiting = this.waiting;
-                Invariants.require(waiting != self);
+                Invariants.require(waiting != thread);
                 this.owner = waiting;
                 if (waiting == null) // recheck, to ensure happens-before relation with a new waiter that expects any non-null owner to notify it
                     waiting = this.waiting;

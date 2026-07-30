@@ -123,7 +123,7 @@ import static org.apache.cassandra.config.AccordConfig.RangeIndexMode.journal_sa
 import static org.apache.cassandra.db.partitions.PartitionUpdate.singleRowUpdate;
 import static org.apache.cassandra.db.rows.BTreeRow.singleCellRow;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
-import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMicros;
 
 public class AccordKeyspace
 {
@@ -358,7 +358,7 @@ public class AccordKeyspace
         private static final AtomicLong lastSystemTimestampMicros = new AtomicLong();
         private static long nextSystemTimestampMicros()
         {
-            return lastSystemTimestampMicros.accumulateAndGet(currentTimeMillis(), (a, b) -> Math.max(a + 1, b));
+            return lastSystemTimestampMicros.accumulateAndGet(currentTimeMicros(), (a, b) -> Math.max(a + 1, b));
         }
 
         public static Runnable systemTableUpdater(int storeId, TokenKey key, CommandsForKey update, Object serialized)

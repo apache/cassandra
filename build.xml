@@ -144,6 +144,9 @@
     <!-- The number of active processors seen by JVM -->
     <property name="cassandra.test.processorCount" value="2"/>
 
+    <property name="accord.test.jvmargs"
+              value="-Daccord.paranoid=true -Daccord.paranoia.cpu=SUPERLINEAR -Daccord.paranoia.memory=LINEAR -Daccord.testing=true"/>
+
     <!-- skip flushing schema tables during tests -->
     <property name="cassandra.test.flush_local_schema_changes" value="false" />
 
@@ -1456,6 +1459,7 @@
         <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
         <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
         <jvmarg value="-Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true" /> <!-- enable defensive checks -->
+        <jvmarg line="${accord.test.jvmargs}" />
         <jvmarg value="-Dcassandra.test.flush_local_schema_changes=${cassandra.test.flush_local_schema_changes}"/>
         <jvmarg value="-Dcassandra.test.messagingService.nonGracefulShutdown=${cassandra.test.messagingService.nonGracefulShutdown}"/>
         <jvmarg value="-Dcassandra.use_nix_recursive_delete=${cassandra.use_nix_recursive_delete}"/>
@@ -2093,7 +2097,9 @@
   <pathconvert property="_simulator.jvmargs_concat" refid="_simulator_jvmargs_items" pathsep=" "/>
 
   <target name="test-simulator-dtest" depends="maybe-build-test" description="Execute simulator dtests">
-    <testmacro inputdir="${test.simulator-test.src}" timeout="${test.simulation.timeout}" forkmode="perTest" showoutput="true" filter="**/test/${test.name}.java" maxmemory="8g">
+    <!-- match on the class name alone: not every simulator test lives in a package that ends in 'test'
+         (e.g. org.apache.cassandra.service.accord.execution), and a filter that assumed so silently ran nothing -->
+    <testmacro inputdir="${test.simulator-test.src}" timeout="${test.simulation.timeout}" forkmode="perTest" showoutput="true" filter="**/${test.name}.java" maxmemory="8g">
       <jvmarg line="${_simulator.jvmargs_concat}"/>
     </testmacro>
   </target>

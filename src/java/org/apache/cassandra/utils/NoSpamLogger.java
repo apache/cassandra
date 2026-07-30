@@ -187,14 +187,14 @@ public class NoSpamLogger
 
     public static class NoDuplicateSpamLogStatement
     {
-        private static final long serialVersionUID = 1L;
         private static final int PRUNE_SIZE = 32;
+        private static final int MAX_SIZE = 1024;
 
         private final Logger wrapped;
         private final String statement;
         private final long minIntervalNanos;
         private final ConcurrentHashMap<Long, Long> lastLogged = new ConcurrentHashMap<>();
-        private final AtomicLong nextPruneAt = new AtomicLong();
+        private final AtomicLong nextPruneAt = new AtomicLong(Long.MIN_VALUE);
 
         public NoDuplicateSpamLogStatement(Logger wrapped, String statement, long minInterval, TimeUnit units)
         {
@@ -211,7 +211,11 @@ public class NoSpamLogger
         private boolean shouldLog(long id, long nowNanos)
         {
             Long expected = lastLogged.getOrDefault(id, Long.MIN_VALUE);
-            if (nowNanos < expected || !lastLogged.replace(id, expected, nowNanos + minIntervalNanos))
+            if (nowNanos < expected)
+                return false;
+            else if (expected == Long.MIN_VALUE && null != lastLogged.putIfAbsent(id, nowNanos + minIntervalNanos))
+                return false;
+            else if (expected != Long.MIN_VALUE && !lastLogged.replace(id, expected, nowNanos + minIntervalNanos))
                 return false;
 
             if (lastLogged.size() >= PRUNE_SIZE)
@@ -221,12 +225,28 @@ public class NoSpamLogger
                 {
                     for (Map.Entry<Long, Long> e : lastLogged.entrySet())
                     {
-                        if (nowNanos < e.getValue())
+                        if (nowNanos >= e.getValue())
                             lastLogged.remove(e.getKey(), e.getValue());
                     }
                 }
+                if (lastLogged.size() >= MAX_SIZE)
+                {
+                    lastLogged.remove(id, nowNanos + minIntervalNanos);
+                    return false;
+                }
             }
             return true;
+        }
+
+        public boolean log(Level l, Throwable throwable)
+        {
+            long nowNanos = CLOCK.nanoTime();
+            return log(l, exceptionId(throwable), nowNanos, throwable);
+        }
+
+        public boolean warn(Throwable throwable)
+        {
+            return log(Level.WARN, throwable);
         }
 
         public boolean log(Level l, long id, long nowNanos, Object... objects)
@@ -257,44 +277,24 @@ public class NoSpamLogger
             return true;
         }
 
-        public boolean debug(long id, long nowNanos, Object... objects)
-        {
-            return log(Level.DEBUG, id, nowNanos, objects);
-        }
-
         public boolean debug(long id, Object... objects)
         {
-            return debug(id, CLOCK.nanoTime(), objects);
-        }
-
-        public boolean info(long id, long nowNanos, Object... objects)
-        {
-            return log(Level.INFO, id, nowNanos, objects);
+            return log(Level.DEBUG, id, CLOCK.nanoTime(), objects);
         }
 
         public boolean info(long id, Object... objects)
         {
-            return info(id, CLOCK.nanoTime(), objects);
-        }
-
-        public boolean warn(long id, long nowNanos, Object... objects)
-        {
-            return log(Level.WARN, id, nowNanos, objects);
+            return log(Level.INFO, id, CLOCK.nanoTime(), objects);
         }
 
         public boolean warn(long id, Object... objects)
         {
-            return warn(id, CLOCK.nanoTime(), objects);
-        }
-
-        public boolean error(long id, long nowNanos, Object... objects)
-        {
-            return log(Level.ERROR, id, nowNanos, objects);
+            return log(Level.WARN, id, CLOCK.nanoTime(), objects);
         }
 
         public boolean error(long id, Object... objects)
         {
-            return error(id, CLOCK.nanoTime(), objects);
+            return log(Level.ERROR, id, CLOCK.nanoTime(), objects);
         }
 
         public static long exceptionId(Throwable throwable)
@@ -303,6 +303,21 @@ public class NoSpamLogger
         }
 
         private static long exceptionId(Throwable throwable, Set<Throwable> visited)
+        {
+            long id = shallowExceptionId(throwable, visited);
+
+            for (Throwable cause = throwable.getCause() ; cause != null ; cause = cause.getCause())
+            {
+                if (!visited.add(cause))
+                    break;
+
+                id *= 31;
+                id += shallowExceptionId(cause, visited);
+            }
+            return id;
+        }
+
+        private static long shallowExceptionId(Throwable throwable, Set<Throwable> visited)
         {
             long id = throwable.getClass().hashCode();
             for (StackTraceElement ste : throwable.getStackTrace())
@@ -321,14 +336,7 @@ public class NoSpamLogger
                 id *= 31;
                 id += exceptionId(suppressed, visited);
             }
-            for (Throwable cause = throwable.getCause() ; cause != null ; cause = cause.getCause())
-            {
-                if (!visited.add(cause))
-                    break;
 
-                id *= 31;
-                id += exceptionId(cause, visited);
-            }
             return id;
         }
     }

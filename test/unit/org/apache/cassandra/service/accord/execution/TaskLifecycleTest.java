@@ -51,6 +51,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordCommandStore;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.AccordAgent;
@@ -63,6 +64,8 @@ import static org.apache.cassandra.service.accord.execution.AccordExecutor.Mode.
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
+ * This test has been authored entirely by Claude.
+ *
  * Lifecycle tests for {@link Task} and its interaction with {@link AccordExecutor}, covering the invariants the
  * executor's callers rely on:
  * <ul>
@@ -92,6 +95,7 @@ public class TaskLifecycleTest
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace("ks", KeyspaceParams.simple(1),
                                     parse("CREATE TABLE tbl (k int, c int, v int, primary key (k, c)) WITH transactional_mode='full'", "ks"));
+        AccordService.unsafeSetNoop();
     }
 
     @After
@@ -417,7 +421,7 @@ public class TaskLifecycleTest
                 if (batches.get() > 0 && task.isState(Task.State.WAITING))
                 {
                     failedIn.set(state);
-                    task.tryFailAndCompleteExclusive(loadFailure, Task.State.FAILED);
+                    task.tryFailAndCompleteUnexecutedExclusive(loadFailure, Task.State.FAILED);
                 }
             });
         }

@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord.execution;
 import accord.utils.Invariants;
 import accord.utils.UnhandledEnum;
 
+import org.apache.cassandra.config.AccordConfig.QueueBalancingModel;
 import org.apache.cassandra.service.accord.execution.Task.ExecutorQueue;
 import org.apache.cassandra.service.accord.execution.Task.GroupKind;
 
@@ -29,61 +30,39 @@ import static org.apache.cassandra.service.accord.execution.Task.ExecutorQueue.R
 /**
  * A {@link TaskQueue} sub-divided into up to eight per-group sub-queues (groups are phases for the exclusive
  * executor, or work classes globally) plus a policy for choosing which sub-queue to serve next. The policy balances
- * three competing concerns: ordering/priority (run the oldest / highest-priority work), fairness (do not let one
- * group monopolise the executor), and throughput (do not let an even split leave a busy group's backlog growing
- * without bound).
+ * ordering/priority (run the oldest / highest-priority work), fairness (do not let one group monopolise the executor)
+ * and throughput (do not let an even split leave a busy group's backlog growing without bound).
  *
  * <h2>Packed counters</h2>
  * Per-group state is held in {@code long}s, one 7-bit lane per group; bit 7 of each byte is a spare "guard" bit used
- * to run branch-free min/compare across all eight lanes at once (see {@code minCounters}). The lanes are:
+ * to run branch-free min/compare across all eight lanes at once (see {@link #minCounters}). The lanes are:
  * <ul>
- *   <li>{@code positions[]} - the head task's position (HLC, or submission order) per group; drives FIFO/priority.</li>
- *   <li>{@code recent} - a windowed count of recently <i>served</i> tasks per group (service received).</li>
- *   <li>{@code arrivals} - a windowed, size-biased count of recent <i>arrivals</i> per group (demand offered).</li>
- *   <li>{@code current} - tasks currently in flight per group, used to enforce {@code queue_active_limits}.</li>
- *   <li>{@code hasWork}/{@code dirty} - guard-bit masks: which groups have queued work / need a position refresh.</li>
+ *   <li>{@link #positions} - the head task's position (HLC, or submission order) per group; drives FIFO/priority.
+ *       Refreshed lazily from the sub-queue heads via the {@link #dirty} mask, which must use the same guard-bit
+ *       layout as {@link #hasWork} or the refresh loop in {@link #pollGroupByPriority} silently never runs.</li>
+ *   <li>{@link #dispatches} - a windowed count of recently <i>served</i> tasks per group (service received).</li>
+ *   <li>{@link #arrivals} - a windowed, size-biased count of recent <i>arrivals</i> per group (demand offered).</li>
+ *   <li>{@link #active} - tasks currently in flight per group, used to enforce {@link #limits}. A group
+ *       that has reached its limit is excluded from selection, as is any group with no queued work.</li>
+ *   <li>{@link #hasWork}/{@link #dirty} - guard-bit masks: which groups have queued work / need a position refresh.</li>
  * </ul>
  *
- * <h2>Windowing: a bounded memory of the past</h2>
- * {@code recent} and {@code arrivals} are not running totals. Whenever incrementing {@code recent} tips any lane to
- * its maximum (0x80), <em>both</em> {@code recent} and {@code arrivals} are halved (see {@code incrementRecents}),
- * and each lane also saturates at 0x7f. They are therefore an exponentially-decaying window keyed on service/time.
- * This is what stops a one-off burst of arrivals granting a group a permanent boost: the burst saturates the lane
- * briefly and then decays away as other work is served.
+ * <h2>Windowing</h2>
+ * {@link #dispatches} and {@link #arrivals} are not running totals: when incrementing {@link #dispatches} tips any lane to its
+ * maximum, both are halved (see {@link #incrementDispatches}), and each lane saturates at 0x7f. They are therefore an
+ * exponentially-decaying window, so a one-off burst of arrivals cannot grant a group a permanent boost.
  *
- * <h2>The fair selection counter</h2>
- * The fair models pick the group with the smallest {@code effective} counter, where per lane
- * <pre>effective = min(0x7f, max(0, recent - arrivals) + bias)</pre>
+ * <h2>Choosing a group ({@link #pollGroup} / {@link #pollGroupByBlended})</h2>
+ * The fair models pick the group with the smallest {@code effective = max(0, dispatches - arrivals)}:
+ * a group whose arrivals have outpaced its recent service clamps to 0 and is preferred, so in steady state service
+ * tracks arrival rate, which bounds backlog. The clamp is symmetric, so a group cannot bank credit during a lull.
  * <ul>
- *   <li>{@code max(0, recent - arrivals)} - a group whose arrivals have outpaced its recent service clamps to 0 and
- *       is therefore preferred; in steady state each group's service tracks its arrival rate, which bounds backlog.
- *       The clamp is symmetric, so a group cannot bank "credit" during a lull and later use it to monopolise service.</li>
- * </ul>
- *
- * <h2>Choosing a group ({@code minGroup} / {@code pollByBlend})</h2>
- * <ul>
- *   <li>{@code PRIORITY_ONLY} - always the lowest {@code positions} (oldest / highest priority), ignoring fairness.</li>
- *   <li>{@code PHASE_OVERRIDE} - strict phase order: the lowest-index group with work, always.</li>
- *   <li>{@code PHASE_FAIR} - pure fairness: the smallest {@code effective}; ties broken by index, within a group by
+ *   <li>{@link QueueBalancingModel#PRIORITY_ONLY} - always the lowest {@link #positions} (oldest / highest priority), ignoring fairness.</li>
+ *   <li>{@link QueueBalancingModel#PHASE_ONLY} - strict phase order: the lowest-index group with work, always.</li>
+ *   <li>{@link QueueBalancingModel#PHASE_FAIR} - pure fairness: the smallest {@code effective}; ties broken by index, within a group by
  *       position. It has no priority fallback, so it is deliberately completing-first under contention.</li>
- *   <li>{@code PRIORITY_FAIR} (default) - a deficit round-robin blend of two strategies, chosen per poll: <b>flow</b>
- *       (smallest {@code effective}, i.e. least fairly serviced) and <b>age</b> (oldest {@code positions}, i.e. FIFO).
- *       The flow weight ramps up with the flow imbalance ({@code max-min} of {@code effective}) over
- *       {@code queue_flow_imbalance_onset..+width}, trading against age zero-sum; when balanced it is pure age. The
- *       ramp is smooth (not a hard mode switch), so there is no boundary to oscillate around and no hysteresis is
- *       needed. Age also drains stale/standing backlogs for free: a backlog's items are the oldest work, so age
- *       clears them without a separate backlog-aware strategy (the {@code effective} flow counter tracks arrival
- *       <em>rate</em> and is deliberately blind to standing <em>stock</em>).</li>
+ *   <li>{@link QueueBalancingModel#BLENDED_PRIORITY_PHASE_FAIR} (default) - see {@link #pollGroupByBlended}.</li>
  * </ul>
- *
- * <h2>Concurrency limits and eligibility</h2>
- * A group whose in-flight {@code current} count has reached its {@code queue_active_limits} limit is
- * {@code saturated} and excluded from selection ({@code disabled}), as is any group with no queued work.
- *
- * <h2>Note on {@code positions} freshness</h2>
- * {@code positions} is refreshed lazily from the sub-queue heads via the {@code dirty} mask; {@code dirty} must use
- * the same guard-bit layout as {@code hasWork} so the refresh loop in {@code minGroupByPriority} actually runs -
- * otherwise it silently degenerates to lowest-index-with-work and starves high-index / new-work groups.
  *
  * <p>NB it extends {@link TaskQueue} to keep the type hierarchy simple for method dispatch, and for efficiency for
  * anonymous ExclusiveExecutors which do not use multiple queues, while letting ExclusiveExecutor share a parent
@@ -129,7 +108,7 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
      */
     long active;
     /**
-     * deficit-round-robin credits for the two PRIORITY_FAIR strategies (flow/age).
+     * deficit-round-robin credits for the two BLENDED_PRIORITY_PHASE_FAIR strategies (flow/age).
      */
     int creditFlow, creditAge;
 
@@ -190,7 +169,7 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
         switch (AccordExecutor.BALANCING_MODEL)
         {
             default:
-                throw new UnhandledEnum(AccordExecutor.PRIORITY_MODEL);
+                throw new UnhandledEnum(AccordExecutor.BALANCING_MODEL);
             case PRIORITY_ONLY:
                 return pollGroupByPriority();
             case PHASE_ONLY:
@@ -240,7 +219,7 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
 
     private int pollGroupByIndex()
     {
-        long visit = (hasWork & unsaturated()) >>> 7;
+        long visit = unsaturatedWithWork() >>> 7;
         if (visit == 0)
             return -1;
 
@@ -253,13 +232,18 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
         return minCounterIndex(recentFlowImbalances());
     }
 
-    // PRIORITY_FAIR selection: a deficit round-robin blend of two strategies, chosen per poll:
-    //   flow -> minCounterIndex(recent - arrivals + bias)  (least fairly serviced)
-    //   age  -> minGroupByPriority()  (earliest-queued work)
-    // wFlow = ramp(flow imbalance F = max-min of the selection counters); wAge = BLEND_TOTAL - wFlow. As flow gets
-    // uneven, polls trade from age to flow zero-sum; when balanced it is pure age (FIFO). A ramp (not a hard
-    // threshold) means there is no mode cliff to oscillate around, so no anti-oscillation penalty is needed. Age is
-    // also what drains a stale/standing backlog -- its items are the oldest -- so no separate stock strategy is needed.
+    /**
+     * BLENDED_PRIORITY_PHASE_FAIR: a deficit round-robin blend of two strategies, chosen per poll:
+     * <ul>
+     *   <li>flow -> {@code minCounterIndex(dispatches - arrivals)}, i.e. the least fairly serviced group;</li>
+     *   <li>age -> {@link #pollGroupByPriority}, i.e. the earliest-queued work.</li>
+     * </ul>
+     * {@code wFlow} ramps up with the flow imbalance ({@code max-min} of the selection counters) over
+     * {@code queue_flow_imbalance_onset..+width}, trading against {@code wAge} zero-sum; when balanced it is pure age
+     * (FIFO). The ramp is smooth, so there is no mode cliff to oscillate around and no hysteresis is needed. Age also
+     * drains a standing backlog for free - its items are the oldest - so no separate stock strategy is needed, and the
+     * flow counter can track arrival <em>rate</em> alone.
+     */
     private int pollGroupByBlended()
     {
         return pollGroupByBlended(saturatedOrWithoutWork());
@@ -315,9 +299,8 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
         return (hasWork ^ COUNTER_OVERFLOWS) | saturated() | stopped;
     }
 
-    // arrivals is a windowed measure of ARRIVAL (incremented on enqueue, size-biased; decays on recent's overflow).
-    // Combined with recent (service) as effective = max(0, recent - arrivals): a queue whose arrivals outpace its
-    // service clamps to 0 and is preferred, so service converges to arrival rate (bounding the busy queue's backlog).
+    // effective = max(0, dispatches - arrivals): a queue whose arrivals outpace its service clamps to 0 and is preferred,
+    // so service converges to arrival rate, bounding the busy queue's backlog.
     private long recentFlowImbalances()
     {
         return clampedSubtract(dispatches, arrivals);
@@ -430,9 +413,8 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
 
         TaskQueue<T> queue = queues[group];
         T head = queue.pollSingle();
-        // NOTE: must clear dirty when emptied, symmetrically with unqueue(): the fair selection paths
-        // never consume the dirty bit, so a group drained during a fairness episode would otherwise
-        // retain a stale dirty bit and NPE in minGroupByPriority.peekSingle() when balance is restored.
+        // must clear dirty when emptied, symmetrically with unqueue(): the fair selection paths never consume the dirty
+        // bit, so a group drained during a fairness episode would retain it and NPE in pollGroupByPriority()
         if (queue.isEmptySingle())
         {
             unsetHasWork(group);

@@ -195,6 +195,7 @@ public class AccordConfig
     public String queue_active_limits;
 
     public Boolean queue_nonsync_enabled;
+    public Boolean queue_key_ordering_enabled;
 
     /**
      * Size at which we will begin processing a task that is ASYNC, INCR OR INCR_ATOMIC.

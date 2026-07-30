@@ -24,7 +24,6 @@ import java.util.function.Function;
 
 import accord.api.Agent;
 
-import org.apache.cassandra.concurrent.CassandraThread;
 import org.apache.cassandra.service.accord.execution.Loops.LoopTask;
 
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXECUTION;
@@ -142,8 +141,8 @@ abstract class AbstractLockLoop extends AbstractLoop
         while (cur != null)
         {
             Task next = cur.next;
-            cur.submitExclusiveNoExcept();
             cur.next = null;
+            cur.submitExclusiveNoExcept();
             cur = next;
         }
     }
@@ -203,32 +202,37 @@ abstract class AbstractLockLoop extends AbstractLoop
                 while (true)
                 {
                     lock(self);
+                    boolean running = false;
                     try
                     {
                         enterLockLoop();
+                        running = true;
                         while (true)
                         {
                             task = pollWaitingToRunExclusive();
-                            if (task != null) prepareRunComplete(self, task);
+                            if (task != null) task.prepareRunAndCompleteExclusive(self);
                             else
                             {
                                 if (shutdown)
                                 {
-                                    pauseLoop();
+                                    running = false;
                                     exitLockLoop();
                                     notifyWorkExclusive(); // always notify on shutdown
                                     return;
                                 }
 
+                                running = false;
                                 pauseLoop();
                                 awaitExclusive();
                                 resumeLoop();
+                                running = true;
                             }
                         }
                     }
                     catch (Throwable t)
                     {
-                        exitLockLoop();
+                        if (running)
+                            exitLockLoop();
                         try { agent.onException(t); }
                         catch (Throwable t2) { }
                     }
@@ -248,7 +252,8 @@ abstract class AbstractLockLoop extends AbstractLoop
             @Override
             public void run()
             {
-                CassandraThread self = (CassandraThread) Thread.currentThread();
+                Thread thread = Thread.currentThread();
+                TaskRunner self = TaskRunner.get(thread);
                 self.setAccordActiveExecutor(AbstractLockLoop.this);
                 setWrapped(self);
 
@@ -256,9 +261,11 @@ abstract class AbstractLockLoop extends AbstractLoop
                 while (true)
                 {
                     lock(self);
+                    boolean running = false;
                     try
                     {
                         enterLockLoop();
+                        running = true;
                         if (task != null)
                         {
                             Task tmp = task;
@@ -278,6 +285,7 @@ abstract class AbstractLockLoop extends AbstractLoop
                                 }
 
                                 if (DEBUG_EXECUTION) debug.onExitLock();
+                                running = false;
                                 exitLockLoop();
                                 break;
                             }
@@ -285,23 +293,27 @@ abstract class AbstractLockLoop extends AbstractLoop
                             if (shutdown)
                             {
                                 if (DEBUG_EXECUTION) debug.onExitLock();
+                                running = false;
                                 exitLockLoop();
                                 notifyWorkExclusive();
                                 return;
                             }
 
+                            running = false;
                             pauseLoop();
                             if (DEBUG_EXECUTION) debug.onExitLock();
                             awaitExclusive();
                             if (DEBUG_EXECUTION) debug.onEnterLock();
                             resumeLoop();
+                            running = true;
                         }
                     }
                     catch (Throwable t)
                     {
                         try { agent.onException(t); }
                         catch (Throwable t2) { }
-                        exitLockLoop();
+                        if (running)
+                            exitLockLoop();
                         continue;
                     }
                     finally

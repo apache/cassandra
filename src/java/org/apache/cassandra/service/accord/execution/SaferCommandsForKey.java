@@ -27,7 +27,7 @@ import accord.local.cfk.SafeCommandsForKey;
 
 import org.apache.cassandra.service.accord.execution.AccordCacheEntry.LockMode;
 
-public class SaferCommandsForKey extends SafeCommandsForKey implements SaferState<RoutingKey, CommandsForKey, SaferCommandsForKey>
+public final class SaferCommandsForKey extends SafeCommandsForKey implements SaferState<RoutingKey, CommandsForKey, SaferCommandsForKey>
 {
     public static class CommandsForKeyCacheEntry extends AccordCacheEntry<RoutingKey, CommandsForKey, SaferCommandsForKey>
     {

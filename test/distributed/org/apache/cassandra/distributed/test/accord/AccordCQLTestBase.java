@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -33,6 +34,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -47,10 +49,12 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.Tracing;
 import accord.primitives.Unseekables;
 import accord.topology.SelectShards;
 import accord.topology.Topologies;
 import accord.topology.TopologyException;
+import accord.utils.UnhandledEnum;
 
 import org.apache.cassandra.config.Config.PaxosVariant;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -84,6 +88,9 @@ import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.OverloadedException;
+import org.apache.cassandra.exceptions.RequestFailureException;
+import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -116,9 +123,24 @@ import static org.junit.Assert.fail;
 public abstract class AccordCQLTestBase extends AccordTestBase
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCQLTestBase.class);
+    private final int maxConcurrency;
 
-    protected AccordCQLTestBase(TransactionalMode transactionalMode) {
+    protected AccordCQLTestBase(TransactionalMode transactionalMode)
+    {
         super(transactionalMode);
+        switch (transactionalMode)
+        {
+            default: throw new UnhandledEnum(transactionalMode);
+            case mixed_reads:
+            case test_interop_read:
+                maxConcurrency = 16;
+                break;
+            case full:
+            case off:
+            case test_unsafe:
+            case test_unsafe_writes:
+                maxConcurrency = 32;
+        }
     }
 
     @Override
@@ -3339,6 +3361,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                      int id = ii;
                      futures.add(es.submit(() -> coordinator.execute("UPDATE " + qualifiedAccordTableName + " SET count = count + 1, seq1 = seq1 + ?, seq2 = seq2 + ? WHERE pk = ? IF EXISTS", ConsistencyLevel.ALL, id + ",", ByteBufferUtil.getArray(LIST_TYPE.decompose(singletonList(id))), 1)));
                  }
+
                  for (Future f : futures)
                      f.get();
 
@@ -3392,6 +3415,68 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                  logger.info("String append of ids executed {}", Arrays.toString(seq1));
                  logger.info("List append of ids executed {}", Arrays.toString(seq2));
                  assertArrayEquals("History doesn't match between the two columns", seq1, seq2);
+             }
+        );
+    }
+
+    @Test
+    public void testFastIncrement() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (pk int, count int, PRIMARY KEY (pk)) WITH transactional_mode='" + transactionalMode + "'",
+             cluster ->
+             {
+                 ICoordinator coordinator = cluster.coordinator(1);
+                 coordinator.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, count) VALUES (1, 0) USING TIMESTAMP 0", ConsistencyLevel.ALL);
+
+                 ListType<Integer> LIST_TYPE = ListType.getInstance(Int32Type.instance, true);
+                 ExecutorService es = Executors.newCachedThreadPool();
+                 ArrayDeque<Future<SimpleQueryResult>> futures = new ArrayDeque<>();
+                 int success = 0, unknown = 0;
+                 for (int ii = 0; ii < 10000; ii++)
+                 {
+                     int id = ii;
+                     String update = "BEGIN TRANSACTION\n" +
+                                     "  LET row1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE pk = 1);\n" +
+                                     "  UPDATE " + qualifiedAccordTableName + " SET count += 1 WHERE pk=1;\n" +
+                                     "COMMIT TRANSACTION";
+                     futures.add(es.submit(() -> coordinator.executeWithResult(update, ConsistencyLevel.ANY, id + ",", ByteBufferUtil.getArray(LIST_TYPE.decompose(singletonList(id))))));
+                     while (futures.size() > maxConcurrency)
+                     {
+                         try { futures.pollFirst().get() ; success++;}
+                         catch (Throwable t)
+                         {
+                             if (t instanceof OverloadedException)
+                             {
+                                 // do nothing
+                                 continue;
+                             }
+                             ++unknown;
+                         }
+                     }
+                 }
+
+                 while (futures.size() > 0)
+                 {
+                     try { futures.pollFirst().get() ; success++;}
+                     catch (Throwable t)
+                     {
+                         if (t instanceof OverloadedException)
+                         {
+                             // do nothing
+                             continue;
+                         }
+                         ++unknown;
+                     }
+                 }
+
+                 String check = "BEGIN TRANSACTION\n" +
+                                "  SELECT * FROM " + qualifiedAccordTableName + " WHERE pk = 1;\n" +
+                                "COMMIT TRANSACTION";
+
+                 Object[][] result = coordinator.execute(check, ConsistencyLevel.ALL);
+                 int actual = (int) result[0][1];
+                 assertTrue(actual >= success);
+                 assertTrue(actual <= success + unknown);
              }
         );
     }

@@ -103,6 +103,12 @@ class Loops
         return terminated.isSignalled();
     }
 
+    /** the number of loop threads that have not yet exited; for tests and diagnostics */
+    int runningCount()
+    {
+        return running.get();
+    }
+
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException
     {
         long deadline = nanoTime() + unit.toNanos(timeout);
