@@ -390,6 +390,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
     List<List<TxnWrite.Fragment>> createWriteFragments(ClientState state, QueryOptions options, Map<Integer, NamedSelect> autoReads, TableMetadatasAndKeys.KeyCollector keyCollector)
     {
+        boolean containsTrailingUpdate = groupedUpdates.size() > groupedConditions.size();
         List<List<TxnWrite.Fragment>> groupedWriteFragments = new ArrayList<>(groupedUpdates.size());
 
         // When we have a trailing update, we use the total seen columns we
@@ -410,17 +411,10 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 minEpoch = Math.max(minEpoch, modification.metadata().epoch.getEpoch());
                 List<TxnWrite.Fragment> writeFragments = modification.getTxnWriteFragment(idx, state, options, keyCollector);
                 fragments.addAll(writeFragments);
-                boolean containsTrailingUpdate = groupedUpdates.size() > groupedConditions.size();
 
                 // TODO: When adding support for consecutive IF statements, we need to revisit CASSANDRA-21136, currently we perform this check per branch since only one branch can be executed
                 if (groupedUpdatesIdx == groupedUpdates.size() - 1 && containsTrailingUpdate)
                     validateOnlyModifyPrimaryKeyColumnPairOnce(totalSeenColumns, modification, writeFragments);
-                else if (containsTrailingUpdate)
-                {
-                    validateOnlyModifyPrimaryKeyColumnPairOnce(seenColumns, modification, writeFragments);
-                    for (Map.Entry<Object, Columns> entry : seenColumns.entrySet())
-                        totalSeenColumns.merge(entry.getKey(), entry.getValue(), Columns::mergeTo);
-                }
                 else
                     validateOnlyModifyPrimaryKeyColumnPairOnce(seenColumns, modification, writeFragments);
 
@@ -434,6 +428,11 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
                 idx++;
             }
+
+            if (containsTrailingUpdate)
+                for (Map.Entry<Object, Columns> entry : seenColumns.entrySet())
+                    totalSeenColumns.merge(entry.getKey(), entry.getValue(), Columns::mergeTo);
+
             groupedWriteFragments.add(fragments);
         }
 
@@ -559,27 +558,31 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             Int2ObjectHashMap<NamedSelect> autoReads = new Int2ObjectHashMap<>();
 
             List<TxnUpdate.PreTransformedBlock> preTransformedBlocks = new ArrayList<>();
-            TxnCondition[] conditions = new TxnCondition[groupedConditions.size()];
             List<Pair<TxnWrite.Fragment, Integer>> fragmentConditionIndexPair = new ArrayList<>();
             List<List<TxnWrite.Fragment>> groupedFragments = createWriteFragments(state, options, autoReads, keyCollector);
 
             int idx = 0;
-            while (idx < groupedConditions.size())
+            if (!groupedConditions.isEmpty())
             {
-                conditions[idx] = createCondition(groupedConditions.get(idx), options);
-                List<TxnWrite.Fragment> correspondingFragments = groupedFragments.get(idx);
-                for (TxnWrite.Fragment fragment : correspondingFragments)
-                    fragmentConditionIndexPair.add(Pair.create(fragment, idx));
-                idx++;
-            }
+                TxnCondition[] conditions = new TxnCondition[groupedConditions.size()];
+                while (idx < groupedConditions.size())
+                {
+                    conditions[idx] = createCondition(groupedConditions.get(idx), options);
+                    List<TxnWrite.Fragment> correspondingFragments = groupedFragments.get(idx);
+                    for (TxnWrite.Fragment fragment : correspondingFragments)
+                        fragmentConditionIndexPair.add(Pair.create(fragment, idx));
+                    idx++;
+                }
 
-            preTransformedBlocks.add(new TxnUpdate.PreTransformedBlock(conditions, fragmentConditionIndexPair, null));
+                preTransformedBlocks.add(new TxnUpdate.PreTransformedBlock(conditions, fragmentConditionIndexPair, null));
+            }
 
             List<TxnWrite.Fragment> noneConditions = new ArrayList<>();
             if (idx < groupedFragments.size())
+            {
                 noneConditions.addAll(groupedFragments.get(idx));
-
-            preTransformedBlocks.add(new TxnUpdate.PreTransformedBlock(new TxnCondition[]{ TxnCondition.none() }, null, noneConditions));
+                preTransformedBlocks.add(new TxnUpdate.PreTransformedBlock(new TxnCondition[]{ TxnCondition.none() }, null, noneConditions));
+            }
 
             List<TxnNamedRead> reads = createNamedReads(options, autoReads, keyCollector);
             if (fragmentConditionIndexPair.isEmpty() && noneConditions.isEmpty()) // ModificationStatement yield no Mutation (DELETE WHERE pk=0 AND c < 0 AND c > 0 -- matches no keys; so has no mutation)

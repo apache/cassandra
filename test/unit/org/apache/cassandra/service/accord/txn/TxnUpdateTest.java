@@ -126,7 +126,7 @@ public class TxnUpdateTest
 
             // Make sure that all conditions have a randomly assigned corresponding fragment to it
             List<Integer> fragmentToConditionIndex = IntStream.range(0, conditions.length).boxed().collect(Collectors.toList());
-            Collections.shuffle(fragmentToConditionIndex);
+            Collections.shuffle(fragmentToConditionIndex, rs.asJdkRandom());
 
             for (int i = 0; i < fragments.size(); i++)
             {

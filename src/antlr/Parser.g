@@ -793,7 +793,7 @@ batchTxnStatement returns [TransactionStatement.Parsed expr]
           ( K_ELSE u=updateStatements { conditions.add(Collections.singletonList(new ConditionStatement.Raw(null, ConditionStatement.Kind.ELSE, null))); updates.add(u); } )?
           K_END K_IF
       )?
-      ( (updateStatements) => u=updateStatements { updates.add(u); } )?
+      ( (updateStatements) => u=updateStatements { if (!u.isEmpty()) updates.add(u); } )?
       (K_COMMIT K_TRANSACTION)
     {
         $expr = new TransactionStatement.Parsed(assignments, select, returning, updates, conditions, references);
@@ -2484,6 +2484,7 @@ basic_unreserved_keyword returns [String str]
         | K_END
         | K_LET
         | K_THEN
+        | K_ELSE
         | K_TRANSACTION
         | K_COMMENT
         | K_COMMENTS

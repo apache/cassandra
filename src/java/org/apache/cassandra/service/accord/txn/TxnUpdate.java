@@ -656,7 +656,8 @@ public final class TxnUpdate extends AccordUpdate
                 }
 
                 SerializedTxnCondition serializedCondition = new SerializedTxnCondition(TxnCondition.none(), tables);
-                ConditionalBlock[] conditionalBlock = new ConditionalBlock[] { new ConditionalBlock(conditionalBlockIndex++, serializedCondition, fragmentIds) };
+                ConditionalBlock[] conditionalBlock = new ConditionalBlock[] { new ConditionalBlock(conditionalBlockIndex, serializedCondition, fragmentIds) };
+                conditionalBlockIndex++;
                 return Pair.create(conditionalBlockIndex, new Block(blockFragments, conditionalBlock));
             }
             else
@@ -678,17 +679,15 @@ public final class TxnUpdate extends AccordUpdate
                     blockFragmentIdx++;
                 }
 
-                int conditionalBlocksIdx = 0;
-
                 for (int i = 0; i < conditions.length; i++)
                 {
                     int[] fragmentIds = conditionsIndexToFragmentId.get(i).stream().mapToInt(x -> x).toArray();
                     SerializedTxnCondition serializedCondition = new SerializedTxnCondition(conditions[i], tables);
-                    conditionalBlocks[conditionalBlocksIdx] = new ConditionalBlock(conditionalBlocksIdx, serializedCondition, fragmentIds);
-                    conditionalBlocksIdx++;
+                    conditionalBlocks[conditionalBlockIndex] = new ConditionalBlock(conditionalBlockIndex, serializedCondition, fragmentIds);
+                    conditionalBlockIndex++;
                 }
 
-                return Pair.create(conditionalBlocksIdx, new Block(blockFragments, conditionalBlocks));
+                return Pair.create(conditionalBlockIndex, new Block(blockFragments, conditionalBlocks));
             }
         }
     }
