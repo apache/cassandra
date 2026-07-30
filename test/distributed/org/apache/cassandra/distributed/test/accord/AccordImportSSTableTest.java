@@ -58,7 +58,6 @@ import org.apache.cassandra.service.accord.LocalTransfers;
 import org.apache.cassandra.utils.Shared;
 
 import org.assertj.core.api.Assertions;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static com.google.common.collect.Iterables.getOnlyElement;
@@ -71,7 +70,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class AccordImportSSTableTest extends TestBaseImpl
 {
-
     private static final String TABLE = "tbl";
     private static final String KEYSPACE_TABLE = String.format("%s.%s", KEYSPACE, TABLE);
     private static final String TABLE_SCHEMA_CQL = String.format(withKeyspace("CREATE TABLE %s." + TABLE + " (k int primary key, v int);"));
@@ -191,40 +189,6 @@ public class AccordImportSSTableTest extends TestBaseImpl
             Uninterruptibles.sleepUninterruptibly(3, TimeUnit.SECONDS);
 
             assertSSTableCount(cluster, 0);
-        }
-    }
-
-    @Test
-    @Ignore
-    public void testSSTableImportReplicaDown() throws Throwable
-    {
-        String file = writeSSTables(new int[] { 1, 2, 3 });
-
-        int FAILED_REPLICA = 2;
-        try (Cluster cluster = init(builder().withNodes(3).withoutVNodes()
-                                             .withDataDirCount(1).withConfig((config) ->
-                                                                             config.with(Feature.NETWORK, Feature.GOSSIP)).start()))
-        {
-            createSchema(cluster);
-
-            cluster.get(FAILED_REPLICA).shutdown().get();
-
-            cluster.get(1).runOnInstance(() -> {
-                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
-                Set<String> paths = Set.of(file);
-                Assertions.assertThatThrownBy(() -> cfs.importNewSSTables(paths, true, true, true, true, true, true, true))
-                          .isInstanceOf(RuntimeException.class);
-            });
-
-            Iterable<IInvokableInstance> up = cluster.stream()
-                                                     .filter(instance -> instance != cluster.get(FAILED_REPLICA))
-                                                     .collect(Collectors.toList());
-
-            assertPendingDirs(up, (File pendingUuidDir) -> {
-                Assertions.assertThat(pendingUuidDir.listUnchecked(File::isFile)).isEmpty();
-            });
-
-            assertLocalSelect(up, rows -> assertRows(rows, EMPTY_ROWS));
         }
     }
 
