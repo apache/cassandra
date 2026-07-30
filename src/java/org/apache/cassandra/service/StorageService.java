@@ -7762,6 +7762,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     table.getCompactionStrategyManager().mutateRepaired(sstables, repairedAt, null, false);
                 return sstables;
             }, predicate, OperationType.ANTICOMPACTION, true, false, true);
+            if (result == null)
+                throw new RuntimeException("Unable to cancel in-progress compactions for " + keyspace + '.' + tableName + ". Usually retrying will work.");
             sstablesTouched.addAll(result.stream().map(sst -> sst.descriptor.baseFile().name()).collect(Collectors.toList()));
         }
         return sstablesTouched;
