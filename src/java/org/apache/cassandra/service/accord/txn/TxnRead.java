@@ -43,7 +43,6 @@ import accord.primitives.Routable.Domain;
 import accord.primitives.Seekable;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
-import accord.utils.Invariants;
 import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
@@ -88,8 +87,8 @@ import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSi
 
 public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
 {
-    private static final TxnRead EMPTY_KEY = new TxnRead(TableMetadatas.none(), Domain.Key);
-    private static final TxnRead EMPTY_RANGE = new TxnRead(TableMetadatas.none(), Domain.Range);
+    private static final TxnRead EMPTY_KEY = new TxnRead(TableMetadatas.none(), Domain.Key, null);
+    private static final TxnRead EMPTY_RANGE = new TxnRead(TableMetadatas.none(), Domain.Range, null);
     private static final long EMPTY_SIZE = ObjectSizes.measure(EMPTY_KEY);
     private static final Comparator<TxnNamedRead> TXN_NAMED_READ_KEY_COMPARATOR = Comparator.comparing(a -> ((PartitionKey) a.key()));
     private static final byte TYPE_EMPTY_KEY = 0;
@@ -121,13 +120,13 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     @Nullable
     private final ImportMetadata importMetadata;
 
-    private TxnRead(TableMetadatas tables, Domain domain)
+    private TxnRead(TableMetadatas tables, Domain domain, @Nullable ImportMetadata importMetadata)
     {
         super(new TxnNamedRead[0], domain);
         this.tables = tables;
         this.domain = domain;
         this.cassandraConsistencyLevel = null;
-        this.importMetadata = null;
+        this.importMetadata = importMetadata;
     }
 
     private TxnRead(TableMetadatas tables, @Nonnull TxnNamedRead[] items, @Nullable ConsistencyLevel cassandraConsistencyLevel, @Nullable ImportMetadata importMetadata)
@@ -167,6 +166,14 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
             return empty(domain);
         sortReads(items);
         return new TxnRead(tables, items, consistencyLevel, null);
+    }
+
+    public static TxnRead createTxnRead(TableMetadatas tables, @Nonnull List<TxnNamedRead> items, @Nullable ConsistencyLevel consistencyLevel, Domain domain, @Nullable ImportMetadata importMetadata)
+    {
+        if (items.isEmpty())
+            return new TxnRead(TableMetadatas.none(), domain, importMetadata);
+        sortReads(items);
+        return new TxnRead(tables, items, consistencyLevel, importMetadata);
     }
 
     public static TxnRead createSerialRead(List<SinglePartitionReadCommand> readCommands, ConsistencyLevel consistencyLevel, TableMetadatasAndKeys.KeyCollector keyCollector)
@@ -316,12 +323,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
                 throw new UnhandledEnum(select.domain());
         }
 
-        if (isUsedForImport())
-        {
-            Invariants.require(!reads.isEmpty());
-            return new TxnRead(tables, reads, cassandraConsistencyLevel, importMetadata);
-        }
-        return createTxnRead(tables, reads, cassandraConsistencyLevel, select.domain());
+        return createTxnRead(tables, reads, cassandraConsistencyLevel, select.domain(), importMetadata);
     }
 
     @Override
@@ -402,12 +404,8 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
                 break;
             }
         }
-        if (read.isUsedForImport())
-        {
-            Invariants.require(!reads.isEmpty());
-            return new TxnRead(tables, reads, cassandraConsistencyLevel, importMetadata);
-        }
-        return createTxnRead(tables, reads, cassandraConsistencyLevel, that.domain);
+
+        return createTxnRead(tables, reads, cassandraConsistencyLevel, that.domain, importMetadata);
     }
 
     public void unmemoize()

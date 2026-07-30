@@ -67,7 +67,6 @@ import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 import static net.bytebuddy.matcher.ElementMatchers.takesNoArguments;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
-import static org.junit.Assert.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class AccordImportSSTableTest extends TestBaseImpl
@@ -80,29 +79,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
     @Test
     public void testImportSSTables() throws Throwable
     {
-        String file = Files.createTempDirectory(AccordImportSSTableTest.class.getSimpleName()).toString();
-
-        CQLSSTableWriter.Builder builder1 = CQLSSTableWriter.builder()
-                                                           .forTable(TABLE_SCHEMA_CQL)
-                                                           .inDirectory(file)
-                                                           .using("INSERT INTO " + KEYSPACE_TABLE + "(k, v) " + "VALUES (?, ?)");
-
-        try (CQLSSTableWriter writer = builder1.build())
-        {
-            writer.addRow(1, 1);
-            writer.addRow(2, 1);
-        }
-
-        CQLSSTableWriter.Builder builder2 = CQLSSTableWriter.builder()
-                                                           .forTable(TABLE_SCHEMA_CQL)
-                                                           .inDirectory(file)
-                                                           .using("INSERT INTO " + KEYSPACE_TABLE + "(k, v) " + "VALUES (?, ?)");
-
-
-        try (CQLSSTableWriter writer = builder2.build())
-        {
-            writer.addRow(3, 1);
-        }
+        String file = writeSSTables(new int[] { 1, 2 }, new int[] { 3 });
 
         try (Cluster cluster = init(builder().withNodes(3)
                                              .withoutVNodes()
@@ -111,16 +88,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
                                                          config
                                                          .with(Feature.NETWORK, Feature.GOSSIP)).start()))
         {
-            cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
-            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}");
-            cluster.schemaChange("CREATE TABLE " + KEYSPACE_TABLE + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
-
-            // Disable autocompaction so when we go to check the number of SSTables they correspond to the SSTables that we have imported
-            cluster.forEach(instance -> {
-                instance.runOnInstance(() -> {
-                    ColumnFamilyStore.getIfExists(KEYSPACE, TABLE).disableAutoCompaction();
-                });
-            });
+            createSchema(cluster);
 
             cluster.get(1).runOnInstance(() -> {
                 ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
@@ -146,17 +114,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
     @Test
     public void testImportSSTablesBuildsIndex() throws Throwable
     {
-        String file = Files.createTempDirectory(AccordImportSSTableTest.class.getSimpleName()).toString();
-
-        CQLSSTableWriter.Builder builder1 = CQLSSTableWriter.builder()
-                                                            .forTable(TABLE_SCHEMA_CQL)
-                                                            .inDirectory(file)
-                                                            .using("INSERT INTO " + KEYSPACE_TABLE + "(k, v) " + "VALUES (?, ?)");
-
-        try (CQLSSTableWriter writer = builder1.build())
-        {
-            writer.addRow(1, 1);
-        }
+        String file = writeSSTables(new int[] { 1 });
 
         try (Cluster cluster = init(builder().withNodes(3)
                                              .withoutVNodes()
@@ -165,9 +123,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
                                                          config
                                                          .with(Feature.NETWORK, Feature.GOSSIP)).start()))
         {
-            cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
-            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}");
-            cluster.schemaChange("CREATE TABLE " + KEYSPACE_TABLE + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
+            createSchema(cluster);
 
             String indexName = "v_idx";
             cluster.schemaChange(withKeyspace("CREATE INDEX " + indexName + " ON " + KEYSPACE_TABLE + " (v) USING 'sai'"));
@@ -197,17 +153,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
     @Test
     public void testSSTableImportWithConcurrentTopologyChangeFails() throws Throwable
     {
-        String file = Files.createTempDirectory(AccordImportSSTableTest.class.getSimpleName()).toString();
-
-        CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
-                                                           .forTable(TABLE_SCHEMA_CQL)
-                                                           .inDirectory(file)
-                                                           .using("INSERT INTO " + KEYSPACE_TABLE + "(k, v) " + "VALUES (?, ?)");
-
-        try (CQLSSTableWriter writer = builder.build())
-        {
-            writer.addRow(1, 1);
-        }
+        String file = writeSSTables(new int[] { 1 });
 
         try (Cluster cluster = init(builder().withNodes(3)
                                              .withoutVNodes()
@@ -217,9 +163,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
                                                          config
                                                          .with(Feature.NETWORK, Feature.GOSSIP)).start()))
         {
-            cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
-            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}");
-            cluster.schemaChange("CREATE TABLE " + KEYSPACE_TABLE + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
+            createSchema(cluster);
 
             Thread importer = new Thread(() -> {
                 cluster.get(1).runOnInstance(() -> {
@@ -254,28 +198,14 @@ public class AccordImportSSTableTest extends TestBaseImpl
     @Ignore
     public void testSSTableImportReplicaDown() throws Throwable
     {
-        String file = Files.createTempDirectory(AccordImportSSTableTest.class.getSimpleName()).toString();
-
-        CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
-                                                           .forTable(TABLE_SCHEMA_CQL)
-                                                           .inDirectory(file)
-                                                           .using("INSERT INTO " + KEYSPACE_TABLE + "(k, v) " + "VALUES (?, ?)");
-
-        try (CQLSSTableWriter writer = builder.build())
-        {
-            writer.addRow(1, 1);
-            writer.addRow(2, 1);
-            writer.addRow(3, 1);
-        }
+        String file = writeSSTables(new int[] { 1, 2, 3 });
 
         int FAILED_REPLICA = 2;
         try (Cluster cluster = init(builder().withNodes(3).withoutVNodes()
                                              .withDataDirCount(1).withConfig((config) ->
                                                                              config.with(Feature.NETWORK, Feature.GOSSIP)).start()))
         {
-            cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
-            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}");
-            cluster.schemaChange("CREATE TABLE " + KEYSPACE_TABLE + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
+            createSchema(cluster);
 
             cluster.get(FAILED_REPLICA).shutdown().get();
 
@@ -301,19 +231,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
     @Test
     public void testSSTableImportStreamingFailedCleanup() throws Throwable
     {
-        String file = Files.createTempDirectory(AccordImportSSTableTest.class.getSimpleName()).toString();
-
-        CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
-                                                           .forTable(TABLE_SCHEMA_CQL)
-                                                           .inDirectory(file)
-                                                           .using("INSERT INTO " + KEYSPACE_TABLE + " (k, v) " + "VALUES (?, ?)");
-
-        try (CQLSSTableWriter writer = builder.build())
-        {
-            writer.addRow(1, 1);
-            writer.addRow(2, 1);
-            writer.addRow(3, 1);
-        }
+        String file = writeSSTables(new int[] { 1, 2, 3 });
 
         int FAILED_STREAM = 3;
         try (Cluster cluster = init(builder().withNodes(3)
@@ -324,9 +242,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
                                                          config
                                                          .with(Feature.NETWORK, Feature.GOSSIP)).start()))
         {
-            cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
-            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}");
-            cluster.schemaChange("CREATE TABLE " + KEYSPACE_TABLE + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
+            createSchema(cluster);
 
             cluster.get(1).runOnInstance(() -> {
                 ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
@@ -347,19 +263,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
     @Test
     public void testSSTableImportBounceAfterPending() throws Throwable
     {
-        String file = Files.createTempDirectory(AccordImportSSTableTest.class.getSimpleName()).toString();
-
-        CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
-                                                           .forTable(TABLE_SCHEMA_CQL)
-                                                           .inDirectory(file)
-                                                           .using("INSERT INTO " + KEYSPACE_TABLE + " (k, v) " + "VALUES (?, ?)");
-
-        try (CQLSSTableWriter writer = builder.build())
-        {
-            writer.addRow(1, 1);
-            writer.addRow(2, 1);
-            writer.addRow(3, 1);
-        }
+        String file = writeSSTables(new int[] { 1, 2, 3 });
 
         // We disable local delivery so that we can stimulate a network partition by dropping
         // ACCORD_STABLE_THEN_READ_REQ messages
@@ -369,9 +273,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
                                                                              .set("accord.permit_local_delivery", false)
                                                                              .with(Feature.NETWORK, Feature.GOSSIP)).start()))
         {
-            cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
-            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}");
-            cluster.schemaChange("CREATE TABLE " + KEYSPACE_TABLE + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
+            createSchema(cluster);
 
             // Prevent SSTables from being moved to the live set
             cluster.filters().outbound().verbs(Verb.ACCORD_STABLE_THEN_READ_REQ.id).drop();
@@ -393,19 +295,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
     @Test
     public void testRecoveryCoordinatorPerformsImport() throws Throwable
     {
-        String file = Files.createTempDirectory(AccordImportSSTableTest.class.getSimpleName()).toString();
-
-        CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
-                                                           .forTable(TABLE_SCHEMA_CQL)
-                                                           .inDirectory(file)
-                                                           .using("INSERT INTO " + KEYSPACE_TABLE + " (k, v) " + "VALUES (?, ?)");
-
-        try (CQLSSTableWriter writer = builder.build())
-        {
-            writer.addRow(1, 1);
-            writer.addRow(2, 1);
-            writer.addRow(3, 1);
-        }
+        String file = writeSSTables(new int[] { 1, 2, 3 });
 
         // We disable local delivery so that we can stimulate a network partition by dropping
         // ACCORD_STABLE_THEN_READ_REQ messages
@@ -416,9 +306,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
                                                                              .set("accord.permit_local_delivery", false)
                                                                              .with(Feature.NETWORK, Feature.GOSSIP)).start()))
         {
-            cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
-            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}");
-            cluster.schemaChange("CREATE TABLE " + KEYSPACE_TABLE + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
+            createSchema(cluster);
 
             // Simulate a network partition right before the StableThenRead message is sent
             // so that a recovery coordinator can pick up the ImportTxn
@@ -443,16 +331,9 @@ public class AccordImportSSTableTest extends TestBaseImpl
                           .hasMessageContaining("SSTable import failed locally; however the operation may still be applied by the recovery coordinator");
             });
 
-            // Wait until the recovery coordinator picks up the Import Txn
             Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS);
 
-            for (int i = 1; i <= 3; i++)
-            {
-                cluster.get(i).runOnInstance(() -> {
-                    ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
-                    assertEquals(1, cfs.getLiveSSTables().size());
-                });
-            }
+            assertSSTableCount(cluster, 1);
 
             assertLocalSelect(cluster, rows -> { assertRows(rows, row(1, 1), row(2, 1), row(3, 1)); });
         }
@@ -461,19 +342,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
     @Test
     public void testRecoveryCoordinatorPerformsImport2() throws Throwable
     {
-        String file = Files.createTempDirectory(AccordImportSSTableTest.class.getSimpleName()).toString();
-
-        CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
-                                                           .forTable(TABLE_SCHEMA_CQL)
-                                                           .inDirectory(file)
-                                                           .using("INSERT INTO " + KEYSPACE_TABLE + " (k, v) " + "VALUES (?, ?)");
-
-        try (CQLSSTableWriter writer = builder.build())
-        {
-            writer.addRow(1, 1);
-            writer.addRow(2, 1);
-            writer.addRow(3, 1);
-        }
+        String file = writeSSTables(new int[] { 1, 2, 3 });
 
         try (Cluster cluster = init(builder().withNodes(3).withoutVNodes()
                                              .withDataDirCount(1).withConfig((config) ->
@@ -482,9 +351,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
                                                                              .set("accord.permit_local_delivery", false)
                                                                              .with(Feature.NETWORK, Feature.GOSSIP)).start()))
         {
-            cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
-            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}");
-            cluster.schemaChange("CREATE TABLE " + KEYSPACE_TABLE + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
+            createSchema(cluster);
 
             // Node 1 sends the StableThenRead message to node 2 and then node 1 fails, so the
             // only existence of the stable message is at node 2
@@ -521,7 +388,6 @@ public class AccordImportSSTableTest extends TestBaseImpl
                           .hasMessageContaining("SSTable import failed locally; however the operation may still be applied by the recovery coordinator");
             });
 
-            // Wait until the recovery coordinator picks up the Import Txn
             Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS);
 
             Iterable<IInvokableInstance> up = cluster.stream()
@@ -537,29 +403,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
     @Test
     public void testImportSSTablesCleanupWithMultipleDataDirectories() throws Throwable
     {
-        String file = Files.createTempDirectory(AccordImportSSTableTest.class.getSimpleName()).toString();
-
-        CQLSSTableWriter.Builder builder1 = CQLSSTableWriter.builder()
-                                                            .forTable(TABLE_SCHEMA_CQL)
-                                                            .inDirectory(file)
-                                                            .using("INSERT INTO " + KEYSPACE_TABLE + "(k, v) " + "VALUES (?, ?)");
-
-        try (CQLSSTableWriter writer = builder1.build())
-        {
-            writer.addRow(1, 1);
-            writer.addRow(2, 1);
-        }
-
-        CQLSSTableWriter.Builder builder2 = CQLSSTableWriter.builder()
-                                                            .forTable(TABLE_SCHEMA_CQL)
-                                                            .inDirectory(file)
-                                                            .using("INSERT INTO " + KEYSPACE_TABLE + "(k, v) " + "VALUES (?, ?)");
-
-
-        try (CQLSSTableWriter writer = builder2.build())
-        {
-            writer.addRow(3, 1);
-        }
+        String file = writeSSTables(new int[] { 1, 2 }, new int[] { 3 });
 
         try (Cluster cluster = init(builder().withNodes(3)
                                              .withoutVNodes()
@@ -568,16 +412,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
                                                          config
                                                          .with(Feature.NETWORK, Feature.GOSSIP)).start()))
         {
-            cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
-            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}");
-            cluster.schemaChange("CREATE TABLE " + KEYSPACE_TABLE + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
-
-            // Disable autocompaction so when we go to check the number of SSTables they correspond to the SSTables that we have imported
-            cluster.forEach(instance -> {
-                instance.runOnInstance(() -> {
-                    ColumnFamilyStore.getIfExists(KEYSPACE, TABLE).disableAutoCompaction();
-                });
-            });
+            createSchema(cluster);
 
             cluster.get(1).runOnInstance(() -> {
                 ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
@@ -587,14 +422,10 @@ public class AccordImportSSTableTest extends TestBaseImpl
 
             Uninterruptibles.sleepUninterruptibly(3, TimeUnit.SECONDS);
 
-            // Assert that each node has 2 SSTables
             assertSSTableCount(cluster, 2);
 
-            // Assert that each node has the correct values
             assertLocalSelect(cluster, rows -> { assertRows(rows, row(1, 1), row(2, 1), row(3, 1)); });
 
-
-            // Assert that SSTables are moved from the pending directories
             assertPendingDirs(cluster, (File pendingUuidDir) -> {
                 Assertions.assertThat(pendingUuidDir.listUnchecked(File::isFile)).isEmpty();
             });
@@ -604,18 +435,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
     @Test
     public void testImportSSTableFailsActivation() throws Throwable
     {
-        String file = Files.createTempDirectory(AccordImportSSTableTest.class.getSimpleName()).toString();
-
-        CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
-                                                           .forTable(TABLE_SCHEMA_CQL)
-                                                           .inDirectory(file)
-                                                           .using("INSERT INTO " + KEYSPACE_TABLE + " (k, v) " + "VALUES (?, ?)");
-
-        // We import a 1 token SSTable so the txn read logic is not run multiple of times by different CommandStores
-        try (CQLSSTableWriter writer = builder.build())
-        {
-            writer.addRow(1, 1);
-        }
+        String file = writeSSTables(new int[] { 1 });
 
         try (Cluster cluster = init(builder().withNodes(3).withoutVNodes()
                                              .withDataDirCount(1)
@@ -624,9 +444,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
                                                          config
                                                          .with(Feature.NETWORK, Feature.GOSSIP)).start()))
         {
-            cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
-            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}");
-            cluster.schemaChange("CREATE TABLE " + KEYSPACE_TABLE + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
+            createSchema(cluster);
 
             cluster.get(1).runOnInstance(() -> {
                 ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
@@ -640,6 +458,72 @@ public class AccordImportSSTableTest extends TestBaseImpl
 
             assertLocalSelect(cluster, rows -> { assertRows(rows, row(1, 1)); });
         }
+    }
+
+    @Test
+    public void testImportAppliesOnPartitionedReplica() throws Throwable
+    {
+        String file = writeSSTables(new int[] { 1, 2, 3 });
+
+        try (Cluster cluster = init(builder().withNodes(3)
+                                             .withoutVNodes()
+                                             .withDataDirCount(1)
+                                             .withConfig(config -> config.with(Feature.NETWORK, Feature.GOSSIP))
+                                             .start()))
+        {
+            createSchema(cluster);
+
+            // Partition node3 from the consensus phases only.
+            cluster.filters()
+                   .verbs(Verb.ACCORD_PRE_ACCEPT_REQ.id,
+                          Verb.ACCORD_ACCEPT_REQ.id,
+                          Verb.ACCORD_NOT_ACCEPT_REQ.id,
+                          Verb.ACCORD_COMMIT_REQ.id,
+                          Verb.ACCORD_STABLE_THEN_READ_REQ.id,
+                          Verb.ACCORD_READ_REQ.id)
+                   .to(3)
+                   .drop();
+
+            cluster.get(1).runOnInstance(() -> {
+                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
+                cfs.importNewSSTables(Set.of(file), true, true, true, true, true, true, true);
+            });
+
+            Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS);
+
+            assertLocalSelect(cluster, rows -> assertRows(rows, row(1, 1), row(2, 1), row(3, 1)));
+            assertSSTableCount(cluster, 1);
+        }
+    }
+
+    private static void createSchema(Cluster cluster)
+    {
+        cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
+        cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}");
+        cluster.schemaChange("CREATE TABLE " + KEYSPACE_TABLE + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
+
+        // Disable autocompaction so when we go to check the number of SSTables they correspond to the SSTables that we have imported
+        cluster.forEach(instance -> instance.runOnInstance(() -> ColumnFamilyStore.getIfExists(KEYSPACE, TABLE).disableAutoCompaction()));
+    }
+
+    private static String writeSSTables(int[]... sstables) throws Exception
+    {
+        String file = Files.createTempDirectory(AccordImportSSTableTest.class.getSimpleName()).toString();
+        for (int[] sstable : sstables)
+        {
+            CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
+                                                               .forTable(TABLE_SCHEMA_CQL)
+                                                               .inDirectory(file)
+                                                               .using("INSERT INTO " + KEYSPACE_TABLE + " (k, v) " + "VALUES (?, ?)");
+
+            try (CQLSSTableWriter writer = builder.build())
+            {
+                for (int key : sstable)
+                    writer.addRow(key, 1);
+            }
+        }
+
+        return file;
     }
 
     private static void bounce(Cluster cluster)
