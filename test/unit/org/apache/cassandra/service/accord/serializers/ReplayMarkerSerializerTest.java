@@ -58,20 +58,17 @@ public class ReplayMarkerSerializerTest
         if (new File(DatabaseDescriptor.getAccordJournalDirectory()).exists())
             ServerTestUtils.cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
 
-        // Start marker
         qt().forAll(RandomSource::nextLong).check(timestamp -> {
             long lastUniqueTimeStamp = AccordTimeService.nowMicros();
+            // Start marker
             writeMarker(startMarker(), timestamp, lastUniqueTimeStamp);
             Pair<Long, Long> pair = ReplayMarkers.readStartMarker();
             Assert.assertEquals(timestamp, pair.left);
             Assert.assertEquals(lastUniqueTimeStamp, (long) pair.right);
-        });
 
-        // Stop marker
-        qt().forAll(RandomSource::nextLong).check(timestamp -> {
-            long lastUniqueTimeStamp = AccordTimeService.nowMicros();
+            // Stop marker
             writeMarker(safeStopMarker(), timestamp, lastUniqueTimeStamp);
-            Pair<Long, Long> pair = ReplayMarkers.readStopMarker();
+            pair = ReplayMarkers.readStopMarker();
             Assert.assertEquals(timestamp, pair.left);
             Assert.assertEquals(lastUniqueTimeStamp, (long) pair.right);
         });
@@ -83,8 +80,8 @@ public class ReplayMarkerSerializerTest
         if (new File(DatabaseDescriptor.getAccordJournalDirectory()).exists())
             ServerTestUtils.cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
 
-        // Start marker
         qt().forAll(RandomSource::nextLong).check(timestamp -> {
+            // Start marker
             File file = new File(DatabaseDescriptor.getAccordJournalDirectory(), "started");
 
             try (FileOutputStreamPlus out = new FileOutputStreamPlus(file))
@@ -96,13 +93,10 @@ public class ReplayMarkerSerializerTest
                 throw new UncheckedIOException(e);
             }
 
-            Pair<Long, Long> pair = ReplayMarkers.readStartMarker();
-            Assert.assertEquals(timestamp, pair.left);
-        });
+            Assert.assertEquals(timestamp, ReplayMarkers.readStartMarker().left);
 
-        // Stop marker
-        qt().forAll(RandomSource::nextLong).check(timestamp -> {
-            File file = new File(DatabaseDescriptor.getAccordJournalDirectory(), "stopped");
+            // Stop marker
+            file = new File(DatabaseDescriptor.getAccordJournalDirectory(), "stopped");
 
             try (FileOutputStreamPlus out = new FileOutputStreamPlus(file))
             {
@@ -112,9 +106,49 @@ public class ReplayMarkerSerializerTest
             {
                 throw new UncheckedIOException(e);
             }
-
-            Pair<Long, Long> pair = ReplayMarkers.readStopMarker();
-            Assert.assertEquals(timestamp, pair.left);
+            Assert.assertEquals(timestamp, ReplayMarkers.readStopMarker().left);
         });
+    }
+
+    @Test
+    public void prioritizeCRCFile()
+    {
+        if (new File(DatabaseDescriptor.getAccordJournalDirectory()).exists())
+            ServerTestUtils.cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
+
+        // Start marker
+        File file = new File(DatabaseDescriptor.getAccordJournalDirectory(), "started");
+
+        try (FileOutputStreamPlus out = new FileOutputStreamPlus(file))
+        {
+            out.writeBytes(Long.toString(250L));
+        }
+        catch (IOException e)
+        {
+            throw new UncheckedIOException(e);
+        }
+
+        long lastUniqueTimeStamp = AccordTimeService.nowMicros();
+        writeMarker(startMarker(), 250L, lastUniqueTimeStamp);
+        Pair<Long, Long> pair = ReplayMarkers.readStartMarker();
+        Assert.assertEquals(Long.valueOf(250L), pair.left);
+        Assert.assertEquals(lastUniqueTimeStamp, (long) pair.right);
+
+        // Stop marker
+        file = new File(DatabaseDescriptor.getAccordJournalDirectory(), "stopped");
+
+        try (FileOutputStreamPlus out = new FileOutputStreamPlus(file))
+        {
+            out.writeBytes(Long.toString(250L));
+        }
+        catch (IOException e)
+        {
+            throw new UncheckedIOException(e);
+        }
+
+        writeMarker(safeStopMarker(), 250L, lastUniqueTimeStamp);
+        pair = ReplayMarkers.readStopMarker();
+        Assert.assertEquals(Long.valueOf(250L), pair.left);
+        Assert.assertEquals(lastUniqueTimeStamp, (long) pair.right);
     }
 }
