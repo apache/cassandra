@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Set;
 import java.util.function.Function;
 
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -64,9 +65,19 @@ public interface Delta
             }
             else
             {
-                if (!(t instanceof NodeIdDelta))
-                    throw new IllegalStateException("Serialization version is V9 or later, can't serialize endpoint id deltas");
-                NodeIdDelta.serializer.serialize((NodeIdDelta)t, out, version);
+                // We might serialize EndpointDeltas even on V9 when we serve a catchup request and
+                // read back the log - if there are Deltas at V8 in the log, they are reserialized to V9 when
+                // sending them to the requesting peer.
+                if (t instanceof NodeIdDelta)
+                {
+                    out.writeBoolean(true);
+                    NodeIdDelta.serializer.serialize((NodeIdDelta)t, out, version);
+                }
+                else
+                {
+                    out.writeBoolean(false);
+                    EndpointDelta.serializer.serialize((EndpointDelta)t, out, version);
+                }
             }
         }
 
@@ -75,7 +86,11 @@ public interface Delta
         {
             if (version.isBefore(Version.V9))
                 return EndpointDelta.serializer.deserialize(in, version);
-            return NodeIdDelta.serializer.deserialize(in, version);
+
+            if (in.readBoolean())
+                return NodeIdDelta.serializer.deserialize(in, version);
+            else
+                return EndpointDelta.serializer.deserialize(in, version);
         }
 
         @Override
@@ -89,9 +104,12 @@ public interface Delta
             }
             else
             {
-                if (!(t instanceof NodeIdDelta))
-                    throw new IllegalStateException("Serialization version is V9 or later, can't serialize endpoint id deltas");
-                return NodeIdDelta.serializer.serializedSize((NodeIdDelta)t, version);
+                long size = TypeSizes.BOOL_SIZE;
+                if (t instanceof NodeIdDelta)
+                    size += NodeIdDelta.serializer.serializedSize((NodeIdDelta)t, version);
+                else
+                    size += EndpointDelta.serializer.serializedSize((EndpointDelta)t, version);
+                return size;
             }
         }
     }
