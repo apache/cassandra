@@ -591,7 +591,7 @@ public final class TxnUpdate extends AccordUpdate
         this.preserveTimestamps = preserveTimestamps;
     }
 
-    public Keys sortedFragmentKeys(List<PreTransformedBlock> preTransformedBlocks)
+    private static Keys sortedFragmentKeys(List<PreTransformedBlock> preTransformedBlocks)
     {
         List<Key> keys = new ArrayList<>();
 
@@ -609,11 +609,11 @@ public final class TxnUpdate extends AccordUpdate
 
     public static class PreTransformedBlock
     {
-        public TxnCondition[] conditions;
+        private final TxnCondition[] conditions;
         @Nullable
-        public List<Pair<TxnWrite.Fragment, Integer>> fragmentConditionIndexPair;
+        private final List<Pair<TxnWrite.Fragment, Integer>> fragmentConditionIndexPair;
         @Nullable
-        public List<TxnWrite.Fragment> noneConditions;
+        private final List<TxnWrite.Fragment> noneConditions;
 
         public PreTransformedBlock(TxnCondition[] conditions, List<Pair<TxnWrite.Fragment, Integer>> fragmentConditionIndexPair, List<TxnWrite.Fragment> noneConditions)
         {

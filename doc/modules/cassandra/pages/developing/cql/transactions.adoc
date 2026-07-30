@@ -318,12 +318,26 @@ END IF
 IF account_info IS NOT NULL AND account_info.balance > 0 THEN
   -- statements
 END IF
+
+-- IF, ELSE IF, ELSE conditions
+IF account_info IS NOT NULL AND account_info.balance > 0 THEN
+  -- statements
+ELSE IF account_info.balance < 0 THEN
+  -- statements
+ELSE
+  -- statements
+END IF
+
+-- Trailing update after conditions
+IF account_info IS NOT NULL AND account_info.balance > 0 THEN
+  -- statements
+-- statements
+END IF
 ----
 
 **Important Notes:**
 
 * Null handling is strict (any null comparison returns false)
-* All modification statements must be inside the IF block when using conditions
 
 == Restrictions
 
@@ -354,6 +368,11 @@ BEGIN TRANSACTION
   [SELECT selectStatement | SELECT rowDataReferences]
   [IF conditionalExpression THEN]
     [modificationStatements]
+  [ELSE IF conditionalExpression THEN]
+    [modificationStatements]
+  [ELSE]
+    [modificationStatements]
+  [modificationStatements]
   [END IF]
 COMMIT TRANSACTION
 ----
