@@ -50,7 +50,7 @@ public class CMSShutdownTest extends TestBaseImpl
         // This test simulates a CMS node attempting to commit an entry to the log but being unable
         // to obtain consensus from other CMS members while it is also shutting down itself.
         try (Cluster cluster = Cluster.build(2)
-                                      .withConfig(c -> c.with(Feature.values()))
+                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
                                       .withInstanceInitializer(BBHelper::install)
                                       .start())
         {
@@ -67,8 +67,15 @@ public class CMSShutdownTest extends TestBaseImpl
             // latch ensures that every commit will fail as if unable to obtain consensus
             // from other CMS members
             State.latch.countDown();
-            for (; ;)
-                ClusterMetadataService.instance().commit(TriggerSnapshot.instance);
+            try
+            {
+                while (!Thread.currentThread().isInterrupted())
+                    ClusterMetadataService.instance().commit(TriggerSnapshot.instance);
+            }
+            catch (Throwable t)
+            {
+                // Commits fail by design; an interrupt or a stopped processor on shutdown ends them.
+            }
         }
 
         public static void scheduleCommits()
