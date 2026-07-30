@@ -163,7 +163,7 @@ public class PlacementTransitionPlan
                ", toMaximal=" + toMaximal +
                ", toFinal=" + toFinal +
                ", toMerged=" + toMerged +
-               ", compiled=" + (addToWrites == null) +
+               ", compiled=" + (addToWrites != null) +
                '}';
     }
 
