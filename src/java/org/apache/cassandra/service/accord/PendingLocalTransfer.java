@@ -84,27 +84,7 @@ public class PendingLocalTransfer
         if (activated)
             return;
 
-        CoordinatedTransfer coordinatedTransfer = LocalTransfers.instance.coordinating.get(metadata.getImportID());
-        boolean isCoordinator = coordinatedTransfer != null;
-
-        if (metadata.getStreamingEpoch() != executeAtEpoch)
-        {
-            logger.info("{} Failing activation of pending SSTables because streaming epoch {} != importTxn executeAt epoch {}",
-                        logPrefix(), metadata.getStreamingEpoch(), executeAtEpoch);
-
-            if (isCoordinator)
-            {
-                Invariants.require(latch != null);
-                latch.countDown();
-                coordinatedTransfer.importTxnEpochMismatch = true;
-            }
-
-            LocalTransfers.instance().schedulePendingLocalTransferCleanup(planId);
-
-            activated = true;
-            return;
-        }
-
+        Invariants.require(metadata.getStreamingEpoch() == executeAtEpoch);
         long startedActivation = currentTimeMillis();
         logger.info("{} Activating transfer {}, {} ms since pending", logPrefix(), this, startedActivation - createdAt);
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);

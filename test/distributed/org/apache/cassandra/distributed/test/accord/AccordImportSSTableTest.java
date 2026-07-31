@@ -170,10 +170,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
                     Assertions.assertThatThrownBy(() -> cfs.importNewSSTables(paths, true, true, true, true, true, true, true))
                               .isInstanceOf(RuntimeException.class)
                               .hasMessageContaining("Failed adding SSTables on local node; note the import may still have been committed by a recovery coordinator")
-                              .cause()
-                              .isInstanceOf(RuntimeException.class)
-                              .hasMessageContaining("SSTable import failed because of a concurrent topology change; please retry the operation");
-
+                              .cause();
                 });
             }, "importer");
 
@@ -453,7 +450,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
                 cfs.importNewSSTables(Set.of(file), true, true, true, true, true, true, true);
             });
 
-            Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS);
+            Uninterruptibles.sleepUninterruptibly(15, TimeUnit.SECONDS);
 
             assertLocalSelect(cluster, rows -> assertRows(rows, row(1, 1), row(2, 1), row(3, 1)));
             assertSSTableCount(cluster, 1);

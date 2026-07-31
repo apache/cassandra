@@ -535,6 +535,14 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         return importMetadata != null;
     }
 
+    @Override
+    public long getImportStreamingEpoch()
+    {
+        if (importMetadata != null)
+            return importMetadata.streamingEpoch;
+        return -1L;
+    }
+
     public static final ParameterisedVersionedSerializer<TxnRead, TableMetadatasAndKeys, Version> serializer = new ParameterisedVersionedSerializer<>()
     {
         @Override

@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -98,8 +97,6 @@ public class CoordinatedTransfer
 
     final Map<InetAddressAndPort, NodeStreamingMetadata> nodeStreamingContext;
     SingleTransferResult streamResult = SingleTransferResult.Init();
-    // If importTxnEpochMismatch is true, all replicas will deterministically not import the SSTables in the pending directory
-    volatile boolean importTxnEpochMismatch = false;
 
     public CoordinatedTransfer(UUID importID, TableMetadata tableMetadata, Map<InetAddressAndPort, NodeStreamingMetadata> nodeStreamingContext, long streamingEpoch, TokenRange allSSTableRanges)
     {
@@ -120,21 +117,13 @@ public class CoordinatedTransfer
         logger.debug("{} Executing Accord bulk transfer {}", logPrefix(), this);
         LocalTransfers.instance().save(this);
         stream();
-        PendingLocalTransfer pendingLocalTransfer = LocalTransfers.instance().local.get(streamResult.planId);
-        CountDownLatch latch = new CountDownLatch(1);
-        pendingLocalTransfer.registerLatch(latch);
 
         try
         {
             performImportTxn();
-            latch.await();
-            if (importTxnEpochMismatch)
-            {
-                LocalTransfers.instance().scheduleCoordinatedTransferCleanup(this);
-                throw new RuntimeException("SSTable import failed because of a concurrent topology change; please retry the operation");
-            }
+
         }
-        catch (ReadTimeoutException | InterruptedException e)
+        catch (Exception e)
         {
             throw new RuntimeException("SSTable import failed locally; however the operation may still be applied by the recovery coordinator", e);
         }
