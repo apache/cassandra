@@ -116,7 +116,6 @@ public class StandardCompressedChunkReaderTest extends CompressedChunkReaderTest
         }
     }
 
-
     @Test(timeout = 10_000)
     public void scanReaderShouldNotHangOnTruncatedFile() throws Exception
     {
