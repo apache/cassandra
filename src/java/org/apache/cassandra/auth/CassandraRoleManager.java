@@ -45,8 +45,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.commons.lang3.StringUtils;
-import org.mindrot.jbcrypt.BCrypt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -77,7 +75,6 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -86,6 +83,10 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.NoSpamLogger;
 
+import static org.apache.cassandra.auth.AuthUtils.consistencyForRoleRead;
+import static org.apache.cassandra.auth.AuthUtils.consistencyForRoleWrite;
+import static org.apache.cassandra.auth.AuthUtils.escapeCqlLiteral;
+import static org.apache.cassandra.auth.AuthUtils.hashpw;
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
@@ -105,9 +106,6 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
 {
     private static final Logger logger = LoggerFactory.getLogger(CassandraRoleManager.class);
     private static final NoSpamLogger nospamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.MINUTES);
-
-    public static final String DEFAULT_SUPERUSER_NAME = "cassandra";
-    public static final String DEFAULT_SUPERUSER_PASSWORD = "cassandra";
 
     /**
      * Role options which are supported for all authentication mechanisms. IAuthenticator implementations can declare
@@ -131,13 +129,6 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
     static final String PARAM_INVALID_ROLE_DISCONNECT_TASK_MAX_JITTER = "invalid_role_disconnect_task_max_jitter";
 
     public static final String MBEAN_NAME = "org.apache.cassandra.auth:type=CassandraRoleManager";
-
-    /**
-     * We need to treat the default superuser as a special case since during initial node startup, we may end up with
-     * duplicate creation or deletion + re-creation of this user on different nodes unless we check at quorum to see if
-     * it's already been done.
-     */
-    static final ConsistencyLevel DEFAULT_SUPERUSER_CONSISTENCY_LEVEL = ConsistencyLevel.QUORUM;
 
     // Transform a row in the AuthKeyspace.ROLES to a Role instance
     private static final Function<UntypedResultSet.Row, Role> ROW_TO_ROLE = row ->
@@ -217,6 +208,21 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
             MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
     }
 
+    /**
+     * The default role initializer is configured as a top-level {@code default_role_initializer} option and
+     * applied by {@link AuthConfig#applyAuth()}. Returning it here lets the startup logic (see
+     * {@link #setup(boolean)}, {@link #hasExistingRoles()} and {@link #consistencyForRoleWrite(String)}) reach the
+     * configured initializer through the role manager, and lets custom {@link IRoleManager} implementations
+     * override how they integrate it. Falls back to the historical password initializer when auth setup has not
+     * run, e.g. in tests which do not call {@link AuthConfig#applyAuth()}.
+     */
+    @Override
+    public IDefaultRoleInitializer defaultRoleInitializer()
+    {
+        IDefaultRoleInitializer initializer = DatabaseDescriptor.getDefaultRoleInitializer();
+        return initializer == null ? PasswordDefaultRoleInitializer.instance : initializer;
+    }
+
     @Override
     public void setup(boolean asyncRoleSetup)
     {
@@ -228,7 +234,7 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
             try
             {
                 // Try to set up synchronously
-                setupDefaultRole();
+                defaultRoleInitializer().initializeDefaultRoleIfNeeded();
                 return;
             }
             catch (Throwable t)
@@ -237,7 +243,7 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
             }
         }
         scheduleSetupTask(() -> {
-            setupDefaultRole();
+            defaultRoleInitializer().initializeDefaultRoleIfNeeded();
             return null;
         });
     }
@@ -342,14 +348,14 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
                          ? String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) VALUES ('%s', %s, %s, '%s')",
                                          SchemaConstants.AUTH_KEYSPACE_NAME,
                                          AuthKeyspace.ROLES,
-                                         escape(role.getRoleName()),
+                                         escapeCqlLiteral(role.getRoleName()),
                                          options.getSuperuser().orElse(false),
                                          options.getLogin().orElse(false),
-                                         options.getHashedPassword().orElseGet(() -> escape(hashpw(options.getPassword().get()))))
+                                         options.getHashedPassword().orElseGet(() -> escapeCqlLiteral(hashpw(options.getPassword().get()))))
                          : String.format("INSERT INTO %s.%s (role, is_superuser, can_login) VALUES ('%s', %s, %s)",
                                          SchemaConstants.AUTH_KEYSPACE_NAME,
                                          AuthKeyspace.ROLES,
-                                         escape(role.getRoleName()),
+                                         escapeCqlLiteral(role.getRoleName()),
                                          options.getSuperuser().orElse(false),
                                          options.getLogin().orElse(false));
         process(insertCql, consistencyForRoleWrite(role.getRoleName()));
@@ -360,7 +366,7 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
         process(String.format("DELETE FROM %s.%s WHERE role = '%s'",
                               SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.ROLES,
-                              escape(role.getRoleName())),
+                              escapeCqlLiteral(role.getRoleName())),
                 consistencyForRoleWrite(role.getRoleName()));
         removeAllMembers(role.getRoleName());
         removeAllIdentitiesOfRole(role.getRoleName());
@@ -380,7 +386,7 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
                                   SchemaConstants.AUTH_KEYSPACE_NAME,
                                   AuthKeyspace.ROLES,
                                   assignments,
-                                  escape(role.getRoleName())),
+                                  escapeCqlLiteral(role.getRoleName())),
                     consistencyForRoleWrite(role.getRoleName()));
         }
     }
@@ -415,8 +421,8 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
         process(String.format("INSERT INTO %s.%s (role, member) values ('%s', '%s')",
                               SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.ROLE_MEMBERS,
-                              escape(role.getRoleName()),
-                              escape(grantee.getRoleName())),
+                              escapeCqlLiteral(role.getRoleName()),
+                              escapeCqlLiteral(grantee.getRoleName())),
                 consistencyForRoleWrite(role.getRoleName()));
     }
 
@@ -432,8 +438,8 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
         process(String.format("DELETE FROM %s.%s WHERE role = '%s' and member = '%s'",
                               SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.ROLE_MEMBERS,
-                              escape(role.getRoleName()),
-                              escape(revokee.getRoleName())),
+                              escapeCqlLiteral(role.getRoleName()),
+                              escapeCqlLiteral(revokee.getRoleName())),
                 consistencyForRoleWrite(role.getRoleName()));
     }
 
@@ -519,51 +525,10 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
     {
     }
 
-    /*
-     * Create the default superuser role to bootstrap role creation on a clean system. Preemptively
-     * gives the role the default password so PasswordAuthenticator can be used to log in (if
-     * configured)
-     */
-    private static void setupDefaultRole()
-    {
-        if (ClusterMetadata.current().tokenMap.tokens().isEmpty())
-            throw new IllegalStateException("CassandraRoleManager skipped default role setup: no known tokens in ring");
-
-        try
-        {
-            if (!hasExistingRoles())
-            {
-                QueryProcessor.process(createDefaultRoleQuery(),
-                                       consistencyForRoleWrite(DEFAULT_SUPERUSER_NAME));
-                logger.info("Created default superuser role '{}'", DEFAULT_SUPERUSER_NAME);
-            }
-        }
-        catch (RequestExecutionException e)
-        {
-            logger.warn("CassandraRoleManager skipped default role setup: some nodes were not ready");
-            throw e;
-        }
-    }
-
-    @VisibleForTesting
-    public static String createDefaultRoleQuery()
-    {
-        return String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) VALUES ('%s', true, true, '%s') USING TIMESTAMP 0",
-                             SchemaConstants.AUTH_KEYSPACE_NAME,
-                             AuthKeyspace.ROLES,
-                             DEFAULT_SUPERUSER_NAME,
-                             escape(hashpw(DEFAULT_SUPERUSER_PASSWORD)));
-    }
-
     @VisibleForTesting
     public static boolean hasExistingRoles() throws RequestExecutionException
     {
-        // Try looking up the 'cassandra' default role first, to avoid the range query if possible.
-        String defaultSUQuery = String.format("SELECT * FROM %s.%s WHERE role = '%s'", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES, DEFAULT_SUPERUSER_NAME);
-        String allUsersQuery = String.format("SELECT * FROM %s.%s LIMIT 1", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES);
-        return !QueryProcessor.process(defaultSUQuery, ConsistencyLevel.ONE).isEmpty()
-               || !QueryProcessor.process(defaultSUQuery, ConsistencyLevel.QUORUM).isEmpty()
-               || !QueryProcessor.process(allUsersQuery, ConsistencyLevel.QUORUM).isEmpty();
+        return DatabaseDescriptor.getRoleManager().defaultRoleInitializer().hasExistingRoles();
     }
 
     protected void scheduleSetupTask(final Callable<Void> setupTask)
@@ -652,8 +617,8 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
                               SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.ROLES,
                               op,
-                              escape(role),
-                              escape(grantee)),
+                              escapeCqlLiteral(role),
+                              escapeCqlLiteral(grantee)),
                 consistencyForRoleWrite(grantee));
     }
 
@@ -691,7 +656,7 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
         UntypedResultSet rows = process(String.format("SELECT member FROM %s.%s WHERE role = '%s'",
                                                       SchemaConstants.AUTH_KEYSPACE_NAME,
                                                       AuthKeyspace.ROLE_MEMBERS,
-                                                      escape(role)),
+                                                      escapeCqlLiteral(role)),
                                         consistencyForRoleRead(role));
         if (rows.isEmpty())
             return;
@@ -704,7 +669,7 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
         process(String.format("DELETE FROM %s.%s WHERE role = '%s'",
                               SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.ROLE_MEMBERS,
-                              escape(role)),
+                              escapeCqlLiteral(role)),
                 consistencyForRoleWrite(role));
     }
 
@@ -725,7 +690,7 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
                                    case SUPERUSER:
                                        return String.format("is_superuser = %s", entry.getValue());
                                    case PASSWORD:
-                                       return String.format("salted_hash = '%s'", escape(hashpw((String) entry.getValue())));
+                                       return String.format("salted_hash = '%s'", escapeCqlLiteral(hashpw((String) entry.getValue())));
                                    case HASHED_PASSWORD:
                                        return String.format("salted_hash = '%s'", (String) entry.getValue());
                                    default:
@@ -771,34 +736,9 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
         throw new OverloadedException(failure);
     }
 
-    private static String hashpw(String password)
-    {
-        return BCrypt.hashpw(password, PasswordSaltSupplier.get());
-    }
-
-    private static String escape(String name)
-    {
-        return StringUtils.replace(name, "'", "''");
-    }
-
     private static ByteBuffer byteBuf(String str)
     {
         return UTF8Type.instance.decompose(str);
-    }
-
-    /** Allows selective overriding of the consistency level for specific roles. */
-    protected static ConsistencyLevel consistencyForRoleWrite(String role)
-    {
-        return role.equals(DEFAULT_SUPERUSER_NAME) ?
-               DEFAULT_SUPERUSER_CONSISTENCY_LEVEL :
-               CassandraAuthorizer.authWriteConsistencyLevel();
-    }
-
-    protected static ConsistencyLevel consistencyForRoleRead(String role)
-    {
-        return role.equals(DEFAULT_SUPERUSER_NAME) ?
-               DEFAULT_SUPERUSER_CONSISTENCY_LEVEL :
-               CassandraAuthorizer.authReadConsistencyLevel();
     }
 
     /**

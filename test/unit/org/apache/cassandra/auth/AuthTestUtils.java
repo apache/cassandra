@@ -321,7 +321,7 @@ public class AuthTestUtils
 
     public static ClientState getClientState()
     {
-        return getClientState(CassandraRoleManager.DEFAULT_SUPERUSER_NAME);
+        return getClientState(PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME);
     }
 
     public static AuthenticationStatement authWithoutInvalidate(String query, ClientState clientState, Object... args)
@@ -467,6 +467,6 @@ public class AuthTestUtils
     public static void setupSuperUser()
     {
         QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) VALUES ('%s', true, true, '%s')",
-                                                     AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES, CassandraRoleManager.DEFAULT_SUPERUSER_NAME, "xxx"));
+                                                     AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES, PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME, "xxx"));
     }
 }

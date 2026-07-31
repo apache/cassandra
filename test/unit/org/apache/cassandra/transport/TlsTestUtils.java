@@ -50,8 +50,8 @@ import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.utils.tls.CertificateBuilder;
 import org.apache.cassandra.utils.tls.CertificateBundle;
 
-import static org.apache.cassandra.auth.CassandraRoleManager.DEFAULT_SUPERUSER_NAME;
-import static org.apache.cassandra.auth.CassandraRoleManager.DEFAULT_SUPERUSER_PASSWORD;
+import static org.apache.cassandra.auth.PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME;
+import static org.apache.cassandra.auth.PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_PASSWORD;
 
 public class TlsTestUtils
 {

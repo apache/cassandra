@@ -81,7 +81,7 @@ public class AllowAllCIDRAuthorizerTest extends CQLTester
     @Test
     public void testSuperUser()
     {
-        testAccessSucceeds(CassandraRoleManager.DEFAULT_SUPERUSER_NAME, "10.20.30.5");
+        testAccessSucceeds(PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME, "10.20.30.5");
     }
 
     @Test
