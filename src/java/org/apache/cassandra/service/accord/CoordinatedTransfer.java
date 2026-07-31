@@ -119,10 +119,10 @@ public class CoordinatedTransfer
     {
         logger.debug("{} Executing Accord bulk transfer {}", logPrefix(), this);
         LocalTransfers.instance().save(this);
+        stream();
         PendingLocalTransfer pendingLocalTransfer = LocalTransfers.instance().local.get(streamResult.planId);
         CountDownLatch latch = new CountDownLatch(1);
         pendingLocalTransfer.registerLatch(latch);
-        stream();
 
         try
         {
