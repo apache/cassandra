@@ -605,7 +605,10 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
                     TxnNamedRead[] items = deserializeArray(tablesAndKeys, in, version, TxnNamedRead.serializer, TxnNamedRead[]::new);
                     ConsistencyLevel consistencyLevel = deserializeNullable(in, consistencyLevelSerializer);
                     ImportMetadata importMetadata = deserializeNullable(in, version, ImportMetadata.serializer);
-                    return new TxnRead(tablesAndKeys.tables, items, consistencyLevel, importMetadata);
+                    if (items.length == 0)
+                        return new TxnRead(TableMetadatas.none(), Domain.Range, importMetadata);
+                    else
+                        return new TxnRead(tablesAndKeys.tables, items, consistencyLevel, importMetadata);
                 }
             }
         }
