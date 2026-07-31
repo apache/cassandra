@@ -1034,10 +1034,11 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             }
         }
 
+        ResultSet resultSet = result.build();
         ColumnFamilyStore store = cfs();
         if (store != null)
             updatedMetrics(store.metric, restrictions, result.readRowsSize());
-        return result.build();
+        return resultSet;
     }
 
     private void updatedMetrics(TableMetrics metrics, StatementRestrictions restrictions, long rowsSize)

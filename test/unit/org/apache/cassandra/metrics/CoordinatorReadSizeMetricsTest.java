@@ -24,6 +24,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.datastax.driver.core.Cluster;
+import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.codahale.metrics.Histogram;
 import org.apache.cassandra.ServerTestUtils;
@@ -368,6 +369,28 @@ public class CoordinatorReadSizeMetricsTest
         assertCount(cfs.metric.coordinatorRangeReadSize, rangeNoIndex + rangeWithIndex);
         assertCount(cfs.metric.coordinatorRangeReadSizeWithoutIndex, rangeNoIndex);
         assertCount(cfs.metric.coordinatorRangeReadSizeWithIndex, rangeWithIndex);
+    }
+
+    @Test
+    public void testReadSizeMetricsForZeroOneAndMultipleRows()
+    {
+        ColumnFamilyStore cfs = cfs();
+
+        // 0 rows returned
+        session.execute(String.format("SELECT * FROM %s.%s WHERE pk = 999;", KEYSPACE, TABLE)).one();
+        long sizeForZeroRows = cfs.metric.coordinatorReadSize.tableOrKeyspaceHistogram().getSnapshot().getMax();
+        clearMetrics();
+
+        // 1 row returned
+        session.execute(String.format("SELECT * FROM %s.%s WHERE pk = 0;", KEYSPACE, TABLE)).one();
+        long sizeForOneRow = cfs.metric.coordinatorReadSize.tableOrKeyspaceHistogram().getSnapshot().getMax();
+        assertTrue("Expected coordinatorReadSize for 1 row (" + sizeForOneRow + " bytes) to be greater than 0 rows (" + sizeForZeroRows + " bytes)", sizeForOneRow > sizeForZeroRows);
+        clearMetrics();
+
+        // 5 rows returned (all rows in the table)
+        session.execute(String.format("SELECT * FROM %s.%s;", KEYSPACE, TABLE)).one();
+        long sizeForFiveRows = cfs.metric.coordinatorReadSize.tableOrKeyspaceHistogram().getSnapshot().getMax();
+        assertTrue("Expected coordinatorReadSize for 5 rows (" + sizeForFiveRows + " bytes) to be greater than 4x the size of 1 row (" + (sizeForOneRow * 4) + " bytes)", sizeForFiveRows > sizeForOneRow * 4);
     }
 
     private static ColumnFamilyStore cfs()
