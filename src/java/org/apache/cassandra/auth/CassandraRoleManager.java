@@ -139,6 +139,12 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
      */
     static final ConsistencyLevel DEFAULT_SUPERUSER_CONSISTENCY_LEVEL = ConsistencyLevel.QUORUM;
 
+    /**
+     * Used when no default_role_initializer is configured, or when auth setup has not run, e.g. in tests which
+     * do not call {@link AuthConfig#applyAuth()}. Preserves the historical bootstrap behaviour.
+     */
+    private static final IDefaultRoleInitializer DEFAULT_ROLE_INITIALIZER = new PasswordDefaultRoleInitializer();
+
     // Transform a row in the AuthKeyspace.ROLES to a Role instance
     private static final Function<UntypedResultSet.Row, Role> ROW_TO_ROLE = row ->
     {
@@ -533,9 +539,7 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
         {
             if (!hasExistingRoles())
             {
-                QueryProcessor.process(createDefaultRoleQuery(),
-                                       consistencyForRoleWrite(DEFAULT_SUPERUSER_NAME));
-                logger.info("Created default superuser role '{}'", DEFAULT_SUPERUSER_NAME);
+                defaultRoleInitializer().initialize();
             }
         }
         catch (RequestExecutionException e)
@@ -558,11 +562,11 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
     @VisibleForTesting
     public static boolean hasExistingRoles() throws RequestExecutionException
     {
-        // Try looking up the 'cassandra' default role first, to avoid the range query if possible.
-        String defaultSUQuery = String.format("SELECT * FROM %s.%s WHERE role = '%s'", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES, DEFAULT_SUPERUSER_NAME);
+        // Try looking up the configured default role first, to avoid the range query if possible.
+        String defaultRoleQuery = String.format("SELECT * FROM %s.%s WHERE role = '%s'", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES, escape(defaultRoleInitializer().defaultRoleName()));
         String allUsersQuery = String.format("SELECT * FROM %s.%s LIMIT 1", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES);
-        return !QueryProcessor.process(defaultSUQuery, ConsistencyLevel.ONE).isEmpty()
-               || !QueryProcessor.process(defaultSUQuery, ConsistencyLevel.QUORUM).isEmpty()
+        return !QueryProcessor.process(defaultRoleQuery, ConsistencyLevel.ONE).isEmpty()
+               || !QueryProcessor.process(defaultRoleQuery, ConsistencyLevel.QUORUM).isEmpty()
                || !QueryProcessor.process(allUsersQuery, ConsistencyLevel.QUORUM).isEmpty();
     }
 
@@ -771,14 +775,20 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
         throw new OverloadedException(failure);
     }
 
-    private static String hashpw(String password)
+    static String hashpw(String password)
     {
         return BCrypt.hashpw(password, PasswordSaltSupplier.get());
     }
 
-    private static String escape(String name)
+    static String escape(String name)
     {
         return StringUtils.replace(name, "'", "''");
+    }
+
+    private static IDefaultRoleInitializer defaultRoleInitializer()
+    {
+        IDefaultRoleInitializer initializer = DatabaseDescriptor.getDefaultRoleInitializer();
+        return initializer == null ? DEFAULT_ROLE_INITIALIZER : initializer;
     }
 
     private static ByteBuffer byteBuf(String str)
@@ -789,14 +799,14 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
     /** Allows selective overriding of the consistency level for specific roles. */
     protected static ConsistencyLevel consistencyForRoleWrite(String role)
     {
-        return role.equals(DEFAULT_SUPERUSER_NAME) ?
+        return role.equals(defaultRoleInitializer().defaultRoleName()) ?
                DEFAULT_SUPERUSER_CONSISTENCY_LEVEL :
                CassandraAuthorizer.authWriteConsistencyLevel();
     }
 
     protected static ConsistencyLevel consistencyForRoleRead(String role)
     {
-        return role.equals(DEFAULT_SUPERUSER_NAME) ?
+        return role.equals(defaultRoleInitializer().defaultRoleName()) ?
                DEFAULT_SUPERUSER_CONSISTENCY_LEVEL :
                CassandraAuthorizer.authReadConsistencyLevel();
     }

@@ -101,6 +101,9 @@ public final class AuthConfig
 
         DatabaseDescriptor.setRoleManager(roleManager);
 
+        IDefaultRoleInitializer defaultRoleInitializer = authInstantiate(conf.default_role_initializer, IDefaultRoleInitializer.class, PasswordDefaultRoleInitializer.class);
+        DatabaseDescriptor.setDefaultRoleInitializer(defaultRoleInitializer);
+
         // authenticator
 
         IInternodeAuthenticator internodeAuthenticator = authInstantiate(conf.internode_authenticator,
@@ -140,6 +143,7 @@ public final class AuthConfig
         authenticator.validateConfiguration();
         authorizer.validateConfiguration();
         roleManager.validateConfiguration();
+        defaultRoleInitializer.validateConfiguration();
         networkAuthorizer.validateConfiguration();
         cidrAuthorizer.validateConfiguration();
         DatabaseDescriptor.getInternodeAuthenticator().validateConfiguration();

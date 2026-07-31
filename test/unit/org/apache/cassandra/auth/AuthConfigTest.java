@@ -23,6 +23,7 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 
 import org.junit.After;
 import org.junit.Before;
@@ -164,6 +165,29 @@ public class AuthConfigTest
         assertTrue(DatabaseDescriptor.getRoleManager().alterableOptions().containsAll(authenticator.getAlterableRoleOptions()));
     }
 
+    @Test
+    public void testNewInstanceForMutualTlsDefaultRoleInitializer()
+    {
+        Config config = load("cassandra-mtls.yaml");
+        config.default_role_initializer = new ParameterizedClass("org.apache.cassandra.auth.MutualTlsDefaultRoleInitializer",
+                                                                  Map.of("role", "cassandra", "identity", "spiffe1"));
+        DatabaseDescriptor.unsafeDaemonInitialization(()->config);
+
+        assertThat(DatabaseDescriptor.getDefaultRoleInitializer()).isInstanceOf(MutualTlsDefaultRoleInitializer.class);
+        assertThat(DatabaseDescriptor.getDefaultRoleInitializer().defaultRoleName()).isEqualTo("cassandra");
+    }
+
+    @Test
+    public void testMutualTlsDefaultRoleInitializerRejectedWithIncompatibleAuthenticator()
+    {
+        Config config = load("cassandra-passwordauth.yaml");
+        config.default_role_initializer = new ParameterizedClass("org.apache.cassandra.auth.MutualTlsDefaultRoleInitializer",
+                                                                  Map.of("role", "cassandra", "identity", "spiffe1"));
+        assertThatThrownBy(() -> DatabaseDescriptor.unsafeDaemonInitialization(()->config))
+            .isInstanceOf(ConfigurationException.class)
+            .hasMessageContaining("creates a role with no password");
+    }
+
     private static final String PROBE = ClassLoadingTestNonAssignable.class.getName();
 
     private static Config baseConfig()
@@ -206,6 +230,14 @@ public class AuthConfigTest
     {
         Config config = baseConfig();
         config.role_manager = new ParameterizedClass(PROBE, Collections.emptyMap());
+        assertApplyAuthRejectsProbe();
+    }
+
+    @Test
+    public void testDefaultRoleInitializerWrongTypeRejectedWithoutInitializing()
+    {
+        Config config = baseConfig();
+        config.default_role_initializer = new ParameterizedClass(PROBE, Collections.emptyMap());
         assertApplyAuthRejectsProbe();
     }
 
