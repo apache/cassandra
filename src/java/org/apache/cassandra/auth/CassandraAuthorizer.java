@@ -67,6 +67,8 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
+import static org.apache.cassandra.auth.AuthUtils.escapeCqlLiteral;
+
 /**
  * CassandraAuthorizer is an IAuthorizer implementation that keeps
  * user permissions internally in C* using the system_auth.role_permissions
@@ -113,8 +115,8 @@ public class CassandraAuthorizer implements IAuthorizer
     public Set<Permission> grant(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource grantee)
     throws RequestValidationException, RequestExecutionException
     {
-        String roleName = escape(grantee.getRoleName());
-        String resourceName = escape(resource.getName());
+        String roleName = escapeCqlLiteral(grantee.getRoleName());
+        String resourceName = escapeCqlLiteral(resource.getName());
         Set<Permission> existingPermissions = getExistingPermissions(roleName, resourceName, permissions);
         Set<Permission> nonExistingPermissions = Sets.difference(permissions, existingPermissions);
 
@@ -130,8 +132,8 @@ public class CassandraAuthorizer implements IAuthorizer
     public Set<Permission> revoke(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource revokee)
     throws RequestValidationException, RequestExecutionException
     {
-        String roleName = escape(revokee.getRoleName());
-        String resourceName = escape(resource.getName());
+        String roleName = escapeCqlLiteral(revokee.getRoleName());
+        String resourceName = escapeCqlLiteral(resource.getName());
         Set<Permission> existingPermissions = getExistingPermissions(roleName, resourceName, permissions);
 
         if (!existingPermissions.isEmpty())
@@ -155,7 +157,7 @@ public class CassandraAuthorizer implements IAuthorizer
             UntypedResultSet rows = process(String.format("SELECT resource FROM %s.%s WHERE role = '%s'",
                                                           SchemaConstants.AUTH_KEYSPACE_NAME,
                                                           AuthKeyspace.ROLE_PERMISSIONS,
-                                                          escape(revokee.getRoleName())),
+                                                          escapeCqlLiteral(revokee.getRoleName())),
                                             authReadConsistencyLevel());
 
             List<CQLStatement> statements = new ArrayList<>();
@@ -165,8 +167,8 @@ public class CassandraAuthorizer implements IAuthorizer
                     QueryProcessor.getStatement(String.format("DELETE FROM %s.%s WHERE resource = '%s' AND role = '%s'",
                                                               SchemaConstants.AUTH_KEYSPACE_NAME,
                                                               AuthKeyspace.RESOURCE_ROLE_INDEX,
-                                                              escape(row.getString("resource")),
-                                                              escape(revokee.getRoleName())),
+                                                              escapeCqlLiteral(row.getString("resource")),
+                                                              escapeCqlLiteral(revokee.getRoleName())),
                                                 ClientState.forInternalCalls()));
 
             }
@@ -174,7 +176,7 @@ public class CassandraAuthorizer implements IAuthorizer
             statements.add(QueryProcessor.getStatement(String.format("DELETE FROM %s.%s WHERE role = '%s'",
                                                                      SchemaConstants.AUTH_KEYSPACE_NAME,
                                                                      AuthKeyspace.ROLE_PERMISSIONS,
-                                                                     escape(revokee.getRoleName())),
+                                                                     escapeCqlLiteral(revokee.getRoleName())),
                                                        ClientState.forInternalCalls()));
 
             executeLoggedBatch(statements);
@@ -195,7 +197,7 @@ public class CassandraAuthorizer implements IAuthorizer
             UntypedResultSet rows = process(String.format("SELECT role FROM %s.%s WHERE resource = '%s'",
                                                           SchemaConstants.AUTH_KEYSPACE_NAME,
                                                           AuthKeyspace.RESOURCE_ROLE_INDEX,
-                                                          escape(droppedResource.getName())),
+                                                          escapeCqlLiteral(droppedResource.getName())),
                                             authReadConsistencyLevel());
 
             List<CQLStatement> statements = new ArrayList<>();
@@ -204,15 +206,15 @@ public class CassandraAuthorizer implements IAuthorizer
                 statements.add(QueryProcessor.getStatement(String.format("DELETE FROM %s.%s WHERE role = '%s' AND resource = '%s'",
                                                                          SchemaConstants.AUTH_KEYSPACE_NAME,
                                                                          AuthKeyspace.ROLE_PERMISSIONS,
-                                                                         escape(row.getString("role")),
-                                                                         escape(droppedResource.getName())),
+                                                                         escapeCqlLiteral(row.getString("role")),
+                                                                         escapeCqlLiteral(droppedResource.getName())),
                                                            ClientState.forInternalCalls()));
             }
 
             statements.add(QueryProcessor.getStatement(String.format("DELETE FROM %s.%s WHERE resource = '%s'",
                                                                      SchemaConstants.AUTH_KEYSPACE_NAME,
                                                                      AuthKeyspace.RESOURCE_ROLE_INDEX,
-                                                                     escape(droppedResource.getName())),
+                                                                     escapeCqlLiteral(droppedResource.getName())),
                                                       ClientState.forInternalCalls()));
 
             executeLoggedBatch(statements);
@@ -297,8 +299,8 @@ public class CassandraAuthorizer implements IAuthorizer
                               AuthKeyspace.ROLE_PERMISSIONS,
                               op,
                               "'" + StringUtils.join(permissions, "','") + "'",
-                              escape(role.getRoleName()),
-                              escape(resource.getName())),
+                              escapeCqlLiteral(role.getRoleName()),
+                              escapeCqlLiteral(resource.getName())),
                 authWriteConsistencyLevel());
     }
 
@@ -308,8 +310,8 @@ public class CassandraAuthorizer implements IAuthorizer
         process(String.format("DELETE FROM %s.%s WHERE resource = '%s' and role = '%s'",
                               SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.RESOURCE_ROLE_INDEX,
-                              escape(resource.getName()),
-                              escape(role.getRoleName())),
+                              escapeCqlLiteral(resource.getName()),
+                              escapeCqlLiteral(role.getRoleName())),
                 authWriteConsistencyLevel());
     }
 
@@ -319,8 +321,8 @@ public class CassandraAuthorizer implements IAuthorizer
         process(String.format("INSERT INTO %s.%s (resource, role) VALUES ('%s','%s')",
                               SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.RESOURCE_ROLE_INDEX,
-                              escape(resource.getName()),
-                              escape(role.getRoleName())),
+                              escapeCqlLiteral(resource.getName()),
+                              escapeCqlLiteral(role.getRoleName())),
                 authWriteConsistencyLevel());
     }
 
@@ -384,13 +386,13 @@ public class CassandraAuthorizer implements IAuthorizer
         if (resource != null)
         {
             conditions.add("resource = '%s'");
-            vars.add(escape(resource.getName()));
+            vars.add(escapeCqlLiteral(resource.getName()));
         }
 
         if (grantee != null)
         {
             conditions.add(ROLE + " = '%s'");
-            vars.add(escape(grantee.getRoleName()));
+            vars.add(escapeCqlLiteral(grantee.getRoleName()));
         }
 
         String query = "SELECT " + ROLE + ", resource, permissions FROM %s.%s";
@@ -426,12 +428,6 @@ public class CassandraAuthorizer implements IAuthorizer
                                      permissionsTable,
                                      entityname);
         return (SelectStatement) QueryProcessor.getStatement(query, ClientState.forInternalCalls());
-    }
-
-    // We only worry about one character ('). Make sure it's properly escaped.
-    private String escape(String name)
-    {
-        return StringUtils.replace(name, "'", "''");
     }
 
     ResultMessage.Rows select(SelectStatement statement, QueryOptions options)

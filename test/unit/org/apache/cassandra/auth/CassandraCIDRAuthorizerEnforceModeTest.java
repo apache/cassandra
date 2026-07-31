@@ -175,7 +175,7 @@ public class CassandraCIDRAuthorizerEnforceModeTest extends CQLTester
     @Test
     public void testSuperUserAccess()
     {
-        testValidCidrAccess(CassandraRoleManager.DEFAULT_SUPERUSER_NAME, "255.255.255.255");
+        testValidCidrAccess(PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME, "255.255.255.255");
     }
 
     @Test
@@ -293,8 +293,8 @@ public class CassandraCIDRAuthorizerEnforceModeTest extends CQLTester
     @Test
     public void testCidrChecksForSuperUsers()
     {
-        testValidCidrAccess(CassandraRoleManager.DEFAULT_SUPERUSER_NAME, "10.20.30.5");
-        testValidCidrAccess(CassandraRoleManager.DEFAULT_SUPERUSER_NAME, "200.30.40.60");
+        testValidCidrAccess(PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME, "10.20.30.5");
+        testValidCidrAccess(PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME, "200.30.40.60");
 
         Config conf = DatabaseDescriptor.getRawConfig();
         conf.cidr_authorizer = new ParameterizedClass(CassandraCIDRAuthorizer.class.getName(), new HashMap<>());
@@ -304,10 +304,10 @@ public class CassandraCIDRAuthorizerEnforceModeTest extends CQLTester
                                                                    Collections.singletonList(
                                                                    CIDR.getInstance("200.30.40.60/24"))));
         AuthTestUtils.auth("alter role %s with access from cidrs {'cidrGroup1'}",
-                           CassandraRoleManager.DEFAULT_SUPERUSER_NAME);
+                           PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME);
         cidrAuthorizer.getCidrPermissionsCache().invalidate();
 
-        testInvalidCidrAccess(CassandraRoleManager.DEFAULT_SUPERUSER_NAME, "10.20.30.5");
-        testValidCidrAccess(CassandraRoleManager.DEFAULT_SUPERUSER_NAME, "200.30.40.60");
+        testInvalidCidrAccess(PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME, "10.20.30.5");
+        testValidCidrAccess(PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME, "200.30.40.60");
     }
 }

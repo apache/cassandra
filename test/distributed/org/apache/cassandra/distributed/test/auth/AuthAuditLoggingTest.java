@@ -52,8 +52,8 @@ import org.apache.cassandra.utils.tls.CertificateBundle;
 
 import static org.apache.cassandra.audit.AuditLogEntryType.LOGIN_ERROR;
 import static org.apache.cassandra.audit.AuditLogEntryType.LOGIN_SUCCESS;
-import static org.apache.cassandra.auth.CassandraRoleManager.DEFAULT_SUPERUSER_NAME;
-import static org.apache.cassandra.auth.CassandraRoleManager.DEFAULT_SUPERUSER_PASSWORD;
+import static org.apache.cassandra.auth.PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME;
+import static org.apache.cassandra.auth.PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_PASSWORD;
 import static org.apache.cassandra.transport.TlsTestUtils.SERVER_KEYSTORE_PASSWORD;
 import static org.apache.cassandra.transport.TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD;
 import static org.apache.cassandra.transport.TlsTestUtils.configureIdentity;

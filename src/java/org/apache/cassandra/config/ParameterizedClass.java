@@ -22,6 +22,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -30,6 +32,7 @@ import com.google.common.base.Objects;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.Shared;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 @Shared(scope = SIMULATION)
@@ -168,6 +171,23 @@ public class ParameterizedClass
     @Override
     public String toString()
     {
-        return class_name + parameters;
+        if (parameters == null)
+        {
+            return class_name + "{}";
+        }
+        else
+        {
+            Map<String, String> sanitizedMap = new TreeMap<>();
+            for (Entry<String, String> entry : parameters.entrySet())
+                sanitizedMap.put(entry.getKey(), isSensitive(entry.getKey()) ? "<REDACTED>" : entry.getValue());
+            return class_name + sanitizedMap;
+        }
+    }
+
+    protected boolean isSensitive(String key)
+    {
+        String lowerCaseKey = toLowerCaseLocalized(key);
+        return lowerCaseKey.contains("password")
+               || lowerCaseKey.contains("hash");
     }
 }

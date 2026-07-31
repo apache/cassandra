@@ -23,6 +23,7 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 
 import org.junit.After;
 import org.junit.Before;
@@ -162,6 +163,70 @@ public class AuthConfigTest
         assertTrue(DatabaseDescriptor.getRoleManager().supportedOptions().containsAll(authenticator.getSupportedRoleOptions()));
         assertTrue(DatabaseDescriptor.getRoleManager().alterableOptions().containsAll(CassandraRoleManager.DEFAULT_ALTERABLE_ROLE_OPTIONS));
         assertTrue(DatabaseDescriptor.getRoleManager().alterableOptions().containsAll(authenticator.getAlterableRoleOptions()));
+    }
+
+    private static ParameterizedClass mutualTlsDefaultRoleInitializer()
+    {
+        return new ParameterizedClass(MutualTlsDefaultRoleInitializer.class.getName(),
+                                      Map.of(MutualTlsDefaultRoleInitializer.ROLE, "cassandra",
+                                             MutualTlsDefaultRoleInitializer.IDENTITY, "spiffe1"));
+    }
+
+    @Test
+    public void testNewInstanceForMutualTlsDefaultRoleInitializer()
+    {
+        Config config = load("cassandra-mtls.yaml");
+        config.default_role_initializer = mutualTlsDefaultRoleInitializer();
+        DatabaseDescriptor.unsafeDaemonInitialization(()->config);
+
+        assertThat(DatabaseDescriptor.getRoleManager().defaultRoleInitializer()).isInstanceOf(MutualTlsDefaultRoleInitializer.class);
+        assertThat(DatabaseDescriptor.getRoleManager().defaultRoleInitializer().defaultRoleName()).isEqualTo("cassandra");
+    }
+
+    @Test
+    public void testMutualTlsDefaultRoleInitializerRejectedWithIncompatibleAuthenticator()
+    {
+        Config config = load("cassandra-passwordauth.yaml");
+        config.default_role_initializer = mutualTlsDefaultRoleInitializer();
+        assertThatThrownBy(() -> DatabaseDescriptor.unsafeDaemonInitialization(()->config))
+            .isInstanceOf(ConfigurationException.class)
+            .hasMessageContaining("creates a role with no password");
+    }
+
+    @Test
+    public void testDefaultRoleInitializerSupportEnforcedOnlyWhenExplicitlyConfigured()
+    {
+        baseConfig();
+        IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
+        assertNotNull(roleManager);
+        ParameterizedClass configured = new ParameterizedClass("SomeInitializer", Collections.emptyMap());
+
+        // Explicitly configured + unsupported role manager -> rejected (the guard is still active).
+        assertThatThrownBy(() -> AuthConfig.validateDefaultRoleInitializerSupportsRoleManager(configured, new FixedSupportInitializer(false), roleManager))
+            .isInstanceOf(ConfigurationException.class)
+            .hasMessageContaining("does not support");
+
+        AuthConfig.validateDefaultRoleInitializerSupportsRoleManager(null, new FixedSupportInitializer(false), roleManager);
+
+        AuthConfig.validateDefaultRoleInitializerSupportsRoleManager(configured, new FixedSupportInitializer(true), roleManager);
+    }
+
+    /** IDefaultRoleInitializer whose role-manager support is fixed at construction, for exercising the guard. */
+    private static class FixedSupportInitializer implements IDefaultRoleInitializer
+    {
+        private final boolean supports;
+
+        FixedSupportInitializer(boolean supports)
+        {
+            this.supports = supports;
+        }
+
+        public void createDefaultRole() {}
+        public String defaultRoleName() { return "test"; }
+        public void validateConfiguration() {}
+        public void initializeDefaultRoleIfNeeded() {}
+        public boolean hasExistingRoles() { return false; }
+        public boolean supportsRoleManager(IRoleManager manager) { return supports; }
     }
 
     private static final String PROBE = ClassLoadingTestNonAssignable.class.getName();

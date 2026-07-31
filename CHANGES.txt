@@ -1,4 +1,5 @@
 7.0
+ * Support pluggable default role initialization (CASSANDRA-21546)
  * Add prepared statement cache stats to nodetool info (CASSANDRA-14366)
  * Don't increment client metrics on messaging service connection unpause (CASSANDRA-21491)
  * Add nodetool getreplicas (CASSANDRA-17665)
