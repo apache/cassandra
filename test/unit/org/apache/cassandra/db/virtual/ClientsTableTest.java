@@ -56,6 +56,7 @@ public class ClientsTableTest extends CQLTester
     public void testSelectAll() throws Throwable
     {
         ResultSet result = executeNet("SELECT * FROM vts.clients");
+        assertThat(result.getColumnDefinitions().size()).isEqualTo(13);
         
         for (Row r : result)
         {
@@ -65,7 +66,6 @@ public class ClientsTableTest extends CQLTester
             Assert.assertNotNull(r.getMap("client_options", String.class, String.class));
             Assert.assertTrue(r.getLong("request_count") > 0 );
             // the following are questionable if they belong here
-            Assert.assertEquals("localhost", r.getString("hostname"));
             Assertions.assertThat(r.getMap("client_options", String.class, String.class))
                       .hasEntrySatisfying("DRIVER_VERSION", value -> assertThat(value.contains(r.getString("driver_name"))))
                       .hasEntrySatisfying("DRIVER_VERSION", value -> assertThat(value.contains(r.getString("driver_version"))));

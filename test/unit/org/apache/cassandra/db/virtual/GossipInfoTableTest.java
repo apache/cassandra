@@ -77,13 +77,12 @@ public class GossipInfoTableTest extends CQLTester
 
             assertThat(resultSet.size()).isEqualTo(1);
             UntypedResultSet.Row row = resultSet.one();
-            assertThat(row.getColumns().size()).isEqualTo(66);
+            assertThat(row.getColumns().size()).isEqualTo(65);
 
             assertThat(endpoint).isNotNull();
             assertThat(localState).isNotNull();
             assertThat(row.getInetAddress("address")).isEqualTo(endpoint.getAddress());
             assertThat(row.getInt("port")).isEqualTo(endpoint.getPort());
-            assertThat(row.getString("hostname")).isEqualTo(endpoint.getHostName());
             assertThat(row.getInt("generation")).isEqualTo(localState.getHeartBeatState().getGeneration());
             assertThat(row.getInt("heartbeat")).isNotNull();
 
