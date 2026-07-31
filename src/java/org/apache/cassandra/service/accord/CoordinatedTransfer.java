@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -118,22 +119,22 @@ public class CoordinatedTransfer
     {
         logger.debug("{} Executing Accord bulk transfer {}", logPrefix(), this);
         LocalTransfers.instance().save(this);
-
+        PendingLocalTransfer pendingLocalTransfer = LocalTransfers.instance().local.get(streamResult.planId);
+        CountDownLatch latch = new CountDownLatch(1);
+        pendingLocalTransfer.registerLatch(latch);
         stream();
 
         try
         {
             performImportTxn();
+            latch.await();
             if (importTxnEpochMismatch)
             {
                 LocalTransfers.instance().scheduleCoordinatedTransferCleanup(this);
                 throw new RuntimeException("SSTable import failed because of a concurrent topology change; please retry the operation");
             }
-
-            Invariants.require(LocalTransfers.instance.local.get(streamResult.planId()) == null);
-            LocalTransfers.instance().scheduleCoordinatedTransferCleanup(this);
         }
-        catch (ReadTimeoutException e)
+        catch (ReadTimeoutException | InterruptedException e)
         {
             throw new RuntimeException("SSTable import failed locally; however the operation may still be applied by the recovery coordinator", e);
         }

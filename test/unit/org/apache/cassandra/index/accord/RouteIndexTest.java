@@ -712,7 +712,7 @@ public class RouteIndexTest extends CQLTester
                        .getColumnFamilyStore(AccordKeyspace.JOURNAL);
     }
 
-    private static Gen<TokenRange> rangeGen(RandomSource rand, List<TableId> tables)
+    public static Gen<TokenRange> rangeGen(RandomSource rand, List<TableId> tables)
     {
         Gen.IntGen tokenGen = TOKEN_DISTRIBUTION.next(rand);
         Gen<TableId> tableIdGen = Gens.mixedDistribution(tables).next(rand);

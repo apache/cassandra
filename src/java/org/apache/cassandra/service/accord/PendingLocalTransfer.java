@@ -21,12 +21,17 @@ package org.apache.cassandra.service.accord;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
+
+import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import accord.utils.Invariants;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -52,6 +57,7 @@ public class PendingLocalTransfer
     final Collection<SSTableReader> sstables;
     final long createdAt = currentTimeMillis();
     transient String keyspace;
+    @Nullable CountDownLatch latch;
 
     volatile boolean activated = false;
 
@@ -62,6 +68,12 @@ public class PendingLocalTransfer
         this.planId = planId;
         this.sstables = sstables;
         this.keyspace = Objects.requireNonNull(ColumnFamilyStore.getIfExists(tableId)).keyspace.getName();
+    }
+
+    // We maintain the invariant that only the coordinator registers the latch
+    public synchronized void registerLatch(CountDownLatch latch)
+    {
+        this.latch = latch;
     }
 
     /**
@@ -81,7 +93,11 @@ public class PendingLocalTransfer
                         logPrefix(), metadata.getStreamingEpoch(), executeAtEpoch);
 
             if (isCoordinator)
+            {
+                Invariants.require(latch != null);
+                latch.countDown();
                 coordinatedTransfer.importTxnEpochMismatch = true;
+            }
 
             LocalTransfers.instance().schedulePendingLocalTransferCleanup(planId);
 

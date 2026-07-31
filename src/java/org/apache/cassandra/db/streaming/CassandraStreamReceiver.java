@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.primitives.Ranges;
 import accord.primitives.TxnId;
+import accord.utils.Invariants;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -245,6 +246,7 @@ public class CassandraStreamReceiver implements StreamReceiver
         {
             if (requiresWritePath)
             {
+                Invariants.require(session.streamOperation() != StreamOperation.ACCORD_SSTABLE_IMPORT);
                 sendThroughWritePath(cfs, readers);
             }
             else
