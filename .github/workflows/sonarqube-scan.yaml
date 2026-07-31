@@ -1,0 +1,143 @@
+name: SonarQube Code Quality Scan
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to scan (default: main)'
+        required: false
+        default: 'main'
+        type: string
+      debug:
+        description: 'Enable debug output (Sonar verbose)'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: sonarqube-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  sonar-analysis:
+    runs-on: ubuntu-latest
+    name: SonarQube Analysis
+    env:
+      SONAR_HOST: https://sonarqube-prod.whitewater.ibm.com
+      SONAR_DASHBOARD_HOST: https://sonarqube-prod.apps.wdc-sonarqube-prod.core.cirrus.ibm.com
+      SONAR_PROJECT_KEY: 544478-247111689
+      SONAR_PROJECT_NAME: datastax/cassandra
+    steps:
+      - name: Set target branch
+        id: set-branch
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "branch=${{ inputs.branch }}" >> $GITHUB_OUTPUT
+          else
+            echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ steps.set-branch.outputs.branch }}
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+
+      - name: Cache Ant dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.ant
+            lib
+          key: ant-${{ hashFiles('build.xml') }}
+          restore-keys: ant-
+
+      - name: Build Cassandra
+        run: |
+          echo "Building Cassandra..."
+          ant clean jar
+          echo "Build completed"
+
+      - name: Check SonarQube server availability
+        id: health-check
+        continue-on-error: true
+        run: |
+          echo "Checking SonarQube server health..."
+          response=$(curl -s -o /dev/null -w "%{http_code}" $SONAR_HOST/api/system/status 2>&1)
+          echo "Server response code: $response"
+          if [[ "$response" == "200" ]]; then
+            echo "server_available=true" >> $GITHUB_OUTPUT
+          else
+            echo "server_available=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install SonarQube Scanner
+        run: |
+          echo "Installing SonarQube Scanner CLI..."
+          wget -q https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-8.1.0.6389-linux-x64.zip
+          unzip -q sonar-scanner-cli-8.1.0.6389-linux-x64.zip
+          echo "$(pwd)/sonar-scanner-8.1.0.6389-linux-x64/bin" >> $GITHUB_PATH
+
+      - name: Run SonarQube analysis
+        id: sonar-scan
+        env:
+          SONAR_TOKEN: ${{ secrets.IBM_SONARQUBE_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEBUG_MODE: ${{ inputs.debug }}
+        run: |
+          chmod +x .github/scripts/run_sonar_analysis.sh
+          .github/scripts/run_sonar_analysis.sh
+
+      - name: Publish analysis summary
+        if: always()
+        run: |
+          echo "## SonarQube Analysis Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ steps.sonar-scan.outputs.result }}" == "success" ]]; then
+            echo "[OK] **Status**: Analysis completed successfully" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ steps.sonar-scan.outputs.result }}" == "quality_gate_failed" ]]; then
+            echo "[WARN] **Status**: Quality Gate Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**This is a code quality issue, not an infrastructure problem.**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Next steps:**" >> $GITHUB_STEP_SUMMARY
+            echo "1. Click the dashboard link below to see which quality conditions failed" >> $GITHUB_STEP_SUMMARY
+            echo "2. Common issues: low test coverage, code smells, bugs, security hotspots, duplicated code" >> $GITHUB_STEP_SUMMARY
+            echo "3. Fix the code quality issues and push again" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "[ERROR] **Status**: Analysis failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch**: \`${{ steps.set-branch.outputs.branch }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Run ID**: ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ steps.health-check.outputs.server_available }}" == "false" ]]; then
+            echo "[WARN] **Warning**: SonarQube server health check failed before analysis" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "### Links" >> $GITHUB_STEP_SUMMARY
+
+          # Use extracted dashboard URL if available, otherwise construct it
+          DASHBOARD_URL="${{ steps.sonar-scan.outputs.dashboard_url }}"
+          if [[ -n "$DASHBOARD_URL" ]]; then
+            echo "- [SonarQube Dashboard]($DASHBOARD_URL)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- [SonarQube Dashboard]($SONAR_DASHBOARD_HOST/dashboard?id=$SONAR_PROJECT_KEY&branch=${{ steps.set-branch.outputs.branch }})" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "- [Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Fail job if analysis failed
+        if: steps.sonar-scan.outputs.result != 'success'
+        run: exit 1
