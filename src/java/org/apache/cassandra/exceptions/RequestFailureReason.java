@@ -35,7 +35,8 @@ public enum RequestFailureReason
     UNKNOWN                  (0),
     READ_TOO_MANY_TOMBSTONES (1),
     TIMEOUT                  (2),
-    INCOMPATIBLE_SCHEMA      (3);
+    INCOMPATIBLE_SCHEMA      (3),
+    TRUNCATE_FAILED          (12);
 
     public static final Serializer serializer = new Serializer();
 
@@ -74,7 +75,7 @@ public enum RequestFailureReason
             throw new IllegalArgumentException("RequestFailureReason code must be non-negative (got " + code + ')');
 
         // be forgiving and return UNKNOWN if we aren't aware of the code - for forward compatibility
-        return code < codeToReasonMap.length ? codeToReasonMap[code] : UNKNOWN;
+        return code < codeToReasonMap.length && codeToReasonMap[code] != null ? codeToReasonMap[code] : UNKNOWN;
     }
 
     public static RequestFailureReason forException(Throwable t)
@@ -84,6 +85,9 @@ public enum RequestFailureReason
 
         if (t instanceof IncompatibleSchemaException)
             return INCOMPATIBLE_SCHEMA;
+
+        if (t instanceof TruncateException)
+            return TRUNCATE_FAILED;
 
         return UNKNOWN;
     }
