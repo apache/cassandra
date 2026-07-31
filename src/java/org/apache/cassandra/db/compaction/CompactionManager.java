@@ -942,7 +942,7 @@ public class CompactionManager implements CompactionManagerMBean
         // for ourselves to finish/acknowledge cancellation before continuing.
         CompactionTasks tasks = cfStore.getCompactionStrategyManager().getMaximalTasks(gcBefore, splitOutput);
 
-        if (tasks.isEmpty())
+        if (tasks == null || tasks.isEmpty())
             return Collections.emptyList();
 
         List<Future<?>> futures = new ArrayList<>();
@@ -998,6 +998,9 @@ public class CompactionManager implements CompactionManagerMBean
                                                                         false,
                                                                         false))
         {
+            if (tasks == null)
+                throw new RuntimeException("Unable to cancel in-progress compactions for " + cfStore.keyspace.getName() + '.' + cfStore.getTableName() + ". Usually retrying will work.");
+
             if (tasks.isEmpty())
                 return;
 

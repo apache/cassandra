@@ -90,6 +90,7 @@ import org.apache.cassandra.utils.concurrent.Refs;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+import org.apache.cassandra.exceptions.TruncateException;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
@@ -1553,7 +1554,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (!isIndex() || !SecondaryIndexManager.isIndexColumnFamilyStore(this))
             return false;
 
-        truncateBlocking();
+        try
+        {
+            truncateBlocking();
+        }
+        catch (TruncateException e)
+        {
+            logger.warn("Unable to truncate {} to rebuild index after scrub failure", name, e);
+            return false;
+        }
 
         logger.warn("Rebuilding index for {} because of <{}>", name, failure.getMessage());
 
@@ -1664,8 +1673,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 UUID session = sst.getPendingRepair();
                 return session != null && sessions.contains(session);
             };
-            return runWithCompactionsDisabled(() -> compactionStrategyManager.releaseRepairData(sessions),
-                                              predicate, false, true, true);
+            CleanupSummary summary = runWithCompactionsDisabled(() -> compactionStrategyManager.releaseRepairData(sessions),
+                                                                predicate, false, true, true);
+            if (summary == null)
+            {
+                logger.warn("Unable to cancel in-progress compactions for {}.{}, could not force release repair data for sessions {}",
+                            keyspace.getName(), name, sessions);
+                return new CleanupSummary(this, Collections.emptySet(), new HashSet<>(sessions));
+            }
+            return summary;
         }
         else
         {
@@ -2328,39 +2344,58 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             for (SSTableReader sstable : cfs.getLiveSSTables())
                 now = Math.max(now, sstable.maxDataAge);
         truncatedAt = now;
-
-        Runnable truncateRunnable = new Runnable()
+        Throwable failure = null;
+        try
         {
-            public void run()
-            {
-                logger.info("Truncating {}.{} with truncatedAt={}", keyspace.getName(), getTableName(), truncatedAt);
-                // since truncation can happen at different times on different nodes, we need to make sure
-                // that any repairs are aborted, otherwise we might clear the data on one node and then
-                // stream in data that is actually supposed to have been deleted
-                ActiveRepairService.instance.abort((prs) -> prs.getTableIds().contains(metadata.id),
-                                                   "Stopping parent sessions {} due to truncation of tableId="+metadata.id);
-                data.notifyTruncated(truncatedAt);
+            Boolean succeeded = runWithCompactionsDisabled(() -> runTruncate(truncatedAt, noSnapshot, replayAfter),
+                                                             true, true);
+            // null means compactions couldn't be disabled, not failure of the truncate work itself
+            if (succeeded == null)
+                failure = new TruncateException("Unable to stop in-progress compactions. Please retry when current compaction tasks have completed or overall system load has decreased.");
+            else if (!succeeded)
+                failure = new TruncateException("Truncate failed.");
+        }
+        catch (Throwable t)
+        {
+            failure = t;
+        }
 
-            if (!noSnapshot && DatabaseDescriptor.isAutoSnapshot())
-                snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, SNAPSHOT_TRUNCATE_PREFIX));
+        try
+        {
+            viewManager.build();
+        }
+        catch (Throwable t)
+        {
+            failure = merge(failure, t);
+        }
 
-            discardSSTables(truncatedAt);
-
-            indexManager.truncateAllIndexesBlocking(truncatedAt);
-            viewManager.truncateBlocking(replayAfter, truncatedAt);
-
-                SystemKeyspace.saveTruncationRecord(ColumnFamilyStore.this, truncatedAt, replayAfter);
-                logger.trace("cleaning out row cache");
-                invalidateCaches();
-
-            }
-        };
-
-        runWithCompactionsDisabled(Executors.callable(truncateRunnable), true, true);
-
-        viewManager.build();
+        maybeFail(failure);
 
         logger.info("Truncate of {}.{} is complete", keyspace.getName(), name);
+    }
+
+    private boolean runTruncate(long truncatedAt, boolean noSnapshot, CommitLogPosition replayAfter)
+    {
+        logger.info("Truncating {}.{} with truncatedAt={}", keyspace.getName(), getTableName(), truncatedAt);
+        // since truncation can happen at different times on different nodes, we need to make sure
+        // that any repairs are aborted, otherwise we might clear the data on one node and then
+        // stream in data that is actually supposed to have been deleted
+        ActiveRepairService.instance.abort((prs) -> prs.getTableIds().contains(metadata.id),
+                                           "Stopping parent sessions {} due to truncation of tableId="+metadata.id);
+        data.notifyTruncated(truncatedAt);
+
+        if (!noSnapshot && DatabaseDescriptor.isAutoSnapshot())
+            snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, SNAPSHOT_TRUNCATE_PREFIX));
+
+        discardSSTables(truncatedAt);
+
+        indexManager.truncateAllIndexesBlocking(truncatedAt);
+        viewManager.truncateBlocking(replayAfter, truncatedAt);
+
+        SystemKeyspace.saveTruncationRecord(ColumnFamilyStore.this, truncatedAt, replayAfter);
+        logger.trace("cleaning out row cache");
+        invalidateCaches();
+        return true;
     }
 
     /**
