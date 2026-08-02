@@ -167,6 +167,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
 
         File on = FileUtils.createTempFile("trickleFsyncOn", "1");
         File onOffsets = new File(on.path() + ".metadata");
+        // The interval counts uncompressed input bytes, so chunk*20 written past a chunk*4 interval must sync.
         SequentialWriterOption enabled = SequentialWriterOption.newBuilder()
                                                                .trickleFsync(true)
                                                                .trickleFsyncByteInterval(chunk * 4)
@@ -182,6 +183,13 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
             on.tryDelete();
             onOffsets.tryDelete();
         }
+    }
+
+    @Test
+    public void testTrickleFsyncDoesNotFireWhenDisabled() throws IOException
+    {
+        int chunk = 4096;
+        MetadataCollector collector = new MetadataCollector(new ClusteringComparator(UTF8Type.instance));
 
         File off = FileUtils.createTempFile("trickleFsyncOff", "1");
         File offOffsets = new File(off.path() + ".metadata");
