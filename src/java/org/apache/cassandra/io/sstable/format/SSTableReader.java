@@ -58,10 +58,13 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -820,7 +823,23 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     public PartitionPositionBounds getPositionsForFullRange()
     {
         if (openReason != OpenReason.MOVED_START)
-            return new PartitionPositionBounds(0, uncompressedLength());
+        {
+            // Data.db does not always begin with a partition. An sstable assembled by copying a chunk-aligned
+            // byte range out of a larger one -- what ZeroCopySSTableSplitter produces, because compression chunk
+            // boundaries are pinned to multiples of chunkLength -- carries a DEAD PREFIX in front of its first
+            // indexed partition. Those bytes are real partitions of the file it was cut from, but they are not
+            // this sstable's; nothing indexes them and nothing may read them.
+            //
+            // Every other reader enters Data.db at a position taken from the index, so they are all unaffected.
+            // This method is the exception, and SSTableSimpleScanner walks linearly from whatever it returns, so
+            // starting at 0 would silently yield partitions that belong to no key in this sstable's index. Start
+            // at the first position the index actually points at instead.
+            //
+            // For the overwhelmingly common case of an sstable written by a compaction or a flush this is one
+            // index lookup that returns 0, paid once per scanner rather than per partition.
+            long first = getFirst() == null ? 0 : getPosition(getFirst(), Operator.EQ);
+            return new PartitionPositionBounds(Math.max(first, 0), uncompressedLength());
+        }
         else
         {
             // query a full range, so that the required adjustments can be applied
@@ -1084,11 +1103,40 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     public ISSTableScanner getScanner(DiskAccessMode diskAccessMode)
     {
+        // SSTableSimpleScanner walks Data.db linearly and never consults the index, which is only sound when
+        // every byte between the first partition and dataLength belongs to an indexed partition. That does not
+        // hold for an sstable assembled from copied compression chunks: it carries whichever partitions shared a
+        // copied chunk, and those are deliberately not indexed. Read those through the index instead.
+        if (hasUnindexedRegions())
+        {
+            UnfilteredPartitionIterator indexDriven = partitionIterator(ColumnFilter.all(metadata()),
+                                                                        DataRange.allData(getPartitioner()),
+                                                                        SSTableReadsListener.NOOP_LISTENER);
+            if (indexDriven instanceof ISSTableScanner)
+                return (ISSTableScanner) indexDriven;
+
+            // Only the BIG-format zero-copy paths can set the marker today, and BigTableReader's partition
+            // iterator is an ISSTableScanner. Refuse loudly rather than fall through to the linear scanner,
+            // which would quietly hand back partitions this sstable does not claim.
+            indexDriven.close();
+            throw new UnsupportedOperationException(descriptor.getFormat().name() + " cannot scan " + descriptor +
+                                                    ", which has unindexed regions, through its index");
+        }
+
         PartitionPositionBounds fullRange = getPositionsForFullRange();
         if (fullRange != null)
             return new SSTableSimpleScanner(this, Collections.singletonList(fullRange), diskAccessMode);
         else
             return new SSTableSimpleScanner(this, Collections.emptyList(), diskAccessMode);
+    }
+
+    /**
+     * Whether this sstable's Data.db holds partitions its index does not describe, so that it may only be read
+     * through the index. See {@link StatsMetadata#hasUnindexedRegions}.
+     */
+    public boolean hasUnindexedRegions()
+    {
+        return getSSTableMetadata().hasUnindexedRegions;
     }
 
     /**

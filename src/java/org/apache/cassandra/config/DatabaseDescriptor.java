@@ -4664,6 +4664,39 @@ public class DatabaseDescriptor
         return conf.stream_entire_sstables = value;
     }
 
+    /**
+     * @see Config#zero_copy_partial_stream_enabled -- note that a receiving node needs the scrubber and verifier
+     * seeks that accept an sstable whose first partition is not at position 0.
+     */
+    public static boolean getZeroCopyPartialStreamEnabled()
+    {
+        return conf.zero_copy_partial_stream_enabled;
+    }
+
+    public static void setZeroCopyPartialStreamEnabled(boolean enabled)
+    {
+        if (enabled != conf.zero_copy_partial_stream_enabled)
+            logger.info("Changing zero_copy_partial_stream_enabled from {} to {}", conf.zero_copy_partial_stream_enabled, enabled);
+        conf.zero_copy_partial_stream_enabled = enabled;
+    }
+
+    /** @see Config#zero_copy_partial_stream_max_dead_space_ratio */
+    public static double getZeroCopyPartialStreamMaxDeadSpaceRatio()
+    {
+        return conf.zero_copy_partial_stream_max_dead_space_ratio;
+    }
+
+    public static void setZeroCopyPartialStreamMaxDeadSpaceRatio(double ratio)
+    {
+        if (Double.isNaN(ratio) || ratio < 0.0 || ratio > 1.0)
+            throw new IllegalArgumentException("zero_copy_partial_stream_max_dead_space_ratio must be in [0.0, 1.0]," +
+                                               " got " + ratio);
+        if (ratio != conf.zero_copy_partial_stream_max_dead_space_ratio)
+            logger.info("Changing zero_copy_partial_stream_max_dead_space_ratio from {} to {}",
+                        conf.zero_copy_partial_stream_max_dead_space_ratio, ratio);
+        conf.zero_copy_partial_stream_max_dead_space_ratio = ratio;
+    }
+
     public static DurationSpec.LongMillisecondsBound getStreamTransferTaskTimeout()
     {
         return conf.stream_transfer_task_timeout;
@@ -5385,6 +5418,54 @@ public class DatabaseDescriptor
     public static boolean getAutocompactionOnStartupEnabled()
     {
         return conf.autocompaction_on_startup_enabled;
+    }
+
+    /**
+     * @see Config#zero_copy_anticompaction_enabled -- note that enabling this means anticompaction no longer purges
+     * tombstones for the sstables it handles (retention only, never data loss).
+     */
+    public static boolean getZeroCopyAnticompactionEnabled()
+    {
+        return conf.zero_copy_anticompaction_enabled;
+    }
+
+    public static void setZeroCopyAnticompactionEnabled(boolean enabled)
+    {
+        if (enabled != conf.zero_copy_anticompaction_enabled)
+            logger.info("Changing zero_copy_anticompaction_enabled from {} to {}", conf.zero_copy_anticompaction_enabled, enabled);
+        conf.zero_copy_anticompaction_enabled = enabled;
+    }
+
+    /**
+     * @see Config#zero_copy_split_reflink_enabled -- filesystem support is discovered by trying, so this being true
+     * does not mean any extent will actually be shared.
+     */
+    public static boolean getZeroCopySplitReflinkEnabled()
+    {
+        return conf.zero_copy_split_reflink_enabled;
+    }
+
+    public static void setZeroCopySplitReflinkEnabled(boolean enabled)
+    {
+        if (enabled != conf.zero_copy_split_reflink_enabled)
+            logger.info("Changing zero_copy_split_reflink_enabled from {} to {}", conf.zero_copy_split_reflink_enabled, enabled);
+        conf.zero_copy_split_reflink_enabled = enabled;
+    }
+
+    /**
+     * @see Config#zero_copy_split_digest_enabled -- turning this off makes {@code nodetool verify} and
+     * {@code nodetool import --verify-sstables} fall back to a full extended verification for the children.
+     */
+    public static boolean getZeroCopySplitDigestEnabled()
+    {
+        return conf.zero_copy_split_digest_enabled;
+    }
+
+    public static void setZeroCopySplitDigestEnabled(boolean enabled)
+    {
+        if (enabled != conf.zero_copy_split_digest_enabled)
+            logger.info("Changing zero_copy_split_digest_enabled from {} to {}", conf.zero_copy_split_digest_enabled, enabled);
+        conf.zero_copy_split_digest_enabled = enabled;
     }
 
     public static boolean autoOptimiseIncRepairStreams()

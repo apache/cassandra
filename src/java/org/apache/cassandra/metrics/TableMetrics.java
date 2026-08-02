@@ -232,6 +232,13 @@ public class TableMetrics
     public final TableMeter bytesAnticompacted;
     /** number of bytes where the whole sstable was contained in a repairing range so that we only mutated the repair status */
     public final TableMeter bytesMutatedAnticompaction;
+    /**
+     * number of Data.db bytes copied verbatim by the zero-copy anticompaction split. This is a SUBSET of
+     * {@link #bytesAnticompacted}, which is charged up front over every unrepaired sstable in the transaction
+     * before the split path gets a chance to claim any of them, so {@link #mutatedAnticompactionGauge} keeps
+     * its existing meaning.
+     */
+    public final TableMeter bytesZeroCopyAnticompaction;
     /** number of bytes that were scanned during preview repair */
     public final TableMeter bytesPreviewed;
     /** number of desynchronized token ranges that were detected during preview repair */
@@ -868,6 +875,7 @@ public class TableMetrics
         partitionsValidated = createTableHistogram("PartitionsValidated", cfs.keyspace.metric.partitionsValidated, false);
         bytesAnticompacted = createTableMeter("BytesAnticompacted", cfs.keyspace.metric.bytesAnticompacted, true);
         bytesMutatedAnticompaction = createTableMeter("BytesMutatedAnticompaction", cfs.keyspace.metric.bytesMutatedAnticompaction, true);
+        bytesZeroCopyAnticompaction = createTableMeter("BytesZeroCopyAnticompaction", cfs.keyspace.metric.bytesZeroCopyAnticompaction, true);
         bytesPreviewed = createTableMeter("BytesPreviewed", cfs.keyspace.metric.bytesPreviewed);
         tokenRangesPreviewedDesynchronized = createTableMeter("TokenRangesPreviewedDesynchronized", cfs.keyspace.metric.tokenRangesPreviewedDesynchronized);
         bytesPreviewedDesynchronized = createTableMeter("BytesPreviewedDesynchronized", cfs.keyspace.metric.bytesPreviewedDesynchronized);

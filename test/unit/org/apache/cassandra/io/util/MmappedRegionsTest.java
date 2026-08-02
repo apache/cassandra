@@ -20,7 +20,9 @@ package org.apache.cassandra.io.util;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
 
 import com.google.common.primitives.Ints;
@@ -372,6 +374,97 @@ public class MmappedRegionsTest
         }
     }
 
+    /**
+     * A compressed file whose first chunk does NOT start at physical 0, i.e. one carrying leading bytes that
+     * belong to no chunk. {@link org.apache.cassandra.io.sstable.ZeroCopySSTableSplitter} produces exactly this
+     * when it aligns a child's Data.db so that its extents can be shared with the parent's: up to 64 KiB of the
+     * parent's previous chunk sits at the head and {@code offsets[0]} is that pad rather than 0.
+     * <p>
+     * Segments are placed at a cumulative sum of {@code chunk.length + 4}, so seeding that sum at 0 rather than
+     * at the first chunk's offset mapped every region {@code pad} bytes too early and left the last {@code pad}
+     * bytes of the file unmapped. With MAX_SEGMENT_SIZE forced down to one chunk each, that shows up as every
+     * region after the first being offset by the pad -- so this is the multi-region form of the bug, which a
+     * split of a test-sized sstable (one 2 GiB region) cannot reach.
+     */
+    @Test
+    public void testMapForCompressionMetadataWithFrontPad() throws Exception
+    {
+        MmappedRegions.MAX_SEGMENT_SIZE = 1024;
+
+        int pad = 12345;
+        ByteBuffer buffer = allocateBuffer(128 * 1024);
+        File f = FileUtils.createTempFile("testMapForCompressionMetadataWithFrontPad", "1");
+        f.deleteOnExit();
+        File cf = FileUtils.createTempFile(f.name() + ".metadata", "1");
+        cf.deleteOnExit();
+
+        // Write an ordinary compressed file, then rebuild it with `pad` junk bytes in front and shift every
+        // chunk offset by the same amount -- byte for byte what the splitter's aligned copy produces.
+        MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
+        try (SequentialWriter writer = new CompressedSequentialWriter(f, cf,
+                                                                      null, SequentialWriterOption.DEFAULT,
+                                                                      CompressionParams.snappy(), sstableMetadataCollector))
+        {
+            writer.write(buffer);
+            writer.finish();
+        }
+
+        byte[] unpadded = java.nio.file.Files.readAllBytes(f.toPath());
+        byte[] padded = new byte[pad + unpadded.length];
+        new Random(1).nextBytes(padded);                              // the pad is junk, and must never be read
+        System.arraycopy(unpadded, 0, padded, pad, unpadded.length);
+        java.nio.file.Files.write(f.toPath(), padded);
+
+        Memory offsets;
+        int chunkCount;
+        try (CompressionMetadata unshifted = CompressionMetadata.open(cf, unpadded.length, true))
+        {
+            chunkCount = Ints.checkedCast((unshifted.dataLength + unshifted.chunkLength() - 1) / unshifted.chunkLength());
+            offsets = Memory.allocate(chunkCount * 8L);
+            for (int k = 0; k < chunkCount; k++)
+                offsets.setLong(k * 8L, unshifted.chunkFor((long) k * unshifted.chunkLength()).offset + pad);
+        }
+
+        CompressionMetadata metadata = new CompressionMetadata(cf, CompressionParams.snappy(),
+                                                               offsets, chunkCount * 8L,
+                                                               128 * 1024, padded.length, null);
+        try (ChannelProxy channel = new ChannelProxy(f);
+             MmappedRegions regions = MmappedRegions.map(channel, metadata))
+        {
+            assertFalse(regions.isEmpty());
+            int i = 0;
+            while (i < buffer.capacity())
+            {
+                Chunk chunk = metadata.chunkFor(i);
+                assertTrue("every chunk must sit past the pad", chunk.offset >= pad);
+
+                MmappedRegions.Region region = regions.floor(chunk.offset);
+                assertNotNull(region);
+
+                // one chunk per region, so the region must BE the chunk: this is the assertion that fails when
+                // the segment placement ignores the pad, and it fails for every region but the first
+                assertEquals(chunk.offset, region.offset());
+                assertEquals(chunk.offset + chunk.length + 4, region.end());
+                assertEquals(chunk.length + 4, region.buffer.duplicate().capacity());
+
+                // and the mapped bytes must be the file's bytes at that offset, not shifted by the pad
+                ByteBuffer mapped = region.buffer();
+                assertEquals("mapped byte 0 of the chunk at " + chunk.offset,
+                             padded[Ints.checkedCast(chunk.offset)], mapped.get(0));
+                assertEquals("mapped last byte of the chunk at " + chunk.offset,
+                             padded[Ints.checkedCast(chunk.offset + chunk.length + 3)],
+                             mapped.get(chunk.length + 3));
+
+                i += metadata.chunkLength();
+            }
+        }
+        finally
+        {
+            MmappedRegions.MAX_SEGMENT_SIZE = OLD_MAX_SEGMENT_SIZE;
+            metadata.close();
+        }
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void testIllegalArgForMap1() throws Exception
     {
@@ -470,6 +563,118 @@ public class MmappedRegionsTest
                 }
             }
         }
+    }
+
+    /**
+     * Growing a NON-padded compressed file one flush at a time must produce exactly the regions that mapping the
+     * finished file in one go produces.
+     * <p>
+     * {@code updateState(CompressionMetadata)} seeds its running sum from the first chunk's physical offset rather
+     * than from 0, so that a Data.db carrying leading bytes that belong to no chunk (see
+     * {@link #testMapForCompressionMetadataWithFrontPad()}) maps its tail. The obvious way to write that -- always
+     * seed from {@code chunkFor(0).offset} and always start the walk at uncompressed 0 -- silently breaks
+     * {@link MmappedRegions#extend(CompressionMetadata, int)}, which has to resume from the current end instead:
+     * it would re-map every chunk from the beginning and append a second, overlapping copy of every existing
+     * region. Nothing in the padded test can see that, because it never extends. This is the guard.
+     * <p>
+     * The growth per step is deliberately larger than MAX_SEGMENT_SIZE, because {@code extend} short-circuits to
+     * the plain-length {@code updateState(long, int)} for smaller growth and would never reach the seed at all.
+     */
+    @Test
+    public void testExtendForCompressionMetadataMatchesOneShotMap() throws Exception
+    {
+        MmappedRegions.MAX_SEGMENT_SIZE = 1024;
+
+        int chunkLength = 4 << 10;
+        int bufSize = 4096;
+        int[] writeSizes = { 16 << 10, 16 << 10, 16 << 10 };
+
+        ByteBuffer buffer = allocateBuffer(Arrays.stream(writeSizes).sum());
+        File f = FileUtils.createTempFile("testExtendForCompressionMetadataMatchesOneShotMap", "1");
+        f.deleteOnExit();
+
+        File cf = FileUtils.createTempFile(f.name() + ".metadata", "1");
+        cf.deleteOnExit();
+
+        MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
+        try (CompressedSequentialWriter writer = new CompressedSequentialWriter(f, cf, null,
+                                                                                SequentialWriterOption.DEFAULT,
+                                                                                CompressionParams.deflate(chunkLength),
+                                                                                sstableMetadataCollector))
+        {
+            ByteBuffer slice = buffer.slice();
+            slice.limit(writeSizes[0]);
+            writer.write(slice);
+            writer.sync();
+
+            int pos = writeSizes[0];
+
+            try (ChannelProxy channel = new ChannelProxy(f);
+                 CompressionMetadata firstMetadata = writer.open(writer.getLastFlushOffset());
+                 MmappedRegions regions = MmappedRegions.map(channel, firstMetadata))
+            {
+                long mappedCompressedLength = firstMetadata.compressedFileLength;
+
+                for (int idx = 1; idx < writeSizes.length; idx++)
+                {
+                    slice = buffer.slice();
+                    slice.position(pos).limit(pos + writeSizes[idx]);
+                    writer.write(slice);
+                    writer.sync();
+                    pos += writeSizes[idx];
+
+                    try (CompressionMetadata grown = writer.open(writer.getLastFlushOffset()))
+                    {
+                        assertTrue("the growth has to exceed one segment, otherwise extend() takes the plain-length" +
+                                   " path and the CompressionMetadata seed is never exercised",
+                                   grown.compressedFileLength - mappedCompressedLength > MmappedRegions.MAX_SEGMENT_SIZE);
+                        regions.extend(grown, bufSize);
+                        mappedCompressedLength = grown.compressedFileLength;
+                    }
+                }
+
+                try (CompressionMetadata full = writer.open(writer.getLastFlushOffset()))
+                {
+                    List<String> incremental = regionLayout(regions, full);
+                    assertTrue("the file has to span several regions for this to mean anything",
+                               incremental.size() > 1);
+
+                    // the bytes have to be there too, not just the region bookkeeping
+                    for (long dataOffset = 0; dataOffset < full.dataLength; dataOffset += full.chunkLength())
+                        verifyChunks(f, full, dataOffset, regions);
+
+                    try (ChannelProxy oneShotChannel = new ChannelProxy(f);
+                         MmappedRegions oneShot = MmappedRegions.map(oneShotChannel, full))
+                    {
+                        assertEquals("extending must land on the same regions as mapping the finished file",
+                                     regionLayout(oneShot, full), incremental);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * The ordered, de-duplicated list of regions covering every chunk of {@code metadata}, as {@code offset..end}
+     * strings so that a mismatch reads usefully. Also asserts that each chunk is wholly inside its region, which
+     * is what a short final mapping breaks.
+     */
+    private static List<String> regionLayout(MmappedRegions regions, CompressionMetadata metadata)
+    {
+        List<String> layout = new ArrayList<>();
+        for (long dataOffset = 0; dataOffset < metadata.dataLength; dataOffset += metadata.chunkLength())
+        {
+            Chunk chunk = metadata.chunkFor(dataOffset);
+            MmappedRegions.Region region = regions.floor(chunk.offset);
+            assertNotNull("no region covers the chunk at " + chunk.offset, region);
+            assertTrue("the chunk at " + chunk.offset + " runs past the end of its region " + region.end(),
+                       chunk.offset + chunk.length + 4 <= region.end());
+
+            String descriptor = region.offset() + ".." + region.end();
+            if (layout.isEmpty() || !layout.get(layout.size() - 1).equals(descriptor))
+                layout.add(descriptor);
+        }
+        return layout;
     }
 
     private void checkExtendOnCompressedChunks(File f, CompressedSequentialWriter writer, MmappedRegions regions, int bufSize)

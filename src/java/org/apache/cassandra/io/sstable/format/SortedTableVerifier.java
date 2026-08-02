@@ -274,8 +274,14 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
         try (VerifyController verifyController = new VerifyController(cfs);
              KeyReader indexIterator = sstable.keyReader())
         {
-            if (indexIterator.dataPosition() != 0)
-                markAndThrow(new RuntimeException("First row position from index != 0: " + indexIterator.dataPosition()));
+            // Normally the first partition starts at 0 and this seek is a no-op. An sstable whose Data.db was
+            // assembled by cloning a chunk-aligned byte range out of a larger Data.db starts with a dead prefix
+            // instead: compression chunk boundaries are pinned to multiples of chunkLength, so a file that does not
+            // begin on a chunk boundary carries leading bytes that belong to no partition. Start the linear data
+            // walk at the first position the index actually points at rather than failing. This is not masking
+            // corruption: the index is the authority on where partitions begin, and verifyDigest() above has
+            // already read the whole file - including the skipped bytes - through Digest.crc32.
+            dataFile.seek(indexIterator.dataPosition());
 
             List<Range<Token>> ownedRanges = isOffline ? Collections.emptyList() : Range.normalize(tokenLookup.apply(cfs.metadata().keyspace));
             RangeOwnHelper rangeOwnHelper = new RangeOwnHelper(ownedRanges);

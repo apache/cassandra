@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.io.sstable.metadata;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -99,6 +100,22 @@ public class StatsMetadata extends MetadataComponent
     public final ByteBuffer firstKey;
     public final ByteBuffer lastKey;
 
+    /**
+     * Whether this sstable's Data.db contains partitions that its index does NOT describe.
+     * <p>
+     * Normally every byte of Data.db between the first indexed position and {@code dataLength} belongs to an
+     * indexed partition, which is what lets a full scan walk the file linearly and ignore the index entirely
+     * (see {@code SSTableSimpleScanner}). An sstable assembled by copying compression-chunk-aligned byte ranges
+     * out of a larger one -- what {@code ZeroCopySSTableSlice} produces -- breaks that: a copied chunk carries
+     * whichever partitions happen to share it, including ones outside the requested ranges, and those are
+     * deliberately left out of the synthesised index because they are not part of this sstable's key range.
+     * <p>
+     * A linear scan would return them anyway, so this marks the file as one that MUST be read through its index.
+     * It is written only by the zero-copy paths; everything a flush, a compaction or a rewrite produces leaves
+     * it false. See {@code SSTableReader#getScanner()}.
+     */
+    public final boolean hasUnindexedRegions;
+
     public StatsMetadata(EstimatedHistogram estimatedPartitionSize,
                          EstimatedHistogram estimatedCellPerPartitionCount,
                          IntervalSet<CommitLogPosition> commitLogIntervals,
@@ -124,6 +141,40 @@ public class StatsMetadata extends MetadataComponent
                          boolean hasPartitionLevelDeletions,
                          ByteBuffer firstKey,
                          ByteBuffer lastKey)
+    {
+        this(estimatedPartitionSize, estimatedCellPerPartitionCount, commitLogIntervals, minTimestamp, maxTimestamp,
+             minLocalDeletionTime, maxLocalDeletionTime, minTTL, maxTTL, compressionRatio, estimatedTombstoneDropTime,
+             sstableLevel, clusteringTypes, coveredClustering, hasLegacyCounterShards, repairedAt, totalColumnsSet,
+             totalRows, tokenSpaceCoverage, originatingHostId, pendingRepair, isTransient, hasPartitionLevelDeletions,
+             firstKey, lastKey, false);
+    }
+
+    public StatsMetadata(EstimatedHistogram estimatedPartitionSize,
+                         EstimatedHistogram estimatedCellPerPartitionCount,
+                         IntervalSet<CommitLogPosition> commitLogIntervals,
+                         long minTimestamp,
+                         long maxTimestamp,
+                         long minLocalDeletionTime,
+                         long maxLocalDeletionTime,
+                         int minTTL,
+                         int maxTTL,
+                         double compressionRatio,
+                         TombstoneHistogram estimatedTombstoneDropTime,
+                         int sstableLevel,
+                         List<AbstractType<?>> clusteringTypes,
+                         Slice coveredClustering,
+                         boolean hasLegacyCounterShards,
+                         long repairedAt,
+                         long totalColumnsSet,
+                         long totalRows,
+                         double tokenSpaceCoverage,
+                         UUID originatingHostId,
+                         TimeUUID pendingRepair,
+                         boolean isTransient,
+                         boolean hasPartitionLevelDeletions,
+                         ByteBuffer firstKey,
+                         ByteBuffer lastKey,
+                         boolean hasUnindexedRegions)
     {
         this.estimatedPartitionSize = estimatedPartitionSize;
         this.estimatedCellPerPartitionCount = estimatedCellPerPartitionCount;
@@ -151,6 +202,7 @@ public class StatsMetadata extends MetadataComponent
         this.hasPartitionLevelDeletions = hasPartitionLevelDeletions;
         this.firstKey = firstKey;
         this.lastKey = lastKey;
+        this.hasUnindexedRegions = hasUnindexedRegions;
     }
 
     public MetadataType getType()
@@ -208,7 +260,8 @@ public class StatsMetadata extends MetadataComponent
                                  isTransient,
                                  hasPartitionLevelDeletions,
                                  firstKey,
-                                 lastKey);
+                                 lastKey,
+                                 hasUnindexedRegions);
     }
 
     public StatsMetadata mutateRepairedMetadata(long newRepairedAt, TimeUUID newPendingRepair, boolean newIsTransient)
@@ -237,7 +290,8 @@ public class StatsMetadata extends MetadataComponent
                                  newIsTransient,
                                  hasPartitionLevelDeletions,
                                  firstKey,
-                                 lastKey);
+                                 lastKey,
+                                 hasUnindexedRegions);
     }
 
     @Override
@@ -386,6 +440,9 @@ public class StatsMetadata extends MetadataComponent
                 size += Double.BYTES;
             }
 
+            if (component.hasUnindexedRegions)
+                size += TypeSizes.BOOL_SIZE;
+
             return size;
         }
 
@@ -509,6 +566,14 @@ public class StatsMetadata extends MetadataComponent
             {
                 out.writeDouble(component.tokenSpaceCoverage);
             }
+
+            // Optional trailing field. MetadataSerializer stores every component length-delimited and hands the
+            // deserializer exactly its own bytes, so appending here needs no sstable version bump: a reader of an
+            // older file simply runs out of bytes and defaults to false, and a reader that predates the field
+            // stops before it and ignores the tail. Only written when true, so an ordinary sstable is byte-identical
+            // to what it was before this field existed.
+            if (component.hasUnindexedRegions)
+                out.writeBoolean(true);
         }
 
         private void serializeImprovedMinMax(Version version, StatsMetadata component, DataOutputPlus out) throws IOException
@@ -654,6 +719,20 @@ public class StatsMetadata extends MetadataComponent
                 tokenSpaceCoverage = in.readDouble();
             }
 
+            // Optional trailing field; absent in everything written before it existed, and in everything written
+            // by a flush or a compaction. MetadataSerializer hands us exactly this component's bytes, so running
+            // out of them is how "not present" is signalled -- see the serializer for why this needs no version
+            // gate. Catching EOF rather than probing a length keeps it independent of the stream implementation.
+            boolean hasUnindexedRegions;
+            try
+            {
+                hasUnindexedRegions = in.readBoolean();
+            }
+            catch (EOFException e)
+            {
+                hasUnindexedRegions = false;
+            }
+
             return new StatsMetadata(partitionSizes,
                                      columnCounts,
                                      commitLogIntervals,
@@ -678,7 +757,8 @@ public class StatsMetadata extends MetadataComponent
                                      isTransient,
                                      hasPartitionLevelDeletions,
                                      firstKey,
-                                     lastKey);
+                                     lastKey,
+                                     hasUnindexedRegions);
         }
 
         private int countUntilNull(ByteBuffer[] bufferArray)

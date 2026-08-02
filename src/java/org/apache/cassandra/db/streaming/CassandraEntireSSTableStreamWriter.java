@@ -88,8 +88,16 @@ public class CassandraEntireSSTableStreamWriter
                          component,
                          prettyPrintMemory(length));
 
-            FileChannel channel = context.channel(sstable.descriptor, component, length);
-            long bytesWritten = out.writeFileToChannel(channel, limiter);
+            // One range for a whole sstable's component; for a partial stream Data.db is the byte ranges of the
+            // parent that the slice was cut from, and only those may be sent. A channel per range, because
+            // writing it hands over ownership.
+            long bytesWritten = 0;
+            for (ComponentContext.ByteRange range : context.ranges(sstable.descriptor, component, length))
+            {
+                // closed after the file is transferred, by the writer that takes ownership of it
+                FileChannel channel = context.channel(sstable.descriptor, component);
+                bytesWritten += out.writeFileToChannel(channel, limiter, range.position, range.length);
+            }
             progress += bytesWritten;
 
             session.progress(sstable.descriptor.fileFor(component).toString(), ProgressInfo.Direction.OUT, bytesWritten, bytesWritten, length);

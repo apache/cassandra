@@ -197,8 +197,28 @@ public class MmappedRegions extends SharedCloseableImpl
 
     private void updateState(CompressionMetadata metadata)
     {
-        long lastSegmentOffset = state.getPosition();
-        long offset = metadata.getDataOffsetForChunkOffset(lastSegmentOffset);
+        // Segments are placed at a running sum of physical chunk lengths, so the sum has to be seeded with the
+        // physical offset of the first chunk we are about to map, and the walk has to be seeded with that chunk's
+        // uncompressed position.
+        //
+        // When nothing has been mapped yet the first chunk we map is chunk 0. Its physical offset is 0 for every
+        // sstable a writer produces, but not for one whose Data.db carries leading bytes that belong to no chunk
+        // (a file assembled by cloning a chunk-aligned byte range out of a larger Data.db keeps whatever padding
+        // the alignment required). Seeding the sum at 0 for such a file maps every segment ceil(pad) bytes too
+        // early: interior chunks still resolve (they are indexed as chunk.offset - region.offset()), but the total
+        // mapped length comes out short by the padding, so the last chunk runs off the end of the final region and
+        // the tail of the file is never mapped. Reverse-mapping the seed through getDataOffsetForChunkOffset(0) is
+        // not an option either - there is no chunk at physical offset 0 in such a file and it would throw.
+        //
+        // When we are resuming (extend(CompressionMetadata, int)) we must continue from the current end instead:
+        // state.getPosition() is the physical offset just past the last mapped chunk, which is exactly the physical
+        // offset of the next chunk to map, and reverse-mapping it gives that chunk's uncompressed position. That
+        // reverse mapping is well defined even for a padded file, because the offset being looked up is a real
+        // chunk offset rather than a hardcoded 0.
+        boolean fresh = state.isEmpty();
+        long lastSegmentOffset = fresh ? (metadata.dataLength > 0 ? metadata.chunkFor(0).offset : 0)
+                                       : state.getPosition();
+        long offset = fresh ? 0 : metadata.getDataOffsetForChunkOffset(lastSegmentOffset);
         long segmentSize = 0;
 
         while (offset < metadata.dataLength)

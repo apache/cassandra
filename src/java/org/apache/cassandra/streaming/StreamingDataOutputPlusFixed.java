@@ -47,4 +47,30 @@ public class StreamingDataOutputPlusFixed extends DataOutputBufferFixed implemen
         while (0 <= (tmp = file.read(buffer))) count += tmp;
         return count;
     }
+
+    @Override
+    public long writeFileToChannel(FileChannel file, RateLimiter limiter, long position, long length) throws IOException
+    {
+        long count = 0;
+        while (count < length && buffer.hasRemaining())
+        {
+            // Only ever read up to the end of the requested range: the file is longer than the range for a
+            // partial zero-copy stream, and reading past it would corrupt whatever is sent next.
+            int savedLimit = buffer.limit();
+            buffer.limit(buffer.position() + (int) Math.min(buffer.remaining(), length - count));
+            long read;
+            try
+            {
+                read = file.read(buffer, position + count);
+            }
+            finally
+            {
+                buffer.limit(savedLimit);
+            }
+            if (read <= 0)
+                break;
+            count += read;
+        }
+        return count;
+    }
 }

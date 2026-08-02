@@ -34,6 +34,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -65,6 +66,45 @@ public final class ComponentManifest implements Iterable<Component>
                 continue;
 
             components.put(component, file.length());
+        }
+
+        return new ComponentManifest(components);
+    }
+
+    /**
+     * A manifest whose components are not all the descriptor's own files -- a partial stream synthesises every
+     * one but Data.db, and sends only ranges of that -- ordered the way the format declares its components.
+     * <p>
+     * The order is part of the wire contract, since both the writer and the reader walk the manifest to decide
+     * what the next bytes are, so it is fixed here rather than at each call site. {@link #create(SSTable)} takes
+     * its order from {@link SSTable#getStreamingComponents()}, which is an unordered set; this method instead
+     * uses {@link SSTableFormat#allComponents()}, an insertion-ordered set, filtered down to the streamable
+     * types, which gives a stable order for the same format on both ends of the connection.
+     *
+     * @param descriptor the sstable the slice was cut from; only its format is used
+     * @param sizes      the number of bytes to be sent for each component
+     * @throws IllegalArgumentException if any component cannot be streamed for this format
+     */
+    public static ComponentManifest ordered(Descriptor descriptor, Map<Component, Long> sizes)
+    {
+        LinkedHashMap<Component, Long> components = new LinkedHashMap<>(sizes.size());
+
+        for (Component component : descriptor.getFormat().allComponents())
+        {
+            if (!component.type.streamable)
+                continue;
+
+            Long size = sizes.get(component);
+            if (size != null)
+                components.put(component, size);
+        }
+
+        if (components.size() != sizes.size())
+        {
+            List<Component> rejected = new ArrayList<>(sizes.keySet());
+            rejected.removeAll(components.keySet());
+            throw new IllegalArgumentException("Cannot stream components " + rejected + " of a " +
+                                               descriptor.getFormat().name() + " sstable");
         }
 
         return new ComponentManifest(components);

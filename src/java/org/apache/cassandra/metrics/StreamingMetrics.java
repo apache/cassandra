@@ -44,6 +44,20 @@ public class StreamingMetrics
     public static final Counter totalOutgoingBytes = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "TotalOutgoingBytes", null));
     public static final Counter totalOutgoingRepairBytes = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "TotalOutgoingRepairBytes", null));
     public static final Counter totalOutgoingRepairSSTables = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "TotalOutgoingRepairSSTables", null));
+    /**
+     * Sstables sent through the entire-sstable (zero-copy) path as a synthesised chunk-run slice covering only the
+     * requested token ranges, rather than as a whole sstable. Unrelated to the per-peer
+     * {@code PartialSSTablesStreamedIn}, which counts receives that went partition-by-partition.
+     */
+    public static final Counter slicedZeroCopyStreamsOut = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "SlicedZeroCopyStreamsOut", null));
+    /** Slices that could not be synthesised and fell back to partition-by-partition streaming. */
+    public static final Counter slicedZeroCopyStreamsFailed = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "SlicedZeroCopyStreamsFailed", null));
+    /**
+     * Uncompressed bytes those slices carried that no read can reach: the head of their first compression chunk
+     * plus anything between sections less than a chunk apart. This is what
+     * {@code zero_copy_partial_stream_max_dead_space_ratio} trades against not deserialising rows.
+     */
+    public static final Counter slicedZeroCopyStreamDeadBytes = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "SlicedZeroCopyStreamDeadBytes", null));
     public final Counter incomingBytes;
     public final Counter outgoingBytes;
     /* Measures the time taken for processing the incoming stream message after being deserialized, including the time to flush to disk. */

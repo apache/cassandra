@@ -158,19 +158,29 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus implements 
      */
     public long writeFileToChannel(FileChannel file, RateLimiter limiter) throws IOException
     {
+        return writeFileToChannel(file, limiter, 0L, file.size());
+    }
+
+    @Override
+    public long writeFileToChannel(FileChannel file, RateLimiter limiter, long position, long length) throws IOException
+    {
         if (channel.pipeline().get(SslHandler.class) != null)
             // each batch is loaded into ByteBuffer, 64KiB is more BufferPool friendly.
-            return writeFileToChannel(file, limiter, 1 << 16);
+            return writeFileToChannel(file, limiter, 1 << 16, position, length);
         else
             // write files in 1MiB chunks, since there may be blocking work performed to fetch it from disk,
             // the data is never brought in process and is gated by the wire anyway
-            return writeFileToChannelZeroCopy(file, limiter, 1 << 20, 1 << 20, 2 << 20);
+            return writeFileToChannelZeroCopy(file, limiter, 1 << 20, 1 << 20, 2 << 20, position, length);
     }
 
     @VisibleForTesting
     long writeFileToChannel(FileChannel fc, RateLimiter limiter, int batchSize) throws IOException
     {
-        final long length = fc.size();
+        return writeFileToChannel(fc, limiter, batchSize, 0L, fc.size());
+    }
+
+    private long writeFileToChannel(FileChannel fc, RateLimiter limiter, int batchSize, long start, long length) throws IOException
+    {
         long bytesTransferred = 0;
 
         try
@@ -178,7 +188,7 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus implements 
             while (bytesTransferred < length)
             {
                 int toWrite = (int) min(batchSize, length - bytesTransferred);
-                final long position = bytesTransferred;
+                final long position = start + bytesTransferred;
 
                 writeToChannel(bufferSupplier -> {
                     ByteBuffer outBuffer = bufferSupplier.get(toWrite);
@@ -191,7 +201,7 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus implements 
                 }, limiter);
 
                 if (logger.isTraceEnabled())
-                    logger.trace("Writing {} bytes at position {} of {}", toWrite, bytesTransferred, length);
+                    logger.trace("Writing {} bytes at position {} of {}", toWrite, position, length);
                 bytesTransferred += toWrite;
             }
         }
@@ -207,27 +217,31 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus implements 
     @VisibleForTesting
     long writeFileToChannelZeroCopy(FileChannel file, RateLimiter limiter, int batchSize, int lowWaterMark, int highWaterMark) throws IOException
     {
-        if (!limiter.isRateLimited())
-            return writeFileToChannelZeroCopyUnthrottled(file);
-        else
-            return writeFileToChannelZeroCopyThrottled(file, limiter, batchSize, lowWaterMark, highWaterMark);
+        return writeFileToChannelZeroCopy(file, limiter, batchSize, lowWaterMark, highWaterMark, 0L, file.size());
     }
 
-    private long writeFileToChannelZeroCopyUnthrottled(FileChannel file) throws IOException
+    private long writeFileToChannelZeroCopy(FileChannel file, RateLimiter limiter, int batchSize, int lowWaterMark, int highWaterMark, long position, long length) throws IOException
     {
-        final long length = file.size();
-        logger.trace("Writing {} bytes", length);
+        if (!limiter.isRateLimited())
+            return writeFileToChannelZeroCopyUnthrottled(file, position, length);
+        else
+            return writeFileToChannelZeroCopyThrottled(file, limiter, batchSize, lowWaterMark, highWaterMark, position, length);
+    }
+
+    private long writeFileToChannelZeroCopyUnthrottled(FileChannel file, long position, long length) throws IOException
+    {
+        if (logger.isTraceEnabled())
+            logger.trace("Writing {} bytes at position {}", length, position);
 
         ChannelPromise promise = beginFlush(length, 0, length);
-        final DefaultFileRegion defaultFileRegion = new DefaultFileRegion(file, 0, length);
+        final DefaultFileRegion defaultFileRegion = new DefaultFileRegion(file, position, length);
         channel.writeAndFlush(defaultFileRegion, promise);
 
         return length;
     }
 
-    private long writeFileToChannelZeroCopyThrottled(FileChannel file, RateLimiter limiter, int batchSize, int lowWaterMark, int highWaterMark) throws IOException
+    private long writeFileToChannelZeroCopyThrottled(FileChannel file, RateLimiter limiter, int batchSize, int lowWaterMark, int highWaterMark, long start, long length) throws IOException
     {
-        final long length = file.size();
         long bytesTransferred = 0;
 
         final SharedFileChannel sharedFile = SharedDefaultFileRegion.share(file);
@@ -241,11 +255,11 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus implements 
                 limiter.acquire(toWrite);
                 ChannelPromise promise = beginFlush(toWrite, lowWaterMark, highWaterMark);
 
-                SharedDefaultFileRegion fileRegion = new SharedDefaultFileRegion(sharedFile, bytesTransferred, toWrite);
+                SharedDefaultFileRegion fileRegion = new SharedDefaultFileRegion(sharedFile, start + bytesTransferred, toWrite);
                 channel.writeAndFlush(fileRegion, promise);
 
                 if (logger.isTraceEnabled())
-                    logger.trace("Writing {} bytes at position {} of {}", toWrite, bytesTransferred, length);
+                    logger.trace("Writing {} bytes at position {} of {}", toWrite, start + bytesTransferred, length);
                 bytesTransferred += toWrite;
             }
 

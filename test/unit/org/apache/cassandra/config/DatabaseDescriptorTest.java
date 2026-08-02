@@ -1212,4 +1212,39 @@ public class DatabaseDescriptorTest
             conf.local_system_data_file_directory = savedLocalSystemDir;
         }
     }
+
+    /**
+     * {@code zero_copy_partial_stream_max_dead_space_ratio} is a fraction, and the only guard against a
+     * nonsensical one is the setter: the value is fed straight to
+     * {@code ZeroCopySSTableSlice.plan(..., maxDeadSpaceRatio)}, where a NaN would make every comparison false
+     * and so accept an arbitrarily wasteful slice, and a value above 1.0 would accept a slice that is entirely
+     * dead space.
+     */
+    @Test
+    public void testZeroCopyPartialStreamMaxDeadSpaceRatioMustBeAFraction()
+    {
+        double saved = DatabaseDescriptor.getZeroCopyPartialStreamMaxDeadSpaceRatio();
+        try
+        {
+            for (double invalid : new double[]{ -0.1, 1.1, Double.NaN })
+            {
+                assertThatExceptionOfType(IllegalArgumentException.class)
+                    .isThrownBy(() -> DatabaseDescriptor.setZeroCopyPartialStreamMaxDeadSpaceRatio(invalid))
+                    .withMessageContaining("zero_copy_partial_stream_max_dead_space_ratio");
+                // a rejected value must not have been half-applied
+                assertEquals(saved, DatabaseDescriptor.getZeroCopyPartialStreamMaxDeadSpaceRatio(), 0.0);
+            }
+
+            // both endpoints of the closed interval are legal, and so is something in between
+            for (double valid : new double[]{ 0.0, 1.0, 0.5 })
+            {
+                DatabaseDescriptor.setZeroCopyPartialStreamMaxDeadSpaceRatio(valid);
+                assertEquals(valid, DatabaseDescriptor.getZeroCopyPartialStreamMaxDeadSpaceRatio(), 0.0);
+            }
+        }
+        finally
+        {
+            DatabaseDescriptor.setZeroCopyPartialStreamMaxDeadSpaceRatio(saved);
+        }
+    }
 }

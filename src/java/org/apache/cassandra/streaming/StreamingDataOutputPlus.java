@@ -84,5 +84,14 @@ public interface StreamingDataOutputPlus extends DataOutputPlus, Closeable
      */
     long writeFileToChannel(FileChannel file, RateLimiter limiter) throws IOException;
 
+    /**
+     * As {@link #writeFileToChannel(FileChannel, RateLimiter)}, but only the {@code length} bytes starting at
+     * {@code position}. Used to send one component of a partial zero-copy stream, whose Data.db is a verbatim
+     * compression-chunk run of a larger file rather than a file of its own.
+     * <p>
+     * This method takes ownership of the provided {@link FileChannel}, so it can only be called once per channel.
+     */
+    long writeFileToChannel(FileChannel file, RateLimiter limiter, long position, long length) throws IOException;
+
     default void flush() throws IOException {}
 }

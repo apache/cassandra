@@ -261,6 +261,11 @@ read during validation.
 anticompacting because the sstable was fully contained in the repaired
 range.
 
+|BytesZeroCopyAnticompaction |Meter |How many Data.db bytes we copied
+verbatim during anticompaction instead of rewriting them, because the
+sstable's full/transient/unrepaired partitions formed contiguous token
+runs. A subset of BytesAnticompacted.
+
 |BytesPreviewed |Meter |Estimated number of bytes that were scanned for local replica during preview repair
 
 |BytesPreviewedDesynchronized |Meter |Number of desynchronized bytes that were detected among all replicas during preview repair
@@ -737,6 +742,32 @@ peer.
 
 |OutgoingBytes |Counter |Number of bytes streamed to the peer endpoint
 from this node.
+|===
+
+A few streaming counters are node wide rather than per peer, so they
+carry no `<PeerIP>` scope:
+
+*Metric Name*::
+  `org.apache.cassandra.metrics.Streaming.<MetricName>`
+*JMX MBean*::
+  `org.apache.cassandra.metrics:type=Streaming name=<MetricName>`
+
+[cols=",,",options="header",]
+|===
+|Name |Type |Description
+|SlicedZeroCopyStreamsOut |Counter |Number of sstables sent through the
+zero-copy path as a synthesised slice covering only the requested token
+ranges, rather than as a whole sstable.
+
+|SlicedZeroCopyStreamsFailed |Counter |Number of times a slice could not
+be synthesised, so the sstable fell back to partition-by-partition
+streaming.
+
+|SlicedZeroCopyStreamDeadBytes |Counter |Uncompressed bytes those slices
+carried that no read can reach: the head of their first compression
+chunk plus anything between sections less than a chunk apart. This is
+what `zero_copy_partial_stream_max_dead_space_ratio` trades against
+deserializing rows.
 |===
 
 == Compaction Metrics

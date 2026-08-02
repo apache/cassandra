@@ -90,9 +90,16 @@ public class BigTableScrubber extends SortedTableScrubber<BigTableReader> implem
             nextIndexKey = indexAvailable() ? ByteBufferUtil.readWithShortLength(indexFile) : null;
             if (indexAvailable())
             {
-                // throw away variable, so we don't have a side effect in the assertion
                 long firstRowPositionFromIndex = rowIndexEntrySerializer.deserializePositionAndSkip(indexFile);
-                assert firstRowPositionFromIndex == 0 : firstRowPositionFromIndex;
+                // Normally the first partition starts at 0 and both statements below are no-ops. An sstable whose
+                // Data.db was assembled by cloning a chunk-aligned byte range out of a larger Data.db starts with a
+                // dead prefix instead: compression chunk boundaries are pinned to multiples of chunkLength, so a
+                // file that does not begin on a chunk boundary carries leading bytes that belong to no partition.
+                // Start the linear data walk at the first position the index actually points at rather than
+                // asserting it is 0. This is not masking corruption: the index is the authority on where
+                // partitions begin, and the whole-file Digest.crc32 still covers the skipped bytes.
+                nextPartitionPositionFromIndex = firstRowPositionFromIndex;
+                dataFile.seek(firstRowPositionFromIndex);
             }
         }
         catch (Throwable ex)
@@ -111,6 +118,20 @@ public class BigTableScrubber extends SortedTableScrubber<BigTableReader> implem
         {
             if (scrubInfo.isStopRequested())
                 throw new CompactionInterruptedException(scrubInfo.getCompactionInfo());
+
+            // An sstable received as a partial zero-copy stream can carry unindexed bytes BETWEEN partitions, not
+            // only before the first one: the tail of a boundary compression chunk, holding partitions the receiver
+            // did not ask for. nextIndexKey/nextPartitionPositionFromIndex describe the partition about to be read
+            // (they are shifted to current only by updateIndexKey below), and a non-null nextIndexKey is what
+            // distinguishes a real position from the dataFile.length() sentinel the index sets when it is
+            // exhausted. So skip to where the index says the next partition is rather than reading those bytes as
+            // a partition and recovering from the failure.
+            //
+            // This does not change what gets scrubbed: reading the gap fails the key comparison below and the
+            // "Retrying from partition index" path then seeks to exactly this position anyway. What it avoids is
+            // one alarming warning per gap for an sstable that is not corrupt.
+            if (nextIndexKey != null && nextPartitionPositionFromIndex > dataFile.getFilePointer())
+                dataFile.seek(nextPartitionPositionFromIndex);
 
             long partitionStart = dataFile.getFilePointer();
             outputHandler.debug("Reading row at %d", partitionStart);

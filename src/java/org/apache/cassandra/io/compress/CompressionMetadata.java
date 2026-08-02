@@ -200,6 +200,20 @@ public class CompressionMetadata extends WrappedSharedCloseable
         this.resolvedCompressor = copy.resolvedCompressor;
     }
 
+    /**
+     * The dictionary the data described by this metadata was compressed with, if any. Callers that copy or
+     * re-derive a CompressionInfo.db from an existing one must propagate it: a chunk compressed against a
+     * dictionary cannot be decompressed without it, and dropping it silently yields unreadable data rather
+     * than an error at write time.
+     *
+     * @return the attached dictionary, or {@code null} if the data was compressed without one
+     */
+    @Nullable
+    public CompressionDictionary compressionDictionary()
+    {
+        return compressionDictionary;
+    }
+
     public ICompressor compressor()
     {
         ICompressor result = resolvedCompressor;
