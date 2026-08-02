@@ -699,7 +699,7 @@ def generateTestReports() {
 
 def processJmhReports() {
   if (fileExists('build/test/output') && sh(script: 'test -n "$(find build/test/output -type f -name jmh-result.json -print -quit)"', returnStatus: true) == 0) {
-    sh ''' python3 -c "
+    sh label: "merging jmh reports...", script: ''' python3 -c "
 import glob,json
 m=[]
 for f in glob.glob('build/test/output/**/jmh-result.json',recursive=True):

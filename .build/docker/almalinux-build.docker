@@ -15,7 +15,7 @@
 # limitations under the License.
 
 FROM almalinux:8
-MAINTAINER Apache Cassandra <dev@cassandra.apache.org>
+LABEL org.opencontainers.image.authors="Apache Cassandra <dev@cassandra.apache.org>"
 
 # CONTEXT is expected to be cassandra/.build
 
@@ -47,11 +47,13 @@ RUN yum -y install \
    sudo \
    python3-pip \
    procps \
-   rsync
+   rsync \
+   && yum clean all && rm -rf /var/cache/yum /var/cache/dnf
 
-RUN until curl -f -S -s --retry 9 --retry-connrefused --retry-delay 1 https://vault.centos.org/7.9.2009/os/x86_64/Packages/ant-junit-1.9.4-2.el7.noarch.rpm -o ant-junit-1.9.4-2.el7.noarch.rpm ; do echo "curl failed… trying again in 10s… " ; sleep 10 ; done
-
-RUN rpm -i --nodeps ant-junit-1.9.4-2.el7.noarch.rpm
+# download, install and then remove the ant-junit rpm in a single layer so the downloaded package does not linger in the image
+RUN until curl -f -S -s --retry 9 --retry-connrefused --retry-delay 1 https://vault.centos.org/7.9.2009/os/x86_64/Packages/ant-junit-1.9.4-2.el7.noarch.rpm -o ant-junit-1.9.4-2.el7.noarch.rpm ; do echo "curl failed… trying again in 10s… " ; sleep 10 ; done \
+    && rpm -i --nodeps ant-junit-1.9.4-2.el7.noarch.rpm \
+    && rm -f ant-junit-1.9.4-2.el7.noarch.rpm
 
 # python3 is needed for the gen-doc target
 RUN pip3 install --upgrade pip
