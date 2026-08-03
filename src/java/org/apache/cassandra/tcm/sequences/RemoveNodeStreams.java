@@ -45,7 +45,7 @@ import static org.apache.cassandra.streaming.StreamOperation.RESTORE_REPLICA_COU
 
 public class RemoveNodeStreams implements LeaveStreams
 {
-    private static final Logger logger = LoggerFactory.getLogger(UnbootstrapStreams.class);
+    private static final Logger logger = LoggerFactory.getLogger(RemoveNodeStreams.class);
     private final AtomicBoolean finished = new AtomicBoolean();
     private final AtomicBoolean failed = new AtomicBoolean();
     private DataMovements.ResponseTracker responseTracker;

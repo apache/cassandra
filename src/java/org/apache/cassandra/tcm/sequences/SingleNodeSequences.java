@@ -27,6 +27,7 @@ import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -82,6 +83,10 @@ public interface SingleNodeSequences
         if (inProgress == null)
         {
             logger.info("starting decommission with {} {}", metadata.epoch, self);
+            // We reset transferred ranges upon starting a decommission so that we fully stream
+            // anything written since a previous attempt which may not have been persisted to a pending endpoint
+            SystemKeyspace.resetTransferredRanges();
+            logger.info("done resetting transferred ranges {} {}", metadata.epoch, self);
             ClusterMetadataService.instance().commit(new PrepareLeave(self,
                                                                       force,
                                                                       ClusterMetadataService.instance().placementProvider(),
