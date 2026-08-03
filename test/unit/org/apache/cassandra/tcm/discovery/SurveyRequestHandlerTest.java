@@ -53,7 +53,7 @@ public class SurveyRequestHandlerTest
     public void testRequestWithMismatchingMetadataIdIsRejected() throws IOException
     {
         StubMessageDelivery messaging = new StubMessageDelivery();
-        SurveyRequestHandler handler = new SurveyRequestHandler(999, () -> messaging);
+        SurveyRequestHandler handler = new SurveyRequestHandler(() -> 999, () -> messaging);
         try
         {
             handler.doVerb(Message.out(Verb.TCM_DISCOVER_SURVEY_REQ, new SurveyRequest(0)));
@@ -70,7 +70,7 @@ public class SurveyRequestHandlerTest
     {
         ClusterMetadata metadata = ClusterMetadata.current();
         StubMessageDelivery messaging = new StubMessageDelivery();
-        SurveyRequestHandler handler = new SurveyRequestHandler(metadata.metadataIdentifier, () -> messaging);
+        SurveyRequestHandler handler = new SurveyRequestHandler(() -> metadata.metadataIdentifier, () -> messaging);
         assertEquals(NodeId.UNREGISTERED, ClusterMetadata.current().myNodeId());
         NodeId id = new NodeId(555);
         SystemKeyspace.setLocalHostId(id.toUUID());
