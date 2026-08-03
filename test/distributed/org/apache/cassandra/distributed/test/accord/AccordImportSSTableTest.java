@@ -26,7 +26,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -396,11 +396,12 @@ public class AccordImportSSTableTest extends TestBaseImpl
     @Test
     public void testImportSSTableFailsActivation() throws Throwable
     {
+        State.failOnDiskMoveAttempt.set(1);
         String file = writeSSTables(new int[] { 1 });
 
         try (Cluster cluster = init(builder().withNodes(3).withoutVNodes()
                                              .withDataDirCount(1)
-                                             .withInstanceInitializer(ByteBuddyInjections.FailDiskMove.install(2))
+                                             .withInstanceInitializer(ByteBuddyInjections.FailNthDiskMove.install(2))
                                              .withConfig((config) ->
                                                          config
                                                          .with(Feature.NETWORK, Feature.GOSSIP)).start()))
@@ -418,6 +419,35 @@ public class AccordImportSSTableTest extends TestBaseImpl
             assertSSTableCount(cluster, 1);
 
             assertLocalSelect(cluster, rows -> { assertRows(rows, row(1, 1)); });
+        }
+    }
+
+
+    @Test
+    public void testImportSSTableFailsActivation2() throws Throwable
+    {
+        State.failOnDiskMoveAttempt.set(2);
+        String file = writeSSTables(new int[]{ 1 }, new int[]{ 8 });
+
+        try (Cluster cluster = init(builder().withNodes(3)
+                                             .withoutVNodes()
+                                             .withDataDirCount(1)
+                                             .withInstanceInitializer(ByteBuddyInjections.FailNthDiskMove.install(2))
+                                             .withConfig(config -> config.with(Feature.NETWORK, Feature.GOSSIP))
+                                             .start()))
+        {
+            createSchema(cluster);
+
+            cluster.get(1).runOnInstance(() -> {
+                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
+                cfs.importNewSSTables(Set.of(file), true, true, true, true, true, true, true);
+            });
+
+            Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS);
+
+            assertSSTableCount(cluster, 2);
+
+            assertLocalSelect(cluster, rows -> { assertRows(rows, row(1, 1), row(8, 1)); });
         }
     }
 
@@ -557,7 +587,8 @@ public class AccordImportSSTableTest extends TestBaseImpl
     public static class State
     {
         public static CountDownLatch waitForTopologyChange = new CountDownLatch(1);
-        public static AtomicBoolean shouldFailDisk = new AtomicBoolean(true);
+        public static AtomicInteger diskMoveAttempts = new AtomicInteger(0);
+        public static AtomicInteger failOnDiskMoveAttempt = new AtomicInteger(0);
     }
 
     public static class ByteBuddyInjections
@@ -607,7 +638,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
             }
         }
 
-        public static class FailDiskMove
+        public static class FailNthDiskMove
         {
             public static IInstanceInitializer install(int... nodes)
             {
@@ -616,7 +647,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
                         if (node == num)
                             new ByteBuddy().rebase(SSTableReader.class)
                                            .method(named("moveAndOpenSSTable").and(takesArguments(5)))
-                                           .intercept(MethodDelegation.to(FailDiskMove.class))
+                                           .intercept(MethodDelegation.to(FailNthDiskMove.class))
                                            .make()
                                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
                 };
@@ -625,11 +656,8 @@ public class AccordImportSSTableTest extends TestBaseImpl
             @SuppressWarnings("unused")
             public static SSTableReader moveAndOpenSSTable(ColumnFamilyStore cfs, Descriptor oldDescriptor, Descriptor newDescriptor, Set<Component> components, boolean copyData, @SuperCall Callable<SSTableReader> r) throws Exception
             {
-                if (State.shouldFailDisk.get())
-                {
-                    State.shouldFailDisk.set(false);
+                if (State.diskMoveAttempts.incrementAndGet() == State.failOnDiskMoveAttempt.get())
                     throw new RuntimeException("Failing move and open SSTable");
-                }
                 return r.call();
             }
         }
