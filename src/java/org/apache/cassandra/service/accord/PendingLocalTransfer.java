@@ -23,10 +23,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
-
-import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 
@@ -63,7 +60,6 @@ public class PendingLocalTransfer
     final Collection<SSTableReader> sstables;
     final long createdAt = currentTimeMillis();
     transient String keyspace;
-    @Nullable CountDownLatch latch;
 
     volatile boolean activated = false;
 
@@ -76,14 +72,9 @@ public class PendingLocalTransfer
         this.keyspace = Objects.requireNonNull(ColumnFamilyStore.getIfExists(tableId)).keyspace.getName();
     }
 
-    // We maintain the invariant that only the coordinator registers the latch
-    public synchronized void registerLatch(CountDownLatch latch)
-    {
-        this.latch = latch;
-    }
-
     /**
-     * Safely moves SSTables into the live set.
+     * Safely moves SSTables into the live set. This method is idempotent, as it can be called concurrently
+     * by multiple CommandStore executors.
      */
     public synchronized void activate(TxnRead.ImportMetadata importMetadata, long executeAtEpoch)
     {

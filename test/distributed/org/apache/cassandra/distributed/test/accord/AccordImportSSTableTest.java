@@ -94,8 +94,6 @@ public class AccordImportSSTableTest extends TestBaseImpl
                 cfs.importNewSSTables(paths, true, true, true, true, true, true, true);
             });
 
-            Uninterruptibles.sleepUninterruptibly(3, TimeUnit.SECONDS);
-
             // Assert that each node has 2 SSTables
             assertSSTableCount(cluster, 2);
 
@@ -136,8 +134,6 @@ public class AccordImportSSTableTest extends TestBaseImpl
 
             List<String> logs = cluster.get(1).logs().watchFor(mark, Duration.ofMinutes(1), "Submitting incremental index build of " + indexName).getResult();
             Assertions.assertThat(logs).isNotEmpty();
-
-            Uninterruptibles.sleepUninterruptibly(3, TimeUnit.SECONDS);
 
             SAIUtil.assertIndexQueryable(cluster, KEYSPACE, indexName);
 
@@ -182,8 +178,6 @@ public class AccordImportSSTableTest extends TestBaseImpl
             });
 
             importer.join();
-
-            Uninterruptibles.sleepUninterruptibly(3, TimeUnit.SECONDS);
 
             assertSSTableCount(cluster, 0);
         }
@@ -292,8 +286,6 @@ public class AccordImportSSTableTest extends TestBaseImpl
                           .hasMessageContaining("SSTable import failed locally; however the operation may still be applied by the recovery coordinator");
             });
 
-            Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS);
-
             assertSSTableCount(cluster, 1);
 
             assertLocalSelect(cluster, rows -> { assertRows(rows, row(1, 1), row(2, 1), row(3, 1)); });
@@ -349,8 +341,6 @@ public class AccordImportSSTableTest extends TestBaseImpl
                           .hasMessageContaining("SSTable import failed locally; however the operation may still be applied by the recovery coordinator");
             });
 
-            Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS);
-
             Iterable<IInvokableInstance> up = cluster.stream()
                                                      .filter(instance -> instance != cluster.get(1))
                                                      .collect(Collectors.toList());
@@ -380,8 +370,6 @@ public class AccordImportSSTableTest extends TestBaseImpl
                 Set<String> paths = Set.of(file);
                 cfs.importNewSSTables(paths, true, true, true, true, true, true, true);
             });
-
-            Uninterruptibles.sleepUninterruptibly(3, TimeUnit.SECONDS);
 
             assertSSTableCount(cluster, 2);
 
@@ -414,8 +402,6 @@ public class AccordImportSSTableTest extends TestBaseImpl
                 cfs.importNewSSTables(paths, true, true, true, true, true, true, true);
             });
 
-            Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS);
-
             assertSSTableCount(cluster, 1);
 
             assertLocalSelect(cluster, rows -> { assertRows(rows, row(1, 1)); });
@@ -442,8 +428,6 @@ public class AccordImportSSTableTest extends TestBaseImpl
                 ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
                 cfs.importNewSSTables(Set.of(file), true, true, true, true, true, true, true);
             });
-
-            Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS);
 
             assertSSTableCount(cluster, 2);
 
@@ -480,7 +464,8 @@ public class AccordImportSSTableTest extends TestBaseImpl
                 cfs.importNewSSTables(Set.of(file), true, true, true, true, true, true, true);
             });
 
-            Uninterruptibles.sleepUninterruptibly(15, TimeUnit.SECONDS);
+            // Wait for Propogate message to be sent to catch up node 3
+            Uninterruptibles.sleepUninterruptibly(5, TimeUnit.SECONDS);
 
             assertLocalSelect(cluster, rows -> assertRows(rows, row(1, 1), row(2, 1), row(3, 1)));
             assertSSTableCount(cluster, 1);

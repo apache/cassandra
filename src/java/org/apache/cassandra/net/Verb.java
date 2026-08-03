@@ -387,8 +387,8 @@ public enum Verb
     DICTIONARY_UPDATE_RSP           (171, P1, rpcTimeout,   REQUEST_RESPONSE,  () -> NoPayload.serializer,                  RESPONSE_HANDLER                             ),
     DICTIONARY_UPDATE_REQ           (172, P1, rpcTimeout, MISC, () -> CompressionDictionaryUpdateMessage.serializer, () -> CompressionDictionaryUpdateVerbHandler.instance, DICTIONARY_UPDATE_RSP ),
 
-    TRACKED_TRANSFER_FAILED_RSP     (914, P1, repairTimeout, REQUEST_RESPONSE, () -> NoPayload.serializer, RESPONSE_HANDLER),
-    TRACKED_TRANSFER_FAILED_REQ     (915, P1, repairTimeout, ANTI_ENTROPY, () -> TransferFailed.serializer, () -> LocalTransfers.verbHandler, TRACKED_TRANSFER_FAILED_RSP),
+    ACCORD_TRANSFER_FAILED_RSP     (914, P1, repairTimeout, REQUEST_RESPONSE, () -> NoPayload.serializer, RESPONSE_HANDLER),
+    ACCORD_TRANSFER_FAILED_REQ     (915, P1, repairTimeout, ANTI_ENTROPY, () -> TransferFailed.serializer, () -> LocalTransfers.verbHandler, ACCORD_TRANSFER_FAILED_RSP),
 
     // generic failure response
     FAILURE_RSP            (99,  P0, noTimeout,       REQUEST_RESPONSE,  () -> RequestFailure.serializer,            RESPONSE_HANDLER                             ),

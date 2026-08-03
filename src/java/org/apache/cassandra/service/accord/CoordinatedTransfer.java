@@ -100,7 +100,6 @@ import static accord.primitives.Txn.Kind.Read;
  *       ordered against write txn's.
  *   </li>
  * </ol>
- *
  */
 public class CoordinatedTransfer
 {
@@ -154,6 +153,7 @@ public class CoordinatedTransfer
     private void performImportTxn()
     {
         TableMetadatas tables = TableMetadatas.of(tableMetadata);
+        // TODO: The ImportTxn takes dependencies over the min and max keys of all the SSTables imported, which is an overapproximation
         TxnRead read = TxnRead.createImport(tables, allSSTableRanges, importID, streamResult.planId, streamingEpoch, copyData);
         TableMetadatasAndKeys tablesAndKeys = new TableMetadatasAndKeys(tables, read.keys());
         Txn txn = new Txn.InMemory(Read, read.keys(), read, TxnQuery.NONE, null, tablesAndKeys);
@@ -298,7 +298,7 @@ public class CoordinatedTransfer
 
             logger.debug("{}, Notifying {} of transfer failure for plan {}", logPrefix(), to, streamResult.planId);
             notifyFailure.responses.add(to);
-            msgs.put(to, Message.out(Verb.TRACKED_TRANSFER_FAILED_REQ, new TransferFailed(streamResult.planId)));
+            msgs.put(to, Message.out(Verb.ACCORD_TRANSFER_FAILED_REQ, new TransferFailed(streamResult.planId)));
         }
 
         for (Map.Entry<InetAddressAndPort,Message<TransferFailed>> entry : msgs.entrySet())

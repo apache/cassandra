@@ -85,7 +85,6 @@ public class LocalTransfers
         {
             logger.debug("received: {}", transfer);
             Preconditions.checkState(!transfer.sstables.isEmpty());
-
             PendingLocalTransfer existing = local.put(transfer.planId, transfer);
             Preconditions.checkState(existing == null);
         }
