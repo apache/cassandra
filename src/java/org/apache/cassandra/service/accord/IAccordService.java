@@ -197,7 +197,7 @@ public interface IAccordService
 
     Node node();
 
-    void executeTransfer(UUID importID, String keyspace, Set<SSTableReader> sstables, TableMetadata metadata);
+    void executeTransfer(UUID importID, boolean copyData, String keyspace, Set<SSTableReader> sstables, TableMetadata metadata);
 
     void receivedSSTableImport(PendingLocalTransfer transfer);
 
@@ -381,7 +381,7 @@ public interface IAccordService
         }
 
         @Override
-        public void executeTransfer(UUID importID, String keyspace, Set<SSTableReader> sstables, TableMetadata metadata)
+        public void executeTransfer(UUID importID, boolean copyData, String keyspace, Set<SSTableReader> sstables, TableMetadata metadata)
         {
             throw new UnsupportedOperationException("Cannot import SSTables through Accord when accord.enabled = false in cassandra.yaml");
         }
@@ -585,9 +585,9 @@ public interface IAccordService
         }
 
         @Override
-        public void executeTransfer(UUID importID, String keyspace, Set<SSTableReader> sstables, TableMetadata metadata)
+        public void executeTransfer(UUID importID, boolean copyData, String keyspace, Set<SSTableReader> sstables, TableMetadata metadata)
         {
-            delegate.executeTransfer(importID, keyspace, sstables, metadata);
+            delegate.executeTransfer(importID, copyData, keyspace, sstables, metadata);
         }
 
         @Override

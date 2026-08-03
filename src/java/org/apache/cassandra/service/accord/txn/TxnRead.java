@@ -213,9 +213,9 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     // the ImportTxn has custom logic to move SSTables in the pending directory to the live set. Because these txn's are performed
     // using range reads, clients can see a window of inconsistency for read txn's that are concurrent with the ImportTxn. However,
     // data will always be consistent.
-    public static TxnRead createImport(TableMetadatas tables, TokenRange range, UUID importID, TimeUUID planId, long streamingEpoch)
+    public static TxnRead createImport(TableMetadatas tables, TokenRange range, UUID importID, TimeUUID planId, long streamingEpoch, boolean copyData)
     {
-        ImportMetadata importMetadata = new ImportMetadata(importID, planId, streamingEpoch);
+        ImportMetadata importMetadata = new ImportMetadata(importID, planId, streamingEpoch, copyData);
         return new TxnRead(tables, ImmutableList.of(new TxnNamedRead(txnDataName(USER), range, null)), null, importMetadata);
     }
 
@@ -449,12 +449,14 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         private final UUID importID;
         private final TimeUUID planId;
         private final Long streamingEpoch;
+        private final boolean copyData;
 
-        public ImportMetadata(UUID importID, TimeUUID planId, Long streamingEpoch)
+        public ImportMetadata(UUID importID, TimeUUID planId, Long streamingEpoch, boolean copyData)
         {
             this.importID = importID;
             this.planId = planId;
             this.streamingEpoch = streamingEpoch;
+            this.copyData = copyData;
         }
 
         public UUID getImportID()
@@ -472,6 +474,11 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
             return streamingEpoch;
         }
 
+        public boolean getCopyData()
+        {
+            return copyData;
+        }
+
         @Override
         public boolean equals(Object that)
         {
@@ -482,7 +489,8 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         {
             return Objects.equals(this.importID, that.importID)
                    && Objects.equals(this.planId, that.planId)
-                   && (Objects.equals(this.streamingEpoch, that.streamingEpoch));
+                   && (Objects.equals(this.streamingEpoch, that.streamingEpoch))
+                   && (Objects.equals(this.copyData, that.copyData));
         }
 
         @Override
@@ -499,6 +507,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
                 UUIDSerializer.serializer.serialize(importMetadata.importID, out);
                 TimeUUID.Serializer.instance.serialize(importMetadata.planId, out);
                 out.writeLong(importMetadata.streamingEpoch);
+                out.writeBoolean(importMetadata.copyData);
             }
 
             public void skip(DataInputPlus in, Version version) throws IOException
@@ -506,6 +515,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
                 UUIDSerializer.serializer.skip(in);
                 TimeUUID.Serializer.instance.skip(in);
                 in.readLong();
+                in.readBoolean();
             }
 
             @Override
@@ -514,7 +524,8 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
                 UUID importID = UUIDSerializer.serializer.deserialize(in);
                 TimeUUID planId = TimeUUID.Serializer.instance.deserialize(in);
                 Long streamingEpoch = in.readLong();
-                return new ImportMetadata(importID, planId, streamingEpoch);
+                boolean copyData = in.readBoolean();
+                return new ImportMetadata(importID, planId, streamingEpoch, copyData);
             }
 
             @Override
@@ -524,6 +535,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
                 size += UUIDSerializer.serializer.serializedSize(importMetadata.importID);
                 size += TimeUUID.Serializer.instance.serializedSize(importMetadata.planId);
                 size += TypeSizes.LONG_SIZE;
+                size += TypeSizes.BOOL_SIZE;
                 return size;
             }
         };

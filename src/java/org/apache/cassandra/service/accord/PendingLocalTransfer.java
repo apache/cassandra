@@ -20,7 +20,9 @@ package org.apache.cassandra.service.accord;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
@@ -34,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import accord.utils.Invariants;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.SSTableImporter;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
@@ -41,6 +44,9 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.db.SSTableImporter.getTargetDirectory;
+import static org.apache.cassandra.db.SSTableImporter.moveSSTablesBack;
+import static org.apache.cassandra.db.SSTableImporter.removeCopiedSSTables;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class PendingLocalTransfer
@@ -79,37 +85,39 @@ public class PendingLocalTransfer
     /**
      * Safely moves SSTables into the live set.
      */
-    public synchronized void activate(TxnRead.ImportMetadata metadata, long executeAtEpoch)
+    public synchronized void activate(TxnRead.ImportMetadata importMetadata, long executeAtEpoch)
     {
         if (activated)
             return;
 
-        Invariants.require(metadata.getStreamingEpoch() == executeAtEpoch);
+        Invariants.require(importMetadata.getStreamingEpoch() == executeAtEpoch);
         long startedActivation = currentTimeMillis();
         logger.info("{} Activating transfer {}, {} ms since pending", logPrefix(), this, startedActivation - createdAt);
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
         Preconditions.checkNotNull(cfs);
         Preconditions.checkState(!sstables.isEmpty());
 
-        File dst = cfs.getDirectories().getDirectoryForNewSSTables();
-
-        dst.createFileIfNotExists();
+        Set<SSTableImporter.MovedSSTable> movedSSTables = new HashSet<>();
         Collection<SSTableReader> moved = new ArrayList<>(sstables.size());
-        Collection<Descriptor> movedDescriptors = new ArrayList<>(sstables.size());
+
         for (SSTableReader sstable : sstables)
         {
             try
             {
-                Descriptor newDescriptor = cfs.getUniqueDescriptorFor(sstable.descriptor, dst);
-                movedDescriptors.add(newDescriptor);
-                SSTableReader movedSSTable = SSTableReader.moveAndOpenSSTable(cfs, sstable.descriptor, newDescriptor, sstable.getComponents(), true);
+                File targetDir = getTargetDirectory(cfs, sstable.descriptor, sstable.getComponents());
+                Descriptor newDescriptor = cfs.getUniqueDescriptorFor(sstable.descriptor, targetDir);
+                movedSSTables.add(new SSTableImporter.MovedSSTable(sstable.descriptor, newDescriptor, sstable.getComponents()));
+                SSTableReader movedSSTable = SSTableReader.moveAndOpenSSTable(cfs, sstable.descriptor, newDescriptor, sstable.getComponents(), importMetadata.getCopyData());
                 moved.add(movedSSTable);
             }
             catch (Throwable t)
             {
                 moved.forEach(s -> s.selfRef().release());
-                for (Descriptor descriptor : movedDescriptors)
-                    descriptor.getFormat().delete(descriptor);
+                if (importMetadata.getCopyData())
+                    removeCopiedSSTables(movedSSTables);
+                else
+                    moveSSTablesBack(movedSSTables);
+
                 throw new RuntimeException("Failed importing SSTables", t);
             }
         }

@@ -56,7 +56,7 @@ public class TxnReadTest
     {
         DataOutputBuffer output = new DataOutputBuffer();
         qt().check(rs -> {
-            ImportMetadata importMetadata = new ImportMetadata(toGen(Generators.UUID_RANDOM_GEN).next(rs), toGen(Generators.timeUUID()).next(rs), rs.nextLong());
+            ImportMetadata importMetadata = new ImportMetadata(toGen(Generators.UUID_RANDOM_GEN).next(rs), toGen(Generators.timeUUID()).next(rs), rs.nextLong(), rs.nextBoolean());
             Serializers.testSerde(output, ImportMetadata.serializer, importMetadata, Version.LATEST);
         });
     }
@@ -75,7 +75,8 @@ public class TxnReadTest
             TimeUUID timeUUID = toGen(Generators.timeUUID()).next(rs);
             long epoch = rs.nextLong();
             TokenRange range = rangeGen(rs, tables.stream().map(TableMetadata::id).collect(Collectors.toList())).next(rs);
-            TxnRead txnRead = TxnRead.createImport(tableMetadatas, range, uuid, timeUUID, epoch);
+            boolean copyData = rs.nextBoolean();
+            TxnRead txnRead = TxnRead.createImport(tableMetadatas, range, uuid, timeUUID, epoch, copyData);
             Serializers.testSerde(output, TxnRead.serializer, txnRead, tablesAndKeys(txnRead), Version.LATEST);
         });
     }

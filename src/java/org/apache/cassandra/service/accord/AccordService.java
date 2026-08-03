@@ -1440,7 +1440,7 @@ public class AccordService implements IAccordService, Shutdownable
         return journal.configuration();
     }
 
-    public void executeTransfer(UUID importID, String keyspace, Set<SSTableReader> sstables, TableMetadata metadata)
+    public void executeTransfer(UUID importID, boolean copyData, String keyspace, Set<SSTableReader> sstables, TableMetadata metadata)
     {
         logger.info("Creating Accord bulk transfer for keyspace '{}' table '{}' SSTables {}...", keyspace, metadata.name, sstables);
 
@@ -1450,7 +1450,7 @@ public class AccordService implements IAccordService, Shutdownable
 
         Preconditions.checkArgument(!nodeStreamingContext.isEmpty());
 
-        CoordinatedTransfer transfer = new CoordinatedTransfer(importID, metadata, nodeStreamingContext, topology.epoch(), getTokenRangeSpanningSSTables(sstables, metadata));
+        CoordinatedTransfer transfer = new CoordinatedTransfer(importID, metadata, nodeStreamingContext, topology.epoch(), copyData, getTokenRangeSpanningSSTables(sstables, metadata));
 
         transfer.execute();
     }

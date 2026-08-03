@@ -93,18 +93,20 @@ public class CoordinatedTransfer
     private final UUID importID;
     private final TableMetadata tableMetadata;
     private final long streamingEpoch;
+    private final boolean copyData;
     private final TokenRange allSSTableRanges;
 
     final Map<InetAddressAndPort, NodeStreamingMetadata> nodeStreamingContext;
     SingleTransferResult streamResult = SingleTransferResult.Init();
 
-    public CoordinatedTransfer(UUID importID, TableMetadata tableMetadata, Map<InetAddressAndPort, NodeStreamingMetadata> nodeStreamingContext, long streamingEpoch, TokenRange allSSTableRanges)
+    public CoordinatedTransfer(UUID importID, TableMetadata tableMetadata, Map<InetAddressAndPort, NodeStreamingMetadata> nodeStreamingContext, long streamingEpoch, boolean copyData, TokenRange allSSTableRanges)
     {
         this.importID = importID;
         this.tableMetadata = tableMetadata;
         this.nodeStreamingContext = nodeStreamingContext;
         this.streamingEpoch = streamingEpoch;
         this.allSSTableRanges = allSSTableRanges;
+        this.copyData = copyData;
     }
 
     public UUID importID()
@@ -132,7 +134,7 @@ public class CoordinatedTransfer
     private void performImportTxn()
     {
         TableMetadatas tables = TableMetadatas.of(tableMetadata);
-        TxnRead read = TxnRead.createImport(tables, allSSTableRanges, importID, streamResult.planId, streamingEpoch);
+        TxnRead read = TxnRead.createImport(tables, allSSTableRanges, importID, streamResult.planId, streamingEpoch, copyData);
         TableMetadatasAndKeys tablesAndKeys = new TableMetadatasAndKeys(tables, read.keys());
         Txn txn = new Txn.InMemory(Read, read.keys(), read, TxnQuery.NONE, null, tablesAndKeys);
         IAccordService.IAccordResult<TxnResult> accordResult = AccordService.instance().coordinateAsync(tableMetadata.epoch.getEpoch(), txn, ConsistencyLevel.ALL, Dispatcher.RequestTime.forImmediateExecution());
