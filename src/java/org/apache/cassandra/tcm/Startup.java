@@ -326,7 +326,15 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                 if (response.metadataId == replayed.metadataIdentifier)
                 {
                     if (previousCMS.containsKey(response.nodeId))
-                        confirmedCMS.put(response.nodeId, pair.left);
+                    {
+                        confirmedCMS.put(response.nodeId, response.broadcastAddress);
+                        if (!response.broadcastAddress.equals(pair.left))
+                        {
+                            // not necessarily anything to be concerned about, but log it anyway
+                            logger.debug("Broadcast address in survey response ({}) differs from message sender address ({})",
+                                         response, pair.left);
+                        }
+                    }
                 }
                 else
                 {

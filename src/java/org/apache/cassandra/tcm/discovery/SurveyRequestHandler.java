@@ -19,19 +19,24 @@
 package org.apache.cassandra.tcm.discovery;
 
 import java.io.IOException;
+import java.util.function.IntSupplier;
 import java.util.function.Supplier;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class SurveyRequestHandler implements IVerbHandler<SurveyRequest>
 {
@@ -39,7 +44,7 @@ public class SurveyRequestHandler implements IVerbHandler<SurveyRequest>
     private static volatile SurveyRequestHandler instance;
 
     final Supplier<MessageDelivery> messaging;
-    public final int metadataId;
+    final IntSupplier metadataId;
 
     public static SurveyRequestHandler instance()
     {
@@ -56,10 +61,11 @@ public class SurveyRequestHandler implements IVerbHandler<SurveyRequest>
 
     private SurveyRequestHandler()
     {
-        this(ClusterMetadata.current().metadataIdentifier, MessagingService::instance);
+        this(() -> ClusterMetadata.current().metadataIdentifier, MessagingService::instance);
     }
 
-    public SurveyRequestHandler(int metadataId, Supplier<MessageDelivery> messaging)
+    @VisibleForTesting
+    public SurveyRequestHandler(IntSupplier metadataId, Supplier<MessageDelivery> messaging)
     {
         this.metadataId = metadataId;
         this.messaging = messaging;
@@ -69,7 +75,8 @@ public class SurveyRequestHandler implements IVerbHandler<SurveyRequest>
     public void doVerb(Message<SurveyRequest> message) throws IOException
     {
         logger.info("Responding to {} request from {}", message.verb(), message.from());
-        if (message.payload.metadataId != metadataId)
+        int localMetadataId = metadataId.getAsInt();
+        if (message.payload.metadataId != localMetadataId)
             throw new InvalidRequestException(String.format("Mismatching metadata id in survey request from %s (%d)",
                                                             message.from(),
                                                             message.payload.metadataId));
@@ -79,7 +86,8 @@ public class SurveyRequestHandler implements IVerbHandler<SurveyRequest>
         // this node is in the process of starting up with a new broadcast address, it will not yet recognise itself
         // as being in a REGISTERED state. This results in myNodeId() returning NodeId.UNREGISTERED.
         NodeId nodeId = NodeId.fromUUID(SystemKeyspace.getLocalHostId());
-        SurveyResponse response = new SurveyResponse(metadataId, nodeId);
+        InetAddressAndPort broadcastAddress = FBUtilities.getBroadcastAddressAndPort();
+        SurveyResponse response = new SurveyResponse(localMetadataId, nodeId, broadcastAddress);
         messaging.get().respond(response, message);
     }
 }

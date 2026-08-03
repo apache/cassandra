@@ -24,6 +24,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.membership.NodeId;
 
 public class SurveyResponse
@@ -31,11 +32,13 @@ public class SurveyResponse
     public static final Serializer serializer = new Serializer();
     public final int metadataId;
     public final NodeId nodeId;
+    public final InetAddressAndPort broadcastAddress;
 
-    public SurveyResponse(int metadataId, NodeId nodeId)
+    public SurveyResponse(int metadataId, NodeId nodeId, InetAddressAndPort broadcastAddress)
     {
         this.metadataId = metadataId;
         this.nodeId = nodeId;
+        this.broadcastAddress = broadcastAddress;
     }
 
     @Override
@@ -44,6 +47,7 @@ public class SurveyResponse
         return "SurveyResponse{" +
                "metadataId=" + metadataId +
                ", nodeId=" + nodeId +
+               ", broadcast_address=" + broadcastAddress +
                '}';
     }
 
@@ -54,6 +58,7 @@ public class SurveyResponse
         {
             out.writeUnsignedVInt32(t.metadataId);
             out.writeUnsignedVInt32(t.nodeId.id());
+            InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serialize(t.broadcastAddress, out, version);
         }
 
         @Override
@@ -61,15 +66,16 @@ public class SurveyResponse
         {
             int metadataId = in.readUnsignedVInt32();
             int nodeId = in.readUnsignedVInt32();
-            return new SurveyResponse(metadataId, new NodeId(nodeId));
+            InetAddressAndPort broadcastAddress = InetAddressAndPort.Serializer.inetAddressAndPortSerializer.deserialize(in, version);
+            return new SurveyResponse(metadataId, new NodeId(nodeId), broadcastAddress);
         }
 
         @Override
         public long serializedSize(SurveyResponse t, int version)
         {
-            return TypeSizes.sizeofUnsignedVInt(t.metadataId) + TypeSizes.sizeofUnsignedVInt(t.nodeId.id());
+            return TypeSizes.sizeofUnsignedVInt(t.metadataId) +
+                   TypeSizes.sizeofUnsignedVInt(t.nodeId.id()) +
+                   InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(t.broadcastAddress, version);
         }
     }
-
-    ;
 }
