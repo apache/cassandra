@@ -22,9 +22,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -434,7 +434,8 @@ public final class RemoteProcessor implements Processor
         public CandidateIterator(Collection<InetAddressAndPort> initialContacts, boolean checkLive)
         {
             this.candidates = new ConcurrentLinkedDeque<>(initialContacts);
-            this.elements = new HashSet<>(initialContacts);
+            this.elements = ConcurrentHashMap.newKeySet(initialContacts.size());
+            this.elements.addAll(initialContacts);
             this.checkLive = checkLive;
         }
 
