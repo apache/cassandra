@@ -22,6 +22,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -168,6 +169,20 @@ public class ParameterizedClass
     @Override
     public String toString()
     {
-        return class_name + parameters;
+        if (parameters == null)
+        {
+            return class_name + "{}";
+        }
+        else
+        {
+            Map<String, String> sanitizedMap = parameters.entrySet()
+                                                         .stream()
+                                                         .collect(Collectors.toMap(Map.Entry::getKey,
+                                                                                   e -> e.getKey().contains("password") ? "<REDACTED>" : e.getValue(),
+                                                                                   (a, b) -> a,
+                                                                                   TreeMap::new));
+
+            return class_name + sanitizedMap;
+        }
     }
 }
