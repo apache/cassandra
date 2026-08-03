@@ -154,16 +154,9 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                                                                                                         NodeAddresses.current(),
                                                                                                         NodeVersion.CURRENT);
                         replayed = ClusterMetadataService.instance().commit(transform);
-
-                        // Wait for any CMS members which have uncommitted address changes to commit them and
-                        // us to enact them.
-                        while (replayed.cmsLookup.isActive())
-                        {
-                            logger.info("Waiting for pending CMS address changes to complete {}", replayed.cmsLookup);
-                            TimeUnit.MILLISECONDS.sleep(1000);
-                            replayed = ClusterMetadata.current();
-                        }
-                        logger.info("In flight CMS address changes have been processed, current epoch is {}", replayed.epoch.getEpoch());
+                        logger.info("Committed local node address changes, current epoch is {}", replayed.epoch.getEpoch());
+                        if (replayed.cmsLookup.isActive())
+                            logger.info("Pending CMS address changes yet to complete {}", replayed.cmsLookup);
                     }
                     else
                     {
