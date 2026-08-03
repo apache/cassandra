@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.auth;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -55,11 +56,14 @@ public class PasswordDefaultRoleInitializer implements IDefaultRoleInitializer
     public static final String ROLE = "default_role_initializer_role";
     @VisibleForTesting
     public static final String PASSWORD = "default_role_initializer_password";
+    @VisibleForTesting
+    public static final String PASSWORD_HASH = "default_role_initializer_password_hash";
 
-    private static final Set<String> SUPPORTED_PARAMS = Set.of(ROLE, PASSWORD);
+    private static final Set<String> SUPPORTED_PARAMS = Set.of(ROLE, PASSWORD, PASSWORD_HASH);
 
     private final String role;
     private final String password;
+    private final String passwordHash;
     private final Map<String, String> parameters;
 
     public static final PasswordDefaultRoleInitializer instance = new PasswordDefaultRoleInitializer();
@@ -78,8 +82,17 @@ public class PasswordDefaultRoleInitializer implements IDefaultRoleInitializer
         }
 
         role = parameters.getOrDefault(ROLE, DEFAULT_SUPERUSER_NAME);
-        password = parameters.getOrDefault(PASSWORD, DEFAULT_SUPERUSER_PASSWORD);
-        this.parameters = Map.of(ROLE, role, PASSWORD, password);
+        passwordHash = parameters.get(PASSWORD_HASH);
+        Map<String, String> santizedParams = new HashMap<>();
+        santizedParams.put(ROLE, role);
+        if (passwordHash != null)
+            santizedParams.put(PASSWORD_HASH, passwordHash);
+        if (passwordHash == null)
+            password = parameters.getOrDefault(PASSWORD, DEFAULT_SUPERUSER_PASSWORD);
+        else
+            password = null;
+
+        this.parameters = santizedParams;
     }
 
     @Override
@@ -91,7 +104,7 @@ public class PasswordDefaultRoleInitializer implements IDefaultRoleInitializer
                                              SchemaConstants.AUTH_KEYSPACE_NAME,
                                              AuthKeyspace.ROLES,
                                              escape(role),
-                                             escape(hashpw(password))),
+                                             escape(password == null ? passwordHash : hashpw(password))),
                                consistencyForRoleWrite(role));
         logger.info("Created default superuser role '{}'", role);
     }
@@ -108,8 +121,13 @@ public class PasswordDefaultRoleInitializer implements IDefaultRoleInitializer
         if (Strings.isNullOrEmpty(role))
             throw new ConfigurationException(String.format("%s requires a non-empty %s parameter", getClass().getSimpleName(), ROLE));
 
-        if (Strings.isNullOrEmpty(password))
-            throw new ConfigurationException(String.format("%s requires a non-empty %s parameter", getClass().getSimpleName(), PASSWORD));
+        boolean specifiedPassword = !Strings.isNullOrEmpty(password);
+        boolean specifiedPasswordHash = !Strings.isNullOrEmpty(passwordHash);
+
+        if (!specifiedPassword && !specifiedPasswordHash)
+            throw new ConfigurationException(String.format("There has to be one of %s, %s specified.", PASSWORD, PASSWORD_HASH));
+        else if (specifiedPassword && specifiedPasswordHash)
+            throw new ConfigurationException(String.format("Only one of %s, %s can be specified.", PASSWORD, PASSWORD_HASH));
     }
 
     @Override

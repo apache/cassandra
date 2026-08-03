@@ -248,9 +248,10 @@ authorizer:
 role_manager:
   class_name: CassandraRoleManager
   parameters:
-    # Controls default password for initial role
+    # Controls default password for initial role, if password hash is set, password is ignored
     # default_role_initializer_class_name: PasswordDefaultRoleInitializer
     # default_role_initializer_role: cassandra
+    # default_role_initializer_password_hash: "$2a$04$wsvzFamDJPDrTwMjgfcgpO.mKc.CMEuHBFZSjhGz2Ts6.v8PUO2rC"
     # default_role_initializer_password: cassandra
     # For mutual TLS, use this:
     # default_role_initializer_class_name: MutualTlsDefaultRoleInitializer

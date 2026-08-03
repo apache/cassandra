@@ -22,6 +22,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -31,6 +32,7 @@ import com.google.common.base.Objects;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.Shared;
 
+import static java.util.stream.Collectors.toMap;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 @Shared(scope = SIMULATION)
@@ -177,11 +179,13 @@ public class ParameterizedClass
         {
             Map<String, String> sanitizedMap = parameters.entrySet()
                                                          .stream()
-                                                         .collect(Collectors.toMap(Map.Entry::getKey,
-                                                                                   e -> e.getKey().contains("password") ? "<REDACTED>" : e.getValue(),
-                                                                                   (a, b) -> a,
-                                                                                   TreeMap::new));
-
+                                                         .collect(toMap(Entry::getKey,
+                                                                        e -> e.getKey().contains("password")
+                                                                             || e.getKey().contains("hash")
+                                                                             ? "<REDACTED>"
+                                                                             : e.getValue(),
+                                                                        (a, b) -> a,
+                                                                        TreeMap::new));
             return class_name + sanitizedMap;
         }
     }
