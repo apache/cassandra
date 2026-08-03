@@ -33,6 +33,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
@@ -309,9 +310,15 @@ public class ClusterMetadata
         return fullCMSReplicas;
     }
 
+    private static final String PREMATURE_CMS_MEMBERS_ACCESS_ERROR = "The set of full CMS members as %s should not already be " +
+                                                                     "be initialized when CMS lookup is refreshed. This implies " +
+                                                                     "some unexpected access to ClusterMetadata::%s(), possibly " +
+                                                                     "in another pre-commit listener of the local metadata log";
     // Synchronization is probably not necessary as this should only be called by a log listener
     public synchronized void refreshCMSLookup(ClusterMetadata prev, boolean fromSnapshot)
     {
+        Preconditions.checkState(fullCMSReplicas == null, PREMATURE_CMS_MEMBERS_ACCESS_ERROR, "replicas", "fullCMSMembersAsReplicas");
+        Preconditions.checkState(fullCMSEndpoints == null, PREMATURE_CMS_MEMBERS_ACCESS_ERROR, "endpoints", "fullCMSMembers");
         CMSLookup prevLookup = prev.cmsLookup;
         CMSLookup proposedLookup = prevLookup.rebuild(prev, this, fromSnapshot);
         // rebuild returns `this` if no changes
@@ -320,10 +327,6 @@ public class ClusterMetadata
 
         // recalculate CMS placement using endpoint mappings from lookup
         cmsDataPlacement = calculateCMSPlacement(placements, cmsMembership, proposedLookup);
-
-        // We shouldn't need to null out the other lazily initialized CMS fields when we refresh the CMSLookup as the
-        // refresh is triggered by a precommit listener, meaning nothing should be accessing the ClusterMetadata
-        // instance yet.
         cmsLookup = proposedLookup;
     }
 
