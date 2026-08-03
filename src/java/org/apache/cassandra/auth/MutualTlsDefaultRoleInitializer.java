@@ -37,12 +37,13 @@ import static org.apache.cassandra.auth.CassandraRoleManager.escape;
 public class MutualTlsDefaultRoleInitializer implements IDefaultRoleInitializer
 {
     private static final Logger logger = LoggerFactory.getLogger(MutualTlsDefaultRoleInitializer.class);
-    static final String ROLE = "role";
-    static final String IDENTITY = "identity";
+    public static final String ROLE = "default_role_initializer_role";
+    public static final String IDENTITY = "default_role_initializer_identity";
 
     private static final Set<String> SUPPORTED_PARAMS = Set.of(ROLE, IDENTITY);
     private final String role;
     private final String identity;
+    private final Map<String, String> parameters;
 
     public MutualTlsDefaultRoleInitializer(Map<String, String> parameters)
     {
@@ -55,10 +56,11 @@ public class MutualTlsDefaultRoleInitializer implements IDefaultRoleInitializer
         }
         role = parameters.get(ROLE);
         identity = parameters.get(IDENTITY);
+        this.parameters = Map.of(ROLE, role, IDENTITY, identity);
     }
 
     @Override
-    public void initialize()
+    public void createDefaultRole()
     {
         QueryProcessor.process(String.format("INSERT INTO %s.%s (role, is_superuser, can_login) " +
                                              "VALUES ('%s', true, true) USING TIMESTAMP 0",
@@ -109,5 +111,11 @@ public class MutualTlsDefaultRoleInitializer implements IDefaultRoleInitializer
                                                            modes,
                                                            MutualTlsAuthenticator.class.getSimpleName()));
         }
+    }
+
+    @Override
+    public Map<String, String> parameters()
+    {
+        return parameters;
     }
 }

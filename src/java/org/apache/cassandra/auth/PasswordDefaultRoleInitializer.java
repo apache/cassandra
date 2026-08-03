@@ -21,6 +21,7 @@ package org.apache.cassandra.auth;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 
 import org.slf4j.Logger;
@@ -50,13 +51,18 @@ import static org.apache.cassandra.auth.CassandraRoleManager.hashpw;
 public class PasswordDefaultRoleInitializer implements IDefaultRoleInitializer
 {
     private static final Logger logger = LoggerFactory.getLogger(PasswordDefaultRoleInitializer.class);
-    static final String ROLE = "role";
-    static final String PASSWORD = "password";
+    @VisibleForTesting
+    public static final String ROLE = "default_role_initializer_role";
+    @VisibleForTesting
+    public static final String PASSWORD = "default_role_initializer_password";
 
     private static final Set<String> SUPPORTED_PARAMS = Set.of(ROLE, PASSWORD);
 
     private final String role;
     private final String password;
+    private final Map<String, String> parameters;
+
+    public static final PasswordDefaultRoleInitializer instance = new PasswordDefaultRoleInitializer();
 
     public PasswordDefaultRoleInitializer()
     {
@@ -73,10 +79,11 @@ public class PasswordDefaultRoleInitializer implements IDefaultRoleInitializer
 
         role = parameters.getOrDefault(ROLE, DEFAULT_SUPERUSER_NAME);
         password = parameters.getOrDefault(PASSWORD, DEFAULT_SUPERUSER_PASSWORD);
+        this.parameters = Map.of(ROLE, role, PASSWORD, password);
     }
 
     @Override
-    public void initialize()
+    public void createDefaultRole()
     {
         QueryProcessor.process(String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) "
                                              +
@@ -103,5 +110,11 @@ public class PasswordDefaultRoleInitializer implements IDefaultRoleInitializer
 
         if (Strings.isNullOrEmpty(password))
             throw new ConfigurationException(String.format("%s requires a non-empty %s parameter", getClass().getSimpleName(), PASSWORD));
+    }
+
+    @Override
+    public Map<String, String> parameters()
+    {
+        return parameters;
     }
 }

@@ -43,6 +43,7 @@ import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B_2;
 import static org.apache.cassandra.auth.AuthTestUtils.ROLE_C;
 import static org.apache.cassandra.auth.AuthTestUtils.getRolesReadCount;
 import static org.apache.cassandra.auth.AuthTestUtils.grantRolesTo;
+import static org.apache.cassandra.auth.IDefaultRoleInitializer.DEFAULT_ROLE_INITIALIZER_CLASS_NAME;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -136,11 +137,15 @@ public class RolesTest
     @Test
     public void confirmSuperUserConsistencyWithConfiguredDefaultRoleName()
     {
-        IDefaultRoleInitializer previous = DatabaseDescriptor.getDefaultRoleInitializer();
+        IRoleManager previous = DatabaseDescriptor.getRoleManager();
         String customRole = "cassandra_mtls_custom_test_role";
         try
         {
-            DatabaseDescriptor.setDefaultRoleInitializer(new MutualTlsDefaultRoleInitializer(Map.of("role", customRole, "identity", "spiffe1")));
+            DatabaseDescriptor.setRoleManager(new CassandraRoleManager(Map.of(
+            DEFAULT_ROLE_INITIALIZER_CLASS_NAME, MutualTlsDefaultRoleInitializer.class.getSimpleName(),
+            MutualTlsDefaultRoleInitializer.ROLE, customRole,
+            MutualTlsDefaultRoleInitializer.IDENTITY, "spiffe1"))
+            );
 
             ConsistencyLevel readLevel = CassandraRoleManager.consistencyForRoleRead(customRole);
             Assert.assertEquals(CassandraRoleManager.DEFAULT_SUPERUSER_CONSISTENCY_LEVEL, readLevel);
@@ -156,7 +161,7 @@ public class RolesTest
         }
         finally
         {
-            DatabaseDescriptor.setDefaultRoleInitializer(previous);
+            DatabaseDescriptor.setRoleManager(previous);
         }
     }
 

@@ -165,24 +165,30 @@ public class AuthConfigTest
         assertTrue(DatabaseDescriptor.getRoleManager().alterableOptions().containsAll(authenticator.getAlterableRoleOptions()));
     }
 
+    private static ParameterizedClass mutualTlsDefaultRoleInitializer()
+    {
+        return new ParameterizedClass(CassandraRoleManager.class.getName(),
+                                      Map.of(IDefaultRoleInitializer.DEFAULT_ROLE_INITIALIZER_CLASS_NAME, MutualTlsDefaultRoleInitializer.class.getName(),
+                                             MutualTlsDefaultRoleInitializer.ROLE, "cassandra",
+                                             MutualTlsDefaultRoleInitializer.IDENTITY, "spiffe1"));
+    }
+
     @Test
     public void testNewInstanceForMutualTlsDefaultRoleInitializer()
     {
         Config config = load("cassandra-mtls.yaml");
-        config.default_role_initializer = new ParameterizedClass("org.apache.cassandra.auth.MutualTlsDefaultRoleInitializer",
-                                                                  Map.of("role", "cassandra", "identity", "spiffe1"));
+        config.role_manager = mutualTlsDefaultRoleInitializer();
         DatabaseDescriptor.unsafeDaemonInitialization(()->config);
 
-        assertThat(DatabaseDescriptor.getDefaultRoleInitializer()).isInstanceOf(MutualTlsDefaultRoleInitializer.class);
-        assertThat(DatabaseDescriptor.getDefaultRoleInitializer().defaultRoleName()).isEqualTo("cassandra");
+        assertThat(DatabaseDescriptor.getRoleManager().defaultRoleInitializer()).isInstanceOf(MutualTlsDefaultRoleInitializer.class);
+        assertThat(DatabaseDescriptor.getRoleManager().defaultRoleInitializer().defaultRoleName()).isEqualTo("cassandra");
     }
 
     @Test
     public void testMutualTlsDefaultRoleInitializerRejectedWithIncompatibleAuthenticator()
     {
         Config config = load("cassandra-passwordauth.yaml");
-        config.default_role_initializer = new ParameterizedClass("org.apache.cassandra.auth.MutualTlsDefaultRoleInitializer",
-                                                                  Map.of("role", "cassandra", "identity", "spiffe1"));
+        config.role_manager = mutualTlsDefaultRoleInitializer();
         assertThatThrownBy(() -> DatabaseDescriptor.unsafeDaemonInitialization(()->config))
             .isInstanceOf(ConfigurationException.class)
             .hasMessageContaining("creates a role with no password");
@@ -230,14 +236,6 @@ public class AuthConfigTest
     {
         Config config = baseConfig();
         config.role_manager = new ParameterizedClass(PROBE, Collections.emptyMap());
-        assertApplyAuthRejectsProbe();
-    }
-
-    @Test
-    public void testDefaultRoleInitializerWrongTypeRejectedWithoutInitializing()
-    {
-        Config config = baseConfig();
-        config.default_role_initializer = new ParameterizedClass(PROBE, Collections.emptyMap());
         assertApplyAuthRejectsProbe();
     }
 

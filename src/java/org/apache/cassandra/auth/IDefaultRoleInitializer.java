@@ -18,14 +18,25 @@
 
 package org.apache.cassandra.auth;
 
+import java.util.Map;
+
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 /**
  * Creates the initial role on a cluster which has no roles yet, so that there is some
  * identity available to authenticate as and grant permissions from. Selected via
  * {@code default_role_initializer} option in cassandra.yaml and instantiated by
  * {@link AuthConfig#applyAuth()}
- *
+ * <p>
  * Implementations decide both what the role is called and how it is authenticated.
  * See {@link PasswordDefaultRoleInitializer} which gives the role a password, and
  * {@link MutualTlsDefaultRoleInitializer} which gives no password and instead
@@ -33,39 +44,75 @@ import org.apache.cassandra.exceptions.ConfigurationException;
  */
 public interface IDefaultRoleInitializer
 {
-    /**
-     * Creates the default role. Called from {@link CassandraRoleManager#setup(boolean)} only after
-     * {@link CassandraRoleManager#hasExistingRoles()} has established that the cluster has no rules.
-     *
-     * Every node runs this independently during initial startup so implementations must write at
-     * {@link CassandraRoleManager#consistencyForRoleWrite(String)} to avoid concurrent duplicate creation
-     * and must use {@code USING TIMESTAMP 0} so that any operator changes to the role later supersede it.
-     *
-     * The caller retries on failure so this may be invoked more than once on a node: it must not fail
-     * @throws org.apache.cassandra.exceptions.RequestExecutionException if not enough nodes are available
-     * yet which the caller treats as a signal to reschedule
-     */
-    void initialize();
+    Logger logger = LoggerFactory.getLogger(IDefaultRoleInitializer.class);
+
+    String DEFAULT_ROLE_INITIALIZER_CLASS_NAME = "default_role_initializer_class_name";
 
     /**
-     * The name of the role {@link #initialize()} creates.
+     * Creates the default role.
+     * When using this in connection with CassandraRoleManager, every node runs this independently during initial
+     * startup so implementations must write at {@link CassandraRoleManager#consistencyForRoleWrite(String)} to
+     * avoid concurrent duplicate creation and must use {@code USING TIMESTAMP 0} so that any operator changes
+     * to the role later supersede it.
+     * <p>
+     * The caller retries on failure so this may be invoked more than once on a node: it must not fail
      *
-     * The default role is a special case during startup: reads and writes of it are performed at
-     * {@link CassandraRoleManager#DEFAULT_SUPERUSER_CONSISTENCY_LEVEL} rather than at the configured auth
-     * consistency levels, and {@link CassandraRoleManager#hasExistingRoles()} looks it up by name before
-     * falling back to a range query. Both need to know the configured name, not assume
-     * {@link CassandraRoleManager#DEFAULT_SUPERUSER_NAME}.
+     * @throws RequestExecutionException if not enough nodes are available
+     *                                   yet which the caller treats as a signal to reschedule
+     */
+    void createDefaultRole();
+
+    /**
+     * The name of the role {@link #createDefaultRole()} creates.
      */
     String defaultRoleName();
 
     /**
      * Validates configuration of the IDefaultRoleInitializer implementation (if configurable).
-     *
+     * <p>
      * Called by {@link AuthConfig#applyAuth()} after the authenticator, authorizer and role manager have been
      * set, so implementations may inspect those to reject combinations which would leave the cluster with no
      * usable login.
      *
      * @throws ConfigurationException when there is a configuration error.
      */
-    default void validateConfiguration() throws ConfigurationException {}
+    default void validateConfiguration() throws ConfigurationException
+    {
+    }
+
+    Map<String, String> parameters();
+
+    /*
+     * Create the default superuser role to bootstrap role creation on a clean system. Preemptively
+     * gives the role the default password so PasswordAuthenticator can be used to log in (if
+     * configured)
+     */
+    default void setupDefaultRole()
+    {
+        if (ClusterMetadata.current().tokenMap.tokens().isEmpty())
+            throw new IllegalStateException("CassandraRoleManager skipped default role setup: no known tokens in ring");
+
+        try
+        {
+            if (!hasExistingRoles())
+            {
+                createDefaultRole();
+            }
+        }
+        catch (RequestExecutionException e)
+        {
+            logger.warn("CassandraRoleManager skipped default role setup: some nodes were not ready");
+            throw e;
+        }
+    }
+
+    default boolean hasExistingRoles()
+    {
+        // Try looking up the configured default role first, to avoid the range query if possible.
+        String defaultRoleQuery = String.format("SELECT * FROM %s.%s WHERE role = '%s'", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES, StringUtils.replace(defaultRoleName(), "'", "''"));
+        String allUsersQuery = String.format("SELECT * FROM %s.%s LIMIT 1", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES);
+        return !QueryProcessor.process(defaultRoleQuery, ConsistencyLevel.ONE).isEmpty()
+               || !QueryProcessor.process(defaultRoleQuery, ConsistencyLevel.QUORUM).isEmpty()
+               || !QueryProcessor.process(allUsersQuery, ConsistencyLevel.QUORUM).isEmpty();
+    }
 }

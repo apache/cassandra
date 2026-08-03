@@ -86,7 +86,6 @@ public class Config
     public ParameterizedClass authenticator;
     public ParameterizedClass authorizer;
     public ParameterizedClass role_manager;
-    public ParameterizedClass default_role_initializer;
     public ParameterizedClass crypto_provider;
     public ParameterizedClass network_authorizer;
     public ParameterizedClass cidr_authorizer;

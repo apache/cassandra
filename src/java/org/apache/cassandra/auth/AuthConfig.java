@@ -101,9 +101,6 @@ public final class AuthConfig
 
         DatabaseDescriptor.setRoleManager(roleManager);
 
-        IDefaultRoleInitializer defaultRoleInitializer = authInstantiate(conf.default_role_initializer, IDefaultRoleInitializer.class, PasswordDefaultRoleInitializer.class);
-        DatabaseDescriptor.setDefaultRoleInitializer(defaultRoleInitializer);
-
         // authenticator
 
         IInternodeAuthenticator internodeAuthenticator = authInstantiate(conf.internode_authenticator,
@@ -143,13 +140,12 @@ public final class AuthConfig
         authenticator.validateConfiguration();
         authorizer.validateConfiguration();
         roleManager.validateConfiguration();
-        defaultRoleInitializer.validateConfiguration();
         networkAuthorizer.validateConfiguration();
         cidrAuthorizer.validateConfiguration();
         DatabaseDescriptor.getInternodeAuthenticator().validateConfiguration();
     }
 
-    private static <T> T authInstantiate(ParameterizedClass authCls, Class<T> expectedType, Class<? extends T> defaultCls) {
+    public static <T> T authInstantiate(ParameterizedClass authCls, Class<T> expectedType, Class<? extends T> defaultCls) {
         if (authCls != null && authCls.class_name != null)
         {
             String authPackage = AuthConfig.class.getPackage().getName();
