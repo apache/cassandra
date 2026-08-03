@@ -99,6 +99,9 @@ public class TableMetrics
 
     public static final String TABLE_EXTENSIONS_HISTOGRAMS_METRICS_KEY = "HISTOGRAM_METRICS";
 
+    @VisibleForTesting // Length of the caching period for estimated partition count. Changed by tests.
+    static long ESTIMATED_PARTITION_COUNT_CACHE_PERIOD_SECONDS = TimeUnit.MINUTES.toSeconds(5);
+
     public enum MetricsAggregation
     {
         AGGREGATED((byte) 0x00),
@@ -668,7 +671,9 @@ public class TableMetrics
                 return estimatedPartitions;
             }
         }, null);
-        estimatedPartitionCountInSSTablesCached = new CachedGauge<Long>(1, TimeUnit.SECONDS)
+        // This cached guage is used by compaction to calculate a size for single-partition sstables. It does not need
+        // to be up-to-date, only to give a rough indication of the number of partitions.
+        estimatedPartitionCountInSSTablesCached = new CachedGauge<Long>(ESTIMATED_PARTITION_COUNT_CACHE_PERIOD_SECONDS, TimeUnit.SECONDS)
         {
             public Long loadValue()
             {

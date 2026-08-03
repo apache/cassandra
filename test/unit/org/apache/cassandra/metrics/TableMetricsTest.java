@@ -368,6 +368,20 @@ public class TableMetricsTest
     @Test
     public void testEstimatedPartitionCount() throws InterruptedException
     {
+        long prevPeriod = TableMetrics.ESTIMATED_PARTITION_COUNT_CACHE_PERIOD_SECONDS;
+        try
+        {
+            TableMetrics.ESTIMATED_PARTITION_COUNT_CACHE_PERIOD_SECONDS = 1;
+            doTestEstimatedPartitionCount();
+        }
+        finally
+        {
+            TableMetrics.ESTIMATED_PARTITION_COUNT_CACHE_PERIOD_SECONDS = prevPeriod;
+        }
+    }
+
+    private void doTestEstimatedPartitionCount()
+    {
         ColumnFamilyStore cfs = recreateTable();
         assertEquals(0L, cfs.metric.estimatedPartitionCount.getValue().longValue());
         assertEquals(0L, cfs.metric.estimatedPartitionCountInSSTablesCached.getValue().longValue());
