@@ -106,7 +106,7 @@ public class PendingLocalTransfer
             {
                 File targetDir = getTargetDirectory(cfs, sstable.descriptor, sstable.getComponents());
                 Descriptor newDescriptor = cfs.getUniqueDescriptorFor(sstable.descriptor, targetDir);
-                movedSSTables.add(new SSTableImporter.MovedSSTable(sstable.descriptor, newDescriptor, sstable.getComponents()));
+                movedSSTables.add(new SSTableImporter.MovedSSTable(newDescriptor, sstable.descriptor, sstable.getComponents()));
                 SSTableReader movedSSTable = SSTableReader.moveAndOpenSSTable(cfs, sstable.descriptor, newDescriptor, sstable.getComponents(), importMetadata.getCopyData());
                 moved.add(movedSSTable);
             }
