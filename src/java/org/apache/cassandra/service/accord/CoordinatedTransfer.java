@@ -50,7 +50,6 @@ import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
 import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -81,6 +80,28 @@ import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
 import static accord.primitives.Txn.Kind.Read;
 
+/**
+ * Orchestrates the lifecycle of an Accord bulk data transfer for a shard where the current instance is
+ * coordinating the transfer.
+ * <p>
+ * The transfer proceeds through these phases:
+ * <ol>
+ *   <li>
+ *       <b>Streaming</b>
+ *       The coordinator streams SSTables to all replicas in parallel. Replicas store received data in a "pending"
+ *       location where it's persisted to disk but not yet visible to reads. Once all replicas in the shard have received
+ *       their streams, the SSTables are activated with an ImportTxn, making them part of the live set and visible to reads.
+ *   </li>
+ *   <li>
+ *       <b>ImportTxn</b>
+ *       The coordinator creates an ImportTxn, whose semantics are equivalent to an Accord range read, but with special
+ *       logic to perform the activation of the streamed SSTables. This means during the duration of the ImportTxn, concurrent
+ *       read txn's may see inconsistent results. However, there is no data inconsistency, as read txn's are properly
+ *       ordered against write txn's.
+ *   </li>
+ * </ol>
+ *
+ */
 public class CoordinatedTransfer
 {
     private static final Logger logger = LoggerFactory.getLogger(CoordinatedTransfer.class);
@@ -123,7 +144,6 @@ public class CoordinatedTransfer
         try
         {
             performImportTxn();
-
         }
         catch (Exception e)
         {
@@ -230,7 +250,6 @@ public class CoordinatedTransfer
         {
             notifyFailure();
             LocalTransfers.instance().schedulePendingLocalTransferCleanup(streamResult.planId());
-            LocalTransfers.instance().scheduleCoordinatedTransferCleanup(this);
         }
         catch (Throwable t)
         {
