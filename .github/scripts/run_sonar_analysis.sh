@@ -59,6 +59,12 @@ else
     -Dsonar.branch.name="$GIT_BRANCH"
     -Dsonar.links.scm="$GIT_REPO_URL/tree/$GIT_BRANCH"
   )
+
+  # Only set reference branch when analyzing a branch that is different from the base branch
+  # Sonar rejects setting the reference branch to the same branch being analyzed
+  if [[ "$GIT_BRANCH" != "$GIT_BASE_BRANCH" ]]; then
+    SONAR_ARGS+=(-Dsonar.newCode.referenceBranch="$GIT_BASE_BRANCH")
+  fi
 fi
 
 # Add debug flag if enabled
