@@ -211,8 +211,7 @@ public class ClusterMetadataService
 
         Commit.Replicator replicator = CassandraRelevantProperties.TCM_USE_TEST_NO_OP_REPLICATOR.getBoolean()
                                        ? Commit.Replicator.NO_OP
-                                       : new Commit.DefaultReplicator(() -> log.metadata().directory,
-                                                                      () -> log.metadata().endpointLookup());
+                                       : new Commit.DefaultReplicator(() -> new Commit.DefaultReplicator.RoutingHelper(log.metadata()));
 
         RemoteProcessor remoteProcessor = new RemoteProcessor(log, Discovery.instance::discoveredNodes);
         GossipProcessor gossipProcessor = new GossipProcessor();
