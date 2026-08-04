@@ -43,7 +43,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.AuthenticateMessage;
 
 import static org.apache.cassandra.auth.AuthTestUtils.ALL_ROLES;
-import static org.apache.cassandra.auth.CassandraRoleManager.DEFAULT_SUPERUSER_PASSWORD;
+import static org.apache.cassandra.auth.PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_PASSWORD;
 import static org.apache.cassandra.auth.PasswordAuthenticator.SaslNegotiator;
 import static org.apache.cassandra.auth.PasswordAuthenticator.checkpw;
 import static org.apache.cassandra.auth.PasswordSaltSupplier.getGensaltLogRounds;

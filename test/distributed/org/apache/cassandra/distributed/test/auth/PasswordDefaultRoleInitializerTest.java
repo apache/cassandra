@@ -42,8 +42,8 @@ import org.apache.cassandra.distributed.util.Auth;
 import org.apache.cassandra.distributed.util.SingleHostLoadBalancingPolicy;
 import org.apache.cassandra.schema.SchemaConstants;
 
-import static org.apache.cassandra.auth.CassandraRoleManager.DEFAULT_SUPERUSER_NAME;
-import static org.apache.cassandra.auth.CassandraRoleManager.DEFAULT_SUPERUSER_PASSWORD;
+import static org.apache.cassandra.auth.PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME;
+import static org.apache.cassandra.auth.PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_PASSWORD;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**

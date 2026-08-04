@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.auth;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -32,8 +31,6 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.SchemaConstants;
 
-import static org.apache.cassandra.auth.CassandraRoleManager.DEFAULT_SUPERUSER_NAME;
-import static org.apache.cassandra.auth.CassandraRoleManager.DEFAULT_SUPERUSER_PASSWORD;
 import static org.apache.cassandra.auth.CassandraRoleManager.consistencyForRoleWrite;
 import static org.apache.cassandra.auth.CassandraRoleManager.escape;
 import static org.apache.cassandra.auth.CassandraRoleManager.hashpw;
@@ -43,7 +40,7 @@ import static org.apache.cassandra.auth.CassandraRoleManager.hashpw;
  * {@link PasswordAuthenticator}. This is the default {@link IDefaultRoleInitializer} and reproduces the
  * historical bootstrap behaviour of creating a {@code cassandra} superuser whose password is also
  * {@code cassandra}.
- *
+ * <p>
  * Because that password is a well known constant, deployments which can authenticate by other means should
  * prefer an initializer which does not create a password at all, such as
  * {@link MutualTlsDefaultRoleInitializer}. Deployments which do use this initializer should rotate or drop the
@@ -52,19 +49,21 @@ import static org.apache.cassandra.auth.CassandraRoleManager.hashpw;
 public class PasswordDefaultRoleInitializer implements IDefaultRoleInitializer
 {
     private static final Logger logger = LoggerFactory.getLogger(PasswordDefaultRoleInitializer.class);
+
+    public static final String DEFAULT_SUPERUSER_NAME = "cassandra";
+    public static final String DEFAULT_SUPERUSER_PASSWORD = "cassandra";
     @VisibleForTesting
-    public static final String ROLE = "default_role_initializer_role";
+    public static final String ROLE = "role";
     @VisibleForTesting
-    public static final String PASSWORD = "default_role_initializer_password";
+    public static final String PASSWORD = "password";
     @VisibleForTesting
-    public static final String PASSWORD_HASH = "default_role_initializer_password_hash";
+    public static final String PASSWORD_HASH = "password_hash";
 
     private static final Set<String> SUPPORTED_PARAMS = Set.of(ROLE, PASSWORD, PASSWORD_HASH);
 
     private final String role;
     private final String password;
     private final String passwordHash;
-    private final Map<String, String> parameters;
 
     public static final PasswordDefaultRoleInitializer instance = new PasswordDefaultRoleInitializer();
 
@@ -75,7 +74,7 @@ public class PasswordDefaultRoleInitializer implements IDefaultRoleInitializer
 
     public PasswordDefaultRoleInitializer(Map<String, String> parameters)
     {
-        for (String param: parameters.keySet())
+        for (String param : parameters.keySet())
         {
             if (!SUPPORTED_PARAMS.contains(param))
                 throw new ConfigurationException(String.format("Unsupported parameter '%s' for %s, supported parameters are %s", param, getClass().getSimpleName(), SUPPORTED_PARAMS));
@@ -83,29 +82,15 @@ public class PasswordDefaultRoleInitializer implements IDefaultRoleInitializer
 
         role = parameters.getOrDefault(ROLE, DEFAULT_SUPERUSER_NAME);
         passwordHash = parameters.get(PASSWORD_HASH);
-        Map<String, String> santizedParams = new HashMap<>();
-        santizedParams.put(ROLE, role);
-        if (passwordHash != null)
-            santizedParams.put(PASSWORD_HASH, passwordHash);
-        if (passwordHash == null)
-            password = parameters.getOrDefault(PASSWORD, DEFAULT_SUPERUSER_PASSWORD);
-        else
-            password = null;
-
-        this.parameters = santizedParams;
+        password = passwordHash == null
+                   ? parameters.getOrDefault(PASSWORD, DEFAULT_SUPERUSER_PASSWORD)
+                   : null;
     }
 
     @Override
     public void createDefaultRole()
     {
-        QueryProcessor.process(String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) "
-                                             +
-                                             "VALUES ('%s', true, true, '%s') USING TIMESTAMP 0",
-                                             SchemaConstants.AUTH_KEYSPACE_NAME,
-                                             AuthKeyspace.ROLES,
-                                             escape(role),
-                                             escape(password == null ? passwordHash : hashpw(password))),
-                               consistencyForRoleWrite(role));
+        QueryProcessor.process(createDefaultRoleQuery(), consistencyForRoleWrite(role));
         logger.info("Created default superuser role '{}'", role);
     }
 
@@ -130,9 +115,13 @@ public class PasswordDefaultRoleInitializer implements IDefaultRoleInitializer
             throw new ConfigurationException(String.format("Only one of %s, %s can be specified.", PASSWORD, PASSWORD_HASH));
     }
 
-    @Override
-    public Map<String, String> parameters()
+    @VisibleForTesting
+    public String createDefaultRoleQuery()
     {
-        return parameters;
+        return String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) VALUES ('%s', true, true, '%s') USING TIMESTAMP 0",
+                             SchemaConstants.AUTH_KEYSPACE_NAME,
+                             AuthKeyspace.ROLES,
+                             escape(role),
+                             escape(password == null ? passwordHash : hashpw(password)));
     }
 }

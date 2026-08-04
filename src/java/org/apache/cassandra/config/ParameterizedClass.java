@@ -180,13 +180,16 @@ public class ParameterizedClass
             Map<String, String> sanitizedMap = parameters.entrySet()
                                                          .stream()
                                                          .collect(toMap(Entry::getKey,
-                                                                        e -> e.getKey().contains("password")
-                                                                             || e.getKey().contains("hash")
-                                                                             ? "<REDACTED>"
-                                                                             : e.getValue(),
+                                                                        e -> isSensitive(e.getKey()) ? "<REDACTED>" : e.getValue(),
                                                                         (a, b) -> a,
                                                                         TreeMap::new));
             return class_name + sanitizedMap;
         }
+    }
+
+    static boolean isSensitive(String key)
+    {
+        return key.toLowerCase().contains("password")
+               || key.toLowerCase().contains("hash");
     }
 }

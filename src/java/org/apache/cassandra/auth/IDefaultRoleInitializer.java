@@ -18,9 +18,6 @@
 
 package org.apache.cassandra.auth;
 
-import java.util.Map;
-
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,6 +27,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.tcm.ClusterMetadata;
+
+import static org.apache.cassandra.auth.CassandraRoleManager.escape;
 
 /**
  * Creates the initial role on a cluster which has no roles yet, so that there is some
@@ -80,8 +79,6 @@ public interface IDefaultRoleInitializer
     {
     }
 
-    Map<String, String> parameters();
-
     /*
      * Create the default superuser role to bootstrap role creation on a clean system. Preemptively
      * gives the role the default password so PasswordAuthenticator can be used to log in (if
@@ -109,7 +106,7 @@ public interface IDefaultRoleInitializer
     default boolean hasExistingRoles()
     {
         // Try looking up the configured default role first, to avoid the range query if possible.
-        String defaultRoleQuery = String.format("SELECT * FROM %s.%s WHERE role = '%s'", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES, StringUtils.replace(defaultRoleName(), "'", "''"));
+        String defaultRoleQuery = String.format("SELECT * FROM %s.%s WHERE role = '%s'", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES, escape(defaultRoleName()));
         String allUsersQuery = String.format("SELECT * FROM %s.%s LIMIT 1", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES);
         return !QueryProcessor.process(defaultRoleQuery, ConsistencyLevel.ONE).isEmpty()
                || !QueryProcessor.process(defaultRoleQuery, ConsistencyLevel.QUORUM).isEmpty()

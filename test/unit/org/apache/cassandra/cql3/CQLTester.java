@@ -115,6 +115,7 @@ import org.apache.cassandra.auth.AuthSchemaChangeListener;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IRoleManager;
+import org.apache.cassandra.auth.PasswordDefaultRoleInitializer;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
@@ -645,7 +646,7 @@ public abstract class CQLTester
             {
                 loadRoleStatement();
                 loadIdentityStatement();
-                QueryProcessor.executeInternal(createDefaultRoleQuery());
+                QueryProcessor.executeInternal(PasswordDefaultRoleInitializer.instance.createDefaultRoleQuery());
             }
         };
 

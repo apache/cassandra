@@ -45,7 +45,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import org.apache.cassandra.auth.AuthenticatedUser;
-import org.apache.cassandra.auth.CassandraRoleManager;
+import org.apache.cassandra.auth.PasswordDefaultRoleInitializer;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.CQLTester;
@@ -130,7 +130,7 @@ public abstract class GuardrailTester extends CQLTester
         userClientState.login(user);
 
         superClientState = ClientState.forExternalCalls(InetSocketAddress.createUnresolved("127.0.0.1", 321));
-        superClientState.login(new AuthenticatedUser(CassandraRoleManager.DEFAULT_SUPERUSER_NAME));
+        superClientState.login(new AuthenticatedUser(PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME));
     }
 
     /**

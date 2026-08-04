@@ -37,17 +37,16 @@ import static org.apache.cassandra.auth.CassandraRoleManager.escape;
 public class MutualTlsDefaultRoleInitializer implements IDefaultRoleInitializer
 {
     private static final Logger logger = LoggerFactory.getLogger(MutualTlsDefaultRoleInitializer.class);
-    public static final String ROLE = "default_role_initializer_role";
-    public static final String IDENTITY = "default_role_initializer_identity";
+    public static final String ROLE = "role";
+    public static final String IDENTITY = "identity";
 
     private static final Set<String> SUPPORTED_PARAMS = Set.of(ROLE, IDENTITY);
     private final String role;
     private final String identity;
-    private final Map<String, String> parameters;
 
     public MutualTlsDefaultRoleInitializer(Map<String, String> parameters)
     {
-        for (String params: parameters.keySet())
+        for (String params : parameters.keySet())
         {
             if (!SUPPORTED_PARAMS.contains(params))
             {
@@ -56,7 +55,6 @@ public class MutualTlsDefaultRoleInitializer implements IDefaultRoleInitializer
         }
         role = parameters.get(ROLE);
         identity = parameters.get(IDENTITY);
-        this.parameters = Map.of(ROLE, role, IDENTITY, identity);
     }
 
     @Override
@@ -77,7 +75,7 @@ public class MutualTlsDefaultRoleInitializer implements IDefaultRoleInitializer
                                              escape(role)),
                                consistencyForRoleWrite(role));
 
-        logger.info("Created passwordless default superuser role '{}' for identity '{}'", role, identity);
+        logger.info("Created passwordless default superuser role '{}' with identity '{}'", role, identity);
     }
 
     @Override
@@ -111,11 +109,5 @@ public class MutualTlsDefaultRoleInitializer implements IDefaultRoleInitializer
                                                            modes,
                                                            MutualTlsAuthenticator.class.getSimpleName()));
         }
-    }
-
-    @Override
-    public Map<String, String> parameters()
-    {
-        return parameters;
     }
 }

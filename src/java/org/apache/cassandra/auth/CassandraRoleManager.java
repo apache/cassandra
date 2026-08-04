@@ -106,9 +106,6 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
     private static final Logger logger = LoggerFactory.getLogger(CassandraRoleManager.class);
     private static final NoSpamLogger nospamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.MINUTES);
 
-    public static final String DEFAULT_SUPERUSER_NAME = "cassandra";
-    public static final String DEFAULT_SUPERUSER_PASSWORD = "cassandra";
-
     /**
      * Role options which are supported for all authentication mechanisms. IAuthenticator implementations can declare
      * additional supported role options via {@link IAuthenticator#getSupportedRoleOptions()}.
@@ -539,16 +536,6 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
     public void validateConfiguration() throws ConfigurationException
     {
         defaultRoleInitializer.validateConfiguration();
-    }
-
-    @VisibleForTesting
-    public static String createDefaultRoleQuery()
-    {
-        return String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) VALUES ('%s', true, true, '%s') USING TIMESTAMP 0",
-                             SchemaConstants.AUTH_KEYSPACE_NAME,
-                             AuthKeyspace.ROLES,
-                             DEFAULT_SUPERUSER_NAME,
-                             escape(hashpw(DEFAULT_SUPERUSER_PASSWORD)));
     }
 
     @VisibleForTesting
