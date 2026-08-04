@@ -87,6 +87,7 @@ Merged from 4.1:
  * Add Paxos v2 option and informatin in cassandra.yaml (CASSANDRA-21316)
  * Harden data resurrection startup check with atomic heartbeat file write with fallback (CASSANDRA-21290)
 Merged from 4.0:
+ * Fix memtable on-heap accounting drift in BTree.update and BTreeRow.merge (CASSANDRA-21472)
  * Bound declared value length against readable bytes in CBUtil (CASSANDRA-21521)
  * Verify extension type before initializing reflectively-loaded classes (CASSANDRA-21525)
  * Rename conflicting nodetool import --copy-data short option from -p to -cd (CASSANDRA-20214)
