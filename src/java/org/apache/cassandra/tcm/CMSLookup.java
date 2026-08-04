@@ -74,8 +74,9 @@ public class CMSLookup
             @Override
             public InetAddressAndPort endpoint(NodeId id)
             {
-                if (overrides.containsKey(id))
-                    return overrides.get(id).right;
+                Pair<InetAddressAndPort, InetAddressAndPort> override = overrides.get(id);
+                if (override != null)
+                    return override.right;
                 return lookup.endpoint(id);
             }
         };
