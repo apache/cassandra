@@ -221,6 +221,7 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
      * override how they integrate it. Falls back to the historical password initializer when auth setup has not
      * run, e.g. in tests which do not call {@link AuthConfig#applyAuth()}.
      */
+    @Override
     public IDefaultRoleInitializer defaultRoleInitializer()
     {
         IDefaultRoleInitializer initializer = DatabaseDescriptor.getDefaultRoleInitializer();

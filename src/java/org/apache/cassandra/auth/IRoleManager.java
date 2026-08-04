@@ -329,4 +329,9 @@ public interface IRoleManager extends AuthCache.BulkLoader<RoleResource, Set<Rol
     {
 
     }
+
+    default IDefaultRoleInitializer defaultRoleInitializer()
+    {
+        return PasswordDefaultRoleInitializer.instance;
+    }
 }
