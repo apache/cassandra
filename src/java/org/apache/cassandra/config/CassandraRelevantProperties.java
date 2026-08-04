@@ -407,13 +407,6 @@ public enum CassandraRelevantProperties
     MEMTABLE_SHARD_COUNT("cassandra.memtable.shard.count"),
     MEMTABLE_TRIE_SIZE_LIMIT("cassandra.trie_size_limit_mb"),
 
-    /**
-     * Maximum number of log statements cached per NoSpamLogger instance.
-     * This prevents unbounded memory growth when log messages contain dynamic content.
-     * Defaults to MAX_VALUE as a default behavior since we rely on the cache time-based expiration.
-     */
-    NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER("cassandra.nospam_logger.max_statements_per_logger", String.valueOf(Long.MAX_VALUE)),
-
     METRICS_REPORTER_CONFIG_FILE("cassandra.metricsReporterConfigFile"),
     /** Defines the maximum number of unique timed out queries that will be reported in the logs. Use a negative number to remove any limit. */
     MONITORING_MAX_OPERATIONS("cassandra.monitoring_max_operations", "50"),
@@ -436,6 +429,12 @@ public enum CassandraRelevantProperties
      * This is an optimization used in unit tests becuase we never restart a node there. The only node is stopoped
      * when the JVM terminates. Therefore, we can use such optimization and not wait unnecessarily. */
     NON_GRACEFUL_SHUTDOWN("cassandra.test.messagingService.nonGracefulShutdown"),
+    /**
+     * Maximum number of log statements cached per NoSpamLogger instance.
+     * This prevents unbounded memory growth when log messages contain dynamic content.
+     * Defaults to MAX_VALUE as a default behavior since we rely on the cache time-based expiration.
+     */
+    NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER("cassandra.nospam_logger.max_statements_per_logger", String.valueOf(Long.MAX_VALUE)),
     /** for specific tests */
     /** This property indicates whether disable_mbean_registration is true */
     ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION("org.apache.cassandra.disable_mbean_registration"),
