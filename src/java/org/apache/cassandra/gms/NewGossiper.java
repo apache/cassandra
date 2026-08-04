@@ -173,7 +173,7 @@ public class NewGossiper
                 logger.debug("Received {} responses. {} required.", responses.size(), requiredResponses);
                 if (responses.size() >= requiredResponses)
                 {
-                    isDone = true;
+                    markDone();
                     Map<InetAddressAndPort, EndpointState> merged = merge(responses.values());
                     if (GossipHelper.isValidForClusterMetadata(merged))
                         promise.setSuccess(merged);
