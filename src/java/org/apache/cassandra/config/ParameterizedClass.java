@@ -187,7 +187,7 @@ public class ParameterizedClass
         }
     }
 
-    static boolean isSensitive(String key)
+    protected boolean isSensitive(String key)
     {
         return key.toLowerCase().contains("password")
                || key.toLowerCase().contains("hash");

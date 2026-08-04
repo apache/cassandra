@@ -55,7 +55,6 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
-import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -136,8 +135,6 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
      */
     static final ConsistencyLevel DEFAULT_SUPERUSER_CONSISTENCY_LEVEL = ConsistencyLevel.QUORUM;
 
-    private final IDefaultRoleInitializer defaultRoleInitializer;
-
     // Transform a row in the AuthKeyspace.ROLES to a Role instance
     private static final Function<UntypedResultSet.Row, Role> ROW_TO_ROLE = row ->
     {
@@ -212,27 +209,23 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
         invalidClientDisconnectPeriodMillis = new DurationSpec.LongMillisecondsBound(parameters.getOrDefault(PARAM_INVALID_ROLE_DISCONNECT_TASK_PERIOD, "0h")).toMilliseconds();
         invalidClientDisconnectMaxJitterMillis = new DurationSpec.LongMillisecondsBound(parameters.getOrDefault(PARAM_INVALID_ROLE_DISCONNECT_TASK_MAX_JITTER, "0h")).toMilliseconds();
 
-        String roleInitializerClassName = parameters.getOrDefault(IDefaultRoleInitializer.DEFAULT_ROLE_INITIALIZER_CLASS_NAME, PasswordDefaultRoleInitializer.class.getName());
-
-        Map<String, String> defaultRoleInitializerParameters = parameters.entrySet()
-                                                                         .stream()
-                                                                         .filter(e -> e.getKey().startsWith("default_role_initializer_")
-                                                                                      && !e.getKey().equals("default_role_initializer_class_name"))
-                                                                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-        defaultRoleInitializer = AuthConfig.authInstantiate(new ParameterizedClass(roleInitializerClassName,
-                                                                                   defaultRoleInitializerParameters),
-                                                            IDefaultRoleInitializer.class,
-                                                            PasswordDefaultRoleInitializer.class);
-
         if (!MBeanWrapper.instance.isRegistered(MBEAN_NAME))
             MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
     }
 
+    /**
+     * The default role initializer is configured as a top-level {@code default_role_initializer} option and
+     * applied by {@link AuthConfig#applyAuth()}. Returning it here lets the startup logic (see
+     * {@link #setup(boolean)}, {@link #hasExistingRoles()} and {@link #consistencyForRoleWrite(String)}) reach the
+     * configured initializer through the role manager, and lets custom {@link IRoleManager} implementations
+     * override how they integrate it. Falls back to the historical password initializer when auth setup has not
+     * run, e.g. in tests which do not call {@link AuthConfig#applyAuth()}.
+     */
     @Override
     public IDefaultRoleInitializer defaultRoleInitializer()
     {
-        return defaultRoleInitializer;
+        IDefaultRoleInitializer initializer = DatabaseDescriptor.getDefaultRoleInitializer();
+        return initializer == null ? PasswordDefaultRoleInitializer.instance : initializer;
     }
 
     @Override
@@ -535,7 +528,6 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
 
     public void validateConfiguration() throws ConfigurationException
     {
-        defaultRoleInitializer.validateConfiguration();
     }
 
     @VisibleForTesting

@@ -231,39 +231,41 @@ authorizer:
 #
 # - CassandraRoleManager stores role data in the system_auth keyspace. Please
 #   increase system_auth keyspace replication factor if you use this role manager.
-#
-# The creation of the initial role on a cluster which has no roles yet, implementing IDefaultRoleInitializer,
-# is driven by default_role_initializer_class_name property.
-# Most functions of the IRoleManager require an authenticated login, so a cluster with no roles has no way
-# to create the first one; this option controls how that role is bootstrapped.
-#
-# default_role_initializer_class_name defaults to PasswordDefaultRoleInitializer,
-# which creates a 'cassandra' superuser whose password is also 'cassandra'.
-# That password is a published constant, so deployments using it must rotate or drop the role
-# before the native transport is reachable.
-#
-# MutualTlsDefaultRoleInitializer instead creates the role with no password at all and maps a client
-# certificate identity onto it, so there is no credential to guess. It requires an authenticator supporting
-# mutual TLS, such as MutualTlsAuthenticator.
 role_manager:
   class_name: CassandraRoleManager
   parameters:
-    # Controls default password for initial role, if password hash is set, password is ignored
-    # default_role_initializer_class_name: PasswordDefaultRoleInitializer
-    # default_role_initializer_role: cassandra
-    # default_role_initializer_password_hash: "$2a$04$wsvzFamDJPDrTwMjgfcgpO.mKc.CMEuHBFZSjhGz2Ts6.v8PUO2rC"
-    # default_role_initializer_password: cassandra
-    # For mutual TLS, use this:
-    # default_role_initializer_class_name: MutualTlsDefaultRoleInitializer
-    # default_role_initializer_role: cassandra_mtls
-    # default_role_initializer_identity: spiffe1
-    #
     # Controls how often invalid roles are disconnected, such as when a role is altered with LOGIN=false
     # Task is scheduled with period + random(0, max_jitter) delay between executions
     # It's recommended to set these longer than the roles cache refresh period, since the invalidation check depends on
     # cache contents. Disable by setting period=0h.
     # invalid_role_disconnect_task_period: 4h
     # invalid_role_disconnect_task_max_jitter: 1h
+
+# Creates the initial role on a cluster which has no roles yet, implementing IDefaultRoleInitializer.
+# Most functions of the IRoleManager require an authenticated login, so a cluster with no roles has no way
+# to create the first one; this option controls how that role is bootstrapped.
+#
+# Defaults to PasswordDefaultRoleInitializer, which creates a 'cassandra' superuser whose password is also
+# 'cassandra'. That password is a published constant, so deployments using it must rotate or drop the role
+# before the native transport is reachable.
+#
+# MutualTlsDefaultRoleInitializer instead creates the role with no password at all and maps a client
+# certificate identity onto it, so there is no credential to guess. It requires an authenticator supporting
+# mutual TLS, such as MutualTlsAuthenticator or MutualTlsWithPasswordFallbackAuthenticator.
+#
+# default_role_initializer:
+#   class_name: PasswordDefaultRoleInitializer
+#   parameters:
+#     role: cassandra
+#     # Either a plaintext password or a password_hash may be given; if password_hash is set, password is ignored.
+#     password: cassandra
+#     # password_hash: "$2a$04$wsvzFamDJPDrTwMjgfcgpO.mKc.CMEuHBFZSjhGz2Ts6.v8PUO2rC"
+#
+# default_role_initializer:
+#   class_name: MutualTlsDefaultRoleInitializer
+#   parameters:
+#     role: cassandra_mtls
+#     identity: "spiffe1"
 
 # Network authorization backend, implementing INetworkAuthorizer; used to restrict user
 # access to certain DCs

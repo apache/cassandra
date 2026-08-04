@@ -19,6 +19,7 @@
 package org.apache.cassandra.auth;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -92,6 +93,14 @@ public final class AuthConfig
 
         DatabaseDescriptor.setAuthorizer(authorizer);
 
+        // default role initializer: bootstraps the first role on a cluster which has none yet. Instantiated
+        // before the role manager because the role manager depends on it (see IRoleManager#defaultRoleInitializer).
+
+        IDefaultRoleInitializer defaultRoleInitializer = authInstantiate(conf.default_role_initializer,
+                                                                         IDefaultRoleInitializer.class,
+                                                                         PasswordDefaultRoleInitializer.instance);
+        DatabaseDescriptor.setDefaultRoleInitializer(defaultRoleInitializer);
+
         // role manager
 
         IRoleManager roleManager = authInstantiate(conf.role_manager, IRoleManager.class, CassandraRoleManager.class);
@@ -140,17 +149,22 @@ public final class AuthConfig
         authenticator.validateConfiguration();
         authorizer.validateConfiguration();
         roleManager.validateConfiguration();
+        defaultRoleInitializer.validateConfiguration();
         networkAuthorizer.validateConfiguration();
         cidrAuthorizer.validateConfiguration();
         DatabaseDescriptor.getInternodeAuthenticator().validateConfiguration();
     }
 
-    public static <T> T authInstantiate(ParameterizedClass authCls, Class<T> expectedType, Class<? extends T> defaultCls) {
+    public static <T> T authInstantiate(ParameterizedClass authCls, Class<T> expectedType, Class<? extends T> defaultCls)
+    {
         if (authCls != null && authCls.class_name != null)
         {
             String authPackage = AuthConfig.class.getPackage().getName();
             return ParameterizedClass.newInstance(authCls, List.of("", authPackage), expectedType);
         }
+
+        if (defaultCls == null)
+            return null;
 
         // for now, this has to stay and can not be replaced by ParameterizedClass.newInstance as above
         // due to that failing for simulator dtests. See CASSANDRA-20450 for more information.
@@ -162,5 +176,15 @@ public final class AuthConfig
         {
             throw new ConfigurationException("Failed to instantiate " + defaultCls.getName(), e);
         }
+    }
+
+    public static <T> T authInstantiate(ParameterizedClass authCls, Class<T> expectedType, T defaultInstance)
+    {
+        if (authCls != null && authCls.class_name != null)
+        {
+            String authPackage = AuthConfig.class.getPackage().getName();
+            return ParameterizedClass.newInstance(authCls, List.of("", authPackage), expectedType);
+        }
+        return defaultInstance;
     }
 }

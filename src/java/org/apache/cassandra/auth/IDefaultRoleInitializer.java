@@ -45,8 +45,6 @@ public interface IDefaultRoleInitializer
 {
     Logger logger = LoggerFactory.getLogger(IDefaultRoleInitializer.class);
 
-    String DEFAULT_ROLE_INITIALIZER_CLASS_NAME = "default_role_initializer_class_name";
-
     /**
      * Creates the default role.
      * When using this in connection with CassandraRoleManager, every node runs this independently during initial

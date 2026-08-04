@@ -75,7 +75,7 @@ public class MutualTlsDefaultRoleInitializer implements IDefaultRoleInitializer
                                              escape(role)),
                                consistencyForRoleWrite(role));
 
-        logger.info("Created passwordless default superuser role '{}' with identity '{}'", role, identity);
+        logger.info("Created passwordless default superuser role '{}' with mapped identity '{}'", role, identity);
     }
 
     @Override
