@@ -533,7 +533,7 @@ public class BTreeRow extends AbstractRow
                         + clustering.unsharedHeapSize()
                         + primaryKeyLivenessInfo.unsharedHeapSize()
                         + deletion.unsharedHeapSize()
-                        + BTree.sizeOfStructureOnHeap(btree);
+                        + BTree.sizeOnHeapOf(btree);
 
         return accumulate((cd, v) -> v + cd.unsharedHeapSize(), heapSize);
     }
@@ -545,7 +545,7 @@ public class BTreeRow extends AbstractRow
                         + clustering.unsharedHeapSizeExcludingData()
                         + primaryKeyLivenessInfo.unsharedHeapSize()
                         + deletion.unsharedHeapSize()
-                        + BTree.sizeOfStructureOnHeap(btree);
+                        + BTree.sizeOnHeapOf(btree);
 
         return accumulate((cd, v) -> v + cd.unsharedHeapSizeExcludingData(), heapSize);
     }
@@ -612,11 +612,23 @@ public class BTreeRow extends AbstractRow
                 else
                 {
                     // The update's deletion shadows part of the existing row. Those cells ARE owned by
-                    // the memtable, so record their removal via retain().
-                    existingBtree = BTree.transformAndFilter(existingBtree, reconciler::retain);
+                    // the memtable, so record their removal via retain(). The retain branch rebuilds the tree
+                    // smaller via BTree.transformAndFilter (node accounting disabled), so report the freed
+                    // structure here, as ColumnData.Reconciler.merge does on its path.
+                    Object[] retained = BTree.transformAndFilter(existingBtree, reconciler::retain);
+                    if (existingBtree != retained)
+                    {
+                        reconcileF.onAllocatedOnHeap(BTree.sizeOnHeapOf(retained) - BTree.sizeOnHeapOf(existingBtree));
+                        existingBtree = retained;
+                    }
                 }
             }
             Object[] tree = BTree.update(existingBtree, updateBtree, ColumnData.comparator, reconciler);
+            // BTree.update and the reconciler only account the column data (cells and column-tree nodes); the row's
+            // own LivenessInfo/Deletion are not. When they change (e.g. a row tombstone supersedes a live row) the
+            // new objects become memtable-owned and the old ones are released, so account that delta here.
+            reconcileF.onAllocatedOnHeap((livenessInfo.unsharedHeapSize() + rowDeletion.unsharedHeapSize())
+                                         - (existing.primaryKeyLivenessInfo().unsharedHeapSize() + existing.deletion().unsharedHeapSize()));
             return new BTreeRow(existing.clustering, livenessInfo, rowDeletion, tree, minDeletionTime(tree, livenessInfo, deletion));
         }
     }

@@ -947,19 +947,6 @@ public class BTree
         return ((int[]) tree[length - 1])[(length / 2) - 1];
     }
 
-    public static long sizeOfStructureOnHeap(Object[] tree)
-    {
-        if (tree == EMPTY_LEAF)
-            return 0;
-
-        long size = ObjectSizes.sizeOfArray(tree);
-        if (isLeaf(tree))
-            return size;
-        for (int i = getChildStart(tree); i < getChildEnd(tree); i++)
-            size += sizeOfStructureOnHeap((Object[]) tree[i]);
-        return size;
-    }
-
     /**
      * Checks is the node is a leaf.
      *
@@ -2202,7 +2189,6 @@ public class BTree
     {
         if (isEmpty(tree))
             return 0;
-
         long size = ObjectSizes.sizeOfArray(tree);
         if (isLeaf(tree))
             return size;
@@ -2216,8 +2202,24 @@ public class BTree
     {
         if (isEmpty(tree))
             return 0;
-
         return ObjectSizes.sizeOfArray(tree);
+    }
+
+    /**
+     * The heap occupied by a single node (its backing array, plus the sizeMap for a branch), <em>not</em> including
+     * its children -- the per-node contribution to {@link #sizeOnHeapOf(Object[])}. The update builders use it to keep
+     * their running {@code allocated} total net: every newly built node adds its shallow heap and every source node it
+     * replaces subtracts its shallow heap, so reused subtrees cancel and the total equals the change in tree heap.
+     */
+    private static long shallowHeapOf(Object[] node)
+    {
+        if (isEmpty(node))
+            return 0;
+
+        long size = ObjectSizes.sizeOfArray(node);
+        if (!isLeaf(node))
+            size += ObjectSizes.sizeOfArray(sizeMap(node));
+        return size;
     }
 
     // Arbitrary boundaries
@@ -2419,16 +2421,27 @@ public class BTree
          */
         public Object[] completeBuild()
         {
+            return completeBuild(null);
+        }
+
+        /**
+         * As {@link #completeBuild()}, but {@code rootUnode} is the source node at this (the root) level, so that an
+         * unchanged root is reused and a rebuilt root releases its predecessor from the running heap total -- the
+         * root-level analogue of the per-child accounting {@link Updater#updateRecursive} performs via drainAndPropagate.
+         */
+        public Object[] completeBuild(Object[] rootUnode)
+        {
             LeafOrBranchBuilder level = this;
             while (true)
             {
                 if (!level.hasOverflow())
-                    return level.drain();
+                    return level.drainAndPropagate(rootUnode, null);
 
                 BranchBuilder parent = level.ensureParent();
-                level.drainAndPropagate(null, parent);
+                level.drainAndPropagate(rootUnode, parent);
                 if (level.savedBuffer != null)
                     Arrays.fill(level.savedBuffer, null);
+                rootUnode = null;
                 level = parent;
             }
         }
@@ -2510,12 +2523,19 @@ public class BTree
      */
     private static abstract class LeafBuilder extends LeafOrBranchBuilder
     {
+        static final long DISABLED = Long.MIN_VALUE;
         long allocated;
 
         LeafBuilder()
         {
             super(null);
             buffer = new Object[MAX_KEYS];
+        }
+
+        final void addAllocated(long bytes)
+        {
+            if (allocated != DISABLED)
+                allocated += bytes;
         }
 
         /**
@@ -2675,8 +2695,7 @@ public class BTree
             int newPredecessorCount = predSize - steal;
             Object[] newPredecessor = new Object[newPredecessorCount | 1];
             System.arraycopy(pred, 0, newPredecessor, 0, newPredecessorCount);
-            if (allocated >= 0)
-                allocated += ObjectSizes.sizeOfReferenceArray(newPredecessorCount | 1);
+            addAllocated(ObjectSizes.sizeOfReferenceArray(newPredecessorCount | 1));
             ensureParent().addChildAndNextKey(newPredecessor, newPredecessorCount, pred[newPredecessorCount]);
             return newLeaf;
         }
@@ -2728,8 +2747,7 @@ public class BTree
         {
             // propagate the leaf we have saved in savedBuffer
             // precondition: savedLeafCount == MAX_KEYS
-            if (allocated >= 0)
-                allocated += ObjectSizes.sizeOfReferenceArray(MAX_KEYS);
+            addAllocated(ObjectSizes.sizeOfReferenceArray(MAX_KEYS));
             ensureParent().addChildAndNextKey(savedBuffer, MAX_KEYS, savedNextKey);
             savedBuffer = null;
             savedNextKey = null;
@@ -2751,6 +2769,9 @@ public class BTree
                 // we have too few items, so spread the two buffers across two new nodes
                 leaf = redistributeOverflowAndDrain();
                 sizeOfLeaf = MIN_KEYS;
+                // redistributeAndDrain accounted the propagated predecessor; account this returned leaf and release
+                // the source node it (together with the predecessor) replaces
+                addAllocated(ObjectSizes.sizeOfReferenceArray(MIN_KEYS) - (unode == null ? 0 : sizeOnHeapOfLeaf(unode)));
             }
             else if (!hasOverflow() && unode != null && count == sizeOfLeaf(unode) && areIdentical(buffer, 0, unode, 0, count))
             {
@@ -2766,8 +2787,9 @@ public class BTree
 
                 sizeOfLeaf = count;
                 leaf = drain();
-                if (allocated >= 0 && sizeOfLeaf > 0)
-                    allocated += ObjectSizes.sizeOfReferenceArray(sizeOfLeaf | 1) - (unode == null ? 0 : sizeOnHeapOfLeaf(unode));
+                // account the new leaf (if any) and release the source it replaces, keeping the total a net delta
+                addAllocated((sizeOfLeaf > 0 ? ObjectSizes.sizeOfReferenceArray(sizeOfLeaf | 1) : 0)
+                             - (unode == null ? 0 : sizeOnHeapOfLeaf(unode)));
             }
 
             count = 0;
@@ -2872,10 +2894,10 @@ public class BTree
          */
         void propagateOverflow()
         {
-            // propagate the leaf we have saved in leaf().savedBuffer
-            if (leaf.allocated >= 0)
-                leaf.allocated += ObjectSizes.sizeOfReferenceArray(2 * (1 + MAX_KEYS));
+            // propagate the branch we have saved in savedBuffer; it is a brand-new node, so account it in full
+            // (array + sizeMap) with nothing to release
             int size = setOverflowSizeMap(savedBuffer, MAX_KEYS);
+            leaf.addAllocated(shallowHeapOf(savedBuffer));
             ensureParent().addChildAndNextKey(savedBuffer, size, savedNextKey);
             savedBuffer = null;
             savedNextKey = null;
@@ -2930,8 +2952,7 @@ public class BTree
             System.arraycopy(savedBuffer, 0, savedBranch, 0, savedBranchCount);
             System.arraycopy(savedBuffer, MAX_KEYS, savedBranch, savedBranchCount, savedBranchCount + 1);
             int savedBranchSize = setOverflowSizeMap(savedBranch, savedBranchCount);
-            if (leaf.allocated >= 0)
-                leaf.allocated += ObjectSizes.sizeOfReferenceArray(2 * (1 + savedBranchCount));
+            leaf.addAllocated(shallowHeapOf(savedBranch));
             ensureParent().addChildAndNextKey(savedBranch, savedBranchSize, savedBuffer[savedBranchCount]);
             savedNextKey = null;
 
@@ -3014,6 +3035,9 @@ public class BTree
             {
                 branch = redistributeOverflowAndDrain();
                 sizeOfBranch = sizeOfBranch(branch);
+                // redistributeOverflowAndDrain accounted the propagated branch; account this returned branch and
+                // release the source it (together with that branch) replaces
+                leaf.addAllocated(shallowHeapOf(branch) - (unode == null ? 0 : shallowHeapOf(unode)));
             }
             else
             {
@@ -3037,6 +3061,8 @@ public class BTree
                     System.arraycopy(buffer, 0, branch, 0, count);
                     System.arraycopy(buffer, MAX_KEYS, branch, count, count + 1);
                     sizeOfBranch = setDrainSizeMap(unode, usz, branch, count);
+                    // account the new branch (array + sizeMap) and release the source branch it replaces
+                    leaf.addAllocated(shallowHeapOf(branch) - (unode == null ? 0 : shallowHeapOf(unode)));
                 }
             }
 
@@ -3331,7 +3357,7 @@ public class BTree
 
         FastBuilder()
         {
-            allocated = -1;
+            allocated = DISABLED;
         } // disable allocation tracking
 
         public void add(V value)
@@ -3439,7 +3465,7 @@ public class BTree
             this.insert.init(insert);
             this.updateF = updateF;
             this.comparator = comparator;
-            this.allocated = isSimple(updateF) ? -1 : 0;
+            this.allocated = isSimple(updateF) ? DISABLED : 0;
             int leafDepth = BTree.depth(update) - 1;
             LeafOrBranchBuilder builder = leaf();
             for (int i = 0; i < leafDepth; ++i)
@@ -3448,9 +3474,9 @@ public class BTree
             Insert ik = this.insert.next();
             ik = updateRecursive(ik, update, null, builder);
             assert ik == null;
-            Object[] result = builder.completeBuild();
+            Object[] result = builder.completeBuild(update);
 
-            if (allocated > 0)
+            if (allocated != DISABLED)
                 updateF.onAllocatedOnHeap(allocated);
 
             return result;
@@ -3635,7 +3661,7 @@ public class BTree
 
         AbstractTransformer()
         {
-            allocated = -1;
+            allocated = DISABLED;
             ensureParent();
             parent.inUse = false;
         }
