@@ -33,6 +33,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.Shared;
 
 import static java.util.stream.Collectors.toMap;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 @Shared(scope = SIMULATION)
@@ -189,7 +190,8 @@ public class ParameterizedClass
 
     protected boolean isSensitive(String key)
     {
-        return key.toLowerCase().contains("password")
-               || key.toLowerCase().contains("hash");
+        String lowerCaseKey = toLowerCaseLocalized(key);
+        return lowerCaseKey.contains("password")
+               || lowerCaseKey.contains("hash");
     }
 }

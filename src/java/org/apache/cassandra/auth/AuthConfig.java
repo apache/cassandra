@@ -19,7 +19,6 @@
 package org.apache.cassandra.auth;
 
 import java.util.List;
-import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 
