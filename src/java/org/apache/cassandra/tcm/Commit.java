@@ -436,13 +436,38 @@ public class Commit
 
     public static class DefaultReplicator implements Replicator
     {
-        private final Supplier<Directory> directorySupplier;
-        private final Supplier<EndpointLookup> lookupSupplier;
-
-        public DefaultReplicator(Supplier<Directory> directorySupplier, Supplier<EndpointLookup> lookupSupplier)
+        public static class RoutingHelper
         {
-            this.directorySupplier = directorySupplier;
-            this.lookupSupplier = lookupSupplier;
+            private final Directory directory;
+            private final EndpointLookup endpoints;
+
+            public RoutingHelper(ClusterMetadata metadata)
+            {
+                this.directory = metadata.directory;
+                this.endpoints = metadata.endpointLookup();
+            }
+
+            Iterable<NodeId> peerIds()
+            {
+                return directory.peerIds();
+            };
+
+            boolean isUpgraded(NodeId id)
+            {
+                return directory.version(id).isUpgraded();
+            }
+
+            InetAddressAndPort endpoint(NodeId id)
+            {
+                return endpoints.endpoint(id);
+            };
+        }
+
+        private final Supplier<RoutingHelper> routingSupplier;
+
+        public DefaultReplicator(Supplier<RoutingHelper> routingSupplier)
+        {
+            this.routingSupplier = routingSupplier;
         }
 
         public void send(Result result, InetAddressAndPort source)
@@ -451,8 +476,7 @@ public class Commit
                 return;
 
             Result.Success success = result.success();
-            Directory directory = directorySupplier.get();
-            EndpointLookup lookup = lookupSupplier.get();
+            RoutingHelper routing = routingSupplier.get();
 
             // Filter the log entries from the commit result for the purposes of replicating to members of the cluster
             // other than the original submitter. We only need to include the sublist of entries starting at the one
@@ -462,10 +486,10 @@ public class Commit
             assert !newlyCommitted.isEmpty() : String.format("Nothing to replicate after retaining epochs since %s from %s",
                                                              success.epoch, success.logState);
 
-            for (NodeId peerId : directory.peerIds())
+            for (NodeId peerId : routing.peerIds())
             {
-                InetAddressAndPort endpoint = lookup.endpoint(peerId);
-                boolean upgraded = directory.version(peerId).isUpgraded();
+                InetAddressAndPort endpoint = routing.endpoint(peerId);
+                boolean upgraded = routing.isUpgraded(peerId);
                 // Do not replicate to self and to the peer that has requested to commit this message
                 if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()) ||
                     (source != null && source.equals(endpoint)) ||
@@ -479,5 +503,4 @@ public class Commit
             }
         }
     }
-
 }
