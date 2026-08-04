@@ -214,6 +214,12 @@ public class RowWithSource implements Row
     }
 
     @Override
+    public long minLocalDeletionTime()
+    {
+        return row.minLocalDeletionTime();
+    }
+
+    @Override
     public SearchIterator<ColumnMetadata, ColumnData> searchIterator()
     {
         SearchIterator<ColumnMetadata, ColumnData> iterator = row.searchIterator();

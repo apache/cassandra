@@ -49,7 +49,7 @@ public class DateType extends AbstractType<Date>
     private static final ArgumentDeserializer ARGUMENT_DESERIALIZER = new DefaultArgumentDeserializer(instance);
     private static final ByteBuffer MASKED_VALUE = instance.decompose(new Date(0));
 
-    DateType() {super(ComparisonType.BYTE_ORDER);} // singleton
+    DateType() {super(ComparisonType.BYTE_ORDER, 8);} // singleton
 
     public boolean isEmptyValueMeaningless()
     {
@@ -141,12 +141,6 @@ public class DateType extends AbstractType<Date>
     public ArgumentDeserializer getArgumentDeserializer()
     {
         return ARGUMENT_DESERIALIZER;
-    }
-
-    @Override
-    public int valueLengthIfFixed()
-    {
-        return 8;
     }
 
     @Override

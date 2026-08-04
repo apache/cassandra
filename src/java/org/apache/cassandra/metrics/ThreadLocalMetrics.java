@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -41,6 +43,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Shutdownable;
 
 import io.netty.util.concurrent.FastThreadLocal;
+import io.netty.util.concurrent.FastThreadLocalThread;
 
 import static com.google.common.collect.ImmutableList.of;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -64,10 +67,8 @@ public class ThreadLocalMetrics
 
     static final AtomicInteger idGenerator = new AtomicInteger();
 
-    private static final Object freeMetricIdSetGuard = new Object();
-
     @VisibleForTesting
-    static final BitSet freeMetricIdSet = new BitSet();
+    static final FreeMetricIdSetTracker freeMetricIdSetTracker = new FreeMetricIdSetTracker();
 
     private static final List<ThreadLocalMetrics> allThreadLocalMetrics = new CopyOnWriteArrayList<>();
 
@@ -101,7 +102,13 @@ public class ThreadLocalMetrics
     {
         ThreadLocalMetrics result = new ThreadLocalMetrics();
         allThreadLocalMetrics.add(result);
-        destroyWhenUnreachable(Thread.currentThread(), result::release);
+
+        Thread thread = Thread.currentThread();
+        // use phantom references ony if needed
+        // CassandraThread is FastThreadLocalThread too
+        if (!(thread instanceof FastThreadLocalThread))
+            destroyWhenUnreachable(thread, result::release);
+
         return result;
     }
 
@@ -317,13 +324,7 @@ public class ThreadLocalMetrics
 
     static int allocateMetricId()
     {
-        int metricId;
-        synchronized (freeMetricIdSetGuard)
-        {
-            metricId = freeMetricIdSet.nextSetBit(0);
-            if (metricId >= 0)
-                freeMetricIdSet.clear(metricId);
-        }
+        int metricId = freeMetricIdSetTracker.getFreeMetricId();
         if (metricId < 0)
             metricId = idGenerator.getAndIncrement();
 
@@ -374,26 +375,92 @@ public class ThreadLocalMetrics
             lock.unlock();
         }
 
-        // there's no an obvious happens-before relation between currentCounterValues[metricId] = 0 write we just did
-        // and an initial read of the entry by a thread which updates the reused metric
-        // as a workaround we introduce a delay in recyling to provide the write visibility in practice
-        //  even if it is not formally guaranteed by the JMM
-        ScheduledExecutors.scheduledTasks.schedule(() -> {
-            synchronized (freeMetricIdSetGuard)
+        freeMetricIdSetTracker.markAsFree(metricId);
+    }
+
+    @VisibleForTesting
+    static class FreeMetricIdSetTracker
+    {
+        private final BitSet freeMetricIdSet = new BitSet();
+
+        private final BitSet tickDelayedToFreeMetricIdSet = new BitSet();
+        private final BitSet tockDelayedToFreeMetricIdSet = new BitSet();
+
+        private BitSet delayedToFreeMetricIdSet = tickDelayedToFreeMetricIdSet;
+
+        private ScheduledFuture<?> cleanupTask;
+
+        @VisibleForTesting
+        synchronized void triggerRecycling()
+        {
+            cleanupTask = null;
+            BitSet toProcess = otherSet(delayedToFreeMetricIdSet);
+            freeMetricIdSet.or(toProcess);
+            toProcess.clear();
+            if (!delayedToFreeMetricIdSet.isEmpty())
+                scheduleCleanupTask();
+            delayedToFreeMetricIdSet = toProcess;
+        }
+
+        private BitSet otherSet(BitSet set)
+        {
+            return set == tickDelayedToFreeMetricIdSet ? tockDelayedToFreeMetricIdSet : tickDelayedToFreeMetricIdSet;
+        }
+
+        public synchronized int getFreeMetricId()
+        {
+            int metricId = freeMetricIdSet.nextSetBit(0);
+            if (metricId >= 0)
+                freeMetricIdSet.clear(metricId);
+            return metricId;
+        }
+
+        public synchronized void markAsFree(int metricId)
+        {
+            // there's no an obvious happens-before relation between currentCounterValues[metricId] = 0 write we just did
+            // and an initial read of the entry by a thread which updates the reused metric
+            // as a workaround we introduce a delay in recyling to provide the write visibility in practice
+            //  even if it is not formally guaranteed by the JMM
+            delayedToFreeMetricIdSet.set(metricId);
+            scheduleCleanupTask();
+        }
+
+        // must be called while holding this monitor (from a synchronized method)
+        @VisibleForTesting
+        protected void scheduleCleanupTask()
+        {
+            try
             {
-                freeMetricIdSet.set(metricId);
+                if (cleanupTask == null)
+                    cleanupTask = ScheduledExecutors.scheduledTasks.schedule(this::triggerRecycling, 5, TimeUnit.SECONDS);
             }
-        }, 5, TimeUnit.SECONDS);
+            catch (RejectedExecutionException e)
+            {
+               // ignore theoretically possible rejections during a shutdown
+            }
+        }
+
+        public synchronized int getFreeMetricSetCardinality()
+        {
+            return freeMetricIdSet.cardinality();
+        }
+
+        @Override
+        public synchronized String toString()
+        {
+            return "FreeMetricIdSetTracker{" +
+                   "freeMetricIdSet=" + freeMetricIdSet +
+                   ", tickDelayedToFreeMetricIdSet=" + tickDelayedToFreeMetricIdSet +
+                   ", tockDelayedToFreeMetricIdSet=" + tockDelayedToFreeMetricIdSet +
+                   ", delayedToFreeMetricIdSet=" + (delayedToFreeMetricIdSet == tickDelayedToFreeMetricIdSet ? "tick" : "tock") +
+                   '}';
+        }
     }
 
     @VisibleForTesting
     static int getAllocatedMetricsCount()
     {
-        int freeCount;
-        synchronized (freeMetricIdSetGuard)
-        {
-            freeCount = freeMetricIdSet.cardinality();
-        }
+        int freeCount = freeMetricIdSetTracker.getFreeMetricSetCardinality();
         return idGenerator.get() - freeCount;
     }
 

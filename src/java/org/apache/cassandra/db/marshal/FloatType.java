@@ -41,7 +41,7 @@ public class FloatType extends NumberType<Float>
 
     private static final ByteBuffer MASKED_VALUE = instance.decompose(0f);
 
-    FloatType() {super(ComparisonType.CUSTOM);} // singleton
+    FloatType() {super(ComparisonType.CUSTOM, 4);} // singleton
 
     @Override
     public boolean allowsEmpty()
@@ -144,12 +144,6 @@ public class FloatType extends NumberType<Float>
                 mutable.setValue(ByteBufferUtil.toFloat(buffer));
             }
         };
-    }
-
-    @Override
-    public int valueLengthIfFixed()
-    {
-        return 4;
     }
 
     @Override

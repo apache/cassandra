@@ -46,6 +46,7 @@ import org.apache.cassandra.io.compress.ZstdDictionaryCompressor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
 
@@ -302,7 +303,7 @@ public final class CompressionParams
         return maxCompressedLength;
     }
 
-    private static Class<?> parseCompressorClass(String className) throws ConfigurationException
+    private static Class<? extends ICompressor> parseCompressorClass(String className) throws ConfigurationException
     {
         if (className == null || className.isEmpty())
             return null;
@@ -310,15 +311,17 @@ public final class CompressionParams
         className = className.contains(".") ? className : "org.apache.cassandra.io.compress." + className;
         try
         {
-            return Class.forName(className);
+            return FBUtilities.classForNameWithoutInitialization(className, "compression", ICompressor.class);
         }
-        catch (Exception e)
+        catch (ConfigurationException e)
         {
-            throw new ConfigurationException("Could not create Compression for type " + className, e);
+            if (e.getCause() instanceof ClassNotFoundException || e.getCause() instanceof NoClassDefFoundError)
+                throw new ConfigurationException("Could not create Compression for type " + className, e);
+            throw e;
         }
     }
 
-    private static ICompressor createCompressor(Class<?> compressorClass, Map<String, String> compressionOptions) throws ConfigurationException
+    private static ICompressor createCompressor(Class<? extends ICompressor> compressorClass, Map<String, String> compressionOptions) throws ConfigurationException
     {
         if (compressorClass == null)
         {

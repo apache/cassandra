@@ -84,6 +84,8 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
         SSTABLE_UPPER_BOUND          ( 4,  1, v -> ByteSource.GTGT_NEXT_COMPONENT);
         // @formatter:on
 
+        private static final Kind[] VALUES = values();
+
         private final int comparison;
 
         /**
@@ -99,6 +101,11 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
             this.comparison = comparison;
             this.comparedToClustering = comparedToClustering;
             this.asByteComparable = asByteComparable;
+        }
+
+        public static Kind fromOrdinal(int ordinal)
+        {
+            return VALUES[ordinal];
         }
 
         /**
@@ -476,7 +483,7 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
 
         public void skip(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException
         {
-            Kind kind = Kind.values()[in.readByte()];
+            Kind kind = Kind.fromOrdinal(in.readByte());
             // We shouldn't serialize static clusterings
             assert kind != Kind.STATIC_CLUSTERING;
             if (kind == Kind.CLUSTERING)
@@ -487,7 +494,7 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
 
         public ClusteringPrefix<byte[]> deserialize(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException
         {
-            Kind kind = Kind.values()[in.readByte()];
+            Kind kind = Kind.fromOrdinal(in.readByte());
             // We shouldn't serialize static clusterings
             assert kind != Kind.STATIC_CLUSTERING;
             if (kind == Kind.CLUSTERING)
@@ -657,7 +664,7 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
                 throw new IOException("Corrupt flags value for clustering prefix (isStatic flag set): " + flags);
 
             this.nextIsRow = UnfilteredSerializer.kind(flags) == Unfiltered.Kind.ROW;
-            this.nextKind = nextIsRow ? Kind.CLUSTERING : ClusteringPrefix.Kind.values()[in.readByte()];
+            this.nextKind = nextIsRow ? Kind.CLUSTERING : Kind.fromOrdinal(in.readByte());
             this.nextSize = nextIsRow ? comparator.size() : in.readUnsignedShort();
             this.deserializedSize = 0;
 

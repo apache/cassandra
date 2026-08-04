@@ -81,9 +81,9 @@ public class GetEndpointsTest extends TestBaseImpl
             for (IInvokableInstance i : cluster)
             {
                 i.runOnInstance(() -> {
-                    List<String> endpoints = StorageService.instance.getNaturalEndpointsWithPort("system_cluster_metadata", "distributed_metadata_log", "1");
-                    assertEquals(endpoints.toString(), 3, endpoints.size());
-                    assertEquals(Replicas.stringify(ClusterMetadata.current().fullCMSMembersAsReplicas(), true), endpoints);
+                    List<String> replicas = StorageService.instance.getNaturalReplicasWithPort("system_cluster_metadata", "distributed_metadata_log", "1");
+                    assertEquals(replicas.toString(), 3, replicas.size());
+                    assertEquals(Replicas.stringify(ClusterMetadata.current().fullCMSMembersAsReplicas(), true), replicas);
                 });
 
             }

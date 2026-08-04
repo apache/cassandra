@@ -1,9 +1,21 @@
 7.0
+ * Don't increment client metrics on messaging service connection unpause (CASSANDRA-21491)
+ * Add nodetool getreplicas (CASSANDRA-17665)
  * Implementation of CEP-49: Hardware-accelerated compression (CASSANDRA-20975)
  * Avoid using ObjectUtils.getFirstNonNull in Schema (CASSANDRA-21394)
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Apply performance optimizations for rows merging logic (CASSANDRA-21524)
+ * Fix operationMode reporting DECOMMISSION_FAILED instead of LEAVING when resuming a failed decommission (CASSANDRA-21493)
+ * Avoid megamorphic calls when serializing and deserializing fixed-length values (CASSANDRA-21536)
+ * Avoid megamorphic calls for Cell.timestamp/ttl/path/localDeletionTimeAsUnsignedInt methods (CASSANDRA-21526)
+ * Reduce allocations in DefaultQueryOptions (CASSANDRA-21467)
+ * Allow unreserved keywords as user and identity names in USER and IDENTITY statements (CASSANDRA-21510)
+ * Reduce allocations in DefaultQueryOptions (CASSANDRA-21467)
+ * Reduce number of scheduledTasks on metric id release in ThreadLocalMetrics (CASSANDRA-21475)
+ * Cache various Enum.values() used in deserialization to avoid per-read array allocation (CASSANDRA-21528)
+ * Fix Accord transaction error message when altering a table (CASSANDRA-20580)
  * Depend only on platform-specific Zstd JNI native libraries (CASSANDRA-21483)
  * Expose immediately-executed tasks in the queries virtual table (CASSANDRA-21471)
  * Avoid potential deadlock between GlobalLogFollower and GossipStage (CASSANDRA-21384)
@@ -21,7 +33,7 @@ Merged from 6.0:
  * Always send TCM commit failures as Messaging failures (CASSANDRA-21457)
  * Fix ReadCommand serializedSize() using incorrect epoch (CASSANDRA-21438)
  * Allocation improvements in ProtocolVersion, StorageProxy and MerkleTree (CASSANDRA-21199)
- * Don’t leave autocompaction disabled during bootstrap and replace (CASSANDRA-21236)
+ * Don't leave autocompaction disabled during bootstrap and replace (CASSANDRA-21236)
  * Make nodetool abortbootstrap more robust (CASSANDRA-21235)
  * Don't clear prepared statement cache on nodetool cms initialize (CASSANDRA-21234)
  * Improve performance when deserializing cluster metadata  (CASSANDRA-21224)
@@ -64,6 +76,8 @@ Merged from 5.0:
  * Use estimated compressed size for tables to check if there is enough free space for a compaction (CASSANDRA-21245)
  * Fix failing select on system_views.settings for non-string keys (CASSANDRA-21348)
 Merged from 4.0:
+ * Bound declared value length against readable bytes in CBUtil (CASSANDRA-21521)
+ * Verify extension type before initializing reflectively-loaded classes (CASSANDRA-21525)
  * Rename conflicting nodetool import --copy-data short option from -p to -cd (CASSANDRA-20214)
  * Fix PasswordObfuscator failing to obfuscate certain passwords (CASSANDRA-21113)
  * Fix negative memtable allocator ownership when an update is shadowed by an existing row deletion (CASSANDRA-21469)
@@ -86,6 +100,7 @@ Merged from 4.0:
  * Fix a removed TTLed row re-appearance in a materialized view after a cursor compaction (CASSANDRA-21152)
  * Rework ZSTD dictionary compression logic to create a trainer per training (CASSANDRA-21209)
 Merged from 5.0:
+ * SAI Component Checksum Validation Should be Segment-Aware (CASSANDRA-21516)
  * Ensure SAI sends range tombstones to the coordinator for queries on static columns (CASSANDRA-21332)
 Merged from 4.1:
  * Add Paxos v2 option and informatin in cassandra.yaml (CASSANDRA-21316)
@@ -8654,5 +8669,4 @@ Full list of issues resolved in 0.4 is at https://issues.apache.org/jira/secure/
  * Combined blocking and non-blocking versions of insert APIs
  * Added FlushPeriodInMinutes configuration parameter to force
    flushing of infrequently-updated ColumnFamilies
-
 

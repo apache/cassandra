@@ -493,7 +493,17 @@ public class RowFilter implements Iterable<RowFilter.Expression>
         // and this is why we have some UNUSEDX for values we don't use anymore
         // (we could clean those on a major protocol update, but it's not worth
         // the trouble for now)
-        protected enum Kind { SIMPLE, MAP_ELEMENT, UNUSED1, CUSTOM, USER }
+        protected enum Kind
+        {
+            SIMPLE, MAP_ELEMENT, UNUSED1, CUSTOM, USER;
+
+            private static final Kind[] VALUES = values();
+
+            static Kind fromOrdinal(int ordinal)
+            {
+                return VALUES[ordinal];
+            }
+        }
 
         protected abstract Kind kind();
         protected final ColumnMetadata column;
@@ -685,7 +695,7 @@ public class RowFilter implements Iterable<RowFilter.Expression>
 
             public Expression deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
             {
-                Kind kind = Kind.values()[in.readByte()];
+                Kind kind = Kind.fromOrdinal(in.readByte());
 
                 // custom expressions (3.0+ only) do not contain a column or operator, only a value
                 if (kind == Kind.CUSTOM)

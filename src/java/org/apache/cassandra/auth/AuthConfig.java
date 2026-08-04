@@ -63,7 +63,7 @@ public final class AuthConfig
 
         /* Authentication, authorization and role management backend, implementing IAuthenticator, I*Authorizer & IRoleManager */
 
-        IAuthenticator authenticator = authInstantiate(conf.authenticator, AllowAllAuthenticator.class);
+        IAuthenticator authenticator = authInstantiate(conf.authenticator, IAuthenticator.class, AllowAllAuthenticator.class);
 
         // the configuration options regarding credentials caching are only guaranteed to
         // work with PasswordAuthenticator, so log a message if some other authenticator
@@ -82,7 +82,7 @@ public final class AuthConfig
 
         // authorizer
 
-        IAuthorizer authorizer = authInstantiate(conf.authorizer, AllowAllAuthorizer.class);
+        IAuthorizer authorizer = authInstantiate(conf.authorizer, IAuthorizer.class, AllowAllAuthorizer.class);
 
         if (!authenticator.requireAuthentication() && authorizer.requireAuthorization())
         {
@@ -94,7 +94,7 @@ public final class AuthConfig
 
         // role manager
 
-        IRoleManager roleManager = authInstantiate(conf.role_manager, CassandraRoleManager.class);
+        IRoleManager roleManager = authInstantiate(conf.role_manager, IRoleManager.class, CassandraRoleManager.class);
 
         if (authenticator instanceof PasswordAuthenticator && !(roleManager instanceof CassandraRoleManager))
             throw new ConfigurationException(authenticator.getClass().getName() + " requires " + CassandraRoleManager.class.getName(), false);
@@ -104,12 +104,15 @@ public final class AuthConfig
         // authenticator
 
         IInternodeAuthenticator internodeAuthenticator = authInstantiate(conf.internode_authenticator,
+                                                                         IInternodeAuthenticator.class,
                                                                          AllowAllInternodeAuthenticator.class);
         DatabaseDescriptor.setInternodeAuthenticator(internodeAuthenticator);
 
         // network authorizer
 
-        INetworkAuthorizer networkAuthorizer = authInstantiate(conf.network_authorizer, AllowAllNetworkAuthorizer.class);
+        INetworkAuthorizer networkAuthorizer = authInstantiate(conf.network_authorizer,
+                                                               INetworkAuthorizer.class,
+                                                               AllowAllNetworkAuthorizer.class);
 
         if (networkAuthorizer.requireAuthorization() && !authenticator.requireAuthentication())
         {
@@ -120,7 +123,9 @@ public final class AuthConfig
 
         // cidr authorizer
 
-        ICIDRAuthorizer cidrAuthorizer = authInstantiate(conf.cidr_authorizer, AllowAllCIDRAuthorizer.class);
+        ICIDRAuthorizer cidrAuthorizer = authInstantiate(conf.cidr_authorizer,
+                                                         ICIDRAuthorizer.class,
+                                                         AllowAllCIDRAuthorizer.class);
 
         if (cidrAuthorizer.requireAuthorization() && !authenticator.requireAuthentication())
         {
@@ -140,11 +145,11 @@ public final class AuthConfig
         DatabaseDescriptor.getInternodeAuthenticator().validateConfiguration();
     }
 
-    private static <T> T authInstantiate(ParameterizedClass authCls, Class<T> defaultCls) {
+    private static <T> T authInstantiate(ParameterizedClass authCls, Class<T> expectedType, Class<? extends T> defaultCls) {
         if (authCls != null && authCls.class_name != null)
         {
             String authPackage = AuthConfig.class.getPackage().getName();
-            return ParameterizedClass.newInstance(authCls, List.of("", authPackage));
+            return ParameterizedClass.newInstance(authCls, List.of("", authPackage), expectedType);
         }
 
         // for now, this has to stay and can not be replaced by ParameterizedClass.newInstance as above

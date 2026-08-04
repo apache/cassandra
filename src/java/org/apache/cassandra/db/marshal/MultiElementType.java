@@ -38,6 +38,11 @@ public abstract class MultiElementType<T> extends AbstractType<T>
         super(comparisonType);
     }
 
+    protected MultiElementType(ComparisonType comparisonType, int valueLengthIfFixed)
+    {
+        super(comparisonType, valueLengthIfFixed);
+    }
+
     /**
      * Returns the serialized representation of the value composed of the specified elements.
      *
@@ -133,4 +138,3 @@ public abstract class MultiElementType<T> extends AbstractType<T>
         throw new UnsupportedOperationException(this + " does not support retrieving elements by key or index");
     }
 }
-

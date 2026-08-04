@@ -87,7 +87,7 @@ public final class AuthUtil
         {
             ClientMetrics.instance.markAuthFailure(negotiator.getAuthenticationMode());
             AuthEvents.instance.notifyAuthFailure(queryState, e);
-            return ErrorMessage.fromException(e);
+            return ErrorMessage.fromTransportException(e);
         }
     }
 

@@ -28,6 +28,7 @@ import java.util.Map;
 import com.google.common.base.Function;
 
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * For specifying replication options
@@ -76,9 +77,9 @@ class OptionReplication extends OptionMulti
             {
                 try
                 {
-                    Class<?> clazz = Class.forName(fullname);
-                    if (!AbstractReplicationStrategy.class.isAssignableFrom(clazz))
-                        throw new IllegalArgumentException(clazz + " is not a replication strategy");
+                    FBUtilities.classForNameWithoutInitialization(fullname,
+                                                                  "replication strategy",
+                                                                  AbstractReplicationStrategy.class);
                     strategy = fullname;
                     break;
                 } catch (Exception ignore)

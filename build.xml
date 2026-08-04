@@ -651,6 +651,64 @@
         <jflex file="${build.src.java}/org/apache/cassandra/index/sasi/analyzer/StandardTokenizerImpl.jflex" destdir="${build.src.gen-java}/" />
     </target>
 
+    <!--
+        Copies a source class into ${build.src.gen-java} under a NEW class name while keeping it
+        in its ORIGINAL package, so it compiles into an independent class that still enjoys
+        package-private access to its neighbours.
+
+        This lets a hot call site use its own dedicated copy of a class (e.g. a RowMergeIterator
+        copy of MergeIterator) so that the virtual calls inside it stay mono-/bi-morphic and
+        remain inlinable, instead of turning megamorphic once every caller in the code base
+        funnels the shared original through the same bytecode.
+
+        The transformation is purely textual: every whole-word occurrence of the original simple
+        class name is rewritten to the new name. Matching on word boundaries keeps substrings
+        such as IMergeIterator intact. The package declaration is left untouched, so the copy
+        stays in the same package as the original and no imports need to change.
+    -->
+    <macrodef name="gen-java-copy">
+        <!-- Fully-qualified name of the class to copy, e.g. org.apache.cassandra.utils.MergeIterator -->
+        <attribute name="class"/>
+        <!-- New simple class name for the copy, e.g. RowMergeIterator -->
+        <attribute name="newName"/>
+        <sequential>
+            <local name="gen.src.rel"/>
+            <local name="gen.simple.name"/>
+            <!-- source file path relative to ${build.src.java}: dots -> slashes -->
+            <loadresource property="gen.src.rel">
+                <string value="@{class}"/>
+                <filterchain><tokenfilter><replaceregex pattern="\." replace="/" flags="g"/></tokenfilter></filterchain>
+            </loadresource>
+            <!-- original simple class name = last segment of the fully-qualified name -->
+            <loadresource property="gen.simple.name">
+                <string value="@{class}"/>
+                <filterchain><tokenfilter><replaceregex pattern="^.*\.([^.]+)$" replace="\1"/></tokenfilter></filterchain>
+            </loadresource>
+            <copy todir="${build.src.gen-java}" preservelastmodified="true">
+                <fileset dir="${build.src.java}" includes="${gen.src.rel}.java"/>
+                <!-- keep the original package directory, only rename the file -->
+                <mapper type="regexp" from="^(.*[\\/])[^\\/]+$" to="\1@{newName}.java"/>
+                <filterchain>
+                    <tokenfilter>
+                        <replaceregex pattern="\b${gen.simple.name}\b" replace="@{newName}" flags="g"/>
+                    </tokenfilter>
+                </filterchain>
+            </copy>
+        </sequential>
+    </macrodef>
+
+    <!--
+        Generate the copies of hand-picked classes before compilation. Add a
+        <gen-java-copy class="..." newName="..."/> line here for every class that needs a
+        dedicated copy.
+    -->
+    <target name="gen-java-copies" depends="init"
+            description="Copy selected classes under new names (e.g. MergeIterator -> RowMergeIterator) into src/gen-java to avoid megamorphic calls">
+        <gen-java-copy class="org.apache.cassandra.utils.MergeIterator" newName="RowMergeIterator"/>
+        <gen-java-copy class="org.apache.cassandra.utils.MergeIterator" newName="UnfilteredMergeIterator"/>
+        <gen-java-copy class="org.apache.cassandra.utils.MergeIterator" newName="ComplexCellMergeIterator"/>
+    </target>
+
     <!-- create properties file with C version -->
     <target name="_createVersionPropFile" depends="_get-git-sha,set-cqlsh-version,_set-build-date">
       <taskdef name="propertyfile" classname="org.apache.tools.ant.taskdefs.optional.PropertyFile"/>
@@ -710,7 +768,7 @@
         </javac>
     </target>
 
-    <target depends="init,gen-cql3-grammar,generate-cql-html,generate-jflex-java"
+    <target depends="init,gen-cql3-grammar,generate-cql-html,generate-jflex-java,gen-java-copies"
             name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <!-- Order matters! -->
@@ -2173,7 +2231,7 @@
   </target>
 
   <!-- Generate IDEA project description files -->
-  <target name="generate-idea-files" depends="init,resolver-dist-lib,gen-cql3-grammar,generate-jflex-java,_createVersionPropFile" description="Generate IDEA files">
+  <target name="generate-idea-files" depends="init,resolver-dist-lib,gen-cql3-grammar,generate-jflex-java,gen-java-copies,_createVersionPropFile" description="Generate IDEA files">
     <delete dir=".idea"/>
     <delete file="${eclipse.project.name}.iml"/>
     <mkdir dir=".idea"/>

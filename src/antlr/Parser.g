@@ -2363,12 +2363,14 @@ vector_type returns [CQL3Type.Raw vt]
 username
     : IDENT
     | STRING_LITERAL
+    | unreserved_keyword
     | QUOTED_NAME { addRecognitionError("Quoted strings are are not supported for user names and USER is deprecated, please use ROLE");}
     ;
 
 identity
     : IDENT
     | STRING_LITERAL
+    | unreserved_keyword
     | QUOTED_NAME { addRecognitionError("Quoted strings are are not supported for identity");}
     ;
 

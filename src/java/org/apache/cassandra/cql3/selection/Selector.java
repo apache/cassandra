@@ -96,11 +96,18 @@ public abstract class Selector
         SLICE_SELECTOR(ElementsSelector.SliceSelector.deserializer),
         VECTOR_SELECTOR(VectorSelector.deserializer);
 
+        private static final Kind[] VALUES = values();
+
         private final SelectorDeserializer deserializer;
 
         Kind(SelectorDeserializer deserializer)
         {
             this.deserializer = deserializer;
+        }
+
+        public static Kind fromOrdinal(int ordinal)
+        {
+            return VALUES[ordinal];
         }
     }
 
@@ -260,7 +267,7 @@ public abstract class Selector
 
         public Selector deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
-            Kind kind = Kind.values()[in.readUnsignedByte()];
+            Kind kind = Kind.fromOrdinal(in.readUnsignedByte());
             return kind.deserializer.deserialize(in, version, metadata);
         }
 

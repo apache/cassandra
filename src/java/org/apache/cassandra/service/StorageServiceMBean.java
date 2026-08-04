@@ -262,12 +262,28 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @param key - key for which we need to find the endpoint return value -
      * the endpoint responsible for this key
      * @deprecated See CASSANDRA-7544
+     * @link getNaturalReplicas
+     * @link getNaturalReplicasWithPort
      */
     @Deprecated(since = "4.0") public List<InetAddress> getNaturalEndpoints(String keyspaceName, String cf, String key);
-    public List<String> getNaturalEndpointsWithPort(String keyspaceName, String cf, String key);
+    /** @deprecated  See CASSANDRA-17665 */
+    @Deprecated(since = "7.0") public List<String> getNaturalEndpointsWithPort(String keyspaceName, String cf, String key);
     /** @deprecated See CASSANDRA-7544 */
     @Deprecated(since = "4.0") public List<InetAddress> getNaturalEndpoints(String keyspaceName, ByteBuffer key);
-    public List<String> getNaturalEndpointsWithPort(String keysapceName, ByteBuffer key);
+    /** @deprecated  See CASSANDRA-17665 */
+    @Deprecated(since = "7.0") public List<String> getNaturalEndpointsWithPort(String keysapceName, ByteBuffer key);
+
+    /**
+     * This method returns the N replicas that are responsible for storing the
+     * specified key i.e for replication.
+     *
+     * @param keyspaceName keyspace name
+     * @param cf Column family name
+     * @param key - key for which we need to find the replica return value -
+     * the replica responsible for this key
+     */
+    public List<InetAddress> getNaturalReplicas(String keyspaceName, String cf, String key);
+    public List<String> getNaturalReplicasWithPort(String keyspaceName, String cf, String key);
 
     /**
      * @deprecated use {@link #takeSnapshot(String tag, Map options, String... entities)} instead. See CASSANDRA-10907

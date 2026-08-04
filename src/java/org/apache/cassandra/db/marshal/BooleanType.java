@@ -36,7 +36,7 @@ public class BooleanType extends AbstractType<Boolean>
     private static final ArgumentDeserializer ARGUMENT_DESERIALIZER = new DefaultArgumentDeserializer(instance);
     private static final ByteBuffer MASKED_VALUE = instance.decompose(false);
 
-    BooleanType() {super(ComparisonType.CUSTOM);} // singleton
+    BooleanType() {super(ComparisonType.CUSTOM, 1);} // singleton
 
     @Override
     public boolean allowsEmpty()
@@ -125,12 +125,6 @@ public class BooleanType extends AbstractType<Boolean>
     public ArgumentDeserializer getArgumentDeserializer()
     {
         return ARGUMENT_DESERIALIZER;
-    }
-
-    @Override
-    public int valueLengthIfFixed()
-    {
-        return 1;
     }
 
     @Override

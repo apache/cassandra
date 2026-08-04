@@ -41,7 +41,7 @@ public class LongType extends NumberType<Long>
 
     private static final ByteBuffer MASKED_VALUE = instance.decompose(0L);
 
-    LongType() {super(ComparisonType.CUSTOM);} // singleton
+    LongType() {super(ComparisonType.CUSTOM, 8);} // singleton
 
     @Override
     public boolean allowsEmpty()
@@ -168,12 +168,6 @@ public class LongType extends NumberType<Long>
                 mutable.setValue(ByteBufferUtil.toLong(buffer));
             }
         };
-    }
-
-    @Override
-    public int valueLengthIfFixed()
-    {
-        return 8;
     }
 
     @Override

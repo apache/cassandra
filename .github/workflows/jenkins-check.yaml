@@ -1,0 +1,58 @@
+name: CI Check
+
+# Checks the CI tooling itself: the run-ci script and everything under .jenkins/
+# Nothing here touches a k8s cluster; the helm and groovy steps only render and parse.
+
+on:
+    push:
+        branches:
+            - '**'
+        paths:
+            - '.build/run-ci'
+            - '.build/run-ci.d/**'
+            - '.jenkins/**'
+            - '.github/workflows/jenkins-check.yaml'
+    pull_request:
+        paths:
+            - '.build/run-ci'
+            - '.build/run-ci.d/**'
+            - '.jenkins/**'
+            - '.github/workflows/jenkins-check.yaml'
+
+jobs:
+    run-ci:
+        runs-on: ubuntu-latest
+
+        steps:
+          - name: Checkout code
+            uses: actions/checkout@v4
+          - name: Python 3
+            uses: actions/setup-python@v5
+            with:
+              python-version: '3.x'
+          - name: Install dependencies
+            run: pip install pylint -r .build/run-ci.d/requirements.txt
+          - name: Lint run-ci
+            run: pylint --disable=C0301,W0511,C0103,W0702,C0415,C0116,C0115,R0914,W0603,R0915,R0913,R0917,R0911,W0212,W0621 .build/run-ci
+          - name: Run run-ci unit tests
+            run: python .build/run-ci.d/run-ci-test.py
+          - name: Check run-ci argument parsing
+            run: python .build/run-ci --help
+
+    jenkins-validate:
+        runs-on: ubuntu-latest
+
+        steps:
+          - name: Checkout code
+            uses: actions/checkout@v4
+          - name: Python 3
+            uses: actions/setup-python@v5
+            with:
+              python-version: '3.x'
+          - name: Install dependencies
+            run: pip install pyyaml
+          - name: Helm
+            uses: azure/setup-helm@v4
+          # validate.sh runs groovy from docker when it is not on the PATH
+          - name: Validate .jenkins/
+            run: .jenkins/k8s/jenkins-test.sh

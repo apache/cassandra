@@ -26,7 +26,10 @@ import org.junit.Test;
 import org.apache.cassandra.auth.AllowAllAuthorizer;
 import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.ClassLoadingTestNonAssignable;
+import org.apache.cassandra.utils.ClassLoadingTestSupport;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -69,6 +72,51 @@ public class ParameterizedClassTest
         ParameterizedClass parameterizedClass = new ParameterizedClass(AllowAllAuthorizer.class.getName());
         IAuthorizer instance = ParameterizedClass.newInstance(parameterizedClass, null);
         assertNotNull(instance);
+    }
+
+    @Test
+    public void testTypedNewInstanceRejectsWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+        ParameterizedClass parameterizedClass = new ParameterizedClass(ClassLoadingTestNonAssignable.class.getName());
+
+        assertThatThrownBy(() -> ParameterizedClass.newInstance(parameterizedClass, null, Runnable.class))
+        .hasMessageContaining("must extend or implement " + Runnable.class.getName())
+        .isInstanceOf(ConfigurationException.class);
+        assertThat(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class)).isFalse();
+    }
+
+    @Test
+    public void testTwoArgNewInstanceDoesNotInitializeAtLoadTime()
+    {
+        // The 2-arg overload performs no type check, but it must still load without running <clinit>.
+        // ClassLoadingTestNonAssignable has no usable constructor, so instantiation fails -- but only after the
+        // class has been loaded; loading must not have run its static initializer.
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+        ParameterizedClass parameterizedClass = new ParameterizedClass(ClassLoadingTestNonAssignable.class.getName());
+
+        assertThatThrownBy(() -> ParameterizedClass.newInstance(parameterizedClass, null))
+        .isInstanceOf(ConfigurationException.class);
+        assertThat(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class)).isFalse();
+    }
+
+    @Test
+    public void testNewInstanceSearchPackageFallThroughDoesNotAbortOnWrongType()
+    {
+        // org.apache.cassandra.utils.ClassLoadingSearchProbe (wrong type, not a Runnable) resolves under the earlier
+        // search package, while org.apache.cassandra.config.ClassLoadingSearchProbe (correct type, a Runnable)
+        // resolves under the later one. A wrong-type match under the earlier package must not abort the search.
+        ClassLoadingTestSupport.assertNotInitialized(org.apache.cassandra.utils.ClassLoadingSearchProbe.class);
+        ParameterizedClass parameterizedClass = new ParameterizedClass("ClassLoadingSearchProbe");
+
+        Runnable instance = ParameterizedClass.newInstance(parameterizedClass,
+                                                           List.of("org.apache.cassandra.utils",
+                                                                   "org.apache.cassandra.config"),
+                                                           Runnable.class);
+        assertNotNull(instance);
+        assertThat(instance).isInstanceOf(org.apache.cassandra.config.ClassLoadingSearchProbe.class);
+        // The wrong-type class that was probed under the earlier package must not have been initialized.
+        assertThat(ClassLoadingTestSupport.wasInitialized(org.apache.cassandra.utils.ClassLoadingSearchProbe.class)).isFalse();
     }
 
     @Test

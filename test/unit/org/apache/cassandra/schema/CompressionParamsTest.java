@@ -30,10 +30,14 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.ICompressor;
+import org.apache.cassandra.utils.ClassLoadingTestNonAssignable;
+import org.apache.cassandra.utils.ClassLoadingTestSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class CompressionParamsTest
 {
@@ -95,6 +99,19 @@ public class CompressionParamsTest
 
         assertThat(params.getSstableCompressor()).isInstanceOf(CustomTestCompressor.class);
         assertThat(params.klass()).isEqualTo(CustomTestCompressor.class);
+    }
+
+    @Test
+    public void testRejectsNonCompressorWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+
+        assertThatThrownBy(() -> CompressionParams.fromMap(Collections.singletonMap(CompressionParams.CLASS,
+                                                                                    ClassLoadingTestNonAssignable.class.getName())))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("must extend or implement " + ICompressor.class.getName());
+
+        assertThat(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class)).isFalse();
     }
 
     public static class CustomTestCompressor implements ICompressor

@@ -322,7 +322,7 @@ public abstract class QueryOptions implements RealTimeFunctionContext
             // if daemon initialization hasn't happened yet (very common in tests) then ignore
             if (!DatabaseDescriptor.isDaemonInitialized() || !DatabaseDescriptor.getReadThresholdsEnabled())
                 return DisabledReadThresholds.INSTANCE;
-            return new DefaultReadThresholds(DatabaseDescriptor.getCoordinatorReadSizeWarnThreshold(), DatabaseDescriptor.getCoordinatorReadSizeFailThreshold());
+            return DatabaseDescriptor.getDefaultReadThresholds();
         }
     }
 
@@ -349,7 +349,7 @@ public abstract class QueryOptions implements RealTimeFunctionContext
         }
     }
 
-    private static class DefaultReadThresholds implements ReadThresholds
+    public static class DefaultReadThresholds implements ReadThresholds
     {
         private final long warnThresholdBytes;
         private final long abortThresholdBytes;
