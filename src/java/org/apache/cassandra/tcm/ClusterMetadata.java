@@ -251,10 +251,10 @@ public class ClusterMetadata
         //   During first initialization, placements are hardcoded to the local address after the PRE_INITIALIZE_CMS is
         //   committed so that the subsequent INITIALIZE_CMS can be.
         //
-        // * Some changes to the addresses of the CMS members have been changed and whilst this is known (i.e. has been
+        // * The broadcast addresses of some CMS members have been changed and whilst this is known (i.e. has been
         //   discovered) it has not yet been committed.
-        //   When address changes are in flight, at startup the *current* broadcast address for the local node will not
-        //   yet be associated with its NodeId in the directory, causing the localNodeId to be set to
+        //   When local address changes are in flight, at startup the *current* broadcast address for the local node
+        //   will not yet be associated with its NodeId in the directory, causing the localNodeId to be set to
         //   NodeId.UNREGISTERED. Updating the address requires a Startup transformation to be committed, but if the
         //   node itself is a CMS member there is a chicken-and-egg problem as NodeId.UNREGISTERED will not be a CMS
         //   member.
