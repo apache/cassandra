@@ -124,11 +124,11 @@ public class CMSLookup
             if (nextEndpoint.equals(mapping.right))
                 continue;
 
-            // If the previous endpoint doesn't match the overridden address, the override has been superceded.
-            // this may imply that the node has changed address multiple times since the overrides were initially built.
+            // If the previous endpoint doesn't match the address being overridden, the override has been superceded.
+            // This may imply that the node has changed address multiple times since the overrides were initially built.
             // We should/will learn of the new address via the usual replication mechanism, but even if we don't a
-            // restart of this node will rebuild and necessary, new overrides and repeat the process. In any case, this
-            // means that that this specific override is no longer necessary and all that can be done is to log.
+            // restart of this node will rebuild any necessary, new overrides and repeat the process. In any case, this
+            // means that that this specific override is no longer required and all that can be usefully done is to log.
             if (!prevEndpoint.equals(mapping.left))
             {
                 logger.info("Pending CMS address changes for node {} from {} to {} appears to have been superceded. " +
