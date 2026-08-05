@@ -208,6 +208,27 @@ class SwitchState(Enum):
     ON = True
     OFF = False
 
+class OutputMode(str, Enum):
+    TABULAR = 'tabular'
+    CSV = 'csv'
+    JSON = 'json'
+
+    __str__ = str.__str__
+
+    @property
+    def is_machine_readable(self):
+        return self is not OutputMode.TABULAR
+
+    @classmethod
+    def parse(cls, value):
+        if isinstance(value, cls):
+            return value
+        try:
+            return cls(str(value).strip().lower())
+        except ValueError:
+            raise ValueError("Invalid output mode %r; expected one of: %s"
+                             % (value, ', '.join(m.value for m in cls)))
+
 
 def format_value(val, cqltype, encoding, addcolor=False, date_time_format=None,
                  float_precision=None, colormap=None, nullval=None):
@@ -293,7 +314,7 @@ class Shell(cmd.Cmd):
         self.auth_provider = auth_provider
         self.username = username
         self.config_file = config_file
-        self.mode = mode.lower()
+        self.mode = OutputMode.parse(mode)
 
         if isinstance(auth_provider, PlainTextAuthProvider):
             self.username = auth_provider.username
