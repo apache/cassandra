@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.io.Files;
 
@@ -119,6 +120,129 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
     {
         compressionParameters = CompressionParams.noop();
         runTests("Noop");
+    }
+
+    @Test
+    public void testWriterOptionsPropagatedToCompressedWriter() throws IOException
+    {
+        CompressionParams params = CompressionParams.lz4();
+        BufferType compressorBufferType = params.getSstableCompressor().preferredBufferType();
+        // caller values chosen to differ from what the writer derives, so an override is provable
+        BufferType callerBufferType = compressorBufferType == BufferType.ON_HEAP ? BufferType.OFF_HEAP
+                                                                                 : BufferType.ON_HEAP;
+        SequentialWriterOption option = SequentialWriterOption.newBuilder()
+                                                              .bufferSize(params.chunkLength() / 2)
+                                                              .bufferType(callerBufferType)
+                                                              .trickleFsync(true)
+                                                              .trickleFsyncByteInterval(1 << 16)
+                                                              .finishOnClose(true)
+                                                              .build();
+        File f = FileUtils.createTempFile("writerOptionPropagated", "1");
+        File offsets = new File(f.path() + ".metadata");
+        MetadataCollector collector = new MetadataCollector(new ClusteringComparator(UTF8Type.instance));
+        try (ObservableCSW writer = new ObservableCSW(f, offsets, null, option, params, collector))
+        {
+            writer.write(new byte[64]); // give finishOnClose a non-empty file to finalize
+            SequentialWriterOption effective = writer.effectiveOption();
+
+            assertTrue(effective.trickleFsync());
+            assertEquals(1 << 16, effective.trickleFsyncByteInterval());
+            assertTrue(effective.finishOnClose());
+
+            // buffer sizing is derived from the compression layout, not the caller's values
+            assertEquals(params.chunkLength(), effective.bufferSize());
+            assertEquals(compressorBufferType, effective.bufferType());
+        }
+        finally
+        {
+            f.tryDelete();
+            offsets.tryDelete();
+        }
+    }
+
+    @Test
+    public void testTrickleFsyncFiresWhileWritingCompressedData() throws IOException
+    {
+        int chunk = 4096;
+        MetadataCollector collector = new MetadataCollector(new ClusteringComparator(UTF8Type.instance));
+
+        File on = FileUtils.createTempFile("trickleFsyncOn", "1");
+        File onOffsets = new File(on.path() + ".metadata");
+        // The interval counts uncompressed input bytes, so chunk*20 written past a chunk*4 interval must sync.
+        SequentialWriterOption enabled = SequentialWriterOption.newBuilder()
+                                                               .trickleFsync(true)
+                                                               .trickleFsyncByteInterval(chunk * 4)
+                                                               .build();
+        try (CountingCSW writer = new CountingCSW(on, onOffsets, null, enabled,
+                                                  CompressionParams.lz4(chunk), collector))
+        {
+            writer.write(new byte[chunk * 20]);
+            assertTrue("trickle_fsync must fire during a compressed flush", writer.dataSyncs.get() > 0);
+        }
+        finally
+        {
+            on.tryDelete();
+            onOffsets.tryDelete();
+        }
+    }
+
+    @Test
+    public void testTrickleFsyncDoesNotFireWhenDisabled() throws IOException
+    {
+        int chunk = 4096;
+        MetadataCollector collector = new MetadataCollector(new ClusteringComparator(UTF8Type.instance));
+
+        File off = FileUtils.createTempFile("trickleFsyncOff", "1");
+        File offOffsets = new File(off.path() + ".metadata");
+        SequentialWriterOption disabled = SequentialWriterOption.newBuilder()
+                                                                .trickleFsync(false)
+                                                                .trickleFsyncByteInterval(chunk * 4)
+                                                                .build();
+        try (CountingCSW writer = new CountingCSW(off, offOffsets, null, disabled,
+                                                  CompressionParams.lz4(chunk), collector))
+        {
+            writer.write(new byte[chunk * 20]);
+            assertEquals("no trickle fsync expected when disabled", 0, writer.dataSyncs.get());
+        }
+        finally
+        {
+            off.tryDelete();
+            offOffsets.tryDelete();
+        }
+    }
+
+    /** Exposes the rebuilt option so the test can check the trickle settings survived. */
+    private static class ObservableCSW extends CompressedSequentialWriter
+    {
+        ObservableCSW(File file, File offsetsFile, File digestFile, SequentialWriterOption option,
+                      CompressionParams parameters, MetadataCollector collector)
+        {
+            super(file, offsetsFile, digestFile, option, parameters, collector);
+        }
+
+        SequentialWriterOption effectiveOption()
+        {
+            return option;
+        }
+    }
+
+    /** Counts data-only syncs so a test can see whether the trickle interval sync fired. */
+    private static class CountingCSW extends CompressedSequentialWriter
+    {
+        final AtomicInteger dataSyncs = new AtomicInteger();
+
+        CountingCSW(File file, File offsetsFile, File digestFile, SequentialWriterOption option,
+                    CompressionParams parameters, MetadataCollector collector)
+        {
+            super(file, offsetsFile, digestFile, option, parameters, collector);
+        }
+
+        @Override
+        protected void syncDataOnlyInternal()
+        {
+            dataSyncs.incrementAndGet();
+            super.syncDataOnlyInternal();
+        }
     }
 
     private void testWrite(File f, int bytesToTest, boolean useMemmap) throws IOException
