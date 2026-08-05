@@ -78,7 +78,7 @@ public class LocalTransfers
         }
     }
 
-    void received(PendingLocalTransfer transfer)
+    public void received(PendingLocalTransfer transfer)
     {
         lock.writeLock().lock();
         try

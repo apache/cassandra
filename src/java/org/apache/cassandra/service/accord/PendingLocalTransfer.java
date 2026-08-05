@@ -59,8 +59,8 @@ public class PendingLocalTransfer
     final TableId tableId;
     final Collection<SSTableReader> sstables;
     final long createdAt = currentTimeMillis();
-    transient String keyspace;
 
+    // This value is not durabaly persisted on crashes
     volatile boolean activated = false;
 
     public PendingLocalTransfer(TableId tableId, TimeUUID planId, Collection<SSTableReader> sstables)
@@ -69,7 +69,6 @@ public class PendingLocalTransfer
         this.tableId = tableId;
         this.planId = planId;
         this.sstables = sstables;
-        this.keyspace = Objects.requireNonNull(ColumnFamilyStore.getIfExists(tableId)).keyspace.getName();
     }
 
     /**
@@ -138,7 +137,6 @@ public class PendingLocalTransfer
     {
         return "PendingLocalTransfer{" +
                "activated=" + activated +
-               ", keyspace='" + keyspace + '\'' +
                ", createdAt=" + createdAt +
                ", sstables=" + sstables +
                ", tableId=" + tableId +

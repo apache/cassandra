@@ -741,6 +741,19 @@ public class Directories
         return result;
     }
 
+    public HashMap<File, TimeUUID> getAccordBulkTransferPlanIds()
+    {
+        HashMap<File, TimeUUID> result = new HashMap<>();
+        Set<File> pendingLocations = getPendingLocations();
+        for (File pendingDir : pendingLocations)
+        {
+            for (File planID : pendingDir.listUnchecked())
+                result.put(planID, TimeUUID.fromString(planID.name()));
+        }
+
+        return result;
+    }
+
     public File getPendingLocationForDisk(DataDirectory dataDirectory, TimeUUID planId)
     {
         for (File dir : dataPaths)

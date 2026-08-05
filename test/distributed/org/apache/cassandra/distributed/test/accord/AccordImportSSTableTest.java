@@ -37,6 +37,9 @@ import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import net.bytebuddy.implementation.bind.annotation.This;
 
+import org.assertj.core.api.Assertions;
+import org.junit.Test;
+
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.streaming.CassandraStreamReceiver;
 import org.apache.cassandra.distributed.Cluster;
@@ -44,11 +47,12 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceInitializer;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.io.sstable.CQLSSTableWriter;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.net.Verb;
@@ -57,16 +61,13 @@ import org.apache.cassandra.service.accord.CoordinatedTransfer;
 import org.apache.cassandra.service.accord.LocalTransfers;
 import org.apache.cassandra.utils.Shared;
 
-import org.assertj.core.api.Assertions;
-import org.junit.Test;
-
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 import static net.bytebuddy.matcher.ElementMatchers.takesNoArguments;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.Assert.assertTrue;
 
 public class AccordImportSSTableTest extends TestBaseImpl
 {
@@ -75,7 +76,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
     private static final String TABLE_SCHEMA_CQL = String.format(withKeyspace("CREATE TABLE %s." + TABLE + " (k int primary key, v int);"));
 
     @Test
-    public void testImportSSTables() throws Throwable
+    public void testHappyPath() throws Throwable
     {
         String file = writeSSTables(new int[] { 1, 2 }, new int[] { 3 });
 
@@ -108,7 +109,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
     }
 
     @Test
-    public void testImportSSTablesBuildsIndex() throws Throwable
+    public void testBuildsIndex() throws Throwable
     {
         String file = writeSSTables(new int[] { 1 });
 
@@ -145,7 +146,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
     }
 
     @Test
-    public void testSSTableImportWithConcurrentTopologyChangeFails() throws Throwable
+    public void testConcurrentTopologyChangeFailsImport() throws Throwable
     {
         String file = writeSSTables(new int[] { 1 });
 
@@ -184,7 +185,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
     }
 
     @Test
-    public void testSSTableImportStreamingFailedCleanup() throws Throwable
+    public void testStreamingFailedPendingSSTablesCleanedUp() throws Throwable
     {
         String file = writeSSTables(new int[] { 1, 2, 3 });
 
@@ -216,7 +217,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
     }
 
     @Test
-    public void testSSTableImportBounceAfterPending() throws Throwable
+    public void testBounceAfterStreaming() throws Throwable
     {
         String file = writeSSTables(new int[] { 1, 2, 3 });
 
@@ -248,7 +249,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
     }
 
     @Test
-    public void testRecoveryCoordinatorPerformsImport() throws Throwable
+    public void testRecoveryCoordinatorFinishesImport() throws Throwable
     {
         String file = writeSSTables(new int[] { 1, 2, 3 });
 
@@ -293,7 +294,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
     }
 
     @Test
-    public void testRecoveryCoordinatorPerformsImport2() throws Throwable
+    public void testRecoveryCoordinatorFinishesImport2() throws Throwable
     {
         String file = writeSSTables(new int[] { 1, 2, 3 });
 
@@ -352,7 +353,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
     }
 
     @Test
-    public void testImportSSTablesCleanupWithMultipleDataDirectories() throws Throwable
+    public void testCleanupWithMultipleDataDirectories() throws Throwable
     {
         String file = writeSSTables(new int[] { 1, 2 }, new int[] { 3 });
 
@@ -382,7 +383,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
     }
 
     @Test
-    public void testImportSSTableFailsActivation() throws Throwable
+    public void testImportFailsActivation() throws Throwable
     {
         State.failOnDiskMoveAttempt.set(1);
         String file = writeSSTables(new int[] { 1 });
@@ -410,7 +411,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
 
 
     @Test
-    public void testImportSSTableFailsActivation2() throws Throwable
+    public void testImportFailsActivation2() throws Throwable
     {
         State.failOnDiskMoveAttempt.set(2);
         String file = writeSSTables(new int[]{ 1 }, new int[]{ 8 });
@@ -455,7 +456,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
                           Verb.ACCORD_NOT_ACCEPT_REQ.id,
                           Verb.ACCORD_COMMIT_REQ.id,
                           Verb.ACCORD_STABLE_THEN_READ_REQ.id,
-                          Verb.ACCORD_READ_REQ.id)
+                          Verb.ACCORD_APPLY_REQ.id)
                    .to(3)
                    .drop();
 
@@ -472,6 +473,42 @@ public class AccordImportSSTableTest extends TestBaseImpl
         }
     }
 
+    @Test
+    public void testImportRecoversOnNodeCrash() throws Throwable
+    {
+        String file = writeSSTables(new int[]{ 1 }, new int[]{ 8 });
+
+        try (Cluster cluster = init(builder().withNodes(3)
+                                             .withoutVNodes()
+                                             .withDataDirCount(1)
+                                             .withInstanceInitializer(ByteBuddyInjections.AwaitNthDiskMove.install(2))
+                                             .withConfig(config -> config.with(Feature.NETWORK, Feature.GOSSIP))
+                                             .start()))
+        {
+            createSchema(cluster);
+
+            Thread importer = new Thread(() -> {
+                cluster.get(1).runOnInstance(() -> {
+                    ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
+                    cfs.importNewSSTables(Set.of(file), true, true, true, true, true, true, true);
+                });
+            }, "importer");
+
+            importer.start();
+
+            State.waitForCrash.await();
+
+            ClusterUtils.restartUnchecked(cluster.get(2));
+
+            importer.join();
+
+            // On crashes, we expect the progress log to eventually apply the Transaction
+            Uninterruptibles.sleepUninterruptibly(15, TimeUnit.SECONDS);
+
+            assertSSTableCount(cluster, 2);
+            assertLocalSelect(cluster, rows -> { assertRows(rows, row(1, 1), row(8, 1)); });
+        }
+    }
     private static void createSchema(Cluster cluster)
     {
         cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
@@ -574,6 +611,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
         public static CountDownLatch waitForTopologyChange = new CountDownLatch(1);
         public static AtomicInteger diskMoveAttempts = new AtomicInteger(0);
         public static AtomicInteger failOnDiskMoveAttempt = new AtomicInteger(0);
+        public static CountDownLatch waitForCrash = new CountDownLatch(1);
     }
 
     public static class ByteBuddyInjections
@@ -596,7 +634,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
             @SuppressWarnings("unused")
             public static void performImportTxn(@SuperCall Callable<Void> r) throws Exception
             {
-                State.waitForTopologyChange.await();
+                State.waitForTopologyChange.countDown();
                 r.call();
             }
         }
@@ -644,6 +682,31 @@ public class AccordImportSSTableTest extends TestBaseImpl
                 if (State.diskMoveAttempts.incrementAndGet() == State.failOnDiskMoveAttempt.get())
                     throw new RuntimeException("Failing move and open SSTable");
                 return r.call();
+            }
+        }
+
+        public static class AwaitNthDiskMove
+        {
+            public static IInstanceInitializer install(int... nodes)
+            {
+                return (ClassLoader cl, ThreadGroup tg, int num, int generation) -> {
+                    for (int node : nodes)
+                        if (node == num)
+                            new ByteBuddy().rebase(SSTableReader.class)
+                                           .method(named("moveAndOpenSSTable").and(takesArguments(5)))
+                                           .intercept(MethodDelegation.to(AwaitNthDiskMove.class))
+                                           .make()
+                                           .load(cl, ClassLoadingStrategy.Default.INJECTION);
+                };
+            }
+
+            @SuppressWarnings("unused")
+            public static SSTableReader moveAndOpenSSTable(ColumnFamilyStore cfs, Descriptor oldDescriptor, Descriptor newDescriptor, Set<Component> components, boolean copyData, @SuperCall Callable<SSTableReader> r) throws Exception
+            {
+                if (State.waitForCrash.getCount() == 0)
+                    return r.call();
+                State.waitForCrash.countDown();
+                throw new RuntimeException("Failing move and open SSTable");
             }
         }
     }
