@@ -409,7 +409,6 @@ public class AccordImportSSTableTest extends TestBaseImpl
         }
     }
 
-
     @Test
     public void testImportFailsActivation2() throws Throwable
     {
@@ -501,7 +500,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
             ClusterUtils.restartUnchecked(cluster.get(2));
 
             importer.join();
-            
+
             assertSSTableCount(cluster, 2);
             assertLocalSelect(cluster, rows -> { assertRows(rows, row(1, 1), row(8, 1)); });
         }
