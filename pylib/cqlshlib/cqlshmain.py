@@ -911,6 +911,11 @@ class Shell(cmd.Cmd):
         result = None
         try:
             result = future.result()
+            qs = getattr(statement, 'query_string', str(statement)).strip().lower()
+            if qs.startswith('drop keyspace'):
+                dropped_ks = qs.replace(';', '').split()[-1].strip('"\'')
+                if self.current_keyspace and self.current_keyspace.lower() == dropped_ks:
+                    self.current_keyspace = None
         except CQL_ERRORS as err:
             err_msg = err.message if hasattr(err, 'message') else str(err)
             self.printerr(str(err.__class__.__name__) + ": " + err_msg)

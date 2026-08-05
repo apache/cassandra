@@ -645,6 +645,38 @@ class TestCqlshOutput(BaseTestCase):
                     if do_drop:
                         curs.execute('drop keyspace {}'.format(new_ks_name))
 
+    def test_drop_keyspace_prompt_behavior(self):
+        with cqlsh_testrun() as c:
+            c.send("CREATE KEYSPACE test_normal WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};\n")
+            c.read_to_next_prompt()
+            c.send("CREATE KEYSPACE test_other WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};\n")
+            c.read_to_next_prompt()
+            c.send("CREATE KEYSPACE \"Test_Quoted\" WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};\n")
+            c.read_to_next_prompt()
+
+            c.send("USE test_normal;\n")
+            c.read_to_next_prompt()
+
+            c.send("DROP KEYSPACE test_other;\n")
+            c.read_to_next_prompt()
+            c.send("\n")
+            out_other = c.read_to_next_prompt()
+            self.assertIn('test_normal', out_other.lower())
+
+            c.send("DROP KEYSPACE test_normal;\n")
+            c.read_to_next_prompt()
+            c.send("\n")
+            out_normal = c.read_to_next_prompt()
+            self.assertNotIn('test_normal', out_normal.lower())
+
+            c.send("USE \"Test_Quoted\";\n")
+            c.read_to_next_prompt()
+            c.send("DROP KEYSPACE IF EXISTS \"Test_Quoted\";\n")
+            c.read_to_next_prompt()
+            c.send("\n")
+            out_quoted = c.read_to_next_prompt()
+            self.assertNotIn('test_quoted', out_quoted.lower())
+
     def check_describe_keyspace_output(self, output, qksname):
         expected_bits = [r'(?im)^CREATE KEYSPACE %s WITH\b' % re.escape(qksname),
                          r';\s*$',
