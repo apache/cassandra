@@ -501,14 +501,12 @@ public class AccordImportSSTableTest extends TestBaseImpl
             ClusterUtils.restartUnchecked(cluster.get(2));
 
             importer.join();
-
-            // On crashes, we expect the progress log to eventually apply the Transaction
-            Uninterruptibles.sleepUninterruptibly(15, TimeUnit.SECONDS);
-
+            
             assertSSTableCount(cluster, 2);
             assertLocalSelect(cluster, rows -> { assertRows(rows, row(1, 1), row(8, 1)); });
         }
     }
+
     private static void createSchema(Cluster cluster)
     {
         cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
