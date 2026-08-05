@@ -160,6 +160,7 @@ public class AdvanceCMSReconfiguration implements Transformation
         ClusterMetadata.Transformer transformer = prev.transformer().startJoiningCMS(addition);
 
         // Construct a set of sources for the new member to stream log tables from (essentially this is the existing members)
+        // TODO: this needs to be Set<NodeId>!
         Set<InetAddressAndPort> streamCandidates = prev.fullCMSMembers();
 
         // Set up the next step in the sequence. This encapsulates the entire state of the reconfiguration sequence,
