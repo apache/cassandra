@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable.format.big;
 import java.io.IOException;
 import java.util.Iterator;
 
+import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
@@ -50,16 +51,43 @@ public class BigTableScanner extends SSTableScanner<BigTableReader, RowIndexEntr
                                              DataRange dataRange,
                                              SSTableReadsListener listener)
     {
-        return new BigTableScanner(sstable, columns, dataRange, makeBounds(sstable, dataRange).iterator(), listener);
+        return new BigTableScanner(sstable, columns, dataRange, makeBounds(sstable, dataRange).iterator(), listener,
+                                   coversFullRange(sstable, dataRange), null);
+    }
+
+    /**
+     * An index-driven scanner over exactly {@code bounds}, returning whole partitions -- the same result
+     * {@code SSTableSimpleScanner} produces for the same bounds, but reached by walking Index.db instead of
+     * reading Data.db linearly. A null {@code DataRange} is what the rest of this class already understands as
+     * "no clustering restriction" (see {@link #dataRange} at the row-iterator call below), so the partitions come
+     * back unfiltered.
+     * <p>
+     * This exists for sstables that cannot be read linearly at all: one holding partitions its index does not
+     * describe, which is what {@code StatsMetadata#hasUnindexedRegions} marks. See
+     * {@code SSTableReader.indexDrivenScanner}.
+     * <p>
+     * The scanner is restricted to {@code bounds}, so it is never a full-range scanner: a caller that reacts to
+     * {@link ISSTableScanner#isFullRange()} by reading Data.db itself -- as cursor compaction does -- must not be
+     * told otherwise, whether or not the bounds happen to span the sstable.
+     */
+    public static ISSTableScanner getScanner(BigTableReader sstable,
+                                             Iterator<AbstractBounds<PartitionPosition>> bounds,
+                                             DiskAccessMode diskAccessMode)
+    {
+        return new BigTableScanner(sstable, ColumnFilter.all(sstable.metadata()), null,
+                                   makeBounds(sstable, bounds).iterator(), SSTableReadsListener.NOOP_LISTENER,
+                                   false, diskAccessMode);
     }
 
     private BigTableScanner(BigTableReader sstable,
                             ColumnFilter columns,
                             DataRange dataRange,
                             Iterator<AbstractBounds<PartitionPosition>> rangeIterator,
-                            SSTableReadsListener listener)
+                            SSTableReadsListener listener,
+                            boolean fullRange,
+                            DiskAccessMode diskAccessMode)
     {
-        super(sstable, columns, dataRange, rangeIterator, listener);
+        super(sstable, columns, dataRange, rangeIterator, listener, fullRange, diskAccessMode);
         this.ifile = sstable.openIndexReader();
         this.rowIndexEntrySerializer = new RowIndexEntry.Serializer(sstable.descriptor.version, sstable.header, sstable.owner().map(SSTable.Owner::getMetrics).orElse(null));
     }

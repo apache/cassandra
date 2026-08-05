@@ -233,10 +233,20 @@ public class TableMetrics
     /** number of bytes where the whole sstable was contained in a repairing range so that we only mutated the repair status */
     public final TableMeter bytesMutatedAnticompaction;
     /**
-     * number of Data.db bytes copied verbatim by the zero-copy anticompaction split. This is a SUBSET of
-     * {@link #bytesAnticompacted}, which is charged up front over every unrepaired sstable in the transaction
-     * before the split path gets a chance to claim any of them, so {@link #mutatedAnticompactionGauge} keeps
-     * its existing meaning.
+     * number of Data.db bytes the zero-copy anticompaction split ACCOUNTED FOR: the sum of every child's live chunk
+     * bytes. Read it as the data volume that took the copy path instead of the rewrite.
+     * <p>
+     * It is neither a subset of {@link #bytesAnticompacted} nor the I/O the split cost, so
+     * {@code BytesZeroCopyAnticompaction / BytesAnticompacted} is not a fraction and can read over 100%:
+     * <ul>
+     * <li>a compression chunk holding a token boundary belongs to the children on both sides of it and is counted
+     * once for each, while {@link #bytesAnticompacted} was charged each parent's on-disk length exactly once;</li>
+     * <li>with {@code zero_copy_split_reflink_enabled} the children share the parent's extents rather than copying
+     * them, so the bytes actually written can be ~0.</li>
+     * </ul>
+     * {@link #bytesAnticompacted} is still charged over every unrepaired sstable in the transaction before the split
+     * path claims any of them, so {@link #mutatedAnticompactionGauge} keeps its existing meaning. The split's own log
+     * line has the exact breakdown of bytes shared, written, dead and duplicated.
      */
     public final TableMeter bytesZeroCopyAnticompaction;
     /** number of bytes that were scanned during preview repair */
@@ -875,7 +885,9 @@ public class TableMetrics
         partitionsValidated = createTableHistogram("PartitionsValidated", cfs.keyspace.metric.partitionsValidated, false);
         bytesAnticompacted = createTableMeter("BytesAnticompacted", cfs.keyspace.metric.bytesAnticompacted, true);
         bytesMutatedAnticompaction = createTableMeter("BytesMutatedAnticompaction", cfs.keyspace.metric.bytesMutatedAnticompaction, true);
-        bytesZeroCopyAnticompaction = createTableMeter("BytesZeroCopyAnticompaction", cfs.keyspace.metric.bytesZeroCopyAnticompaction, true);
+        // Not gauge compatible: unlike the two above it was never a JmxGauge, so the global MBean has no legacy
+        // 'Value' attribute to keep, and giving it one the per-table MBean does not have would be a new contract.
+        bytesZeroCopyAnticompaction = createTableMeter("BytesZeroCopyAnticompaction", cfs.keyspace.metric.bytesZeroCopyAnticompaction);
         bytesPreviewed = createTableMeter("BytesPreviewed", cfs.keyspace.metric.bytesPreviewed);
         tokenRangesPreviewedDesynchronized = createTableMeter("TokenRangesPreviewedDesynchronized", cfs.keyspace.metric.tokenRangesPreviewedDesynchronized);
         bytesPreviewedDesynchronized = createTableMeter("BytesPreviewedDesynchronized", cfs.keyspace.metric.bytesPreviewedDesynchronized);

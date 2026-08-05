@@ -77,19 +77,29 @@ public interface StreamingDataOutputPlus extends DataOutputPlus, Closeable
      * * For zero-copy-streaming, 1MiB at a time, with at most 2MiB in flight at once. <br>
      * * For streaming with SSL, 64KiB at a time, with at most 32+64KiB (default low water mark + batch size) in flight. <br>
      * <p>
-     * This method takes ownership of the provided {@link FileChannel}.
+     * This method takes ownership of the provided {@link FileChannel}: the implementation closes it, whether the
+     * write succeeds or fails, so a channel may be given to exactly one of these calls.
+     * <p>
+     * Either every byte asked for is written or an exception is thrown; a short write is never reported as a
+     * smaller return value. Nothing could be done with it if it were: the peer sizes each component from the
+     * component manifest it was already sent rather than from the stream, so bytes missing here are taken out of
+     * the next component instead, shifting every component after it and finally leaving the peer blocked reading
+     * bytes that will never come -- with nothing thrown at either end.
      * <p>
      * WARNING: this method blocks only for permission to write to the netty channel; it exits before
      * the {@link FileRegion}(zero-copy) or {@link ByteBuffer}(ssl) is flushed to the network.
+     *
+     * @return the number of bytes written, always {@code file.size()}
      */
     long writeFileToChannel(FileChannel file, RateLimiter limiter) throws IOException;
 
     /**
-     * As {@link #writeFileToChannel(FileChannel, RateLimiter)}, but only the {@code length} bytes starting at
-     * {@code position}. Used to send one component of a partial zero-copy stream, whose Data.db is a verbatim
+     * As {@link #writeFileToChannel(FileChannel, RateLimiter)} -- taking ownership of the channel, and writing
+     * everything asked for or throwing, both as documented there -- but of only the {@code length} bytes starting
+     * at {@code position}. Used to send one component of a partial zero-copy stream, whose Data.db is a verbatim
      * compression-chunk run of a larger file rather than a file of its own.
-     * <p>
-     * This method takes ownership of the provided {@link FileChannel}, so it can only be called once per channel.
+     *
+     * @return {@code length}
      */
     long writeFileToChannel(FileChannel file, RateLimiter limiter, long position, long length) throws IOException;
 

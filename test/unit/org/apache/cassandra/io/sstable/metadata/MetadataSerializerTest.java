@@ -20,11 +20,13 @@ package org.apache.cassandra.io.sstable.metadata;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -45,6 +47,7 @@ import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
@@ -53,6 +56,7 @@ import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.Throwables;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -134,6 +138,17 @@ public class MetadataSerializerTest
 
     public Map<MetadataType, MetadataComponent> constructMetadata(boolean withNulls)
     {
+        return constructMetadata(withNulls, false);
+    }
+
+    /**
+     * @param hasUnindexedRegions value for {@link StatsMetadata#hasUnindexedRegions}. {@link MetadataCollector} never
+     *                            sets it -- only the zero-copy paths do, and they do it by rebuilding the component,
+     *                            which is what is replicated here (see {@code ZeroCopySSTableSplitter.writeStatistics}
+     *                            for why the comparator's subtypes are the right clustering types to pass).
+     */
+    public Map<MetadataType, MetadataComponent> constructMetadata(boolean withNulls, boolean hasUnindexedRegions)
+    {
         CommitLogPosition club = new CommitLogPosition(11L, 12);
         CommitLogPosition cllb = new CommitLogPosition(9L, 12);
 
@@ -154,7 +169,190 @@ public class MetadataSerializerTest
         collector.updateClusteringValues(Clustering.make(UTF8Type.instance.decompose("cba"), withNulls ? null : Int32Type.instance.decompose(234)));
         ByteBuffer first = AsciiType.instance.decompose("a");
         ByteBuffer last = AsciiType.instance.decompose("b");
-        return collector.finalizeMetadata(partitioner, bfFpChance, 0, null, false, SerializationHeader.make(cfm, Collections.emptyList()), first, last);
+        Map<MetadataType, MetadataComponent> metadata = collector.finalizeMetadata(partitioner, bfFpChance, 0, null, false, SerializationHeader.make(cfm, Collections.emptyList()), first, last);
+
+        if (hasUnindexedRegions)
+        {
+            StatsMetadata stats = (StatsMetadata) metadata.get(MetadataType.STATS);
+            metadata.put(MetadataType.STATS, new StatsMetadata(stats.estimatedPartitionSize,
+                                                               stats.estimatedCellPerPartitionCount,
+                                                               stats.commitLogIntervals,
+                                                               stats.minTimestamp,
+                                                               stats.maxTimestamp,
+                                                               stats.minLocalDeletionTime,
+                                                               stats.maxLocalDeletionTime,
+                                                               stats.minTTL,
+                                                               stats.maxTTL,
+                                                               stats.compressionRatio,
+                                                               stats.estimatedTombstoneDropTime,
+                                                               stats.sstableLevel,
+                                                               cfm.comparator.subtypes(),
+                                                               stats.coveredClustering,
+                                                               stats.hasLegacyCounterShards,
+                                                               stats.repairedAt,
+                                                               stats.totalColumnsSet,
+                                                               stats.totalRows,
+                                                               stats.tokenSpaceCoverage,
+                                                               stats.originatingHostId,
+                                                               stats.pendingRepair,
+                                                               stats.isTransient,
+                                                               stats.hasPartitionLevelDeletions,
+                                                               stats.firstKey,
+                                                               stats.lastKey,
+                                                               true));
+        }
+
+        return metadata;
+    }
+
+    /**
+     * Every two letter version of the selected format, whether it ever existed or not -- the feature predicates are
+     * plain string comparisons, so asking for a version is enough to know what it can hold.
+     */
+    private static List<Version> allVersions()
+    {
+        List<Version> versions = new ArrayList<>();
+        for (char major = 'a'; major <= 'z'; major++)
+            for (char minor = 'a'; minor <= 'z'; minor++)
+                versions.add(format.getVersion(String.format("%s%s", major, minor)));
+        return versions;
+    }
+
+    private static List<Version> compatibleVersions()
+    {
+        return allVersions().stream().filter(Version::isCompatible).collect(Collectors.toList());
+    }
+
+    /**
+     * The two versions either side of the {@link Version#hasUnindexedRegionsMarker()} gate -- {@code pa}/{@code pb} for
+     * BIG, {@code ea}/{@code eb} for BTI -- found rather than named so that the next version bump leaves this test
+     * alone. Deliberately not restricted to {@link Version#isCompatible()} versions: which ones are compatible depends
+     * on the storage compatibility mode, whereas what the gate lets a version hold does not.
+     *
+     * @param withMarker whether to return the first version that records the marker, or the last one that cannot
+     */
+    private static Version versionAtUnindexedRegionsMarkerGate(boolean withMarker)
+    {
+        Version previous = null;
+        for (Version version : allVersions())
+        {
+            if (version.hasUnindexedRegionsMarker())
+                return withMarker ? version : previous;
+            previous = version;
+        }
+        throw new AssertionError("No version of " + format.name() + " records hasUnindexedRegions");
+    }
+
+    private byte[] serializeToBytes(Map<MetadataType, MetadataComponent> metadata, MetadataSerializer serializer, Version version)
+    throws IOException
+    {
+        try (DataOutputBuffer out = new DataOutputBuffer())
+        {
+            serializer.serialize(metadata, out, version);
+            return out.toByteArray();
+        }
+    }
+
+    private StatsMetadata deserializeStats(File statsFile, MetadataSerializer serializer, Version version) throws IOException
+    {
+        Descriptor desc = new Descriptor(version, statsFile.parent(), "", "", new SequenceBasedSSTableId(0));
+        try (RandomAccessReader in = RandomAccessReader.open(statsFile))
+        {
+            return (StatsMetadata) serializer.deserialize(desc, in, EnumSet.of(MetadataType.STATS)).get(MetadataType.STATS);
+        }
+    }
+
+    /**
+     * {@link StatsMetadata#hasUnindexedRegions} survives a round trip in a version that records it, and reads back as
+     * false from one that cannot -- the reader of an older sstable has no marker to find, and none was ever written
+     * there ({@code ZeroCopySSTableSlice} refuses).
+     */
+    @Test
+    public void testUnindexedRegionsRoundTrip() throws IOException
+    {
+        Map<MetadataType, MetadataComponent> originalMetadata = constructMetadata(false, true);
+        StatsMetadata originalStats = (StatsMetadata) originalMetadata.get(MetadataType.STATS);
+        assertTrue(originalStats.hasUnindexedRegions);
+
+        MetadataSerializer serializer = new MetadataSerializer();
+
+        Version newVersion = versionAtUnindexedRegionsMarkerGate(true);
+        StatsMetadata newDeserialized = deserializeStats(serialize(originalMetadata, serializer, newVersion), serializer, newVersion);
+        assertTrue("Marker lost by " + newVersion, newDeserialized.hasUnindexedRegions);
+        // The whole component, not just the flag: the marker must not have displaced anything else. Sound only
+        // because StatsMetadata.equals covers hasUnindexedRegions, which is what makes the assertion above fallible.
+        assertEquals(originalStats, newDeserialized);
+
+        Version oldVersion = versionAtUnindexedRegionsMarkerGate(false);
+        StatsMetadata oldDeserialized = deserializeStats(serialize(originalMetadata, serializer, oldVersion), serializer, oldVersion);
+        assertFalse("Marker read back from " + oldVersion + ", which cannot hold it", oldDeserialized.hasUnindexedRegions);
+    }
+
+    /**
+     * A version that cannot express the marker must serialize a marked {@link StatsMetadata} to exactly the bytes an
+     * unmarked one produces: an sstable written in an old version has to be byte for byte what it was before the field
+     * existed, not merely readable by an old reader. Conversely, a version that does record it must produce different
+     * bytes, or the assertion above would hold vacuously.
+     */
+    @Test
+    public void testUnindexedRegionsNotWrittenToOldVersions() throws IOException
+    {
+        Map<MetadataType, MetadataComponent> marked = constructMetadata(false, true);
+        Map<MetadataType, MetadataComponent> unmarked = constructMetadata(false, false);
+
+        MetadataSerializer serializer = new MetadataSerializer();
+
+        // Checked outside the loop as well: which versions are compatible depends on the storage compatibility mode,
+        // so the ones that record the marker can be missing from it entirely, leaving nothing to contrast against.
+        Version newVersion = versionAtUnindexedRegionsMarkerGate(true);
+        assertFalse("Version " + newVersion + " records the marker, so the bytes must differ",
+                    Arrays.equals(serializeToBytes(unmarked, serializer, newVersion),
+                                  serializeToBytes(marked, serializer, newVersion)));
+
+        for (Version version : compatibleVersions())
+        {
+            byte[] markedBytes = serializeToBytes(marked, serializer, version);
+            byte[] unmarkedBytes = serializeToBytes(unmarked, serializer, version);
+
+            if (version.hasUnindexedRegionsMarker())
+                assertFalse("Version " + version + " records the marker, so the bytes must differ",
+                            Arrays.equals(unmarkedBytes, markedBytes));
+            else
+                assertArrayEquals("Version " + version + " cannot record the marker, so it must write the same bytes either way",
+                                  unmarkedBytes, markedBytes);
+        }
+    }
+
+    /**
+     * The marker byte a new version writes must be invisible to a reader of an older minor version: it is appended
+     * past everything that version knows about, and MetadataSerializer hands each component only its own bytes.
+     */
+    @Test
+    public void testOldReadsNewUnindexedRegionsMarker() throws Throwable
+    {
+        Map<MetadataType, MetadataComponent> markedMetadata = constructMetadata(true, true);
+        Version oldVersion = versionAtUnindexedRegionsMarkerGate(false);
+
+        Throwable t = null;
+        for (Version newVersion : allVersions())
+        {
+            // Same major only, like testMinorVersionsCompatibilty: reading across majors is not a claim this format makes.
+            if (!newVersion.hasUnindexedRegionsMarker() || newVersion.version.charAt(0) != oldVersion.version.charAt(0))
+                continue;
+
+            try
+            {
+                testOldReadsNew(oldVersion.version, newVersion.version, markedMetadata);
+            }
+            catch (Exception | AssertionError e)
+            {
+                t = Throwables.merge(t, new AssertionError("Failed to test " + oldVersion + " -> " + newVersion, e));
+            }
+        }
+        if (t != null)
+        {
+            throw t;
+        }
     }
 
     private void testVersions(List<String> versions) throws Throwable
@@ -200,8 +398,11 @@ public class MetadataSerializerTest
 
     public void testOldReadsNew(String oldV, String newV) throws IOException
     {
-        Map<MetadataType, MetadataComponent> originalMetadata = constructMetadata(true);
+        testOldReadsNew(oldV, newV, constructMetadata(true));
+    }
 
+    public void testOldReadsNew(String oldV, String newV, Map<MetadataType, MetadataComponent> originalMetadata) throws IOException
+    {
         MetadataSerializer serializer = new MetadataSerializer();
         // Write metadata in two minor formats.
         File statsFileLb = serialize(originalMetadata, serializer, format.getVersion(newV));

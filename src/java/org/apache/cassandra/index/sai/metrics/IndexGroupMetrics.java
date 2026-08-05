@@ -33,5 +33,9 @@ public class IndexGroupMetrics extends AbstractMetrics
 
         Metrics.register(createMetricName("OpenIndexFiles"), (Gauge<Integer>) group::openIndexFiles);
         Metrics.register(createMetricName("DiskUsedBytes"), (Gauge<Long>) group::diskUsage);
+        // Live sstables absent from every index view for want of per-sstable index components. Transient during an
+        // index build, and otherwise the only standing signal that query results are silently incomplete. See
+        // StorageAttachedIndexGroup#unindexedSSTables for what this does and does not count.
+        Metrics.register(createMetricName("UnindexedSSTables"), (Gauge<Integer>) group::unindexedSSTables);
     }
 }

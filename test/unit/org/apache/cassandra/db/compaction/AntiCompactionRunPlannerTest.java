@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Assume;
 import org.junit.Test;
@@ -36,6 +37,8 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.ZeroCopySSTableSplitter;
 import org.apache.cassandra.io.sstable.ZeroCopySSTableSplitter.RepairState;
@@ -53,9 +56,11 @@ import org.apache.cassandra.utils.TimeUUID;
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -77,11 +82,17 @@ import static org.junit.Assert.assertTrue;
  * feature can have and it is invisible in a "the children add up to the parent" test, so every eligible case
  * below pins the boundary keys down exactly.
  *
- * <p>The pure run-encoding half is format agnostic and always runs. The half that needs a real sstable is
- * BIG-only -- the planner rebases Index.db partition positions, which no other format has -- so those tests
- * assume {@link BigFormat#isSelected()}. The one exception is
- * {@link #planReportsNonBigFormatSSTableAsIneligible()}, which deliberately builds a BTI sstable to prove the
- * non-BIG branch reports rather than throws.
+ * <p>The pure run-encoding half is format agnostic and always runs. The half that needs a real sstable is written
+ * against BIG, because the boundary-key assertions are stated in terms of an Index.db walk, so those tests assume
+ * {@link BigFormat#isSelected()}; BTI is supported too and is covered by {@link #planAcceptsBtiFormatSSTable()},
+ * which forces the format on purpose.
+ *
+ * <p><b>Eligibility is a precondition, not an outcome.</b> {@link ZeroCopySSTableSplitter#isSupported} now also
+ * requires an sstable version that can carry {@code StatsMetadata.hasUnindexedRegions} (BIG {@code pb}+, BTI
+ * {@code eb}+). A run whose {@code storage_compatibility_mode} pins newly written BIG sstables to {@code nb} or
+ * {@code oa} makes the whole feature inert, and every "the planner says eligible" assertion here would quietly
+ * become an assertion about a refusal. {@link #compressedSSTable} therefore fails loudly, and says why, rather
+ * than letting that happen.
  */
 public class AntiCompactionRunPlannerTest extends CQLTester
 {
@@ -112,7 +123,7 @@ public class AntiCompactionRunPlannerTest extends CQLTester
     /**
      * A single run means there is nothing to cut. All three flavours are ineligible, and each says which label
      * it was -- "entire sstable is FULL" and "entire sstable is UNREPAIRED" are operationally very different
-     * situations (one is already covered by the fully-contained mutate path, the other is a no-op), so they must
+     * situations for an operator reading the log, so they must
      * not collapse into one generic message.
      */
     @Test
@@ -505,6 +516,120 @@ public class AntiCompactionRunPlannerTest extends CQLTester
         assertTrue(plan.perChild.isEmpty());
     }
 
+    /**
+     * The Index.db walk has to be interruptible: it is the first thing in an anticompaction that takes real time --
+     * a couple of percent of a multi-GiB sstable, and for a narrow-partition BTI parent a decompressing read of the
+     * whole data file -- and nothing else in it answers a repair session that has gone away.
+     * <p>
+     * The contract is REPORTING, not throwing, and that is the whole point of the {@code BooleanSupplier} overload:
+     * {@link AntiCompactionRunPlanner} answers a question, so a cancelled walk comes back as
+     * {@link AntiCompactionRunPlanner.Plan#interrupted} -- "this is not a verdict about the sstable" -- and
+     * {@code CompactionManager.zeroCopyAntiCompact} stops planning the rest of the group rather than reading it as
+     * "rewrite this one". Note what is NOT here any more: the walk is deliberately not registered with
+     * {@code ActiveCompactions} (it writes nothing, so it must not be credited bytes or reserve disk), so
+     * {@code nodetool stop} and TRUNCATE do not reach it; a repair-session cancellation, which is what this
+     * predicate carries, does.
+     */
+    @Test
+    public void cancellationDuringTheIndexWalkIsReportedRatherThanThrown() throws Throwable
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+        SSTableReader parent = compressedSSTable(40);
+        List<DecoratedKey> keys = indexKeys(parent);
+        RangesAtEndpoint ranges = rangesAtEndpoint(Collections.singletonList(
+            new Range<>(keys.get(9).getToken(), keys.get(19).getToken())), Collections.emptyList());
+
+        // Non-vacuity: the same call with no cancellation plans normally, so what follows is the predicate firing
+        // and not the shape being ineligible.
+        AntiCompactionRunPlanner.Plan uncancelled = AntiCompactionRunPlanner.plan(parent, ranges, nextTimeUUID());
+        assertTrue(uncancelled.toString(), uncancelled.eligible);
+        assertFalse(uncancelled.interrupted);
+
+        AtomicInteger checks = new AtomicInteger();
+        AntiCompactionRunPlanner.Plan plan =
+            AntiCompactionRunPlanner.plan(parent, ranges, nextTimeUUID(), () -> {
+                checks.incrementAndGet();
+                return true;
+            });
+
+        assertTrue("the cancellation predicate must be consulted during the walk", checks.get() >= 1);
+        assertTrue(plan.toString(), plan.interrupted);
+        // Not a verdict: interrupted and eligible must never both hold, and nothing partial may be reported.
+        assertFalse("an interrupted plan must never also be eligible", plan.eligible);
+        assertEquals("a walk that stopped part way through counted nothing", 0, plan.runCount);
+        assertTrue(plan.boundaries.isEmpty());
+        assertTrue(plan.perChild.isEmpty());
+        assertNotNull(plan.ineligibleReason);
+        assertTrue(plan.ineligibleReason, plan.ineligibleReason.contains("cancelled"));
+        assertTrue(plan.toString(), plan.toString().contains("interrupted"));
+    }
+
+    /**
+     * The cadence, pinned because it is the whole cost/latency trade of the check: one consultation per 1024 index
+     * records, keyed on the record ordinal. Cheaper and the cancellation goes unnoticed for up to 1024 partitions
+     * of walking; more expensive and a predicate that touches shared repair state is called per partition.
+     * <p>
+     * 1030 partitions gives exactly two check points (ordinals 0 and 1024), so both the count and the fact that a
+     * flip at the SECOND one still abandons the walk are observable. The second half is what a real cancellation
+     * looks like -- the session is alive when planning starts and dies during it -- which the {@code () -> true}
+     * case above cannot show, since it fires on the very first record.
+     */
+    @Test
+    public void theIndexWalkChecksCancellationEveryThousandRecords() throws Throwable
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+        SSTableReader parent = compressedSSTable(1030);
+        List<DecoratedKey> keys = indexKeys(parent);
+        assertEquals(1030, keys.size());
+        RangesAtEndpoint ranges = fullOnly(new Range<>(keys.get(9).getToken(), keys.get(499).getToken()));
+
+        AtomicInteger checks = new AtomicInteger();
+        AntiCompactionRunPlanner.Plan completed =
+            AntiCompactionRunPlanner.plan(parent, ranges, nextTimeUUID(), () -> {
+                checks.incrementAndGet();
+                return false;
+            });
+        assertTrue(completed.toString(), completed.eligible);
+        assertEquals("one check per 1024 records, at ordinals 0 and 1024", 2, checks.get());
+
+        // ...and a flip at the second check point abandons a walk that had already labelled 1024 partitions.
+        AtomicInteger secondRun = new AtomicInteger();
+        AntiCompactionRunPlanner.Plan interrupted =
+            AntiCompactionRunPlanner.plan(parent, ranges, nextTimeUUID(),
+                                          () -> secondRun.incrementAndGet() >= 2);
+        assertTrue(interrupted.toString(), interrupted.interrupted);
+        assertFalse(interrupted.eligible);
+        assertEquals("nothing partial may be reported", 0, interrupted.runCount);
+    }
+
+    /**
+     * The planner catches exactly one thing out of its walk callback -- its own private control-flow marker -- so a
+     * predicate that throws is NOT converted into a verdict. Worth pinning: the obvious way to write that catch is
+     * around the whole walk and broad enough to swallow a {@link CompactionInterruptedException} or a
+     * {@code CorruptSSTableException}, and a swallowed one of those becomes "rewrite this sstable" -- which is how
+     * {@code CompactionManager} ends up reporting a successful anticompaction on a node with a bad sector. See
+     * {@code ZeroCopyAntiCompactionTest.plannerFailureThatIsNotALocalRefusalFailsTheAnticompaction} for the other half.
+     */
+    @Test
+    public void aThrowingCancellationPredicateIsNotSwallowed() throws Throwable
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+        SSTableReader parent = compressedSSTable(40);
+        List<DecoratedKey> keys = indexKeys(parent);
+        RangesAtEndpoint ranges = fullOnly(new Range<>(keys.get(9).getToken(), keys.get(19).getToken()));
+
+        assertTrue(AntiCompactionRunPlanner.plan(parent, ranges, nextTimeUUID()).eligible);
+
+        assertThatThrownBy(() -> AntiCompactionRunPlanner.plan(parent, ranges, nextTimeUUID(), () -> {
+            throw new CompactionInterruptedException("stopped during the index walk");
+        })).isInstanceOf(CompactionInterruptedException.class);
+
+        assertThatThrownBy(() -> AntiCompactionRunPlanner.plan(parent, ranges, nextTimeUUID(), () -> {
+            throw new CorruptSSTableException(new IOException("bad sector"),
+                                              parent.descriptor.fileFor(BigFormat.Components.PRIMARY_INDEX));
+        })).isInstanceOf(CorruptSSTableException.class);
+    }
+
     @Test
     public void planOnRealSSTableRejectsAFullyOwnedSSTable() throws Throwable
     {
@@ -529,8 +654,6 @@ public class AntiCompactionRunPlannerTest extends CQLTester
     @Test
     public void planReportsUncompressedSSTableAsIneligible() throws Throwable
     {
-        // BIG-only: on a BTI run the format check below fires first and reports a different (also correct) reason
-        Assume.assumeTrue(BigFormat.isSelected());
         createTable("CREATE TABLE %s (pk text, ck int, val text, PRIMARY KEY (pk, ck)) " +
                     "WITH compression = {'enabled': 'false'}");
         disableCompaction();
@@ -552,7 +675,7 @@ public class AntiCompactionRunPlannerTest extends CQLTester
         assertFalse(plan.eligible);
         assertEquals(0, plan.runCount);
         assertTrue(plan.ineligibleReason,
-                   plan.ineligibleReason.contains("not a compressed BIG-format sstable"));
+                   plan.ineligibleReason.contains("not a compressed BIG- or BTI-format sstable"));
         // the reason names the thing that actually disqualified it
         assertTrue(plan.ineligibleReason, plan.ineligibleReason.contains("compressed=false"));
         assertTrue(plan.boundaries.isEmpty());
@@ -560,14 +683,14 @@ public class AntiCompactionRunPlannerTest extends CQLTester
     }
 
     /**
-     * A non-BIG sstable must also be REPORTED, not thrown on, and with its OWN reason. The splitter works by
-     * rebasing Index.db partition positions and BTI has no Index.db, so zero-copy anticompaction can never
-     * engage there; an operator running BTI has to be able to see that from the log rather than be told
-     * something about compression. And since {@code plan} is called for every sstable of every anticompaction
-     * group, a throw here would fail every incremental repair on a BTI table.
+     * BTI is supported now, so what this pins is that the planner ENGAGES on it rather than reporting it
+     * ineligible on format grounds. It is worth keeping as a planner test rather than folding into
+     * {@code ZeroCopySSTableSplitterBtiTest}: {@code plan} is called for every sstable of every anticompaction
+     * group, so a regression that made it refuse BTI again would silently send every BTI incremental repair back
+     * to the rewriting path with nothing in the log that named the format.
      */
     @Test
-    public void planReportsNonBigFormatSSTableAsIneligible() throws Throwable
+    public void planAcceptsBtiFormatSSTable() throws Throwable
     {
         Assume.assumeTrue(DatabaseDescriptor.getSSTableFormats().containsKey(BtiFormat.NAME));
 
@@ -595,28 +718,80 @@ public class AntiCompactionRunPlannerTest extends CQLTester
         }
 
         assertTrue(parent.descriptor.getFormat().name(), BtiFormat.is(parent.descriptor.getFormat()));
-        // compressed, so nothing but the format can be disqualifying it
         assertTrue(parent.compression);
-        assertFalse(ZeroCopySSTableSplitter.isSupported(parent));
+        assertSplittable(parent);
 
-        RangesAtEndpoint ranges = fullOnly(new Range<>(parent.getFirst().getToken(), parent.getLast().getToken()));
+        List<DecoratedKey> keys = indexKeys(parent);
+        RangesAtEndpoint ranges = fullOnly(new Range<>(keys.get(4).getToken(), keys.get(9).getToken()));
 
-        // must not throw
         AntiCompactionRunPlanner.Plan plan = AntiCompactionRunPlanner.plan(parent, ranges, nextTimeUUID());
 
-        assertFalse(plan.eligible);
-        assertEquals(0, plan.runCount);
-        assertTrue(plan.ineligibleReason, plan.ineligibleReason.contains("unsupported sstable format 'bti'"));
-        assertTrue(plan.ineligibleReason, plan.ineligibleReason.contains("BIG-format only"));
-        // distinguishable from the uncompressed reason, which is the whole point of reporting it separately
-        assertFalse(plan.ineligibleReason, plan.ineligibleReason.contains("not a compressed BIG-format sstable"));
-        assertTrue(plan.boundaries.isEmpty());
-        assertTrue(plan.perChild.isEmpty());
+        assertTrue(String.valueOf(plan.ineligibleReason), plan.eligible);
+        assertNull(plan.ineligibleReason);
+        assertTrue(plan.toString(), plan.runCount >= 2);
+        assertEquals(plan.boundaries.size() + 1, plan.perChild.size());
+    }
+
+    /**
+     * A child is assembled from a fixed component list and its TOC written from that same list, so any component the
+     * parent carries and the splitter cannot write is silently absent from every child. For storage-attached index
+     * components that is not benign -- the child is live and readable and its rows match no index predicate, because
+     * {@code SSTableContextManager.update} drops an sstable with no per-sstable completion marker out of the index
+     * view without reporting it invalid -- so the planner declines instead, and does so BEFORE the Index.db walk,
+     * which is what {@code runCount == 0} pins.
+     * <p>
+     * A custom component stands in for a real index here so the test needs no SAI: the gate tests the same
+     * {@code parent.getComponents() \ WRITTEN_COMPONENTS} difference either way. The authoritative gate for SAI is
+     * {@code SecondaryIndexManager.hasSSTableAttachedIndexes()} in {@code CompactionManager.zeroCopyAntiCompact};
+     * this one is the format-agnostic backstop, and covers any component type added later.
+     */
+    @Test
+    public void planRefusesAnSSTableCarryingComponentsAChildWouldNotGet() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk text, ck int, val text, PRIMARY KEY (pk, ck)) " +
+                    "WITH compression = {'class': 'LZ4Compressor', 'chunk_length_in_kb': '4'}");
+        disableCompaction();
+        for (int p = 0; p < 10; p++)
+            execute("INSERT INTO %s (pk, ck, val) VALUES (?, ?, ?)", key(p), 0, "value");
+        flush();
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        assertEquals(1, cfs.getLiveSSTables().size());
+        SSTableReader parent = cfs.getLiveSSTables().iterator().next();
+        assertSplittable(parent);
+
+        List<DecoratedKey> keys = indexKeys(parent);
+        RangesAtEndpoint ranges = fullOnly(new Range<>(keys.get(4).getToken(), keys.get(9).getToken()));
+
+        // Eligible first, so the refusal below is provably the component and not the shape.
+        assertTrue(AntiCompactionRunPlanner.plan(parent, ranges, nextTimeUUID()).eligible);
+
+        Component extra = PLANNER_TEST_EXTRA_TYPE.createComponent("PlannerTestExtra.db");
+        parent.descriptor.fileFor(extra).createFileIfNotExists();
+        parent.registerComponents(Collections.singleton(extra), cfs.getTracker());
+
+        AntiCompactionRunPlanner.Plan plan = AntiCompactionRunPlanner.plan(parent, ranges, nextTimeUUID());
+        assertFalse(plan.toString(), plan.eligible);
+        assertNotNull(plan.ineligibleReason);
+        assertTrue(plan.ineligibleReason, plan.ineligibleReason.contains("PlannerTestExtra.db"));
+        assertEquals("the Index.db walk should have been skipped entirely", 0, plan.runCount);
+
+        // The splitter itself refuses too, for a caller that never asked the planner.
+        assertThatThrownBy(() -> ZeroCopySSTableSplitter.split(parent, 2, null))
+            .isInstanceOf(UnsupportedOperationException.class)
+            .hasMessageContaining("PlannerTestExtra.db");
     }
 
     // ----------------------------------------------------------------------------------------------------
     // Helpers
     // ----------------------------------------------------------------------------------------------------
+
+    /**
+     * Stands in for a storage-attached index component: present on the parent, outside the splitter's written list.
+     * Static because {@code Component.Type}'s constructor registers itself globally, so it must be created once.
+     */
+    private static final Component.Type PLANNER_TEST_EXTRA_TYPE =
+        Component.Type.create("PlannerTestExtra", ".*-PlannerTestExtra\\.db", true, null);
 
     private static AntiCompactionRunPlanner.Plan planOf(TimeUUID session, AntiCompactionRunPlanner.Label... labels)
     {
@@ -686,8 +861,24 @@ public class AntiCompactionRunPlannerTest extends CQLTester
         assertEquals(1, cfs.getLiveSSTables().size());
         SSTableReader parent = cfs.getLiveSSTables().iterator().next();
         assertTrue(parent.compression);
-        assertTrue(ZeroCopySSTableSplitter.isSupported(parent));
+        assertSplittable(parent);
         return parent;
+    }
+
+    /**
+     * The precondition every eligibility assertion in this file rests on, asserted with a message that names the
+     * likely cause. Without it a run that writes pre-{@code pb} sstables turns each of those assertions into an
+     * assertion about a refusal, which passes for entirely the wrong reason.
+     */
+    private static void assertSplittable(SSTableReader parent)
+    {
+        assertTrue("this run writes '" + parent.descriptor.version.version + "' sstables, which cannot carry the" +
+                   " StatsMetadata.hasUnindexedRegions marker (BIG needs 'pb', BTI 'eb'), so zero-copy splitting is" +
+                   " INERT here and every eligibility assertion in this class would silently become an assertion" +
+                   " about a refusal. storage_compatibility_mode pins the version being written; it must be NONE.",
+                   parent.descriptor.version.hasUnindexedRegionsMarker());
+        assertTrue("fixture no longer produces a splittable sstable: " + parent.descriptor,
+                   ZeroCopySSTableSplitter.isSupported(parent));
     }
 
     /**

@@ -1239,6 +1239,21 @@ public class DatabaseDescriptor
         if (conf.max_space_usable_for_compactions_in_percentage < 0 || conf.max_space_usable_for_compactions_in_percentage > 1)
             throw new ConfigurationException("max_space_usable_for_compactions_in_percentage must be between 0 and 1", false);
 
+        // Run the yaml value through the setter rather than repeating its range check here. Without this the check
+        // was unreachable -- nothing in src/ calls that setter -- so a value outside [0, 1] loaded silently and
+        // disabled the knob's only use (deadRatio() > ratio): a 25 typed for "25 percent" would accept every slice
+        // however much dead space it carried. Re-setting the value it already holds validates without logging.
+        try
+        {
+            setZeroCopyPartialStreamMaxDeadSpaceRatio(conf.zero_copy_partial_stream_max_dead_space_ratio);
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw new ConfigurationException(e.getMessage(), false);
+        }
+
+        warnAboutInertZeroCopySettings();
+
         if (conf.dump_heap_on_uncaught_exception && DatabaseDescriptor.getHeapDumpPath() == null)
             throw new ConfigurationException(String.format("Invalid configuration. Heap dump is enabled but cannot create heap dump output path: %s.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
 
@@ -1288,6 +1303,38 @@ public class DatabaseDescriptor
         {
             throw new ConfigurationException(ex.getMessage());
         }
+    }
+
+    /**
+     * Reports a zero-copy sstable setting that is set but inert, because each of them is gated by another one and
+     * nothing else makes that visible: an inert {@code zero_copy_partial_stream_enabled} never reaches a
+     * {@code StreamingMetrics} counter, so not even a refusal shows up, and an operator watching those counters
+     * cannot tell it from a feature that had nothing to do. Deliberately never fatal -- while a cluster is being
+     * rolled every one of these combinations is a legitimate transient state.
+     * <p>
+     * Called from {@link #applySimpleConfig()} and from the setters, so both a yaml and a JMX change are reported.
+     */
+    private static void warnAboutInertZeroCopySettings()
+    {
+        if (conf.zero_copy_partial_stream_enabled && !conf.stream_entire_sstables)
+            logger.warn("zero_copy_partial_stream_enabled is true but does nothing while stream_entire_sstables is" +
+                        " false: a sliced partial stream goes over that same protocol and rate limiter, so every" +
+                        " transfer falls back to partition-by-partition and no StreamingMetrics" +
+                        " SlicedZeroCopyStreams* counter moves at all");
+
+        // Only worth reporting when one of these was turned OFF: both default to true while
+        // zero_copy_anticompaction_enabled defaults to false, so the opposite test would fire on a default config.
+        // INFO rather than WARN because an unused setting whose feature is off is harmless, unlike the case above
+        // where an operator has asked for something and gets neither the behaviour nor any signal.
+        if (!conf.zero_copy_anticompaction_enabled && !conf.zero_copy_split_reflink_enabled)
+            logger.info("zero_copy_split_reflink_enabled is false, which does nothing while" +
+                        " zero_copy_anticompaction_enabled is false: it only governs the zero-copy anticompaction" +
+                        " split");
+
+        if (!conf.zero_copy_anticompaction_enabled && !conf.zero_copy_split_digest_enabled)
+            logger.info("zero_copy_split_digest_enabled is false, which does nothing while" +
+                        " zero_copy_anticompaction_enabled is false: it only governs the zero-copy anticompaction" +
+                        " split");
     }
 
     @VisibleForTesting
@@ -4678,6 +4725,7 @@ public class DatabaseDescriptor
         if (enabled != conf.zero_copy_partial_stream_enabled)
             logger.info("Changing zero_copy_partial_stream_enabled from {} to {}", conf.zero_copy_partial_stream_enabled, enabled);
         conf.zero_copy_partial_stream_enabled = enabled;
+        warnAboutInertZeroCopySettings();
     }
 
     /** @see Config#zero_copy_partial_stream_max_dead_space_ratio */
@@ -5434,6 +5482,7 @@ public class DatabaseDescriptor
         if (enabled != conf.zero_copy_anticompaction_enabled)
             logger.info("Changing zero_copy_anticompaction_enabled from {} to {}", conf.zero_copy_anticompaction_enabled, enabled);
         conf.zero_copy_anticompaction_enabled = enabled;
+        warnAboutInertZeroCopySettings();
     }
 
     /**
@@ -5450,6 +5499,7 @@ public class DatabaseDescriptor
         if (enabled != conf.zero_copy_split_reflink_enabled)
             logger.info("Changing zero_copy_split_reflink_enabled from {} to {}", conf.zero_copy_split_reflink_enabled, enabled);
         conf.zero_copy_split_reflink_enabled = enabled;
+        warnAboutInertZeroCopySettings();
     }
 
     /**
@@ -5466,6 +5516,7 @@ public class DatabaseDescriptor
         if (enabled != conf.zero_copy_split_digest_enabled)
             logger.info("Changing zero_copy_split_digest_enabled from {} to {}", conf.zero_copy_split_digest_enabled, enabled);
         conf.zero_copy_split_digest_enabled = enabled;
+        warnAboutInertZeroCopySettings();
     }
 
     public static boolean autoOptimiseIncRepairStreams()

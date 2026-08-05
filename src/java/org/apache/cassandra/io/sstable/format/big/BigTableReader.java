@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +36,7 @@ import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.db.ClusteringBound;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
@@ -151,6 +153,13 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
     public ISSTableScanner partitionIterator(ColumnFilter columns, DataRange dataRange, SSTableReadsListener listener)
     {
         return BigTableScanner.getScanner(this, columns, dataRange, listener);
+    }
+
+    @Override
+    protected ISSTableScanner indexDrivenScanner(Iterator<AbstractBounds<PartitionPosition>> bounds,
+                                                 DiskAccessMode diskAccessMode)
+    {
+        return BigTableScanner.getScanner(this, bounds, diskAccessMode);
     }
 
     @Override

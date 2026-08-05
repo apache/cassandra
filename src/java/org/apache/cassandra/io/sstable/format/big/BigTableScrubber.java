@@ -31,6 +31,7 @@ import org.apache.cassandra.io.sstable.IScrubber;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
 import org.apache.cassandra.io.sstable.format.SortedTableScrubber;
 import org.apache.cassandra.io.sstable.format.big.BigFormat.Components;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.schema.TableMetadata;
@@ -91,15 +92,25 @@ public class BigTableScrubber extends SortedTableScrubber<BigTableReader> implem
             if (indexAvailable())
             {
                 long firstRowPositionFromIndex = rowIndexEntrySerializer.deserializePositionAndSkip(indexFile);
-                // Normally the first partition starts at 0 and both statements below are no-ops. An sstable whose
-                // Data.db was assembled by cloning a chunk-aligned byte range out of a larger Data.db starts with a
-                // dead prefix instead: compression chunk boundaries are pinned to multiples of chunkLength, so a
-                // file that does not begin on a chunk boundary carries leading bytes that belong to no partition.
-                // Start the linear data walk at the first position the index actually points at rather than
-                // asserting it is 0. This is not masking corruption: the index is the authority on where
-                // partitions begin, and the whole-file Digest.crc32 still covers the skipped bytes.
-                nextPartitionPositionFromIndex = firstRowPositionFromIndex;
-                dataFile.seek(firstRowPositionFromIndex);
+                // Normally 0. A Data.db assembled by copying cell-aligned byte ranges out of a larger one -- a
+                // zero-copy split child, or a slice received by partial zero-copy streaming -- opens with a DEAD
+                // PREFIX instead: the head of its first cell, holding the tail of a partition that starts before the
+                // copied range. Only a position that could be such a prefix is taken as one (see deadPrefixLimit).
+                if (firstRowPositionFromIndex != 0 && firstRowPositionFromIndex < deadPrefixLimit())
+                {
+                    nextPartitionPositionFromIndex = firstRowPositionFromIndex;
+                    dataFile.seek(firstRowPositionFromIndex);
+                }
+                else
+                {
+                    // Any other non-zero position means Index.db is wrong, and this handles it as it always has: the
+                    // assertion is thrown out of the enclosing try, whose catch clause drops the index and scrubs
+                    // Data.db unaided (throwIfFatal deliberately lets an AssertionError through). Seeking to the
+                    // position instead would land the key read mid-partition, fail the comparison against the index
+                    // key, and send the "Retrying from partition index" path to the very same bad position -- and
+                    // since scrub obsoletes the original, whatever it appends there is what the partition becomes.
+                    assert firstRowPositionFromIndex == 0 : firstRowPositionFromIndex;
+                }
             }
         }
         catch (Throwable ex)
@@ -113,25 +124,36 @@ public class BigTableScrubber extends SortedTableScrubber<BigTableReader> implem
 
         DecoratedKey prevKey = null;
 
+        // Only an sstable that DECLARES unindexed regions may have bytes no index entry describes BETWEEN
+        // partitions, and only for those may the index be preferred to the data pointer below.
+        boolean hasUnindexedRegions = sstable.hasUnindexedRegions();
+
         TableMetadata tableMetadata = cfs.metadata.getLocal();
         while (!dataFile.isEOF())
         {
             if (scrubInfo.isStopRequested())
                 throw new CompactionInterruptedException(scrubInfo.getCompactionInfo());
 
-            // An sstable received as a partial zero-copy stream can carry unindexed bytes BETWEEN partitions, not
-            // only before the first one: the tail of a boundary compression chunk, holding partitions the receiver
-            // did not ask for. nextIndexKey/nextPartitionPositionFromIndex describe the partition about to be read
-            // (they are shifted to current only by updateIndexKey below), and a non-null nextIndexKey is what
-            // distinguishes a real position from the dataFile.length() sentinel the index sets when it is
-            // exhausted. So skip to where the index says the next partition is rather than reading those bytes as
-            // a partition and recovering from the failure.
-            //
-            // This does not change what gets scrubbed: reading the gap fails the key comparison below and the
-            // "Retrying from partition index" path then seeks to exactly this position anyway. What it avoids is
-            // one alarming warning per gap for an sstable that is not corrupt.
-            if (nextIndexKey != null && nextPartitionPositionFromIndex > dataFile.getFilePointer())
+            // A partial zero-copy stream can leave unindexed bytes BETWEEN partitions, not just before the first:
+            // the tail of a boundary compression chunk, holding partitions the receiver did not ask for. Reading
+            // one as a partition is recoverable but costs an alarming warning per gap on an sstable that is not
+            // corrupt, so for those sstables - and ONLY those - skip to where the index says the next partition is.
+            // For every other sstable this condition can only be true because Index.db is wrong, and then the data
+            // file is the more trustworthy of the two: walking on keeps the pointer at the true partition start, so
+            // the key matches its index entry and the disagreement is merely warned about below, whereas seeking
+            // would put the key read mid-partition and send "Retrying from partition index" to the same bad
+            // position. A non-null nextIndexKey is what tells a real position (next* describe the partition about to
+            // be read; updateIndexKey below shifts them to current) from the dataFile.length() sentinel the index
+            // sets once exhausted. The length() bound is not optional: the position comes straight out of Index.db,
+            // seek() throws past length(), and scrub() catches only IOException, so one corrupt entry would abort
+            // the whole scrub and recover nothing rather than fall through to the key-mismatch path that handles it.
+            if (hasUnindexedRegions
+                && nextIndexKey != null
+                && nextPartitionPositionFromIndex > dataFile.getFilePointer()
+                && nextPartitionPositionFromIndex < dataFile.length())
+            {
                 dataFile.seek(nextPartitionPositionFromIndex);
+            }
 
             long partitionStart = dataFile.getFilePointer();
             outputHandler.debug("Reading row at %d", partitionStart);
@@ -234,6 +256,45 @@ public class BigTableScrubber extends SortedTableScrubber<BigTableReader> implem
                 }
             }
         }
+    }
+
+    /**
+     * Exclusive bound on a non-zero first partition position this scrubber will accept as a DEAD PREFIX rather than
+     * treat as a wrong index entry.
+     * <p>
+     * An sstable whose Data.db was assembled from verbatim cell-aligned byte ranges of a larger one carries the bytes
+     * of its first cell that precede the copied range: {@code lo mod cellLength} of them, so a legitimate prefix is
+     * always inside the FIRST cell. The cell is the compression chunk length (uncompressed positions are pinned to
+     * multiples of it), or CRC.db's chunk size for an uncompressed sstable. Capped by the data length so the caller's
+     * seek cannot go out of bounds, and 0 - no tolerance at all, i.e. the "first partition is at 0" this used to
+     * assert - when the grid cannot be read, since then nothing bounds the prefix.
+     * <p>
+     * {@code StatsMetadata#hasUnindexedRegions} is deliberately not the test here: it marks only INTERIOR unindexed
+     * regions, and is left unset for an sstable that has nothing but a prefix precisely so those can still be read by
+     * the linear scanner. Only called for a non-zero position, so an ordinary scrub never reaches it.
+     */
+    private long deadPrefixLimit()
+    {
+        long cellLength;
+        if (sstable.compression)
+        {
+            cellLength = sstable.getCompressionMetadata().chunkLength();
+        }
+        else
+        {
+            File crc = sstable.descriptor.fileFor(Components.CRC);
+            if (!crc.exists())
+                return 0;
+            try (RandomAccessReader in = RandomAccessReader.open(crc))
+            {
+                cellLength = in.readInt();
+            }
+            catch (IOException | RuntimeException e)
+            {
+                return 0;
+            }
+        }
+        return cellLength <= 0 ? 0 : Math.min(cellLength, dataFile.length());
     }
 
     private void updateIndexKey()

@@ -39,12 +39,14 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.compress.CompressionMetadata.Chunk;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -393,42 +395,11 @@ public class MmappedRegionsTest
 
         int pad = 12345;
         ByteBuffer buffer = allocateBuffer(128 * 1024);
-        File f = FileUtils.createTempFile("testMapForCompressionMetadataWithFrontPad", "1");
-        f.deleteOnExit();
-        File cf = FileUtils.createTempFile(f.name() + ".metadata", "1");
-        cf.deleteOnExit();
+        FrontPaddedFile file = writeFrontPaddedCompressedFile("testMapForCompressionMetadataWithFrontPad", buffer, pad);
+        CompressionMetadata metadata = file.metadata;
+        byte[] padded = file.bytes;
 
-        // Write an ordinary compressed file, then rebuild it with `pad` junk bytes in front and shift every
-        // chunk offset by the same amount -- byte for byte what the splitter's aligned copy produces.
-        MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
-        try (SequentialWriter writer = new CompressedSequentialWriter(f, cf,
-                                                                      null, SequentialWriterOption.DEFAULT,
-                                                                      CompressionParams.snappy(), sstableMetadataCollector))
-        {
-            writer.write(buffer);
-            writer.finish();
-        }
-
-        byte[] unpadded = java.nio.file.Files.readAllBytes(f.toPath());
-        byte[] padded = new byte[pad + unpadded.length];
-        new Random(1).nextBytes(padded);                              // the pad is junk, and must never be read
-        System.arraycopy(unpadded, 0, padded, pad, unpadded.length);
-        java.nio.file.Files.write(f.toPath(), padded);
-
-        Memory offsets;
-        int chunkCount;
-        try (CompressionMetadata unshifted = CompressionMetadata.open(cf, unpadded.length, true))
-        {
-            chunkCount = Ints.checkedCast((unshifted.dataLength + unshifted.chunkLength() - 1) / unshifted.chunkLength());
-            offsets = Memory.allocate(chunkCount * 8L);
-            for (int k = 0; k < chunkCount; k++)
-                offsets.setLong(k * 8L, unshifted.chunkFor((long) k * unshifted.chunkLength()).offset + pad);
-        }
-
-        CompressionMetadata metadata = new CompressionMetadata(cf, CompressionParams.snappy(),
-                                                               offsets, chunkCount * 8L,
-                                                               128 * 1024, padded.length, null);
-        try (ChannelProxy channel = new ChannelProxy(f);
+        try (ChannelProxy channel = new ChannelProxy(file.file);
              MmappedRegions regions = MmappedRegions.map(channel, metadata))
         {
             assertFalse(regions.isEmpty());
@@ -462,6 +433,154 @@ public class MmappedRegionsTest
         {
             MmappedRegions.MAX_SEGMENT_SIZE = OLD_MAX_SEGMENT_SIZE;
             metadata.close();
+        }
+    }
+
+    /**
+     * The pad of such a file is mapped by NOTHING -- {@code updateState(CompressionMetadata)} starts the first
+     * segment at chunk 0, deliberately leaving {@code [0, offsets[0])} out -- so a position inside it cannot be
+     * resolved to a region. The only way to ask for one is a CompressionInfo.db that disagrees with its Data.db
+     * about where chunk 0 begins: bit rot in chunk 0's offset, or a padded Data.db whose offsets were not shifted
+     * with it. That is corruption and has to be reported as such.
+     * <p>
+     * It matters that it is a {@link CorruptSSTableException} rather than the {@code assert idx != -1} this used to
+     * be. Assertions are off in production, where {@code offsets[-1]} then throws
+     * {@code ArrayIndexOutOfBoundsException} instead -- and {@code CompressedChunkReader.Mmap.readChunk} catches
+     * {@code CorruptSSTableException} and hands it to the disk failure policy, so anything else sails straight
+     * through the corruption handling that exists for exactly this.
+     */
+    @Test
+    public void testFloorBelowTheFirstRegionIsReportedAsCorruption() throws Exception
+    {
+        MmappedRegions.MAX_SEGMENT_SIZE = 1024;
+
+        int pad = 12345;
+        ByteBuffer buffer = allocateBuffer(128 * 1024);
+        FrontPaddedFile file = writeFrontPaddedCompressedFile("testFloorBelowTheFirstRegion", buffer, pad);
+
+        try (ChannelProxy channel = new ChannelProxy(file.file);
+             MmappedRegions regions = MmappedRegions.map(channel, file.metadata))
+        {
+            // the region the pad ends at, so that what follows really is "below the first region" and not
+            // "below everything mapped"
+            assertEquals("the first region must start at chunk 0, i.e. just past the pad",
+                         pad, regions.floor(pad).offset());
+
+            for (long position : new long[]{ 0, 1, pad - 1 })
+            {
+                assertThatThrownBy(() -> regions.floor(position))
+                .describedAs("position %s is inside the pad, which no region maps", position)
+                .isInstanceOf(CorruptSSTableException.class)
+                .hasStackTraceContaining("below the first mapped region");
+            }
+        }
+        finally
+        {
+            MmappedRegions.MAX_SEGMENT_SIZE = OLD_MAX_SEGMENT_SIZE;
+            file.metadata.close();
+        }
+    }
+
+    /**
+     * ...and for a file a writer produced there is no such position, so the branch above is unreachable and cannot
+     * turn an ordinary read into a spurious corruption report: chunk 0 sits at physical 0, the first segment is
+     * therefore placed at 0, and {@code offsets[0] == 0}.
+     */
+    @Test
+    public void testFirstRegionStartsAtZeroForAWriterProducedFile() throws Exception
+    {
+        MmappedRegions.MAX_SEGMENT_SIZE = 1024;
+        ByteBuffer buffer = allocateBuffer(128 * 1024);
+
+        FrontPaddedFile file = writeFrontPaddedCompressedFile("testFirstRegionStartsAtZero", buffer, 0);
+        try (ChannelProxy channel = new ChannelProxy(file.file);
+             MmappedRegions regions = MmappedRegions.map(channel, file.metadata))
+        {
+            assertEquals("a writer puts chunk 0 at physical 0", 0, file.metadata.chunkFor(0).offset);
+            assertEquals("so offsets[0] is 0 and no position can be below the first region",
+                         0, regions.floor(0).offset());
+        }
+        finally
+        {
+            MmappedRegions.MAX_SEGMENT_SIZE = OLD_MAX_SEGMENT_SIZE;
+            file.metadata.close();
+        }
+
+        // and the uncompressed path, where segments are placed from 0 by construction rather than from a chunk.
+        // A fresh buffer, the one above having been consumed by the writer.
+        ByteBuffer plain = allocateBuffer(128 * 1024);
+        try (ChannelProxy channel = new ChannelProxy(writeFile("testFirstRegionStartsAtZeroUncompressed", plain));
+             MmappedRegions regions = MmappedRegions.map(channel, plain.capacity(), 1024))
+        {
+            assertEquals(0, regions.floor(0).offset());
+        }
+    }
+
+    /**
+     * A compressed file whose first chunk does NOT start at physical 0, i.e. one carrying {@code pad} leading bytes
+     * that belong to no chunk. {@link org.apache.cassandra.io.sstable.ZeroCopySSTableSplitter} produces exactly
+     * this when it aligns a child's Data.db so that its extents can be shared with the parent's: up to 64 KiB of
+     * the parent's previous chunk sits at the head and {@code offsets[0]} is that pad rather than 0.
+     * <p>
+     * Segments are placed at a cumulative sum of {@code chunk.length + 4}, so seeding that sum at 0 rather than at
+     * the first chunk's offset mapped every region {@code pad} bytes too early and left the last {@code pad} bytes
+     * of the file unmapped. With MAX_SEGMENT_SIZE forced down to one chunk each, that shows up as every region
+     * after the first being offset by the pad -- so this is the multi-region form of the bug, which a split of a
+     * test-sized sstable (one 2 GiB region) cannot reach.
+     * <p>
+     * Built by compressing {@code buffer} normally and then rebuilding the file with the pad in front and every
+     * chunk offset shifted by the same amount, byte for byte what the splitter's aligned copy produces. A
+     * {@code pad} of 0 gives an ordinary writer-produced file.
+     */
+    private static FrontPaddedFile writeFrontPaddedCompressedFile(String name, ByteBuffer buffer, int pad) throws IOException
+    {
+        File f = FileUtils.createTempFile(name, "1");
+        f.deleteOnExit();
+        File cf = FileUtils.createTempFile(f.name() + ".metadata", "1");
+        cf.deleteOnExit();
+
+        MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
+        try (SequentialWriter writer = new CompressedSequentialWriter(f, cf,
+                                                                      null, SequentialWriterOption.DEFAULT,
+                                                                      CompressionParams.snappy(), sstableMetadataCollector))
+        {
+            writer.write(buffer);
+            writer.finish();
+        }
+
+        byte[] unpadded = java.nio.file.Files.readAllBytes(f.toPath());
+        byte[] padded = new byte[pad + unpadded.length];
+        new Random(1).nextBytes(padded);                              // the pad is junk, and must never be read
+        System.arraycopy(unpadded, 0, padded, pad, unpadded.length);
+        java.nio.file.Files.write(f.toPath(), padded);
+
+        Memory offsets;
+        int chunkCount;
+        try (CompressionMetadata unshifted = CompressionMetadata.open(cf, unpadded.length, true))
+        {
+            chunkCount = Ints.checkedCast((unshifted.dataLength + unshifted.chunkLength() - 1) / unshifted.chunkLength());
+            offsets = Memory.allocate(chunkCount * 8L);
+            for (int k = 0; k < chunkCount; k++)
+                offsets.setLong(k * 8L, unshifted.chunkFor((long) k * unshifted.chunkLength()).offset + pad);
+        }
+
+        return new FrontPaddedFile(f, padded,
+                                   new CompressionMetadata(cf, CompressionParams.snappy(), offsets, chunkCount * 8L,
+                                                           buffer.capacity(), padded.length, null));
+    }
+
+    private static final class FrontPaddedFile
+    {
+        final File file;
+        /** The file's whole contents, pad included, so a test can check what was mapped against what is on disk. */
+        final byte[] bytes;
+        final CompressionMetadata metadata;
+
+        private FrontPaddedFile(File file, byte[] bytes, CompressionMetadata metadata)
+        {
+            this.file = file;
+            this.bytes = bytes;
+            this.metadata = metadata;
         }
     }
 

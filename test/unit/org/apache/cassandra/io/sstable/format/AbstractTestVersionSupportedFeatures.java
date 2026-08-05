@@ -51,6 +51,8 @@ public abstract class AbstractTestVersionSupportedFeatures
 
     protected abstract Stream<String> getOriginatingHostIdSupportedVersions();
 
+    protected abstract Stream<String> getUnindexedRegionsMarkerSupportedVersions();
+
     @BeforeClass
     public static void initDD()
     {
@@ -66,6 +68,7 @@ public abstract class AbstractTestVersionSupportedFeatures
         checkPredicateAgainstVersions(Version::hasPartitionLevelDeletionsPresenceMarker, getPartitionLevelDeletionPresenceMarkerSupportedVersions());
         checkPredicateAgainstVersions(Version::hasKeyRange, getKeyRangeSupportedVersions());
         checkPredicateAgainstVersions(Version::hasOriginatingHostId, getOriginatingHostIdSupportedVersions());
+        checkPredicateAgainstVersions(Version::hasUnindexedRegionsMarker, getUnindexedRegionsMarkerSupportedVersions());
     }
 
     public static Stream<String> range(String fromIncl, String toIncl)

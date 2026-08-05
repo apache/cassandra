@@ -76,6 +76,19 @@ implements ISSTableScanner
                                 DiskAccessMode diskAccessMode)
     {
         assert sstable != null;
+        // Linear reads never consult the index, so this is only sound when every byte between a range's endpoints
+        // belongs to a partition the index describes. An sstable assembled from copied compression chunks carries
+        // partitions that shared a boundary chunk and are deliberately unindexed, so scanning it here would hand
+        // back data this node was never sent -- which cleanup would write out as its own.
+        //
+        // Enforced here rather than per getScanner overload: there are several, and each resolves only its
+        // ENDPOINTS through the index, so the hazard is invisible at the call site.
+        if (sstable.hasUnindexedRegions())
+        {
+            throw new IllegalArgumentException("Refusing to scan " + sstable.descriptor + " linearly: it has" +
+                                               " unindexed regions and must be read through its index. See" +
+                                               " SSTableReader.indexDrivenScanner.");
+        }
 
         this.dfile = sstable.openDataReaderForScan(diskAccessMode);
         this.sstable = sstable;

@@ -5306,6 +5306,57 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setAutoOptimisePreviewRepairStreams(enabled);
     }
 
+    public boolean getZeroCopyAnticompactionEnabled()
+    {
+        return DatabaseDescriptor.getZeroCopyAnticompactionEnabled();
+    }
+
+    public void setZeroCopyAnticompactionEnabled(boolean enabled)
+    {
+        DatabaseDescriptor.setZeroCopyAnticompactionEnabled(enabled);
+    }
+
+    public boolean getZeroCopySplitReflinkEnabled()
+    {
+        return DatabaseDescriptor.getZeroCopySplitReflinkEnabled();
+    }
+
+    public void setZeroCopySplitReflinkEnabled(boolean enabled)
+    {
+        DatabaseDescriptor.setZeroCopySplitReflinkEnabled(enabled);
+    }
+
+    public boolean getZeroCopySplitDigestEnabled()
+    {
+        return DatabaseDescriptor.getZeroCopySplitDigestEnabled();
+    }
+
+    public void setZeroCopySplitDigestEnabled(boolean enabled)
+    {
+        DatabaseDescriptor.setZeroCopySplitDigestEnabled(enabled);
+    }
+
+    public boolean getZeroCopyPartialStreamEnabled()
+    {
+        return DatabaseDescriptor.getZeroCopyPartialStreamEnabled();
+    }
+
+    public void setZeroCopyPartialStreamEnabled(boolean enabled)
+    {
+        DatabaseDescriptor.setZeroCopyPartialStreamEnabled(enabled);
+    }
+
+    public double getZeroCopyPartialStreamMaxDeadSpaceRatio()
+    {
+        return DatabaseDescriptor.getZeroCopyPartialStreamMaxDeadSpaceRatio();
+    }
+
+    /** The range check lives in the setter, which throws {@link IllegalArgumentException} outside {@code [0, 1]}. */
+    public void setZeroCopyPartialStreamMaxDeadSpaceRatio(double ratio)
+    {
+        DatabaseDescriptor.setZeroCopyPartialStreamMaxDeadSpaceRatio(ratio);
+    }
+
     /** @deprecated See CASSANDRA-17195 */
     @Deprecated(since = "4.1")
     public int getTableCountWarnThreshold()

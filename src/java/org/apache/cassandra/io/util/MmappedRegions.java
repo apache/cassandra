@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.io.util;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
@@ -28,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.CompressionMetadata;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.RefCounted;
@@ -197,24 +199,16 @@ public class MmappedRegions extends SharedCloseableImpl
 
     private void updateState(CompressionMetadata metadata)
     {
-        // Segments are placed at a running sum of physical chunk lengths, so the sum has to be seeded with the
-        // physical offset of the first chunk we are about to map, and the walk has to be seeded with that chunk's
-        // uncompressed position.
-        //
-        // When nothing has been mapped yet the first chunk we map is chunk 0. Its physical offset is 0 for every
-        // sstable a writer produces, but not for one whose Data.db carries leading bytes that belong to no chunk
-        // (a file assembled by cloning a chunk-aligned byte range out of a larger Data.db keeps whatever padding
-        // the alignment required). Seeding the sum at 0 for such a file maps every segment ceil(pad) bytes too
-        // early: interior chunks still resolve (they are indexed as chunk.offset - region.offset()), but the total
-        // mapped length comes out short by the padding, so the last chunk runs off the end of the final region and
-        // the tail of the file is never mapped. Reverse-mapping the seed through getDataOffsetForChunkOffset(0) is
-        // not an option either - there is no chunk at physical offset 0 in such a file and it would throw.
-        //
-        // When we are resuming (extend(CompressionMetadata, int)) we must continue from the current end instead:
-        // state.getPosition() is the physical offset just past the last mapped chunk, which is exactly the physical
-        // offset of the next chunk to map, and reverse-mapping it gives that chunk's uncompressed position. That
-        // reverse mapping is well defined even for a padded file, because the offset being looked up is a real
-        // chunk offset rather than a hardcoded 0.
+        // Segments sit at a running sum of physical chunk lengths, so the sum must be seeded with the physical
+        // offset of the first chunk being mapped and the walk with that chunk's uncompressed position.
+        // Fresh: that is chunk 0, whose physical offset is 0 only for writer-produced files. A Data.db cloned out
+        // of a chunk-aligned range of a larger one keeps the alignment padding ahead of chunk 0; seeding the sum
+        // at 0 there under-maps by the padding, so the last chunk runs off the end of the final region and the
+        // tail is never mapped (interior chunks still resolve, being indexed as chunk.offset - region.offset()).
+        // getDataOffsetForChunkOffset(0) cannot supply the seed - such a file has no chunk at physical offset 0.
+        // Resuming (extend(CompressionMetadata, int)): state.getPosition() is the physical offset just past the
+        // last mapped chunk, hence the next chunk's own offset, and reverse-mapping a real chunk offset is well
+        // defined even for a padded file.
         boolean fresh = state.isEmpty();
         long lastSegmentOffset = fresh ? (metadata.dataLength > 0 ? metadata.chunkFor(0).offset : 0)
                                        : state.getPosition();
@@ -383,7 +377,21 @@ public class MmappedRegions extends SharedCloseableImpl
             assert 0 <= position && position <= length : String.format("%d > %d", position, length);
 
             int idx = Arrays.binarySearch(offsets, 0, last + 1, position);
-            assert idx != -1 : String.format("Bad position %d for regions %s, last %d in %s", position, Arrays.toString(offsets), last, channel);
+            if (idx == -1)
+            {
+                // Below the first region. offsets[0] is 0 for every file a writer produces, but not for a Data.db
+                // cloned out of a chunk-aligned byte range of a larger one: that keeps the alignment padding ahead of
+                // chunk 0 and updateState(CompressionMetadata) starts the first segment at chunk 0, so [0, offsets[0])
+                // is deliberately mapped by nothing. Only a CompressionInfo.db that disagrees with its Data.db - bit
+                // rot in chunk 0's offset - resolves to a position in there, so it is reported as the corruption it is:
+                // an AssertionError, or offsets[-1] with assertions off, would sail straight through
+                // CompressedChunkReader.Mmap.readChunk's corruption handling and the disk failure policy with it.
+                assert !isEmpty() : String.format("Bad position %d for regions %s, last %d in %s", position, Arrays.toString(offsets), last, channel);
+                String reason = String.format("Position %d is below the first mapped region, which starts at %d, so" +
+                                              " the compression offsets do not describe this data file",
+                                              position, offsets[0]);
+                throw new CorruptSSTableException(new IOException(reason), channel.filePath());
+            }
             if (idx < 0)
                 idx = -(idx + 2); // round down to entry at insertion point
 

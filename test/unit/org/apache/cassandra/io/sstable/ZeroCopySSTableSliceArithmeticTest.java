@@ -203,6 +203,56 @@ public class ZeroCopySSTableSliceArithmeticTest
         }
     }
 
+    /**
+     * The arithmetic fact the {@code hasUnindexedRegions} marker cannot be computed from, and therefore has to be
+     * INHERITED: a single-section slice can never have interior dead space, whatever its offsets.
+     *
+     * <p>{@code Plan.interiorDeadBytes()} is {@code deadBytes - lo mod L}, and for one section {@code deadBytes} IS
+     * {@code lo mod L} -- the head of the first cell and nothing else -- so the difference is identically zero. That
+     * is right as a statement about this slice's own accounting and wrong as a statement about the file: the one
+     * contiguous byte range it copies can contain any number of partitions the PARENT was already carrying
+     * unindexed, and the accounting calls all of those bytes useful. So a marker derived from this number alone
+     * would be cleared by any single-range second hop -- node C taking a sub-range of what node B was sent -- and
+     * the receiver would be handed to the linear scanner. See {@code ZeroCopySSTableSlice.write}, which ORs the
+     * parent's flag in, and {@code ZeroCopySSTableSliceTest.slicingASliceKeepsTheUnindexedRegionMark}.
+     */
+    @Test
+    public void aSingleSectionNeverHasInteriorDeadSpace()
+    {
+        Random rnd = new Random(SEED + 2);
+        for (int L : CELL_LENGTHS)
+        {
+            for (int t = 0; t < 500; t++)
+            {
+                long lo = nextLong(rnd, 1L << 36);
+                long hi = lo + 1 + nextLong(rnd, 8L * L);
+                List<PartitionPositionBounds> one = sections(lo, hi);
+                assertEquals("L=" + L + " lo=" + lo + " hi=" + hi,
+                             0, interiorDeadBytes(one, L));
+            }
+        }
+
+        // ... and the shapes that DO earn it on their own. Two sections sharing a run: the gap between them is
+        // carried inside it, and it is not the head of the first cell.
+        List<PartitionPositionBounds> gapped = sections(1024, 1500, 1800, 2400);
+        assertEquals(1, ZeroCopySSTableSlice.runCount(gapped, 1024));
+        assertEquals(300, interiorDeadBytes(gapped, 1024));
+
+        // And two separate runs: only the FIRST run's prefix is subtracted, because it is the only dead region a
+        // scan is guaranteed to step over -- the index puts the first section's start past it. Everything else
+        // counts, including the tail of a non-final run's last cell, which is carried whole (1024 - 476 bytes here)
+        // and holds whatever followed position 1500 in the parent.
+        List<PartitionPositionBounds> separate = sections(1024, 1500, 8192, 8700);
+        assertEquals(2, ZeroCopySSTableSlice.runCount(separate, 1024));
+        assertEquals(1024 - 476, interiorDeadBytes(separate, 1024));
+    }
+
+    /** {@code Plan.interiorDeadBytes()} restated over the published helpers: dead space less the leading prefix. */
+    private static long interiorDeadBytes(List<PartitionPositionBounds> sections, int L)
+    {
+        return Math.max(0, ZeroCopySSTableSlice.deadBytes(sections, L) - sections.get(0).lowerPosition % L);
+    }
+
     /** A section starting exactly on a cell boundary carries nothing dead, whatever the cell length. */
     @Test
     public void aCellAlignedSingleSectionHasNoDeadSpace()

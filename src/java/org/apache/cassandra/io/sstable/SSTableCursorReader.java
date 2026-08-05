@@ -198,7 +198,16 @@ public class SSTableCursorReader implements AutoCloseable
     {
         TableMetadata metadata = Util.metadataFromSSTable(desc);
         SSTableReader reader = SSTableReader.openNoValidation(null, desc, TableMetadataRef.forOfflineTools(metadata));
-        return new SSTableCursorReader(reader, metadata, reader.ref(), null);
+        Ref<SSTableReader> ref = reader.ref();
+        try
+        {
+            return new SSTableCursorReader(reader, metadata, ref, null);
+        }
+        catch (RuntimeException | Error e)
+        {
+            ref.close();
+            throw e;
+        }
     }
 
     public SSTableCursorReader(SSTableReader reader)
@@ -213,6 +222,19 @@ public class SSTableCursorReader implements AutoCloseable
 
     private SSTableCursorReader(SSTableReader reader, TableMetadata metadata, Ref<SSTableReader> readerRef, DiskAccessMode diskAccessMode)
     {
+        // This cursor walks Data.db linearly and never consults the index -- seekPartition() even accepts
+        // position 0 without any of the checks it makes for other positions -- so it is only sound when every byte of
+        // Data.db belongs to a partition the index describes. An sstable assembled from copied compression chunks,
+        // or one that starts with a dead prefix cut from a larger file, carries partitions that are deliberately
+        // unindexed, so reading it here would hand back data this node does not claim. Same refusal as
+        // SSTableSimpleScanner, which is the other linear reader.
+        if (reader.hasUnindexedRegions())
+        {
+            throw new IllegalArgumentException("Refusing to scan " + reader.descriptor + " linearly: it has" +
+                                               " unindexed regions and must be read through its index. See" +
+                                               " SSTableReader.indexDrivenScanner.");
+        }
+
         ssTableReader = reader;
         ssTableReaderRef = readerRef;
         Version version = reader.descriptor.version;

@@ -1024,6 +1024,42 @@ public class ZeroCopySSTableSplitterArithmeticTest
         .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("non-positive physicalBytes");
     }
 
+    /**
+     * {@code share} without {@code align} is refused rather than planned, and that asymmetry is not tidiness:
+     * unpadded, {@code srcStart} is {@code O(i)}, which is aligned to nothing, and
+     * {@link org.apache.cassandra.io.util.Reflink#tryCloneRange} answers an unaligned offset with
+     * {@code IllegalArgumentException} BEFORE it consults its per-filesystem support cache -- deliberately, since a
+     * caller bug must not be answered by silently copying. So such a plan does not fall through to the transfer
+     * loop, it kills the split. Refusing to BUILD it keeps the combination away from the ioctl entirely.
+     *
+     * <p>The reverse asymmetry stays legal, and {@link #copyPlanCanAlignWithoutCloning} is the test for it: that is
+     * how a test produces the padded layout on a filesystem that cannot share extents.
+     */
+    @Test
+    public void copyPlanRefusesToShareWithoutAligning()
+    {
+        for (long copyFrom : new long[]{ 0, 1, 4095, A, A + 1, 3 * A - 7, 1L << 40 })
+        {
+            for (long physical : new long[]{ 1, 4096, A - 1, A, A + 1, 1 << 20 })
+            {
+                assertThatThrownBy(() -> ZeroCopySSTableSplitter.copyPlan(copyFrom, physical, false, true))
+                .describedAs("from=%d physical=%d", copyFrom, physical)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("share requires align");
+            }
+        }
+
+        // Including the one case that looks harmless -- an already-aligned copyFrom, where the pad would have been
+        // zero anyway and the plan would have been perfectly cloneable. The rule is about the ARGUMENTS, not about
+        // whether this particular pair happens to work out, so that no caller can come to depend on the exception
+        // being conditional.
+        assertThatThrownBy(() -> ZeroCopySSTableSplitter.copyPlan(4 * A, 8 * A, false, true))
+        .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("share requires align");
+        assertEquals("...and the aligned form of that very plan is the one that IS built",
+                     new CopyPlan(4 * A, 0, 8 * A, 8 * A),
+                     ZeroCopySSTableSplitter.copyPlan(4 * A, 8 * A, true, true));
+    }
+
     // ------------------------------------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------------------------------------

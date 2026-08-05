@@ -98,6 +98,14 @@ public class CassandraEntireSSTableStreamWriter
                 FileChannel channel = context.channel(sstable.descriptor, component);
                 bytesWritten += out.writeFileToChannel(channel, limiter, range.position, range.length);
             }
+
+            // writeFileToChannel writes everything or throws, so this cannot fire; it is checked because the
+            // desynchronisation it would otherwise cause is both silent and unrecoverable. The peer reads exactly
+            // the manifest's size for each component, so any shortfall here is read out of the component after it.
+            if (bytesWritten != length)
+                throw new IOException(String.format("Streamed %d bytes of component %s of %s, but %d were promised to %s",
+                                                    bytesWritten, component, sstable.getFilename(), length, session.peer));
+
             progress += bytesWritten;
 
             session.progress(sstable.descriptor.fileFor(component).toString(), ProgressInfo.Direction.OUT, bytesWritten, bytesWritten, length);

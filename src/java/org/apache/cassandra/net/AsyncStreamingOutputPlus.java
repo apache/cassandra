@@ -38,7 +38,6 @@ import org.apache.cassandra.utils.memory.BufferPools;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.DefaultFileRegion;
-import io.netty.channel.FileRegion;
 import io.netty.channel.WriteBufferWaterMark;
 import io.netty.handler.ssl.SslHandler;
 
@@ -147,14 +146,7 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus implements 
     }
 
     /**
-     * Writes all data in file channel to stream: <br>
-     * * For zero-copy-streaming, 1MiB at a time, with at most 2MiB in flight at once. <br>
-     * * For streaming with SSL, 64KiB at a time, with at most 32+64KiB (default low water mark + batch size) in flight. <br>
-     * <p>
-     * This method takes ownership of the provided {@link FileChannel}.
-     * <p>
-     * WARNING: this method blocks only for permission to write to the netty channel; it exits before
-     * the {@link FileRegion}(zero-copy) or {@link ByteBuffer}(ssl) is flushed to the network.
+     * {@inheritDoc}
      */
     public long writeFileToChannel(FileChannel file, RateLimiter limiter) throws IOException
     {
@@ -233,11 +225,24 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus implements 
         if (logger.isTraceEnabled())
             logger.trace("Writing {} bytes at position {}", length, position);
 
-        ChannelPromise promise = beginFlush(length, 0, length);
-        final DefaultFileRegion defaultFileRegion = new DefaultFileRegion(file, position, length);
-        channel.writeAndFlush(defaultFileRegion, promise);
+        // Only the DefaultFileRegion closes the channel, and only once netty has released it, so nothing else does
+        // once one exists - but beginFlush propagates the failure of any earlier flush on this connection, and one
+        // range of one component failing that way must not strand the fd of every range after it.
+        boolean regionOwnsFile = false;
+        try
+        {
+            ChannelPromise promise = beginFlush(length, 0, length);
+            final DefaultFileRegion defaultFileRegion = new DefaultFileRegion(file, position, length);
+            regionOwnsFile = true;
+            channel.writeAndFlush(defaultFileRegion, promise);
 
-        return length;
+            return length;
+        }
+        finally
+        {
+            if (!regionOwnsFile)
+                file.close();
+        }
     }
 
     private long writeFileToChannelZeroCopyThrottled(FileChannel file, RateLimiter limiter, int batchSize, int lowWaterMark, int highWaterMark, long start, long length) throws IOException

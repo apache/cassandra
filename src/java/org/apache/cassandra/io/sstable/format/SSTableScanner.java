@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
@@ -62,31 +63,72 @@ implements ISSTableScanner
     protected final DataRange dataRange;
     private final SSTableReadsListener listener;
 
+    /** Whether this scanner covers the whole sstable, as stated by its factory -- see {@link #isFullRange()}. */
+    private final boolean fullRange;
+
     protected I iterator;
 
     protected long startScan = -1;
     protected long bytesScanned = 0;
 
+    /**
+     * @param fullRange whether {@code rangeIterator} covers the whole sstable with nothing filtered out. Stated by the
+     *                  factory rather than derived from {@code dataRange} here, because a null {@code dataRange} only
+     *                  means "no clustering restriction": the index-driven factories pass null alongside bounds that
+     *                  do restrict the scan, so they must state {@code false}. Factories that derive their bounds
+     *                  from a {@code DataRange} get the value from {@link #coversFullRange}.
+     * @param diskAccessMode the mode to read Data.db with, or null to reuse whatever the reader itself opened it with
+     */
     protected SSTableScanner(S sstable,
                              ColumnFilter columns,
                              DataRange dataRange,
                              Iterator<AbstractBounds<PartitionPosition>> rangeIterator,
-                             SSTableReadsListener listener)
+                             SSTableReadsListener listener,
+                             boolean fullRange,
+                             DiskAccessMode diskAccessMode)
     {
         assert sstable != null;
 
-        this.dfile = sstable.openDataReaderForScan();
+        this.dfile = sstable.openDataReaderForScan(diskAccessMode);
         this.sstable = sstable;
         this.columns = columns;
         this.dataRange = dataRange;
         this.rangeIterator = rangeIterator;
         this.listener = listener;
+        this.fullRange = fullRange;
+    }
+
+    /**
+     * Whether a scanner whose ranges come from {@code dataRange} -- and only such a scanner -- covers the whole
+     * sstable with nothing filtered out.
+     */
+    protected static boolean coversFullRange(SSTableReader sstable, DataRange dataRange)
+    {
+        return dataRange == null || (dataRange.startKey().equals(sstable.getFirst()) &&
+               dataRange.stopKey().equals(sstable.getLast()) &&
+               dataRange.isUnrestricted(sstable.metadata()));
     }
 
     protected static List<AbstractBounds<PartitionPosition>> makeBounds(SSTableReader sstable, DataRange dataRange)
     {
         List<AbstractBounds<PartitionPosition>> boundsList = new ArrayList<>(2);
         addRange(sstable, dataRange.keyRange(), boundsList);
+        return boundsList;
+    }
+
+    /**
+     * The same clipping {@link #makeBounds(SSTableReader, DataRange)} does, for callers that already have bounds
+     * rather than a {@code DataRange}: each one is intersected with the sstable's own range, wrap-arounds are split
+     * into their two non-wrapping pieces, and anything that ends up empty is dropped. Bounds handed to a scanner
+     * unclipped would leave {@code left > right} for a wrapping range, which the scanner's ascending-ranges
+     * contract does not allow.
+     */
+    protected static List<AbstractBounds<PartitionPosition>> makeBounds(SSTableReader sstable,
+                                                                       Iterator<AbstractBounds<PartitionPosition>> bounds)
+    {
+        List<AbstractBounds<PartitionPosition>> boundsList = new ArrayList<>(2);
+        while (bounds.hasNext())
+            addRange(sstable, bounds.next(), boundsList);
         return boundsList;
     }
 
@@ -281,11 +323,14 @@ implements ISSTableScanner
         }
     }
 
+    /**
+     * Whether this scanner covers the whole sstable with nothing filtered out. Never true for an index-driven scanner
+     * ({@code SSTableReader.indexDrivenScanner}): that one is handed explicit bounds to walk, so it covers a subset of
+     * the sstable even though it carries no {@code DataRange}.
+     */
     @Override
     public boolean isFullRange()
     {
-        return dataRange == null || (dataRange.startKey().equals(sstable.getFirst()) &&
-               dataRange.stopKey().equals(sstable.getLast()) &&
-               dataRange.isUnrestricted(sstable.metadata()));
+        return fullRange;
     }
 }

@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -54,6 +55,7 @@ import org.apache.cassandra.index.sai.metrics.IndexGroupMetrics;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
 import org.apache.cassandra.index.sai.metrics.TableStateMetrics;
 import org.apache.cassandra.index.sai.plan.StorageAttachedIndexQueryPlan;
+import org.apache.cassandra.index.sai.view.View;
 import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -67,6 +69,7 @@ import org.apache.cassandra.notifications.MemtableSwitchedNotification;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
 
@@ -77,6 +80,22 @@ import org.apache.cassandra.utils.Throwables;
 public class StorageAttachedIndexGroup implements Index.Group, INotificationConsumer
 {
     private static final Logger logger = LoggerFactory.getLogger(StorageAttachedIndexGroup.class);
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
+
+    // Both take their arguments in the order (keyspace, table, count, index, example descriptor). The leading argument
+    // must not be a number: NoSpamLogStatement#warn is overloaded on (long nowNanos, Object...) as well as (Object...),
+    // and a numeric first argument makes the call ambiguous.
+    private static final String UNINDEXED_SSTABLES_WARNING =
+    "{}.{} has {} live sstable(s) with no storage-attached index components while index {} is queryable, so rows in" +
+    " them match no index predicate and query results are silently incomplete; e.g. {}. This is expected only while" +
+    " an index build is in progress -- otherwise something produced an sstable without running the index writers," +
+    " and `nodetool rebuild_index` is the repair.";
+
+    private static final String UNINDEXED_COLUMNS_WARNING =
+    "{}.{} has {} live sstable(s) with per-sstable index components but no completed per-column components for" +
+    " queryable index {}, so they are absent from its view and rows in them match no predicate of that index;" +
+    " e.g. {}. This is expected only while that index is being built for those sstables -- as it is for a short" +
+    " while after `nodetool import` or streaming -- otherwise `nodetool rebuild_index` is the repair.";
 
     public static final Index.Group.Key GROUP_KEY = new Index.Group.Key(StorageAttachedIndexGroup.class);
 
@@ -88,6 +107,14 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
 
     private final SSTableContextManager contextManager;
 
+    /**
+     * Rate limiters for the two warnings above. {@link NoSpamLogger} keys its limiter on the string it is handed, so
+     * warning through a shared constant message would let the first affected table claim the interval and leave every
+     * other affected table silent -- and this is the only signal an operator gets for silently incomplete results.
+     */
+    private final NoSpamLogger.NoSpamLogStatement unindexedSSTableWarning;
+    private final NoSpamLogger.NoSpamLogStatement unindexedColumnWarning;
+
     StorageAttachedIndexGroup(ColumnFamilyStore baseCfs)
     {
         this.baseCfs = baseCfs;
@@ -95,6 +122,10 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
         this.stateMetrics = new TableStateMetrics(baseCfs.metadata(), this);
         this.groupMetrics = new IndexGroupMetrics(baseCfs.metadata(), this);
         this.contextManager = new SSTableContextManager();
+
+        String tableName = baseCfs.metadata().keyspace + '.' + baseCfs.metadata().name;
+        this.unindexedSSTableWarning = noSpamLogger.getStatement("unindexed sstables of " + tableName, UNINDEXED_SSTABLES_WARNING);
+        this.unindexedColumnWarning = noSpamLogger.getStatement("unindexed columns of " + tableName, UNINDEXED_COLUMNS_WARNING);
 
         Tracker tracker = baseCfs.getTracker();
         tracker.subscribe(this);
@@ -290,7 +321,14 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
 
     void deletePerSSTableFiles(Collection<SSTableReader> sstables)
     {
-        contextManager.release(sstables);
+        // These sstables stay live without any per-sstable components until a build writes them again, so they have to
+        // keep counting as unindexed for the whole of that window. The exception is the last index going away: nothing
+        // will rebuild them then, and there is no view left for them to be missing from.
+        if (indexes.isEmpty())
+            contextManager.release(sstables);
+        else
+            contextManager.releaseUnindexed(sstables);
+
         sstables.forEach(sstableReader -> IndexDescriptor.create(sstableReader).deletePerSSTableIndexComponents());
     }
 
@@ -350,6 +388,11 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
                 incomplete.add(index);
             }
         }
+
+        // Only once the views of these indexes have been updated, so that sstables this call was still working
+        // through are not mistaken for holes in them.
+        warnOnUnindexedSSTables(indexes);
+
         return incomplete;
     }
 
@@ -417,6 +460,94 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
     public long diskUsage()
     {
         return contextManager.diskUsage();
+    }
+
+    /**
+     * Live sstables that carry no per-sstable index components and are therefore absent from every index's view.
+     * Rows in them are readable but match no index predicate.
+     * <p>
+     * Non-zero is normal and transient while an index build is running -- an initial build, or a rebuild, which strips
+     * the components of each sstable before rewriting them. Non-zero while an index is QUERYABLE means results are
+     * silently incomplete, which is why this is a gauge and not just a log line: it is the standing signal for a
+     * failure mode that throws nothing and, before it existed, showed up nowhere at all.
+     * <p>
+     * Counts only the per-sstable half of the hole, and deliberately so. An sstable can have per-sstable components
+     * and still be missing from one index's view, for want of that index's own per-column completion marker (see
+     * {@code IndexViewManager#getBuiltIndexes}); that is the same silent query hole, but it is not countable from a
+     * gauge poll, because a view legitimately lags the live sstable set until the owning index's build or startup task
+     * has reached it -- every sstable is absent from index B's view for the whole of {@code CREATE INDEX B}, and from
+     * a restarted index's view until its initialization task runs. Distinguishing that from a real hole needs to know
+     * whether the view was just refreshed, which only the caller of {@link #onSSTableChanged} knows, so the per-column
+     * half is reported by {@link #warnOnUnindexedSSTables} from there and is not reflected in this number.
+     */
+    public int unindexedSSTables()
+    {
+        return contextManager.incompleteSSTableCount();
+    }
+
+    /**
+     * Warn -- rate limited per table, since this is reached on every sstable list change -- when live sstables are
+     * missing from the view of an index that is already queryable, meaning its results are silently incomplete. Both
+     * ways that happens are covered: no per-sstable components at all, and per-sstable components without this
+     * index's per-column completion marker.
+     * <p>
+     * Deliberately not an error and not a makeIndexNonQueryable: by the time this is observed the sstable is already
+     * live, so refusing to answer queries would trade silently-incomplete results for no results, and only the
+     * operator can decide that. The fix is to rebuild, which the message says.
+     *
+     * @param updated the indexes whose views this {@link #onSSTableChanged} call has just refreshed
+     */
+    private void warnOnUnindexedSSTables(Set<StorageAttachedIndex> updated)
+    {
+        // A snapshot, since this both tests the set and reads an example out of it, while release() removes from it
+        // without holding this monitor.
+        Set<SSTableReader> unindexed = contextManager.incompleteSSTables();
+
+        if (!unindexed.isEmpty())
+        {
+            for (StorageAttachedIndex index : indexes)
+            {
+                if (!baseCfs.indexManager.isIndexQueryable(index))
+                    continue;
+
+                unindexedSSTableWarning.warn(baseCfs.getKeyspaceName(), baseCfs.getTableName(), unindexed.size(),
+                                             index.identifier(), unindexed.iterator().next().descriptor);
+                break;
+            }
+        }
+
+        // An sstable with per-sstable components can still be missing from a single index's view, for want of that
+        // index's per-column completion marker, which IndexViewManager#getBuiltIndexes only notes at DEBUG. Checked
+        // only for the indexes whose views were just refreshed: any other index's view predates this notification, so
+        // sstables missing from it may simply be work that has not reached it yet (an index still building, or another
+        // index's initialization task at startup), which would make this fire on every second CREATE INDEX.
+        for (StorageAttachedIndex index : updated)
+        {
+            if (!baseCfs.indexManager.isIndexQueryable(index))
+                continue;
+
+            View view = index.view();
+            Descriptor example = null;
+            int missing = 0;
+
+            for (SSTableReader sstable : contextManager.sstables())
+            {
+                // Compacted sstables are left out of every view by design; their contexts go away with the
+                // notification that retires them.
+                if (sstable.isMarkedCompacted() || view.containsSSTable(sstable))
+                    continue;
+
+                missing++;
+                example = sstable.descriptor;
+            }
+
+            if (missing > 0)
+            {
+                unindexedColumnWarning.warn(baseCfs.getKeyspaceName(), baseCfs.getTableName(), missing,
+                                            index.identifier(), example);
+                break;
+            }
+        }
     }
 
     /**

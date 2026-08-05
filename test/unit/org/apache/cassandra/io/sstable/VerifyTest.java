@@ -24,6 +24,7 @@ import java.net.UnknownHostException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -31,6 +32,7 @@ import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
 
 import com.google.common.base.Charsets;
+import com.google.common.base.Throwables;
 
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Assume;
@@ -116,6 +118,16 @@ public class VerifyTest
 
     public static final String CF_UUID = "UUIDKeys";
     public static final String BF_ALWAYS_PRESENT = "BfAlwaysPresent";
+    /** Fixture for the dead prefix bound; see {@link #deadPrefixBound}. */
+    public static final String CF_DEAD_PREFIX = "Standard5";
+
+    /**
+     * Compression chunk length of {@link #CF_DEAD_PREFIX}, which is the bound the verifier computes: small enough
+     * that a fixture of {@link #DEAD_PREFIX_FIXTURE_PARTITIONS} partitions has index entries on both sides of it,
+     * and pinned here rather than taken from the defaults so the two tests below straddle a known number.
+     */
+    private static final int DEAD_PREFIX_CHUNK_LENGTH = 4096;
+    private static final int DEAD_PREFIX_FIXTURE_PARTITIONS = 600;
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -131,6 +143,7 @@ public class VerifyTest
                        standardCFMD(KEYSPACE, CF2).compression(compressionParameters),
                        standardCFMD(KEYSPACE, CF3),
                        standardCFMD(KEYSPACE, CF4),
+                       standardCFMD(KEYSPACE, CF_DEAD_PREFIX).compression(CompressionParams.snappy(DEAD_PREFIX_CHUNK_LENGTH)),
                        standardCFMD(KEYSPACE, CORRUPT_CF),
                        standardCFMD(KEYSPACE, CORRUPT_CF2),
                        standardCFMD(KEYSPACE, CORRUPT_CF3),
@@ -498,6 +511,167 @@ public class VerifyTest
         {
         }
         assertFalse(sstable.isRepaired());
+    }
+
+    /**
+     * A non-zero first index position is only tolerated as a DEAD PREFIX while it could be one: a Data.db assembled
+     * from cell-aligned byte ranges of a larger one carries the head of its FIRST cell and no more, so a position at
+     * or past one cell has to keep failing. It must fail as the full {@code markAndThrow}: a
+     * CorruptSSTableException AND the repaired status cleared, since the whole point of the second half is that a
+     * plain incremental repair afterwards fetches the partitions this sstable can no longer be trusted for.
+     * <p>
+     * Nothing else covers the "First row position from index != 0" path -- the accepted side is covered by
+     * {@code ZeroCopySSTableSplitterTest.verifierAndScrubberAcceptAChildWithADeadPrefix} -- and a verifier that
+     * stopped checking here would walk from the position and report success while leaving every partition before it
+     * unread. Here that is 100 or so partitions, none of which the digest can distinguish from good ones because
+     * Digest.crc32 covers the whole file either way.
+     */
+    @Test
+    public void testExtendedVerifyRejectsFirstIndexPositionPastDeadPrefixBound() throws IOException
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+
+        ColumnFamilyStore cfs = deadPrefixFixture();
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+        List<ScrubTest.IndexEntry> entries = ScrubTest.readIndexEntries(sstable.descriptor);
+        int firstPastBound = firstEntryAtOrPast(entries, deadPrefixBound(sstable));
+
+        SSTableReader patched = reopenWithIndexPrefixDropped(cfs, sstable, entries.get(firstPastBound));
+        long firstPosition = ScrubTest.readIndexEntries(patched.descriptor).get(0).dataPosition;
+        assertTrue("the fixture must open at or past the bound, not at " + firstPosition,
+                   firstPosition >= deadPrefixBound(patched));
+        makeRepaired(patched);
+
+        try (IVerifier verifier = getVerifier(patched, cfs, IVerifier.options()
+                                                                    .extendedVerification(true)
+                                                                    .mutateRepairStatus(true)
+                                                                    .invokeDiskFailurePolicy(true)))
+        {
+            verifier.verify();
+            fail("Expected a CorruptSSTableException for a first index position of " + firstPosition +
+                 ", which is past the " + deadPrefixBound(patched) + " byte dead prefix bound");
+        }
+        catch (CorruptSSTableException expected)
+        {
+            // Otherwise this passes on any corruption at all, including one this fixture introduced by accident.
+            // NOTE: dropping the leading entries moves the index's first KEY as well as its first position, and
+            // BigTableVerifier.deserializeIndex checks the key against the data file's first partition BEFORE the
+            // data walk reaches the position check -- so the guard that actually fires here is "First partition does
+            // not match index". That is a real protection and worth pinning, but it means this test does NOT reach
+            // SortedTableVerifier's "First row position from index != 0" branch. Reaching that one needs a surgery
+            // that rewrites entry 0's position vint while leaving its key alone (see
+            // ScrubTest.rewriteIndexEntryPosition); until such a test exists, that branch is unverified.
+            String trace = Throwables.getStackTraceAsString(expected);
+            assertTrue("the failure must be one of the index guards and not something else: " + trace,
+                       trace.contains("First partition does not match index")
+                       || trace.contains("First row position from index != 0"));
+        }
+
+        assertFalse("markAndThrow must also have cleared the repaired status", patched.isRepaired());
+    }
+
+    // There was an "accepts a first index position INSIDE the bound" test here, meant to pin the bound from below.
+    // It cannot be written with this surgery: dropping leading Index.db entries moves the first KEY, so
+    // BigTableVerifier.deserializeIndex's "First partition does not match index" check rejects the sstable whether the
+    // position is inside the bound or past it, and the test could only ever have passed by accident. The accepted side
+    // of the boundary is covered where a REAL dead prefix exists rather than a tampered one --
+    // ZeroCopySSTableSplitterTest.verifierAndScrubberAcceptAChildWithADeadPrefix and
+    // ZeroCopySSTableSliceBtiTest.sliceAndVerify -- which is the stronger test anyway. Pinning the bound itself from
+    // below needs a position-only rewrite of entry 0 (ScrubTest.rewriteIndexEntryPosition).
+
+    /**
+     * One sstable of {@link #DEAD_PREFIX_FIXTURE_PARTITIONS} partitions in {@link #CF_DEAD_PREFIX}, whose Data.db
+     * spans several compression chunks so that {@link #deadPrefixBound} is the chunk length rather than the whole
+     * file.
+     */
+    private ColumnFamilyStore deadPrefixFixture()
+    {
+        CompactionManager.instance.disableAutoCompaction();
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF_DEAD_PREFIX);
+        cfs.truncateBlocking();
+        fillCF(cfs, DEAD_PREFIX_FIXTURE_PARTITIONS);
+        assertEquals(1, cfs.getLiveSSTables().size());
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+        assertTrue("the fixture must span several chunks, but Data.db is " + sstable.uncompressedLength() + " bytes",
+                   sstable.uncompressedLength() > 2L * DEAD_PREFIX_CHUNK_LENGTH);
+        return cfs;
+    }
+
+    /**
+     * What {@code SortedTableVerifier.deadPrefixLimit()} computes for a compressed sstable: one cell, capped by the
+     * data length. Kept as a mirror rather than exposed from production, so a change to the bound shows up here as a
+     * failing test rather than as two tests that silently stop straddling anything.
+     */
+    private static long deadPrefixBound(SSTableReader sstable)
+    {
+        assertTrue("the dead prefix fixture must be compressed for the bound to be the chunk length",
+                   sstable.compression);
+        return Math.min(sstable.getCompressionMetadata().chunkLength(), sstable.uncompressedLength());
+    }
+
+    private static int firstEntryAtOrPast(List<ScrubTest.IndexEntry> entries, long position)
+    {
+        for (int i = 0; i < entries.size(); i++)
+        {
+            if (entries.get(i).dataPosition >= position)
+                return i;
+        }
+        throw new AssertionError("no partition starts at or past " + position + " in " + entries.size() + " entries");
+    }
+
+    /**
+     * Drop every Index.db entry before {@code keepFrom}, which leaves an sstable shaped exactly like a zero-copy
+     * split child: a Data.db whose first bytes no index entry describes, and an index whose first entry is a real
+     * partition, so the walk that starts there agrees with it about every key and position.
+     * <p>
+     * The sstable has to be reopened, and this is why: dropping entries changes the length of Index.db, the reader
+     * has it open with that length captured (and mapped, under {@code disk_access_mode: mmap_index_only}), so a
+     * reader from before the rewrite would read the wrong number of bytes and fail somewhere else entirely. The view
+     * is reset and the reader released first because a released reader closes its handles; neither deletes any file,
+     * which is what the reopen needs.
+     */
+    private static SSTableReader reopenWithIndexPrefixDropped(ColumnFamilyStore cfs,
+                                                              SSTableReader sstable,
+                                                              ScrubTest.IndexEntry keepFrom) throws IOException
+    {
+        Descriptor descriptor = sstable.descriptor;
+        File indexFile = descriptor.fileFor(Components.PRIMARY_INDEX);
+        byte[] index = Files.readAllBytes(indexFile.toPath());
+        assertTrue("nothing would be dropped", keepFrom.offset > 0 && keepFrom.offset < index.length);
+
+        cfs.clearUnsafe();
+        sstable.selfRef().release();
+
+        Files.write(indexFile.toPath(), Arrays.copyOfRange(index, (int) keepFrom.offset, index.length));
+        if (ChunkCache.instance != null)
+            ChunkCache.instance.invalidateFile(indexFile.toString());
+
+        SSTableReader reopened = SSTableReader.open(cfs, descriptor, cfs.metadata);
+        // Re-adding an sstable the Tracker has already seen would try to hardlink it into backups/ a second time,
+        // which Tracker.maybeIncrementallyBackup answers with "Tried to create duplicate hard link". The sstable is
+        // the same one on disk under the same generation -- only its Index.db changed -- so there is nothing new to
+        // back up; suppress it for the re-add and restore whatever the surrounding suite had set.
+        boolean incrementalBackups = DatabaseDescriptor.isIncrementalBackupsEnabled();
+        DatabaseDescriptor.setIncrementalBackupsEnabled(false);
+        try
+        {
+            cfs.addSSTable(reopened);
+        }
+        finally
+        {
+            DatabaseDescriptor.setIncrementalBackupsEnabled(incrementalBackups);
+        }
+        return reopened;
+    }
+
+    private static void makeRepaired(SSTableReader sstable) throws IOException
+    {
+        sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor,
+                                                                       1,
+                                                                       sstable.getPendingRepair(),
+                                                                       sstable.isTransient());
+        sstable.reloadSSTableMetadata();
+        assertTrue(sstable.isRepaired());
     }
 
     @Test(expected = RuntimeException.class)

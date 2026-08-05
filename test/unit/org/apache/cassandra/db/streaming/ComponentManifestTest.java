@@ -35,6 +35,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
+import org.apache.cassandra.io.sstable.ZeroCopySSTableSlice;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
@@ -126,6 +127,38 @@ public class ComponentManifestTest
         assertEquals(first.components(), second.components());
         assertEquals(first, second);
         assertEquals(first.hashCode(), second.hashCode());
+    }
+
+    /**
+     * The manifest of a partial (sliced) stream, which is the whole of what the receiver is driven by: the
+     * components {@link ZeroCopySSTableSlice} synthesises plus Data.db, and NOTHING else -- Digest.crc32 in
+     * particular. The sender cannot digest a Data.db that leaves by {@code sendfile} without entering its process,
+     * and a digest computed by the receiver from the bytes that arrived cannot tell them apart from the bytes that
+     * were sent, so there is none: {@code SSTableZeroCopyWriter} writes exactly the components named here, and the
+     * verifier answers the absence with an extended verification.
+     * <p>
+     * Data.db first is also load-bearing rather than incidental. It is the one component of a slice that is not a
+     * file of its own but byte ranges of the parent's, so it is the one whose position in this list decides where in
+     * the stream the {@code sendfile} ranges land.
+     */
+    @Test
+    public void testOrderedManifestOfASliceNamesNoDigest() throws IOException
+    {
+        Descriptor descriptor = descriptorFor(BigFormat.getInstance());
+
+        LinkedHashMap<Component, Long> sizes = new LinkedHashMap<>();
+        long size = 1;
+        for (Component component : ZeroCopySSTableSlice.componentsFor(descriptor.getFormat(), true))
+            sizes.put(component, size++);
+        sizes.put(Components.DATA, size);
+
+        ComponentManifest manifest = ComponentManifest.ordered(descriptor, sizes);
+
+        assertEquals(Components.DATA, manifest.components().get(0));
+        assertFalse("a slice has no digest to send, and the receiver must not invent one",
+                    manifest.components().contains(Components.DIGEST));
+        assertEquals(sizes.size(), manifest.components().size());
+        assertTrue(manifest.components().containsAll(sizes.keySet()));
     }
 
     /** TOC.txt is not streamable, so asking for it is a programming error rather than a silently dropped file. */

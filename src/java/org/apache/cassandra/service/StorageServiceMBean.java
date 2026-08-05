@@ -1298,6 +1298,32 @@ public interface StorageServiceMBean extends NotificationEmitter
     public boolean autoOptimisePreviewRepairStreams();
     public void setAutoOptimisePreviewRepairStreams(boolean enabled);
 
+    // The zero-copy sstable split settings, all writable here because each of them is a kill switch whose whole point
+    // is a mixed-version rollout: needing a rolling restart to turn one off is the opposite of what they are for.
+    /** Whether anticompaction may copy compression chunks verbatim rather than rewriting rows */
+    public boolean getZeroCopyAnticompactionEnabled();
+    /** Enables or disables zero-copy anticompaction. Takes effect for anticompactions that start after this call. */
+    public void setZeroCopyAnticompactionEnabled(boolean enabled);
+    /** Whether a split child's Data.db extents may be shared with its parent instead of copied */
+    public boolean getZeroCopySplitReflinkEnabled();
+    /** Enables or disables extent sharing in the zero-copy split; turn it off when {@code du} over-reports. */
+    public void setZeroCopySplitReflinkEnabled(boolean enabled);
+    /** Whether the children of a zero-copy split get a Digest.crc32 */
+    public boolean getZeroCopySplitDigestEnabled();
+    /** Enables or disables writing Digest.crc32 for the children of a zero-copy split */
+    public void setZeroCopySplitDigestEnabled(boolean enabled);
+    /** Whether a partial sstable may be streamed through the entire-sstable (zero-copy) path as a slice */
+    public boolean getZeroCopyPartialStreamEnabled();
+    /** Enables or disables partial zero-copy streaming. Takes effect for transfers planned after this call. */
+    public void setZeroCopyPartialStreamEnabled(boolean enabled);
+    /** The most dead space a partial zero-copy stream may carry, as a fraction of what it would transfer */
+    public double getZeroCopyPartialStreamMaxDeadSpaceRatio();
+    /**
+     * Sets the dead-space ceiling for partial zero-copy streaming.
+     * @throws IllegalArgumentException if the ratio is not in {@code [0.0, 1.0]}
+     */
+    public void setZeroCopyPartialStreamMaxDeadSpaceRatio(double ratio);
+
     // warning thresholds will be replaced by equivalent guardrails
     /** @deprecated See CASSANDRA-17195 */
     @Deprecated(since = "4.1")

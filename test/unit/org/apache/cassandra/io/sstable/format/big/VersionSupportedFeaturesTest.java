@@ -66,4 +66,10 @@ public class VersionSupportedFeaturesTest extends AbstractTestVersionSupportedFe
     {
         return Stream.concat(range("me", "mz"), range("nb", "zz"));
     }
+
+    @Override
+    protected Stream<String> getUnindexedRegionsMarkerSupportedVersions()
+    {
+        return range("pb", "zz");
+    }
 }

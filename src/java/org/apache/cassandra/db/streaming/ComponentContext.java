@@ -37,16 +37,18 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 
 /**
- * Where each component of an entire-sstable stream is read from, and for how long the sender owns it.
+ * Where each component of an entire-sstable stream is read from, and which of those files the sender owns. For a
+ * whole sstable the components are the sstable's own files, hardlinked for the mutable ones so a concurrent stats
+ * update or index summary redistribution cannot change a size after the manifest named it. For a partial stream
+ * ({@link #slice}) every component but Data.db is instead a synthesised file describing byte ranges of the parent,
+ * and Data.db is those ranges, sent in order from the parent's own file with the gaps skipped. Files the sender
+ * created are deleted on close, the parent's own are not.
  * <p>
- * For a whole sstable that is the sstable's own files, with hardlinks standing in for the mutable ones so that a
- * concurrent stats update or index summary redistribution cannot change a file's size after it has been named in
- * the manifest.
- * <p>
- * For a partial stream ({@link #slice}) the components other than Data.db are not the sstable's at all: they are
- * synthesised files describing byte ranges of it, and Data.db is those ranges -- sent in order, from the parent's
- * own file, with everything between them skipped. Both kinds of file the sender created are deleted on close; the
- * parent's own are not.
+ * Either way the sender's own files are {@link Descriptor#tmpFileForStreaming} names, so that the crash this cannot
+ * clean up after leaves something {@code ColumnFamilyStore.scrubDataDirectories} removes and
+ * {@link Descriptor#getTemporaryFiles()} lists, rather than something that looks like a live sstable. The hardlinks
+ * are created that way below; a slice's components are renamed to it once written -- see
+ * {@code ZeroCopySSTableSlice.toStreamingTemporaries} for why they cannot be written under it directly.
  */
 public class ComponentContext implements AutoCloseable
 {
@@ -74,10 +76,7 @@ public class ComponentContext implements AutoCloseable
     /** Files this context created and must remove; anything not named here is read from the descriptor. */
     private final Map<Component, File> sources;
 
-    /**
-     * The stretches of the parent's Data.db a partial stream is made of, in order. Null for a whole sstable, whose
-     * every component is its file from beginning to end.
-     */
+    /** The stretches of the parent's Data.db a partial stream is made of, in order; null for a whole sstable. */
     private final List<ByteRange> dataRanges;
 
     private final ComponentManifest manifest;
@@ -109,8 +108,6 @@ public class ComponentContext implements AutoCloseable
     }
 
     /**
-     * A context for a partial stream.
-     *
      * @param synthesised files the caller created for every component but Data.db, deleted on close
      * @param dataRanges  the stretches of the parent's Data.db that make up the slice's, in order
      * @param manifest    the sizes of {@code synthesised} plus the total of {@code dataRanges} for Data.db
@@ -127,12 +124,9 @@ public class ComponentContext implements AutoCloseable
     }
 
     /**
-     * The stretches of {@link #channel} that make up this component, in the order they are to be sent. A whole
-     * sstable's component is one stretch covering its whole file; a partial stream's Data.db is one per byte range
-     * of the parent it was sliced from.
-     * <p>
-     * This is also where the manifest is checked against what is on disk, which for a whole sstable is the
-     * assertion that catches a component mutated after it was named in the manifest.
+     * The stretches of {@link #channel} to send, in order: a whole component's whole file, or one per parent byte
+     * range for a partial stream's Data.db. Also where the manifest is checked against disk -- for a whole sstable,
+     * the assertion that catches a component mutated after it was named in the manifest.
      */
     public List<ByteRange> ranges(Descriptor descriptor, Component component, long size) throws IOException
     {
@@ -159,8 +153,8 @@ public class ComponentContext implements AutoCloseable
     }
 
     /**
-     * @return file channel to be streamed, either the original component, a hardlink of it, or the file
-     * synthesised for it. One channel per range, since writing it hands over ownership.
+     * @return channel for the component's own file, its hardlink, or the file synthesised for it; one per range,
+     * since writing it hands over ownership.
      */
     public FileChannel channel(Descriptor descriptor, Component component) throws IOException
     {

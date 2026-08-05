@@ -31,15 +31,19 @@ import java.util.EnumSet;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import com.google.common.base.Throwables;
 
 import org.assertj.core.api.Assertions;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.mockito.MockedStatic;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.shared.WithProperties;
@@ -50,14 +54,21 @@ import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.EncryptionContextGenerator;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.utils.ClassLoadingTestNonAssignable;
 import org.apache.cassandra.utils.ClassLoadingTestSupport;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_LOADER;
 import static org.apache.cassandra.config.CassandraRelevantProperties.PARTITIONER;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
+import static org.apache.cassandra.config.YamlConfigurationLoaderTest.load;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -73,6 +84,39 @@ public class DatabaseDescriptorTest
     public static void setupDatabaseDescriptor()
     {
         DatabaseDescriptor.daemonInitialization();
+    }
+
+    private Config savedConfig;
+    private boolean savedStreamEntireSSTables;
+    private boolean[] savedZeroCopyBooleanSettings;
+    private double savedZeroCopyPartialStreamMaxDeadSpaceRatio;
+
+    @Before
+    public void saveZeroCopyConfig()
+    {
+        savedConfig = DatabaseDescriptor.getRawConfig();
+        savedStreamEntireSSTables = DatabaseDescriptor.streamEntireSSTables();
+        savedZeroCopyBooleanSettings = zeroCopyBooleanSettings();
+        savedZeroCopyPartialStreamMaxDeadSpaceRatio = DatabaseDescriptor.getZeroCopyPartialStreamMaxDeadSpaceRatio();
+    }
+
+    /**
+     * In an @After rather than a finally per test, and unconditional, because every one of these is process-wide
+     * mutable state: a flag left flipped -- by a failure, or by an assumption that stopped a test early -- silently
+     * changes the behaviour every later test in this JVM is asserting about.
+     */
+    @After
+    public void restoreZeroCopyConfig()
+    {
+        // The Config instance first: one test below re-runs applySimpleConfig() to reach the yaml validation path,
+        // and the setters below write through whatever instance is installed.
+        DatabaseDescriptor.setConfig(savedConfig);
+        DatabaseDescriptor.setStreamEntireSSTables(savedStreamEntireSSTables);
+        DatabaseDescriptor.setZeroCopyAnticompactionEnabled(savedZeroCopyBooleanSettings[ANTICOMPACTION]);
+        DatabaseDescriptor.setZeroCopySplitReflinkEnabled(savedZeroCopyBooleanSettings[SPLIT_REFLINK]);
+        DatabaseDescriptor.setZeroCopySplitDigestEnabled(savedZeroCopyBooleanSettings[SPLIT_DIGEST]);
+        DatabaseDescriptor.setZeroCopyPartialStreamEnabled(savedZeroCopyBooleanSettings[PARTIAL_STREAM]);
+        DatabaseDescriptor.setZeroCopyPartialStreamMaxDeadSpaceRatio(savedZeroCopyPartialStreamMaxDeadSpaceRatio);
     }
 
     // this came as a result of CASSANDRA-995
@@ -1246,5 +1290,189 @@ public class DatabaseDescriptorTest
         {
             DatabaseDescriptor.setZeroCopyPartialStreamMaxDeadSpaceRatio(saved);
         }
+    }
+
+    /**
+     * The path that actually matters, and the one the setter's range check was added to reach: nothing in {@code src/}
+     * calls that setter, so before {@code applySimpleConfig()} ran the yaml value through it a
+     * {@code zero_copy_partial_stream_max_dead_space_ratio: 25} -- an operator typing "25 percent" -- was accepted
+     * silently, and then made {@code deadRatio() > maxDeadSpaceRatio} false for every candidate, so every slice
+     * passed however much dead space it carried. Testing only the setter (above) leaves that check looking like a
+     * redundant duplicate, and deleting it reintroduces the bug with everything green.
+     */
+    @Test
+    public void testZeroCopyPartialStreamMaxDeadSpaceRatioFromYamlIsRejected()
+    {
+        // 25 is the "25 percent" typo the source comment names; NaN is the value that would make every comparison
+        // against it false rather than merely too permissive.
+        for (double invalid : new double[]{ 25, -1, Double.NaN })
+        {
+            // The yaml this JVM booted from, so everything applySimpleConfig() validates besides the ratio is already
+            // known good and cannot be what fails here. Loaded through the yaml loader rather than
+            // DatabaseDescriptor.loadConfig() so that a CONFIG_LOADER left set by another test in this class cannot
+            // substitute a bare Config that would fail an earlier check instead.
+            Config config = load("cassandra.yaml");
+            config.zero_copy_partial_stream_max_dead_space_ratio = invalid;
+
+            // applySimpleConfig() is private, and a (re)initialization is the only way in. restoreZeroCopyConfig()
+            // puts the Config instance this one displaces back afterwards.
+            assertThatExceptionOfType(ConfigurationException.class)
+                .isThrownBy(() -> DatabaseDescriptor.unsafeDaemonInitialization(() -> config))
+                .withMessageContaining("zero_copy_partial_stream_max_dead_space_ratio must be in [0.0, 1.0]");
+        }
+    }
+
+    /**
+     * The five zero-copy settings are exposed on {@link StorageServiceMBean} because each is a kill switch for a
+     * mixed-version rollout, so what has to hold is that flipping one through JMX reaches
+     * {@link DatabaseDescriptor} -- and reaches the right setting. Five near-identical getter/setter pairs added in
+     * one go is exactly where a copy-paste crosses two of them, and a crossed pair is invisible until an operator
+     * turns off a feature during an incident and it keeps running.
+     */
+    @Test
+    public void testZeroCopySettingsRoundTripThroughStorageServiceMBean()
+    {
+        StorageServiceMBean mbean = StorageService.instance;
+
+        assertBooleanSettingIsIsolated(ANTICOMPACTION, "zero_copy_anticompaction_enabled",
+                                       mbean::setZeroCopyAnticompactionEnabled,
+                                       mbean::getZeroCopyAnticompactionEnabled);
+        assertBooleanSettingIsIsolated(SPLIT_REFLINK, "zero_copy_split_reflink_enabled",
+                                       mbean::setZeroCopySplitReflinkEnabled,
+                                       mbean::getZeroCopySplitReflinkEnabled);
+        assertBooleanSettingIsIsolated(SPLIT_DIGEST, "zero_copy_split_digest_enabled",
+                                       mbean::setZeroCopySplitDigestEnabled,
+                                       mbean::getZeroCopySplitDigestEnabled);
+        assertBooleanSettingIsIsolated(PARTIAL_STREAM, "zero_copy_partial_stream_enabled",
+                                       mbean::setZeroCopyPartialStreamEnabled,
+                                       mbean::getZeroCopyPartialStreamEnabled);
+
+        mbean.setZeroCopyPartialStreamMaxDeadSpaceRatio(0.75);
+        assertEquals(0.75, mbean.getZeroCopyPartialStreamMaxDeadSpaceRatio(), 0.0);
+        assertEquals(0.75, DatabaseDescriptor.getZeroCopyPartialStreamMaxDeadSpaceRatio(), 0.0);
+
+        // The range check has to survive the JMX hop as well: an operator typing a percentage into jconsole is the
+        // most likely source of a value outside [0, 1], and this is the only place it can be refused.
+        for (double invalid : new double[]{ 25, -0.5, Double.NaN })
+        {
+            assertThatExceptionOfType(IllegalArgumentException.class)
+                .isThrownBy(() -> mbean.setZeroCopyPartialStreamMaxDeadSpaceRatio(invalid))
+                .withMessageContaining("zero_copy_partial_stream_max_dead_space_ratio");
+            assertEquals("a rejected ratio must not have been half-applied",
+                         0.75, DatabaseDescriptor.getZeroCopyPartialStreamMaxDeadSpaceRatio(), 0.0);
+        }
+    }
+
+    // Indexes into zeroCopyBooleanSettings(), which is compared as a whole so that a flip of one setting is checked
+    // not to have moved any of the other three.
+    private static final int ANTICOMPACTION = 0;
+    private static final int SPLIT_REFLINK = 1;
+    private static final int SPLIT_DIGEST = 2;
+    private static final int PARTIAL_STREAM = 3;
+
+    private static boolean[] zeroCopyBooleanSettings()
+    {
+        return new boolean[]{ DatabaseDescriptor.getZeroCopyAnticompactionEnabled(),
+                              DatabaseDescriptor.getZeroCopySplitReflinkEnabled(),
+                              DatabaseDescriptor.getZeroCopySplitDigestEnabled(),
+                              DatabaseDescriptor.getZeroCopyPartialStreamEnabled() };
+    }
+
+    /**
+     * Flips one boolean setting through the MBean and asserts that it, and only it, moved in {@link
+     * DatabaseDescriptor}. The "only it" half is what catches a crossed getter or setter.
+     */
+    private void assertBooleanSettingIsIsolated(int index, String name,
+                                                Consumer<Boolean> mbeanSetter,
+                                                BooleanSupplier mbeanGetter)
+    {
+        for (boolean value : new boolean[]{ true, false })
+        {
+            boolean[] expected = zeroCopyBooleanSettings();
+            expected[index] = value;
+
+            mbeanSetter.accept(value);
+
+            assertEquals(name + " does not read back through JMX", value, mbeanGetter.getAsBoolean());
+            assertThat(zeroCopyBooleanSettings())
+                .describedAs("setting %s to %s through JMX did not reach DatabaseDescriptor, or reached the wrong" +
+                             " setting (order: anticompaction, reflink, digest, partial stream)", name, value)
+                .containsExactly(expected);
+        }
+    }
+
+    /**
+     * A zero-copy setting that is set but inert is reported, because nothing else makes it visible: an inert
+     * {@code zero_copy_partial_stream_enabled} never reaches a {@code StreamingMetrics} counter, so not even a
+     * refusal shows up and an operator cannot tell it from a feature that had nothing to do. The negative halves
+     * matter as much as the positive ones -- a warning that fires on a default config is one operators learn to
+     * ignore, which is why the two sub-flag cases are INFO and conditional rather than unconditional WARNs.
+     */
+    @Test
+    public void testInertZeroCopySettingsAreReported()
+    {
+        ch.qos.logback.classic.Logger logger =
+            (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(DatabaseDescriptor.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        Level savedLevel = logger.getLevel();
+        logger.setLevel(Level.INFO);
+        logger.addAppender(appender);
+        try
+        {
+            // Partial streaming asked for while the protocol it rides on is off: the loud case.
+            DatabaseDescriptor.setStreamEntireSSTables(false);
+            DatabaseDescriptor.setZeroCopyPartialStreamEnabled(true);
+            assertLogged(appender, Level.WARN, "zero_copy_partial_stream_enabled is true but does nothing");
+
+            // ... and not otherwise, or the warning says nothing about the configuration.
+            appender.list.clear();
+            DatabaseDescriptor.setStreamEntireSSTables(true);
+            DatabaseDescriptor.setZeroCopyPartialStreamEnabled(true);
+            assertNotLogged(appender, "zero_copy_partial_stream_enabled is true but does nothing");
+
+            appender.list.clear();
+            DatabaseDescriptor.setStreamEntireSSTables(false);
+            DatabaseDescriptor.setZeroCopyPartialStreamEnabled(false);
+            assertNotLogged(appender, "zero_copy_partial_stream_enabled is true but does nothing");
+
+            // A split sub-flag turned off while the split itself is off governs nothing: INFO, not WARN.
+            appender.list.clear();
+            DatabaseDescriptor.setZeroCopyAnticompactionEnabled(false);
+            DatabaseDescriptor.setZeroCopySplitReflinkEnabled(false);
+            assertLogged(appender, Level.INFO, "zero_copy_split_reflink_enabled is false, which does nothing");
+
+            appender.list.clear();
+            DatabaseDescriptor.setZeroCopySplitDigestEnabled(false);
+            assertLogged(appender, Level.INFO, "zero_copy_split_digest_enabled is false, which does nothing");
+
+            // With the split enabled the same sub-flags govern something, so neither is reported. This is also the
+            // guard against the opposite test, which would fire on every default config.
+            appender.list.clear();
+            DatabaseDescriptor.setZeroCopyAnticompactionEnabled(true);
+            DatabaseDescriptor.setZeroCopySplitReflinkEnabled(false);
+            DatabaseDescriptor.setZeroCopySplitDigestEnabled(false);
+            assertNotLogged(appender, "which does nothing");
+        }
+        finally
+        {
+            logger.detachAppender(appender);
+            logger.setLevel(savedLevel);
+            appender.stop();
+        }
+    }
+
+    private static void assertLogged(ListAppender<ILoggingEvent> appender, Level level, String message)
+    {
+        assertThat(appender.list)
+            .describedAs("expected a %s containing '%s'", level, message)
+            .anyMatch(event -> event.getLevel() == level && event.getFormattedMessage().contains(message));
+    }
+
+    private static void assertNotLogged(ListAppender<ILoggingEvent> appender, String message)
+    {
+        assertThat(appender.list)
+            .describedAs("expected nothing containing '%s'", message)
+            .noneMatch(event -> event.getFormattedMessage().contains(message));
     }
 }

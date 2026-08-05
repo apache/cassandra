@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -95,8 +96,11 @@ import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.format.big.BigFormat.Components;
 import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.OutputHandler;
@@ -111,6 +115,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_INVAL
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -129,10 +134,19 @@ public class ScrubTest
     public static final String CF_INDEX2 = "Indexed2";
     public static final String CF_INDEX1_BYTEORDERED = "Indexed1_ordered";
     public static final String CF_INDEX2_BYTEORDERED = "Indexed2_ordered";
+    /** Compressed regardless of {@code TEST_COMPRESSION}, because a zero-copy split refuses an uncompressed parent. */
+    public static final String CF_COMPRESSED = "Standard_compressed";
     public static final String COL_INDEX = "birthdate";
     public static final String COL_NON_INDEX = "notbirthdate";
 
     public static final Integer COMPRESSION_CHUNK_LENGTH = 4096;
+
+    /**
+     * Partitions in the {@link #CF_COMPRESSED} fixture: enough that its Data.db spans several
+     * {@link #COMPRESSION_CHUNK_LENGTH} chunks, so that splitting it lands at least one child's first partition
+     * inside a chunk rather than on its boundary -- which is the only way to get a DEAD PREFIX.
+     */
+    private static final int DEAD_PREFIX_FIXTURE_PARTITIONS = 1000;
 
     private static final AtomicInteger seq = new AtomicInteger();
 
@@ -158,6 +172,7 @@ public class ScrubTest
                        KeyspaceParams.simple(1),
                        standardCFMD(ksName, CF),
                        counterCFMD(ksName, COUNTER_CF).compression(getCompressionParameters(COMPRESSION_CHUNK_LENGTH)),
+                       standardCFMD(ksName, CF_COMPRESSED).compression(CompressionParams.lz4(COMPRESSION_CHUNK_LENGTH)),
                        standardCFMD(ksName, CF_UUID, 0, UUIDType.instance),
                        SchemaLoader.keysIndexCFMD(ksName, CF_INDEX1, true),
                        SchemaLoader.compositeIndexCFMD(ksName, CF_INDEX2, true),
@@ -345,7 +360,163 @@ public class ScrubTest
                                   2);   // corrupt after the second partition, no way to resync
     }
 
+    /**
+     * A first Index.db position that no dead prefix could explain must not be taken as one.
+     * <p>
+     * The tolerance {@link org.apache.cassandra.io.sstable.format.big.BigTableScrubber} grew for zero-copy split
+     * children and partial-stream slices is a BOUNDED head pad -- at most one cell, which for this uncompressed
+     * fixture is {@code min(CRC.db chunk size, data length)}, i.e. the data length. The position written here is
+     * exactly that: an impossible place for a partition to start, and the first value at or past the bound. Outside
+     * the bound the scrubber has to keep doing what trunk did -- fail the "first partition is at 0" assertion, which
+     * its own catch clause turns into "drop the index and scrub Data.db unaided" -- so what is asserted is that the
+     * RECOVERY happened and not merely that something threw: every partition comes back.
+     * <p>
+     * An unconditional tolerance instead seeks to the position, which for this value puts the walk at EOF: the scrub
+     * finds nothing, writes nothing, and obsoletes the original. Silent, total loss of a readable Data.db.
+     */
+    @Test
+    public void testScrubRefusesFirstIndexPositionPastTheDeadPrefixBound() throws Throwable
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+
+        CapturingOutputHandler output = new CapturingOutputHandler();
+        testCorruptionInSmallFile((sstable, keys) -> rewriteIndexEntryPosition(sstable, 0, sstable.uncompressedLength()),
+                                  true,
+                                  5,
+                                  output);
+
+        assertTrue("the index was not dropped and the partitions recovered: " + output,
+                   output.reported("complete: 5 partitions in new sstable"));
+        assertFalse("a readable Data.db was declared unrecoverable: " + output,
+                    output.reported("No valid partitions found while scrubbing"));
+    }
+
+    /**
+     * Unindexed bytes BETWEEN partitions are legitimate only for an sstable that DECLARES them, so an ordinary
+     * sstable whose index points past the partition the data file is at must not be followed there. The second entry
+     * here is pointed at the fourth partition, which is what such a gap looks like from the scrubber's side.
+     * <p>
+     * Without the {@code hasUnindexedRegions()} gate the scrubber seeks to that position, reads the fourth
+     * partition's key, fails the comparison against the second partition's index key and goes down "Retrying from
+     * partition index" -- which seeks to the same wrong place and appends the fourth partition's rows under the
+     * second partition's key. The partition COUNT survives that, which is why the assertions below are on the output:
+     * with the gate the data pointer is trusted, every key matches its entry, and the only complaint is the
+     * pre-existing "position differs" warning.
+     */
+    @Test
+    public void testScrubDoesNotFollowAnInteriorIndexPositionWithoutTheMarker() throws Throwable
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+
+        CapturingOutputHandler output = new CapturingOutputHandler();
+        testCorruptionInSmallFile((sstable, keys) ->
+                                  {
+                                      assertFalse("an ordinary flushed sstable must not declare unindexed regions",
+                                                  sstable.hasUnindexedRegions());
+                                      List<IndexEntry> entries = readIndexEntries(sstable.descriptor);
+                                      assertEquals(5, entries.size());
+                                      rewriteIndexEntryPosition(sstable, 1, entries.get(3).dataPosition);
+                                  },
+                                  true,
+                                  5,
+                                  output);
+
+        assertTrue("the doctored entry was never read, so this proves nothing: " + output,
+                   output.reported("differs from index file row position"));
+        assertFalse("the scrubber followed the index into the middle of another partition: " + output,
+                    output.reported("Retrying from partition index"));
+    }
+
+    /**
+     * A BTI sstable whose Data.db opens with a dead prefix -- a zero-copy split child -- must be scrubbed THROUGH its
+     * index. {@code BtiTableScrubber} used to answer a non-zero first index position by discarding the index, and
+     * without an index BTI has no way to find the next partition: the prefix is read as a partition key, nothing can
+     * resync, and {@code SortedTableScrubber.outputSummary} reports "No valid partitions found ... it is marked for
+     * deletion now" for an sstable that is entirely readable. Both halves are asserted here, because the count coming
+     * back through {@link IScrubber.ScrubResult} and the summary the operator sees are separate things.
+     */
+    @Test
+    public void testScrubBtiChildWithADeadPrefixKeepsItsIndex() throws Throwable
+    {
+        Assume.assumeTrue(BtiFormat.isSelected());
+
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_COMPRESSED);
+        fillCF(cfs, DEAD_PREFIX_FIXTURE_PARTITIONS);
+        assertEquals(1, cfs.getLiveSSTables().size());
+        SSTableReader parent = cfs.getLiveSSTables().iterator().next();
+        assertTrue("the parent must be splittable, i.e. compressed and current: " + parent,
+                   ZeroCopySSTableSplitter.isSupported(parent));
+        assertTrue("the parent must span several chunks for a boundary to land inside one",
+                   parent.uncompressedLength() > 4L * COMPRESSION_CHUNK_LENGTH);
+
+        ZeroCopySSTableSplitter.Result result = ZeroCopySSTableSplitter.split(parent, 3, null);
+        SSTableReader consumedByTxn = null;
+        try
+        {
+            ZeroCopySSTableSplitter.Child dead = null;
+            for (ZeroCopySSTableSplitter.Child child : result.children)
+            {
+                if (child.deadPrefixBytes > 0)
+                {
+                    dead = child;
+                    break;
+                }
+            }
+            assertNotNull("no child started off a chunk boundary, so none has a dead prefix: " + result, dead);
+            assertFalse("the head pad is deliberately not gated on the marker, and a split child does not set it",
+                        dead.reader.hasUnindexedRegions());
+            assertEquals("the child's first index position is what the scrubber bounds",
+                         dead.deadPrefixBytes, dead.reader.getPosition(dead.first, SSTableReader.Operator.EQ));
+            assertTrue("a dead prefix is at most one cell, or this fixture is not the accepted case",
+                       dead.deadPrefixBytes < COMPRESSION_CHUNK_LENGTH);
+
+            CapturingOutputHandler output = new CapturingOutputHandler();
+            IScrubber.ScrubResult scrubResult;
+            // LifecycleTransaction.offline() takes ownership of the reader and releases it, so this one must not be
+            // released again in the finally below.
+            consumedByTxn = dead.reader;
+            try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.SCRUB, dead.reader);
+                 IScrubber scrubber = dead.descriptor.getFormat().getScrubber(cfs, txn, output,
+                                                                             IScrubber.options().checkData().build()))
+            {
+                scrubResult = scrubber.scrubWithResult();
+            }
+
+            assertFalse("the index was discarded, which is the regression the bound exists to prevent: " + output,
+                        output.reported("First position reported by index should be 0"));
+            // Both halves of what discarding the index produced: the dead prefix is read as a partition key, there is
+            // no index left to resync with, and the summary condemns an sstable that is entirely readable.
+            assertFalse("the walk started in the dead prefix and could not resync: " + output,
+                        output.reported("Scrubbing cannot continue"));
+            assertFalse("a readable child was marked for deletion: " + output,
+                        output.reported("No valid partitions found while scrubbing"));
+            assertEquals("every partition of the child must come back", dead.partitionCount, scrubResult.goodPartitions);
+            assertEquals(0, scrubResult.badPartitions);
+            assertEquals(0, scrubResult.emptyPartitions);
+            assertTrue("the summary must report the child's partitions: " + output,
+                       output.reported("complete: " + dead.partitionCount + " partitions in new sstable"));
+        }
+        finally
+        {
+            for (ZeroCopySSTableSplitter.Child child : result.children)
+            {
+                if (child.reader != consumedByTxn)
+                    child.reader.selfRef().release();
+            }
+            LifecycleTransaction.waitForDeletions();
+        }
+    }
+
     public void testCorruptionInSmallFile(ThrowingBiConsumer<SSTableReader, String[], IOException> corrupt, boolean isFullyRecoverable, int expectedPartitions) throws IOException, WriteTimeoutException
+    {
+        testCorruptionInSmallFile(corrupt, isFullyRecoverable, expectedPartitions, new OutputHandler.LogOutput());
+    }
+
+    /**
+     * As above, with the scrub reporting to {@code outputHandler} -- for the cases whose whole point is what the
+     * scrubber decided rather than how many partitions survived.
+     */
+    public void testCorruptionInSmallFile(ThrowingBiConsumer<SSTableReader, String[], IOException> corrupt, boolean isFullyRecoverable, int expectedPartitions, OutputHandler outputHandler) throws IOException, WriteTimeoutException
     {
         CompactionManager.instance.disableAutoCompaction();
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(COUNTER_CF);
@@ -367,7 +538,7 @@ public class ScrubTest
         if (!isFullyRecoverable)
         {
             try (LifecycleTransaction txn = cfs.getTracker().tryModify(Collections.singletonList(sstable), OperationType.SCRUB);
-                 IScrubber scrubber = sstable.descriptor.getFormat().getScrubber(cfs, txn, new OutputHandler.LogOutput(), new IScrubber.Options.Builder().checkData().build()))
+                 IScrubber scrubber = sstable.descriptor.getFormat().getScrubber(cfs, txn, outputHandler, new IScrubber.Options.Builder().checkData().build()))
             {
                 // with skipCorrupted == true, the corrupt row will be skipped
                 scrubber.scrub();
@@ -379,7 +550,7 @@ public class ScrubTest
         }
 
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(Collections.singletonList(sstable), OperationType.SCRUB);
-             IScrubber scrubber = sstable.descriptor.getFormat().getScrubber(cfs, txn, new OutputHandler.LogOutput(), new IScrubber.Options.Builder().checkData().skipCorrupted().build()))
+             IScrubber scrubber = sstable.descriptor.getFormat().getScrubber(cfs, txn, outputHandler, new IScrubber.Options.Builder().checkData().skipCorrupted().build()))
         {
             // with skipCorrupted == true, the corrupt row will be skipped
             scrubber.scrub();
@@ -606,6 +777,155 @@ public class ScrubTest
         }
         if (ChunkCache.instance != null)
             ChunkCache.instance.invalidateFile(path.toString());
+    }
+
+    /**
+     * One entry of a BIG sstable's Index.db together with the offsets that make it editable: a partition key with a
+     * short length prefix, the data position as an unsigned vint, then the promoted index. This is the layout
+     * {@code RowIndexEntry.Serializer.deserializePositionAndSkip} reads, and the data position is the only thing a
+     * test can change to make the scrubber or the verifier believe a partition starts somewhere it does not.
+     * <p>
+     * Public because {@link VerifyTest} builds its dead-prefix fixtures out of the same surgery.
+     */
+    public static final class IndexEntry
+    {
+        /** Offset of the whole entry, i.e. of its key length. */
+        public final long offset;
+        /** Offset of the data position vint, and of the first byte past it. */
+        public final long positionOffset;
+        public final long positionEnd;
+        /** Position in Data.db the entry points at. */
+        public final long dataPosition;
+
+        private IndexEntry(long offset, long positionOffset, long positionEnd, long dataPosition)
+        {
+            this.offset = offset;
+            this.positionOffset = positionOffset;
+            this.positionEnd = positionEnd;
+            this.dataPosition = dataPosition;
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("IndexEntry[offset=%d dataPosition=%d]", offset, dataPosition);
+        }
+    }
+
+    /** Every Index.db entry of a BIG sstable, in file order. */
+    public static List<IndexEntry> readIndexEntries(Descriptor descriptor) throws IOException
+    {
+        assertTrue("Index.db exists only in the BIG format", BigFormat.is(descriptor.getFormat()));
+        List<IndexEntry> entries = new ArrayList<>();
+        try (RandomAccessReader index = RandomAccessReader.open(descriptor.fileFor(Components.PRIMARY_INDEX)))
+        {
+            while (!index.isEOF())
+            {
+                long offset = index.getFilePointer();
+                ByteBufferUtil.skipShortLength(index);
+                long positionOffset = index.getFilePointer();
+                long dataPosition = index.readUnsignedVInt();
+                long positionEnd = index.getFilePointer();
+                int promotedIndexSize = index.readUnsignedVInt32();
+                if (promotedIndexSize > 0)
+                    index.skipBytesFully(promotedIndexSize);
+                entries.add(new IndexEntry(offset, positionOffset, positionEnd, dataPosition));
+            }
+        }
+        return entries;
+    }
+
+    /**
+     * Point one Index.db entry at a different position in Data.db, leaving every other byte of the file alone. The
+     * file grows or shrinks by the difference in vint width, which is harmless for the scrubbers -- they open Index.db
+     * themselves -- but not for a reader that already has it open with its length captured; see
+     * {@code VerifyTest.reopenWithIndexPrefixDropped}.
+     */
+    public static void rewriteIndexEntryPosition(SSTableReader sstable, int entryIndex, long newPosition) throws IOException
+    {
+        List<IndexEntry> entries = readIndexEntries(sstable.descriptor);
+        assertTrue("Index.db holds only " + entries.size() + " entries", entryIndex < entries.size());
+        IndexEntry entry = entries.get(entryIndex);
+
+        File indexFile = sstable.descriptor.fileFor(Components.PRIMARY_INDEX);
+        byte[] before = Files.readAllBytes(indexFile.toPath());
+        byte[] position;
+        try (DataOutputBuffer out = new DataOutputBuffer())
+        {
+            out.writeUnsignedVInt(newPosition);
+            position = out.toByteArray();
+        }
+
+        int head = (int) entry.positionOffset;
+        int tail = before.length - (int) entry.positionEnd;
+        byte[] patched = new byte[head + position.length + tail];
+        System.arraycopy(before, 0, patched, 0, head);
+        System.arraycopy(position, 0, patched, head, position.length);
+        System.arraycopy(before, (int) entry.positionEnd, patched, head + position.length, tail);
+        Files.write(indexFile.toPath(), patched);
+
+        if (ChunkCache.instance != null)
+            ChunkCache.instance.invalidateFile(indexFile.toString());
+    }
+
+    /**
+     * Records what a scrub reported. Whether the index was kept and whether the sstable was declared unrecoverable
+     * are visible in the summary and nowhere else -- {@link IScrubber.ScrubResult} carries only counts, and a
+     * partition count can survive a scrub that recovered the wrong bytes.
+     */
+    private static final class CapturingOutputHandler implements OutputHandler
+    {
+        private final OutputHandler delegate = new OutputHandler.LogOutput();
+        private final List<String> lines = new ArrayList<>();
+
+        @Override
+        public synchronized void output(String msg)
+        {
+            lines.add(msg);
+            delegate.output(msg);
+        }
+
+        @Override
+        public void debug(String msg)
+        {
+            delegate.debug(msg);
+        }
+
+        @Override
+        public synchronized void warn(String msg)
+        {
+            lines.add(msg);
+            delegate.warn(msg);
+        }
+
+        @Override
+        public synchronized void warn(Throwable th, String msg)
+        {
+            lines.add(msg);
+            delegate.warn(th, msg);
+        }
+
+        @Override
+        public boolean isDebugEnabled()
+        {
+            return false;
+        }
+
+        synchronized boolean reported(String fragment)
+        {
+            for (String line : lines)
+            {
+                if (line != null && line.contains(fragment))
+                    return true;
+            }
+            return false;
+        }
+
+        @Override
+        public synchronized String toString()
+        {
+            return "scrub output: " + lines;
+        }
     }
 
     public static void assertOrderedAll(ColumnFamilyStore cfs, int expectedSize)

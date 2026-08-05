@@ -86,6 +86,26 @@ New features
 
 Upgrading
 ---------
+    - The BIG sstable format has a new version, pb, and the BTI format a new version, eb. Both add a marker to
+      Statistics.db recording whether the sstable contains regions its index does not describe. New sstables are
+      written at those versions unless storage_compatibility_mode pins BIG to an earlier one (nb or oa). Older
+      sstables stay readable and are not rewritten until you run 'nodetool upgradesstables'.
+    - Zero-copy anticompaction (zero_copy_anticompaction_enabled) and partial-sstable zero-copy streaming
+      (zero_copy_partial_stream_enabled) produce, and accept, sstables that carry bytes their index does not
+      describe. Both are DISABLED by default and both are a ROLLOUT-ORDER CONTRACT that nothing negotiates over the
+      streaming protocol: enabling either one on a node while any peer that can RECEIVE a stream from it is still on
+      a build without this feature risks that peer misreading such an sstable. Reads there are unaffected, but
+      ordinary compaction enters Data.db mid-partition and fails with CorruptSSTableException, marking the sstable
+      suspect, and 'nodetool verify' and 'nodetool scrub' fail on it as well. Do not enable either flag until every
+      node that can receive a stream from the node you are enabling it on has been upgraded. If a peer has already
+      accepted such an sstable, finishing that peer's upgrade is the remedy: once it has this feature it tolerates
+      the extra bytes and compacts, verifies and scrubs the sstable normally.
+    - Zero-copy anticompaction only splits an sstable that is COMPRESSED, in the BIG or BTI format, and at version
+      pb or eb, so on a cluster upgraded to 7.0 the flag is INERT over every pre-existing sstable until 'nodetool
+      upgradesstables' has rewritten them. It also retains droppable tombstones that a rewriting anticompaction
+      would have purged, and gives its output inherited rather than recomputed cell, row and timestamp statistics.
+      Read the zero_copy_anticompaction_enabled comment in conf/cassandra.yaml for the full list of operational
+      consequences before enabling it.
 
 Deprecation
 -----------

@@ -261,10 +261,29 @@ read during validation.
 anticompacting because the sstable was fully contained in the repaired
 range.
 
-|BytesZeroCopyAnticompaction |Meter |How many Data.db bytes we copied
-verbatim during anticompaction instead of rewriting them, because the
-sstable's full/transient/unrepaired partitions formed contiguous token
-runs. A subset of BytesAnticompacted.
+|BytesZeroCopyAnticompaction |Meter a|
+____
+How many Data.db bytes anticompaction *handled* by copying compression
+chunks verbatim instead of rewriting them, because the sstable's
+full/transient/unrepaired partitions formed contiguous token runs. Read
+it as a volume of data that took this path, not as I/O performed and not
+as a share of `BytesAnticompacted`:
+
+* it is not bytes written. With `zero_copy_split_reflink_enabled` (the
+default) the split shares the parent's extents rather than copying them,
+so almost nothing is actually written; the per-split log line reports
+handled, shared and written bytes separately.
+* it is not a subset of `BytesAnticompacted`. A chunk straddling the
+boundary between two children is counted once for each of them, so the
+sum can exceed the parent's own length and the ratio to
+`BytesAnticompacted` can exceed 100%. That is bounded by roughly one
+chunk per boundary, so it matters for a small sstable split many ways and
+not for a large one.
+
+Stays 0 for a table with a storage-attached index, and for any sstable
+that is uncompressed, compressed with a dictionary, or older than sstable
+version `pb` (BIG) / `eb` (BTI); all of those take the rewriting path.
+____
 
 |BytesPreviewed |Meter |Estimated number of bytes that were scanned for local replica during preview repair
 
@@ -744,29 +763,44 @@ peer.
 from this node.
 |===
 
-A few streaming counters are node wide rather than per peer, so they
-carry no `<PeerIP>` scope:
+Some streaming counters are node wide rather than per peer, so they carry
+no `<PeerIP>` scope. They include `TotalIncomingBytes`,
+`TotalOutgoingBytes`, `TotalOutgoingRepairBytes`,
+`TotalOutgoingRepairSSTables` and `ActiveOutboundStreams`, as well as the
+zero-copy slice counters below:
 
 *Metric Name*::
   `org.apache.cassandra.metrics.Streaming.<MetricName>`
 *JMX MBean*::
-  `org.apache.cassandra.metrics:type=Streaming name=<MetricName>`
+  `org.apache.cassandra.metrics:type=Streaming,name=<MetricName>`
 
 [cols=",,",options="header",]
 |===
 |Name |Type |Description
 |SlicedZeroCopyStreamsOut |Counter |Number of sstables sent through the
-zero-copy path as a synthesised slice covering only the requested token
+zero-copy path as a synthesized slice covering only the requested token
 ranges, rather than as a whole sstable.
 
-|SlicedZeroCopyStreamsFailed |Counter |Number of times a slice could not
-be synthesised, so the sstable fell back to partition-by-partition
-streaming.
+|SlicedZeroCopyStreamsFailed |Counter |Number of times a slice was
+planned but could not be synthesized, so the stream failed.
+
+|SlicedZeroCopyStreamsRefused |Counter |Number of transfers that could
+have been sliced but were sent partition-by-partition instead. Some
+refusals are tunable -- above all
+`zero_copy_partial_stream_max_dead_space_ratio`, and no room on the
+sender for the synthesized components -- and this is the ratio's only
+observable effect, since one set too low otherwise just leaves
+`SlicedZeroCopyStreamsOut` at zero. The rest are structural properties of
+the sstable or table that no setting will change: a storage-attached
+index, a compression dictionary, legacy counter shards, a pre-4.0 bloom
+filter, an sstable older than version `pb` (BIG) / `eb` (BTI), too many
+runs, or ranges the arithmetic cannot express.
 
 |SlicedZeroCopyStreamDeadBytes |Counter |Uncompressed bytes those slices
 carried that no read can reach: the head of their first compression
-chunk plus anything between sections less than a chunk apart. This is
-what `zero_copy_partial_stream_max_dead_space_ratio` trades against
+chunk, anything between sections less than a chunk apart, and the tail
+of the final chunk past the last live byte. This is what
+`zero_copy_partial_stream_max_dead_space_ratio` trades against
 deserializing rows.
 |===
 
@@ -952,6 +986,49 @@ entries managed across all SSTables.
 
 |IndexInfoGets |Histogram |Histogram of the number index seeks performed
 per SSTable.
+|===
+
+== Storage-Attached Index Group Metrics
+
+Metrics reported per table for the group of storage-attached indexes
+(`SAI`) on it, covering the per-sstable index files those indexes share.
+
+Reported name format:
+
+*Metric Name*::
+  `org.apache.cassandra.metrics.StorageAttachedIndex.<MetricName>.<Keyspace>.<Table>.IndexGroupMetrics`
+*JMX MBean*::
+  `org.apache.cassandra.metrics:type=StorageAttachedIndex,keyspace=<Keyspace>,table=<Table>,scope=IndexGroupMetrics,name=<MetricName>`
+
+[cols=",,",options="header",]
+|===
+|Name |Type |Description
+|OpenIndexFiles |Gauge<Integer> |Number of index files this table's
+storage-attached indexes currently hold open.
+
+|DiskUsedBytes |Gauge<Long> |Total disk usage, in bytes, of this table's
+per-sstable index files.
+
+|UnindexedSSTables |Gauge<Integer> a|
+____
+Number of live sstables that carry no per-sstable index components and are
+therefore absent from every index's view. Rows in them are readable but
+match no index predicate.
+
+A non-zero value is normal and transient while an index build is running,
+whether an initial `CREATE INDEX` or a rebuild, which strips each
+sstable's components before rewriting them. A value that stays non-zero
+while an index on the table is queryable means query results are silently
+incomplete, and this gauge is the only standing signal of it: nothing is
+thrown and nothing fails. The remedy is to rebuild the index.
+
+Counts only the per-sstable half of that hole. An sstable that has the
+per-sstable components can still be missing from one particular index's
+view for want of that index's own per-column completion marker; that is
+the same silent hole, but it cannot be told apart from a view that is
+merely lagging a running build, so it is reported by a rate-limited `WARN`
+rather than counted here.
+____
 |===
 
 == BufferPool Metrics

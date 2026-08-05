@@ -26,6 +26,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
 
+import org.junit.After;
 import org.junit.Assume;
 import org.junit.Test;
 
@@ -47,6 +48,7 @@ import org.apache.cassandra.utils.EstimatedHistogram;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -67,6 +69,28 @@ import static org.junit.Assert.assertTrue;
  */
 public class ZeroCopySplitStatsTest extends CQLTester
 {
+    /** Scratch directories handed out by {@link #scratchDirectory()}, deleted after each test rather than leaked. */
+    private final List<File> scratchDirectories = new ArrayList<>();
+
+    @After
+    public void deleteScratchDirectories()
+    {
+        for (File directory : scratchDirectories)
+        {
+            try
+            {
+                directory.deleteRecursive();
+            }
+            catch (Throwable t)
+            {
+                // Reported rather than thrown: a throwing @After would replace whatever failure left the
+                // directory undeletable in the first place
+                logger.warn("Could not delete the scratch directory {}", directory, t);
+            }
+        }
+        scratchDirectories.clear();
+    }
+
     /**
      * The child's partition-size histogram is built by the splitter with its own hard-coded bucket count,
      * because {@code MetadataCollector.defaultPartitionSizeHistogram()} is package-private in another package.
@@ -211,23 +235,23 @@ public class ZeroCopySplitStatsTest extends CQLTester
         SSTableReader parent = compressedSSTable(20, 2, 200);
         StatsMetadata flushed = parent.getSSTableMetadata();
         List<AbstractType<?>> clusteringTypes = parent.metadata().comparator.subtypes();
+
+        // The copy below is field by field with nothing but review holding it to StatsMetadata's constructor, so a
+        // field added to one and not the other is dropped silently -- and then this test would be seeding a record
+        // that differs from the parent's in more than the coverage. Copying the coverage unchanged has to give an
+        // equal record: which is a real check now that hasUnindexedRegions is part of equals, and is deliberately
+        // asserted against a record straight out of a flush rather than a hand-built one.
+        assertEquals("withTokenSpaceCoverage has drifted from the StatsMetadata constructor",
+                     flushed, withTokenSpaceCoverage(flushed, clusteringTypes, flushed.tokenSpaceCoverage));
+
         StatsMetadata seeded = withTokenSpaceCoverage(flushed, clusteringTypes, 0.25);
         assertEquals(0.25, seeded.tokenSpaceCoverage, 0.0);
+        // The two fields StatsMetadata.equals does not look at, so the assertion above cannot see them
+        assertEquals(flushed.isTransient, seeded.isTransient);
+        assertEquals(flushed.hasUnindexedRegions, seeded.hasUnindexedRegions);
 
         Descriptor child = scratchDescriptor(parent);
-        ZeroCopySSTableSplitter.writeStatistics(child,
-                                                parent.metadata(),
-                                                ZeroCopySSTableSplitter.readParentMetadata(parent.descriptor),
-                                                seeded,
-                                                new EstimatedHistogram(ZeroCopySSTableSplitter.PARTITION_SIZE_HISTOGRAM_BUCKETS),
-                                                new HyperLogLogPlus(ZeroCopySSTableSplitter.HLL_P,
-                                                                    ZeroCopySSTableSplitter.HLL_SP),
-                                                1024,
-                                                4096,
-                                                parent.getFirst(),
-                                                parent.getLast(),
-                                                false,
-                                                RepairState.inherit(seeded));
+        writeStatistics(parent, seeded, child, false);
 
         StatsMetadata written = StatsComponent.load(child).statsMetadata();
         assertTrue("tokenSpaceCoverage must not be inherited, got " + written.tokenSpaceCoverage,
@@ -237,6 +261,51 @@ public class ZeroCopySplitStatsTest extends CQLTester
         assertEquals(seeded.maxTimestamp, written.maxTimestamp);
         assertEquals(seeded.originatingHostId, written.originatingHostId);
         assertEquals(seeded.totalRows, written.totalRows);
+    }
+
+    /**
+     * {@code StatsMetadata.hasUnindexedRegions} marks a Data.db holding partitions its index does not describe, so
+     * one that must be read through that index instead of scanned linearly. It is the one field here whose loss is
+     * not a statistic being wrong but a read returning rows the sstable does not claim -- and it is now VERSION
+     * GATED (BIG {@code pb} and later) rather than inferred from being present at all, so a Statistics.db round
+     * trip is the only thing that shows the gate and the field agree.
+     *
+     * <p>The splitter always passes false, a split child having no interior unindexed regions; the caller that
+     * passes true is {@code ZeroCopySSTableSlice}. Both are driven, because a serializer that ignored the argument
+     * would satisfy either one on its own.
+     */
+    @Test
+    public void theUnindexedRegionsMarkerSurvivesTheRoundTripThroughStatistics() throws Throwable
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+
+        SSTableReader parent = compressedSSTable(20, 2, 200);
+        StatsMetadata flushed = parent.getSSTableMetadata();
+        List<AbstractType<?>> clusteringTypes = parent.metadata().comparator.subtypes();
+        boolean versionCanHoldIt = parent.descriptor.version.hasUnindexedRegionsMarker();
+
+        assertFalse("a flush must never mark an sstable", flushed.hasUnindexedRegions);
+
+        for (boolean requested : new boolean[]{ false, true })
+        {
+            Descriptor child = scratchDescriptor(parent);
+            writeStatistics(parent, flushed, child, requested);
+            StatsMetadata written = StatsComponent.load(child).statsMetadata();
+
+            assertEquals("the marker must survive Statistics.db in a version that can hold it, and must read back"
+                         + " false in one that cannot -- there is no marker in an older Statistics.db to find,"
+                         + " which is why ZeroCopySSTableSlice refuses to produce an sstable in such a version"
+                         + " rather than write a marker its own reader would ignore",
+                         versionCanHoldIt && requested, written.hasUnindexedRegions);
+        }
+
+        // And it is part of the record's identity, so two otherwise identical records that differ only in the
+        // marker are neither equal nor equally hashed. Without that, anything that compares or caches a
+        // StatsMetadata -- MetadataSerializer's round-trip tests included -- would pass with the field dropped.
+        StatsMetadata unmarked = copyOf(flushed, clusteringTypes, flushed.tokenSpaceCoverage, false);
+        StatsMetadata marked = copyOf(flushed, clusteringTypes, flushed.tokenSpaceCoverage, true);
+        assertNotEquals(unmarked, marked);
+        assertNotEquals(unmarked.hashCode(), marked.hashCode());
     }
 
     /**
@@ -256,7 +325,7 @@ public class ZeroCopySplitStatsTest extends CQLTester
         SSTableReader parent = compressedSSTable(80, 2, 300);
         IndexSummary summary = ((IndexSummarySupport<?>) parent).getIndexSummary();
 
-        File directory = new File(Files.createTempDirectory("zeroCopySplitStats"));
+        File directory = scratchDirectory();
         Descriptor scratch = new Descriptor(parent.descriptor.version,
                                             directory,
                                             parent.descriptor.ksname,
@@ -288,6 +357,20 @@ public class ZeroCopySplitStatsTest extends CQLTester
                                                         List<AbstractType<?>> clusteringTypes,
                                                         double tokenSpaceCoverage)
     {
+        return copyOf(stats, clusteringTypes, tokenSpaceCoverage, stats.hasUnindexedRegions);
+    }
+
+    /**
+     * A field-by-field copy of {@code stats} with the two fields the tests above vary passed in. Every other field
+     * is carried over verbatim, including {@code hasUnindexedRegions} -- which the twenty-five argument constructor
+     * would quietly default to false, and which is part of {@code equals}/{@code hashCode}, so a copy that dropped
+     * it would make the record inequal to its original for a reason nothing here is testing.
+     */
+    private static StatsMetadata copyOf(StatsMetadata stats,
+                                        List<AbstractType<?>> clusteringTypes,
+                                        double tokenSpaceCoverage,
+                                        boolean hasUnindexedRegions)
+    {
         return new StatsMetadata(stats.estimatedPartitionSize,
                                  stats.estimatedCellPerPartitionCount,
                                  stats.commitLogIntervals,
@@ -312,18 +395,51 @@ public class ZeroCopySplitStatsTest extends CQLTester
                                  stats.isTransient,
                                  stats.hasPartitionLevelDeletions,
                                  stats.firstKey,
-                                 stats.lastKey);
+                                 stats.lastKey,
+                                 hasUnindexedRegions);
+    }
+
+    /**
+     * {@code ZeroCopySSTableSplitter.writeStatistics} with everything a caller is free to choose fixed, so that the
+     * one argument the tests above vary -- {@code hasUnindexedRegions} -- is named at each call site rather than
+     * being a bare boolean eleven positions in.
+     */
+    private static void writeStatistics(SSTableReader parent,
+                                        StatsMetadata parentStats,
+                                        Descriptor child,
+                                        boolean hasUnindexedRegions) throws IOException
+    {
+        ZeroCopySSTableSplitter.writeStatistics(child,
+                                                parent.metadata(),
+                                                ZeroCopySSTableSplitter.readParentMetadata(parent.descriptor),
+                                                parentStats,
+                                                new EstimatedHistogram(ZeroCopySSTableSplitter.PARTITION_SIZE_HISTOGRAM_BUCKETS),
+                                                new HyperLogLogPlus(ZeroCopySSTableSplitter.HLL_P,
+                                                                    ZeroCopySSTableSplitter.HLL_SP),
+                                                1024,
+                                                4096,
+                                                parent.getFirst(),
+                                                parent.getLast(),
+                                                hasUnindexedRegions,
+                                                RepairState.inherit(parentStats));
     }
 
     /** A descriptor in a scratch directory, in the parent's version, so nothing here touches a live sstable. */
-    private static Descriptor scratchDescriptor(SSTableReader parent) throws IOException
+    private Descriptor scratchDescriptor(SSTableReader parent) throws IOException
     {
-        File directory = new File(Files.createTempDirectory("zeroCopySplitStats"));
         return new Descriptor(parent.descriptor.version,
-                              directory,
+                              scratchDirectory(),
                               parent.descriptor.ksname,
                               parent.descriptor.cfname,
                               parent.descriptor.id);
+    }
+
+    /** A directory of its own, deleted after the test by {@link #deleteScratchDirectories()}. */
+    private File scratchDirectory() throws IOException
+    {
+        File directory = new File(Files.createTempDirectory("zeroCopySplitStats"));
+        scratchDirectories.add(directory);
+        return directory;
     }
 
     /** One flushed, compressed sstable spanning many compression chunks. */

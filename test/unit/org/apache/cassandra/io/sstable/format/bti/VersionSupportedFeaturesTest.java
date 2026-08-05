@@ -67,4 +67,10 @@ public class VersionSupportedFeaturesTest extends AbstractTestVersionSupportedFe
     {
         return ALL_VERSIONS.stream();
     }
+
+    @Override
+    protected Stream<String> getUnindexedRegionsMarkerSupportedVersions()
+    {
+        return range("eb", "zz");
+    }
 }

@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.impl;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -161,45 +162,51 @@ public class DirectStreamingConnectionFactory
                 @Override
                 public long writeFileToChannel(FileChannel file, RateLimiter limiter) throws IOException
                 {
-                    long count = 0;
-                    while (file.read(buffer) >= 0)
-                    {
-                        count += buffer.position();
-                        doFlush(0);
-                    }
-                    return count;
+                    return writeFileToChannel(file, limiter, 0L, file.size());
                 }
 
                 // TODO (future): support RateLimiter
                 @Override
                 public long writeFileToChannel(FileChannel file, RateLimiter limiter, long position, long length) throws IOException
                 {
-                    long count = 0;
-                    while (count < length)
+                    try
                     {
-                        if (!buffer.hasRemaining())
+                        long count = 0;
+                        while (count < length)
+                        {
+                            if (!buffer.hasRemaining())
+                                doFlush(0);
+
+                            // Only ever read up to the end of the requested range: the file is longer than the range
+                            // for a partial zero-copy stream, and reading past it would corrupt the next component.
+                            int savedLimit = buffer.limit();
+                            buffer.limit(buffer.position() + (int) Math.min(buffer.remaining(), length - count));
+                            long read;
+                            try
+                            {
+                                read = file.read(buffer, position + count);
+                            }
+                            finally
+                            {
+                                buffer.limit(savedLimit);
+                            }
+
+                            // There is always room left in the buffer, so this can only be end of file: the range is
+                            // not all there, and the peer is expecting all of it.
+                            if (read < 0)
+                                throw new EOFException(String.format("Reached end of file at position %d with %d of the " +
+                                                                     "%d bytes of the range left to write",
+                                                                     position + count, length - count, length));
+                            count += read;
                             doFlush(0);
-
-                        // Only ever read up to the end of the requested range: the file is longer than the range
-                        // for a partial zero-copy stream, and reading past it would corrupt the next component.
-                        int savedLimit = buffer.limit();
-                        buffer.limit(buffer.position() + (int) Math.min(buffer.remaining(), length - count));
-                        long read;
-                        try
-                        {
-                            read = file.read(buffer, position + count);
                         }
-                        finally
-                        {
-                            buffer.limit(savedLimit);
-                        }
-
-                        if (read <= 0)
-                            break;
-                        count += read;
-                        doFlush(0);
+                        return count;
                     }
-                    return count;
+                    finally
+                    {
+                        // this method takes ownership of the channel it is given
+                        file.close();
+                    }
                 }
             }
 

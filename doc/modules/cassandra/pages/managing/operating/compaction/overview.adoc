@@ -68,7 +68,11 @@ This type of compaction is typically triggered on neighbouring nodes after a nod
 Secondary index rebuild::
 A compaction is triggered if the secondary indexes are rebuilt on a node.
 Anticompaction::
-After repair, the ranges that were actually repaired are split out of the SSTables that existed when repair started. This type of compaction rewrites SSTables to accomplish this task.
+After repair, the ranges that were actually repaired are split out of the SSTables that existed when repair started.
+This type of compaction normally rewrites SSTables to accomplish this task.
+If `zero_copy_anticompaction_enabled` is set and an SSTable's repaired, transient and unrepaired partitions happen to form contiguous token runs, that SSTable is instead split by copying its compression chunks verbatim, which is far cheaper but does not purge tombstones and leaves the children with statistics inherited from the parent rather than recomputed.
+Read the `zero_copy_anticompaction_enabled` comment in `cassandra.yaml` before enabling it.
+Because a verbatim copy retains droppable tombstones and inherits the parent's tombstone histogram and timestamps, the delayed purge is felt through <<single-sstable-tombstone-compaction,single SSTable tombstone compaction>> and through xref:cassandra:managing/operating/compaction/tombstones.adoc#fully-expired-sstables[fully expired SSTables] no longer being dropped whole; `tombstone_threshold` and `unchecked_tombstone_compaction` in <<compaction-options,Common options>> are the levers for tables that are sensitive to it.
 Sub range compaction::
 It is possible to only compact a given sub range - this action is useful if you know a token that has been misbehaving - either gathering many updates or many deletes.
 The command `nodetool compact -st x -et y` will pick all SSTables containing the range between x and y and issue a compaction for those SSTables. 
@@ -142,6 +146,7 @@ so if you have a tiny disk and a big disk backing two data directories,
 the big one will be limited the by the small one. One work around to
 this is to create more data directories backed by the big disk.
 
+[[single-sstable-tombstone-compaction]]
 == Single SSTable tombstone compaction
 
 When an SSTable is written a histogram with the tombstone expiry times

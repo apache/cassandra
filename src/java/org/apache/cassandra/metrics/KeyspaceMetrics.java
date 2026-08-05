@@ -199,7 +199,10 @@ public class KeyspaceMetrics
 
     public final Meter bytesAnticompacted;
     public final Meter bytesMutatedAnticompaction;
-    /** subset of {@link #bytesAnticompacted} that was copied verbatim by the zero-copy anticompaction split */
+    /**
+     * bytes the zero-copy anticompaction split accounted for -- neither a subset of {@link #bytesAnticompacted} nor
+     * the bytes it wrote, see {@link TableMetrics#bytesZeroCopyAnticompaction}
+     */
     public final Meter bytesZeroCopyAnticompaction;
     public final Meter bytesPreviewed;
     public final Meter tokenRangesPreviewedDesynchronized;

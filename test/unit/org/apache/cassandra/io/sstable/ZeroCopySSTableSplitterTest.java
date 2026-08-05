@@ -25,15 +25,24 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
+import java.util.function.BooleanSupplier;
 import java.util.zip.CRC32;
 
 import com.google.common.util.concurrent.RateLimiter;
 
+import org.junit.After;
 import org.junit.Assume;
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
@@ -42,33 +51,43 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compression.CompressionDictionaryManager;
+import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
+import org.apache.cassandra.db.compression.TrainingState;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.ZeroCopySSTableSplitter.Child;
+import org.apache.cassandra.io.sstable.ZeroCopySSTableSplitter.Progress;
 import org.apache.cassandra.io.sstable.ZeroCopySSTableSplitter.Result;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.format.TOCComponent;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.format.big.BigFormat.Components;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummary;
+import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.io.util.Reflink;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.utils.BloomFilterSerializer;
@@ -76,10 +95,14 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.OutputHandler;
 
+import static org.apache.cassandra.Util.spinUntilTrue;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -105,6 +128,51 @@ import static org.junit.Assert.fail;
 public class ZeroCopySSTableSplitterTest extends CQLTester
 {
     private static final SSTableReadsListener NOOP = SSTableReadsListener.NOOP_LISTENER;
+
+    /** {@link org.apache.cassandra.io.util.Reflink#RANGE_ALIGNMENT}, restated so this test defines it. */
+    private static final long ALIGNMENT = 64 * 1024;
+
+    private boolean savedDigestEnabled;
+    private boolean savedReflinkEnabled;
+    private int savedColumnIndexCacheSizeInKiB;
+    private int savedPreemptiveOpenIntervalInMiB;
+    private Config.DiskAccessMode savedDiskAccessMode;
+    private Config.FlushCompression savedFlushCompression;
+
+    @Before
+    public void saveConfigurationAndHooks()
+    {
+        savedDigestEnabled = DatabaseDescriptor.getZeroCopySplitDigestEnabled();
+        savedReflinkEnabled = DatabaseDescriptor.getZeroCopySplitReflinkEnabled();
+        savedColumnIndexCacheSizeInKiB = DatabaseDescriptor.getColumnIndexCacheSizeInKiB();
+        savedPreemptiveOpenIntervalInMiB = DatabaseDescriptor.getSSTablePreemptiveOpenIntervalInMiB();
+        savedDiskAccessMode = DatabaseDescriptor.getDiskAccessMode();
+        savedFlushCompression = DatabaseDescriptor.getFlushCompression();
+    }
+
+    /**
+     * Every individual test also restores what it changed; this is the backstop for the ones that fail part way
+     * through, since all of these are process-wide and would silently change what a LATER test in the same JVM
+     * exercises -- {@code forceAlignedLayoutForTesting} in particular turns every subsequent split into a padded
+     * one, and {@code zero_copy_split_digest_enabled} would make {@link #assertComponents} assert the wrong branch.
+     */
+    @After
+    public void restoreConfigurationAndHooks()
+    {
+        DatabaseDescriptor.setZeroCopySplitDigestEnabled(savedDigestEnabled);
+        DatabaseDescriptor.setZeroCopySplitReflinkEnabled(savedReflinkEnabled);
+        DatabaseDescriptor.setColumnIndexCacheSize(savedColumnIndexCacheSizeInKiB);
+        DatabaseDescriptor.setSSTablePreemptiveOpenIntervalInMiB(savedPreemptiveOpenIntervalInMiB);
+        DatabaseDescriptor.setDiskAccessMode(savedDiskAccessMode);
+        DatabaseDescriptor.setFlushCompression(savedFlushCompression);
+        // Production statics that exist only for tests.
+        ZeroCopySSTableSplitter.forceAlignedLayoutForTesting = false;
+        ZeroCopySSTableSplitter.failBeforeChildForTesting = null;
+        // Not a hook but process-wide all the same: one test clears the per-filesystem "cannot share extents" memo
+        // to make the clone attempt happen again. Clearing it here too costs a later split one failing ioctl and
+        // leaves every test starting from the same state.
+        Reflink.resetSupportCache();
+    }
 
     // ----------------------------------------------------------------------------------------------------
     // Tests
@@ -363,10 +431,168 @@ public class ZeroCopySSTableSplitterTest extends CQLTester
         assertEquals("the parent must be untouched", parent, onlySSTable(cfs));
     }
 
+    /**
+     * {@code totalCompressed} is not a second progress figure: {@code estimatedRemainingWriteToDiskBytes} uses
+     * {@code totalCompressed / total} as the scale factor for a WRITE RESERVATION, which {@code ActiveCompactions}
+     * sums per data directory and which {@code StreamSession.checkAvailableDiskSpaceAndCompactions} and
+     * {@code CompactionTask.buildCompactionCandidatesForAvailableDiskSpace} subtract from free space.
+     *
+     * <p>It used to be {@code total}, i.e. two passes over the parent, so a split reserved TWICE the parent's size
+     * for an operation whose only guaranteed write is a ~10-byte digest -- enough for a 500 GiB parent to reserve
+     * a terabyte and have the node reject the bootstraps this path exists to enable.
+     */
+    @Test
+    public void theWriteReservationIsOneCopyOfTheDataNotTwo() throws Throwable
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+
+        createCompressedTable(4);
+        disableCompaction();
+        insertPartitions(80, 5, 480);
+        flush();
+
+        SSTableReader parent = onlySSTable(getCurrentColumnFamilyStore());
+        long onDisk = parent.onDiskLength();
+
+        boolean previousDigest = DatabaseDescriptor.getZeroCopySplitDigestEnabled();
+        try
+        {
+            // With the digest on, `total` counts two passes; the reservation must still be one copy.
+            DatabaseDescriptor.setZeroCopySplitDigestEnabled(true);
+            CompactionInfo withDigest = ZeroCopySSTableSplitter.progressFor(parent, RateLimiter.create(Double.MAX_VALUE))
+                                                               .getCompactionInfo();
+            assertEquals("two passes are still reported as progress", 2 * onDisk, withDigest.getTotal());
+            assertEquals("but only one copy of the data may be reserved",
+                         onDisk, withDigest.estimatedRemainingWriteToDiskBytes());
+
+            DatabaseDescriptor.setZeroCopySplitDigestEnabled(false);
+            CompactionInfo withoutDigest = ZeroCopySSTableSplitter.progressFor(parent, RateLimiter.create(Double.MAX_VALUE))
+                                                                  .getCompactionInfo();
+            assertEquals(onDisk, withoutDigest.getTotal());
+            assertEquals(onDisk, withoutDigest.estimatedRemainingWriteToDiskBytes());
+        }
+        finally
+        {
+            DatabaseDescriptor.setZeroCopySplitDigestEnabled(previousDigest);
+        }
+    }
+
     private static int countDataFiles(Descriptor descriptor)
     {
         File[] files = descriptor.directory.tryList((dir, name) -> name.endsWith("-Data.db"));
         return files == null ? 0 : files.length;
+    }
+
+    /** Everything in the directory except the caller's own still-open transaction log. */
+    private static Set<String> listNames(File directory)
+    {
+        Set<String> names = new HashSet<>();
+        File[] files = directory.tryList();
+        if (files != null)
+            for (File f : files)
+                if (!f.name().endsWith(".log"))
+                    names.add(f.name());
+        return names;
+    }
+
+    /**
+     * A stop that arrives after a child has been fully written and OPENED has to release that child's reader and
+     * delete every component of every child -- not just the one whose bytes were moving.
+     *
+     * <p>{@link #stopRequestAbortsTheSplitAndLeavesNoFilesBehind} stops before {@code split()} is called, so
+     * {@code cleanUp} always runs with an empty children list and its reader-release and component-delete loops are
+     * dead code. Here the stop lands inside a later child, which is the only way to reach them: {@code build()}
+     * cannot start child b+1 until {@code buildChild} returned for child b, i.e. until that child's components
+     * were written and fsynced, {@code SSTableReader.open} succeeded and {@code children.add} ran.
+     *
+     * <p>Paced by the rate limiter rather than by a sleep, so it is wall-clock deterministic on any machine: each
+     * child's copy takes about a second, and the watcher only has to notice a second Data.db appear.
+     */
+    @Test
+    public void stopAfterAChildIsOpenedReleasesItAndDeletesEveryComponent() throws Throwable
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+
+        boolean previousDigest = DatabaseDescriptor.getZeroCopySplitDigestEnabled();
+        LifecycleTransaction txn = null;
+        AtomicBoolean finished = new AtomicBoolean();
+        Thread watcher = null;
+        try
+        {
+            DatabaseDescriptor.setZeroCopySplitDigestEnabled(true);
+
+            createCompressedTable(4);
+            disableCompaction();
+            insertPartitions(400, 5, 480);
+            flush();
+
+            ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+            SSTableReader parent = onlySSTable(cfs);
+            File dir = parent.descriptor.directory;
+            long parentOnDisk = parent.descriptor.fileFor(Components.DATA).length();
+            assertTrue("the parent must span many chunks", parentOnDisk > 4 * 64 * 1024);
+
+            Set<String> before = listNames(dir);
+
+            txn = cfs.getTracker().tryModify(parent, OperationType.ANTICOMPACTION);
+            assertNotNull("could not mark the parent compacting", txn);
+
+            // ~1s per child: slow enough for the watcher to land the stop mid-split, fast enough that no single
+            // uninterruptible acquire parks for long.
+            ZeroCopySSTableSplitter.Progress progress =
+                ZeroCopySSTableSplitter.progressFor(parent, RateLimiter.create(parentOnDisk / 4.0));
+
+            Set<String> everSeen = ConcurrentHashMap.newKeySet();
+            watcher = new Thread(() -> {
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(120);
+                while (!finished.get() && System.nanoTime() < deadline)
+                {
+                    for (String name : listNames(dir))
+                        if (!before.contains(name))
+                            everSeen.add(name);
+                    if (everSeen.stream().filter(n -> n.endsWith("-Data.db")).count() >= 2)
+                        break;   // child 1 is fully built and open, child 2 has started
+                    LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(2));
+                }
+                progress.stop();
+            }, "zero-copy-split-stopper");
+            watcher.setDaemon(true);
+            watcher.start();
+
+            try
+            {
+                ZeroCopySSTableSplitter.split(parent, 4, txn, progress);
+                fail("a stopped split must raise CompactionInterruptedException rather than finish");
+            }
+            catch (CompactionInterruptedException expected)
+            {
+                // what the rewrite path raises when its CompactionIterator is interrupted
+            }
+            finally
+            {
+                finished.set(true);
+            }
+            watcher.join(TimeUnit.SECONDS.toMillis(30));
+
+            // The guard that makes this test different from the one above: without it a stop that happened to land
+            // in child 0 would pass while leaving cleanUp's loops just as dead.
+            long childDataFiles = everSeen.stream().filter(n -> n.endsWith("-Data.db")).count();
+            assertTrue("the stop landed before a second child existed, so no child reader was ever open;"
+                       + " saw " + everSeen, childDataFiles >= 2);
+
+            assertEquals("an aborted split must leave the directory exactly as it found it", before, listNames(dir));
+            assertEquals("the parent must be untouched", parent, onlySSTable(cfs));
+            assertTrue(parent.descriptor.fileFor(Components.DATA).exists());
+        }
+        finally
+        {
+            finished.set(true);
+            if (watcher != null)
+                watcher.join(TimeUnit.SECONDS.toMillis(30));
+            if (txn != null)
+                txn.abort();
+            DatabaseDescriptor.setZeroCopySplitDigestEnabled(previousDigest);
+        }
     }
 
     /**
@@ -1159,6 +1385,724 @@ public class ZeroCopySSTableSplitterTest extends CQLTester
         }
     }
 
+    /**
+     * A parent whose version cannot carry {@code StatsMetadata.hasUnindexedRegions} is refused, because a child
+     * INHERITS its parent's version: the marker it inherits has to be expressible, and below {@code na} the
+     * child's own CompressionInfo.db would be misparsed (see the class javadoc of the splitter). The consequence
+     * for an operator is that the whole feature is inert until {@code nodetool upgradesstables} has run, so the
+     * refusal has to be an explicit, self-explaining one rather than a wrong answer or a crash.
+     *
+     * <p>The parent is written at {@code oa} through the ordinary writer factory, which is the only way to obtain
+     * one: every sstable written in this JVM is {@code pb}, and every test target sets
+     * {@code storage_compatibility_mode: NONE}. It is a genuine, readable, COMPRESSED {@code oa} sstable, so the
+     * refusal is reached on the version and not incidentally on something else -- which is what the
+     * {@code isSupported}/uncompressed assertions below pin.
+     */
+    @Test
+    public void legacyVersionParentIsRefused() throws Throwable
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+
+        createCompressedTable(4);
+        disableCompaction();
+        insertPartitions(40, 4, 400);
+        flush();
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        SSTableReader source = onlySSTable(cfs);
+
+        Version legacyVersion = BigFormat.getInstance().getVersion("oa");
+        assertFalse("'oa' is supposed to be BELOW the hasUnindexedRegions marker; if it ever gains it this test" +
+                    " has to move to another version", legacyVersion.hasUnindexedRegionsMarker());
+
+        // Aborting the transaction at the end is what removes the legacy sstable again: its files are tracked by
+        // the transaction, not by the cfs (LifecycleTransaction.offline uses a dummy Tracker).
+        LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE);
+        SSTableReader legacy = null;
+        try
+        {
+            legacy = writeCopyAtVersion(cfs, source, legacyVersion, txn);
+
+            assertEquals(legacyVersion.version, legacy.descriptor.version.version);
+            assertFalse(legacy.descriptor.version.hasUnindexedRegionsMarker());
+            // Non-vacuity: everything ELSE about this parent is splittable, so the version is the only reason
+            // for the refusal below.
+            assertTrue("the legacy parent must be compressed, or the refusal could be the uncompressed one",
+                       legacy.compression);
+            assertNull(legacy.getCompressionMetadata().compressionDictionary());
+            assertTrue(legacy.descriptor.fileFor(Components.STATS).exists());
+
+            assertFalse("isSupported() must refuse a version without the marker",
+                        ZeroCopySSTableSplitter.isSupported(legacy));
+
+            Set<String> before = listNames(legacy.descriptor.directory);
+            try
+            {
+                ZeroCopySSTableSplitter.split(legacy, 2, null);
+                fail("expected a pre-marker sstable version to be refused by split() as well as by isSupported()");
+            }
+            catch (UnsupportedOperationException e)
+            {
+                assertTrue(e.getMessage(),
+                           e.getMessage().startsWith(ZeroCopySSTableSplitter.LEGACY_VERSION_UNSUPPORTED_MESSAGE));
+                assertTrue("the refusal must name the offending version: " + e.getMessage(),
+                           e.getMessage().contains("'oa'"));
+            }
+            assertEquals("a refused split must not have created anything", before, listNames(legacy.descriptor.directory));
+        }
+        finally
+        {
+            if (legacy != null)
+                legacy.selfRef().release();
+            txn.abort();
+            LifecycleTransaction.waitForDeletions();
+        }
+    }
+
+    /**
+     * A reader opened {@code MOVED_START} -- what {@code cloneWithNewStart} produces for the early-open reader of a
+     * running compaction -- is refused. Its {@code getFirst()} has moved forward but its Data.db and its index have
+     * not, so the first child would be cut at a position that still covers partitions the parent no longer claims:
+     * they would be duplicated into the child while the reader they came from believes it does not own them.
+     */
+    @Test
+    public void movedStartParentIsRefused() throws Throwable
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+
+        createCompressedTable(4);
+        disableCompaction();
+        insertPartitions(40, 4, 400);
+        flush();
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        SSTableReader parent = onlySSTable(cfs);
+        List<Rec> parentIndex = readIndex(parent.descriptor);
+        assertTrue(parentIndex.size() > 2);
+
+        // Non-vacuity: the ordinary reader over these very files IS splittable, so the open reason is the only
+        // difference between the two answers below.
+        assertTrue(ZeroCopySSTableSplitter.isSupported(parent));
+
+        // The whole point of MOVED_START: a new first key that is NOT the parent's own first key.
+        DecoratedKey newStart = parent.decorateKey(parentIndex.get(1).key);
+        assertTrue(newStart.compareTo(parent.getFirst()) > 0);
+
+        SSTableReader moved = parent.cloneWithNewStart(newStart);
+        try
+        {
+            assertEquals(SSTableReader.OpenReason.MOVED_START, moved.openReason);
+            assertEquals(newStart, moved.getFirst());
+            assertEquals("the clone shares the parent's files; only its first key moved",
+                         parent.descriptor, moved.descriptor);
+            assertFalse("isSupported() must refuse a MOVED_START reader",
+                        ZeroCopySSTableSplitter.isSupported(moved));
+
+            Set<String> before = listNames(parent.descriptor.directory);
+            try
+            {
+                ZeroCopySSTableSplitter.split(moved, 2, null);
+                fail("expected a MOVED_START parent to be refused");
+            }
+            catch (UnsupportedOperationException e)
+            {
+                assertTrue(e.getMessage(), e.getMessage().contains("MOVED_START"));
+                assertTrue(e.getMessage(), e.getMessage().contains(moved.descriptor.toString()));
+            }
+            assertEquals("a refused split must not have created anything",
+                         before, listNames(parent.descriptor.directory));
+        }
+        finally
+        {
+            moved.selfRef().release();
+        }
+    }
+
+    /**
+     * The compression-dictionary refusal, asserted through {@code split()} and not only through
+     * {@code isSupported()}. The check used to live in {@code isSupported} alone, so a caller that went straight to
+     * {@code split()} -- offline tools, tests, anything that has already decided the sstable is eligible -- was the
+     * one path that skipped it. A dictionary-compressed child gets its chunks copied verbatim while its
+     * CompressionInfo.db is written afresh, so a wrong answer there is data that cannot be decompressed at all.
+     */
+    @Test
+    public void dictionaryCompressedParentIsRefusedBySplitAndNotJustByIsSupported() throws Throwable
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+
+        // Otherwise the flush writes LZ4 and the sstable never sees the dictionary compressor at all.
+        DatabaseDescriptor.setFlushCompression(Config.FlushCompression.table);
+
+        createTable("CREATE TABLE %s (pk text, ck int, val text, PRIMARY KEY (pk, ck)) WITH compression = " +
+                    "{'class': 'ZstdDictionaryCompressor', 'chunk_length_in_kb': '4'}");
+        disableCompaction();
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        // Highly repetitive payload, which is what a dictionary is trained on. The trainer samples from sstables,
+        // so this needs enough rows across enough files to reach the sample size; the periodic flush is load
+        // bearing, not incidental (cf. CompressionDictionaryIntegrationTest).
+        for (int p = 0; p < 1000; p++)
+        {
+            execute("INSERT INTO %s (pk, ck, val) VALUES (?, ?, ?)", key(p), 0,
+                    "the quick brown fox jumps over the lazy dog, and does so repeatedly " + (p % 7));
+            if (p % 200 == 0)
+                flush();
+        }
+        flush();
+
+        CompressionDictionaryManager dictionaries = cfs.compressionDictionaryManager();
+        dictionaries.train(true, Map.of(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME, "10KiB",
+                                        TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME, "128KiB"));
+        // Wait on the training state first: if training fails this reports WHY instead of timing out on
+        // getCurrent() with no explanation.
+        spinUntilTrue(() -> TrainingState.fromCompositeData(dictionaries.getTrainingState()).status
+                            == TrainingStatus.COMPLETED, 30);
+        spinUntilTrue(() -> dictionaries.getCurrent() != null, 5);
+
+        // Only an sstable written AFTER the dictionary exists carries it, so the next flush is the parent.
+        Set<SSTableReader> beforeLastFlush = new HashSet<>(cfs.getLiveSSTables());
+        for (int p = 400; p < 800; p++)
+            execute("INSERT INTO %s (pk, ck, val) VALUES (?, ?, ?)", key(p), 0,
+                    "the quick brown fox jumps over the lazy dog, and does so repeatedly " + (p % 7));
+        flush();
+
+        Set<SSTableReader> added = new HashSet<>(cfs.getLiveSSTables());
+        added.removeAll(beforeLastFlush);
+        assertEquals("expected the last flush to produce exactly one sstable", 1, added.size());
+        SSTableReader parent = added.iterator().next();
+        assertNotNull("the fixture did not produce a dictionary-compressed sstable, so this test proves nothing",
+                      parent.getCompressionMetadata().compressionDictionary());
+        assertTrue("the parent must otherwise be splittable, or the refusal below could be for another reason",
+                   parent.compression && parent.descriptor.version.hasUnindexedRegionsMarker());
+
+        assertFalse(ZeroCopySSTableSplitter.isSupported(parent));
+
+        Set<String> before = listNames(parent.descriptor.directory);
+        try
+        {
+            ZeroCopySSTableSplitter.split(parent, 2, null);
+            fail("split() must refuse a dictionary-compressed parent, not just isSupported()");
+        }
+        catch (UnsupportedOperationException e)
+        {
+            assertTrue(e.getMessage(), e.getMessage().contains("compression dictionary"));
+            assertTrue(e.getMessage(), e.getMessage().contains(parent.descriptor.toString()));
+        }
+        assertEquals("a refused split must not have created anything",
+                     before, listNames(parent.descriptor.directory));
+    }
+
+    // ----------------------------------------------------------------------------------------------------
+    // Cancellation: the caller's own predicate, which the compaction framework knows nothing about
+    // ----------------------------------------------------------------------------------------------------
+
+    /**
+     * A repair session that fails, is cancelled by {@code nodetool repair_admin cancel} or loses its coordinator
+     * reaches {@code CompactionInfo.Holder.stop()} through nothing at all, so a split carries the caller's own
+     * cancellation predicate. This is the earliest place it can bite: the counting walk of the parent's Index.db,
+     * before a single byte of any child has been written.
+     *
+     * <p>The predicate returns false once and true afterwards, and the walk checks one record in 1024, so a parent
+     * of more than 1024 partitions makes the abort land at record 1024 of the FIRST pass -- deterministically, with
+     * no timing and no threads. Asserting the exact call count is what pins it there: were the walk not checking at
+     * all, the first two calls would come from the copy loop instead and a Data.db would have existed.
+     */
+    @Test
+    public void cancellationDuringTheIndexWalkLeavesNothingBehind() throws Throwable
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+
+        createCompressedTable(4);
+        disableCompaction();
+        // > 1024 partitions, so the 1-in-1024 check inside the walk is reached more than once.
+        insertPartitions(1100, 1, 40);
+        flush();
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        SSTableReader parent = onlySSTable(cfs);
+        assertTrue("the walk checks one record in 1024, so this needs more than 1024 partitions",
+                   readIndex(parent.descriptor).size() > 1024);
+
+        File dir = parent.descriptor.directory;
+        Set<String> before = listNames(dir);
+
+        AtomicInteger calls = new AtomicInteger();
+        BooleanSupplier cancelAfterTheFirstCheck = () -> calls.getAndIncrement() > 0;
+
+        try
+        {
+            ZeroCopySSTableSplitter.split(parent, 4, null, null, cancelAfterTheFirstCheck);
+            fail("a cancelled split must raise CompactionInterruptedException rather than finish");
+        }
+        catch (CompactionInterruptedException expected)
+        {
+            // Without a Progress there is no CompactionInfo to name, so the message is all there is.
+            assertTrue(expected.getMessage(),
+                       expected.getMessage().contains("cancelled zero-copy sstable split"));
+        }
+
+        assertEquals("the abort must have landed in the index walk (record 0, then record 1024), not later",
+                     2, calls.get());
+        assertEquals("a cancelled split must leave the directory exactly as it found it", before, listNames(dir));
+        assertEquals("the parent must be untouched", parent, onlySSTable(cfs));
+    }
+
+    /**
+     * Cancelled between chunk transfers, which is the only place a verbatim copy can be stopped -- there is no
+     * partition boundary inside it to stop cleanly at. The child's Data.db exists by then (the write channel
+     * creates it before the first transfer), so this is also the case that proves {@code cleanUp} removes the
+     * components of a child that was never finished: the descriptor is added to {@code created} BEFORE
+     * {@code buildChild} runs precisely so that it can be.
+     */
+    @Test
+    public void cancellationDuringTheDataCopyLeavesNothingBehind() throws Throwable
+    {
+        assertCancelledSplitLeavesNothingBehind("-Data.db", 1);
+    }
+
+    /**
+     * Cancelled during the index rebuild, i.e. after the child's Data.db and CompressionInfo.db are written and
+     * before its Statistics.db is. Rebuilding an index moves no Data.db bytes, so it is not throttled and the
+     * compaction framework's own byte counter never advances -- which is exactly why it needs its own check: this
+     * is the other place a split spends real time.
+     */
+    @Test
+    public void cancellationDuringTheIndexRebuildLeavesNothingBehind() throws Throwable
+    {
+        assertCancelledSplitLeavesNothingBehind("-CompressionInfo.db", 1);
+    }
+
+    /**
+     * Cancelled during the digest pass, which is a full sequential read of every child's Data.db and therefore the
+     * entire remaining cost of a split whose extents were shared. Stopping the copy without stopping this would
+     * leave the node grinding through an unbounded read after the operator asked it to stop.
+     */
+    @Test
+    public void cancellationDuringTheDigestPassLeavesNothingBehind() throws Throwable
+    {
+        // The digest is optional, and this test is about the pass itself.
+        DatabaseDescriptor.setZeroCopySplitDigestEnabled(true);
+        assertCancelledSplitLeavesNothingBehind("-Statistics.db", 1);
+    }
+
+    /**
+     * The cancellation lands in the SECOND child, so the first one is already fully written, fsynced, opened and
+     * {@code trackNew}'d on the caller's transaction. That is the only way to reach {@code cleanUp}'s two loops:
+     * releasing the child's reader, and -- because the transaction is the CALLER's and the caller goes on to reuse
+     * and commit it -- {@code untrackNew}'ing it, so that no ADD record naming a deleted file is committed later.
+     *
+     * <p>Deterministic without a watcher thread or a rate limiter: the predicate turns true as soon as a SECOND
+     * child Data.db exists, and {@code build} cannot create that until {@code buildChild} returned for the first.
+     */
+    @Test
+    public void cancellationAfterAChildIsTrackedUntracksItAndDeletesEveryComponent() throws Throwable
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+
+        createCompressedTable(4);
+        disableCompaction();
+        insertPartitions(120, 4, 480);
+        flush();
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        SSTableReader parent = onlySSTable(cfs);
+        File dir = parent.descriptor.directory;
+        Set<String> before = listNames(dir);
+
+        LifecycleTransaction txn = cfs.getTracker().tryModify(parent, OperationType.ANTICOMPACTION);
+        assertNotNull("could not mark the parent compacting", txn);
+        try
+        {
+            CancelOnNewFile cancel = new CancelOnNewFile(dir, before, "-Data.db", 2);
+            try
+            {
+                ZeroCopySSTableSplitter.split(parent, 4, txn, null, cancel);
+                fail("a cancelled split must raise CompactionInterruptedException rather than finish");
+            }
+            catch (CompactionInterruptedException expected)
+            {
+                assertTrue(expected.getMessage(),
+                           expected.getMessage().contains("cancelled zero-copy sstable split"));
+            }
+
+            // The guard that makes this different from cancelling in the first child: without it the cleanup loops
+            // would run with an empty children list and stay dead code.
+            assertTrue("the cancellation did not reach a second child, so no child reader was ever open or tracked",
+                       cancel.fired());
+            LifecycleTransaction.waitForDeletions();
+            assertEquals("a cancelled split must leave the directory exactly as it found it", before, listNames(dir));
+            assertEquals("the parent must be untouched", parent, onlySSTable(cfs));
+            assertTrue(parent.descriptor.fileFor(Components.DATA).exists());
+        }
+        finally
+        {
+            txn.abort();
+            LifecycleTransaction.waitForDeletions();
+        }
+        // The transaction outlives the failed split by design (the anticompaction caller reuses it for the rewrite),
+        // so aborting it must not resurrect or leave anything either.
+        assertEquals(before, listNames(dir));
+    }
+
+    /**
+     * Guard the guard for the four tests above: they address a phase of a split by naming the file whose existence
+     * identifies it, so if a check were REMOVED from a phase the corresponding test would simply cancel in a later
+     * phase and still pass. This runs a split that is never cancelled and asserts the predicate really was consulted
+     * in each of the four phases, identified by exactly the same file-existence signature.
+     */
+    @Test
+    public void everyPhaseOfASplitConsultsTheCancellationPredicate() throws Throwable
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+
+        DatabaseDescriptor.setZeroCopySplitDigestEnabled(true);
+
+        createCompressedTable(4);
+        disableCompaction();
+        insertPartitions(80, 4, 480);
+        flush();
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        SSTableReader parent = onlySSTable(cfs);
+        File dir = parent.descriptor.directory;
+        Set<String> before = listNames(dir);
+
+        // One entry per distinct (Data.db, CompressionInfo.db, Statistics.db) count seen at a check, which is a
+        // phase: nothing written yet is a walk, a Data.db alone is the copy, plus a CompressionInfo.db is the index
+        // rebuild, plus a Statistics.db is the digest.
+        Set<String> phases = new HashSet<>();
+        BooleanSupplier observer = () -> {
+            Set<String> added = newNames(dir, before);
+            phases.add(countEndingIn(added, "-Data.db") + "/" + countEndingIn(added, "-CompressionInfo.db")
+                       + "/" + countEndingIn(added, "-Statistics.db"));
+            return false;
+        };
+
+        Result result = ZeroCopySSTableSplitter.split(parent, 3, null, null, observer);
+        try
+        {
+            assertEquals(3, result.children.size());
+            assertTrue("the index walk does not consult the predicate: " + phases, phases.contains("0/0/0"));
+            assertTrue("the Data.db copy does not consult the predicate: " + phases, phases.contains("1/0/0"));
+            assertTrue("the index rebuild does not consult the predicate: " + phases, phases.contains("1/1/0"));
+            assertTrue("the digest pass does not consult the predicate: " + phases, phases.contains("1/1/1"));
+
+            // ...and a predicate that never fires must not change the outcome in any way.
+            assertStructure(cfs, parent, result);
+            assertComponents(cfs, result);
+            assertConcatenatedContentEquals(parent, readers(result));
+        }
+        finally
+        {
+            release(result);
+        }
+    }
+
+    // ----------------------------------------------------------------------------------------------------
+    // Progress accounting
+    // ----------------------------------------------------------------------------------------------------
+
+    /**
+     * {@code completed} can legitimately pass {@code total}: a boundary chunk lands in two children and an aligned
+     * child carries a head pad, and both are counted as they move, while {@code total} is only
+     * {@code passes * parent.onDiskLength()}. Unclamped, {@code estimatedRemainingWriteToDiskBytes} then scales a
+     * NEGATIVE remainder, and that figure is subtracted from free space by
+     * {@code StreamSession.checkAvailableDiskSpaceAndCompactions} and
+     * {@code CompactionTask.buildCompactionCandidatesForAvailableDiskSpace} -- so an overshooting split would credit
+     * phantom free space to every disk-space check on the node and let them start work that cannot fit.
+     */
+    @Test
+    public void progressClampsCompletedToTotalSoTheWriteReservationCannotGoNegative() throws Throwable
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+
+        createCompressedTable(4);
+        disableCompaction();
+        insertPartitions(40, 4, 400);
+        flush();
+
+        SSTableReader parent = onlySSTable(getCurrentColumnFamilyStore());
+        // Pinned so that `total` is deterministically two passes and the ratio below is exactly 1/2.
+        DatabaseDescriptor.setZeroCopySplitDigestEnabled(true);
+        Progress progress = ZeroCopySSTableSplitter.progressFor(parent, RateLimiter.create(Double.MAX_VALUE));
+        long total = progress.getCompactionInfo().getTotal();
+        assertEquals(2 * parent.onDiskLength(), total);
+        assertTrue(total > 0);
+
+        // The clamp is a no-op where a split spends nearly all of its life, which is why it costs nothing.
+        assertEquals(0, progress.getCompactionInfo().getCompleted());
+        assertEquals(parent.onDiskLength(), progress.getCompactionInfo().estimatedRemainingWriteToDiskBytes());
+
+        // Exactly at the total: still not clamped, and the reservation is exactly zero rather than negative.
+        progress.afterSlice(total);
+        assertEquals(total, progress.getCompactionInfo().getCompleted());
+        assertEquals(0, progress.getCompactionInfo().estimatedRemainingWriteToDiskBytes());
+
+        // And past it, which duplicated boundary chunks and head pads really do make happen.
+        progress.afterSlice(total);
+        progress.cloned(total);
+        assertEquals("completed must be clamped to total", total, progress.getCompactionInfo().getCompleted());
+        assertEquals("the write reservation must never go negative",
+                     0, progress.getCompactionInfo().estimatedRemainingWriteToDiskBytes());
+        assertTrue(progress.getCompactionInfo().getCompleted() <= progress.getCompactionInfo().getTotal());
+    }
+
+    /**
+     * {@code zero_copy_split_digest_enabled} is read ONCE per split, from the {@link Progress} that already
+     * committed to counting the digest pass in its {@code total}. Read per child instead, a flip part way through
+     * would leave siblings of one split with different component sets -- an sstable set that no single
+     * configuration explains -- and desynchronise the progress figure from the work actually being done.
+     *
+     * <p>The flip here happens after {@code progressFor} and before {@code split}, which is enough: the split must
+     * answer the question the {@code Progress} answered, not the current one.
+     */
+    @Test
+    public void theDigestFlagIsSnapshottedOncePerSplitSoSiblingsCannotDiffer() throws Throwable
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+
+        createCompressedTable(4);
+        disableCompaction();
+        insertPartitions(60, 4, 480);
+        flush();
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        SSTableReader parent = onlySSTable(cfs);
+
+        DatabaseDescriptor.setZeroCopySplitDigestEnabled(true);
+        Progress progress = ZeroCopySSTableSplitter.progressFor(parent, RateLimiter.create(Double.MAX_VALUE));
+        assertTrue(progress.digestEnabled);
+        assertEquals("with the digest on, total counts two passes over the parent",
+                     2 * parent.onDiskLength(), progress.getCompactionInfo().getTotal());
+
+        // The flip a split must not notice.
+        DatabaseDescriptor.setZeroCopySplitDigestEnabled(false);
+        assertTrue("the flag must be snapshotted on the Progress, not re-read", progress.digestEnabled);
+
+        Result result = ZeroCopySSTableSplitter.split(parent, 3, null, progress);
+        try
+        {
+            assertEquals(3, result.children.size());
+            for (Child child : result.children)
+            {
+                assertTrue("child " + child.descriptor + " lost the digest the Progress had committed to",
+                           child.components.contains(Components.DIGEST));
+                assertTrue(child.descriptor.fileFor(Components.DIGEST).exists());
+                assertEquals(Long.toString(crc32Of(child.descriptor.fileFor(Components.DATA))),
+                             readDigest(child.descriptor));
+                assertTrue(TOCComponent.loadTOC(child.descriptor, false).contains(Components.DIGEST));
+            }
+            assertComponents(cfs, result);
+        }
+        finally
+        {
+            release(result);
+        }
+
+        // ...and symmetrically: a Progress taken with the digest off gives every child no digest, however the flag
+        // moves afterwards.
+        DatabaseDescriptor.setZeroCopySplitDigestEnabled(false);
+        Progress without = ZeroCopySSTableSplitter.progressFor(parent, RateLimiter.create(Double.MAX_VALUE));
+        assertFalse(without.digestEnabled);
+        assertEquals(parent.onDiskLength(), without.getCompactionInfo().getTotal());
+        DatabaseDescriptor.setZeroCopySplitDigestEnabled(true);
+
+        Result second = ZeroCopySSTableSplitter.split(parent, 3, null, without);
+        try
+        {
+            assertEquals(3, second.children.size());
+            for (Child child : second.children)
+            {
+                assertFalse("child " + child.descriptor + " wrote a digest the Progress had ruled out",
+                            child.components.contains(Components.DIGEST));
+                assertFalse(child.descriptor.fileFor(Components.DIGEST).exists());
+            }
+            assertComponents(cfs, second);
+        }
+        finally
+        {
+            release(second);
+        }
+    }
+
+    // ----------------------------------------------------------------------------------------------------
+    // Failure part way through: nothing may be left on disk and nothing may be left tracked
+    // ----------------------------------------------------------------------------------------------------
+
+    /**
+     * {@code txn.trackNew} writes an ADD record to the transaction log, so on a failing disk it can throw an
+     * {@code FSWriteError} of its own -- AFTER the child's reader has been opened and validated. It is therefore
+     * inside the same try/catch as the validation: outside it, a reader that had been opened and validated was
+     * released by nothing at all, {@code cleanUp} only releasing the children {@code build} has already collected
+     * and this one not reaching that list until later.
+     *
+     * <p>Injected by handing {@code split} a transaction that has already been completed, which is the one way to
+     * make {@code trackNew} throw without a hook in production code: {@code LogFile.addRecord} refuses to add to a
+     * completed transaction. What it pins is the disk half -- every component of the half-built child is gone and
+     * the parent is untouched. A leaked READER is not observable from test code; see the report on this branch.
+     */
+    @Test
+    public void aFailureAtTrackNewLeavesNoChildBehind() throws Throwable
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+
+        createCompressedTable(4);
+        disableCompaction();
+        insertPartitions(60, 4, 480);
+        flush();
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        SSTableReader parent = onlySSTable(cfs);
+        File dir = parent.descriptor.directory;
+
+        // An offline transaction with no originals, completed before the split ever sees it. Aborting it is what
+        // sets LogFile.completed, and every trackNew after that throws.
+        LifecycleTransaction completed = LifecycleTransaction.offline(OperationType.ANTICOMPACTION);
+        completed.abort();
+
+        Set<String> before = listNames(dir);
+        try
+        {
+            ZeroCopySSTableSplitter.split(parent, 3, completed);
+            fail("a throw from txn.trackNew must not be swallowed: the caller would commit a child the" +
+                 " transaction does not know about");
+        }
+        catch (IllegalStateException expected)
+        {
+            assertTrue(expected.getMessage(), expected.getMessage().contains("already completed"));
+        }
+
+        LifecycleTransaction.waitForDeletions();
+        assertEquals("a failed split must leave the directory exactly as it found it", before, listNames(dir));
+        assertEquals("the parent must be untouched", parent, onlySSTable(cfs));
+        // ...and still readable, since a botched cleanup that deleted the wrong file would show up here.
+        assertTrue(parent.descriptor.fileFor(Components.DATA).exists());
+        try (ISSTableScanner scanner = parent.getScanner())
+        {
+            int partitions = 0;
+            while (scanner.hasNext())
+            {
+                try (UnfilteredRowIterator partition = scanner.next())
+                {
+                    assertTrue(partition.hasNext());
+                }
+                partitions++;
+            }
+            assertEquals(60, partitions);
+        }
+    }
+
+    // ----------------------------------------------------------------------------------------------------
+    // The shared-extent layout: a child's Data.db is a verbatim parent byte range, cloned or copied
+    // ----------------------------------------------------------------------------------------------------
+
+    /**
+     * The oracle for the copy-on-write path, and the only one that does not depend on which of its two branches ran:
+     * a child's Data.db must be byte-for-byte the parent's range {@code [srcStart, srcStart + childLength)},
+     * whether {@code FICLONERANGE} shared it, refused it, or shared only its aligned head and left the tail to the
+     * transfer loop.
+     *
+     * <p>That last case -- {@code cloneLength > 0} followed by the tail stitch, which has to reposition the
+     * destination channel to {@code cloned} and read the parent from {@code srcStart + cloned} -- is why the
+     * assertion is a byte range and not a set of lengths: on xfs formatted with {@code -m reflink=1} or on btrfs
+     * this test is what covers the stitch, and a stitch that repositioned either side wrongly produces a child that
+     * is exactly the right LENGTH with the wrong bytes in it, which every other assertion in this file would
+     * accept. On a filesystem that cannot share extents (every CI box) the ioctl is still ATTEMPTED here --
+     * {@code Reflink.resetSupportCache()} plus the forced aligned layout are what make the plan carry a
+     * {@code cloneLength} at all -- so what runs is the refusal-and-fall-through path instead, which must produce
+     * the identical file.
+     */
+    @Test
+    public void anAlignedChildIsExactlyTheParentsByteRangeWhetherSharedOrCopied() throws Throwable
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+
+        createCompressedTable(4);
+        disableCompaction();
+        // Every child must be at least one 64 KiB alignment unit long, or nothing is even planned for sharing.
+        insertPartitions(300, 4, 480);
+        flush();
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        SSTableReader parent = onlySSTable(cfs);
+        long[] parentOffsets = readChunkOffsets(parent.descriptor);
+        byte[] parentData = Files.readAllBytes(parent.descriptor.fileFor(Components.DATA).toPath());
+
+        DatabaseDescriptor.setZeroCopySplitReflinkEnabled(true);
+        // Forget any "this filesystem cannot share extents" answer an earlier test in this JVM taught it, so the
+        // clone is planned and attempted here rather than skipped on a remembered refusal.
+        Reflink.resetSupportCache();
+        ZeroCopySSTableSplitter.forceAlignedLayoutForTesting = true;
+        Result result;
+        try
+        {
+            result = ZeroCopySSTableSplitter.split(parent, 3, null);
+        }
+        finally
+        {
+            ZeroCopySSTableSplitter.forceAlignedLayoutForTesting = false;
+        }
+
+        try
+        {
+            assertEquals(3, result.children.size());
+            long clonedSum = 0;
+            int padded = 0;
+            for (Child child : result.children)
+            {
+                String context = "child " + child.descriptor;
+                long copyFrom = parentOffsets[(int) child.firstChunk];
+                long srcStart = copyFrom - child.headPadBytes;
+
+                // What the ioctl demands of the plan, restated from the child alone.
+                assertEquals(context + ": the padded start must be alignment aligned", 0, srcStart % ALIGNMENT);
+                assertEquals(context + ": the pad is O(i) mod the alignment",
+                             copyFrom % ALIGNMENT, child.headPadBytes);
+                assertTrue(context + ": the pad must be under one alignment unit", child.headPadBytes < ALIGNMENT);
+                if (child.headPadBytes > 0)
+                    padded++;
+
+                // A cloned range is aligned DOWN, so it can never reach past the child's last live byte into the
+                // parent's trailing slack.
+                assertEquals(context + ": a cloned length must be alignment aligned", 0, child.clonedBytes % ALIGNMENT);
+                assertTrue(context + ": a clone cannot exceed the child",
+                           child.clonedBytes >= 0 && child.clonedBytes <= child.onDiskLength());
+                clonedSum += child.clonedBytes;
+
+                // THE ORACLE.
+                byte[] expected = Arrays.copyOfRange(parentData, (int) srcStart,
+                                                     (int) (srcStart + child.onDiskLength()));
+                byte[] actual = Files.readAllBytes(child.descriptor.fileFor(Components.DATA).toPath());
+                assertEquals(context + ": Data.db length", expected.length, actual.length);
+                assertArrayEquals(context + ": Data.db is not the parent's byte range", expected, actual);
+            }
+
+            assertTrue("no child was padded, so the aligned layout was not exercised", padded > 0);
+            assertEquals(clonedSum, result.totalBytesCloned);
+            assertTrue("bytes written must never go negative, however much was shared",
+                       result.totalBytesWritten() >= 0);
+            assertEquals(result.totalPhysicalBytesCopied + result.totalHeadPadBytes - result.totalBytesCloned,
+                         result.totalBytesWritten());
+
+            // And the children are ordinary sstables whichever branch produced them.
+            assertStructure(cfs, parent, result);
+            assertComponents(cfs, result);
+            assertConcatenatedContentEquals(parent, readers(result));
+            for (Child child : result.children)
+            {
+                try (RandomAccessReader in = child.reader.openDataReader())
+                {
+                    in.seek(child.reader.uncompressedLength() - 1);
+                    in.readByte();
+                }
+            }
+        }
+        finally
+        {
+            release(result);
+        }
+    }
+
     // ----------------------------------------------------------------------------------------------------
     // Content equivalence
     // ----------------------------------------------------------------------------------------------------
@@ -1561,8 +2505,145 @@ public class ZeroCopySSTableSplitterTest extends CQLTester
     }
 
     // ----------------------------------------------------------------------------------------------------
+    // Cancellation plumbing
+    // ----------------------------------------------------------------------------------------------------
+
+    /**
+     * Cancel a split at the phase identified by "{@code count} files ending in {@code suffix} now exist that did
+     * not before", and assert it left nothing at all behind.
+     *
+     * <p>Addressing a phase by a FILE rather than by a call count or a timer is what makes these tests
+     * deterministic on any machine and free of production hooks: a child's components are written in a fixed order
+     * (Data.db, CompressionInfo.db, the index, Statistics.db, Digest.crc32), so the first check after one of them
+     * appears is the check inside the phase that follows it.
+     * {@link #everyPhaseOfASplitConsultsTheCancellationPredicate} is the guard that keeps that mapping honest.
+     */
+    private void assertCancelledSplitLeavesNothingBehind(String suffix, int count) throws Throwable
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+
+        createCompressedTable(4);
+        disableCompaction();
+        insertPartitions(80, 4, 480);
+        flush();
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        SSTableReader parent = onlySSTable(cfs);
+        File dir = parent.descriptor.directory;
+        Set<String> before = listNames(dir);
+
+        CancelOnNewFile cancel = new CancelOnNewFile(dir, before, suffix, count);
+        try
+        {
+            ZeroCopySSTableSplitter.split(parent, 4, null, null, cancel);
+            fail("a cancelled split must raise CompactionInterruptedException rather than finish");
+        }
+        catch (CompactionInterruptedException expected)
+        {
+            assertTrue(expected.getMessage(),
+                       expected.getMessage().contains("cancelled zero-copy sstable split"));
+        }
+
+        assertTrue("the split never reached " + count + ' ' + suffix + " file(s), so it was cancelled somewhere" +
+                   " other than the phase this test is named for", cancel.fired());
+        assertEquals("a cancelled split must leave the directory exactly as it found it", before, listNames(dir));
+        assertEquals("the parent must be untouched", parent, onlySSTable(cfs));
+        assertTrue(parent.descriptor.fileFor(Components.DATA).exists());
+    }
+
+    /**
+     * Turns true the first time {@code count} files ending in {@code suffix} exist that did not before, and stays
+     * true: a cancellation that flickered back to false would be answered by the next check instead and lose the
+     * phase this is addressing.
+     */
+    private static final class CancelOnNewFile implements BooleanSupplier
+    {
+        private final File directory;
+        private final Set<String> before;
+        private final String suffix;
+        private final int atLeast;
+        private volatile boolean fired;
+
+        CancelOnNewFile(File directory, Set<String> before, String suffix, int atLeast)
+        {
+            this.directory = directory;
+            this.before = before;
+            this.suffix = suffix;
+            this.atLeast = atLeast;
+        }
+
+        boolean fired()
+        {
+            return fired;
+        }
+
+        @Override
+        public boolean getAsBoolean()
+        {
+            if (!fired && countEndingIn(newNames(directory, before), suffix) >= atLeast)
+                fired = true;
+            return fired;
+        }
+    }
+
+    /** Everything in {@code directory} that was not in {@code before}, i.e. what this split has created. */
+    private static Set<String> newNames(File directory, Set<String> before)
+    {
+        Set<String> added = new HashSet<>(listNames(directory));
+        added.removeAll(before);
+        return added;
+    }
+
+    private static int countEndingIn(Set<String> names, String suffix)
+    {
+        int n = 0;
+        for (String name : names)
+            if (name.endsWith(suffix))
+                n++;
+        return n;
+    }
+
+    // ----------------------------------------------------------------------------------------------------
     // Plumbing
     // ----------------------------------------------------------------------------------------------------
+
+    /**
+     * A copy of {@code source} written at {@code version} through the ordinary writer factory, which is the only
+     * way this JVM can produce an sstable that is not at the latest version: the flush and compaction paths both
+     * take {@code getLatestVersion()}, and {@code storage_compatibility_mode} is fixed at class-init time.
+     * <p>
+     * The copy is a real sstable in the table's own directory with the table's own compression params, tracked by
+     * {@code txn} -- which the caller must abort to remove it again, the reader being nowhere near the cfs Tracker.
+     */
+    private static SSTableReader writeCopyAtVersion(ColumnFamilyStore cfs, SSTableReader source, Version version,
+                                                    LifecycleTransaction txn)
+    {
+        Descriptor descriptor = cfs.newSSTableDescriptor(source.descriptor.directory, version);
+        try (SSTableWriter writer = descriptor.getFormat().getWriterFactory().builder(descriptor)
+                                             .setTableMetadataRef(cfs.metadata)
+                                             .setKeyCount(source.estimatedKeys())
+                                             .setSerializationHeader(new SerializationHeader(true,
+                                                                                             cfs.metadata(),
+                                                                                             cfs.metadata().regularAndStaticColumns(),
+                                                                                             EncodingStats.NO_STATS))
+                                             .setSecondaryIndexGroups(cfs.indexManager.listIndexGroups())
+                                             .setMetadataCollector(new MetadataCollector(cfs.metadata().comparator))
+                                             .addDefaultComponents(cfs.indexManager.listIndexGroups())
+                                             .build(txn, cfs))
+        {
+            try (ISSTableScanner scanner = source.getScanner())
+            {
+                while (scanner.hasNext())
+                {
+                    try (UnfilteredRowIterator partition = scanner.next())
+                    {
+                        writer.append(partition);
+                    }
+                }
+            }
+            return writer.finish(true);
+        }
+    }
 
     /** One parent/child Index.db record, parsed independently of {@code ZeroCopySSTableSplitter}. */
     private static final class Rec
@@ -1632,11 +2713,24 @@ public class ZeroCopySSTableSplitterTest extends CQLTester
         return new String(bytes, StandardCharsets.UTF_8).trim();
     }
 
+    /**
+     * The one place every test in this class gets its parent from, and therefore the place to guard the one
+     * property of a parent that no individual test mentions: the splitter REFUSES a version that cannot carry
+     * {@code StatsMetadata.hasUnindexedRegions} (BIG {@code pb}+), so under a {@code storage_compatibility_mode}
+     * that pins newly written sstables to {@code nb} or {@code oa} every test here would still pass while
+     * asserting nothing but the refusal. Every test target sets {@code storage_compatibility_mode: NONE} today,
+     * which is exactly why this has to fail loudly if that ever changes rather than be assumed.
+     */
     private static SSTableReader onlySSTable(ColumnFamilyStore cfs)
     {
         Set<SSTableReader> live = cfs.getLiveSSTables();
         assertEquals("expected exactly one sstable", 1, live.size());
-        return live.iterator().next();
+        SSTableReader sstable = live.iterator().next();
+        assertTrue("the fixture wrote version '" + sstable.descriptor.version.version + "', which the splitter" +
+                   " refuses outright; every test in this class would silently start exercising that refusal" +
+                   " instead of what its name claims",
+                   sstable.descriptor.version.hasUnindexedRegionsMarker());
+        return sstable;
     }
 
     private static List<SSTableReader> readers(Result result)

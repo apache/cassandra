@@ -1,4 +1,5 @@
 7.0
+ * Zero-copy sstable splitting for anticompaction, and partial-sstable zero-copy streaming (CASSANDRA-XXXXX)
  * Don't increment client metrics on messaging service connection unpause (CASSANDRA-21491)
  * Add nodetool getreplicas (CASSANDRA-17665)
  * Implementation of CEP-49: Hardware-accelerated compression (CASSANDRA-20975)

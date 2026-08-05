@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.streaming;
 
+import java.io.EOFException;
 import java.io.IOException;
+import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 
@@ -42,35 +44,52 @@ public class StreamingDataOutputPlusFixed extends DataOutputBufferFixed implemen
     @Override
     public long writeFileToChannel(FileChannel file, RateLimiter limiter) throws IOException
     {
-        long count = 0;
-        long tmp;
-        while (0 <= (tmp = file.read(buffer))) count += tmp;
-        return count;
+        return writeFileToChannel(file, limiter, 0L, file.size());
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Bounded by the fixed buffer: a range longer than what is left of it throws {@link BufferOverflowException},
+     * as any other overflow of a {@link DataOutputBufferFixed} does, rather than writing a prefix of the range.
+     */
     @Override
     public long writeFileToChannel(FileChannel file, RateLimiter limiter, long position, long length) throws IOException
     {
-        long count = 0;
-        while (count < length && buffer.hasRemaining())
+        try
         {
-            // Only ever read up to the end of the requested range: the file is longer than the range for a
-            // partial zero-copy stream, and reading past it would corrupt whatever is sent next.
-            int savedLimit = buffer.limit();
-            buffer.limit(buffer.position() + (int) Math.min(buffer.remaining(), length - count));
-            long read;
-            try
+            if (length > buffer.remaining())
+                throw new BufferOverflowException();
+
+            long count = 0;
+            while (count < length)
             {
-                read = file.read(buffer, position + count);
+                // Only ever read up to the end of the requested range: the file is longer than the range for a
+                // partial zero-copy stream, and reading past it would corrupt whatever is sent next.
+                int savedLimit = buffer.limit();
+                buffer.limit(buffer.position() + (int) (length - count));
+                long read;
+                try
+                {
+                    read = file.read(buffer, position + count);
+                }
+                finally
+                {
+                    buffer.limit(savedLimit);
+                }
+                // There is always room left for the rest of the range, so this can only be end of file: the range
+                // is not all there, and the peer is expecting all of it.
+                if (read < 0)
+                    throw new EOFException(String.format("Reached end of file at position %d with %d of the %d bytes " +
+                                                         "of the range left to write",
+                                                         position + count, length - count, length));
+                count += read;
             }
-            finally
-            {
-                buffer.limit(savedLimit);
-            }
-            if (read <= 0)
-                break;
-            count += read;
+            return count;
         }
-        return count;
+        finally
+        {
+            file.close();
+        }
     }
 }

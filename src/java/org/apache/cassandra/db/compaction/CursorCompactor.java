@@ -136,6 +136,18 @@ public class CursorCompactor extends CompactionInfo.Holder
                     if (LOGGER.isDebugEnabled()) logDebugReason(metadata, "Older sstable versions are not supported. version=" + version);
                     return false;
                 }
+                // Asked per backing sstable rather than trusted to isFullRange() above, because a wrapping scanner
+                // answers that from its own bounds without consulting the per-sstable scanners it creates lazily:
+                // LeveledScanner returns ranges == null, and a split child or partially streamed sstable keeps its
+                // level. Cursors read Data.db linearly from the first partition, so an sstable holding partitions its
+                // index omits has to go through the iterator pipeline. Refusing here rather than in
+                // SSTableCursorReader's constructor matters: convertScannersToCursors closes the scanners before it
+                // builds the cursors, so a throw there would kill the task instead of falling back.
+                if (reader.hasUnindexedRegions())
+                {
+                    if (LOGGER.isDebugEnabled()) logDebugReason(metadata, "SSTables with unindexed regions must be read through their index. sstable=" + reader.descriptor);
+                    return false;
+                }
             }
         }
         // BTI index writing is not supported yet

@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -29,6 +30,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
+import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
@@ -45,6 +47,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.KeyReader;
@@ -314,6 +317,13 @@ public class BtiTableReader extends SSTableReaderWithFilter
     public ScrubPartitionIterator scrubPartitionsIterator() throws IOException
     {
         return new ScrubIterator(partitionIndex, rowIndexFile, descriptor.version);
+    }
+
+    @Override
+    protected ISSTableScanner indexDrivenScanner(Iterator<AbstractBounds<PartitionPosition>> bounds,
+                                                 DiskAccessMode diskAccessMode)
+    {
+        return BtiTableScanner.getScanner(this, bounds, diskAccessMode);
     }
 
     @Override

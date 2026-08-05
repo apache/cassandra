@@ -44,20 +44,45 @@ public class StreamingMetrics
     public static final Counter totalOutgoingBytes = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "TotalOutgoingBytes", null));
     public static final Counter totalOutgoingRepairBytes = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "TotalOutgoingRepairBytes", null));
     public static final Counter totalOutgoingRepairSSTables = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "TotalOutgoingRepairSSTables", null));
-    /**
-     * Sstables sent through the entire-sstable (zero-copy) path as a synthesised chunk-run slice covering only the
-     * requested token ranges, rather than as a whole sstable. Unrelated to the per-peer
-     * {@code PartialSSTablesStreamedIn}, which counts receives that went partition-by-partition.
-     */
+    // The counters below cover partial-stream slicing on the entire-sstable (zero-copy) path: sending a synthesised
+    // chunk-run slice covering only the requested token ranges instead of a whole sstable, without deserialising
+    // rows. The price is bytes no read can reach - the head of the slice's first compression chunk, anything between
+    // sections less than a chunk apart, the final chunk's tail past the last live byte - and
+    // zero_copy_partial_stream_max_dead_space_ratio is what caps it.
+    /** Sstables sent as a slice. Not the per-peer {@code PartialSSTablesStreamedIn}, which counts receives. */
     public static final Counter slicedZeroCopyStreamsOut = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "SlicedZeroCopyStreamsOut", null));
-    /** Slices that could not be synthesised and fell back to partition-by-partition streaming. */
+    /** Slices that were planned but could not be synthesised, so the stream failed. */
     public static final Counter slicedZeroCopyStreamsFailed = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "SlicedZeroCopyStreamsFailed", null));
     /**
-     * Uncompressed bytes those slices carried that no read can reach: the head of their first compression chunk
-     * plus anything between sections less than a chunk apart. This is what
-     * {@code zero_copy_partial_stream_max_dead_space_ratio} trades against not deserialising rows.
+     * Sliceable transfers sent partition-by-partition instead. Not a failure. It is the sum of the two counters
+     * below, which say whether configuration could have made them slices; increment it only through
+     * {@link #countSliceRefusedByDeadSpaceRatio()} and {@link #countSliceRefusedAsUnsliceable()} so it keeps
+     * matching them.
      */
-    public static final Counter slicedZeroCopyStreamDeadBytes = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "SlicedZeroCopyStreamDeadBytes", null));
+    public static final Counter slicedZeroCopyStreamsRefused = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "SlicedZeroCopyStreamsRefused", null));
+    /**
+     * The subset of {@link #slicedZeroCopyStreamsRefused} that {@code zero_copy_partial_stream_max_dead_space_ratio}
+     * alone refused: the slice was expressible and would have carried more dead space than the ratio permits.
+     * Raising the ratio accepts these, and this is the ratio's only observable effect -- set too low it otherwise
+     * just leaves {@link #slicedZeroCopyStreamsOut} at zero, with the reason at DEBUG.
+     */
+    public static final Counter slicedZeroCopyStreamsRefusedDeadSpace = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "SlicedZeroCopyStreamsRefusedDeadSpace", null));
+    /**
+     * The subset of {@link #slicedZeroCopyStreamsRefused} that no configuration would change: the sstable's format,
+     * version, bloom filter or compression dictionary, index components a slice cannot synthesise, legacy counter
+     * shards, a request shape the arithmetic cannot express, or too little room on the sender for the synthesised
+     * components. On a table where slicing is structurally impossible this equals
+     * {@link #slicedZeroCopyStreamsRefused} for ever, which is what tells it apart from a ratio set too low.
+     */
+    public static final Counter slicedZeroCopyStreamsRefusedUnsliceable = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "SlicedZeroCopyStreamsRefusedUnsliceable", null));
+    /**
+     * Unreachable bytes those slices carried, counted UNCOMPRESSED -- unlike {@link #totalOutgoingBytes} and
+     * {@link #totalOutgoingRepairBytes} in this same MBean type, which are wire bytes, so for a COMPRESSED table
+     * dividing one by the other is wrong by the compression ratio. There is no honest wire figure to report instead:
+     * a dead region shares its compression chunk with live bytes and so has no compressed size of its own. The two
+     * units coincide for an uncompressed sstable.
+     */
+    public static final Counter slicedZeroCopyStreamsDeadBytes = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "SlicedZeroCopyStreamsDeadBytes", null));
     public final Counter incomingBytes;
     public final Counter outgoingBytes;
     /* Measures the time taken for processing the incoming stream message after being deserialized, including the time to flush to disk. */
@@ -104,5 +129,25 @@ public class StreamingMetrics
     public void countStreamedIn(boolean isEntireSSTable)
     {
         (isEntireSSTable ? entireSSTablesStreamedIn : partialSSTablesStreamedIn).inc();
+    }
+
+    /**
+     * Counts a transfer that could have gone as a slice but was sent partition-by-partition because
+     * {@code zero_copy_partial_stream_max_dead_space_ratio} refused it.
+     */
+    public static void countSliceRefusedByDeadSpaceRatio()
+    {
+        slicedZeroCopyStreamsRefused.inc();
+        slicedZeroCopyStreamsRefusedDeadSpace.inc();
+    }
+
+    /**
+     * Counts a transfer that was sent partition-by-partition for a reason no configuration would change; see
+     * {@link #slicedZeroCopyStreamsRefusedUnsliceable}.
+     */
+    public static void countSliceRefusedAsUnsliceable()
+    {
+        slicedZeroCopyStreamsRefused.inc();
+        slicedZeroCopyStreamsRefusedUnsliceable.inc();
     }
 }

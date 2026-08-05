@@ -100,11 +100,11 @@ public class CompactionTest extends SAITester
         Range<Token> range = new Range<>(DatabaseDescriptor.getPartitioner().getMinimumToken(),
                                          DatabaseDescriptor.getPartitioner().getToken(ByteBufferUtil.bytes("30")));
         Collection<SSTableReader> sstables = cfs.getLiveSSTables();
+        InetAddressAndPort endpoint = InetAddressAndPort.getByName("10.0.0.1");
+        TimeUUID parentRepairSession = TimeUUID.Generator.nextTimeUUID();
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
              Refs<SSTableReader> refs = Refs.ref(sstables))
         {
-            InetAddressAndPort endpoint = InetAddressAndPort.getByName("10.0.0.1");
-            TimeUUID parentRepairSession = TimeUUID.Generator.nextTimeUUID();
             ActiveRepairService.instance().registerParentRepairSession(parentRepairSession,
                                                                        endpoint,
                                                                        Lists.newArrayList(cfs),
@@ -115,6 +115,13 @@ public class CompactionTest extends SAITester
                                                                        PreviewKind.NONE);
             RangesAtEndpoint replicas = RangesAtEndpoint.builder(endpoint).add(Replica.fullReplica(endpoint, range)).build();
             CompactionManager.instance.performAnticompaction(cfs, replicas, refs, txn, parentRepairSession, () -> false);
+        }
+        finally
+        {
+            // ActiveRepairService keeps parent sessions in a process-wide map that nothing else in this test drains,
+            // so leaving this one behind holds a reference to this test's ColumnFamilyStore for the life of the JVM
+            // and leaves it visible to anything that enumerates sessions.
+            ActiveRepairService.instance().removeParentRepairSession(parentRepairSession);
         }
 
         // verify 2 sstable indexes

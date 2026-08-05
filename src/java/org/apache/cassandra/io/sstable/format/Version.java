@@ -104,6 +104,16 @@ public abstract class Version
     public abstract boolean hasKeyRange();
 
     /**
+     * Whether the stats component records the marker telling readers that Data.db holds partitions the index does not
+     * describe, so the sstable must be read through its index rather than scanned linearly (see
+     * {@code StatsMetadata#hasUnindexedRegions}). Such sstables are only produced by partial zero-copy streaming, and
+     * a reader that silently ignored the marker would hand back partitions the sstable does not claim, so the marker
+     * must not be written to a version which cannot express it - {@code ZeroCopySSTableSlice} and
+     * {@code ZeroCopySSTableSplitter} refuse to operate unless this returns true.
+     */
+    public abstract boolean hasUnindexedRegionsMarker();
+
+    /**
      * @param ver SSTable version
      * @return True if the given version string matches the format.
      * @see #version

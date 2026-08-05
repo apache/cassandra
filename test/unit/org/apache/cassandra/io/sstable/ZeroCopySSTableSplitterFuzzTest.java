@@ -32,7 +32,9 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.zip.CRC32;
 
+import org.junit.After;
 import org.junit.Assume;
+import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -125,6 +127,45 @@ public class ZeroCopySSTableSplitterFuzzTest extends CQLTester
     private static final int[] COLUMN_INDEX_KB = { 1, 2, 4, 16, 64 };
     private static final int[] COLUMN_INDEX_CACHE_KB = { 0, 2, 99999 };
 
+    /**
+     * Everything the generator actually produced across a run, logged once at the end. This is the only test that
+     * generates tombstones (partition, row, range and single-cell), static rows, TTLs, collections and more than one
+     * clustering column, so a reader of a green run should be able to see that it still does -- see also the pinned
+     * first iteration in {@link #fuzz()}.
+     */
+    private final Set<String> exercised = new TreeSet<>();
+
+    private int savedIndexSize;
+    private int savedCacheSize;
+    private FlushCompression savedFlushCompression;
+    private boolean savedDigestEnabled;
+
+    @Before
+    public void saveConfigurationAndHooks()
+    {
+        savedIndexSize = DatabaseDescriptor.getColumnIndexSizeInKiB();
+        savedCacheSize = DatabaseDescriptor.getColumnIndexCacheSizeInKiB();
+        savedFlushCompression = DatabaseDescriptor.getFlushCompression();
+        savedDigestEnabled = DatabaseDescriptor.getZeroCopySplitDigestEnabled();
+    }
+
+    /**
+     * Every one of these is process-wide, and an iteration that fails part way through skips its own restore, so
+     * this is the backstop: without it one failing iteration would silently change what every LATER test in the
+     * same JVM exercises -- {@code forceAlignedLayoutForTesting} turning every subsequent split into a padded one,
+     * and {@code zero_copy_split_digest_enabled} deciding whether siblings get a Digest.crc32 at all.
+     */
+    @After
+    public void restoreConfigurationAndHooks()
+    {
+        DatabaseDescriptor.setColumnIndexSizeInKiB(savedIndexSize);
+        DatabaseDescriptor.setColumnIndexCacheSize(savedCacheSize);
+        DatabaseDescriptor.setFlushCompression(savedFlushCompression);
+        DatabaseDescriptor.setZeroCopySplitDigestEnabled(savedDigestEnabled);
+        ZeroCopySSTableSplitter.forceAlignedLayoutForTesting = false;
+        ZeroCopySSTableSplitter.failBeforeChildForTesting = null;
+    }
+
     // ------------------------------------------------------------------------------------------------
     // Tests
     // ------------------------------------------------------------------------------------------------
@@ -134,28 +175,26 @@ public class ZeroCopySSTableSplitterFuzzTest extends CQLTester
     {
         Assume.assumeTrue(BigFormat.isSelected());
 
-        int savedIndexSize = DatabaseDescriptor.getColumnIndexSizeInKiB();
-        int savedCacheSize = DatabaseDescriptor.getColumnIndexCacheSizeInKiB();
-        FlushCompression savedFlushCompression = DatabaseDescriptor.getFlushCompression();
-        try
+        // Everything this loop changes process-wide is saved by @Before and restored by @After, including on the
+        // iteration that throws.
+        if (REPLAY_SEED != null)
         {
-            if (REPLAY_SEED != null)
-            {
-                logger.info("Replaying a single ZeroCopySSTableSplitter fuzz iteration, seed {}", REPLAY_SEED);
-                runGuarded(REPLAY_SEED);
-                return;
-            }
+            logger.info("Replaying a single ZeroCopySSTableSplitter fuzz iteration, seed {}", REPLAY_SEED);
+            runGuarded(REPLAY_SEED, false);
+            return;
+        }
 
-            logger.info("ZeroCopySSTableSplitter fuzz: {} iterations from base seed {}", ITERATIONS, BASE_SEED);
-            for (int i = 0; i < ITERATIONS; i++)
-                runGuarded(scramble(BASE_SEED + i));
-        }
-        finally
+        logger.info("ZeroCopySSTableSplitter fuzz: {} iterations from base seed {}", ITERATIONS, BASE_SEED);
+        for (int i = 0; i < ITERATIONS; i++)
         {
-            DatabaseDescriptor.setColumnIndexSizeInKiB(savedIndexSize);
-            DatabaseDescriptor.setColumnIndexCacheSize(savedCacheSize);
-            DatabaseDescriptor.setFlushCompression(savedFlushCompression);
+            // The schema knobs are rolled per iteration, so on a short run a fixed seed could in principle leave
+            // the widest schema this generator can produce untried -- and that schema is where the interesting
+            // shapes live: a static row, two clustering columns (hence range tombstones with a clustering prefix)
+            // and both collections. The first iteration is therefore pinned to it, so that those shapes are copied
+            // verbatim through a split on EVERY run rather than on most seeds.
+            runGuarded(scramble(BASE_SEED + i), i == 0);
         }
+        logger.info("ZeroCopySSTableSplitter fuzz exercised: {}", exercised);
     }
 
     /**
@@ -200,10 +239,15 @@ public class ZeroCopySSTableSplitterFuzzTest extends CQLTester
                     }
                     catch (Throwable t)
                     {
+                        // The BASE seed in the hint, not scenarioSeed: this method takes REPLAY_SEED as its base and
+                        // re-derives every scenario seed from it (and calibrateOverhead is seeded from it too), so a
+                        // hint naming the derived seed would replay a DIFFERENT scenario -- the one whose base
+                        // happened to be this one's derivative. scenarioSeed is still reported, since it is what the
+                        // failing scenario's own data generator used.
                         throw new AssertionError(String.format("straddle scenario FAILED: chunkKb=%d delta=%d " +
-                                                               "overhead=%d seed=%d%n%s",
-                                                               chunkKb, delta, overhead, scenarioSeed,
-                                                               replayHint(scenarioSeed, "straddlesChunkBoundaries")), t);
+                                                               "overhead=%d baseSeed=%d scenarioSeed=%d%n%s",
+                                                               chunkKb, delta, overhead, seed, scenarioSeed,
+                                                               replayHint(seed, "straddlesChunkBoundaries")), t);
                     }
                 }
             }
@@ -257,9 +301,10 @@ public class ZeroCopySSTableSplitterFuzzTest extends CQLTester
     // One fuzz iteration
     // ------------------------------------------------------------------------------------------------
 
-    private void runGuarded(long seed) throws Throwable
+    private void runGuarded(long seed, boolean widestSchema) throws Throwable
     {
         Config cfg = new Config(seed);
+        cfg.widestSchema = widestSchema;
         try
         {
             runIteration(cfg);
@@ -296,6 +341,30 @@ public class ZeroCopySSTableSplitterFuzzTest extends CQLTester
         cfg.hasStatic = cfg.clusterings >= 1 && rnd.nextBoolean();
         cfg.hasMap = rnd.nextBoolean();
         cfg.hasSet = rnd.nextBoolean();
+
+        if (cfg.widestSchema)
+        {
+            // Pinned, not rolled: see fuzz(). Every roll above still happened, so the rest of this iteration --
+            // compressor, chunk length, split mode, sizes, tombstones -- is the same stream it would have been.
+            if (cfg.compressor == null)
+                cfg.compressor = COMPRESSORS[0];
+            cfg.clusterings = 2;
+            cfg.hasStatic = true;
+            cfg.hasMap = true;
+            cfg.hasSet = true;
+        }
+
+        exercised.add("clusterings=" + cfg.clusterings);
+        if (cfg.compressor == null)
+            exercised.add("uncompressed");
+        if (cfg.hasStatic)
+            exercised.add("static");
+        if (cfg.hasMap)
+            exercised.add("map");
+        if (cfg.hasSet)
+            exercised.add("set");
+        if (cfg.reverse0 || cfg.reverse1)
+            exercised.add("reversed");
 
         DatabaseDescriptor.setColumnIndexSizeInKiB(cfg.columnIndexKb);
         DatabaseDescriptor.setColumnIndexCacheSize(cfg.columnIndexCacheKb);
@@ -367,6 +436,11 @@ public class ZeroCopySSTableSplitterFuzzTest extends CQLTester
         // one case a dedicated test would pick.
         cfg.writeDigest = rnd.nextInt(4) != 0;
         DatabaseDescriptor.setZeroCopySplitDigestEnabled(cfg.writeDigest);
+        exercised.add(cfg.splitMode);
+        exercised.add(cfg.alignedLayout ? "alignedLayout" : "plainLayout");
+        exercised.add(cfg.writeDigest ? "digest" : "noDigest");
+        if (cfg.useTxn)
+            exercised.add("txn");
 
         LifecycleTransaction txn = cfg.useTxn ? LifecycleTransaction.offline(OperationType.UNKNOWN) : null;
         ZeroCopySSTableSplitter.Result result = null;
@@ -396,7 +470,11 @@ public class ZeroCopySSTableSplitterFuzzTest extends CQLTester
         finally
         {
             ZeroCopySSTableSplitter.forceAlignedLayoutForTesting = false;
-            DatabaseDescriptor.setZeroCopySplitDigestEnabled(true);
+            // The value this JVM had before the test, NOT a literal true: `true` happens to be the Config default,
+            // so restoring it would quietly overwrite a node-level setting (or another test's save/restore) with
+            // something that merely looks like the default, and the next test in this JVM would run under a
+            // configuration nobody chose.
+            DatabaseDescriptor.setZeroCopySplitDigestEnabled(savedDigestEnabled);
             releaseChildren(result);
             if (txn != null)
             {
@@ -1135,11 +1213,23 @@ public class ZeroCopySSTableSplitterFuzzTest extends CQLTester
     // Plumbing
     // ------------------------------------------------------------------------------------------------
 
+    /**
+     * Also the one place to guard the property no scenario in this file mentions: the splitter REFUSES a version
+     * that cannot carry {@code StatsMetadata.hasUnindexedRegions} (BIG {@code pb}+), so under a
+     * {@code storage_compatibility_mode} that pinned newly written sstables to {@code nb} or {@code oa} the entire
+     * fuzz would pass while asserting nothing but that refusal. Every test target sets
+     * {@code storage_compatibility_mode: NONE} today, which is precisely why this must fail loudly rather than be
+     * assumed.
+     */
     private static SSTableReader onlySSTable(ColumnFamilyStore cfs, String ctx)
     {
         Set<SSTableReader> live = cfs.getLiveSSTables();
         assertEquals(ctx + " -- expected exactly one sstable after the flush, got " + live, 1, live.size());
-        return live.iterator().next();
+        SSTableReader sstable = live.iterator().next();
+        assertTrue(ctx + " -- the fixture wrote version '" + sstable.descriptor.version.version + "', which the" +
+                   " splitter refuses outright; the whole fuzz would silently degenerate into a refusal test",
+                   sstable.descriptor.version.hasUnindexedRegionsMarker());
+        return sstable;
     }
 
     /** {@code O(k)}, with {@code O(N)} defined as the physical file length, recomputed from the parent. */
@@ -1287,6 +1377,8 @@ public class ZeroCopySSTableSplitterFuzzTest extends CQLTester
         boolean useTxn;
         boolean alignedLayout;
         boolean writeDigest = true;
+        /** The one iteration whose schema is pinned to the widest this generator can produce; see {@code fuzz()}. */
+        boolean widestSchema;
         String adversarialNote;
 
         Config(long seed)
@@ -1319,7 +1411,8 @@ public class ZeroCopySSTableSplitterFuzzTest extends CQLTester
               .append(" actualChildren=").append(actualChildren)
               .append(" useTxn=").append(useTxn)
               .append(" alignedLayout=").append(alignedLayout)
-              .append(" writeDigest=").append(writeDigest);
+              .append(" writeDigest=").append(writeDigest)
+              .append(" widestSchema=").append(widestSchema);
             if (adversarialNote != null)
                 sb.append(" adversarial=").append(adversarialNote);
             sb.append("\n  rowsPerPartition=").append(Arrays.toString(rowsPerPartition));

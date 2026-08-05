@@ -1292,72 +1292,80 @@ sstable_preemptive_open_interval: 50MiB
 # and eventually get removed from the configuration.
 uuid_sstable_identifiers_enabled: false
 
-# Use the zero-copy sstable splitter during anticompaction when an sstable's full / transient / unrepaired
-# partitions form contiguous token runs. Such an sstable is split by copying its compression chunks verbatim
-# instead of rewriting every row; anything else (interleaved ranges, i.e. what vnodes produce) falls back to
-# the normal rewrite. Defaults to false; it must be opted into because it changes what anticompaction does.
+# Anticompact by copying compression chunks verbatim instead of rewriting rows, when an sstable's full / transient /
+# unrepaired partitions form contiguous token runs; interleaved ranges (what vnodes produce) fall back to the rewrite.
+# The copy is still throttled by compaction_throughput, is an ANTICOMPACTION in compactionstats, and stops on nodetool
+# stop ANTICOMPACTION / --id, TRUNCATE and DROP.
 #
-# NOTE: when this is enabled, anticompaction NO LONGER PURGES TOMBSTONES for the sstables it handles. The
-# copy-based split retains droppable tombstones and shadowed data that the rewrite path would drop. That is
-# retention only, never data loss - nothing can be resurrected - but disk usage after anticompaction can be
-# higher than it is today, until the children are compacted normally.
+# Only a COMPRESSED sstable in the BIG or BTI format is eligible. An uncompressed table makes this flag a SILENT
+# NO-OP: an uncompressed split is a different algorithm - the cut is exact rather than chunk-aligned, and CRC.db,
+# whose 64KiB grid is addressed from origin 0, has to be regenerated wholesale rather than sliced - so the split
+# declines rather than emit a child with a misaligned CRC.db. A compression dictionary (CEP-49) declines for a
+# related reason: a chunk is only decompressible against the dictionary its parent recorded. Eligibility also needs
+# the parent's Statistics.db to carry the unindexed-regions marker, which arrived with sstable version pb (BIG) and
+# eb (BTI), so on an upgraded cluster this stays INERT over every pre-existing sstable until `nodetool
+# upgradesstables` has rewritten it.
 #
-# NOTE: children written from the middle or the end of the parent carry a dead prefix at the head of their
-# Data.db, which costs them entire-sstable zero-copy streaming eligibility (they fall back to partial
-# streaming) until they are recompacted.
+# Off by default, because for the sstables it does handle it changes what anticompaction does:
 #
-# NOTE: the children's sstable statistics are deliberately imprecise, because recomputing them would mean
-# deserializing every row - the exact cost this path avoids. Each child inherits the parent's whole-sstable
-# cell count, row count and tombstone-drop histogram, while its partition count and partition size histogram
-# are exact. So after a zero-copy anticompaction, expect per-table aggregates (nodetool tablestats mean row
-# count, estimated column count, droppable tombstone ratio) to over-report by roughly the number of children,
-# and expect single-sstable tombstone compaction to fire less readily than tombstone_threshold suggests -
-# meaning the retained tombstones above are purged later than they otherwise would be. Tables that are
-# sensitive to this can set unchecked_tombstone_compaction or lower tombstone_threshold. All of these errors
-# are in the conservative direction and none of them can lose or resurrect data.
-#
-# The copy participates in the compaction framework: it is bounded by compaction_throughput, appears in
-# nodetool compactionstats as an ANTICOMPACTION, and is stopped by nodetool stop ANTICOMPACTION, nodetool
-# stop --id, TRUNCATE and DROP.
+# - It NO LONGER PURGES TOMBSTONES for the sstables it handles: droppable tombstones and shadowed data are retained,
+#   so disk usage can rise until the children are compacted normally. Retention only - nothing is resurrected.
+# - Children from the middle or end of the parent begin with a dead prefix: the bytes before their first indexed
+#   partition, the head of the copied boundary compression chunk. Every read path on this build tolerates it, and such
+#   a child can still be zero-copy streamed whole, so this is a rollout-order contract that nothing negotiates over
+#   the streaming protocol. On a peer WITHOUT the splitter's scrubber and verifier seeks, compaction enters Data.db
+#   mid-partition and fails with CorruptSSTableException, marking it suspect; `nodetool verify` and `nodetool scrub`
+#   fail too. Leave off until every node that can receive a stream from this one has those seeks.
+# - Child statistics are deliberately imprecise: recomputing them means deserializing every row, the cost this path
+#   avoids. Partition count and partition size histogram are exact; cell count, row count and the tombstone-drop
+#   histogram are inherited whole from the parent. Per-table aggregates (tablestats mean row count, estimated column
+#   count, droppable tombstone ratio) over-report by roughly the child count, and single-sstable tombstone compaction
+#   fires less readily than tombstone_threshold suggests, so the tombstones retained above are purged later; lower
+#   tombstone_threshold or set unchecked_tombstone_compaction on tables that mind. All errors are conservative; none
+#   can lose or resurrect data.
+# - maxTimestamp and maxLocalDeletionTime are inherited whole as well, and those two have effects of their own. A
+#   child every one of whose partitions has expired is no longer dropped as a unit by the fully-expired-sstable
+#   check, so it waits for an ordinary compaction to remove it - more retention, on top of the tombstones above.
+#   And under TWCS every child is bucketed into the PARENT's time window however narrow its own data is: a split
+#   never scatters children across windows, but neither does it let a child join the window its own timestamps
+#   belong to.
+# - A table with a STORAGE-ATTACHED INDEX is never handled by this path and always takes the rewrite, which writes
+#   index components inline. A split rebuilds only the components it knows about, so a child would be live and readable
+#   with no index components at all - and SAI leaves such an sstable out of its view without reporting it invalid, so
+#   every row in it would match no index predicate, silently. The refusal is logged at INFO once per anticompaction,
+#   and BytesZeroCopyAnticompaction therefore stays 0 for indexed tables. Backed up by a second refusal on any
+#   component the splitter cannot itself produce, so a future component type declines rather than being dropped.
 # zero_copy_anticompaction_enabled: false
 
-# Let the zero-copy splitter SHARE each child's Data.db extents with the parent instead of copying them, using
-# the Linux FICLONERANGE ioctl ("reflink"). Where it works, a split writes no data blocks at all and needs no
-# additional disk space: the parent's extents become the children's when the parent is unlinked, so an
-# anticompaction of a 1 TiB sstable stops needing 1 TiB of headroom and stops doing 1 TiB of writes.
+# Have the zero-copy splitter SHARE each child's Data.db extents with the parent instead of copying them, via the
+# Linux FICLONERANGE ioctl ("reflink"): the split writes no data blocks and needs no additional disk space, so a 1 TiB
+# anticompaction stops needing 1 TiB of headroom. Needs a filesystem that can share extents - xfs made with `-m
+# reflink=1` (the mkfs default since xfsprogs 5.1), or btrfs - and is discovered by trying. A filesystem that simply
+# cannot share extents answers EOPNOTSUPP, ENOTTY, ENOSYS or EXDEV; that verdict is remembered per data directory,
+# logged once at INFO, and every later split in that directory copies as before, as on ext4. EINVAL and EPERM are
+# deliberately NOT remembered, because neither says anything about the filesystem - EINVAL is the kernel's answer to
+# any bad argument and EPERM is per file - so they are logged at WARN on EVERY occurrence and retried on every split.
+# Either way the range is copied and the child is identical, which is why this sub-knob of an already opted-in
+# operation defaults to true; turn it off only for these side effects:
 #
-# Requires a filesystem that can share extents - xfs formatted with `-m reflink=1` (the mkfs default since
-# xfsprogs 5.1), or btrfs. Support is discovered by trying: on ext4 and everything else the first attempt per
-# data directory fails, is logged once at INFO, and every split from then on copies exactly as before. Both
-# paths produce identical children, which is why this sub-knob of an already opted-in operation defaults to
-# true; it is only worth turning off if the side effects below are unwanted.
-#
-# NOTE: making sharing possible costs up to 64 KiB of alignment padding at the head of each child's Data.db
-# (the ioctl requires block-aligned offsets and a compression chunk boundary is aligned to nothing). Children
-# smaller than 1 MiB are copied regardless, since the padding would not pay for itself.
-#
-# NOTE: shared extents are counted once per file by `du` but only once in total by `df`, so per-table disk
-# usage over-reports until the parent is unlinked. Page cache is also per inode, so bytes read through both
-# the parent and a child are cached twice for as long as both are live - which, during a split, is brief.
+# - Up to 64 KiB of alignment padding at the head of each child's Data.db - the ioctl needs block-aligned offsets and
+#   a compression chunk boundary is aligned to nothing. Children under 1 MiB are copied regardless.
+# - `du` counts shared extents once per file but `df` only once in total, so per-table disk usage over-reports until
+#   the parent is unlinked and its extents become the children's alone. Page cache is per inode too, so bytes read
+#   through both the parent and a child are cached twice for as long as both are live - during a split, briefly.
 # zero_copy_split_reflink_enabled: true
 
-# Write Digest.crc32 for the children of a zero-copy split. Producing it means one full sequential read of
-# every child, which - once the extents above are shared and the copy is gone - is the ENTIRE remaining cost
-# of a split. Turning it off takes a split from "read the whole sstable" to "read its Index.db", about 0.05%
-# of the bytes, and is a supported configuration rather than a degraded one.
-#
-# Nothing requires the component: opening an sstable asserts only Data, Index and Statistics; entire-sstable
-# streaming skips components whose file does not exist and the receiver never validates the digest; and
-# snapshot and backup tooling generally copies whichever component files exist rather than demanding a fixed
-# set. A compressed sstable is self-checking without it, because every compression chunk carries an inline
-# CRC32 that this path preserves verbatim and that every read verifies. The digest's only unique coverage is
-# bytes no read ever touches: the child's dead prefix and its alignment padding.
-#
-# NOTE: what it does cost is verification SPEED, not strength. `nodetool verify` and
-# `nodetool import --verify-sstables` treat a missing digest as a reason to run a full extended verification -
-# a row-by-row scan instead of a whole-file CRC. `nodetool verify -q` and an import without
-# --verify-sstables never look at it. Because verifying and importing sstables are routine, and a child's file
-# set can travel through backup and restore without a digest ever being regenerated, this defaults to true.
+# Write Digest.crc32 for the children of a zero-copy split. It costs one full sequential read of every child, which
+# once the extents above are shared is the ENTIRE remaining cost of a split; without it a split reads only Index.db, a
+# couple of percent of the data. Nothing requires the component: sstable opening asserts only Data, Index and
+# Statistics, entire-sstable streaming skips absent components and never validates the digest, and snapshot and backup
+# tooling copies whichever component files exist. A compressed sstable is self-checking anyway: every compression
+# chunk carries an inline CRC32 that this path preserves and every read verifies. Its only unique coverage is bytes no
+# read touches - the child's dead prefix and its alignment padding. What its absence costs is verification SPEED,
+# not strength: `nodetool verify` and `nodetool import --verify-sstables` treat a missing digest as a reason to run
+# a full extended verification, row by row instead of one whole-file CRC (`nodetool verify -q` and an import
+# without --verify-sstables never look at it). Because verifying and importing are routine, and a child's file set
+# can travel through backup and restore without a digest ever being regenerated, this defaults to true.
 # zero_copy_split_digest_enabled: true
 
 # When enabled, permits Cassandra to zero-copy stream entire eligible
@@ -1372,44 +1380,43 @@ uuid_sstable_identifiers_enabled: false
 # disabled if internode encryption is enabled.
 # stream_entire_sstables: true
 
-# Stream a PARTIAL sstable through the entire-sstable (zero-copy) path instead of the row-by-row one, by sending
-# a verbatim run of the parent's compression chunks and synthesising the other components for it the way a
-# zero-copy split synthesises them for a child. The sender already sends whole compression chunks when it
-# streams sections of a compressed sstable; what this removes is the RECEIVER decompressing, deserialising,
-# re-serialising and recompressing every row it is sent, and rebuilding the index, filter and summary it could
-# have been handed instead.
+# Stream a PARTIAL sstable through the entire-sstable (zero-copy) path instead of the row-by-row one, by sending a
+# verbatim run of the parent's compression chunks and synthesizing the other components. The saving is receiver-side:
+# no decompressing, deserializing, re-serializing or recompressing every row, no rebuilding the index, filter and
+# summary it is handed instead. Requested ranges are widened to the sstable's grid (see the next setting). The BIG and
+# BTI formats are both handled, compressed or not; a format that is neither, legacy counter shards, a pre-4.0 bloom
+# filter, a compression dictionary and anything the arithmetic cannot express fall back. stream_entire_sstables gates
+# this too: it is that protocol and rate limiter (entire_sstable_stream_throughput_outbound) in use. Like the split,
+# a slice needs a parent at sstable version pb (BIG) or eb (BTI) or later, so on an upgraded cluster this stays INERT
+# over pre-existing sstables until `nodetool upgradesstables` has rewritten them.
 #
-# The requested ranges become byte ranges aligned to the sstable's grid - the compression chunk length, or
-# CRC.db's chunk size for an uncompressed sstable - and are sent in order with the cells between them skipped.
-# Legacy counter shards and non-BIG formats fall back to the row-by-row path unchanged, as does anything the
-# arithmetic cannot express. stream_entire_sstables gates this too, since it is that protocol and that rate
-# limiter (entire_sstable_stream_throughput_outbound) being used.
-#
-# NOTE: this defaults to false because it is a rollout-order contract, not a negotiated capability. A received
-# sstable can begin with a dead prefix, which every read path tolerates but which `nodetool verify` and
-# `nodetool scrub` only tolerate on a build that has the zero-copy splitter's seeks. A peer on an older build
-# will read and compact such an sstable correctly, but `nodetool verify` on it will fail and mark it
-# unrepaired. Leave this off until every node that can RECEIVE a stream is on a build that has those seeks.
-#
-# NOTE: the received sstable carries the same statistics imprecision a split child does - parent-wide cell and
-# row totals, inherited min/max timestamp and clustering bounds - and no tombstones are purged in transit.
-# Entire-sstable streaming already copies statistics verbatim, so this is a difference of degree; see the note
-# on zero_copy_anticompaction_enabled for the consequences.
-#
-# NOTE: Digest.crc32 is not sent - the sender cannot produce one without a second full read of the data, since
-# the bytes reach the socket by sendfile and are never in process - so the RECEIVER computes it while writing
-# the component. The sstable that lands has one, and `nodetool verify` on it is a whole-file CRC like any other.
+# Off by default: another rollout-order contract, with more to tolerate than a split child's dead prefix - a received
+# sstable can also carry unindexed bytes BETWEEN partitions. A build WITHOUT this patch fails on both, as described
+# for zero_copy_anticompaction_enabled, and interior gaps can additionally make it hand back partitions the index does
+# not list. Leave off until every node that can RECEIVE a stream has those changes.
+# The received sstable has a split child's statistics imprecision, plus inherited min/max timestamp and clustering
+# bounds, and purges no tombstones in transit; entire-sstable streaming already copies statistics verbatim, so this is
+# a difference of degree. Digest.crc32 is not sent - the bytes reach the socket by sendfile, so the sender cannot
+# checksum them without a second full read - so the RECEIVER computes it while writing the component: the sstable that
+# lands has one and `nodetool verify` on it is a whole-file CRC.
+# An sstable that would stream components a slice cannot synthesize - every storage-attached index component - falls
+# back to the row-by-row path, which builds those components on the receiver through the ordinary flush observers. A
+# WHOLE sstable is unaffected: entire-sstable streaming sends index components verbatim, which is correct there because
+# the row ids do not change. Each refusal is counted by StreamingMetrics.SlicedZeroCopyStreamsRefused.
 # zero_copy_partial_stream_enabled: false
 
-# The most dead space a partial zero-copy stream may carry before it gives up and falls back to the row-by-row
-# path, as a fraction of the transferred sstable's uncompressed length. A grid cell - a compression chunk, or a
-# CRC.db chunk when the sstable is uncompressed - cannot be treated as an origin, so the whole cells covering the
-# requested ranges also carry the head of the first cell and any partitions sitting between sections less than a
-# cell apart. Those bytes are not indexed, so no read can reach them - they are transferred and stored for
-# nothing until the sstable is compacted. Dead space is bounded by roughly a cell per section boundary, so it is
-# immaterial for a wide range and can dominate a narrow one (a 4 KiB range inside one 16 KiB chunk is 75% dead).
-# At the 0.25 default a transfer may be up to a third larger than the data it is for. 0.0 permits only ranges
-# that fall exactly on cell boundaries; 1.0 disables the check.
+# The most dead space a partial zero-copy stream may carry before it falls back to the row-by-row path, as a fraction
+# of EVERYTHING IT WOULD TRANSFER rather than of the sliced sstable alone. A stream cannot start part-way into a grid
+# cell (a compression chunk, or a CRC.db chunk when the sstable is uncompressed), so the cells covering the requested
+# ranges also carry bytes nobody asked for: the head of the first cell, partitions between sections less than a cell
+# apart, and the tail of the last cell (a compressed sstable cannot cut its final chunk). None of it is indexed, so no
+# read can reach it - it is transferred and stored for nothing until the sstable is compacted. Only the first two of
+# those three lie within the slice's uncompressed length; the tail lies past it and is still sent, so the ratio
+# compared against this setting is (interior dead bytes + tail) / (uncompressed length + tail). Without the tail on
+# both sides a slice whose only waste is a partial final chunk would report 0% dead and be accepted even at 0.0.
+# Dead space is bounded by roughly a cell per section boundary: immaterial for a wide range, dominant for a narrow one
+# (a 4 KiB range inside one 16 KiB chunk is 75% dead). At the 0.25 default a transfer may be up to a third larger than
+# the data it is for; 0.0 permits only ranges that begin AND end on cell boundaries, 1.0 disables the check.
 # zero_copy_partial_stream_max_dead_space_ratio: 0.25
 
 # Throttles entire SSTable outbound streaming file transfers on

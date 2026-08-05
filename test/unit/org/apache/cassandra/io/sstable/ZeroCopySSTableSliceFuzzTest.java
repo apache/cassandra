@@ -24,10 +24,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
+import org.junit.After;
 import org.junit.Assume;
+import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -89,6 +94,16 @@ import static org.junit.Assert.assertTrue;
  * of what it decompresses to, and uncompressed, where the grid is CRC.db's and the last cell is cut and its
  * checksum recomputed.
  *
+ * <p>It also covers the partition shapes the CONTENT comparison needs to be worth running: partition-level
+ * tombstones that later rows survive, static rows, TTLs, collections, one or two clustering columns with either
+ * order, and row, range and cell tombstones. An {@code INSERT}-only fixture makes every
+ * {@code partitionLevelDeletion()} and {@code staticRow()} comparison in {@link #assertPartitionEquals} vacuous, so
+ * {@link #fuzz} fails if the run produced no slice carrying either.
+ *
+ * <p>The compressor and the chunk length come from the iteration's ORDINAL rather than from its seed, so the run
+ * walks that matrix systematically and {@link #fuzz} can assert that every cell of it produced a verified slice
+ * instead of hoping the dice covered them.
+ *
  * <p>A failure prints the iteration's whole configuration and a command line that replays that one case.
  */
 public class ZeroCopySSTableSliceFuzzTest extends CQLTester
@@ -98,12 +113,14 @@ public class ZeroCopySSTableSliceFuzzTest extends CQLTester
     private static final String PROP_SEED = "cassandra.test.zerocopyslice.seed";
     private static final String PROP_ITERATIONS = "cassandra.test.zerocopyslice.iterations";
     private static final String PROP_REPLAY_SEED = "cassandra.test.zerocopyslice.replaySeed";
+    private static final String PROP_REPLAY_INDEX = "cassandra.test.zerocopyslice.replayIndex";
 
-    static final int DEFAULT_ITERATIONS = 24;
+    /** {@code COMPRESSORS.length * CHUNK_KB.length}: one iteration per cell of the matrix, see {@link #runIteration}. */
+    static final int DEFAULT_ITERATIONS = 25;
     /** Range sets tried per generated sstable; the sstable is what is expensive, not the slicing. */
     private static final int RANGE_SETS_PER_ITERATION = 4;
 
-    // These three are developer-facing replay knobs for this one class, not runtime configuration, so they are
+    // These four are developer-facing replay knobs for this one class, not runtime configuration, so they are
     // deliberately not in CassandraRelevantProperties -- the same reason MockMessagingSpy and the simulator
     // suppress this rule rather than register their debug switches globally.
     // checkstyle: suppress below 'blockSystemPropertyUsage'
@@ -111,9 +128,23 @@ public class ZeroCopySSTableSliceFuzzTest extends CQLTester
     private static final int ITERATIONS = Integer.getInteger(PROP_ITERATIONS, DEFAULT_ITERATIONS);
     /** When set, exactly one iteration runs, with this literal seed. */
     private static final Long REPLAY_SEED = Long.getLong(PROP_REPLAY_SEED);
+    /** The replayed iteration's ordinal, which is what picks its compressor and chunk length. */
+    private static final int REPLAY_INDEX = Integer.getInteger(PROP_REPLAY_INDEX, 0);
 
     /** Explicit insert timestamps keep the on-disk layout stable across runs of the same seed. */
     private static final long BASE_TS = 1_600_000_000_000_000L;
+    /**
+     * Every deletion's timestamp, explicit for the same reason the inserts' are: a wall-clock one varies in vint
+     * WIDTH between runs, which moves every partition after it and makes a replayed seed a different case. Above
+     * every timestamp {@link #writeRandomData} counts up from {@link #BASE_TS} and far below {@link #FUTURE_TS}.
+     */
+    private static final long DELETE_TS = BASE_TS + 1_000_000L;
+    /**
+     * Newer than {@link #DELETE_TS}, so a partition tombstone is retained AND the rows written after it survive it
+     * -- a partition that is both deleted and non-empty, which is the shape whose loss on a receiver is silent data
+     * resurrection.
+     */
+    private static final long FUTURE_TS = 2_000_000_000_000_000L;
 
     /** Keep a single iteration's sstable small enough that one flush is one sstable, and the test quick. */
     private static final long MAX_TABLE_BYTES = 2_000_000L;
@@ -125,6 +156,13 @@ public class ZeroCopySSTableSliceFuzzTest extends CQLTester
     /** 0 disables the raw-chunk fallback; > 1 makes most chunks store raw, which is the sharpest edge case. */
     private static final double[] MIN_COMPRESS_RATIO = { 0.0, 0.0, 1.0, 2.0, 8.0 };
     private static final int[] COLUMN_INDEX_KB = { 1, 2, 4, 16, 64 };
+    /**
+     * The dead space ratio per range set of an iteration. The first two are 1.0, which a well-formed flushed parent
+     * can never be refused at, so every iteration verifies at least two slices whatever the generator rolls -- that
+     * is what makes the coverage assertions in {@link #fuzz} deterministic rather than probable. 0.25 is the
+     * shipped default and 0.0 is what produces the {@code DEAD_SPACE} refusals.
+     */
+    private static final double[] DEAD_SPACE_RATIOS = { 1.0, 1.0, 0.25, 0.0 };
 
     /**
      * What the run actually covered. A fuzz test that quietly stops generating the shapes it exists for is worse
@@ -137,6 +175,47 @@ public class ZeroCopySSTableSliceFuzzTest extends CQLTester
     private int uncompressedSlices;
     private int slicesWithInteriorGaps;
     private int slicesWithDeadPrefix;
+    private int slicesWithPartitionTombstones;
+    private int slicesWithStaticRows;
+
+    /**
+     * The compressor/chunk-length matrix, attempted versus actually verified. {@code slicesVerified} alone cannot
+     * say this: it was satisfied by a quarter of the iterations being productive, so a compressor that silently
+     * stopped producing sliceable sstables -- or an iteration that abandoned itself before slicing anything -- left
+     * no trace.
+     */
+    private final Set<String> compressorsAttempted = new TreeSet<>();
+    private final Set<String> compressorsVerified = new TreeSet<>();
+    private final Set<Integer> chunkKbAttempted = new TreeSet<>();
+    private final Set<Integer> chunkKbVerified = new TreeSet<>();
+    /** Iterations that verified nothing at all, with why, so the failure names the case instead of a count. */
+    private final List<String> abandoned = new ArrayList<>();
+
+    private int savedColumnIndexSizeInKiB;
+    private FlushCompression savedFlushCompression;
+
+    /**
+     * Both tests here move the column index size and the flush compression per iteration, so the snapshot has to be
+     * taken and put back outside them: a failure part way through a sweep must not leave either behind for the next
+     * class to run in the same JVM.
+     */
+    @Before
+    public void saveConfigurationAndHooks()
+    {
+        savedColumnIndexSizeInKiB = DatabaseDescriptor.getColumnIndexSizeInKiB();
+        savedFlushCompression = DatabaseDescriptor.getFlushCompression();
+    }
+
+    @After
+    public void restoreConfigurationAndHooks()
+    {
+        DatabaseDescriptor.setColumnIndexSizeInKiB(savedColumnIndexSizeInKiB);
+        DatabaseDescriptor.setFlushCompression(savedFlushCompression);
+        // Production statics that exist only for tests; nothing here sets them, but a class that leaves one set
+        // would change what this one exercises, and this is the cheapest place to be sure.
+        ZeroCopySSTableSplitter.forceAlignedLayoutForTesting = false;
+        ZeroCopySSTableSplitter.failBeforeChildForTesting = null;
+    }
 
     // ------------------------------------------------------------------------------------------------
     // Tests
@@ -148,45 +227,57 @@ public class ZeroCopySSTableSliceFuzzTest extends CQLTester
         // keysInOrder() reads Index.db directly and the whole class asserts the BIG-only zero-copy slice ran.
         Assume.assumeTrue(BigFormat.isSelected());
 
-        int savedIndexSize = DatabaseDescriptor.getColumnIndexSizeInKiB();
-        FlushCompression savedFlush = DatabaseDescriptor.getFlushCompression();
-        try
+        // Otherwise flush_compression: fast silently swaps any non-LZ4 compressor -- and its chunk length --
+        // for LZ4 at 16 KiB, and the sweep over compressors and chunk sizes would only ever test one of them.
+        DatabaseDescriptor.setFlushCompression(FlushCompression.table);
+
+        if (REPLAY_SEED != null)
         {
-            // Otherwise flush_compression: fast silently swaps any non-LZ4 compressor -- and its chunk length --
-            // for LZ4 at 16 KiB, and the sweep over compressors and chunk sizes would only ever test one of them.
-            DatabaseDescriptor.setFlushCompression(FlushCompression.table);
-
-            if (REPLAY_SEED != null)
-            {
-                logger.info("Replaying a single ZeroCopySSTableSlice fuzz iteration, seed {}", REPLAY_SEED);
-                runGuarded(REPLAY_SEED);
-                return;
-            }
-
-            logger.info("ZeroCopySSTableSlice fuzz: {} iterations from base seed {}", ITERATIONS, BASE_SEED);
-            for (int i = 0; i < ITERATIONS; i++)
-                runGuarded(scramble(BASE_SEED + i));
-
-            logger.info("ZeroCopySSTableSlice fuzz covered: {} slices ({} compressed, {} uncompressed, {} multi-run, " +
-                        "{} with interior gaps, {} with a dead prefix), {} refused for dead space",
-                        slicesVerified, compressedSlices, uncompressedSlices, multiRunSlices,
-                        slicesWithInteriorGaps, slicesWithDeadPrefix, refusedForDeadSpace);
-
-            // Guard the guard: if the generator drifts into producing only trivial shapes, say so rather than
-            // passing on nothing.
-            assertTrue("the fuzz verified almost no slices: " + slicesVerified, slicesVerified >= ITERATIONS);
-            assertTrue("no compressed slice was verified", compressedSlices > 0);
-            assertTrue("no uncompressed slice was verified", uncompressedSlices > 0);
-            assertTrue("no multi-run slice was verified", multiRunSlices > 0);
-            assertTrue("no slice with an interior gap was verified", slicesWithInteriorGaps > 0);
-            assertTrue("no slice with a dead prefix was verified", slicesWithDeadPrefix > 0);
-            assertTrue("nothing was ever refused for dead space", refusedForDeadSpace > 0);
+            logger.info("Replaying a single ZeroCopySSTableSlice fuzz iteration, seed {} index {}",
+                        REPLAY_SEED, REPLAY_INDEX);
+            runGuarded(REPLAY_SEED, REPLAY_INDEX);
+            return;
         }
-        finally
-        {
-            DatabaseDescriptor.setColumnIndexSizeInKiB(savedIndexSize);
-            DatabaseDescriptor.setFlushCompression(savedFlush);
-        }
+
+        logger.info("ZeroCopySSTableSlice fuzz: {} iterations from base seed {}", ITERATIONS, BASE_SEED);
+        for (int i = 0; i < ITERATIONS; i++)
+            runGuarded(scramble(BASE_SEED + i), i);
+
+        logger.info("ZeroCopySSTableSlice fuzz covered: {} slices ({} compressed, {} uncompressed, {} multi-run, " +
+                    "{} with interior gaps, {} with a dead prefix, {} with a partition tombstone, {} with a static " +
+                    "row), {} refused for dead space; compressors {}, chunk lengths {}",
+                    slicesVerified, compressedSlices, uncompressedSlices, multiRunSlices,
+                    slicesWithInteriorGaps, slicesWithDeadPrefix, slicesWithPartitionTombstones,
+                    slicesWithStaticRows, refusedForDeadSpace, compressorsVerified, chunkKbVerified);
+
+        // Guard the guard: if the generator drifts into producing only trivial shapes, say so rather than
+        // passing on nothing.
+        assertTrue("iterations verified nothing at all: " + abandoned, abandoned.isEmpty());
+        // Two of the four range sets per iteration run at maxDeadSpaceRatio 1.0, which a well-formed flushed parent
+        // is never refused at, so this is a floor and not a hope. The old bound -- slicesVerified >= ITERATIONS --
+        // was met by ONE of the four being productive, i.e. by three quarters of the matrix going untested.
+        assertTrue("the fuzz verified too few slices: " + slicesVerified + " for " + ITERATIONS + " iterations",
+                   slicesVerified >= 2 * ITERATIONS);
+        // The matrix is walked by iteration ordinal, so what was attempted is exact and what was verified has to
+        // match it: a compressor or chunk length that stops producing sliceable sstables cannot hide any more.
+        assertEquals("the compressor sweep is not systematic any more",
+                     Math.min(ITERATIONS, COMPRESSORS.length), compressorsAttempted.size());
+        assertEquals("some compressor produced no verified slice",
+                     compressorsAttempted, compressorsVerified);
+        assertEquals("some chunk length produced no verified slice", chunkKbAttempted, chunkKbVerified);
+        assertTrue("the chunk length sweep is too narrow: " + chunkKbVerified, chunkKbVerified.size() > 1);
+
+        assertTrue("no compressed slice was verified", compressedSlices > 0);
+        assertTrue("no uncompressed slice was verified", uncompressedSlices > 0);
+        assertTrue("no multi-run slice was verified", multiRunSlices > 0);
+        assertTrue("no slice with an interior gap was verified", slicesWithInteriorGaps > 0);
+        assertTrue("no slice with a dead prefix was verified", slicesWithDeadPrefix > 0);
+        assertTrue("nothing was ever refused for dead space", refusedForDeadSpace > 0);
+        // Without these the oracle's partitionLevelDeletion() and staticRow() comparisons are LIVE == LIVE and
+        // EMPTY == EMPTY, i.e. a slice that lost either would pass every iteration.
+        assertTrue("no slice carried a partition tombstone, so the oracle never compared one",
+                   slicesWithPartitionTombstones > 0);
+        assertTrue("no slice carried a static row, so the oracle never compared one", slicesWithStaticRows > 0);
     }
 
     /**
@@ -199,36 +290,29 @@ public class ZeroCopySSTableSliceFuzzTest extends CQLTester
     {
         Assume.assumeTrue(BigFormat.isSelected());
 
-        int savedIndexSize = DatabaseDescriptor.getColumnIndexSizeInKiB();
-        FlushCompression savedFlush = DatabaseDescriptor.getFlushCompression();
-        try
-        {
-            DatabaseDescriptor.setFlushCompression(FlushCompression.table);
-            DatabaseDescriptor.setColumnIndexSizeInKiB(64);   // one row per partition, so no promoted index anyway
+        DatabaseDescriptor.setFlushCompression(FlushCompression.table);
+        DatabaseDescriptor.setColumnIndexSizeInKiB(64);   // one row per partition, so no promoted index anyway
 
-            long seed = REPLAY_SEED != null ? REPLAY_SEED : BASE_SEED;
-            for (int chunkKb : new int[]{ 4, 16 })
-            {
-                Case c = new Case(seed + chunkKb);
-                c.compressor = "LZ4Compressor";
-                c.chunkKb = chunkKb;
-                c.minCompressRatio = 0.0;
-                c.straddling = true;
-                try
-                {
-                    runStraddling(c);
-                }
-                catch (Throwable t)
-                {
-                    throw new AssertionError("ZeroCopySSTableSlice straddling case FAILED\n" + c + '\n'
-                                             + replayHint(c.seed, "straddlesCellBoundaries"), t);
-                }
-            }
-        }
-        finally
+        long seed = REPLAY_SEED != null ? REPLAY_SEED : BASE_SEED;
+        for (int chunkKb : new int[]{ 4, 16 })
         {
-            DatabaseDescriptor.setColumnIndexSizeInKiB(savedIndexSize);
-            DatabaseDescriptor.setFlushCompression(savedFlush);
+            Case c = new Case(seed + chunkKb, 0);
+            c.compressor = "LZ4Compressor";
+            c.chunkKb = chunkKb;
+            c.minCompressRatio = 0.0;
+            c.straddling = true;
+            // The narrowest possible shape: this case measures partitions to the byte against a cell boundary, so
+            // every optional column would move the target it is aiming at.
+            c.clusteringColumns = 1;
+            try
+            {
+                runStraddling(c);
+            }
+            catch (Throwable t)
+            {
+                throw new AssertionError("ZeroCopySSTableSlice straddling case FAILED\n" + c + '\n'
+                                         + replayHint(c.seed, 0, "straddlesCellBoundaries"), t);
+            }
         }
     }
 
@@ -236,9 +320,9 @@ public class ZeroCopySSTableSliceFuzzTest extends CQLTester
     // One iteration
     // ------------------------------------------------------------------------------------------------
 
-    private void runGuarded(long seed) throws Throwable
+    private void runGuarded(long seed, int index) throws Throwable
     {
-        Case c = new Case(seed);
+        Case c = new Case(seed, index);
         try
         {
             runIteration(c);
@@ -246,32 +330,45 @@ public class ZeroCopySSTableSliceFuzzTest extends CQLTester
         catch (Throwable t)
         {
             throw new AssertionError("ZeroCopySSTableSlice fuzz iteration FAILED\n" + c + '\n'
-                                     + replayHint(seed, "fuzz"), t);
+                                     + replayHint(seed, index, "fuzz"), t);
         }
     }
 
-    private static String replayHint(long seed, String method)
+    private static String replayHint(long seed, int index, String method)
     {
-        // ai-ci-test has no method filter, so the seed alone pins the case down; -Dtest.methods still works
-        // with a plain `ant testsome'.
+        // ai-ci-test has no method filter, so the seed and the ordinal pin the case down; -Dtest.methods still
+        // works with a plain `ant testsome'. The ordinal is needed as well as the seed because it, and not the
+        // seed, is what selects the compressor and the chunk length.
         return "replay this case alone with:\n"
                + "  ant testsome"
                + " -Dtest.name=org.apache.cassandra.io.sstable.ZeroCopySSTableSliceFuzzTest"
                + " -Dtest.methods=" + method
-               + " -D" + PROP_REPLAY_SEED + '=' + seed;
+               + " -D" + PROP_REPLAY_SEED + '=' + seed
+               + " -D" + PROP_REPLAY_INDEX + '=' + index;
     }
 
     private void runIteration(Case c) throws Throwable
     {
         Random rnd = new Random(c.seed);
 
-        c.compressor = COMPRESSORS[rnd.nextInt(COMPRESSORS.length)];
-        c.chunkKb = CHUNK_KB[rnd.nextInt(CHUNK_KB.length)];
+        // The compressor and the chunk length come from the iteration's ORDINAL, not from the seed: 25 iterations
+        // then walk all 5x5 of them exactly once, which is what lets fuzz() assert that every cell of the matrix
+        // really produced a verified slice. Random selection left that to luck, and with a custom -Dseed or a
+        // reduced -Diterations it silently tested a fraction of the matrix.
+        c.compressor = COMPRESSORS[c.index % COMPRESSORS.length];
+        c.chunkKb = CHUNK_KB[(c.index / COMPRESSORS.length) % CHUNK_KB.length];
         c.minCompressRatio = MIN_COMPRESS_RATIO[rnd.nextInt(MIN_COMPRESS_RATIO.length)];
         c.columnIndexKb = COLUMN_INDEX_KB[rnd.nextInt(COLUMN_INDEX_KB.length)];
-        c.clusterings = rnd.nextInt(4);              // 0 means one row per partition
+        c.rowSpread = rnd.nextInt(4);                 // 0 means one row per partition
         c.partitions = 20 + rnd.nextInt(180);
-        c.maxDeadSpaceRatio = rnd.nextBoolean() ? 1.0 : 0.25;
+        c.clusteringColumns = 1 + rnd.nextInt(2);
+        c.reverseFirstClustering = rnd.nextBoolean();
+        c.hasStatic = rnd.nextBoolean();
+        c.hasMap = rnd.nextBoolean();
+
+        compressorsAttempted.add(c.compressorName());
+        if (c.compressor != null)
+            chunkKbAttempted.add(c.chunkKb);
 
         DatabaseDescriptor.setColumnIndexSizeInKiB(c.columnIndexKb);
         createTableFor(c);
@@ -282,7 +379,12 @@ public class ZeroCopySSTableSliceFuzzTest extends CQLTester
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         Set<SSTableReader> live = cfs.getLiveSSTables();
         if (live.size() != 1)
-            return;   // a budget overshoot made two sstables; nothing to learn from this iteration
+        {
+            // A budget overshoot made two sstables. Nothing can be learned from the iteration, and -- since the
+            // matrix is walked by ordinal -- one cell of it went untested, so this is recorded rather than ignored.
+            abandoned.add("iteration " + c.index + " produced " + live.size() + " sstables: " + c);
+            return;
+        }
         SSTableReader parent = live.iterator().next();
 
         if (parent.compression)
@@ -291,17 +393,25 @@ public class ZeroCopySSTableSliceFuzzTest extends CQLTester
 
         List<DecoratedKey> keys = keysInOrder(parent);
         if (keys.size() < 8)
+        {
+            abandoned.add("iteration " + c.index + " produced only " + keys.size() + " partitions: " + c);
             return;
+        }
         c.keyCount = keys.size();
 
         // Several independent range sets against the same parent: generating the data is what costs, so this is
-        // most of the coverage per unit of time.
+        // most of the coverage per unit of time. The first two run at ratio 1.0, so at least two slices are
+        // verified per iteration however the intervals fall out.
         for (int attempt = 0; attempt < RANGE_SETS_PER_ITERATION; attempt++)
         {
+            c.maxDeadSpaceRatio = DEAD_SPACE_RATIOS[attempt % DEAD_SPACE_RATIOS.length];
             // A random set of 1..5 disjoint, increasing key intervals, some adjacent and some far apart.
             c.intervals = randomIntervals(rnd, keys.size());
             verifySlice(cfs, parent, keys, c);
         }
+
+        if (c.planned == 0)
+            abandoned.add("iteration " + c.index + " verified no slice at all: " + c);
     }
 
     /** Every partition is one cell wide give or take a byte, and every partition boundary is a range boundary. */
@@ -310,7 +420,7 @@ public class ZeroCopySSTableSliceFuzzTest extends CQLTester
         Random rnd = new Random(c.seed);
         int cellLength = c.chunkKb * 1024;
 
-        c.clusterings = 0;
+        c.rowSpread = 0;
         c.columnIndexKb = 64;
         c.partitions = 24;
         c.maxDeadSpaceRatio = 1.0;
@@ -321,7 +431,7 @@ public class ZeroCopySSTableSliceFuzzTest extends CQLTester
         {
             // -1, 0 or +1 byte around a whole cell, minus the fixed per-row overhead the writer adds.
             int target = cellLength + (p % 3) - 1 - 40;
-            execute("INSERT INTO %s (pk, ck, val) VALUES (?, ?, ?) USING TIMESTAMP ?",
+            execute("INSERT INTO %s (pk, ck0, val) VALUES (?, ?, ?) USING TIMESTAMP ?",
                     key(p), 0, incompressible(rnd, Math.max(1, target)), BASE_TS + p);
         }
         flush();
@@ -382,10 +492,16 @@ public class ZeroCopySSTableSliceFuzzTest extends CQLTester
         }
         c.planned++;
         slicesVerified++;
+        compressorsVerified.add(c.compressorName());
         if (plan.compressed)
+        {
             compressedSlices++;
+            chunkKbVerified.add(c.chunkKb);
+        }
         else
+        {
             uncompressedSlices++;
+        }
         if (plan.runs.size() > 1)
             multiRunSlices++;
         if (plan.lo() % plan.cellLength != 0)
@@ -414,6 +530,7 @@ public class ZeroCopySSTableSliceFuzzTest extends CQLTester
             assertStructure(parent, slice, plan);
             assertContentMatches(parent, slice, expected);
             assertOnlyTheseKeysArePresent(slice, keys, expected);
+            countShapes(slice);
 
             // No Digest.crc32 is synthesised for a slice -- the receiver computes that -- so this is always a full
             // extended verification: a walk of the data by index position, every key checked against the filter
@@ -429,6 +546,32 @@ public class ZeroCopySSTableSliceFuzzTest extends CQLTester
         {
             materialised.close();
         }
+    }
+
+    /**
+     * Whether the slice carries the shapes that make {@link #assertPartitionEquals}'s partition-level deletion and
+     * static row comparisons mean anything. They are counted rather than asserted per slice, because a given range
+     * set need not contain a deleted partition; {@link #fuzz} asserts that the run as a whole produced some.
+     */
+    private void countShapes(SSTableReader slice)
+    {
+        boolean tombstone = false;
+        boolean staticRow = false;
+        try (ISSTableScanner scanner = slice.getScanner())
+        {
+            while (scanner.hasNext() && !(tombstone && staticRow))
+            {
+                try (UnfilteredRowIterator partition = scanner.next())
+                {
+                    tombstone |= !partition.partitionLevelDeletion().isLive();
+                    staticRow |= !partition.staticRow().isEmpty();
+                }
+            }
+        }
+        if (tombstone)
+            slicesWithPartitionTombstones++;
+        if (staticRow)
+            slicesWithStaticRows++;
     }
 
     // ------------------------------------------------------------------------------------------------
@@ -709,11 +852,18 @@ public class ZeroCopySSTableSliceFuzzTest extends CQLTester
     private static final class Case
     {
         final long seed;
+        /** The iteration's ordinal, which selects {@link #compressor} and {@link #chunkKb}; part of the replay key. */
+        final int index;
         String compressor;
         int chunkKb;
         double minCompressRatio;
         int columnIndexKb;
-        int clusterings;
+        /** Upper bound on the extra rows a partition gets; 0 means one row per partition. */
+        int rowSpread;
+        int clusteringColumns;
+        boolean reverseFirstClustering;
+        boolean hasStatic;
+        boolean hasMap;
         int partitions;
         int keyCount;
         double maxDeadSpaceRatio;
@@ -722,9 +872,15 @@ public class ZeroCopySSTableSliceFuzzTest extends CQLTester
         int planned;
         int refused;
 
-        Case(long seed)
+        Case(long seed, int index)
         {
             this.seed = seed;
+            this.index = index;
+        }
+
+        String compressorName()
+        {
+            return compressor == null ? "none" : compressor;
         }
 
         @Override
@@ -735,11 +891,16 @@ public class ZeroCopySSTableSliceFuzzTest extends CQLTester
                 ranges.append(ranges.length() == 0 ? "" : ", ").append('(').append(interval[0]).append(", ")
                       .append(interval[1]).append(']');
             return "Case{seed=" + seed
-                   + ", compressor=" + (compressor == null ? "none" : compressor)
+                   + ", index=" + index
+                   + ", compressor=" + compressorName()
                    + ", chunkKb=" + chunkKb
                    + ", minCompressRatio=" + minCompressRatio
                    + ", columnIndexKb=" + columnIndexKb
-                   + ", clusterings=" + clusterings
+                   + ", rowSpread=" + rowSpread
+                   + ", clusteringColumns=" + clusteringColumns
+                   + ", reverseFirstClustering=" + reverseFirstClustering
+                   + ", hasStatic=" + hasStatic
+                   + ", hasMap=" + hasMap
                    + ", partitions=" + partitions
                    + ", keys=" + keyCount
                    + ", maxDeadSpaceRatio=" + maxDeadSpaceRatio
@@ -750,36 +911,84 @@ public class ZeroCopySSTableSliceFuzzTest extends CQLTester
         }
     }
 
+    /**
+     * The table shape, which the slice's arithmetic is indifferent to but its inherited SerializationHeader is not:
+     * the clustering types, their order, the static columns and the encoding stats all come out of the parent's
+     * Statistics.db, and a slice that got any of them wrong would deserialise the copied bytes as something else.
+     */
     private void createTableFor(Case c) throws Throwable
     {
-        String compression = c.compressor == null
-                             ? "{'enabled': 'false'}"
-                             : "{'class': '" + c.compressor + "', 'chunk_length_in_kb': '" + c.chunkKb + '\''
-                               + (c.minCompressRatio > 0 ? ", 'min_compress_ratio': '" + c.minCompressRatio + '\'' : "")
-                               + '}';
-        createTable("CREATE TABLE %s (pk text, ck int, val text, PRIMARY KEY (pk, ck)) WITH compression = "
-                    + compression);
+        StringBuilder ddl = new StringBuilder("CREATE TABLE %s (pk text, ck0 int");
+        if (c.clusteringColumns >= 2)
+            ddl.append(", ck1 text");
+        ddl.append(", val text");
+        if (c.hasStatic)
+            ddl.append(", s text static");
+        if (c.hasMap)
+            ddl.append(", m map<int, text>");
+        ddl.append(", PRIMARY KEY (pk, ck0");
+        if (c.clusteringColumns >= 2)
+            ddl.append(", ck1");
+        ddl.append("))");
+
+        ddl.append(" WITH compression = ");
+        if (c.compressor == null)
+        {
+            ddl.append("{'enabled': 'false'}");
+        }
+        else
+        {
+            ddl.append("{'class': '").append(c.compressor).append("', 'chunk_length_in_kb': '").append(c.chunkKb)
+               .append('\'');
+            if (c.minCompressRatio > 0)
+                ddl.append(", 'min_compress_ratio': '").append(c.minCompressRatio).append('\'');
+            ddl.append('}');
+        }
+
+        if (c.reverseFirstClustering)
+        {
+            ddl.append(" AND CLUSTERING ORDER BY (ck0 DESC");
+            if (c.clusteringColumns >= 2)
+                ddl.append(", ck1 ASC");
+            ddl.append(')');
+        }
+        createTable(ddl.toString());
     }
 
+    /**
+     * Partition sizes spread around the cell length, plus the shapes an {@code INSERT}-only generator cannot
+     * produce: partition-level tombstones that later rows survive, static rows, TTLs, collections, and row, range
+     * and cell tombstones. Without them the oracle's {@code partitionLevelDeletion()} and {@code staticRow()}
+     * comparisons are LIVE == LIVE and EMPTY == EMPTY, so a slice that dropped either would pass every iteration --
+     * and a lost partition tombstone on a receiver is silent resurrection of everything that partition ever held.
+     */
     private void writeRandomData(Case c, Random rnd) throws Throwable
     {
         int cellLength = (c.compressor == null ? 64 : c.chunkKb) * 1024;
         long budget = MAX_TABLE_BYTES;
+        long pastTs = BASE_TS;
 
         for (int p = 0; p < c.partitions; p++)
         {
+            // Deletions run at DELETE_TS, so they always shadow the BASE_TS data and never the FUTURE_TS data.
+            // Either way the tombstones themselves land in the bytes the slice copies.
+            boolean partitionTombstone = rnd.nextInt(6) == 0;
+            if (partitionTombstone)
+                execute("DELETE FROM %s USING TIMESTAMP ? WHERE pk = ?", DELETE_TS, key(p));
+            long ts = partitionTombstone ? FUTURE_TS + p * 1000L : pastTs;
+
             int roll = rnd.nextInt(100);
             int valueSize;
             int rows;
             if (roll < 45)
             {
                 valueSize = 1 + rnd.nextInt(200);              // many partitions per cell
-                rows = c.clusterings == 0 ? 1 : 1 + rnd.nextInt(1 + c.clusterings);
+                rows = c.rowSpread == 0 ? 1 : 1 + rnd.nextInt(1 + c.rowSpread);
             }
             else if (roll < 80)
             {
                 valueSize = 200 + rnd.nextInt(2000);
-                rows = c.clusterings == 0 ? 1 : 1 + rnd.nextInt(1 + c.clusterings);
+                rows = c.rowSpread == 0 ? 1 : 1 + rnd.nextInt(1 + c.rowSpread);
             }
             else
             {
@@ -800,12 +1009,85 @@ public class ZeroCopySSTableSliceFuzzTest extends CQLTester
 
             boolean compressible = rnd.nextBoolean();
             for (int r = 0; r < rows; r++)
-            {
-                String value = compressible ? compressible(valueSize) : incompressible(rnd, valueSize);
-                execute("INSERT INTO %s (pk, ck, val) VALUES (?, ?, ?) USING TIMESTAMP ?",
-                        key(p), r, value, BASE_TS + p * 100L + r);
-            }
+                insertRow(c, rnd, p, r, valueSize, compressible, ts + r);
+
+            if (c.hasStatic && rnd.nextBoolean())
+                execute("INSERT INTO %s (pk, s) VALUES (?, ?) USING TIMESTAMP ?",
+                        key(p), incompressible(rnd, 1 + rnd.nextInt(40)), ts + rows);
+
+            // Only the PAST counter advances; a resurrected partition's FUTURE timestamps must not leak into the
+            // next partition, or the deletions there would stop biting.
+            pastTs += rows + 2;
+
+            if (rows > 1 && rnd.nextInt(4) == 0)                     // row tombstone
+                deleteRow(c, p, rnd.nextInt(rows));
+            if (rows > 2 && rnd.nextInt(4) == 0)                     // range tombstone
+                execute("DELETE FROM %s USING TIMESTAMP ? WHERE pk = ? AND ck0 > ? AND ck0 <= ?",
+                        DELETE_TS, key(p), 0, 1 + rnd.nextInt(rows - 1));
+            if (rnd.nextInt(5) == 0)                                 // single cell tombstone
+                deleteValue(c, p, rnd.nextInt(rows));
         }
+    }
+
+    private void insertRow(Case c, Random rnd, int p, int row, int valueSize, boolean compressible, long ts)
+    throws Throwable
+    {
+        String value = compressible ? compressible(valueSize) : incompressible(rnd, valueSize);
+        StringBuilder query = new StringBuilder("INSERT INTO %s (pk, ck0");
+        List<Object> values = new ArrayList<>();
+        values.add(key(p));
+        values.add(row);
+        if (c.clusteringColumns >= 2)
+        {
+            query.append(", ck1");
+            values.add("c" + row);
+        }
+        query.append(", val");
+        values.add(value);
+        // A collection, which is a complex column: its own deletion plus one cell per element.
+        boolean map = c.hasMap && rnd.nextInt(3) == 0;
+        if (map)
+        {
+            query.append(", m");
+            Map<Integer, String> m = new TreeMap<>();
+            for (int i = 0, n = rnd.nextInt(4); i < n; i++)
+                m.put(rnd.nextInt(100), "m" + i);
+            values.add(m);
+        }
+
+        query.append(") VALUES (?, ?");
+        for (int i = 2; i < values.size(); i++)
+            query.append(", ?");
+        query.append(") USING TIMESTAMP ?");
+        values.add(ts);
+
+        // Long enough that nothing can expire mid-test, but it still writes real expiry information, which is what
+        // the inherited EncodingStats has to describe.
+        if (rnd.nextInt(4) == 0)
+        {
+            query.append(" AND TTL ?");
+            values.add(100_000 + rnd.nextInt(1_000_000));
+        }
+
+        execute(query.toString(), values.toArray());
+    }
+
+    private void deleteRow(Case c, int p, int row) throws Throwable
+    {
+        if (c.clusteringColumns >= 2)
+            execute("DELETE FROM %s USING TIMESTAMP ? WHERE pk = ? AND ck0 = ? AND ck1 = ?",
+                    DELETE_TS, key(p), row, "c" + row);
+        else
+            execute("DELETE FROM %s USING TIMESTAMP ? WHERE pk = ? AND ck0 = ?", DELETE_TS, key(p), row);
+    }
+
+    private void deleteValue(Case c, int p, int row) throws Throwable
+    {
+        if (c.clusteringColumns >= 2)
+            execute("DELETE val FROM %s USING TIMESTAMP ? WHERE pk = ? AND ck0 = ? AND ck1 = ?",
+                    DELETE_TS, key(p), row, "c" + row);
+        else
+            execute("DELETE val FROM %s USING TIMESTAMP ? WHERE pk = ? AND ck0 = ?", DELETE_TS, key(p), row);
     }
 
     /** 1..5 disjoint, increasing intervals, biased so that some are adjacent and some are far apart. */

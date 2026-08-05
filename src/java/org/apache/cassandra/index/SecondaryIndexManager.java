@@ -579,6 +579,42 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     }
 
     /**
+     * Whether any index on this table declares itself SSTable-attached, i.e. whether it keeps components inside the
+     * sstables themselves and supports being rebuilt one sstable at a time.
+     * <p>
+     * Meant for anything that creates an sstable WITHOUT running it through an {@code SSTableWriter} and its flush
+     * observers -- a zero-copy split, for instance. Such a path produces a live sstable with no index components, and
+     * nothing downstream repairs that: {@code SSTableContextManager.update} leaves an sstable whose per-sstable
+     * completion marker is missing out of the index view without reporting it invalid, and {@link #handleNotification}
+     * deliberately skips sstable-attached indexes. The result is an sstable whose rows are readable but invisible to
+     * every index predicate.
+     * <p>
+     * What such a caller actually needs to know is whether some index group would have contributed an
+     * {@code SSTableFlushObserver} to that write, and this is narrower than that question. It asks
+     * {@link Index#isSSTableAttached()}, an opt-in declaration whose contract also requires incremental per-sstable
+     * rebuild support, whereas {@link Index#getFlushObserver} is a defaulted method any index may override on its own:
+     * SASI and the Accord route index both write components from a flush observer while leaving
+     * {@code isSSTableAttached()} at its {@code false} default, and a non-{@code SSTableWriter} path drops their
+     * components too without being reported here. Widening the predicate would mean instantiating observers to find
+     * out whether one exists, so treat {@code false} as "no SSTable-attached index", not as "no index components to
+     * lose".
+     * <p>
+     * Asked of the table rather than of the sstable's component set on purpose: it is true from the moment the index
+     * exists, including while its initial build is still running and no sstable has components yet, which is exactly
+     * when the hazard is worst.
+     */
+    public boolean hasSSTableAttachedIndexes()
+    {
+        for (Index.Group group : indexGroups.values())
+        {
+            if (group.getIndexes().stream().anyMatch(Index::isSSTableAttached))
+                return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Incrementally builds indexes for the specified SSTables in a blocking fashion.
      * <p>
      * This is similar to {@link #buildIndexesBlocking}, but it is designed to be used in cases where failure will

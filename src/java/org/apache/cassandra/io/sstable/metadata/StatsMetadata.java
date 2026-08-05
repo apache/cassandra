@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.sstable.metadata;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -101,18 +100,18 @@ public class StatsMetadata extends MetadataComponent
     public final ByteBuffer lastKey;
 
     /**
-     * Whether this sstable's Data.db contains partitions that its index does NOT describe.
+     * Whether this sstable's Data.db contains partitions its index does NOT describe, breaking the invariant that
+     * every byte between the first indexed position and {@code dataLength} belongs to an indexed partition -- so it
+     * MUST be read through the index rather than linearly (see {@code SSTableSimpleScanner} and
+     * {@code SSTableReader#getScanner()}). Only {@code ZeroCopySSTableSlice} sets it: it copies
+     * compression-chunk-aligned ranges out of a larger sstable, so a copied chunk also carries whichever partitions
+     * share it, and those stay out of the synthesised index as being outside this sstable's key range. Flush,
+     * compaction and rewrite all leave it false.
      * <p>
-     * Normally every byte of Data.db between the first indexed position and {@code dataLength} belongs to an
-     * indexed partition, which is what lets a full scan walk the file linearly and ignore the index entirely
-     * (see {@code SSTableSimpleScanner}). An sstable assembled by copying compression-chunk-aligned byte ranges
-     * out of a larger one -- what {@code ZeroCopySSTableSlice} produces -- breaks that: a copied chunk carries
-     * whichever partitions happen to share it, including ones outside the requested ranges, and those are
-     * deliberately left out of the synthesised index because they are not part of this sstable's key range.
-     * <p>
-     * A linear scan would return them anyway, so this marks the file as one that MUST be read through its index.
-     * It is written only by the zero-copy paths; everything a flush, a compaction or a rewrite produces leaves
-     * it false. See {@code SSTableReader#getScanner()}.
+     * Serialized only for sstable versions where {@link Version#hasUnindexedRegionsMarker()} holds (BIG {@code pb},
+     * BTI {@code eb} and later); an older version has no way to express it, so it deserializes as false there and
+     * {@code ZeroCopySSTableSlice} refuses to produce such an sstable in an older version rather than write a marker
+     * that a reader of that version would ignore.
      */
     public final boolean hasUnindexedRegions;
 
@@ -325,6 +324,7 @@ public class StatsMetadata extends MetadataComponent
                        .append(hasPartitionLevelDeletions, that.hasPartitionLevelDeletions)
                        .append(firstKey, that.firstKey)
                        .append(lastKey, that.lastKey)
+                       .append(hasUnindexedRegions, that.hasUnindexedRegions)
                        .build();
     }
 
@@ -355,6 +355,7 @@ public class StatsMetadata extends MetadataComponent
                        .append(hasPartitionLevelDeletions)
                        .append(firstKey)
                        .append(lastKey)
+                       .append(hasUnindexedRegions)
                        .build();
     }
 
@@ -440,8 +441,10 @@ public class StatsMetadata extends MetadataComponent
                 size += Double.BYTES;
             }
 
-            if (component.hasUnindexedRegions)
-                size += TypeSizes.BOOL_SIZE;
+            if (version.hasUnindexedRegionsMarker())
+            {
+                size += TypeSizes.sizeof(component.hasUnindexedRegions);
+            }
 
             return size;
         }
@@ -567,13 +570,14 @@ public class StatsMetadata extends MetadataComponent
                 out.writeDouble(component.tokenSpaceCoverage);
             }
 
-            // Optional trailing field. MetadataSerializer stores every component length-delimited and hands the
-            // deserializer exactly its own bytes, so appending here needs no sstable version bump: a reader of an
-            // older file simply runs out of bytes and defaults to false, and a reader that predates the field
-            // stops before it and ignores the tail. Only written when true, so an ordinary sstable is byte-identical
-            // to what it was before this field existed.
-            if (component.hasUnindexedRegions)
-                out.writeBoolean(true);
+            // Unconditional once the version can express it: a reader that does not know about the marker would scan
+            // such an sstable linearly and return partitions it does not claim, so the field is gated on the sstable
+            // version like every other addition here rather than being inferred from its presence. Versions before
+            // the gate write nothing, which is exactly what they wrote before this field existed.
+            if (version.hasUnindexedRegionsMarker())
+            {
+                out.writeBoolean(component.hasUnindexedRegions);
+            }
         }
 
         private void serializeImprovedMinMax(Version version, StatsMetadata component, DataOutputPlus out) throws IOException
@@ -719,19 +723,9 @@ public class StatsMetadata extends MetadataComponent
                 tokenSpaceCoverage = in.readDouble();
             }
 
-            // Optional trailing field; absent in everything written before it existed, and in everything written
-            // by a flush or a compaction. MetadataSerializer hands us exactly this component's bytes, so running
-            // out of them is how "not present" is signalled -- see the serializer for why this needs no version
-            // gate. Catching EOF rather than probing a length keeps it independent of the stream implementation.
-            boolean hasUnindexedRegions;
-            try
-            {
-                hasUnindexedRegions = in.readBoolean();
-            }
-            catch (EOFException e)
-            {
-                hasUnindexedRegions = false;
-            }
+            // Versions before the gate cannot hold the marker, and an sstable of such a version is never given one
+            // (ZeroCopySSTableSlice refuses), so false is not a guess there.
+            boolean hasUnindexedRegions = version.hasUnindexedRegionsMarker() && in.readBoolean();
 
             return new StatsMetadata(partitionSizes,
                                      columnCounts,

@@ -55,6 +55,7 @@ import org.apache.cassandra.io.sstable.KeyReader;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.util.DataIntegrityMetadata;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.locator.MetaStrategy;
@@ -274,14 +275,23 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
         try (VerifyController verifyController = new VerifyController(cfs);
              KeyReader indexIterator = sstable.keyReader())
         {
-            // Normally the first partition starts at 0 and this seek is a no-op. An sstable whose Data.db was
-            // assembled by cloning a chunk-aligned byte range out of a larger Data.db starts with a dead prefix
-            // instead: compression chunk boundaries are pinned to multiples of chunkLength, so a file that does not
-            // begin on a chunk boundary carries leading bytes that belong to no partition. Start the linear data
-            // walk at the first position the index actually points at rather than failing. This is not masking
-            // corruption: the index is the authority on where partitions begin, and verifyDigest() above has
-            // already read the whole file - including the skipped bytes - through Digest.crc32.
-            dataFile.seek(indexIterator.dataPosition());
+            // Normally the first partition starts at 0 and none of this runs. An sstable whose Data.db was assembled
+            // from verbatim cell-aligned byte ranges of a larger one - a zero-copy split child, or a slice received by
+            // partial zero-copy streaming - opens with a DEAD PREFIX instead: the head of its first cell, holding the
+            // tail of a partition that starts before the copied range. Only a position that could be such a prefix is
+            // stepped over (see deadPrefixLimit); for anything larger this has to keep failing, because starting the
+            // walk there would leave every partition before it unverified while verify() went on to report success.
+            long firstPositionFromIndex = indexIterator.dataPosition();
+            if (firstPositionFromIndex != 0)
+            {
+                if (firstPositionFromIndex >= deadPrefixLimit())
+                    markAndThrow(new RuntimeException("First row position from index != 0: " + firstPositionFromIndex));
+
+                outputHandler.output("Data.db of %s opens with %d bytes no index entry describes; reading them, then " +
+                                     "verifying partitions from %d", sstable, firstPositionFromIndex, firstPositionFromIndex);
+                // Consumes the prefix rather than jumping over it, leaving the pointer exactly where the walk starts.
+                readUnindexedPrefix(firstPositionFromIndex);
+            }
 
             List<Range<Token>> ownedRanges = isOffline ? Collections.emptyList() : Range.normalize(tokenLookup.apply(cfs.metadata().keyspace));
             RangeOwnHelper rangeOwnHelper = new RangeOwnHelper(ownedRanges);
@@ -363,6 +373,15 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
 
 
                     if (outputHandler.isDebugEnabled()) outputHandler.debug("Row %s at %s valid, moving to next row at %s ", goodRows, rowStart, nextRowPositionFromIndex);
+
+                    // An exhausted index reports dataFile.length() (above), and seeking exactly there is not a
+                    // no-op: it rebuffers, which on a compressed file is chunkFor(dataLength) -- out of bounds when
+                    // dataLength is an exact multiple of the chunk length. That reported a perfectly good sstable
+                    // as corrupt and marked it unrepaired. There is no next partition, so just stop; a position
+                    // PAST the end still reaches seek() and still fails, because that is real corruption.
+                    if (nextRowPositionFromIndex == dataFile.length())
+                        break;
+
                     dataFile.seek(nextRowPositionFromIndex);
                 }
                 catch (Throwable th)
@@ -375,6 +394,79 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
         {
             Throwables.throwIfUnchecked(t);
             throw new RuntimeException(t);
+        }
+    }
+
+    /**
+     * Exclusive bound on a non-zero first index position {@link #verifySSTable()} will accept as a DEAD PREFIX rather
+     * than fail on.
+     * <p>
+     * An sstable whose Data.db was assembled from verbatim cell-aligned byte ranges of a larger one carries the bytes
+     * of its first cell that precede the copied range: {@code lo mod cellLength} of them, so a legitimate prefix is
+     * always inside the FIRST cell. The cell is the compression chunk length (uncompressed positions are pinned to
+     * multiples of it, {@code CompressionMetadata#chunkFor} indexing the offsets array by
+     * {@code position / chunkLength}), or CRC.db's chunk size for an uncompressed sstable. Capped by the data length
+     * so the caller's read cannot run off the end, and 0 - no tolerance at all, i.e. the "first row position from
+     * index != 0" failure this method exists to bound - when the grid cannot be read, since then nothing bounds the
+     * prefix.
+     * <p>
+     * {@link SSTableReader#hasUnindexedRegions()} is deliberately not the test here: it marks only INTERIOR unindexed
+     * regions - which this method's caller steps over anyway, since it already seeks to each next index position -
+     * and is left unset for an sstable that has nothing but a prefix, precisely so those can still be read by the
+     * linear scanner. Only called for a non-zero position, so an ordinary verify never reaches it.
+     */
+    private long deadPrefixLimit()
+    {
+        long cellLength;
+        if (sstable.compression)
+        {
+            cellLength = sstable.getCompressionMetadata().chunkLength();
+        }
+        else
+        {
+            File crc = sstable.descriptor.fileFor(SSTableFormat.Components.CRC);
+            if (!crc.exists())
+                return 0;
+            try (RandomAccessReader in = RandomAccessReader.open(crc))
+            {
+                cellLength = in.readInt();
+            }
+            catch (IOException | RuntimeException e)
+            {
+                return 0;
+            }
+        }
+        return cellLength <= 0 ? 0 : Math.min(cellLength, dataFile.length());
+    }
+
+    /**
+     * Read the {@code length} bytes at the head of Data.db that no index entry describes, so that a verify which
+     * starts its partition walk past them has still looked at every byte of the file. It cannot prove they are not
+     * partitions - nothing can, once no index entry claims them; that is what {@link #deadPrefixLimit()} bounds - but
+     * it does subject them to whatever integrity check the read path has: for a compressed sstable the inline CRC32
+     * of the chunk they share with the first partition, and for any sstable that they can be read at all.
+     * {@link #verifyDigest()} covers them properly where Digest.crc32 exists; it is exactly the case where it does
+     * not ({@code zero_copy_split_digest_enabled: false}, which makes verifyDigest() report the component missing and
+     * return false) that reaches an extended verification with nothing else covering the prefix.
+     */
+    private void readUnindexedPrefix(long length)
+    {
+        try
+        {
+            dataFile.seek(0);
+            byte[] scratch = new byte[(int) Math.min(length, 8192)];
+            long remaining = length;
+            while (remaining > 0)
+            {
+                int read = (int) Math.min(remaining, scratch.length);
+                dataFile.readFully(scratch, 0, read);
+                remaining -= read;
+            }
+        }
+        catch (Throwable t)
+        {
+            outputHandler.warn(t);
+            markAndThrow(t);
         }
     }
 

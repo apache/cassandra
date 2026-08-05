@@ -434,7 +434,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
     static class BigVersion extends Version
     {
         public static final String current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? "nb" :
-                                                     DatabaseDescriptor.getStorageCompatibilityMode().isBefore(6) ? "oa" : "pa";
+                                                     DatabaseDescriptor.getStorageCompatibilityMode().isBefore(6) ? "oa" : "pb";
         public static final String earliest_supported_version = "ma";
 
         // ma (3.0.0): swap bf hash order
@@ -450,6 +450,9 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         //           Long deletionTime to prevent TTL overflow
         //           token space coverage
         // pa (6.0): compression dictionary metadata in CompressionInfo component
+        // pb (7.0): marker in the stats component for a Data.db holding partitions its index does not describe, which
+        //           must therefore be read through the index rather than scanned linearly (partial zero-copy
+        //           streaming); see StatsMetadata#hasUnindexedRegions
         //
         // NOTE: When adding a new version:
         //  - Please add it to LegacySSTableTest
@@ -471,6 +474,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         private final boolean hasKeyRange;
         private final boolean hasUintDeletionTime;
         private final boolean hasTokenSpaceCoverage;
+        private final boolean hasUnindexedRegionsMarker;
 
         /**
          * CASSANDRA-9067: 4.0 bloom filter representation changed (two longs just swapped)
@@ -503,6 +507,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
             hasKeyRange = version.compareTo("oa") >= 0;
             hasUintDeletionTime = version.compareTo("oa") >= 0;
             hasTokenSpaceCoverage = version.compareTo("oa") >= 0;
+            hasUnindexedRegionsMarker = version.compareTo("pb") >= 0;
         }
 
         @Override
@@ -605,6 +610,12 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         public boolean hasKeyRange()
         {
             return hasKeyRange;
+        }
+
+        @Override
+        public boolean hasUnindexedRegionsMarker()
+        {
+            return hasUnindexedRegionsMarker;
         }
 
         @Override

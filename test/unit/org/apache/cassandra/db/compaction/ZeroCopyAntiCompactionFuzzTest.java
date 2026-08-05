@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -33,7 +34,8 @@ import java.util.TreeSet;
 
 import com.google.common.collect.Lists;
 
-import org.junit.Assume;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +43,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.Config.FlushCompression;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.TestDatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -52,8 +55,12 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.ZeroCopySSTableSplitter;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.Reflink;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
@@ -108,9 +115,9 @@ import static org.junit.Assert.assertTrue;
  * ({@code ZeroCopySSTableSplitterFuzzTest}); the subject here is routing and completeness.
  *
  * <h2>What is randomised</h2>
- * The compressor and {@code chunk_length_in_kb}, {@code column_index_size} (so wide partitions really do carry
- * a promoted index that the planner's Index.db walk has to skip), the partition count, and wide versus narrow
- * partitions. The range set is randomised by <em>shape</em>: covering the whole sstable, a prefix, a suffix, a
+ * The sstable format (BIG or BTI), the compressor and {@code chunk_length_in_kb}, {@code column_index_size} (so wide
+ * partitions really do carry a row index that the planner's index walk has to skip), the partition count, and wide
+ * versus narrow partitions. The range set is randomised by <em>shape</em>: covering the whole sstable, a prefix, a suffix, a
  * middle span, exactly one partition, a range whose endpoint lands exactly on the first or last partition's
  * token, ranges that cover no partition at all (inside a token gap, or entirely below or above the sstable's
  * span), a full range abutting a transient one, a transient range nested inside a full one (full wins) and vice
@@ -118,8 +125,16 @@ import static org.junit.Assert.assertTrue;
  * retains detail for. Shapes are guaranteed to be exercised: iteration {@code i} always gets shape
  * {@code i % shapes}, encoded in the low digits of that iteration's seed so a seed alone still replays it.
  *
- * <h2>Reproducing a failure</h2>
- * Every assertion message carries the whole configuration -- range set included -- plus the iteration's seed.
+ * <h2>Randomised, and replayable anyway</h2>
+ * The base seed is drawn fresh on every run, so successive runs really do sample the ~480-combination matrix
+ * instead of re-testing the same 16 configurations forever; a hardcoded base seed made the "fuzz" deterministic
+ * and, worse, permanently blind to whatever it happened not to pick. What is NOT random is the shape: iteration
+ * {@code i} always gets shape {@code i % SHAPES.length}, so every shape is exercised on every run whatever the
+ * seed, and the shape is encoded in the low digits of the iteration's seed so quoting that seed replays the shape
+ * as well.
+ * <p>
+ * Every assertion message carries the whole configuration -- range set, format, free-space verdict -- plus the
+ * iteration's seed, and the base seed is logged at INFO on the way in and repeated in the summary assertions.
  * A bare {@code -Dfoo=bar} on the ant command line does <b>not</b> reach the forked test JVM, so the properties
  * below must be passed through {@code -Dtest.jvm.args}:
  * <pre>
@@ -128,16 +143,35 @@ import static org.junit.Assert.assertTrue;
  *       -Dtest.methods=fuzzRangeSets \
  *       -Dtest.jvm.args="-Dcassandra.test.zcanticompaction.replaySeed=&lt;seed from the failure message&gt;"
  * </pre>
- * For a longer soak, raise the iteration count and/or move the base seed:
+ * To replay a whole run, or for a longer soak:
  * <pre>
- *   -Dtest.jvm.args="-Dcassandra.test.zcanticompaction.iterations=160 -Dcassandra.test.zcanticompaction.seed=99"
+ *   -Dtest.jvm.args="-Dcassandra.test.zcanticompaction.seed=&lt;base seed from the log&gt;"
+ *   -Dtest.jvm.args="-Dcassandra.test.zcanticompaction.iterations=160"
  * </pre>
  * The default of one iteration per shape is deliberately modest so this stays inside a normal unit-test run.
  *
- * <h2>Preconditions</h2>
- * The splitter is BIG-only, so the whole test is gated on {@link BigFormat#isSelected()} -- under BTI every
- * iteration would take the fallback and the "at least one iteration was eligible" guard below would (rightly)
- * fail. {@code zero_copy_anticompaction_enabled} defaults to false and is enabled (and restored) by the test.
+ * <h2>Both formats, in every run</h2>
+ * BIG and BTI resolve a partition key from different places -- BIG reads it straight out of Index.db, BTI walks
+ * Partitions.db and then reads the key from Rows.db or, for a partition with no row index, from Data.db -- so the
+ * labelling oracle is testing genuinely different code on each. Waiting for the one CI job that selects BTI
+ * ({@code ant test-latest}, whose yaml sets {@code sstable.selected_format: bti}) left that code untested in every
+ * other run, so the format is part of the randomised matrix instead: each iteration flips it, which works because
+ * the selected format is read at flush time. It is restored in {@code @After} with everything else.
+ *
+ * <h2>Preconditions, and how they fail</h2>
+ * Two things can make the feature INERT rather than wrong, and both are diagnosed
+ * explicitly rather than left to surface as a mysterious "the plan was eligible but the metric did not move":
+ * <ul>
+ *   <li>an sstable version that cannot carry {@code StatsMetadata.hasUnindexedRegions} (BIG {@code pb}+, BTI
+ *       {@code eb}+), which is what {@code storage_compatibility_mode} produces; and</li>
+ *   <li>a nearly full disk. The precheck in {@code CompactionManager.zeroCopyAntiCompact} goes through
+ *       {@code Directories.hasDiskSpaceForCompactionsAndStreams}, so it honours {@code min_free_space_per_drive}
+ *       and {@code max_space_usable_for_compactions_in_percentage} and DECLINES every eligible sstable on a full
+ *       CI volume. The same question is asked here, before each run, and its verdict recorded in the
+ *       configuration.</li>
+ * </ul>
+ * {@code zero_copy_anticompaction_enabled} defaults to false; it and the four other settings this test moves are
+ * saved in {@code @Before} and restored in {@code @After}, so no {@code Assume} or early return can leak them.
  */
 public class ZeroCopyAntiCompactionFuzzTest extends CQLTester
 {
@@ -189,8 +223,15 @@ public class ZeroCopyAntiCompactionFuzzTest extends CQLTester
     // These three are read straight from the system properties rather than through
     // CassandraRelevantProperties: they are replay knobs for this one test class, never read by production
     // code, and adding them to the enum would put test scaffolding into the production configuration surface.
+    /**
+     * Fresh per run unless overridden, which is the difference between a fuzz test and sixteen fixed cases: with
+     * {@code ITERATIONS == SHAPES.length} a hardcoded base seed pinned exactly one configuration per shape forever,
+     * leaving most of the compressor x chunk x column-index x width matrix permanently untested. Randomising costs
+     * nothing in reproducibility -- {@link #replayHint} quotes the per-iteration seed, and this value is logged and
+     * repeated in every summary assertion so a whole run can be replayed too.
+     */
     private static final long BASE_SEED =
-        Long.getLong(PROP_SEED, 20260727_0001L);       // checkstyle: suppress nearby 'blockSystemPropertyUsage'
+        Long.getLong(PROP_SEED, System.nanoTime());    // checkstyle: suppress nearby 'blockSystemPropertyUsage'
     private static final int ITERATIONS =
         Integer.getInteger(PROP_ITERATIONS, SHAPES.length); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
     /** When set, exactly one iteration runs, with this literal seed. */
@@ -210,42 +251,65 @@ public class ZeroCopyAntiCompactionFuzzTest extends CQLTester
     /** Enough distinct tokens for every shape's index arithmetic to have room. */
     private static final int MIN_DISTINCT_TOKENS = 8;
 
+    /** BTI is optional in a build; where it is registered, half the iterations use it. */
+    private static final boolean BTI_AVAILABLE = DatabaseDescriptor.getSSTableFormats().containsKey(BtiFormat.NAME);
+
     private int eligibleIterations;
     private int ineligibleIterations;
     private final Map<String, String> verdictByShape = new TreeMap<>();
+    /** The last free-space verdict computed, so the summary assertion can name an environmental cause. */
+    private String lastFreeSpaceVerdict = "not evaluated";
+
+    private int savedIndexSize;
+    private int savedCacheSize;
+    private FlushCompression savedFlushCompression;
+    private boolean savedZeroCopy;
+    private SSTableFormat<?, ?> savedFormat;
+
+    @Before
+    public void saveConfig()
+    {
+        savedIndexSize = DatabaseDescriptor.getColumnIndexSizeInKiB();
+        savedCacheSize = DatabaseDescriptor.getColumnIndexCacheSizeInKiB();
+        savedFlushCompression = DatabaseDescriptor.getFlushCompression();
+        savedZeroCopy = DatabaseDescriptor.getZeroCopyAnticompactionEnabled();
+        savedFormat = DatabaseDescriptor.getSelectedSSTableFormat();
+    }
+
+    /**
+     * Unconditional and outside the test body, so nothing this class moves can leak into the rest of the JVM --
+     * including via an {@code Assume} that skips before the old inline {@code finally} was reached. Five global
+     * settings are in play: two column-index sizes, the flush compression mode, the feature flag and the selected
+     * sstable format.
+     */
+    @After
+    public void restoreConfig()
+    {
+        DatabaseDescriptor.setColumnIndexSizeInKiB(savedIndexSize);
+        DatabaseDescriptor.setColumnIndexCacheSize(savedCacheSize);
+        DatabaseDescriptor.setFlushCompression(savedFlushCompression);
+        DatabaseDescriptor.setZeroCopyAnticompactionEnabled(savedZeroCopy);
+        TestDatabaseDescriptor.setUnsafeSelectedSSTableFormat(savedFormat);
+    }
 
     @Test
     public void fuzzRangeSets() throws Throwable
     {
-        Assume.assumeTrue(BigFormat.isSelected());
+        DatabaseDescriptor.setZeroCopyAnticompactionEnabled(true);
 
-        int savedIndexSize = DatabaseDescriptor.getColumnIndexSizeInKiB();
-        int savedCacheSize = DatabaseDescriptor.getColumnIndexCacheSizeInKiB();
-        FlushCompression savedFlushCompression = DatabaseDescriptor.getFlushCompression();
-        boolean savedZeroCopy = DatabaseDescriptor.getZeroCopyAnticompactionEnabled();
-        try
+        if (REPLAY_SEED != null)
         {
-            DatabaseDescriptor.setZeroCopyAnticompactionEnabled(true);
-
-            if (REPLAY_SEED != null)
-            {
-                logger.info("Replaying a single zero-copy anticompaction fuzz iteration, seed {}", REPLAY_SEED);
-                runGuarded(REPLAY_SEED);
-            }
-            else
-            {
-                logger.info("Zero-copy anticompaction fuzz: {} iterations from base seed {} over {} range shapes",
-                            ITERATIONS, BASE_SEED, SHAPES.length);
-                for (int i = 0; i < ITERATIONS; i++)
-                    runGuarded(seedForIteration(i));
-            }
+            logger.info("Replaying a single zero-copy anticompaction fuzz iteration, seed {}", REPLAY_SEED);
+            runGuarded(REPLAY_SEED);
         }
-        finally
+        else
         {
-            DatabaseDescriptor.setColumnIndexSizeInKiB(savedIndexSize);
-            DatabaseDescriptor.setColumnIndexCacheSize(savedCacheSize);
-            DatabaseDescriptor.setFlushCompression(savedFlushCompression);
-            DatabaseDescriptor.setZeroCopyAnticompactionEnabled(savedZeroCopy);
+            logger.info("Zero-copy anticompaction fuzz on the {} format: {} iterations from base seed {} over {} " +
+                        "range shapes. Replay this whole run with -D{}={}",
+                        DatabaseDescriptor.getSelectedSSTableFormat().name(), ITERATIONS, BASE_SEED, SHAPES.length,
+                        PROP_SEED, BASE_SEED);
+            for (int i = 0; i < ITERATIONS; i++)
+                runGuarded(seedForIteration(i));
         }
 
         logger.info("Zero-copy anticompaction fuzz done: {} iterations took the zero-copy split, {} fell back to " +
@@ -253,8 +317,17 @@ public class ZeroCopyAntiCompactionFuzzTest extends CQLTester
 
         // Without at least one eligible iteration the oracle above would only ever have exercised the
         // pre-existing rewrite path, i.e. this test would be vacuous with respect to the feature it covers.
-        assertTrue("no iteration reached the zero-copy split path (per shape: " + verdictByShape + "); this fuzz " +
-                   "is no longer testing the feature it exists for", eligibleIterations > 0);
+        // The two environmental ways that happens without anything being wrong are named here, because "no
+        // iteration reached the zero-copy split path" is otherwise indistinguishable from a real regression.
+        assertTrue("no iteration reached the zero-copy split path (base seed " + BASE_SEED + ", format "
+                   + DatabaseDescriptor.getSelectedSSTableFormat().name() + ", per shape: " + verdictByShape
+                   + "); this fuzz is no longer testing the feature it exists for. Two ENVIRONMENTAL causes to rule"
+                   + " out before looking for a bug: (1) a disk with too little free space -- the last free-space"
+                   + " verdict was [" + lastFreeSpaceVerdict + "], and the precheck honours"
+                   + " min_free_space_per_drive and max_space_usable_for_compactions_in_percentage, so a nearly"
+                   + " full volume declines every eligible sstable; (2) an sstable version below BIG 'pb' / BTI"
+                   + " 'eb', which storage_compatibility_mode pins and which makes the whole feature inert",
+                   eligibleIterations > 0);
         assertEquals("some iteration was never classified as zero-copy or fallback",
                      REPLAY_SEED != null ? 1 : ITERATIONS, eligibleIterations + ineligibleIterations);
     }
@@ -307,6 +380,10 @@ public class ZeroCopyAntiCompactionFuzzTest extends CQLTester
         Random rnd = new Random(cfg.seed);
 
         cfg.shape = shapeForSeed(cfg.seed);
+        // Flipped per iteration, so a single run exercises both key-resolution paths. The selected format is global
+        // and read at flush time, hence set before createTable below and restored in @After.
+        cfg.bti = BTI_AVAILABLE && rnd.nextBoolean();
+        TestDatabaseDescriptor.setUnsafeSelectedSSTableFormat(cfg.bti ? BtiFormat.NAME : BigFormat.NAME);
         cfg.compressor = COMPRESSORS[rnd.nextInt(COMPRESSORS.length)];
         cfg.chunkKb = CHUNK_KB[rnd.nextInt(CHUNK_KB.length)];
         cfg.columnIndexKb = COLUMN_INDEX_KB[rnd.nextInt(COLUMN_INDEX_KB.length)];
@@ -341,9 +418,20 @@ public class ZeroCopyAntiCompactionFuzzTest extends CQLTester
         assertEquals("expected exactly one sstable after the flush, got " + live, 1, live.size());
         SSTableReader parent = live.iterator().next();
 
+        cfg.format = parent.descriptor.getFormat().name();
+        cfg.version = parent.descriptor.version.version;
+
         assertTrue("the generator produced an uncompressed sstable, so the whole compressor matrix is void",
                    parent.compression);
-        assertTrue("a compressed BIG sstable must be splittable", ZeroCopySSTableSplitter.isSupported(parent));
+        // Not "should be splittable" but "this run cannot test the feature at all": a version below BIG 'pb' /
+        // BTI 'eb' cannot carry StatsMetadata.hasUnindexedRegions, so isSupported() is false for every sstable and
+        // every iteration would take the fallback while the oracle happily passed.
+        assertTrue("sstable version '" + cfg.version + "' cannot carry the StatsMetadata.hasUnindexedRegions marker"
+                   + " (BIG needs 'pb', BTI 'eb'), so zero-copy splitting is INERT for every iteration of this run."
+                   + " storage_compatibility_mode pins the version written and must be NONE. " + cfg,
+                   parent.descriptor.version.hasUnindexedRegionsMarker());
+        assertTrue("a compressed " + cfg.format + " sstable must be splittable. " + cfg,
+                   ZeroCopySSTableSplitter.isSupported(parent));
         // If flush_compression silently downgraded the table's compression this is where it shows up.
         assertEquals("the table's chunk_length_in_kb did not survive to the sstable; flush_compression has "
                      + "replaced the requested compressor and this iteration would test nothing",
@@ -423,6 +511,15 @@ public class ZeroCopyAntiCompactionFuzzTest extends CQLTester
             assertNotNull(cfg + " -- an ineligible plan must say why", plan.ineligibleReason);
         }
 
+        // ---- the environmental precondition, asked the same way CompactionManager asks it ----
+        // Recorded BEFORE the run, while the parent still exists, so that a "the plan was eligible but the metric
+        // did not move" failure below already carries the answer instead of looking like a gate regression.
+        if (expectedEligible)
+        {
+            cfg.freeSpace = freeSpaceVerdict(cfs, parent, plan.perChild.size());
+            lastFreeSpaceVerdict = cfg.freeSpace;
+        }
+
         // ---- run the anticompaction through the real public entry point ----
         long zcBytesBefore = cfs.metric.bytesZeroCopyAnticompaction.table.getCount();
         try
@@ -449,7 +546,12 @@ public class ZeroCopyAntiCompactionFuzzTest extends CQLTester
         {
             eligibleIterations++;
             assertTrue(cfg + " -- the plan was eligible but BytesZeroCopyAnticompaction did not move ("
-                       + zcBytesBefore + " -> " + zcBytesAfter + "), so the rewrite path ran instead",
+                       + zcBytesBefore + " -> " + zcBytesAfter + "), so the rewrite path ran instead. If the"
+                       + " free-space verdict above says FAILED this is ENVIRONMENTAL, not a gate regression:"
+                       + " CompactionManager.zeroCopyAntiCompact declines an eligible sstable when"
+                       + " Directories.hasDiskSpaceForCompactionsAndStreams says the destination may not have room,"
+                       + " which honours min_free_space_per_drive and"
+                       + " max_space_usable_for_compactions_in_percentage",
                        zcBytesAfter > zcBytesBefore);
         }
         else
@@ -888,6 +990,35 @@ public class ZeroCopyAntiCompactionFuzzTest extends CQLTester
         return ByteBufferUtil.bytesToHex(key.getKey());
     }
 
+    /**
+     * The exact question {@code CompactionManager.zeroCopyAntiCompact} asks before it takes the zero-copy path, with
+     * the same estimate: every component of the parent, plus one boundary chunk per interior boundary (the chunk a
+     * boundary falls inside is copied into both of its neighbours) and one {@code Reflink.RANGE_ALIGNMENT} head pad
+     * per child. Reproduced here rather than inferred, so a decline is legible as an environmental fact.
+     */
+    private static String freeSpaceVerdict(ColumnFamilyStore cfs, SSTableReader parent, int children)
+    {
+        try
+        {
+            File destination = parent.descriptor.directory;
+            long chunkLength = parent.getCompressionMetadata().chunkLength();
+            long needed = parent.bytesOnDisk()
+                          + (children - 1) * chunkLength
+                          + children * Reflink.RANGE_ALIGNMENT;
+            boolean hasSpace = cfs.getDirectories()
+                                  .hasDiskSpaceForCompactionsAndStreams(
+                                      Collections.singletonMap(destination, needed),
+                                      CompactionManager.instance.active.estimatedRemainingWriteToDiskBytes());
+            return (hasSpace ? "PASSED" : "FAILED") + " for " + needed + " bytes in " + destination
+                   + " (usable " + destination.toJavaIOFile().getUsableSpace() + ')';
+        }
+        catch (Throwable t)
+        {
+            // The production path declines rather than skips on a stat failure, so this must not hide one.
+            return "NOT EVALUABLE: " + t;
+        }
+    }
+
     /** splitmix64, so consecutive base seeds give uncorrelated iterations. */
     private static long scramble(long seed)
     {
@@ -903,6 +1034,10 @@ public class ZeroCopyAntiCompactionFuzzTest extends CQLTester
         final long seed;
 
         Shape shape;
+        boolean bti;
+        String format = "?";
+        String version = "?";
+        String freeSpace = "not evaluated";
         String compressor = "?";
         int chunkKb = -1;
         int columnIndexKb = -1;
@@ -930,6 +1065,9 @@ public class ZeroCopyAntiCompactionFuzzTest extends CQLTester
         {
             return "seed=" + seed
                    + " shape=" + shape
+                   + " requestedBti=" + bti
+                   + " format=" + format
+                   + " version=" + version
                    + " compressor=" + compressor
                    + " chunkKb=" + chunkKb
                    + " columnIndexKb=" + columnIndexKb
@@ -942,6 +1080,7 @@ public class ZeroCopyAntiCompactionFuzzTest extends CQLTester
                    + " parentPartitions=" + parentPartitions
                    + " runCount=" + runCount
                    + " expectedEligible=" + expectedEligible
+                   + "\n  freeSpacePrecheck=" + freeSpace
                    + "\n  fullRanges=" + fullRanges
                    + "\n  transientRanges=" + transientRanges
                    + "\n  labels=" + labels;

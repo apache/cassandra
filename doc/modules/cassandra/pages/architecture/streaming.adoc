@@ -69,13 +69,27 @@ stream_entire_sstables: true
 ....
 
 Zero copy streaming is enabled by default.
+
 === SSTables Eligible for Zero Copy Streaming
 
-Zero copy streaming is used if all partitions within the SSTable need to
-be transmitted. This is common when using `LeveledCompactionStrategy` or
-when partitioning SSTables by token range has been enabled. All
-partition keys in the SSTables are iterated over to determine the
-eligibility for Zero Copy streaming.
+An SSTable is streamed whole through the zero copy path if all partitions
+within it need to be transmitted. This is common when using
+`LeveledCompactionStrategy` or when partitioning SSTables by token range
+has been enabled. All partition keys in the SSTables are iterated over to
+determine the eligibility for Zero Copy streaming.
+
+An SSTable only part of which needs to be transmitted can also use the
+zero copy path, as a *slice*: a verbatim run of the SSTable's compression
+chunks covering the requested ranges, with the other components
+synthesized for it on the sender. This must be enabled explicitly with
+`zero_copy_partial_stream_enabled`, because a slice can carry bytes its
+index does not describe, which a node that does not yet have this feature
+will misread. Read that setting's comment in `cassandra.yaml`, and the
+`Upgrading` notes in `NEWS.txt`, before enabling it. Requested ranges are
+widened to the SSTable's compression grid, so ranges too narrow or too
+scattered to be worth that widening fall back to partition-by-partition
+streaming; `zero_copy_partial_stream_max_dead_space_ratio` sets how much
+widening is acceptable.
 
 === Benefits of Zero Copy Streaming
 
@@ -120,7 +134,9 @@ inter_dc_stream_throughput_outbound: 24MiB/s
 
 Zero Copy Streaming streams entire SSTables. SSTables are made up of
 multiple components in separate files. SSTable components streamed are
-listed in Table 1.
+listed in Table 1. A partial SSTable slice streams the same components,
+synthesized for the sliced range, with the one exception noted against
+`Digest.crc32`.
 
 Table 1. SSTable Components
 
@@ -141,7 +157,11 @@ length, chunk offsets etc.
 
 |Statistics.db |Statistical metadata about the content of the SSTable.
 
-|Digest.crc32 |Holds CRC32 checksum of the data file size_bytes.
+|Digest.crc32 |Holds CRC32 checksum of the data file size_bytes. Not
+streamed for a partial SSTable slice: the data reaches the socket by
+`sendfile` and is never in process on the sender, which therefore cannot
+checksum it without a second full read, so the receiver computes this
+component as it writes the data file.
 
 |CRC.db |Holds the CRC32 for chunks in an uncompressed file.
 
