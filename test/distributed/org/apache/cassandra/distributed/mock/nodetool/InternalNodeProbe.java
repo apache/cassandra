@@ -175,6 +175,12 @@ public class InternalNodeProbe extends NodeProbe
     }
 
     @Override
+    public Object getCQLMetric(String metricName)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public Object getClientMetric(String metricName)
     {
         throw new UnsupportedOperationException();

@@ -44,11 +44,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nullable;
+import javax.management.AttributeNotFoundException;
 import javax.management.InstanceNotFoundException;
+import javax.management.IntrospectionException;
 import javax.management.JMX;
+import javax.management.MBeanAttributeInfo;
+import javax.management.MBeanException;
 import javax.management.MBeanServerConnection;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
+import javax.management.ReflectionException;
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
@@ -112,7 +117,9 @@ import org.apache.cassandra.locator.DynamicEndpointSnitchMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.locator.LocationInfoMBean;
 import org.apache.cassandra.metrics.CIDRAuthorizerMetrics;
+import org.apache.cassandra.metrics.CQLMetrics;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
+import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
@@ -1934,6 +1941,31 @@ public class NodeProbe implements AutoCloseable
             }
         }
         catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Retrieve a CQL metric value by name. Works generically for any metric registered under
+     * {@code org.apache.cassandra.metrics:type=CQL,name=<metricName>} by inspecting the MBean
+     * attributes at runtime, without requiring knowledge of the underlying metric type.
+     */
+    public Object getCQLMetric(String metricName)
+    {
+        try
+        {
+            ObjectName objectName = new ObjectName(DefaultNameFactory.GROUP_NAME + ":type=" + CQLMetrics.TYPE_NAME + ",name=" + metricName);
+            for (MBeanAttributeInfo attr : mbeanServerConn.getMBeanInfo(objectName).getAttributes())
+            {
+                String name = attr.getName();
+                if ("Value".equals(name) || "Count".equals(name))
+                    return mbeanServerConn.getAttribute(objectName, name);
+            }
+            throw new RuntimeException("No readable value attribute for CQL metric: " + metricName);
+        }
+        catch (MalformedObjectNameException | InstanceNotFoundException | IntrospectionException |
+               ReflectionException | AttributeNotFoundException | MBeanException | IOException e)
         {
             throw new RuntimeException(e);
         }
