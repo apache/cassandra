@@ -20,9 +20,8 @@ package org.apache.cassandra.tcm;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
-import java.util.function.Predicate;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
 import org.slf4j.Logger;
@@ -32,6 +31,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.listeners.ChangeListener;
 import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.utils.Pair;
 
 public class CMSLookup
@@ -46,7 +46,8 @@ public class CMSLookup
         return new InitialBuilder(metadata);
     }
 
-    private final ImmutableMap<NodeId, Pair<InetAddressAndPort, InetAddressAndPort>> overrides;
+    @VisibleForTesting
+    public final ImmutableMap<NodeId, Pair<InetAddressAndPort, InetAddressAndPort>> overrides;
     private final Epoch lastModified;
     private final State state;
 
@@ -90,35 +91,55 @@ public class CMSLookup
         if (state == State.RETIRED)
             return this;
 
+        // If there are no directory changes, there can be nothing to do
         if (!next.epoch.isEqualOrBefore(Epoch.FIRST)
             && !fromSnapshot
             && next.directory.lastModified().equals(prev.directory.lastModified()))
             return this;
 
-        // Filters from the override list those which are no longer necessary as a transformation has now
-        // replaced the old address with a new one for that node id
-        Predicate<Map.Entry<NodeId, Pair<InetAddressAndPort, InetAddressAndPort>>> overrideRequired = entry -> {
-            NodeId nodeId = entry.getKey();
-            if (!Objects.equals(prev.directory.getNodeAddresses(nodeId), next.directory.getNodeAddresses(nodeId)))
-            {
-                Pair<InetAddressAndPort, InetAddressAndPort> override = overrides.get(nodeId);
-                if (override != null)
-                {
-                    // If there was an override for this nodeId && the address being overriden matches the prev
-                    // directory entry, filter out the override from the map which will be used to build the new version
-                    // (i.e. return false from Predicate::test). This indicates the override is no longer required.
-                    return !override.left.equals(prev.directory.endpoint(nodeId));
-                }
-            }
-            return true;
-        };
-
+        // Filter from the override list those which are no longer necessary as a transformation has now replaced the
+        // old address with a new one for that node id, or because the node is no longer part of the cluster, having
+        // been replaced, decommissioned or assassinated.
         logger.info("Current endpoint overrides: {}", overrides);
         ImmutableMap.Builder<NodeId, Pair<InetAddressAndPort, InetAddressAndPort>> builder = ImmutableMap.builder();
         for (Map.Entry<NodeId, Pair<InetAddressAndPort, InetAddressAndPort>> override : overrides.entrySet())
         {
-            if(overrideRequired.test(override))
-                builder.put(override.getKey(), override.getValue());
+            NodeId nodeId = override.getKey();
+            // If prev.directory doesn't contain the id, then the node has been removed already. This implies that we
+            // didn't witness this directly, but have caught up via a snapshot. In this case, filter from the required
+            // set of overrides. Likewise, if the next directory doesn't contain the node id, it has already been
+            // removed, so maintaining an address override for it is pointless.
+            if (!prev.directory.peerIds().contains(nodeId) || !next.directory.peerIds().contains(nodeId))
+                continue;
+
+            // If the node has already left, no need to maintain its override.
+            if (next.directory.peerState(nodeId) == NodeState.LEFT)
+                continue;
+
+            Pair<InetAddressAndPort, InetAddressAndPort> mapping = override.getValue();
+            InetAddressAndPort prevEndpoint = prev.directory.endpoint(nodeId);
+            InetAddressAndPort nextEndpoint = next.directory.endpoint(nodeId);
+
+            // The expected change has been enacted so the override is no longer required
+            if (nextEndpoint.equals(mapping.right))
+                continue;
+
+            // If the previous endpoint doesn't match the overridden address, the override has been superceded.
+            // this may imply that the node has changed address multiple times since the overrides were initially built.
+            // We should/will learn of the new address via the usual replication mechanism, but even if we don't a
+            // restart of this node will rebuild and necessary, new overrides and repeat the process. In any case, this
+            // means that that this specific override is no longer necessary and all that can be done is to log.
+            if (!prevEndpoint.equals(mapping.left))
+            {
+                logger.info("Pending CMS address changes for node {} from {} to {} appears to have been superceded. " +
+                            "Detected new address {} in cluster metadata at epoch {}",
+                            nodeId, mapping.left, mapping.right, nextEndpoint, next.epoch.getEpoch());
+                continue;
+            }
+
+            // As far as we can tell because we have yet to learn of any other endpoint for this node, the override as
+            // specified is still valid.
+            builder.put(override.getKey(), override.getValue());
         }
 
         ImmutableMap<NodeId, Pair<InetAddressAndPort, InetAddressAndPort>> nextOverrides = builder.build();
