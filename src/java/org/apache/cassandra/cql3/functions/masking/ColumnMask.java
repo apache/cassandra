@@ -315,14 +315,13 @@ public class ColumnMask
 
             int numArgs = in.readUnsignedVInt32();
             List<AbstractType<?>> argTypes = new ArrayList<>(numArgs + 1);
-            argTypes.set(0, columnType);
+            argTypes.add(columnType);
             ByteBuffer[] partialArgValues = new ByteBuffer[numArgs];
             for (int i = 0; i < numArgs; i++)
             {
-                AbstractType<?> argType = CQLTypeParser.parse(keyspace, in.readUTF(), types);
-                argTypes.set(i + 1,  argType);
+                argTypes.add(CQLTypeParser.parse(keyspace, in.readUTF(), types));
                 boolean valuePresent = in.readBoolean();
-                partialArgValues[i] = valuePresent ? null : ByteBufferUtil.readWithVIntLength(in);
+                partialArgValues[i] = valuePresent ? ByteBufferUtil.readWithVIntLength(in) : null;
             }
 
             Function function = FunctionResolver.get(keyspace, functionName, argTypes, null, null, null, functions);
