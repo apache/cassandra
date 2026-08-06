@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test.accord;
 
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.util.List;
@@ -26,6 +27,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -35,8 +37,10 @@ import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+import net.bytebuddy.implementation.bind.annotation.SuperMethod;
 import net.bytebuddy.implementation.bind.annotation.This;
 
+import org.agrona.collections.Long2LongHashMap;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
@@ -47,7 +51,6 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceInitializer;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
-import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.io.sstable.CQLSSTableWriter;
@@ -57,6 +60,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.CoordinatedTransfer;
 import org.apache.cassandra.service.accord.LocalTransfers;
 import org.apache.cassandra.utils.Shared;
@@ -475,6 +479,9 @@ public class AccordImportSSTableTest extends TestBaseImpl
     @Test
     public void testImportRecoversOnNodeCrash() throws Throwable
     {
+        State.waitForCrash = new CountDownLatch(1);
+        State.crashed.set(false);
+
         String file = writeSSTables(new int[]{ 1 }, new int[]{ 8 });
 
         try (Cluster cluster = init(builder().withNodes(3)
@@ -495,9 +502,61 @@ public class AccordImportSSTableTest extends TestBaseImpl
 
             importer.start();
 
+            // We wait here until we are performing the activation of the second SSTable
             State.waitForCrash.await();
 
-            ClusterUtils.restartUnchecked(cluster.get(2));
+            cluster.get(2).shutdown().get();
+
+            // We prevent moveAndOpenSSTable from actually performing the import until we have restarted
+            State.crashed.set(true);
+
+            cluster.get(2).startup();
+
+            importer.join();
+
+            assertSSTableCount(cluster, 2);
+            assertLocalSelect(cluster, rows -> { assertRows(rows, row(1, 1), row(8, 1)); });
+        }
+    }
+
+    @Test
+    public void testImportRecoversNodeOnAbstractReplayerPath() throws Throwable
+    {
+        State.waitForCrash = new CountDownLatch(1);
+        State.crashed.set(false);
+
+        String file = writeSSTables(new int[]{ 1 }, new int[]{ 8 });
+
+        try (Cluster cluster = init(builder().withNodes(3)
+                                             .withoutVNodes()
+                                             .withDataDirCount(1)
+                                             .withInstanceInitializer((cl, tg, num, gen) -> {
+                                                 ByteBuddyInjections.AwaitNthDiskMove.install(2).initialise(cl, tg, num, gen);
+                                                 ByteBuddyInjections.ReplayJournalWithNullMinSegment.install(2).initialise(cl, tg, num, gen);
+                                             })
+                                             .withConfig(config -> config.with(Feature.NETWORK, Feature.GOSSIP))
+                                             .start()))
+        {
+            createSchema(cluster);
+
+            Thread importer = new Thread(() -> {
+                cluster.get(1).runOnInstance(() -> {
+                    ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
+                    cfs.importNewSSTables(Set.of(file), true, true, true, true, true, true, true);
+                });
+            }, "importer");
+
+            importer.start();
+
+            // We wait here until we are performing the activation of the second SSTable
+            State.waitForCrash.await();
+
+            cluster.get(2).shutdown().get();
+
+            // We prevent moveAndOpenSSTable from actually performing the import until we have restarted
+            State.crashed.set(true);
+
+            cluster.get(2).startup();
 
             importer.join();
 
@@ -609,6 +668,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
         public static AtomicInteger diskMoveAttempts = new AtomicInteger(0);
         public static AtomicInteger failOnDiskMoveAttempt = new AtomicInteger(0);
         public static CountDownLatch waitForCrash = new CountDownLatch(1);
+        public static AtomicBoolean crashed = new AtomicBoolean(false);
     }
 
     public static class ByteBuddyInjections
@@ -700,10 +760,32 @@ public class AccordImportSSTableTest extends TestBaseImpl
             @SuppressWarnings("unused")
             public static SSTableReader moveAndOpenSSTable(ColumnFamilyStore cfs, Descriptor oldDescriptor, Descriptor newDescriptor, Set<Component> components, boolean copyData, @SuperCall Callable<SSTableReader> r) throws Exception
             {
-                if (State.waitForCrash.getCount() == 0)
+                if (State.crashed.get())
                     return r.call();
                 State.waitForCrash.countDown();
                 throw new RuntimeException("Failing move and open SSTable");
+            }
+        }
+
+        public static class ReplayJournalWithNullMinSegment
+        {
+            public static IInstanceInitializer install(int... nodes)
+            {
+                return (ClassLoader cl, ThreadGroup tg, int num, int generation) -> {
+                    for (int node : nodes)
+                        if (node == num)
+                            new ByteBuddy().rebase(AccordService.class)
+                                           .method(named("replayJournal").and(takesArguments(1)))
+                                           .intercept(MethodDelegation.to(ReplayJournalWithNullMinSegment.class))
+                                           .make()
+                                           .load(cl, ClassLoadingStrategy.Default.INJECTION);
+                };
+            }
+
+            @SuppressWarnings("unused")
+            public static boolean replayJournal(Long2LongHashMap minSegments, @This AccordService self, @SuperMethod Method method) throws Exception
+            {
+                return (boolean) method.invoke(self, new Long2LongHashMap(0L));
             }
         }
     }
