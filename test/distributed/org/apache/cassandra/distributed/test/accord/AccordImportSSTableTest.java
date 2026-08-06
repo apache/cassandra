@@ -140,12 +140,9 @@ public class AccordImportSSTableTest extends TestBaseImpl
             List<String> logs = cluster.get(1).logs().watchFor(mark, Duration.ofMinutes(1), "Submitting incremental index build of " + indexName).getResult();
             Assertions.assertThat(logs).isNotEmpty();
 
-            SAIUtil.assertIndexQueryable(cluster, KEYSPACE, indexName);
+            SAIUtil.waitForIndexQueryable(cluster, KEYSPACE, indexName);
 
-            cluster.forEach(instance -> {
-                Object[][] rows = instance.executeInternal(withKeyspace("SELECT * FROM " + KEYSPACE_TABLE + " WHERE v = 1"));
-                assertRows(rows, row(1, 1));
-            });
+            assertLocalSelect(cluster, rows -> assertRows(rows, row(1, 1)));
         }
     }
 
@@ -249,6 +246,8 @@ public class AccordImportSSTableTest extends TestBaseImpl
             bounce(cluster);
 
             assertLocalSelect(cluster, rows -> assertRows(rows, EMPTY_ROWS));
+
+            cluster.filters().reset();
         }
     }
 
@@ -294,6 +293,8 @@ public class AccordImportSSTableTest extends TestBaseImpl
             assertSSTableCount(cluster, 1);
 
             assertLocalSelect(cluster, rows -> { assertRows(rows, row(1, 1), row(2, 1), row(3, 1)); });
+
+            cluster.filters().reset();
         }
     }
 
@@ -353,6 +354,8 @@ public class AccordImportSSTableTest extends TestBaseImpl
             assertSSTableCount(up, 1);
 
             assertLocalSelect(up, rows -> { assertRows(rows, row(1, 1), row(2, 1), row(3, 1)); });
+
+            cluster.filters().reset();
         }
     }
 
@@ -475,6 +478,8 @@ public class AccordImportSSTableTest extends TestBaseImpl
 
             assertLocalSelect(cluster, rows -> assertRows(rows, row(1, 1), row(2, 1), row(3, 1)));
             assertSSTableCount(cluster, 1);
+
+            cluster.filters().reset();
         }
     }
 
