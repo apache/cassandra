@@ -389,6 +389,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
     @Test
     public void testImportFailsActivation() throws Throwable
     {
+        State.diskMoveAttempts.set(0);
         State.failOnDiskMoveAttempt.set(1);
         String file = writeSSTables(new int[] { 1 });
 
@@ -416,6 +417,7 @@ public class AccordImportSSTableTest extends TestBaseImpl
     @Test
     public void testImportFailsActivation2() throws Throwable
     {
+        State.diskMoveAttempts.set(0);
         State.failOnDiskMoveAttempt.set(2);
         String file = writeSSTables(new int[]{ 1 }, new int[]{ 8 });
 
