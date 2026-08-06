@@ -16,17 +16,23 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.upgrade;
+package org.apache.cassandra.distributed.test.log;
 
-import org.junit.Test;
-
-
-public class ClusterMetadataUpgradeChangeIPTest extends ClusterMetadataUpgradeChangeIPTestBase
+/**
+ * Tests a full-cluster restart with every node's broadcast address changing while down.
+ * The cluster is configured with 6 nodes, 3 of which are CMS members.
+ */
+public class MultiNodeCMSRediscoveryTest extends CMSRediscoveryTestBase
 {
-    @Test
-    public void upgradeChangeIPTest() throws Throwable
+    @Override
+    int clusterSize()
     {
-        // changing all ips while upgrading
-        ipChangeTestHelper();
+        return 6;
+    }
+
+    @Override
+    int cmsSize()
+    {
+        return 3;
     }
 }

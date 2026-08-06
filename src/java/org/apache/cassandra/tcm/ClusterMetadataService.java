@@ -61,6 +61,7 @@ import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.service.accord.topology.AccordFastPath;
 import org.apache.cassandra.service.accord.topology.AccordStaleReplicas;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
+import org.apache.cassandra.tcm.discovery.Discovery;
 import org.apache.cassandra.tcm.listeners.SchemaListener;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
@@ -165,7 +166,7 @@ public class ClusterMetadataService
         return state(ClusterMetadata.current());
     }
 
-    public static State state(ClusterMetadata metadata)
+    public static ClusterMetadataService.State state(ClusterMetadata metadata)
     {
         if (CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA.isPresent())
             return RESET;
@@ -210,7 +211,7 @@ public class ClusterMetadataService
 
         Commit.Replicator replicator = CassandraRelevantProperties.TCM_USE_TEST_NO_OP_REPLICATOR.getBoolean()
                                        ? Commit.Replicator.NO_OP
-                                       : new Commit.DefaultReplicator(() -> log.metadata().directory);
+                                       : new Commit.DefaultReplicator(() -> new Commit.DefaultReplicator.RoutingHelper(log.metadata()));
 
         RemoteProcessor remoteProcessor = new RemoteProcessor(log, Discovery.instance::discoveredNodes);
         GossipProcessor gossipProcessor = new GossipProcessor();
@@ -722,7 +723,7 @@ public class ClusterMetadataService
         Retry retryPolicy;
         if (kind == Transformation.Kind.STARTUP)
         {
-            retryPolicy = Retry.unsafeRetryIndefinitely();
+            retryPolicy = Retry.withNoTimeLimit(TCMMetrics.instance.commitRetries, Retry.unsafeRetryIndefinitely());
         }
         else if (kind == Transformation.Kind.SCHEMA_CHANGE)
         {
@@ -825,9 +826,14 @@ public class ClusterMetadataService
             return metadata;
 
         Epoch ourEpoch = metadata.epoch;
-
         if (ourEpoch.isEqualOrAfter(awaitAtLeast))
             return metadata;
+
+        if (log.isPaused())
+        {
+            logger.debug("Fetch metadata log from CMS was requested, but log processing is paused");
+            return metadata;
+        }
 
         Retry deadline = Retry.untilElapsed(getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS), TCMMetrics.instance.fetchLogRetries);
         // responses for ALL withhout knowing we have pending
@@ -863,6 +869,12 @@ public class ClusterMetadataService
             awaitAtLeast.isBefore(Epoch.FIRST))
             return ImmediateFuture.success(current);
 
+        if (log.isPaused())
+        {
+            logger.debug("Fetch metadata log from peer was requested, but log processing is paused");
+            return ImmediateFuture.success(current);
+        }
+
         return peerLogFetcher.asyncFetchLog(from, awaitAtLeast);
     }
 
@@ -889,6 +901,13 @@ public class ClusterMetadataService
         Epoch before = metadata.epoch;
         if (before.isEqualOrAfter(awaitAtLeast))
             return metadata;
+
+        if (log.isPaused())
+        {
+            logger.debug("Fetch metadata log from peer was requested, but log processing is paused");
+            return metadata;
+        }
+
         return peerLogFetcher.fetchLogEntriesAndWait(from, awaitAtLeast);
     }
 
@@ -943,6 +962,12 @@ public class ClusterMetadataService
     {
         if (awaitAtLeast.isBefore(Epoch.FIRST) || FBUtilities.getBroadcastAddressAndPort().equals(from))
             return metadata;
+
+        if (log.isPaused())
+        {
+            logger.debug("Fetch metadata log from peer or CMS was requested, but log processing is paused");
+            return metadata;
+        }
 
         Epoch before = metadata.epoch;
         if (before.isEqualOrAfter(awaitAtLeast))

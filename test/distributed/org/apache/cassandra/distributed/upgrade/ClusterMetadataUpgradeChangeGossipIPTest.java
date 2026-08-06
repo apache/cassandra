@@ -18,15 +18,17 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
+import java.util.stream.IntStream;
+
 import org.junit.Test;
 
 
-public class ClusterMetadataUpgradeChangeIPTest extends ClusterMetadataUpgradeChangeIPTestBase
+public class ClusterMetadataUpgradeChangeGossipIPTest extends ClusterMetadataUpgradeChangeIPTestBase
 {
     @Test
-    public void upgradeChangeIPTest() throws Throwable
+    public void gossipModeIPChangeTest() throws Throwable
     {
-        // changing all ips while upgrading
-        ipChangeTestHelper();
+        // half the nodes upgraded, bouncing all nodes to new ips (and upgrade the remaining ones)
+        ipChangeTestHelper(IntStream.rangeClosed(1, NODE_COUNT / 2).toArray());
     }
 }

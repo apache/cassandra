@@ -69,6 +69,7 @@ public class PeerLogFetcher
         catch (ExecutionException | TimeoutException e)
         {
             logger.warn("Could not fetch log entries from peer, remote = {}, await = {}", remote, awaitAtleast);
+            logger.debug("Exception while fetching log entries from peer, remote = {}", remote, e);
         }
         return metadata;
     }

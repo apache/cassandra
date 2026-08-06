@@ -1,3 +1,7 @@
+6.0-alpha3
+ * Implement CMS rediscovery and recovery protocol (CASSANDRA-20476)
+
+
 6.0-alpha2
  * Apply performance optimizations for rows merging logic (CASSANDRA-21524)
  * Fix operationMode reporting DECOMMISSION_FAILED instead of LEAVING when resuming a failed decommission (CASSANDRA-21493)
