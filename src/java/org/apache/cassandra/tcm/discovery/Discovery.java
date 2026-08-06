@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tcm;
+package org.apache.cassandra.tcm.discovery;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,7 +25,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -47,6 +47,8 @@ import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -66,7 +68,7 @@ public class Discovery
 
     public final IVerbHandler<NoPayload> requestHandler;
     private final Set<InetAddressAndPort> discovered = new ConcurrentSkipListSet<>();
-    private final AtomicReference<State> state = new AtomicReference<>(State.NOT_STARTED);
+    private final AtomicBoolean inProgress = new AtomicBoolean(false);
 
     // These two have to be suppliers because during simulation we can send out discovery requests
     // rather early, before other node has initialized either MessagingService or DatabaseDescriptor.
@@ -94,17 +96,17 @@ public class Discovery
 
     public DiscoveredNodes discover()
     {
-        return discover(5);
+        return discover(DatabaseDescriptor.getDiscoveryRounds(), false);
     }
 
-    public DiscoveredNodes discover(int rounds)
+    public DiscoveredNodes discover(int rounds, boolean allPeers)
     {
-        boolean res = state.compareAndSet(State.NOT_STARTED, State.IN_PROGRESS);
-        assert res : String.format("Can not start discovery as it is in state %s", state.get());
+        boolean res = inProgress.compareAndSet(false, true);
+        assert res : "Cannot start discovery as it is already running";
 
-        long deadline = nanoTime() + DatabaseDescriptor.getDiscoveryTimeout(TimeUnit.NANOSECONDS);
-        long roundTimeNanos = Math.min(TimeUnit.SECONDS.toNanos(4),
-                                       DatabaseDescriptor.getDiscoveryTimeout(TimeUnit.NANOSECONDS) / rounds);
+        long discoveryTimeout = DatabaseDescriptor.getDiscoveryTimeout(TimeUnit.NANOSECONDS);
+        long roundTimeNanos = discoveryTimeout / rounds;
+        long deadline = discoveryTimeout + nanoTime();
         DiscoveredNodes last = null;
         int lastCount = discovered.size();
         int unchangedFor = -1;
@@ -114,7 +116,7 @@ public class Discovery
         while (nanoTime() <= deadline || unchangedFor < rounds)
         {
             long startTimeNanos = nanoTime();
-            last = discoverOnce(null, roundTimeNanos, TimeUnit.NANOSECONDS);
+            last = discoverOnce(allPeers, null, roundTimeNanos, TimeUnit.NANOSECONDS);
             if (last.kind == DiscoveredNodes.Kind.CMS_ONLY)
                 break;
 
@@ -132,15 +134,17 @@ public class Discovery
                 Uninterruptibles.sleepUninterruptibly(sleeptimeNanos, TimeUnit.NANOSECONDS);
         }
 
-        res = state.compareAndSet(State.IN_PROGRESS, State.FINISHED);
-        assert res : String.format("Can not finish discovery as it is in state %s", state.get());
+        res = inProgress.compareAndSet(true, false);
+        assert res : "Cannot finish discovery as it is already complete";
         return last;
     }
+
     public DiscoveredNodes discoverOnce(InetAddressAndPort initiator)
     {
-        return discoverOnce(initiator, 1, TimeUnit.SECONDS);
+        return discoverOnce(false, initiator, 1, TimeUnit.SECONDS);
     }
-    public DiscoveredNodes discoverOnce(InetAddressAndPort initiator, long timeout, TimeUnit timeUnit)
+
+    public DiscoveredNodes discoverOnce(boolean allPeers, InetAddressAndPort initiator, long timeout, TimeUnit timeUnit)
     {
         Set<InetAddressAndPort> candidates = new HashSet<>();
         if (initiator != null)
@@ -148,12 +152,11 @@ public class Discovery
         else
             candidates.addAll(discovered);
 
-        if (candidates.isEmpty())
-            candidates.addAll(seeds.get());
-
+        candidates.addAll(seeds.get());
         candidates.remove(self);
 
-        Collection<Pair<InetAddressAndPort, DiscoveredNodes>> responses = MessageDelivery.fanoutAndWait(messaging.get(), candidates, Verb.TCM_DISCOVER_REQ, NoPayload.noPayload, timeout, timeUnit);
+        Verb verb = allPeers ? Verb.TCM_DISCOVER_PEERS_REQ : Verb.TCM_DISCOVER_REQ;
+        Collection<Pair<InetAddressAndPort, DiscoveredNodes>> responses = MessageDelivery.fanoutAndWait(messaging.get(), candidates, verb, NoPayload.noPayload, timeout, timeUnit);
 
         for (Pair<InetAddressAndPort, DiscoveredNodes> discoveredNodes : responses)
         {
@@ -165,6 +168,11 @@ public class Discovery
         }
 
         return new DiscoveredNodes(discovered, DiscoveredNodes.Kind.KNOWN_PEERS);
+    }
+
+    public void discovered(InetAddressAndPort peer)
+    {
+        discovered.add(peer);
     }
 
     private final class DiscoveryRequestHandler implements IVerbHandler<NoPayload>
@@ -179,19 +187,56 @@ public class Discovery
         @Override
         public void doVerb(Message<NoPayload> message)
         {
-            Set<InetAddressAndPort> cms = ClusterMetadata.current().fullCMSMembers();
-            logger.debug("Responding to discovery request from {}: {}", message.from(), cms);
-
+            discovered.add(message.from());
+            ClusterMetadata metadata = ClusterMetadata.current();
+            Set<InetAddressAndPort> cms = metadata.fullCMSMembers();
             DiscoveredNodes discoveredNodes;
-            if (!cms.isEmpty())
-                discoveredNodes = new DiscoveredNodes(cms, DiscoveredNodes.Kind.CMS_ONLY);
-            else
+            switch (message.verb())
             {
-                discovered.add(message.from());
-                discoveredNodes = new DiscoveredNodes(new HashSet<>(discovered), DiscoveredNodes.Kind.KNOWN_PEERS);
+                case TCM_DISCOVER_REQ:
+                    logger.trace("Responding to discovery request from {}: {}", message.from(), cms);
+                    if (ClusterMetadataService.instance().log().isPaused())
+                    {
+                        // The fact that the LocalLog is currently paused implies that this node is currently starting
+                        // up and in the process of building a temporary overlay of addresses for the current CMS (see
+                        // Startup::initialize and Startup::initializeCMSLookup). In that case, we don't want to respond
+                        // with a definitive CMS_ONLY response containing the previous set of CMS endpoints. While these
+                        // may still be valid, they may be outdated if the CMS member address have changed. Returning a
+                        // CMS_ONLY response causes the requester to prioritise the returned endpoint. When those are
+                        // outdated, this can mean that the requester must wait for retries to time out and increase the
+                        // time taken to hit a valid CMS endpoint.
+                        logger.info("Responding to discovery request from {}, but this node is in the process of " +
+                                    "initializing CMSLookup so not responding with a definitive CMS_ONLY response. " +
+                                    "Discovered: {}, CMS: {}", message.from(), discovered, cms);
+                        Set<InetAddressAndPort> allKnown = new HashSet<>();
+                        allKnown.addAll(discovered);
+                        allKnown.addAll(cms);
+                        discoveredNodes = new DiscoveredNodes(allKnown, DiscoveredNodes.Kind.KNOWN_PEERS);
+                    }
+                    else if (!cms.isEmpty())
+                    {
+                        discoveredNodes = new DiscoveredNodes(cms, DiscoveredNodes.Kind.CMS_ONLY);
+                    }
+                    else
+                    {
+                        discoveredNodes = new DiscoveredNodes(new HashSet<>(discovered), DiscoveredNodes.Kind.KNOWN_PEERS);
+                    }
+                    messaging.get().send(message.responseWith(discoveredNodes), message.from());
+                    break;
+                case TCM_DISCOVER_PEERS_REQ:
+                    logger.info("Responding to {} request from {}", message.verb(), message.from());
+                    HashSet<InetAddressAndPort> knownPeers = new HashSet<>(discovered);
+                    // Include the current view of CMS membership. If this node is itself in the process of a
+                    // (re)discovery, then this could contain outdated addresses, but that is harmless as the recipient
+                    // will only include them in a survey. Alternatively, if this node has not participated in a recent
+                    // discovery the content of its discovered set is probably useless to the requester as it is very
+                    // likely empty (or more accurately, it will contain only the address of the requester). In this
+                    // case, including the CMS membership to be fed into a survey by the requester is also useful.
+                    knownPeers.addAll(cms);
+                    discoveredNodes = new DiscoveredNodes(knownPeers, DiscoveredNodes.Kind.KNOWN_PEERS);
+                    messaging.get().send(message.responseWith(discoveredNodes), message.from());
+                    break;
             }
-
-            messaging.get().send(message.responseWith(discoveredNodes), message.from());
         }
     }
 
@@ -266,13 +311,5 @@ public class Discovery
                 size += InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(ep, version);
             return size;
         }
-    }
-
-    private enum State
-    {
-        NOT_STARTED,
-        IN_PROGRESS,
-        FINISHED,
-        FOUND_CMS
     }
 }

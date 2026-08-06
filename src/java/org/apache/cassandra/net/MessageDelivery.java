@@ -53,6 +53,7 @@ public interface MessageDelivery
     {
         return fanoutAndWait(messaging, sendTo, verb, payload, DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
     }
+
     static <REQ, RSP> Collection<Pair<InetAddressAndPort, RSP>> fanoutAndWait(MessageDelivery messaging, Set<InetAddressAndPort> sendTo, Verb verb, REQ payload, long timeout, TimeUnit timeUnit)
     {
         Accumulator<Pair<InetAddressAndPort, RSP>> responses = new Accumulator<>(sendTo.size());
@@ -62,7 +63,7 @@ public interface MessageDelivery
             @Override
             public void onResponse(Message<RSP> msg)
             {
-                logger.info("Received a {} response from {}: {}", msg.verb(), msg.from(), msg.payload);
+                logger.debug("Received a {} response from {}: {}", msg.verb(), msg.from(), msg.payload);
                 responses.add(Pair.create(msg.from(), msg.payload));
                 cdl.decrement();
             }
@@ -70,13 +71,13 @@ public interface MessageDelivery
             @Override
             public void onFailure(InetAddressAndPort from, RequestFailure reason)
             {
-                logger.info("Received failure in response to {} from {}: {}", verb, from, reason);
+                logger.debug("Received failure in response to {} from {}: {}", verb, from, reason);
                 cdl.decrement();
             }
         };
 
         sendTo.forEach((ep) -> {
-            logger.info("Election for metadata migration sending {} ({}) to {}", verb, payload.toString(), ep);
+            logger.debug("Sending {} ({}) to {}", verb, payload.toString(), ep);
             messaging.sendWithCallback(Message.out(verb, payload), ep, callback);
         });
         cdl.awaitUninterruptibly(timeout, timeUnit);

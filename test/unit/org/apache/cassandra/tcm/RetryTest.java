@@ -91,16 +91,14 @@ public class RetryTest
     @Test
     public void testProcessorIndefiniteRetryBehaviour()
     {
-        Retry retryPolicy = Retry.unsafeRetryIndefinitely();
+        WaitStrategy retryPolicy = Retry.unsafeRetryIndefinitely();
         // Assert the properties of the Retry provided by the private static Processor::unsafeRetryIndefinitely
         for (int i = 1; i < 1000; i++)
         {
             // backoff increases in 100ms steps, up to a max of 10000ms
             long waitTime = retryPolicy.computeWait(i, MILLISECONDS);
-            assertEquals(Math.min((i + 1) * 100, 10000), waitTime);
+            assertEquals(Math.min((i) * 100, 10000), waitTime);
         }
-        // Retry indefinitely means no explicit deadline is set
-        assertEquals(Long.MAX_VALUE, retryPolicy.deadlineNanos);
     }
 
     @Test

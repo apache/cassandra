@@ -37,6 +37,7 @@ import org.apache.cassandra.db.virtual.ClusterMetadataDirectoryTable;
 import org.apache.cassandra.db.virtual.ClusterMetadataLogTable;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
@@ -213,7 +214,12 @@ public class CMSOperations implements CMSOperationsMBean
     {
         Map<String, String> info = new HashMap<>();
         ClusterMetadata metadata = ClusterMetadata.current();
-        String members = metadata.fullCMSMembers().stream().sorted().map(Object::toString).collect(Collectors.joining(","));
+        EndpointLookup endpoints = metadata.endpointLookup();
+        String members = metadata.fullCMSMemberIds()
+                                 .stream()
+                                 .sorted()
+                                 .map(id ->  String.format("(nodeid=%s,address=%s)", id.id(), endpoints.endpoint(id)))
+                                 .collect(Collectors.joining(","));
         info.put(MEMBERS, members);
         info.put(NEEDS_RECONFIGURATION, Boolean.toString(metadata.epoch.isBefore(Epoch.FIRST) || needsReconfiguration(metadata)));
         info.put(IS_MEMBER, Boolean.toString(metadata.isCMSMember()));

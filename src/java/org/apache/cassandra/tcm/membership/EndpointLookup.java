@@ -16,17 +16,11 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.upgrade;
+package org.apache.cassandra.tcm.membership;
 
-import org.junit.Test;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
-
-public class ClusterMetadataUpgradeChangeIPTest extends ClusterMetadataUpgradeChangeIPTestBase
+public interface EndpointLookup
 {
-    @Test
-    public void upgradeChangeIPTest() throws Throwable
-    {
-        // changing all ips while upgrading
-        ipChangeTestHelper();
-    }
+    InetAddressAndPort endpoint(NodeId id);
 }

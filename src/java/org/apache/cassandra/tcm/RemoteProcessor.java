@@ -23,6 +23,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -51,7 +53,7 @@ import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.tcm.Discovery.DiscoveredNodes;
+import org.apache.cassandra.tcm.discovery.Discovery.DiscoveredNodes;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
@@ -305,8 +307,12 @@ public final class RemoteProcessor implements Processor
         }
 
         InetAddressAndPort candidate = candidates.next();
-        long msgExpiresAfterNanos;
-        if (verb == Verb.TCM_COMMIT_REQ)
+        long msgExpiresAfterNanos = verb.expiresAfterNanos();
+        // When committing a STARTUP the deadline on the Retry will be Long.MAX_VALUE i.e. never stop, retry
+        // indefinitely. However, we do want to actually expire those specific messages reasonably quickly (i.e.
+        // in the order of rpc_timeout) so that sending one to a dead or unreachable address doesn't clog things up
+        // for cms_await_timeout (120s by default) and we can move on to the next candidate from the iterator
+        if (verb == Verb.TCM_COMMIT_REQ && retry.deadlineNanos != Long.MAX_VALUE)
         {
             long cmsAwaitNanos = DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS);
             long remainingNanos = retry.remainingNanos();
@@ -317,10 +323,7 @@ public final class RemoteProcessor implements Processor
                          TimeUnit.NANOSECONDS.toMillis(cmsAwaitNanos),
                          TimeUnit.NANOSECONDS.toMillis(remainingNanos));
         }
-        else
-        {
-            msgExpiresAfterNanos = verb.expiresAfterNanos();
-        }
+
         long msgExpiresAtNanos = MonotonicClock.Global.preciseTime.now() + msgExpiresAfterNanos;
         Message<REQ> msg = Message.outWithFlag(verb, request, MessageFlag.CALL_BACK_ON_FAILURE, msgExpiresAtNanos);
         MessagingService.instance().sendWithCallback(msg, candidate, new RequestCallbackWithFailure<RSP>()
@@ -418,6 +421,7 @@ public final class RemoteProcessor implements Processor
     public static class CandidateIterator extends AbstractIterator<InetAddressAndPort>
     {
         private final Deque<InetAddressAndPort> candidates;
+        private final Set<InetAddressAndPort> elements;
         private final boolean checkLive;
 
         @SuppressWarnings("resource")
@@ -430,6 +434,8 @@ public final class RemoteProcessor implements Processor
         public CandidateIterator(Collection<InetAddressAndPort> initialContacts, boolean checkLive)
         {
             this.candidates = new ConcurrentLinkedDeque<>(initialContacts);
+            this.elements = ConcurrentHashMap.newKeySet(initialContacts.size());
+            this.elements.addAll(initialContacts);
             this.checkLive = checkLive;
         }
 
@@ -441,19 +447,26 @@ public final class RemoteProcessor implements Processor
         public void addCandidates(DiscoveredNodes discoveredNodes)
         {
             if (discoveredNodes.kind() == DiscoveredNodes.Kind.CMS_ONLY)
-                discoveredNodes.nodes().forEach(candidates::addFirst);
+                discoveredNodes.nodes().forEach(this::maybeAddFirst);
             else
-                discoveredNodes.nodes().forEach(candidates::addLast);
+                discoveredNodes.nodes().forEach(this::maybeAddLast);
         }
 
-        public void notCms(InetAddressAndPort resp)
+        private void maybeAddFirst(InetAddressAndPort candidate)
         {
-            candidates.addLast(resp);
+            if (elements.add(candidate))
+                candidates.addFirst(candidate);
+        }
+
+        private void maybeAddLast(InetAddressAndPort candidate)
+        {
+            if (elements.add(candidate))
+                candidates.addLast(candidate);
         }
 
         public void timeout(InetAddressAndPort timedOut)
         {
-            candidates.addLast(timedOut);
+            maybeAddLast(timedOut);
         }
 
         public String toString()
@@ -487,14 +500,17 @@ public final class RemoteProcessor implements Processor
 
                 if (checkLive && !FailureDetector.instance.isAlive(ep))
                 {
-                    if (candidates.isEmpty())
-                        return ep;
-                    else
+                    // If there are other candidates, just return this one to the back of the deque. It can be added
+                    // directly, not via maybeAddLast as it hasn't been removed from the element set yet
+                    if (!candidates.isEmpty())
                     {
                         candidates.addLast(ep);
                         continue;
                     }
                 }
+                // if we have a candidate, it was popped from the deque so make sure it's also removed from the set
+                if (ep != null)
+                    elements.remove(ep);
                 return ep;
             }
             return endOfData();

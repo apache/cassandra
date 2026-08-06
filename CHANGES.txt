@@ -6,6 +6,7 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Implement CMS rediscovery and recovery protocol (CASSANDRA-20476)
  * Apply performance optimizations for rows merging logic (CASSANDRA-21524)
  * Fix operationMode reporting DECOMMISSION_FAILED instead of LEAVING when resuming a failed decommission (CASSANDRA-21493)
  * Avoid megamorphic calls when serializing and deserializing fixed-length values (CASSANDRA-21536)

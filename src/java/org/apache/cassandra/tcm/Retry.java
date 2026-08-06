@@ -24,7 +24,6 @@ import com.codahale.metrics.Meter;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
-import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.service.TimeoutStrategy;
 import org.apache.cassandra.service.TimeoutStrategy.LatencySourceFactory;
@@ -37,7 +36,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 public class Retry implements WaitStrategy
 {
     private static final WaitStrategy DEFAULT_STRATEGY;
-    private static final Retry RETRY_INDEFINITELY;
+    private static final WaitStrategy RETRY_INDEFINITELY;
     static
     {
         DurationSpec.IntMillisecondsBound defaultBackoff = DatabaseDescriptor.getDefaultRetryBackoff();
@@ -51,11 +50,9 @@ public class Retry implements WaitStrategy
         }
         DEFAULT_STRATEGY = RetryStrategy.parse(defaultSpec, LatencySourceFactory.none());
 
-        Meter retryMeter = TCMMetrics.instance.commitRetries;
         String spec = (defaultBackoff == null ? "100ms" : defaultBackoff.toMilliseconds() + "ms")
                       + "*attempts <=" + (defaultMaxBackoff == null ? "10s" : defaultMaxBackoff.toMilliseconds() + "ms");
-        WaitStrategy wait = RetryStrategy.parse(spec, TimeoutStrategy.LatencySourceFactory.none());
-        RETRY_INDEFINITELY = Retry.withNoTimeLimit(retryMeter, wait);
+        RETRY_INDEFINITELY = RetryStrategy.parse(spec, TimeoutStrategy.LatencySourceFactory.none());
     }
 
     public final long deadlineNanos;
@@ -74,7 +71,7 @@ public class Retry implements WaitStrategy
      * To be used only when submitting a STARTUP transformation when a node is restarted with a new set of addresses or
      * running a new release version.
      */
-    static Retry unsafeRetryIndefinitely()
+    static WaitStrategy unsafeRetryIndefinitely()
     {
         return RETRY_INDEFINITELY;
     }

@@ -6355,6 +6355,11 @@ public class DatabaseDescriptor
         return conf.discovery_timeout.to(unit);
     }
 
+    public static int getDiscoveryRounds()
+    {
+        return conf.discovery_rounds;
+    }
+
     public static boolean getUnsafeTCMMode()
     {
         return conf.unsafe_tcm_mode;

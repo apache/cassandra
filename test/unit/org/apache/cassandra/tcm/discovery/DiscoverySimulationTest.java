@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tcm;
+package org.apache.cassandra.tcm.discovery;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -44,6 +44,11 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Commit;
+import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -101,7 +106,7 @@ public class DiscoverySimulationTest
 
         Map<InetAddressAndPort, CompletableFuture<Discovery.DiscoveredNodes>> futures = new HashMap<>();
         nodes.forEach((addr, discovery) -> {
-            futures.put(addr, CompletableFuture.supplyAsync(() -> discovery.discover(5), executor));
+            futures.put(addr, CompletableFuture.supplyAsync(() -> discovery.discover(5, false), executor));
         });
 
         Map<InetAddressAndPort, Discovery.DiscoveredNodes> discovered = new HashMap<>();

@@ -22,6 +22,9 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -40,6 +43,7 @@ import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
 
 public class Startup implements Transformation
 {
+    private static final Logger logger = LoggerFactory.getLogger(Startup.class);
     public static final Serializer serializer = new Serializer();
     private final NodeId nodeId;
     private final NodeVersion nodeVersion;
@@ -123,6 +127,7 @@ public class Startup implements Transformation
         if (!Objects.equals(directory.addresses.get(localNodeId), NodeAddresses.current()) ||
             !Objects.equals(directory.versions.get(localNodeId), NodeVersion.CURRENT))
         {
+            logger.info("Detected change in node addresses or version, committing updates to Cluster Metadata Service");
             ClusterMetadataService.instance()
                                   .commit(new Startup(localNodeId, NodeAddresses.current(), NodeVersion.CURRENT));
         }

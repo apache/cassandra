@@ -28,6 +28,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
@@ -80,18 +81,18 @@ public class CMSMembership implements MetadataValue<CMSMembership>
         return new CMSMembership(lm, full, joining);
     }
 
-    public DataPlacement toPlacement(Directory directory)
+    public DataPlacement toPlacement(EndpointLookup lookup)
     {
         DataPlacement.Builder builder = DataPlacement.builder();
         for (NodeId id : fullMembers)
         {
-            Replica replica = MetaStrategy.replica(directory.endpoint(id));
+            Replica replica = MetaStrategy.replica(lookup.endpoint(id));
             builder.withReadReplica(lastModified, replica);
             builder.withWriteReplica(lastModified, replica);
         }
         for(NodeId id : joiningMembers)
         {
-            builder.withWriteReplica(lastModified, MetaStrategy.replica(directory.endpoint(id)));
+            builder.withWriteReplica(lastModified, MetaStrategy.replica(lookup.endpoint(id)));
         }
         return builder.build();
     }
