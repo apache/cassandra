@@ -55,7 +55,7 @@ public class ClusterMetadataUpgradeChangeIPTestBase extends UpgradeTestBase
         .withBuilder(builder -> builder.withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(NODE_COUNT * 2, "dc0", "rack0"))
                                        .withTokenSupplier((TokenSupplier) i -> i > NODE_COUNT ? ts.tokens(i - NODE_COUNT) : ts.tokens(i)))
         .nodes(NODE_COUNT)
-        .upgradesToCurrentFrom(v50)
+        .singleUpgradeToCurrentFrom(v50)
         .setup((cluster) -> {})
         .runAfterClusterUpgrade((cluster) -> {
             IInstanceConfig.ParameterizedClass seedConf =
