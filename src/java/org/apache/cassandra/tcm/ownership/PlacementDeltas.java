@@ -27,6 +27,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
+import com.google.common.collect.Maps;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -119,7 +121,7 @@ public class PlacementDeltas extends ReplicationMap<PlacementDeltas.PlacementDel
 
     public static Builder builder(int expectedSize)
     {
-        return new Builder(new HashMap<>(expectedSize));
+        return new Builder(Maps.newHashMapWithExpectedSize(expectedSize));
     }
 
     public static Builder builder(Map<ReplicationParams, PlacementDelta> map)

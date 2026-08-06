@@ -107,6 +107,13 @@ public class ReplicaGroups
         this.endpoints = endpointsBuilder.build();
     }
 
+    public ReplicaGroups(ImmutableList<Range<Token>> ranges,
+                         ImmutableList<VersionedEndpoints.ForRange> endpoints)
+    {
+        this.ranges = ranges;
+        this.endpoints = endpoints;
+    }
+
     @VisibleForTesting
     public List<Range<Token>> ranges()
     {
@@ -345,6 +352,20 @@ public class ReplicaGroups
         return newPlacement.build();
     }
 
+    public ReplicaGroups changeIp(InetAddressAndPort oldEndpoint, InetAddressAndPort newEndpoint)
+    {
+        ImmutableList.Builder<Range<Token>> newRanges = ImmutableList.builderWithExpectedSize(ranges.size());
+        ImmutableList.Builder<VersionedEndpoints.ForRange> newEndpoints = ImmutableList.builderWithExpectedSize(endpoints.size());
+        for (int i = 0; i < ranges.size(); i++)
+        {
+            Range<Token> range = ranges.get(i);
+            VersionedEndpoints.ForRange endpoint = endpoints.get(i);
+            newRanges.add(range);
+            newEndpoints.add(endpoint.changeIp(oldEndpoint, newEndpoint));
+        }
+        return new ReplicaGroups(newRanges.build(), newEndpoints.build());
+    }
+
     public static class Builder
     {
         private final Map<Range<Token>, VersionedEndpoints.ForRange> replicaGroups;
@@ -356,7 +377,7 @@ public class ReplicaGroups
 
         private Builder(int expectedSize)
         {
-            this(new HashMap<>(expectedSize));
+            this(Maps.newHashMapWithExpectedSize(expectedSize));
         }
 
         private Builder(Map<Range<Token>, VersionedEndpoints.ForRange> replicaGroups)

@@ -197,7 +197,7 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
 
     public static Builder builder(int expectedSize)
     {
-        return new Builder(new HashMap<>(expectedSize));
+        return new Builder(Maps.newHashMapWithExpectedSize(expectedSize));
     }
 
     public static Builder builder(Map<ReplicationParams, DataPlacement> map)
@@ -213,6 +213,13 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
     public String conciseToString()
     {
         return keys().stream().map(ReplicationParams::toString).collect(Collectors.joining(","));
+    }
+
+    public DataPlacements changeIp(InetAddressAndPort oldEndpoint, InetAddressAndPort newEndpoint)
+    {
+        Builder newPlacements = builder(size());
+        forEach((params, placement) -> newPlacements.with(params, placement.changeIp(oldEndpoint, newEndpoint)));
+        return newPlacements.build();
     }
 
     public static class Builder

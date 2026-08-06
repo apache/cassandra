@@ -29,6 +29,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
@@ -82,11 +83,11 @@ public class Startup implements Transformation
         }
 
         ClusterMetadata.Transformer next = prev.transformer();
-        if (!prev.directory.addresses.get(nodeId).equals(addresses))
+        NodeAddresses oldAddresses = prev.directory.addresses.get(nodeId);
+        if (!oldAddresses.equals(addresses))
         {
-            if (!prev.inProgressSequences.isEmpty())
-                return new Rejected(INVALID, "Cannot update address of the node while there are in-progress sequences");
-
+            if (!prev.inProgressSequences.isEmpty() && prev.directory.commonSerializationVersion.isBefore(Version.V9))
+                return new Rejected(INVALID, "Cannot update address of the node while there are in-progress sequences until the whole cluster is running metadata serialization version V9");
             for (Map.Entry<NodeId, NodeAddresses> entry : prev.directory.addresses.entrySet())
             {
                 NodeAddresses existingAddresses = entry.getValue();
@@ -95,12 +96,7 @@ public class Startup implements Transformation
                     return new Rejected(INVALID, String.format("New addresses %s conflicts with existing node %s with addresses %s", addresses, entry.getKey(), existingAddresses));
             }
             next = next.withNewAddresses(nodeId, addresses);
-            DataPlacements newPlacement = ClusterMetadataService.instance()
-                                                                .placementProvider()
-                                                                .calculatePlacements(prev.nextEpoch(),
-                                                                                     prev.tokenMap.toRanges(),
-                                                                                     next.build().metadata,
-                                                                                     prev.schema.getKeyspaces());
+            DataPlacements newPlacement = next.build().metadata.placements().changeIp(oldAddresses.broadcastAddress, addresses.broadcastAddress);
             next = next.with(newPlacement);
         }
 

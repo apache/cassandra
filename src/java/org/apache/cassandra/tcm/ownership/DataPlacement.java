@@ -122,6 +122,13 @@ public class DataPlacement
     {
         return new Builder(reads.unbuild(), writes.unbuild());
     }
+
+    public DataPlacement changeIp(InetAddressAndPort oldEndpoint, InetAddressAndPort newEndpoint)
+    {
+        return new DataPlacement(reads.changeIp(oldEndpoint, newEndpoint),
+                                 writes.changeIp(oldEndpoint, newEndpoint));
+    }
+
     public static class Builder
     {
         public final ReplicaGroups.Builder reads;
