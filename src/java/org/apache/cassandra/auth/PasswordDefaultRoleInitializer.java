@@ -46,7 +46,7 @@ import static org.apache.cassandra.auth.AuthUtils.hashpw;
  * {@link MutualTlsDefaultRoleInitializer}. Deployments which do use this initializer should rotate or drop the
  * created role before the native transport is reachable.
  */
-public class PasswordDefaultRoleInitializer implements IDefaultRoleInitializer
+public class PasswordDefaultRoleInitializer extends AbstractDefaultRoleInitializer
 {
     private static final Logger logger = LoggerFactory.getLogger(PasswordDefaultRoleInitializer.class);
 
@@ -81,6 +81,12 @@ public class PasswordDefaultRoleInitializer implements IDefaultRoleInitializer
         password = passwordHash == null
                    ? parameters.getOrDefault(PASSWORD, DEFAULT_SUPERUSER_PASSWORD)
                    : null;
+    }
+
+    @Override
+    public boolean supportsRoleManager(IRoleManager manager)
+    {
+        return manager instanceof CassandraRoleManager;
     }
 
     @Override
