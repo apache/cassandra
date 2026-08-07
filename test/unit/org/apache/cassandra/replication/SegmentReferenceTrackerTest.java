@@ -80,6 +80,22 @@ public class SegmentReferenceTrackerTest
     }
 
     @Test
+    public void testUnrepairedSSTableWithoutCoordinatorLogOffsetsHoldsNoRefs()
+    {
+        SegmentReferenceTracker tracker = new SegmentReferenceTracker();
+        // Unrepaired, but carries no tracked mutations (empty coordinatorLogOffsets) -> not tracked. This is the
+        // untracked / pre-migration case: such an sstable's commitLogIntervals reference the commit log, not the
+        // mutation journal, so it must never hold a segment reference (CASSANDRA-21406).
+        SSTableReader sstable = sstable(intervals(5, 0, 7, 100), () -> false, coordinatorLogOffsets(false));
+
+        tracker.handleNotification(new SSTableAddedNotification(List.of(sstable), null), null);
+
+        for (long segment = 5; segment <= 7; segment++)
+            assertFalse("segment " + segment, tracker.isReferenced(segment));
+        assertEquals(0, tracker.trackedSstableCountForTesting());
+    }
+
+    @Test
     public void testAddIsIdempotent()
     {
         int startSegment = 5;

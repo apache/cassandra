@@ -542,14 +542,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         // (CASSANDRA-21406). Subscribe before initial sstables load so the InitialSSTableAddedNotification
         // populates the segment refcount on startup.
         //
-        // TODO: this gates on replicationType().isTracked() at CFS init time. A keyspace that migrates from
-        // untracked to tracked at runtime (ALTER KEYSPACE) does not re-init its CFSes, so the subscription
-        // never happens for the live process. The refcount self-heals on the next restart via
-        // InitialSSTableAddedNotification, but during the live migration segments could be dropped while
-        // unrepaired tracked sstables still reference them. A runtime subscription hook on the migration
-        // transition (likely in MutationTrackingService.maybeUpdateKeyspaceShards on MIGRATE_TO/CREATE) is
-        // tracked as a follow-up to CASSANDRA-21406.
-        if (DatabaseDescriptor.getMutationTrackingEnabled() && metadata().replicationType().isTracked())
+        // We subscribe unconditionally whenever mutation tracking is enabled, rather than gating on
+        // replicationType().isTracked() at CFS init time. The per-sstable predicate in SegmentReferenceTracker
+        // (unrepaired && non-empty coordinatorLogOffsets) is the real gate: untracked / pre-migration sstables
+        // carry empty coordinatorLogOffsets and are never counted. This also makes a runtime untracked->tracked
+        // migration (ALTER KEYSPACE) correct without re-initializing the CFS: as soon as post-migration flushes
+        // emit sstables carrying tracked offsets, they begin to be tracked.
+        if (DatabaseDescriptor.getMutationTrackingEnabled())
             data.subscribe(MutationJournal.instance().segmentReferenceTracker());
 
         Collection<SSTableReader> sstables = null;

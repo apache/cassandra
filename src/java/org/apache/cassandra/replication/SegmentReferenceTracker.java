@@ -116,7 +116,7 @@ public class SegmentReferenceTracker implements INotificationConsumer
         try
         {
             for (SSTableReader sstable : added)
-                acquireIfUnrepaired(sstable);
+                acquireIfTracked(sstable);
         }
         finally
         {
@@ -132,7 +132,7 @@ public class SegmentReferenceTracker implements INotificationConsumer
             // Process additions before removals so refcounts are never observed briefly empty
             // between a compaction's input drop and output add when both span the same segment.
             for (SSTableReader sstable : notification.added)
-                acquireIfUnrepaired(sstable);
+                acquireIfTracked(sstable);
             for (SSTableReader sstable : notification.removed)
                 releaseIfTracked(sstable);
         }
@@ -149,10 +149,10 @@ public class SegmentReferenceTracker implements INotificationConsumer
         {
             for (SSTableReader sstable : changed)
             {
-                if (sstable.isRepaired())
-                    releaseIfTracked(sstable);
+                if (shouldTrack(sstable))
+                    acquireIfTracked(sstable);
                 else
-                    acquireIfUnrepaired(sstable);
+                    releaseIfTracked(sstable);
             }
         }
         finally
@@ -161,9 +161,20 @@ public class SegmentReferenceTracker implements INotificationConsumer
         }
     }
 
-    private void acquireIfUnrepaired(SSTableReader sstable)
+    /**
+     * A sstable is tracked while it is unrepaired and carries tracked mutations (non-empty coordinatorLogOffsets).
+     * Repaired sstables have been reconciled and no longer need the journal to rebuild; sstables with empty
+     * coordinatorLogOffsets (untracked or pre-migration data) reference the commit log rather than the mutation
+     * journal, so must never be counted (CASSANDRA-21406).
+     */
+    private static boolean shouldTrack(SSTableReader sstable)
     {
-        if (!sstable.isRepaired() && trackedSstables.add(sstable))
+        return !sstable.isRepaired() && !sstable.getCoordinatorLogOffsets().isEmpty();
+    }
+
+    private void acquireIfTracked(SSTableReader sstable)
+    {
+        if (shouldTrack(sstable) && trackedSstables.add(sstable))
             forEachSegment(sstable, this::incrementRef);
     }
 
