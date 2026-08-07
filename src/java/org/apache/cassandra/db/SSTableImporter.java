@@ -45,8 +45,10 @@ import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Refs;
@@ -80,6 +82,8 @@ public class SSTableImporter
         UUID importID = UUID.randomUUID();
         logger.info("[{}] Loading new SSTables for {}/{}: {}", importID, cfs.getKeyspaceName(), cfs.getTableName(), options);
 
+        TableMetadata metadata = cfs.metadata();
+        boolean isAccordEnabled = metadata.isAccordEnabled();
         List<Pair<Directories.SSTableLister, String>> listers = getSSTableListers(options.srcPaths);
 
         Set<Descriptor> currentDescriptors = new HashSet<>();
@@ -174,11 +178,14 @@ public class SSTableImporter
                     if (currentDescriptors.contains(oldDescriptor))
                         continue;
 
-                    File targetDir = getTargetDirectory(dir, oldDescriptor, entry.getValue());
+                    File targetDir = dir == null ? oldDescriptor.directory : getTargetDirectory(cfs, oldDescriptor, entry.getValue());
                     Descriptor newDescriptor = cfs.getUniqueDescriptorFor(entry.getKey(), targetDir);
                     maybeMutateMetadata(entry.getKey(), options);
                     movedSSTables.add(new MovedSSTable(newDescriptor, entry.getKey(), entry.getValue()));
-                    SSTableReader sstable = SSTableReader.moveAndOpenSSTable(cfs, entry.getKey(), newDescriptor, entry.getValue(), options.copyData);
+                    // Don't move tracked SSTables, since that will move them to the live set on bounce
+                    SSTableReader sstable = isAccordEnabled
+                                            ? SSTableReader.open(cfs, oldDescriptor, metadata.ref)
+                                            : SSTableReader.moveAndOpenSSTable(cfs, oldDescriptor, newDescriptor, entry.getValue(), options.copyData);
                     newSSTablesPerDirectory.add(sstable);
                 }
                 catch (Throwable t)
@@ -228,7 +235,10 @@ public class SSTableImporter
             if (!cfs.indexManager.validateSSTableAttachedIndexes(newSSTables, false, options.validateIndexChecksum))
                 cfs.indexManager.buildSSTableAttachedIndexesBlocking(newSSTables);
 
-            cfs.getTracker().addSSTables(newSSTables);
+            if (isAccordEnabled)
+                AccordService.instance().executeTransfer(importID, options.copyData, cfs.keyspace.getName(), newSSTables, metadata);
+            else
+                cfs.getTracker().addSSTables(newSSTables);
             for (SSTableReader reader : newSSTables)
             {
                 if (options.invalidateCaches && cfs.isRowCacheEnabled())
@@ -237,8 +247,16 @@ public class SSTableImporter
         }
         catch (Throwable t)
         {
-            logger.error("[{}] Failed adding SSTables", importID, t);
-            throw new RuntimeException("Failed adding SSTables", t);
+            if (isAccordEnabled)
+            {
+                String msg = "Failed adding SSTables on local node; note the import may still have been committed by a recovery coordinator";
+                throw new RuntimeException(msg, t);
+            }
+            else
+            {
+                logger.error("[{}] Failed adding SSTables", importID, t);
+                throw new RuntimeException("Failed adding SSTables", t);
+            }
         }
 
         logger.info("[{}] Done loading load new SSTables for {}/{}", importID, cfs.getKeyspaceName(), cfs.getTableName());
@@ -282,15 +300,10 @@ public class SSTableImporter
      * Opens the sstablereader described by descriptor and figures out the correct directory for it based
      * on the first token
      *
-     * srcPath == null means that the sstable is in a data directory and we can use that directly.
-     *
      * If we fail figuring out the directory we will pick the one with the most available disk space.
      */
-    private File getTargetDirectory(String srcPath, Descriptor descriptor, Set<Component> components)
+    public static File getTargetDirectory(ColumnFamilyStore cfs, Descriptor descriptor, Set<Component> components)
     {
-        if (srcPath == null)
-            return descriptor.directory;
-
         File targetDirectory = null;
         SSTableReader sstable = null;
         try
@@ -339,13 +352,13 @@ public class SSTableImporter
         return listers;
     }
 
-    private static class MovedSSTable
+    public static class MovedSSTable
     {
         private final Descriptor newDescriptor;
         private final Descriptor oldDescriptor;
         private final Set<Component> components;
 
-        private MovedSSTable(Descriptor newDescriptor, Descriptor oldDescriptor, Set<Component> components)
+        public MovedSSTable(Descriptor newDescriptor, Descriptor oldDescriptor, Set<Component> components)
         {
             this.newDescriptor = newDescriptor;
             this.oldDescriptor = oldDescriptor;
@@ -362,7 +375,7 @@ public class SSTableImporter
      * If we fail when opening the sstable (if for example the user passes in --no-verify and there are corrupt sstables)
      * we might have started copying sstables to the data directory, these need to be moved back to the original name/directory
      */
-    private void moveSSTablesBack(Set<MovedSSTable> movedSSTables)
+    public static void moveSSTablesBack(Set<MovedSSTable> movedSSTables)
     {
         for (MovedSSTable movedSSTable : movedSSTables)
         {
@@ -381,7 +394,7 @@ public class SSTableImporter
      *
      * @param movedSSTables tables we have moved already (by copying) which need to be removed
      */
-    private void removeCopiedSSTables(Set<MovedSSTable> movedSSTables)
+    public static void removeCopiedSSTables(Set<MovedSSTable> movedSSTables)
     {
         logger.debug("Removing copied SSTables which were left in data directories after failed SSTable import.");
         for (MovedSSTable movedSSTable : movedSSTables)

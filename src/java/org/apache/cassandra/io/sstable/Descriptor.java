@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.io.sstable;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -341,12 +342,27 @@ public class Descriptor
         String keyspaceName = "";
         String tableName = "";
 
-        Matcher sstableDirMatcher = SSTABLE_DIR_PATTERN.matcher(file.toString());
+        Matcher sstableDirMatcher = tryBothFormats(file.toString());
 
-        // Use pre-2.1 SSTable format if current one does not match it
+        // In the case where we are going through the Accord Bulk Data Transfer path, we place files
+        // in a pending directory, followed by a directory named after the UUID representing the
+        // planID of the streaming session
         if (!sstableDirMatcher.find(0))
         {
-            sstableDirMatcher = LEGACY_SSTABLE_DIR_PATTERN.matcher(file.toString());
+            List<String> dirPath = new ArrayList<>();
+            for (Path element : file.toPath()) {
+                dirPath.add(element.toString());
+            }
+
+            // Remove the second and third to last element, this removes /pending/uuid/ and gives us a file structure
+            // that can be parsed by the original regexes
+            if (dirPath.size() >= 2)
+            {
+                dirPath.remove(dirPath.size() - 2);
+                dirPath.remove(dirPath.size() - 2);
+            }
+
+            sstableDirMatcher = tryBothFormats(String.join("/", dirPath));
         }
 
         if (sstableDirMatcher.find(0))
@@ -366,6 +382,19 @@ public class Descriptor
         }
 
         return Pair.create(new Descriptor(info.version, parentOf(name, file), keyspaceName, tableName, info.id), info.component);
+    }
+
+    public static Matcher tryBothFormats(String file)
+    {
+        Matcher sstableDirMatcher = SSTABLE_DIR_PATTERN.matcher(file);
+
+        // Use pre-2.1 SSTable format if current one does not match it
+        if (!sstableDirMatcher.find(0))
+        {
+            sstableDirMatcher = LEGACY_SSTABLE_DIR_PATTERN.matcher(file);
+        }
+
+        return sstableDirMatcher;
     }
 
     /**

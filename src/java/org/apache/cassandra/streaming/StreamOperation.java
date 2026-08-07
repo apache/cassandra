@@ -26,7 +26,8 @@ public enum StreamOperation
     BOOTSTRAP("Bootstrap", false, true, false),
     REBUILD("Rebuild", false, true, false),
     BULK_LOAD("Bulk Load", true, false, false),
-    REPAIR("Repair", true, false, true);
+    REPAIR("Repair", true, false, true),
+    ACCORD_SSTABLE_IMPORT("Accord SSTable Import", false, false, false);
 
     private final String description;
     private final boolean requiresViewBuild;

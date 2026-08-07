@@ -150,6 +150,8 @@ import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.LocalTransfers;
+import org.apache.cassandra.service.accord.PendingLocalTransfer;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.TablePaxosRepairHistory;
@@ -543,6 +545,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             Directories.SSTableLister sstableFiles = directories.sstableLister(Directories.OnTxnErr.IGNORE).skipTemporary(true);
             sstables = SSTableReader.openAll(this, sstableFiles.list().entrySet(), metadata);
             data.addInitialSSTablesWithoutUpdatingSize(sstables);
+        }
+
+        // Restores any pending SSTables from Accord bulk data transfer
+        HashMap<File, TimeUUID> filePlanIDs = directories.getAccordBulkTransferPlanIds();
+        for (Map.Entry<File, TimeUUID> entry: filePlanIDs.entrySet())
+        {
+            Directories.SSTableLister sstableLister = directories.sstableLister(entry.getKey(), Directories.OnTxnErr.IGNORE).skipTemporary(true);
+            Collection<SSTableReader> pendingSSTables = SSTableReader.openAll(this, sstableLister.list(true).entrySet(), metadata);
+            PendingLocalTransfer pendingLocalTransfer = new PendingLocalTransfer(getTableId(), entry.getValue(), pendingSSTables);
+            LocalTransfers.instance.received(pendingLocalTransfer);
         }
 
         // compaction strategy should be created after the CFS has been prepared
@@ -948,7 +960,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                                                                         .build());
     }
 
-    Descriptor getUniqueDescriptorFor(Descriptor descriptor, File targetDirectory)
+    public Descriptor getUniqueDescriptorFor(Descriptor descriptor, File targetDirectory)
     {
         Descriptor newDescriptor;
         do
@@ -2207,6 +2219,31 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         if (metadata().isCounter())
             CacheService.instance.invalidateCounterCacheForCf(metadata());
     }
+
+    public void invalidateRowAndCounterCache(Collection<SSTableReader> sstables, Consumer<Integer> onRowCacheInvalidation, Consumer<Integer> onCounterCacheInvalidation)
+    {
+        if (isRowCacheEnabled() || metadata().isCounter())
+        {
+            List<Bounds<Token>> boundsToInvalidate = new ArrayList<>(sstables.size());
+            sstables.forEach(sstable -> boundsToInvalidate.add(new Bounds<>(sstable.getFirst().getToken(), sstable.getLast().getToken())));
+            Set<Bounds<Token>> nonOverlappingBounds = Bounds.getNonOverlappingBounds(boundsToInvalidate);
+
+            if (isRowCacheEnabled())
+            {
+                int invalidatedKeys = invalidateRowCache(nonOverlappingBounds);
+                if (invalidatedKeys > 0)
+                    onRowCacheInvalidation.accept(invalidatedKeys);
+            }
+
+            if (metadata().isCounter())
+            {
+                int invalidatedKeys = invalidateCounterCache(nonOverlappingBounds);
+                if (invalidatedKeys > 0)
+                    onCounterCacheInvalidation.accept(invalidatedKeys);
+            }
+        }
+    }
+
 
     public int invalidateRowCache(Collection<Bounds<Token>> boundsToInvalidate)
     {

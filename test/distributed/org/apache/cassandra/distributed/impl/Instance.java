@@ -138,6 +138,7 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.LocalTransfers;
 import org.apache.cassandra.service.accord.debug.AccordRemoteTracing;
 import org.apache.cassandra.service.paxos.PaxosRepair;
 import org.apache.cassandra.service.paxos.PaxosState;
@@ -1044,7 +1045,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 SnapshotManager.instance::close,
                                 () -> IndexStatusManager.instance.shutdownAndWait(1L, MINUTES),
                                 DiskErrorsHandlerService::close,
-                                () -> ThreadLocalMetrics.shutdownCleaner(1L, MINUTES)
+                                () -> ThreadLocalMetrics.shutdownCleaner(1L, MINUTES),
+                                () -> LocalTransfers.instance.shutdownNowAndWait(1L, MINUTES)
             );
 
             internodeMessagingStarted = false;

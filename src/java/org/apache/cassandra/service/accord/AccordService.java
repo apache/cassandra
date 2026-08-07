@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -39,6 +40,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.primitives.Ints;
 
 import org.agrona.collections.Long2LongHashMap;
@@ -102,6 +104,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspace.BootstrapState;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.journal.Descriptor;
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -191,6 +194,8 @@ import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.DRAIN;
 import static org.apache.cassandra.db.SystemKeyspace.BootstrapState.COMPLETED;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadBookkeeping;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteBookkeeping;
+import static org.apache.cassandra.service.accord.CoordinatedTransfer.getNodeStreamingContext;
+import static org.apache.cassandra.service.accord.CoordinatedTransfer.getTokenRangeSpanningSSTables;
 import static org.apache.cassandra.service.accord.topology.AccordTopology.tcmIdToAccord;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -1435,5 +1440,26 @@ public class AccordService implements IAccordService, Shutdownable
     public Params journalConfiguration()
     {
         return journal.configuration();
+    }
+
+    public void executeTransfer(UUID importID, boolean copyData, String keyspace, Set<SSTableReader> sstables, TableMetadata metadata)
+    {
+        logger.info("Creating Accord bulk transfer for keyspace '{}' table '{}' SSTables {}...", keyspace, metadata.name, sstables);
+
+        Topology topology = topology().current();
+
+        Map<InetAddressAndPort, CoordinatedTransfer.NodeStreamingMetadata> nodeStreamingContext = getNodeStreamingContext(sstables, topology, endpointMapper);
+
+        Preconditions.checkArgument(!nodeStreamingContext.isEmpty());
+
+        CoordinatedTransfer transfer = new CoordinatedTransfer(importID, metadata, nodeStreamingContext, topology.epoch(), copyData, getTokenRangeSpanningSSTables(sstables, metadata));
+
+        transfer.execute();
+    }
+
+    public void receivedSSTableImport(PendingLocalTransfer transfer)
+    {
+        logger.info("Received SSTables in pending directory");
+        LocalTransfers.instance().received(transfer);
     }
 }

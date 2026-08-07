@@ -21,6 +21,8 @@ package org.apache.cassandra.service.accord;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
@@ -57,10 +59,12 @@ import accord.utils.async.AsyncResult;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.api.AccordTopologySorter;
 import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
@@ -192,6 +196,10 @@ public interface IAccordService
     Params journalConfiguration();
 
     Node node();
+
+    void executeTransfer(UUID importID, boolean copyData, String keyspace, Set<SSTableReader> sstables, TableMetadata metadata);
+
+    void receivedSSTableImport(PendingLocalTransfer transfer);
 
     /**
      * Ensure Accord's hlc is at least larger than this for anything accepted at this node
@@ -370,6 +378,18 @@ public interface IAccordService
         public Node node()
         {
             return null;
+        }
+
+        @Override
+        public void executeTransfer(UUID importID, boolean copyData, String keyspace, Set<SSTableReader> sstables, TableMetadata metadata)
+        {
+            throw new UnsupportedOperationException("Cannot import SSTables through Accord when accord.enabled = false in cassandra.yaml");
+        }
+
+        @Override
+        public void receivedSSTableImport(PendingLocalTransfer transfer)
+        {
+            throw new UnsupportedOperationException("Cannot import SSTables through Accord when accord.enabled = false in cassandra.yaml");
         }
 
         @Override
@@ -562,6 +582,18 @@ public interface IAccordService
         public Node node()
         {
             return delegate.node();
+        }
+
+        @Override
+        public void executeTransfer(UUID importID, boolean copyData, String keyspace, Set<SSTableReader> sstables, TableMetadata metadata)
+        {
+            delegate.executeTransfer(importID, copyData, keyspace, sstables, metadata);
+        }
+
+        @Override
+        public void receivedSSTableImport(PendingLocalTransfer transfer)
+        {
+            delegate.receivedSSTableImport(transfer);
         }
 
         @Override
