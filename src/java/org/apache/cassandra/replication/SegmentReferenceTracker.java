@@ -17,9 +17,12 @@
  */
 package org.apache.cassandra.replication;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.locks.ReentrantLock;
@@ -298,8 +301,10 @@ public class SegmentReferenceTracker implements INotificationConsumer
         }
     }
 
-    @VisibleForTesting
-    long referenceCountForTesting(long segmentId)
+    /**
+     * Number of unrepaired local sstables currently holding the given segment (for diagnostics / the vtable).
+     */
+    int referenceCount(long segmentId)
     {
         lock.lock();
         try
@@ -311,6 +316,35 @@ public class SegmentReferenceTracker implements INotificationConsumer
         {
             lock.unlock();
         }
+    }
+
+    /**
+     * Sorted base filenames of the sstables currently holding the given segment (for diagnostics / the vtable).
+     */
+    public List<String> referrerDescriptors(long segmentId)
+    {
+        lock.lock();
+        try
+        {
+            Set<SSTableReader> referrers = referrersBySegment.get(segmentId);
+            if (referrers == null || referrers.isEmpty())
+                return Collections.emptyList();
+            List<String> names = new ArrayList<>(referrers.size());
+            for (SSTableReader sstable : referrers)
+                names.add(sstable.descriptor.baseFile().name());
+            Collections.sort(names);
+            return names;
+        }
+        finally
+        {
+            lock.unlock();
+        }
+    }
+
+    @VisibleForTesting
+    long referenceCountForTesting(long segmentId)
+    {
+        return referenceCount(segmentId);
     }
 
     @VisibleForTesting
