@@ -97,7 +97,6 @@ public class MutationTrackingTables
 
             for (Segment<ShortMutationId, Mutation> segment : MutationJournal.instance().getAllSegments())
             {
-                // Snapshot the referrers once so reference_count and referring_sstables stay consistent within the row.
                 List<String> referringSstables = referenceTracker.referrerDescriptors(segment.id());
                 result.row(segment.id())
                       .column(IS_ACTIVE, segment instanceof ActiveSegment)
