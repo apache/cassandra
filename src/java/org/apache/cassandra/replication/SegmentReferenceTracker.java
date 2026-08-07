@@ -224,16 +224,10 @@ public class SegmentReferenceTracker implements INotificationConsumer
     }
 
     /**
-     * A sstable is tracked while it belongs to a still-tracked table, is locally originated, unrepaired, and
-     * carries tracked mutations (non-empty coordinatorLogOffsets). Repaired sstables have been reconciled and no
-     * longer need the journal to rebuild; sstables with empty coordinatorLogOffsets (untracked or pre-migration
-     * data) reference the commit log rather than the mutation journal; sstables streamed from another host
-     * reference that host's journal segments, not ours; and sstables of a table that has migrated away from
-     * tracked will never be promoted to repaired, so counting them (or a compaction output that inherits their
-     * offsets) would pin their segments forever — none of these must be counted (CASSANDRA-21406). Segment ref
-     * tracking is purely local.
+     * @return true when all these conditions are true, the sstable is locally originated, unrepaired, carries
+     * tracked mutations, and it belongs to a tracked table
      */
-    private boolean shouldTrack(SSTableReader sstable)
+    boolean shouldTrack(SSTableReader sstable)
     {
         return isLocallyOriginated(sstable)
                && !sstable.isRepaired()

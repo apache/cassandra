@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test.tracking;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
@@ -153,6 +154,75 @@ public class MutationJournalSegmentRefcountTest extends TestBaseImpl
             cluster.forEach(i -> i.runOnInstance(() -> {
                 int remaining = MutationJournal.instance().countStaticSegmentsForTesting();
                 assertEquals("Static segments must be dropped after the keyspace migrates away from tracked",
+                             0, remaining);
+            }));
+        }
+    }
+
+    /**
+     * CASSANDRA-21406 (item 4): under normal operation an unrepaired sstable can hold its journal segments for an
+     * unbounded time (compaction, where reconciled sstables are born repaired, may not run for cold tables). When
+     * the journal grows past mutation_tracking.journal_promotion_threshold, already durably-reconciled unrepaired
+     * sstables are promoted to repaired out of band, releasing their segments even without a compaction.
+     */
+    @Test(timeout = 120_000)
+    public void testSegmentsReleasedBySizeTriggeredPromotion() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(3)
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK).with(Feature.GOSSIP)
+                                                            .set("mutation_tracking.journal_promotion_threshold", "1KiB"))
+                                      .start())
+        {
+            cluster.schemaChange(withKeyspace(CREATE_KEYSPACE));
+            cluster.schemaChange(String.format(CREATE_TABLE, KEYSPACE));
+
+            // Never let compaction promote the sstables to repaired; only the size-triggered promotion can.
+            cluster.forEach(i -> i.nodetoolResult("disableautocompaction", KEYSPACE, "tbl").asserts().success());
+
+            for (int i = 0; i < 50; i++)
+            {
+                cluster.coordinator(1)
+                       .execute(withKeyspace("INSERT INTO %s.tbl (pk, val) VALUES (?, ?)"),
+                                ConsistencyLevel.QUORUM, i, "v" + i);
+            }
+
+            cluster.forEach(i -> i.nodetoolResult("flush", KEYSPACE).asserts().success());
+            cluster.forEach(i -> i.runOnInstance(() -> MutationJournal.instance().closeCurrentSegmentForTestingIfNonEmpty()));
+
+            // The journal exceeds the tiny threshold and the (unrepaired) flushed sstables are holding segments.
+            cluster.forEach(i -> i.runOnInstance(() -> {
+                long threshold = DatabaseDescriptor.getMutationTrackingConfig().getJournalPromotionThresholdBytes();
+                assertTrue("promotion threshold must be configured (>0), was " + threshold, threshold > 0);
+                assertTrue("journal size must exceed the threshold",
+                           MutationJournal.instance().getDiskSpaceUsed() > threshold);
+                assertTrue("segments must be held by the unrepaired sstables",
+                           MutationJournal.instance().countStaticSegmentsForTesting() > 0);
+            }));
+
+            // Reconcile (persist then exchange offsets) and trigger size-based promotion until the reconciled
+            // sstables are flipped to repaired and their segments reclaimed. Promotion only flips sstables that are
+            // already durably reconciled, which requires the offset exchange to have propagated.
+            boolean converged = false;
+            for (int round = 0; round < 30 && !converged; round++)
+            {
+                for (int n = 1; n <= cluster.size(); n++)
+                    cluster.get(n).runOnInstance(() -> MutationTrackingService.instance().persistLogStateForTesting());
+                for (int n = 1; n <= cluster.size(); n++)
+                    cluster.get(n).runOnInstance(() -> MutationTrackingService.instance().broadcastOffsetsForTesting());
+                for (int n = 1; n <= cluster.size(); n++)
+                    cluster.get(n).runOnInstance(() -> {
+                        MutationTrackingService.instance().maybePromoteReconciledSstablesForTesting();
+                        MutationTrackingService.instance().persistLogStateForTesting();
+                    });
+
+                converged = true;
+                for (int n = 1; n <= cluster.size(); n++)
+                    converged &= cluster.get(n).callOnInstance(() -> MutationJournal.instance().countStaticSegmentsForTesting() == 0);
+            }
+
+            cluster.forEach(i -> i.runOnInstance(() -> {
+                int remaining = MutationJournal.instance().countStaticSegmentsForTesting();
+                assertEquals("Static segments must be dropped after size-triggered promotion of reconciled sstables",
                              0, remaining);
             }));
         }

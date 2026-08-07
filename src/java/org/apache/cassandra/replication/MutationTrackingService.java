@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.replication;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -82,6 +83,7 @@ import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.reads.tracked.TrackedLocalReads;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -91,6 +93,7 @@ import org.apache.cassandra.tcm.listeners.ChangeListener;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 
@@ -1114,6 +1117,12 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         MutationJournal.instance().dropUnreferencedSegments();
     }
 
+    @VisibleForTesting
+    public void maybePromoteReconciledSstablesForTesting()
+    {
+        maybePromoteReconciledSstables();
+    }
+
     public SyncTasks alignToShardBoundaries(Keyspace keyspace, List<SyncTask> tasks)
     {
         Preconditions.checkArgument(keyspace.getMetadata().replicationStrategy.replicationType.isTracked(), "Keyspace " + keyspace.getName() + " is not tracked");
@@ -1151,6 +1160,65 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         }
 
         return into;
+    }
+
+    /**
+     * Out-of-band promotion of already durably-reconciled but still-unrepaired sstables to repaired, triggered
+     * once the on-disk mutation journal grows past {@code mutation_tracking.journal_promotion_threshold}.
+     *
+     * <p>Under normal operation a segment can stay referenced for a long time if its unrepaired sstables never
+     * compact — and compaction is now where a reconciled sstable is normally born repaired (CASSANDRA-21406).
+     * Promoting reconciled sstables eagerly flips them to repaired, which releases their segment references (the
+     * resulting {@code SSTableRepairStatusChanged} is handled by {@link SegmentReferenceTracker}) and lets the
+     * journal reclaim space. Only fully durably-reconciled sstables are promoted, so there are no minority writes
+     * left to filter out — the metadata-only flip is equivalent to what the next compaction would have produced.
+     *
+     * <p>Best-effort: a failure to flip one table's sstables is logged and retried on a later trigger. Not gated
+     * by {@code runWithCompactionsDisabled} (which would interrupt validation/repair); {@code mutateRepaired}
+     * only rewrites the stats component and reloads, and a concurrently-compacted sstable simply retries.
+     */
+    private void maybePromoteReconciledSstables()
+    {
+        long threshold = DatabaseDescriptor.getMutationTrackingConfig().getJournalPromotionThresholdBytes();
+        if (threshold <= 0 || MutationJournal.instance().getDiskSpaceUsed() <= threshold)
+            return;
+
+        SegmentReferenceTracker tracker = MutationJournal.instance().segmentReferenceTracker();
+        long repairedAt = Clock.Global.currentTimeMillis();
+
+        forEachKeyspace(shards -> {
+            Keyspace keyspace = Schema.instance.getKeyspaceInstance(shards.keyspace);
+            if (keyspace == null)
+                return;
+
+            for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+            {
+                List<SSTableReader> toPromote = new ArrayList<>();
+                for (SSTableReader sstable : cfs.getLiveSSTables())
+                {
+                    // shouldTrack picks out the sstables that hold a local segment reference (local, unrepaired,
+                    // non-empty offsets, still-tracked table); of those, only durably-reconciled ones are safe to
+                    // flip to repaired (no minority writes left to filter).
+                    if (tracker.shouldTrack(sstable) && isDurablyReconciled(sstable.getCoordinatorLogOffsets()))
+                        toPromote.add(sstable);
+                }
+
+                if (toPromote.isEmpty())
+                    continue;
+
+                try
+                {
+                    cfs.getCompactionStrategyManager().mutateRepaired(toPromote, repairedAt, ActiveRepairService.NO_PENDING_REPAIR);
+                    logger.debug("Promoted {} reconciled sstables of {}.{} to repaired to release journal segments",
+                                 toPromote.size(), cfs.getKeyspaceName(), cfs.getTableName());
+                }
+                catch (IOException e)
+                {
+                    logger.warn("Failed to promote reconciled sstables of {}.{} to repaired; will retry",
+                                cfs.getKeyspaceName(), cfs.getTableName(), e);
+                }
+            }
+        });
     }
 
     private static List<SyncTask> unwrapped(Collection<SyncTask> tasks)
@@ -1699,6 +1767,9 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             // unrepaired reference is released (SegmentReferenceTracker) or when its needsReplay is cleared
             // (MutationJournal.drainCleanup).
             persistAndDrain();
+            // If the journal has grown past the configured threshold, promote reconciled unrepaired sstables to
+            // repaired so their segment references are released (this is not done every tick — only over threshold).
+            MutationTrackingService.instance().maybePromoteReconciledSstables();
         }
 
         // Persist per-log witnessed offsets and durably clear needsReplay for eligible segments. Bypasses isPaused,
