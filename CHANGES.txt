@@ -1,5 +1,8 @@
-4.0.21
+4.0.22
  * Fix memtable on-heap accounting drift in BTree.update and BTreeRow.merge (CASSANDRA-21472)
+
+
+4.0.21
  * Bound declared value length against readable bytes in CBUtil (CASSANDRA-21521)
  * Verify extension type before initializing reflectively-loaded classes (CASSANDRA-21525)
  * Rename conflicting nodetool import --copy-data short option from -p to -cd (CASSANDRA-20214)
