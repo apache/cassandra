@@ -197,7 +197,7 @@ public class AutoRepair
 
             // If it's too soon to run repair, don't bother checking if it's our turn.
             // Force repair bypasses this check to ensure immediate repair trigger.
-            if (!AutoRepairUtils.isForceRepairSetForNode(repairType, myId) && tooSoonToRunRepair(repairType, repairState, config, myId))
+            if (shouldSkipRepairDueToInterval(repairType, repairState, config, myId))
             {
                 return;
             }
@@ -409,6 +409,23 @@ public class AutoRepair
                 logger.error("Exception while repairing keyspace {}:", keyspaceName, e);
             }
         }
+    }
+
+    /**
+     * Determines whether the repair should be skipped due to the minimum repair interval.
+     * Force repair bypasses the interval check to ensure immediate repair trigger.
+     *
+     * @return true if repair should be skipped, false if it should proceed
+     */
+    @VisibleForTesting
+    boolean shouldSkipRepairDueToInterval(AutoRepairConfig.RepairType repairType, AutoRepairState repairState, AutoRepairConfig config, UUID myId)
+    {
+        if (AutoRepairUtils.isForceRepairSetForNode(repairType, myId))
+        {
+            logger.info("Force repair is set for this node, bypassing min_repair_interval check");
+            return false;
+        }
+        return tooSoonToRunRepair(repairType, repairState, config, myId);
     }
 
     private boolean tooSoonToRunRepair(AutoRepairConfig.RepairType repairType, AutoRepairState repairState, AutoRepairConfig config, UUID myId)
