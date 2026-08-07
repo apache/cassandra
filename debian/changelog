@@ -1,3 +1,9 @@
+cassandra (5.0.10) UNRELEASED; urgency=medium
+
+  * New release
+
+ -- Stefan Miklosovic <smiklosovic@apache.org>  Tue, 28 Jul 2026 12:57:11 +0200
+
 cassandra (5.0.9) unstable; urgency=medium
 
   * New release
