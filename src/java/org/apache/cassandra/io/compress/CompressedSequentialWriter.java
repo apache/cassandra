@@ -85,6 +85,8 @@ public class CompressedSequentialWriter extends SequentialWriter
         return SequentialWriterOption.newBuilder()
                                      .bufferSize(parameters.chunkLength())
                                      .bufferType(parameters.getSstableCompressor().preferredBufferType())
+                                     .trickleFsync(option.trickleFsync())
+                                     .trickleFsyncByteInterval(option.trickleFsyncByteInterval())
                                      .finishOnClose(option.finishOnClose())
                                      .build();
     }
