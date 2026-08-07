@@ -27,14 +27,17 @@
 
 import argparse
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
+import yaml
 
 
 # Import the functions from the script
 from run_ci import (
     DEPLOY_YAML,
+    check_agent_capacity,
     debug,
     install_jenkins,
     get_jenkins,
@@ -177,6 +180,87 @@ class TestCIPipeline(unittest.TestCase):
     def test_helm_installation_lock(self, mock_flock):
         with helm_installation_lock(Path("/tmp/.fake.lock")):
             mock_flock.assert_called()
+
+    LARGE_NODE = ('{"items":[{"metadata":{"labels":{"eks.amazonaws.com/nodegroup":"amd64-large-ondemand-2",'
+                  '"cassandra.jenkins.agent":"true","cassandra.jenkins.agent.large":"true"}}}]}')
+
+    @staticmethod
+    def ca_status(nested: bool = True) -> str:
+        """
+        The autoscaler's status configmap, holding the live cluster's node groups and maximums.
+
+        maxSize is the only in-cluster record of what a pool can hold, and a pool at zero nodes has no
+        nodes to count, so the check reads it from here.
+        """
+        groups = [(f"eks-amd64-{size}-ondemand-{n}-{n}cfd1c1", 0, maximum)
+                  for size, maximum in (("large", 80), ("medium", 65), ("small", 25)) for n in (2, 3)]
+
+        groups.append(("eks-jenkins-controller-0-2acd8787", 1, 1))
+        return yaml.safe_dump({"nodeGroups": [
+            {"name": name, **({"health": {"minSize": minimum, "maxSize": maximum}} if nested
+                              else {"minSize": minimum, "maxSize": maximum})}
+            for name, minimum, maximum in groups]})
+
+    def capacity_check(self, values: dict, nodes: str = '{"items":[]}', autoscaler: bool = True,
+                       nested: bool = True):
+        """
+        Runs check_agent_capacity against the autoscaler ceilings above, returning the exit code or 0.
+
+        `autoscaler=False` stands in for a cluster whose ceilings cannot be read at all, a managed
+        autoscaler that publishes no status configmap for instance, where kubectl exits non-zero.
+        """
+        def kubectl(_kubeconfig, _kubecontext, _ns, command):
+            if "nodes" in command:
+                return nodes
+            if not autoscaler:
+                raise subprocess.CalledProcessError(1, "kubectl", stderr="configmaps not found")
+            return self.ca_status(nested)
+        with patch('run_ci.run_kubectl_command', kubectl):
+            try:
+                check_agent_capacity(None, None, "default", values)
+                return 0
+            except SystemExit as e:
+                return e.code
+
+    def deployed_values(self, size: str = None, **overrides) -> dict:
+        """The committed values, optionally with one podTemplate's keys replaced."""
+        with open(DEPLOY_YAML, encoding="utf-8") as deploy_yaml:
+            values = yaml.safe_load(deploy_yaml)
+        if size:
+            template = yaml.safe_load(values["agent"]["podTemplates"][f"agent-dind-{size}"])
+            template[0].update(overrides)
+            values["agent"]["podTemplates"][f"agent-dind-{size}"] = yaml.safe_dump(template)
+        return values
+
+    def test_check_agent_capacity_allows_the_committed_values(self):
+        self.assertEqual(0, self.capacity_check(self.deployed_values()))
+        self.assertEqual(0, self.capacity_check(self.deployed_values(), nodes=self.LARGE_NODE))
+
+    def test_check_agent_capacity_blocks_a_cap_above_the_pool(self):
+        # 200 against the 160 nodes two large groups can hold: 40 agents could never be scheduled, which is
+        # not idle but a churn loop, and is what preceded the 2026-08-11 controller stall
+        over = self.deployed_values("large", instanceCap=200, instanceCapStr="200")
+        self.assertEqual(1, self.capacity_check(over))
+        # a cluster whose ceilings cannot be read leaves it unchecked rather than blocking a valid deploy
+        self.assertEqual(0, self.capacity_check(over, autoscaler=False))
+
+    def test_check_agent_capacity_reads_maxsize_wherever_it_is_published(self):
+        # the live cluster nests a group's maximum under its health condition, and the check also takes it
+        # from the group.  Reading the wrong key costs nothing visible: the ceilings come out empty and
+        # every cap passes unchecked, so the shapes are pinned here rather than in a deploy
+        over = self.deployed_values("large", instanceCap=200, instanceCapStr="200")
+        for nested in (True, False):
+            self.assertEqual(1, self.capacity_check(over, nested=nested))
+            self.assertEqual(0, self.capacity_check(self.deployed_values(), nested=nested))
+
+    def test_check_agent_capacity_blocks_contradictory_config(self):
+        # the plugin takes the cap from either key, so a disagreement resolves to whichever applies last
+        self.assertEqual(1, self.capacity_check(self.deployed_values("large", instanceCapStr="200")))
+        # a nodeSelector the live nodes contradict strands every agent of that size
+        typo = self.deployed_values("large", nodeSelector="cassandra.jenkins.agent.large=ture")
+        self.assertEqual(1, self.capacity_check(typo, nodes=self.LARGE_NODE))
+        # unconfirmable is not the same as contradicted: with that pool at zero there is nothing to check against
+        self.assertEqual(0, self.capacity_check(typo))
 
 if __name__ == '__main__':
     unittest.main()

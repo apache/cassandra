@@ -47,7 +47,23 @@ controller:
     limits:
       cpu: 8
       memory: 20G
-  javaOpts: -server -XX:+AlwaysPreTouch -XX:+UseG1GC -XX:+ExplicitGCInvokesConcurrent -XX:+ParallelRefProcEnabled -XX:+UseStringDeduplication -XX:+UnlockExperimentalVMOptions -XX:G1NewSizePercent=40 -Xms8G -Xmx8G
+  javaOpts: -server -XX:+AlwaysPreTouch -XX:+UseG1GC -XX:+ExplicitGCInvokesConcurrent -XX:+ParallelRefProcEnabled -XX:+UseStringDeduplication -XX:+UnlockExperimentalVMOptions -XX:G1NewSizePercent=40 -Xms8G -Xmx8G -Xlog:gc*,safepoint:file=/var/jenkins_home/gc.log:time,uptime,level,tags:filecount=5,filesize=50M
+  # A stalling controller must not be killed mid-flight.  The restart abandons every running build and
+  #  strands their agent pods, which nothing then deletes: see agent.garbageCollection below.
+  # Liveness now tolerates ~100s of unresponsiveness before a kill.
+  # Readiness is loosened for a second reason: an unready controller is dropped from the cassius-jenkins-agent Service,
+  #  so agents cannot complete their JNLP handshake and then sit in "initialising" until waitForPodSec expires.
+  probes:
+    startupProbe:
+      # a 500Gi jenkins_home with this much build history can exceed the chart's default 120s budget
+      failureThreshold: 30
+      timeoutSeconds: 10
+    livenessProbe:
+      failureThreshold: 10
+      timeoutSeconds: 10
+    readinessProbe:
+      failureThreshold: 6
+      timeoutSeconds: 10
   installPlugins:
     - job-dsl
     - configuration-as-code
@@ -159,6 +175,13 @@ agent:
   node-selector:
     cassandra.jenkins.agent: true
   waitForPodSec: "180"
+  # Reap agent pods the controller no longer tracks.  A restart of the controller JVM clears its in-memory 
+  # agent registry, and because agent pods are bare pods with no ownerReference nothing else deletes them.
+  # Preferred over a pod activeDeadlineSeconds, which cannot distinguish an orphan from a long (6h) build.
+  garbageCollection:
+    enabled: true
+    # seconds
+    timeout: 900
   #
   # Each template below is an opaque string to the helm chart, parsed only by the kubernetes plugin,
   # so the chart (nor .jenkins/k8s/jenkins-test.sh) can validate it.
@@ -181,8 +204,10 @@ agent:
       - name: agent-dind-small
         label: agent-dind cassandra-small cassandra-amd64-small
         nodeSelector: 'cassandra.jenkins.agent.small=true'
+        # 0 = no pod lifetime cap: idleMinutes reuse means a pod's age is unrelated to any one build's timeout.  Orphans are reaped by agent.garbageCollection instead.
         activeDeadlineSeconds: '0'
         idleMinutes: 1
+        # should match the small pool's 50 nodes (README's --max-nodes), i.e. one agent per node. must not be higher than max nodes possible.
         instanceCap: 50
         instanceCapStr: "50"
         nodeUsageMode: "NORMAL"
@@ -209,8 +234,6 @@ agent:
               - envVar:
                   key: JENKINS_JAVA_OPTS
                   value: '-Dorg.jenkinsci.plugins.durabletask.BourneShellScript.USE_BINARY_WRAPPER=true -Xlog:gc+heap+exit -XX:+HeapDumpOnOutOfMemoryError'
-            # there's a lot of docker pulls,
-            # TODO implement option for docker registry caches :: https://medium.com/@elementtech.dev/kubernetes-image-proxy-cache-from-minutes-to-milliseconds-fd14173e831f
             image: apache.jfrog.io/cassan-docker/apache/cassandra-jenkins-k8s
             livenessProbe:
               failureThreshold: '0'
@@ -289,8 +312,10 @@ agent:
       - name: agent-dind-medium
         label: agent-dind cassandra-medium cassandra-amd64-medium
         nodeSelector: 'cassandra.jenkins.agent.medium=true'
+        # 0 = no pod lifetime cap: idleMinutes reuse means a pod's age is unrelated to any one build's timeout.  Orphans are reaped by agent.garbageCollection instead.
         activeDeadlineSeconds: '0'
         idleMinutes: 1
+        # should match the medium pools 100 nodes (README's --max-nodes), i.e. one agent per node. must not be higher than max nodes possible.
         instanceCap: 100
         instanceCapStr: "100"
         nodeUsageMode: "NORMAL"
@@ -395,10 +420,14 @@ agent:
       - name: agent-dind-large
         label: agent-dind cassandra-large cassandra-amd64-large cassandra-amd64-large-dedicated
         nodeSelector: 'cassandra.jenkins.agent.large=true'
+        # 0 = no pod lifetime cap.  A microbench cell runs up to 6h (timeout_hours in the Jenkinsfile)
+        # and idleMinutes reuse extends a pod's age past any one build, so age cannot stand in for
+        # health here.  Orphans are reaped by agent.garbageCollection instead.
         activeDeadlineSeconds: '0'
         idleMinutes: 1
-        instanceCap: 200
-        instanceCapStr: "200"
+        # should match the large pools 160 nodes (README's --max-nodes), i.e. one agent per node. must not be higher than max nodes possible.
+        instanceCap: 160
+        instanceCapStr: "160"
         nodeUsageMode: "NORMAL"
         showRawYaml: 'true'
         slaveConnectTimeout: '30'
