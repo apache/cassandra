@@ -46,7 +46,9 @@ public class ReusableLivenessInfo implements LivenessInfo
     @Override
     public boolean isExpiring()
     {
-        return localExpirationTime != NO_EXPIRATION_TIME;
+        // Check for TTL (not localExpirationTime as it will incorrectly return true for tombstones)
+        // Matches AbstractCell.isExpiring().
+        return ttl != NO_TTL;
     }
 
     @Override
