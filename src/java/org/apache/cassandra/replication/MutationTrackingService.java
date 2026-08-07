@@ -54,6 +54,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.MutationTrackingSpec;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
@@ -1010,6 +1011,10 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             {
                 case MIGRATE_FROM:
                     // TODO (expected): Implement shard deletion for tracked → untracked migration completion (CASSANDRA-20955)
+                    // Release the journal-segment references still held by this keyspace's sstables. Once untracked,
+                    // those sstables are never promoted to repaired (that path is gated on the table being tracked),
+                    // so their segments would otherwise be pinned forever (CASSANDRA-21406).
+                    evictSegmentReferences(keyspace);
                 case NONE:
                     if (current != null)
                         updated.put(keyspace, current);
@@ -1044,6 +1049,25 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             throw new IllegalStateException("At least one keyspace shards instance wasn't migrated: " + currentShards);
 
         return updated;
+    }
+
+    /**
+     * Release any journal-segment references still held by the given keyspace's live sstables. Invoked when the
+     * keyspace migrates away from tracked replication (CASSANDRA-21406): such sstables keep their (now stale)
+     * journal references but are never promoted to repaired, so their segments would otherwise be pinned forever.
+     */
+    private static void evictSegmentReferences(String keyspace)
+    {
+        if (!DatabaseDescriptor.getMutationTrackingEnabled())
+            return;
+
+        Keyspace ks = Schema.instance.getKeyspaceInstance(keyspace);
+        if (ks == null)
+            return;
+
+        SegmentReferenceTracker tracker = MutationJournal.instance().segmentReferenceTracker();
+        for (ColumnFamilyStore cfs : ks.getColumnFamilyStores())
+            tracker.evict(cfs.getLiveSSTables());
     }
 
     // TODO (expected): when topology and state truncation is implemented, implement cleanup of this map as well

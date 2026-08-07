@@ -103,4 +103,58 @@ public class MutationJournalSegmentRefcountTest extends TestBaseImpl
             }));
         }
     }
+
+    /**
+     * CASSANDRA-21406 (item 1, tracked -> untracked migration): a keyspace's unrepaired sstables hold journal
+     * segments while it is tracked, but once it migrates away from tracked those sstables are never promoted to
+     * repaired (that path is gated on the table being tracked). Their references must therefore be evicted on
+     * MIGRATE_FROM so the segments can be reclaimed rather than pinned forever.
+     */
+    @Test(timeout = 120_000)
+    public void testSegmentsReleasedWhenKeyspaceMigratesFromTracked() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(3)
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK).with(Feature.GOSSIP))
+                                      .start())
+        {
+            cluster.schemaChange(withKeyspace(CREATE_KEYSPACE));
+            cluster.schemaChange(String.format(CREATE_TABLE, KEYSPACE));
+
+            cluster.forEach(i -> i.nodetoolResult("disableautocompaction", KEYSPACE, "tbl").asserts().success());
+
+            // Block offset broadcasts so the flushed sstables stay unrepaired and keep holding their segments.
+            cluster.filters().verbs(Verb.MT_BROADCAST_LOG_OFFSETS.id).drop();
+
+            for (int i = 0; i < 50; i++)
+            {
+                cluster.coordinator(1)
+                       .execute(withKeyspace("INSERT INTO %s.tbl (pk, val) VALUES (?, ?)"),
+                                ConsistencyLevel.QUORUM, i, "v" + i);
+            }
+
+            cluster.forEach(i -> i.nodetoolResult("flush", KEYSPACE).asserts().success());
+            cluster.forEach(i -> i.runOnInstance(() -> MutationJournal.instance().closeCurrentSegmentForTestingIfNonEmpty()));
+
+            // While tracked, the unrepaired sstables hold their segments: a drop pass is a no-op.
+            cluster.forEach(i -> i.runOnInstance(() -> {
+                int before = MutationJournal.instance().countStaticSegmentsForTesting();
+                assertTrue("Expected a static segment held by the unrepaired sstables, got " + before, before > 0);
+                MutationTrackingService.instance().persistLogStateForTesting();
+                assertEquals("Segments must be retained while unrepaired tracked sstables reference them",
+                             before, MutationJournal.instance().countStaticSegmentsForTesting());
+            }));
+
+            // Migrate the keyspace away from tracked. tracked->untracked is instant; MIGRATE_FROM evicts the
+            // keyspace's sstable references from the segment tracker on every node.
+            cluster.schemaChange(withKeyspace("ALTER KEYSPACE %s WITH replication_type = 'untracked'"));
+
+            // The eviction released the references; a drop pass now reclaims the segments.
+            cluster.forEach(i -> i.runOnInstance(() -> MutationTrackingService.instance().persistLogStateForTesting()));
+            cluster.forEach(i -> i.runOnInstance(() -> {
+                int remaining = MutationJournal.instance().countStaticSegmentsForTesting();
+                assertEquals("Static segments must be dropped after the keyspace migrates away from tracked",
+                             0, remaining);
+            }));
+        }
+    }
 }

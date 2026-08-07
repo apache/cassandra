@@ -26,11 +26,13 @@ import java.util.List;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.journal.Descriptor;
@@ -218,15 +220,14 @@ public class MutationJournalTest
 
         {
             // Pretend an unrepaired sstable references the first segment.
-            refs.incrementRefForTesting(firstSegment);
+            SSTableReader referrer = Mockito.mock(SSTableReader.class);
+            refs.addReferenceForTesting(firstSegment, referrer);
             assertEquals(1, journal.dropUnreferencedSegments());
             // Only the second (unreferenced) segment got dropped.
             assertEquals(1, journal.countStaticSegmentsForTesting());
-        }
 
-        {
             // Releasing the last reference allows the first segment to drop too.
-            refs.decrementRefForTesting(firstSegment);
+            refs.removeReferenceForTesting(firstSegment, referrer);
             assertEquals(1, journal.dropUnreferencedSegments());
             assertEquals(0, journal.countStaticSegmentsForTesting());
         }

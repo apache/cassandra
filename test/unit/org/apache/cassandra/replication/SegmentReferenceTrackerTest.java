@@ -36,6 +36,8 @@ import org.apache.cassandra.notifications.InitialSSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.notifications.SSTableRepairStatusChanged;
+import org.apache.cassandra.schema.ReplicationType;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
@@ -111,6 +113,63 @@ public class SegmentReferenceTrackerTest
 
         for (long segment = 5; segment <= 7; segment++)
             assertFalse("segment " + segment, tracker.isReferenced(segment));
+        assertEquals(0, tracker.trackedSstableCountForTesting());
+    }
+
+    @Test
+    public void testUntrackedTableSSTableHoldsNoRefs()
+    {
+        SegmentReferenceTracker tracker = newTracker();
+        // Local + unrepaired + non-empty coordinatorLogOffsets, but its table has migrated away from tracked. Such
+        // an sstable (or a compaction output that inherits its offsets) is never promoted to repaired, so it must
+        // not be counted or its segments would be pinned forever (CASSANDRA-21406).
+        SSTableReader sstable = sstable(intervals(5, 0, 7, 100), () -> false, coordinatorLogOffsets(true),
+                                        LOCAL_HOST, ReplicationType.untracked);
+
+        tracker.handleNotification(new SSTableAddedNotification(List.of(sstable), null), null);
+
+        for (long segment = 5; segment <= 7; segment++)
+            assertFalse("segment " + segment, tracker.isReferenced(segment));
+        assertEquals(0, tracker.trackedSstableCountForTesting());
+    }
+
+    @Test
+    public void testEvictReleasesReferencesAndFiresCallback()
+    {
+        int[] calls = { 0 };
+        SegmentReferenceTracker tracker = newTracker(() -> calls[0]++);
+        SSTableReader sstable = unrepaired(intervals(5, 0, 7, 0));
+
+        tracker.handleNotification(new SSTableAddedNotification(List.of(sstable), null), null);
+        for (long segment = 5; segment <= 7; segment++)
+            assertEquals(1L, tracker.referenceCountForTesting(segment));
+
+        // Simulates a keyspace migrating away from tracked: evict its sstables' references directly.
+        tracker.evict(List.of(sstable));
+
+        for (long segment = 5; segment <= 7; segment++)
+            assertFalse("segment " + segment, tracker.isReferenced(segment));
+        assertEquals(0, tracker.trackedSstableCountForTesting());
+        assertEquals("evicting the last referrer fires the unreferenced callback", 1, calls[0]);
+    }
+
+    @Test
+    public void testEvictOnlyReleasesGivenSstables()
+    {
+        SegmentReferenceTracker tracker = newTracker();
+        SSTableReader a = unrepaired(intervals(5, 0, 5, 100));
+        SSTableReader b = unrepaired(intervals(5, 0, 5, 200));
+
+        tracker.handleNotification(new SSTableAddedNotification(List.of(a, b), null), null);
+        assertEquals(2L, tracker.referenceCountForTesting(5));
+
+        // Evicting only 'a' leaves segment 5 referenced by 'b'; evicting an untracked sstable is a no-op.
+        tracker.evict(List.of(a));
+        assertTrue(tracker.isReferenced(5));
+        assertEquals(1L, tracker.referenceCountForTesting(5));
+
+        tracker.evict(List.of(b));
+        assertFalse(tracker.isReferenced(5));
         assertEquals(0, tracker.trackedSstableCountForTesting());
     }
 
@@ -379,10 +438,22 @@ public class SegmentReferenceTrackerTest
                                          ImmutableCoordinatorLogOffsets coordinatorLogOffsets,
                                          UUID originatingHostId)
     {
+        return sstable(intervals, isRepairedSupplier, coordinatorLogOffsets, originatingHostId, ReplicationType.tracked);
+    }
+
+    private static SSTableReader sstable(IntervalSet<CommitLogPosition> intervals,
+                                         BooleanSupplier isRepairedSupplier,
+                                         ImmutableCoordinatorLogOffsets coordinatorLogOffsets,
+                                         UUID originatingHostId,
+                                         ReplicationType replicationType)
+    {
         SSTableReader reader = Mockito.mock(SSTableReader.class);
         Mockito.when(reader.isRepaired()).thenAnswer(ref -> isRepairedSupplier.getAsBoolean());
         Mockito.when(reader.getSSTableMetadata()).thenReturn(stats(intervals, originatingHostId));
         Mockito.when(reader.getCoordinatorLogOffsets()).thenReturn(coordinatorLogOffsets);
+        TableMetadata tableMetadata = Mockito.mock(TableMetadata.class);
+        Mockito.when(tableMetadata.replicationType()).thenReturn(replicationType);
+        Mockito.when(reader.metadata()).thenReturn(tableMetadata);
         return reader;
     }
 
