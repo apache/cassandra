@@ -2,6 +2,7 @@
  * Make cqlsh prompt to reset to no keyspace set by USE after dropping that keyspace (CASSANDRA-21548)
  * Implement CMS rediscovery and recovery protocol (CASSANDRA-20476)
 Merged from 5.0:
+ * Allow setCompressedReadAheadBufferSizeInKb(0) to disable read-ahead buffer (CASSANDRA-21522)
  * Fix ThreadLocalReadAheadBuffer#fill() to throw a CorruptBlockException if chunk metadata and file size are out of sync (CASSANDRA-21519)
  * Fix memtable on-heap accounting drift in BTree.update and BTreeRow.merge (CASSANDRA-21472)
 
