@@ -72,6 +72,7 @@ Merged from 6.0:
  * Introduce minimum_threshold for data resurrection startup check (CASSANDRA-21293)
  * Synchronously publish changes to local gossip state following metadata updates (CASSANDRA-21239)
 Merged from 5.0:
+ * Allow setCompressedReadAheadBufferSizeInKb(0) to disable read-ahead buffer (CASSANDRA-21522)
  * Fix ThreadLocalReadAheadBuffer#fill() to throw a CorruptBlockException if chunk metadata and file size are out of sync (CASSANDRA-21519)
  * Support Python 3.12 and 3.13 in cqlsh (CASSANDRA-20997)
  * Make synchronization on VectorMemoryIndex inserts more granular (CASSANDRA-21160)
