@@ -267,6 +267,45 @@ public class SegmentReferenceTrackerTest
         assertFalse(tracker.isReferenced(5));
     }
 
+    @Test
+    public void testCallbackFiredWhenLastReferenceReleased()
+    {
+        int[] calls = { 0 };
+        SegmentReferenceTracker tracker = new SegmentReferenceTracker(() -> calls[0]++);
+        SSTableReader sstable = unrepaired(intervals(5, 0, 7, 0));
+
+        tracker.handleNotification(new SSTableAddedNotification(List.of(sstable), null), null);
+        assertEquals("adding never fires the unreferenced callback", 0, calls[0]);
+
+        // Releasing the only referrer drives segments 5..7 to zero -> callback fires (once per notification).
+        tracker.handleNotification(
+        new SSTableListChangedNotification(List.of(), List.of(sstable), OperationType.COMPACTION),
+        null);
+
+        assertFalse(tracker.isReferenced(5));
+        assertEquals("releasing the last reference fires the unreferenced callback", 1, calls[0]);
+    }
+
+    @Test
+    public void testCallbackNotFiredWhileSegmentStillReferenced()
+    {
+        int[] calls = { 0 };
+        SegmentReferenceTracker tracker = new SegmentReferenceTracker(() -> calls[0]++);
+        SSTableReader a = unrepaired(intervals(5, 0, 5, 100));
+        SSTableReader b = unrepaired(intervals(5, 0, 5, 200));
+
+        tracker.handleNotification(new SSTableAddedNotification(List.of(a, b), null), null);
+        assertEquals(2L, tracker.referenceCountForTesting(5));
+
+        // Releasing one of two referrers leaves segment 5 still referenced -> no callback.
+        tracker.handleNotification(
+        new SSTableListChangedNotification(List.of(), List.of(a), OperationType.COMPACTION),
+        null);
+
+        assertTrue(tracker.isReferenced(5));
+        assertEquals("callback must not fire while the segment is still referenced", 0, calls[0]);
+    }
+
     // -- helpers ---------------------------------------------------------
 
     private static IntervalSet<CommitLogPosition> intervals(long startSegment, int startPosition, long endSegment, int endPosition)
@@ -295,10 +334,24 @@ public class SegmentReferenceTrackerTest
     private static SSTableReader sstableWithRepairSupplier(IntervalSet<CommitLogPosition> intervals,
                                                            BooleanSupplier isRepairedSupplier)
     {
+        return sstable(intervals, isRepairedSupplier, coordinatorLogOffsets(true));
+    }
+
+    private static SSTableReader sstable(IntervalSet<CommitLogPosition> intervals,
+                                         BooleanSupplier isRepairedSupplier,
+                                         ImmutableCoordinatorLogOffsets coordinatorLogOffsets)
+    {
         SSTableReader reader = Mockito.mock(SSTableReader.class);
         Mockito.when(reader.isRepaired()).thenAnswer(ref -> isRepairedSupplier.getAsBoolean());
         Mockito.when(reader.getSSTableMetadata()).thenReturn(stats(intervals));
+        Mockito.when(reader.getCoordinatorLogOffsets()).thenReturn(coordinatorLogOffsets);
         return reader;
+    }
+
+    private static ImmutableCoordinatorLogOffsets coordinatorLogOffsets(boolean nonEmpty)
+    {
+        // A bare mock reports isEmpty()==false (Mockito's default boolean), which is all the tracker inspects.
+        return nonEmpty ? Mockito.mock(ImmutableCoordinatorLogOffsets.class) : ImmutableCoordinatorLogOffsets.NONE;
     }
 
     private static StatsMetadata stats(IntervalSet<CommitLogPosition> intervals)

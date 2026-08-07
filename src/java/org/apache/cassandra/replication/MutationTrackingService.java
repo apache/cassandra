@@ -29,6 +29,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
@@ -339,10 +340,14 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         if (!executor.awaitTermination(1, TimeUnit.MINUTES))
             logger.warn("Mutation tracking executor did not terminate within 1 minute; forcing shutdown");
 
-        // attempt to persist offsets and mark segments as
-        // not needing replay one last time before shutdown
+        // attempt to persist offsets and mark segments as not needing replay one last time before shutdown, then
+        // reclaim any now-droppable segments synchronously (the executor is stopped, so scheduled attempts from
+        // drainCleanup would never run).
         if (isStarted())
-            offsetsPersister.run(true);
+        {
+            offsetsPersister.persistAndDrain();
+            truncateMutationJournal();
+        }
         ExpiredStatePurger.instance.shutdownBlocking();
     }
 
@@ -1055,6 +1060,31 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         }
     }
 
+    // Set while a segment-drop attempt is queued or running on the executor, so the events that can make a segment
+    // droppable (a referrer count reaching zero, or a needsReplay clear) coalesce into at most one pending attempt.
+    private final AtomicBoolean segmentDropScheduled = new AtomicBoolean();
+
+    /**
+     * Schedule a best-effort attempt to drop now-droppable journal segments on the mutation-tracking executor.
+     * Safe to call from any thread (e.g. a compaction thread delivering an SSTable notification). Coalesces
+     * concurrent requests, and is a no-op once the executor has been shut down.
+     */
+    void scheduleSegmentDropAttempt()
+    {
+        if (executor == null || executor.isShutdown())
+            return;
+        if (segmentDropScheduled.compareAndSet(false, true))
+            executor.execute(this::runScheduledSegmentDrop);
+    }
+
+    private void runScheduledSegmentDrop()
+    {
+        // Clear the flag before doing the work so an event racing in during this run re-arms a follow-up attempt.
+        // The executor is single-threaded, so re-armed attempts run sequentially, never concurrently.
+        segmentDropScheduled.set(false);
+        truncateMutationJournal();
+    }
+
     private void truncateMutationJournal()
     {
         MutationJournal.instance().dropUnreferencedSegments();
@@ -1640,12 +1670,18 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         {
             if (isPaused)
                 return;
-            run(true);
+            // Periodic ticks only persist witnessed offsets and durably clear needsReplay. Journal truncation is
+            // no longer triggered here (CASSANDRA-21406): it is event-driven, triggered when a segment's last
+            // unrepaired reference is released (SegmentReferenceTracker) or when its needsReplay is cleared
+            // (MutationJournal.drainCleanup).
+            persistAndDrain();
         }
 
-        private void run(boolean dropSegments)
+        // Persist per-log witnessed offsets and durably clear needsReplay for eligible segments. Bypasses isPaused,
+        // so it is also the entry point for the manual test hooks and the shutdown flush. Does NOT truncate the
+        // journal; drainCleanup schedules any resulting drop, and callers that need a synchronous drop do it themselves.
+        void persistAndDrain()
         {
-
             MutationJournal.PendingClearReplay toDrain = MutationJournal.instance().snapshotPendingClearReplay();
 
             boolean writesOk;
@@ -1662,9 +1698,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
             if (writesOk)
                 MutationJournal.instance().drainCleanup(toDrain);
-
-            if (dropSegments)
-                MutationTrackingService.instance().truncateMutationJournal();
         }
 
         private void run(KeyspaceShards shards)
@@ -1681,13 +1714,17 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     @VisibleForTesting
     public void persistLogStateForTesting()
     {
-        offsetsPersister.run();
+        // Persist + drain, then drop synchronously so tests observe truncation immediately after the call.
+        offsetsPersister.persistAndDrain();
+        truncateMutationJournal();
     }
 
     @VisibleForTesting
     public void persistLogStateForTesting(boolean dropSegments)
     {
-        offsetsPersister.run(dropSegments);
+        offsetsPersister.persistAndDrain();
+        if (dropSegments)
+            truncateMutationJournal();
     }
 
     @VisibleForTesting

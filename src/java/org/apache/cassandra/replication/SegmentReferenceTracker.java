@@ -69,6 +69,22 @@ public class SegmentReferenceTracker implements INotificationConsumer
     // having to carry the previous repair state.
     private final Set<SSTableReader> trackedSstables = new HashSet<>();
 
+    // Invoked (outside the lock) whenever a notification drives at least one segment's reference count to zero,
+    // so the journal can attempt to drop the now-unreferenced segment(s). This is one of the two events that make
+    // a segment droppable (the other being its needsReplay flag being cleared) — CASSANDRA-21406.
+    private final Runnable onSegmentsUnreferenced;
+
+    @VisibleForTesting
+    public SegmentReferenceTracker()
+    {
+        this(() -> {});
+    }
+
+    public SegmentReferenceTracker(Runnable onSegmentsUnreferenced)
+    {
+        this.onSegmentsUnreferenced = onSegmentsUnreferenced;
+    }
+
     @Override
     public void handleNotification(INotification notification, Object sender)
     {
@@ -126,6 +142,7 @@ public class SegmentReferenceTracker implements INotificationConsumer
 
     private void onListChanged(SSTableListChangedNotification notification)
     {
+        boolean anyReleased = false;
         lock.lock();
         try
         {
@@ -134,16 +151,19 @@ public class SegmentReferenceTracker implements INotificationConsumer
             for (SSTableReader sstable : notification.added)
                 acquireIfTracked(sstable);
             for (SSTableReader sstable : notification.removed)
-                releaseIfTracked(sstable);
+                anyReleased |= releaseIfTracked(sstable);
         }
         finally
         {
             lock.unlock();
         }
+        if (anyReleased)
+            onSegmentsUnreferenced.run();
     }
 
     private void onRepairStatusChanged(Collection<SSTableReader> changed)
     {
+        boolean anyReleased = false;
         lock.lock();
         try
         {
@@ -152,13 +172,15 @@ public class SegmentReferenceTracker implements INotificationConsumer
                 if (shouldTrack(sstable))
                     acquireIfTracked(sstable);
                 else
-                    releaseIfTracked(sstable);
+                    anyReleased |= releaseIfTracked(sstable);
             }
         }
         finally
         {
             lock.unlock();
         }
+        if (anyReleased)
+            onSegmentsUnreferenced.run();
     }
 
     /**
@@ -178,10 +200,16 @@ public class SegmentReferenceTracker implements INotificationConsumer
             forEachSegment(sstable, this::incrementRef);
     }
 
-    private void releaseIfTracked(SSTableReader sstable)
+    /**
+     * @return true if releasing this sstable drove at least one segment's reference count to zero.
+     */
+    private boolean releaseIfTracked(SSTableReader sstable)
     {
-        if (trackedSstables.remove(sstable))
-            forEachSegment(sstable, this::decrementRef);
+        if (!trackedSstables.remove(sstable))
+            return false;
+        boolean[] anyReachedZero = { false };
+        forEachSegment(sstable, segmentId -> anyReachedZero[0] |= decrementRef(segmentId));
+        return anyReachedZero[0];
     }
 
     private void incrementRef(long segmentId)
@@ -189,12 +217,16 @@ public class SegmentReferenceTracker implements INotificationConsumer
         refsBySegment.compute(segmentId, (k, currentValue) -> currentValue + 1);
     }
 
-    private void decrementRef(long segmentId)
+    /**
+     * @return true if the segment's reference count reached zero (i.e. it is no longer referenced).
+     */
+    private boolean decrementRef(long segmentId)
     {
-        refsBySegment.compute(segmentId, (k, prev) -> {
+        long remaining = refsBySegment.compute(segmentId, (k, prev) -> {
             Invariants.require(prev > NO_REF, "Refcount underflow for segment %d", segmentId);
             return prev - 1;
         });
+        return remaining == NO_REF;
     }
 
     private static void forEachSegment(SSTableReader sstable, LongConsumer consumer)

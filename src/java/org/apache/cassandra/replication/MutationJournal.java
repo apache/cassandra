@@ -189,7 +189,11 @@ public class MutationJournal
                                   });
                               }
                           };
-        segmentReferenceTracker = new SegmentReferenceTracker();
+        // When a segment loses its last unrepaired-sstable reference, attempt to drop it. This (together with a
+        // segment's needsReplay being cleared) is what triggers journal truncation now that it is event-driven
+        // rather than performed every LogStatePersister tick (CASSANDRA-21406).
+        segmentReferenceTracker = new SegmentReferenceTracker(
+            () -> MutationTrackingService.instance().scheduleSegmentDropAttempt());
         segmentStateTrackers = new NonBlockingHashMapLong<>();
     }
 
@@ -227,6 +231,7 @@ public class MutationJournal
      */
     public void drainCleanup(PendingClearReplay toDrain)
     {
+        boolean anyCleared = false;
         for (long segId : toDrain.segments)
         {
             List<Segment<ShortMutationId, Mutation>> found = journal.getSegments(segId, segId);
@@ -242,6 +247,7 @@ public class MutationJournal
                 segment.metadata().clearNeedsReplay();
                 segment.persistMetadata();
                 pendingClearReplay.remove(segId);
+                anyCleared = true;
             }
             catch (Throwable t)
             {
@@ -249,6 +255,14 @@ public class MutationJournal
                 // leave in live queue
             }
         }
+
+        // Clearing needsReplay is one of the two events that can make a segment droppable (the other being its
+        // last unrepaired-sstable reference being released), so attempt a drop now that we've cleared some
+        // (CASSANDRA-21406). No-op if the executor has been shut down (e.g. during the final flush at shutdown,
+        // where the caller drops synchronously instead). Guarded on isEnabled() so a standalone journal in unit
+        // tests (no running service) doesn't reach for the service singleton.
+        if (anyCleared && MutationTrackingService.isEnabled())
+            MutationTrackingService.instance().scheduleSegmentDropAttempt();
     }
 
     @VisibleForTesting
@@ -441,8 +455,10 @@ public class MutationJournal
         }
     }
 
+    // Synchronized so the (now several) event-driven callers cannot both select and then discard the same
+    // segment, which would over-release its reference (CASSANDRA-21406).
     @VisibleForTesting
-    int dropUnreferencedSegments()
+    synchronized int dropUnreferencedSegments()
     {
         return journal.dropStaticSegments(segment -> !segment.metadata().needsReplay()
                                                      && !segmentReferenceTracker.isReferenced(segment.id()));
