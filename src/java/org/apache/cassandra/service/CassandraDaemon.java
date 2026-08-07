@@ -124,6 +124,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.OVERRIDE_C
 import static org.apache.cassandra.config.CassandraRelevantProperties.OVERRIDE_COMPACTION_PARAMS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SIZE_RECORDER_INTERVAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.START_NATIVE_TRANSPORT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_AVOID_SYSTEM_EXIT;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.createMetricsKeyspaceTables;
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_METRICS;
 
@@ -1010,7 +1011,7 @@ public class CassandraDaemon
 
     private void exitOrFail(int code, String message, Throwable cause)
     {
-        if (runManaged)
+        if (runManaged || DTEST_AVOID_SYSTEM_EXIT.getBoolean())
         {
             RuntimeException t = cause!=null ? new RuntimeException(message, cause) : new RuntimeException(message);
             throw t;
