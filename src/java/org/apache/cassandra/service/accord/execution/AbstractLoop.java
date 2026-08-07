@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.execution;
 
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.locks.Lock;
@@ -27,26 +27,23 @@ import accord.utils.Invariants;
 
 import org.apache.cassandra.concurrent.DebuggableTask.DebuggableTaskRunner;
 
-abstract class AccordExecutorAbstractLoop extends AccordExecutor
-{
-    private volatile Task unqueued;
-    private static final AtomicReferenceFieldUpdater<AccordExecutorAbstractLoop, Task> unqueuedUpdater = AtomicReferenceFieldUpdater.newUpdater(AccordExecutorAbstractLoop.class, Task.class, "unqueued");
+import static org.apache.cassandra.service.accord.execution.Task.State.REGISTERED;
 
-    AccordExecutorAbstractLoop(Lock lock, int executorId, Agent agent)
+abstract class AbstractLoop extends AccordExecutor
+{
+    volatile Task unqueued;
+    static final AtomicReferenceFieldUpdater<AbstractLoop, Task> unqueuedUpdater = AtomicReferenceFieldUpdater.newUpdater(AbstractLoop.class, Task.class, "unqueued");
+
+    AbstractLoop(Lock lock, int executorId, Agent agent)
     {
         super(lock, executorId, agent);
     }
 
-    abstract AccordExecutorLoops loops();
+    abstract Loops loops();
 
     boolean hasUnqueued()
     {
         return unqueued != null;
-    }
-
-    Task unqueued()
-    {
-        return unqueued;
     }
 
     final Task push(Task submit)
@@ -67,28 +64,16 @@ abstract class AccordExecutorAbstractLoop extends AccordExecutor
         if (hasUnqueued() || tasks > 0)
             return true;
 
-        lock();
+        TaskRunner self = TaskRunner.get();
+        lock(self);
         try
         {
             return hasUnqueued() || tasks > 0;
         }
         finally
         {
-            unlock();
+            unlock(self);
         }
-    }
-
-    final void updateWaitingToRunExclusive()
-    {
-        drainUnqueuedExclusive();
-        super.updateWaitingToRunExclusive();
-    }
-
-    final void drainUnqueuedExclusive()
-    {
-        Task cur = Task.reverse(acquireUnqueuedExclusive());
-        while (cur != null)
-            cur = enqueueOneExclusive(cur);
     }
 
     final Task acquireUnqueuedExclusive()
@@ -101,26 +86,16 @@ abstract class AccordExecutorAbstractLoop extends AccordExecutor
         Invariants.require(cur != null);
         Task next = cur.next;
         cur.next = null;
-        if (cur.isReadyToCleanup()) completeTaskExclusive(cur);
-        else cur.submitExclusive(this);
+        if (cur.compareTo(REGISTERED) < 0) cur.submitExclusiveNoExcept();
+        else cur.completeExclusiveNoExcept();
         return next;
     }
 
-    final Task enqueueOneCleanup(Task cur)
+    final Task destructiveNext(Task cur)
     {
         Invariants.require(cur != null);
         Task next = cur.next;
         cur.next = null;
-        completeTaskExclusive(cur);
-        return next;
-    }
-
-    final Task enqueueOneSubmit(Task cur)
-    {
-        Invariants.require(cur != null);
-        Task next = cur.next;
-        cur.next = null;
-        cur.submitExclusive(this);
         return next;
     }
 

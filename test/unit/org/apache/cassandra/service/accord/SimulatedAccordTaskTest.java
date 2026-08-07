@@ -23,6 +23,7 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -32,7 +33,7 @@ import org.junit.Test;
 
 import accord.api.RoutingKey;
 import accord.impl.basic.SimulatedFault;
-import accord.local.PreLoadContext;
+import accord.local.ExecutionContext;
 import accord.local.SafeCommandStore;
 import accord.messages.PreAccept;
 import accord.primitives.FullRoute;
@@ -52,6 +53,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.SimulatedAccordCommandStore.FunctionWrapper;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.execution.SafeTask;
 import org.apache.cassandra.utils.Pair;
 
 import static accord.utils.Property.qt;
@@ -107,7 +109,7 @@ public class SimulatedAccordTaskTest extends SimulatedAccordCommandStoreTestBase
                 {
                     case Task:
                     {
-                        PreLoadContext ctx = (PreLoadContext.Empty)()->"Test";
+                        ExecutionContext ctx = (ExecutionContext.Empty)()->"Test";
                         instance.maybeCacheEvict(ctx.keys());
                         operation(instance, ctx, actionGen.next(rs), rs::nextBoolean).chain().begin(counter);
                     }
@@ -178,9 +180,12 @@ public class SimulatedAccordTaskTest extends SimulatedAccordCommandStoreTestBase
 
     private enum Action { SUCCESS, FAILURE, LOAD_FAILURE }
 
-    private static AccordTask<Void> operation(SimulatedAccordCommandStore instance, PreLoadContext ctx, Action action, BooleanSupplier delay)
+    private static SafeTask<Void> operation(SimulatedAccordCommandStore instance, ExecutionContext ctx, Action action, BooleanSupplier delay)
     {
-        return new SimulatedOperation(instance.commandStore, ctx, action == Action.FAILURE ? SimulatedOperation.Action.FAILURE : SimulatedOperation.Action.SUCCESS);
+
+        Function<SafeCommandStore, Void> function = action == Action.FAILURE ? safeStore -> { throw new SimulatedFault("Operation failed for keys " + ctx.keys()); }
+                                                                             : safeStore -> null;
+        return SafeTask.create(instance.commandStore, ctx, function);
     }
 
     private static class Counter implements BiConsumer<Object, Throwable>
@@ -193,26 +198,6 @@ public class SimulatedAccordTaskTest extends SimulatedAccordCommandStoreTestBase
             counter++;
             if (failure != null && !(failure instanceof SimulatedFault))
                 throw new AssertionError("Unexpected error", failure);
-        }
-    }
-
-    private static class SimulatedOperation extends AccordTask<Void>
-    {
-        enum Action { SUCCESS, FAILURE}
-        private final Action action;
-
-        public SimulatedOperation(AccordCommandStore commandStore, PreLoadContext preLoadContext, Action action)
-        {
-            super(commandStore, preLoadContext);
-            this.action = action;
-        }
-
-        @Override
-        public Void apply(SafeCommandStore safe)
-        {
-            if (action == Action.FAILURE)
-                throw new SimulatedFault("Operation failed for keys " + keys());
-            return null;
         }
     }
 

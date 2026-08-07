@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.execution;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -26,6 +26,7 @@ import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
@@ -44,6 +45,8 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.RoutingKey;
 import accord.local.Command;
+import accord.local.RedundantBefore;
+import accord.local.SafeState;
 import accord.local.cfk.CommandsForKey;
 import accord.local.cfk.Serialize;
 import accord.primitives.Routable;
@@ -64,11 +67,17 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.metrics.AccordCacheMetrics;
 import org.apache.cassandra.metrics.LogLinearHistogram;
 import org.apache.cassandra.metrics.ShardedHitRate;
-import org.apache.cassandra.service.accord.AccordCache.Adapter.Shrink;
-import org.apache.cassandra.service.accord.AccordCacheEntry.LoadExecutor;
-import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
-import org.apache.cassandra.service.accord.AccordSafeCommandsForKey.CommandsForKeyCacheEntry;
+import org.apache.cassandra.service.accord.AccordCommandStore;
+import org.apache.cassandra.service.accord.AccordKeyspace;
+import org.apache.cassandra.service.accord.AccordObjectSizes;
+import org.apache.cassandra.service.accord.OrderedKeys;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.events.CacheEvents;
+import org.apache.cassandra.service.accord.execution.AccordCache.Adapter.Shrink;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry.LoadExecutor;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry.Loading;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status;
+import org.apache.cassandra.service.accord.execution.SaferCommandsForKey.CommandsForKeyCacheEntry;
 import org.apache.cassandra.service.accord.journal.CommandChangeWriter;
 import org.apache.cassandra.service.accord.journal.CommandChanges;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
@@ -79,9 +88,11 @@ import org.apache.cassandra.utils.ObjectSizes;
 
 import static accord.utils.Invariants.illegalState;
 import static accord.utils.Invariants.require;
-import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.EVICTED;
-import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.LOADED;
-import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.MODIFIED;
+import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.AGE_MASK;
+import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.GENERATION_MASK;
+import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status.EVICTED;
+import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status.LOADED;
+import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status.MODIFIED;
 
 /**
  * Cache for AccordCommand and AccordCommandsForKey, available memory is shared between the two object types.
@@ -91,22 +102,22 @@ import static org.apache.cassandra.service.accord.AccordCacheEntry.Status.MODIFI
  *
  * TODO (required): we only iterate over unreferenced entries
  */
-public class AccordCache implements CacheSize
+public class AccordCache
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCache.class);
     private static final NoSpamLogStatement evictNoEvict = NoSpamLogger.getStatement(logger, "Found and expired {} marked no evict, with age {}, exceeding its expected max age of {}", 1L, TimeUnit.MINUTES);
 
     // Debug mode to verify that loading from journal + system tables results in
     // functionally identical (or superceding) command to the one we've just evicted.
-    private static boolean VALIDATE_LOAD_ON_EVICT = false;
+    private static boolean DEBUG_VALIDATE_LOAD_ON_EVICT = false;
 
     @VisibleForTesting
     public static void validateLoadOnEvict(boolean value)
     {
-        VALIDATE_LOAD_ON_EVICT = value;
+        DEBUG_VALIDATE_LOAD_ON_EVICT = value;
     }
 
-    public interface Adapter<K, V, S>
+    public interface Adapter<K, V, S extends SafeState<V> & SaferState<K, V, S>>
     {
         enum Shrink { EVICT, DONE, PERFORM_WITHOUT_LOCK }
 
@@ -122,10 +133,10 @@ public class AccordCache implements CacheSize
         long estimateHeapSize(V value);
         long estimateShrunkHeapSize(Object shrunk);
         boolean validate(AccordCommandStore commandStore, K key, V value);
-        S safeRef(AccordCacheEntry<K, V> node);
+        S safeRef(AccordCacheEntry<K, V, S> node);
         default Comparator<K> keyComparator() { return null; }
 
-        default AccordCacheEntry<K, V> newEntry(K key, AccordCache.Type<K, V, ?>.Instance owner)
+        default AccordCacheEntry<K, V, S> newEntry(K key, AccordCache.Type<K, V, S>.Instance owner)
         {
             return AccordCacheEntry.createReadyToLoad(key, owner);
         }
@@ -151,8 +162,8 @@ public class AccordCache implements CacheSize
 
     private final List<Type<?, ?, ?>> types = new CopyOnWriteArrayList<>();
     final AccordCacheEntry.SaveExecutor saveExecutor;
-    private final IntrusiveLinkedList<AccordCacheEntry<?,?>> evictQueue = new IntrusiveLinkedList<>();
-    private final IntrusiveLinkedList<AccordCacheEntry<?,?>> noEvictQueue = new IntrusiveLinkedList<>();
+    private final IntrusiveLinkedList<AccordCacheEntry<?,?, ?>> evictQueue = new IntrusiveLinkedList<>();
+    private final IntrusiveLinkedList<AccordCacheEntry<?,?, ?>> noEvictQueue = new IntrusiveLinkedList<>();
 
     private long unreferencedBytes;
     private int unreferenced;
@@ -169,8 +180,8 @@ public class AccordCache implements CacheSize
     }
 
     // note: only affects current contents after lock is released
-    @Override
-    public void setCapacity(long sizeInBytes)
+    // should NOT be called directly, should be called via AccordExecutor.setCapacity, so it may refresh its derived values
+    void setCapacity(long sizeInBytes)
     {
         maxSizeInBytes = sizeInBytes;
         tryShrinkOrEvict = true;
@@ -181,7 +192,6 @@ public class AccordCache implements CacheSize
         this.shrinkingOn = shrinkingOn;
     }
 
-    @Override
     public long capacity()
     {
         return maxSizeInBytes;
@@ -190,18 +200,18 @@ public class AccordCache implements CacheSize
     /**
      * Make sure we don't have any items lingering too long in the no evict queue, to avoid cache memory leaks
      */
-    void processNoEvictQueue()
+    public void processNoEvictQueue()
     {
-        noEvictGeneration = (noEvictGeneration + 1) & 0xffff;
+        noEvictGeneration = (noEvictGeneration + 1) & GENERATION_MASK;
         if (noEvictQueue.isEmpty())
             return;
 
-        Iterator<AccordCacheEntry<?, ?>> iter = noEvictQueue.iterator();
+        Iterator<AccordCacheEntry<?, ?, ?>> iter = noEvictQueue.iterator();
         int skipCount = 3;
         while (skipCount > 0 && iter.hasNext())
         {
-            AccordCacheEntry<?, ?> entry = iter.next();
-            int age = (noEvictGeneration - entry.noEvictGeneration()) & 0xffff;
+            AccordCacheEntry<?, ?, ?> entry = iter.next();
+            int age = (noEvictGeneration - entry.noEvictGeneration()) & GENERATION_MASK;
             if (age >= entry.noEvictMaxAge())
             {
                 evictNoEvict.warn(entry, age, entry.noEvictMaxAge());
@@ -219,21 +229,21 @@ public class AccordCache implements CacheSize
      * Roughly respects LRU semantics when evicting. Might consider prioritising keeping MODIFIED nodes around
      * for longer to maximise the chances of hitting system tables fewer times (or not at all).
      */
-    void tryShrinkOrEvict(Lock lock)
+    public void tryShrinkOrEvict(Lock lock)
     {
         if (!tryShrinkOrEvict)
             return;
 
         while (bytesCached > maxSizeInBytes && !evictQueue.isEmpty())
         {
-            AccordCacheEntry<?, ?> node = evictQueue.peek();
+            AccordCacheEntry<?, ?, ?> node = evictQueue.peek();
             shrinkOrEvict(lock, node);
         }
         tryShrinkOrEvict = false;
     }
 
     @VisibleForTesting
-    private <K, V> void shrinkOrEvict(Lock lock, AccordCacheEntry<K, V> node)
+    private <K, V> void shrinkOrEvict(Lock lock, AccordCacheEntry<K, V, ?> node)
     {
         require(node.references() == 0);
 
@@ -244,7 +254,7 @@ public class AccordCache implements CacheSize
         }
         else
         {
-            IntrusiveLinkedList<AccordCacheEntry<?,?>> queue;
+            IntrusiveLinkedList<AccordCacheEntry<?,?, ?>> queue;
             queue = node.isNoEvict() ? noEvictQueue : evictQueue;
             node.unlink();
             if (shrink == Shrink.DONE)
@@ -272,7 +282,7 @@ public class AccordCache implements CacheSize
     }
 
     @VisibleForTesting
-    public <K, V> void tryEvict(AccordCacheEntry<K, V> node)
+    public <K, V> void tryEvict(AccordCacheEntry<K, V, ?> node)
     {
         require(node.references() == 0);
 
@@ -290,7 +300,6 @@ public class AccordCache implements CacheSize
             case LOADING:
                 node.loading().loading.cancel();
             case WAITING_TO_LOAD:
-                Invariants.paranoid(node.loadingOrWaiting().waiters == null);
             case LOADED:
                 node.unlink();
                 evict(node, true);
@@ -305,7 +314,7 @@ public class AccordCache implements CacheSize
         }
     }
 
-    public void saveWhenReadyExclusive(AccordCacheEntry<?, ?> entry, Runnable onSuccess)
+    public void saveWhenReadyExclusive(AccordCacheEntry<?, ?, ?> entry, Runnable onSuccess)
     {
         if (!entry.isSavingOrWaiting() && !entry.saveWhenReady())
             onSuccess.run();
@@ -313,7 +322,7 @@ public class AccordCache implements CacheSize
             entry.savingOrWaitingToSave().identity.onSuccess(onSuccess);
     }
 
-    private <K> void evict(AccordCacheEntry<K, ?> node, boolean updateUnreferenced)
+    private <K> void evict(AccordCacheEntry<K, ?, ?> node, boolean updateUnreferenced)
     {
         if (logger.isTraceEnabled())
             logger.trace("Evicting {}", node);
@@ -333,29 +342,28 @@ public class AccordCache implements CacheSize
         --parent.size;
 
         // TODO (expected): use listeners
-        if (node.status() == LOADED && VALIDATE_LOAD_ON_EVICT)
+        if (node.status() == LOADED && DEBUG_VALIDATE_LOAD_ON_EVICT)
             owner.validateLoadEvicted(node);
 
-        AccordCacheEntry<K, ?> self = node.owner.remove(node.key());
+        AccordCacheEntry<K, ?, ?> self = node.owner.remove(node.key());
         Invariants.require(self.references() == 0);
         require(self == node, "Leaked node detected; was attempting to remove %s but cache had %s", node, self);
         node.notifyListeners(Listener::onEvict);
         node.evicted();
     }
 
-    <P1, P2, K, V> Collection<AccordTask<?>> load(LoadExecutor<P1, P2> loadExecutor, P1 p1, P2 p2, AccordCacheEntry<K, V> node)
+    <P1, P2, K, V> Loading load(LoadExecutor<P1, P2> loadExecutor, P1 p1, P2 p2, AccordCacheEntry<K, V, ?> node)
     {
-        Type<K, V, ?> parent = node.owner.parent();
-        return node.load(loadExecutor, p1, p2).waiters();
+        return node.load(loadExecutor, p1, p2);
     }
 
-    <K, V> void loaded(AccordCacheEntry<K, V> node, V value)
+    <K, V> void loaded(AccordCacheEntry<K, V, ?> node, V value)
     {
         node.loaded(value);
         node.notifyListeners(Listener::onUpdate);
     }
 
-    <K, V> void failedToLoad(AccordCacheEntry<K, V> node)
+    <K, V> void failedToLoad(AccordCacheEntry<K, V, ?> node)
     {
         Invariants.require(node.references() == 0);
         if (node.isUnqueued())
@@ -368,38 +376,38 @@ public class AccordCache implements CacheSize
         evict(node, true);
     }
 
-    <K, V> void saved(AccordCacheEntry<K, V> node, Object identity, Throwable fail)
+    <K, V> void saved(AccordCacheEntry<K, V, ?> node, Object identity, Throwable fail)
     {
         if (node.saved(identity, fail) && node.references() == 0 && node.isUnqueued())
             evictQueue.addFirst(node); // add to front since we have just saved, so we were eligible for eviction
     }
 
-    public <K, V, S extends AccordSafeState<K, V>> void release(S safeRef, AccordTask<?> owner)
+    public <K, V, S extends SafeState<V> & SaferState<K, V, S>> void release(S safeRef, SafeTask<?> owner)
     {
         safeRef.global().owner.release(safeRef, owner);
     }
 
-    public <K, V, S extends AccordSafeState<K, V>> Type<K, V, S> newType(Class<K> keyClass, Adapter<K, V, S> adapter, AccordCacheMetrics.Shard metrics)
+    public <K, V, S extends SafeState<V> & SaferState<K, V, S>> Type<K, V, S> newType(Class<K> keyClass, Adapter<K, V, S> adapter, AccordCacheMetrics.Shard metrics)
     {
         Type<K, V, S> instance = new Type<>(keyClass, adapter, metrics);
         types.add(instance);
         return instance;
     }
 
-    public <K, V, S extends AccordSafeState<K, V>> Type<K, V, S> newType(
+    public <K, V, S extends SafeState<V> & SaferState<K, V, S>> Type<K, V, S> newType(
         Class<K> keyClass,
         BiFunction<AccordCommandStore, K, V> loadFunction,
         QuadFunction<AccordCommandStore, K, V, Object, Runnable> saveFunction,
         Function<V, V> quickShrink,
         TriFunction<AccordCommandStore, K, V, Boolean> validateFunction,
         ToLongFunction<V> heapEstimator,
-        Function<AccordCacheEntry<K, V>, S> safeRefFactory,
+        Function<AccordCacheEntry<K, V, S>, S> safeRefFactory,
         AccordCacheMetrics.Shard metrics)
     {
         return newType(keyClass, loadFunction, saveFunction, quickShrink, (i, j) -> j, (c, i, j) -> (V)j, validateFunction, heapEstimator, i -> 0, safeRefFactory, metrics);
     }
 
-    public <K, V, S extends AccordSafeState<K, V>> Type<K, V, S> newType(
+    public <K, V, S extends SafeState<V> & SaferState<K, V, S>> Type<K, V, S> newType(
         Class<K> keyClass,
         BiFunction<AccordCommandStore, K, V> loadFunction,
         QuadFunction<AccordCommandStore, K, V, Object, Runnable> saveFunction,
@@ -409,7 +417,7 @@ public class AccordCache implements CacheSize
         TriFunction<AccordCommandStore, K, V, Boolean> validateFunction,
         ToLongFunction<V> heapEstimator,
         ToLongFunction<Object> shrunkHeapEstimator,
-        Function<AccordCacheEntry<K, V>, S> safeRefFactory,
+        Function<AccordCacheEntry<K, V, S>, S> safeRefFactory,
         AccordCacheMetrics.Shard metrics)
     {
         return newType(keyClass, new FunctionalAdapter<>(loadFunction, saveFunction, quickShrink,
@@ -426,18 +434,18 @@ public class AccordCache implements CacheSize
 
     public interface Listener<K, V>
     {
-        default void onAdd(AccordCacheEntry<K, V> state) {}
-        default void onUpdate(AccordCacheEntry<K, V> state) {}
-        default void onEvict(AccordCacheEntry<K, V> state) {}
+        default void onAdd(AccordCacheEntry<K, V, ?> state) {}
+        default void onUpdate(AccordCacheEntry<K, V, ?> state) {}
+        default void onEvict(AccordCacheEntry<K, V, ?> state) {}
     }
 
-    public class Type<K, V, S extends AccordSafeState<K, V>> implements CacheSize
+    public class Type<K, V, S extends SafeState<V> & SaferState<K, V, S>> implements CacheSize
     {
-        public class Instance implements Iterable<AccordCacheEntry<K, V>>
+        public class Instance implements Iterable<AccordCacheEntry<K, V, S>>
         {
             final AccordCommandStore commandStore;
             // TODO (desired): don't need to store key separately as stored in node; ideally use a hash set that allows us to get the current entry
-            private final Map<K, AccordCacheEntry<K, V>> cache = new Object2ObjectHashMap<>();
+            private final Map<K, AccordCacheEntry<K, V, S>> cache = new Object2ObjectHashMap<>();
             private List<Listener<K, V>> listeners = null;
             // TODO (expected): update this after releasing the lock
             private OrderedKeys<K> orderedKeys;
@@ -447,50 +455,51 @@ public class AccordCache implements CacheSize
                 this.commandStore = commandStore;
             }
 
-            public S acquire(K key)
+            public final S acquire(K key)
             {
-                AccordCacheEntry<K, V> node = acquire(key, false);
+                AccordCacheEntry<K, V, S> node = acquire(key, false);
                 return adapter.safeRef(node);
             }
 
-            public S acquireIfLoaded(K key)
+            public final S acquireIfLoadedAndPermitted(K key)
             {
-                AccordCacheEntry<K, V> node = acquire(key, true);
+                AccordCacheEntry<K, V, S> node = acquire(key, true);
                 if (node == null)
                     return null;
                 return adapter.safeRef(node);
             }
 
-            public S acquire(AccordCacheEntry<K, V> node)
+            public final S acquire(AccordCacheEntry<K, V, S> node)
             {
                 Invariants.require(node.owner == this);
                 acquireExisting(node, false);
                 return adapter.safeRef(node);
             }
 
-            public void recordPreAcquired(AccordSafeState<K, V> ref)
+            public final void recordPreAcquired(AccordCacheEntry<K, V, S> entry)
             {
-                Invariants.require(ref.global().owner == this);
-                incrementCacheHits();
+                Invariants.require(entry.owner == this);
+                if (entry.isLoaded()) incrementCacheHits();
+                else incrementCacheMisses();
             }
 
-            private AccordCacheEntry<K, V> acquire(K key, boolean onlyIfLoaded)
+            private AccordCacheEntry<K, V, S> acquire(K key, boolean onlyIfLoadedAndPermitted)
             {
-                AccordCacheEntry<K, V> node = cache.get(key);
+                AccordCacheEntry<K, V, S> node = cache.get(key);
                 return node == null
-                       ? acquireAbsent(key, onlyIfLoaded)
-                       : acquireExisting(node, onlyIfLoaded);
+                       ? acquireAbsent(key, onlyIfLoadedAndPermitted)
+                       : acquireExisting(node, onlyIfLoadedAndPermitted);
             }
 
             /*
              * Can only return a LOADING Node (or null)
              */
-            private AccordCacheEntry<K, V> acquireAbsent(K key, boolean onlyIfLoaded)
+            private AccordCacheEntry<K, V, S> acquireAbsent(K key, boolean onlyIfLoaded)
             {
                 incrementCacheMisses();
                 if (onlyIfLoaded)
                     return null;
-                AccordCacheEntry<K, V> node = adapter.newEntry(key, this);
+                AccordCacheEntry<K, V, S> node = adapter.newEntry(key, this);
                 node.increment();
 
                 Object prev = cache.put(key, node);
@@ -507,7 +516,7 @@ public class AccordCache implements CacheSize
             /*
              * Can't return EVICTED or INITIALIZED
              */
-            private AccordCacheEntry<K, V> acquireExisting(AccordCacheEntry<K, V> node, boolean onlyIfLoaded)
+            private AccordCacheEntry<K, V, S> acquireExisting(AccordCacheEntry<K, V, S> node, boolean onlyIfLoadedAndPermitted)
             {
                 boolean isLoaded = node.isLoaded();
                 if (isLoaded)
@@ -515,8 +524,11 @@ public class AccordCache implements CacheSize
                 else
                     incrementCacheMisses();
 
-                if (onlyIfLoaded && !isLoaded)
-                    return null;
+                if (onlyIfLoadedAndPermitted)
+                {
+                    if (!isLoaded || node.hasFifoOrLocked())
+                        return null;
+                }
 
                 if (node.increment() == 1)
                 {
@@ -528,21 +540,21 @@ public class AccordCache implements CacheSize
                 return node;
             }
 
-            public void release(AccordSafeState<K, V> safeRef, AccordTask<?> owner)
+            public final void release(S safeRef, SafeTask<?> owner)
             {
                 K key = safeRef.global().key();
                 logger.trace("Releasing resources for {}: {}", key, safeRef);
 
-                AccordCacheEntry<K, V> node = cache.get(key);
+                AccordCacheEntry<K, V, ?> node = cache.get(key);
 
-                require(!safeRef.isUnsafe());
+                require(!safeRef.isReleased());
                 require(safeRef.global() != null, "safeRef node is null for %s", key);
                 require(safeRef.global() == node, "safeRef node not in map: %s != %s", safeRef.global(), node);
                 require(node.references() > 0, "references (%d) are zero for %s (%s)", node.references(), key, node);
                 require(node.isUnqueued());
 
                 boolean evict = false;
-                if (safeRef.hasUpdate())
+                if (safeRef.isModified())
                 {
                     V update = safeRef.current();
                     if (update != null)
@@ -556,15 +568,11 @@ public class AccordCache implements CacheSize
                     }
                     node.notifyListeners(Listener::onUpdate);
                 }
-                else if (node.isLoadingOrWaiting())
-                {
-                    node.loadingOrWaiting().remove(owner);
-                }
                 else
                 {
                     evict = node.is(LOADED) && node.isNull();
                 }
-                safeRef.markUnsafe();
+                node.remove(owner, safeRef.setReleased());
 
                 if (node.decrement() == 0)
                 {
@@ -597,9 +605,9 @@ public class AccordCache implements CacheSize
                 tryShrinkOrEvict = true;
             }
 
-            AccordCacheEntry<K, ?> remove(K key)
+            final AccordCacheEntry<K, ?, ?> remove(K key)
             {
-                AccordCacheEntry<K, ?> result = cache.remove(key);
+                AccordCacheEntry<K, ?, ?> result = cache.remove(key);
                 if (orderedKeys != null && result != null)
                     orderedKeys.remove(key);
                 return result;
@@ -610,7 +618,7 @@ public class AccordCache implements CacheSize
                 return Type.this;
             }
 
-            public Iterable<K> keysBetween(K start, boolean startInclusive, K end, boolean endInclusive)
+            public final Iterable<K> keysBetween(K start, boolean startInclusive, K end, boolean endInclusive)
             {
                 if (orderedKeys == null)
                     orderedKeys = new OrderedKeys<>(adapter.keyComparator(), cache.keySet());
@@ -619,15 +627,15 @@ public class AccordCache implements CacheSize
             }
 
             @Override
-            public Iterator<AccordCacheEntry<K, V>> iterator()
+            public final Iterator<AccordCacheEntry<K, V, S>> iterator()
             {
                 return cache.values().iterator();
             }
 
-            void validateLoadEvicted(AccordCacheEntry<?, ?> node)
+            final void validateLoadEvicted(AccordCacheEntry<?, ?, ?> node)
             {
                 @SuppressWarnings("unchecked")
-                AccordCacheEntry<K, V> state = (AccordCacheEntry<K, V>) node;
+                AccordCacheEntry<K, V, ?> state = (AccordCacheEntry<K, V, ?>) node;
                 K key = state.key();
                 V evicted = state.tryGetFull();
                 if (evicted == null)
@@ -650,46 +658,46 @@ public class AccordCache implements CacheSize
             }
 
             @VisibleForTesting
-            public AccordCacheEntry<K, V> getUnsafe(K key)
+            public final AccordCacheEntry<K, V, ?> getUnsafe(K key)
             {
                 return cache.get(key);
             }
 
             @VisibleForTesting
-            public boolean isReferenced(K key)
+            public final boolean isReferenced(K key)
             {
-                AccordCacheEntry<K, V> node = cache.get(key);
+                AccordCacheEntry<K, V, ?> node = cache.get(key);
                 return node != null && node.references() > 0;
             }
 
             @VisibleForTesting
-            boolean keyIsReferenced(Object key, Class<? extends AccordSafeState<?, ?>> valClass)
+            final boolean keyIsReferenced(Object key, Class<? extends SaferState<?, ?, S>> valClass)
             {
-                AccordCacheEntry<?, ?> node = cache.get(key);
+                AccordCacheEntry<?, ?, ?> node = cache.get(key);
                 return node != null && node.references() > 0;
             }
 
             @VisibleForTesting
-            boolean keyIsCached(Object key, Class<? extends AccordSafeState<?, ?>> valClass)
+            final boolean keyIsCached(Object key, Class<? extends SaferState<?, ?, S>> valClass)
             {
-                AccordCacheEntry<?, ?> node = cache.get(key);
+                AccordCacheEntry<?, ?, ?> node = cache.get(key);
                 return node != null;
             }
 
             @VisibleForTesting
-            int references(Object key, Class<? extends AccordSafeState<?, ?>> valClass)
+            final int references(Object key, Class<? extends SaferState<?, ?, S>> valClass)
             {
-                AccordCacheEntry<?, ?> node = cache.get(key);
+                AccordCacheEntry<?, ?, ?> node = cache.get(key);
                 return node != null ? node.references() : 0;
             }
 
-            void notifyListeners(BiConsumer<Listener<K, V>, AccordCacheEntry<K, V>> notify, AccordCacheEntry<K, V> node)
+            final void notifyListeners(BiConsumer<Listener<K, V>, AccordCacheEntry<K, V, ?>> notify, AccordCacheEntry<K, V, ?> node)
             {
                 notifyListeners(listeners, notify, node);
                 notifyListeners(typeListeners, notify, node);
             }
 
-            void notifyListeners(List<Listener<K, V>> listeners, BiConsumer<Listener<K, V>, AccordCacheEntry<K, V>> notify, AccordCacheEntry<K, V> node)
+            final void notifyListeners(List<Listener<K, V>> listeners, BiConsumer<Listener<K, V>, AccordCacheEntry<K, V, ?>> notify, AccordCacheEntry<K, V, ?> node)
             {
                 if (listeners != null)
                 {
@@ -699,20 +707,20 @@ public class AccordCache implements CacheSize
                 }
             }
 
-            public void register(Listener<K, V> l)
+            public final void register(Listener<K, V> l)
             {
                 if (listeners == null)
                     listeners = new ArrayList<>();
                 listeners.add(l);
             }
 
-            public void unregister(Listener<K, V> l)
+            public final void unregister(Listener<K, V> l)
             {
                 if (!tryUnregister(l))
                     throw illegalState("Listener was not registered");
             }
 
-            public boolean tryUnregister(Listener<K, V> l)
+            public final boolean tryUnregister(Listener<K, V> l)
             {
                 if (listeners == null || !listeners.remove(l))
                     return false;
@@ -720,9 +728,23 @@ public class AccordCache implements CacheSize
                     listeners = null;
                 return true;
             }
+
+            final boolean isCommandsForKey()
+            {
+                return getClass() == KeyInstance.class;
+            }
         }
 
-        private final Class<K> keyClass;
+        // KeyInstance exists to provide us slightly easier discrimination about the Type an AccordCacheEntry is associated with
+        public final class KeyInstance extends Instance
+        {
+            public KeyInstance(AccordCommandStore commandStore)
+            {
+                super(commandStore);
+            }
+        }
+
+        private final Class<K> keyClass; // type of key, useful primarily for toString(), but also piggyback for deciding Instance type
         private Adapter<K, V, S> adapter;
         private long bytesCached;
         private int size;
@@ -735,6 +757,8 @@ public class AccordCache implements CacheSize
 
         public Type(Class<K> keyClass, Adapter<K, V, S> adapter, AccordCacheMetrics.Shard metrics)
         {
+            // Integer and String permitted for testing, but the Invariant exists only to enforce that we construct the right kind of Instance
+            Invariants.require(keyClass == RoutingKey.class || keyClass == TxnId.class || keyClass == String.class || keyClass == Integer.class);
             this.keyClass = keyClass;
             this.adapter = adapter;
             this.objectSize = metrics.objectSize;
@@ -750,9 +774,9 @@ public class AccordCache implements CacheSize
         }
 
         // can be safely garbage collected if empty
-        Instance newInstance(AccordCommandStore commandStore)
+        public Instance newInstance(AccordCommandStore commandStore)
         {
-            return new Instance(commandStore);
+            return keyClass == RoutingKey.class ? new KeyInstance(commandStore) : new Instance(commandStore);
         }
 
         private void incrementCacheHits()
@@ -868,17 +892,17 @@ public class AccordCache implements CacheSize
     }
 
     @VisibleForTesting
-    AccordCacheEntry<?, ?> head()
+    AccordCacheEntry<?, ?, ?> head()
     {
-        Iterator<AccordCacheEntry<?, ?>> iter = evictQueue.iterator();
+        Iterator<AccordCacheEntry<?, ?, ?>> iter = evictQueue.iterator();
         return iter.hasNext() ? iter.next() : null;
     }
 
     @VisibleForTesting
-    AccordCacheEntry<?, ?> tail()
+    AccordCacheEntry<?, ?, ?> tail()
     {
-        AccordCacheEntry<?,?> last = null;
-        Iterator<AccordCacheEntry<?, ?>> iter = evictQueue.iterator();
+        AccordCacheEntry<?,?, ?> last = null;
+        Iterator<AccordCacheEntry<?, ?, ?>> iter = evictQueue.iterator();
         while (iter.hasNext())
             last = iter.next();
         return last;
@@ -889,7 +913,7 @@ public class AccordCache implements CacheSize
         return size() == 0;
     }
 
-    Iterable<AccordCacheEntry<?, ?>> evictionQueue()
+    public Iterable<AccordCacheEntry<?, ?, ?>> evictionQueue()
     {
         return evictQueue::iterator;
     }
@@ -920,14 +944,12 @@ public class AccordCache implements CacheSize
         return unreferencedBytes;
     }
 
-    @Override
-    public int size()
+    int size()
     {
         return cacheSize();
     }
 
-    @Override
-    public long weightedSize()
+    long weightedSize()
     {
         return bytesCached;
     }
@@ -938,10 +960,10 @@ public class AccordCache implements CacheSize
             return;
 
         type.register(new AccordCache.Listener<>() {
-            private final IdentityHashMap<AccordCacheEntry<?, ?>, CacheEvents.Evict> pendingEvicts = new IdentityHashMap<>();
+            private final IdentityHashMap<AccordCacheEntry<?, ?, ?>, CacheEvents.Evict> pendingEvicts = new IdentityHashMap<>();
 
             @Override
-            public void onAdd(AccordCacheEntry<K, V> state)
+            public void onAdd(AccordCacheEntry<K, V, ?> state)
             {
                 CacheEvents.Add add = new CacheEvents.Add();
                 CacheEvents.Evict evict = new CacheEvents.Evict();
@@ -958,7 +980,7 @@ public class AccordCache implements CacheSize
             }
 
             @Override
-            public void onEvict(AccordCacheEntry<K, V> state)
+            public void onEvict(AccordCacheEntry<K, V, ?> state)
             {
                 CacheEvents.Evict event = pendingEvicts.remove(state);
                 if (event == null) return;
@@ -968,7 +990,7 @@ public class AccordCache implements CacheSize
         });
     }
 
-    private static void updateMutable(AccordCache.Type<?, ?, ?> type, AccordCacheEntry<?, ?> state, CacheEvents event)
+    private static void updateMutable(AccordCache.Type<?, ?, ?> type, AccordCacheEntry<?, ?, ?> state, CacheEvents event)
     {
         event.status = state.status().name();
 
@@ -988,7 +1010,7 @@ public class AccordCache implements CacheSize
         event.update();
     }
 
-    static class FunctionalAdapter<K, V, S> implements Adapter<K, V, S>
+    static class FunctionalAdapter<K, V, S extends SafeState<V> & SaferState<K, V, S>> implements Adapter<K, V, S>
     {
         final BiFunction<AccordCommandStore, K, V> load;
         final QuadFunction<AccordCommandStore, K, V, Object, Runnable> save;
@@ -998,8 +1020,8 @@ public class AccordCache implements CacheSize
         final TriFunction<AccordCommandStore, K, V, Boolean> validate;
         final ToLongFunction<V> estimateHeapSize;
         final ToLongFunction<Object> estimateShrunkHeapSize;
-        final Function<AccordCacheEntry<K, V>, S> newSafeRef;
-        final BiFunction<K, AccordCache.Type<K, V, ?>.Instance, AccordCacheEntry<K, V>> newNode;
+        final Function<AccordCacheEntry<K, V, S>, S> newSafeRef;
+        final BiFunction<K, AccordCache.Type<K, V, S>.Instance, AccordCacheEntry<K, V, S>> newNode;
 
         FunctionalAdapter(BiFunction<AccordCommandStore, K, V> load,
                           QuadFunction<AccordCommandStore, K, V, Object, Runnable> save,
@@ -1008,8 +1030,8 @@ public class AccordCache implements CacheSize
                           TriFunction<AccordCommandStore, K, V, Boolean> validate,
                           ToLongFunction<V> estimateHeapSize,
                           ToLongFunction<Object> estimateShrunkHeapSize,
-                          Function<AccordCacheEntry<K, V>, S> newSafeRef,
-                          BiFunction<K, Type<K, V, ?>.Instance, AccordCacheEntry<K, V>> newNode)
+                          Function<AccordCacheEntry<K, V, S>, S> newSafeRef,
+                          BiFunction<K, Type<K, V, S>.Instance, AccordCacheEntry<K, V, S>> newNode)
         {
             this.load = load;
             this.save = save;
@@ -1083,13 +1105,13 @@ public class AccordCache implements CacheSize
         }
 
         @Override
-        public S safeRef(AccordCacheEntry<K, V> node)
+        public S safeRef(AccordCacheEntry<K, V, S> node)
         {
             return newSafeRef.apply(node);
         }
 
         @Override
-        public AccordCacheEntry<K, V> newEntry(K key, Type<K, V, ?>.Instance owner)
+        public AccordCacheEntry<K, V, S> newEntry(K key, Type<K, V, S>.Instance owner)
         {
             return newNode.apply(key, owner);
         }
@@ -1101,7 +1123,7 @@ public class AccordCache implements CacheSize
         }
     }
 
-    static class SettableWrapper<K, V, S> extends FunctionalAdapter<K, V, S>
+    static class SettableWrapper<K, V, S extends SafeState<V> & SaferState<K, V, S>> extends FunctionalAdapter<K, V, S>
     {
         volatile BiFunction<AccordCommandStore, K, V> load;
 
@@ -1111,9 +1133,9 @@ public class AccordCache implements CacheSize
             this.load = super.load;
         }
 
-        public static <K, V> Adapter<K, V, ?> loadOnly(BiFunction<AccordCommandStore, K, V> load)
+        public static <K, V, S extends SafeState<V> & SaferState<K, V, S>> Adapter<K, V, S> loadOnly(BiFunction<AccordCommandStore, K, V> load)
         {
-            SettableWrapper<K, V, ?> result = new SettableWrapper<>(new NoOpAdapter<>());
+            SettableWrapper<K, V, S> result = new SettableWrapper<>(new NoOpAdapter<K, V, S>());
             result.load = load;
             return result;
         }
@@ -1125,7 +1147,7 @@ public class AccordCache implements CacheSize
         }
     }
 
-    static class NoOpAdapter<K, V, S> implements Adapter<K, V, S>
+    static class NoOpAdapter<K, V, S extends SafeState<V> & SaferState<K, V, S>> implements Adapter<K, V, S>
     {
         @Override public V load(AccordCommandStore commandStore, K key) { return null; }
         @Override public Runnable save(AccordCommandStore commandStore, K key, @Nullable V value, @Nullable Object shrunk) { return null; }
@@ -1136,10 +1158,10 @@ public class AccordCache implements CacheSize
         @Override public long estimateHeapSize(V value) { return 0; }
         @Override public long estimateShrunkHeapSize(Object shrunk) { return 0; }
         @Override public boolean validate(AccordCommandStore commandStore, K key, V value) { return false; }
-        @Override public S safeRef(AccordCacheEntry<K, V> node) { return null; }
+        @Override public S safeRef(AccordCacheEntry<K, V, S> node) { return null; }
     }
 
-    public static class CommandsForKeyAdapter implements Adapter<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>
+    public static class CommandsForKeyAdapter implements Adapter<RoutingKey, CommandsForKey, SaferCommandsForKey>
     {
         public static final CommandsForKeyAdapter CFK_ADAPTER = new CommandsForKeyAdapter();
         private static int SHRINK_WITHOUT_LOCK = -1;
@@ -1149,7 +1171,13 @@ public class AccordCache implements CacheSize
         @Override
         public CommandsForKey load(AccordCommandStore commandStore, RoutingKey key)
         {
-            return commandStore.loadCommandsForKey(key);
+            CommandsForKey cfk = AccordKeyspace.CommandsForKeyAccessor.load(commandStore.id(), (TokenKey) key);
+            if (cfk == null)
+                return null;
+            RedundantBefore.QuickBounds bounds = commandStore.safeGetRedundantBefore().get(key);
+            if (!Invariants.expect(bounds != null, "No RedundantBefore information found when loading key %s", key))
+                return cfk;
+            return cfk.withCleanCfkBeforeAtLeast(bounds.cleanCfkBefore(), false);
         }
 
         @Override
@@ -1160,7 +1188,7 @@ public class AccordCache implements CacheSize
                 ByteBuffer bb = (ByteBuffer)serialized;
                 serialized = bb.duplicate().position(prefixBytes(bb));
             }
-            return commandStore.saveCommandsForKey(key, value, serialized);
+            return AccordKeyspace.CommandsForKeyAccessor.systemTableUpdater(commandStore.id(), (TokenKey) key, value, serialized);
         }
 
         @Override
@@ -1236,13 +1264,17 @@ public class AccordCache implements CacheSize
         @Override
         public boolean validate(AccordCommandStore commandStore, RoutingKey key, CommandsForKey value)
         {
-            return commandStore.validateCommandsForKey(key, value);
+            if (!Invariants.isParanoid())
+                return true;
+
+            CommandsForKey reloaded = AccordKeyspace.CommandsForKeyAccessor.load(commandStore.id(), (TokenKey) key);
+            return Objects.equals(value, reloaded);
         }
 
         @Override
-        public AccordSafeCommandsForKey safeRef(AccordCacheEntry<RoutingKey, CommandsForKey> node)
+        public SaferCommandsForKey safeRef(AccordCacheEntry<RoutingKey, CommandsForKey, SaferCommandsForKey> node)
         {
-            return new AccordSafeCommandsForKey(node);
+            return new SaferCommandsForKey(node);
         }
 
         @Override
@@ -1252,7 +1284,7 @@ public class AccordCache implements CacheSize
         }
 
         @Override
-        public AccordCacheEntry<RoutingKey, CommandsForKey> newEntry(RoutingKey key, Type<RoutingKey, CommandsForKey, ?>.Instance owner)
+        public AccordCacheEntry<RoutingKey, CommandsForKey, SaferCommandsForKey> newEntry(RoutingKey key, Type<RoutingKey, CommandsForKey, SaferCommandsForKey>.Instance owner)
         {
             CommandsForKeyCacheEntry entry = new CommandsForKeyCacheEntry(key, owner);
             entry.readyToLoad();
@@ -1260,7 +1292,7 @@ public class AccordCache implements CacheSize
         }
     }
 
-    public static class CommandAdapter implements Adapter<TxnId, Command, AccordSafeCommand>
+    public static class CommandAdapter implements Adapter<TxnId, Command, SaferCommand>
     {
         private static final int SHRINK_WITHOUT_LOCK = -1;
 
@@ -1373,23 +1405,27 @@ public class AccordCache implements CacheSize
         @Override
         public boolean validate(AccordCommandStore commandStore, TxnId key, Command value)
         {
-            return commandStore.validateCommand(key, value);
+            if (!Invariants.isParanoid())
+                return true;
+
+            Command reloaded = commandStore.loadCommand(key);
+            return Objects.equals(value, reloaded);
         }
 
         @Override
-        public AccordSafeCommand safeRef(AccordCacheEntry<TxnId, Command> node)
+        public SaferCommand safeRef(AccordCacheEntry<TxnId, Command, SaferCommand> node)
         {
-            return new AccordSafeCommand(node);
+            return new SaferCommand(node);
         }
 
         @Override
-        public AccordCacheEntry<TxnId, Command> newEntry(TxnId txnId, Type<TxnId, Command, ?>.Instance owner)
+        public AccordCacheEntry<TxnId, Command, SaferCommand> newEntry(TxnId txnId, Type<TxnId, Command, SaferCommand>.Instance owner)
         {
-            AccordCacheEntry<TxnId, Command> node = new AccordCacheEntry<>(txnId, owner);
+            AccordCacheEntry<TxnId, Command, SaferCommand> node = new AccordCacheEntry<>(txnId, owner);
             if (txnId.is(Txn.Kind.EphemeralRead))
             {
                 node.initialize(null);
-                int maxAge = (int)Math.min(0xff, 1 + DatabaseDescriptor.getReadRpcTimeout(TimeUnit.SECONDS));
+                int maxAge = (int)Math.min(AGE_MASK, 1 + DatabaseDescriptor.getReadRpcTimeout(TimeUnit.SECONDS));
                 node.markNoEvict(owner.parent().parent().noEvictGeneration, maxAge);
             }
             else

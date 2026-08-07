@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.execution;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
@@ -24,41 +24,41 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.IntFunction;
 
 import accord.api.Agent;
-import accord.utils.QuadFunction;
-import accord.utils.QuintConsumer;
 
-public class AccordExecutorSyncSubmit extends AccordExecutorAbstractLockLoop
+// WARNING: experimental - needs more testing
+public class AccordExecutorSemiSyncSubmit extends AbstractSemiSyncSubmit
 {
-    private final AccordExecutorLoops loops;
+    private final Loops loops;
     private final ReentrantLock lock;
     private final Condition hasWork;
 
-    public AccordExecutorSyncSubmit(int executorId, Mode mode, String name, Agent agent)
-    {
-        this(executorId, mode, 1, constant(name), agent);
-    }
-
-    public AccordExecutorSyncSubmit(int executorId, Mode mode, int threads, IntFunction<String> name, Agent agent)
+    public AccordExecutorSemiSyncSubmit(int executorId, Mode mode, int threads, IntFunction<String> name, Agent agent)
     {
         this(new ReentrantLock(), executorId, mode, threads, name, agent);
     }
 
-    private AccordExecutorSyncSubmit(ReentrantLock lock, int executorId, Mode mode, int threads, IntFunction<String> name, Agent agent)
+    private AccordExecutorSemiSyncSubmit(ReentrantLock lock, int executorId, Mode mode, int threads, IntFunction<String> name, Agent agent)
     {
         super(lock, executorId, agent);
         this.lock = lock;
         this.hasWork = lock.newCondition();
-        this.loops = new AccordExecutorLoops(mode, threads, name, this::task);
+        this.loops = new Loops(mode, threads, name, this::task);
     }
 
     @Override
     void awaitExclusive() throws InterruptedException
     {
+        if (!hasUnqueued())
+            awaitWork();
+    }
+
+    private void awaitWork() throws InterruptedException
+    {
         hasWork.await();
     }
 
     @Override
-    AccordExecutorLoops loops()
+    Loops loops()
     {
         return loops;
     }
@@ -70,36 +70,23 @@ public class AccordExecutorSyncSubmit extends AccordExecutorAbstractLockLoop
     }
 
     @Override
-    boolean isOwningThread()
-    {
-        return lock.isHeldByCurrentThread();
-    }
-
-    @Override
     void notifyWork()
     {
         lock.lock();
         try { hasWork.signal(); }
         finally { lock.unlock(); }
     }
-
+    
     @Override
     void notifyWorkExclusive()
     {
         hasWork.signal();
     }
 
-    <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Task> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
+    @Override
+    public boolean isOwningThread()
     {
-        lock();
-        try
-        {
-            submitExternalExclusive(sync, p1s, p2, p3, p4);
-        }
-        finally
-        {
-            unlock();
-        }
+        return lock.isHeldByCurrentThread();
     }
 
     @Override

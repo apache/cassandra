@@ -15,43 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.service.accord;
 
-import accord.impl.SafeState;
+package org.apache.cassandra.service.accord.execution;
 
-public interface AccordSafeState<K, V> extends SafeState<V>
+// run the task even on a terminated commandStore
+public interface Unterminatable extends Unstoppable
 {
-    void set(V update);
-    V original();
-    void markUnsafe();
-    boolean isUnsafe();
-    void preExecute();
-
-    AccordCacheEntry<K, V> global();
-
-    default boolean hasUpdate()
-    {
-        return original() != current();
-    }
-
-    default void revert()
-    {
-        set(original());
-    }
-
-    default K key()
-    {
-        return global().key();
-    }
-
-    default Throwable failure()
-    {
-        return global().failure();
-    }
-
-    default void checkNotInvalidated()
-    {
-        if (isUnsafe())
-            throw new IllegalStateException("Cannot access invalidated " + this);
-    }
 }

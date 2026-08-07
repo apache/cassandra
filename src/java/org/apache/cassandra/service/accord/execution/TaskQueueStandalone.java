@@ -16,26 +16,50 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.execution;
 
-import java.util.concurrent.locks.Lock;
+import org.apache.cassandra.service.accord.execution.Task.ExecutorQueue;
 
-import accord.api.Agent;
-import accord.utils.QuadFunction;
-import accord.utils.QuintConsumer;
-
-abstract class AccordExecutorAbstractSemiSyncSubmit extends AccordExecutorAbstractLockLoop
+final class TaskQueueStandalone<T extends Task> extends TaskQueue<T>
 {
-    AccordExecutorAbstractSemiSyncSubmit(Lock lock, int executorId, Agent agent)
+    TaskQueueStandalone(ExecutorQueue kind)
     {
-        super(lock, executorId, agent);
+        super(kind);
     }
 
-    abstract void awaitExclusive() throws InterruptedException;
-
-    <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Task> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
+    void enqueue(T enqueue)
     {
-        if (push(async.apply(p1a, p2, p3, p4)) == null && !isInLoop())
-            notifyWork();
+        enqueue.setQueue(kind);
+        enqueueSingle(enqueue);
+    }
+
+    boolean tryUnqueue(T unqueue)
+    {
+        if (!containsNode(unqueue))
+            return false;
+
+        unqueue(unqueue);
+        return true;
+    }
+
+    void unqueue(T unqueue)
+    {
+        unqueue.unsetQueue(kind);
+        removeNode(unqueue);
+    }
+
+    T peek()
+    {
+        return peekSingle();
+    }
+
+    T poll()
+    {
+        return pollSingle();
+    }
+
+    boolean isEmpty()
+    {
+        return isEmptySingle();
     }
 }

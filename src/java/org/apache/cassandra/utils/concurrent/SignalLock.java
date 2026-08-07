@@ -428,7 +428,7 @@ public final class SignalLock implements Lock
         {
             long cur = state;
             int count = asyncSignalCount(cur);
-            if (count == MAX_THREADS)
+            if (count == MAX_SIGNAL_COUNT)
                 return false;
 
             if (signalIfWaiting)

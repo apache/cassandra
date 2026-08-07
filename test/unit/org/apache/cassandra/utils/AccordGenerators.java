@@ -175,7 +175,7 @@ public class AccordGenerators
             switch (targetType)
             {
                 case notDefined:
-                    return AccordTestUtils.Commands.notDefined(id, txn);
+                    return AccordTestUtils.Commands.notDefined(id);
                 case preaccepted:
                     return AccordTestUtils.Commands.preaccepted(id, txn, executeAt);
                 case committed:

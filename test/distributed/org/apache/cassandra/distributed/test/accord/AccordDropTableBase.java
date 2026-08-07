@@ -22,12 +22,11 @@ import com.google.common.base.Throwables;
 
 import org.assertj.core.api.Assertions;
 
-import accord.api.RoutingKey;
 import accord.local.CommandStores;
-import accord.local.LoadKeys;
+import accord.local.ExecutionContext;
 import accord.local.Node;
-import accord.local.PreLoadContext;
 import accord.local.cfk.CommandsForKey;
+import accord.local.cfk.SafeCommandsForKey;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.Txn;
@@ -42,12 +41,10 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordCommandStore;
-import org.apache.cassandra.service.accord.AccordSafeCommandStore;
-import org.apache.cassandra.service.accord.AccordSafeCommandsForKey;
+import org.apache.cassandra.service.accord.execution.SaferCommandStore;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.TokenRange;
 
-import static accord.local.LoadKeysFor.READ_WRITE;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.service.accord.AccordService.getBlocking;
 
@@ -135,19 +132,16 @@ public class AccordDropTableBase extends TestBaseImpl
                 TableId tableId = TableId.fromString(s);
                 AccordService accord = (AccordService) AccordService.instance();
                 TxnId syntheticTxnId = new TxnId(TxnId.MAX_EPOCH, 0, Txn.Kind.ExclusiveSyncPoint, Routable.Domain.Range, new Node.Id(1));
-                PreLoadContext ctx = PreLoadContext.contextFor(syntheticTxnId, Ranges.single(TokenRange.fullRange(tableId, getPartitioner())), LoadKeys.SYNC, READ_WRITE, "Test");
+                ExecutionContext ctx = ExecutionContext.unsequencedReadWrite(syntheticTxnId, Ranges.single(TokenRange.fullRange(tableId, getPartitioner())), "Test");
                 CommandStores stores = accord.node().commandStores();
                 for (int storeId : stores.ids())
                 {
                     AccordCommandStore store = (AccordCommandStore) stores.forId(storeId);
                     getBlocking(store.chain(ctx, input -> {
-                        AccordSafeCommandStore safe = (AccordSafeCommandStore) input;
-                        for (RoutingKey key : safe.commandsForKeysKeys())
+                        SaferCommandStore safe = (SaferCommandStore) input;
+                        for (SafeCommandsForKey safeCfk : safe.safeCommandsForKeys())
                         {
-                            AccordSafeCommandsForKey safeCFK = (AccordSafeCommandsForKey) safe.ifLoadedAndInitialised(key);
-                            if (safeCFK == null) // we read and found a key, but its null at load time... so ignore it
-                                continue;
-                            CommandsForKey cfk = safeCFK.current();
+                            CommandsForKey cfk = safeCfk.current();
                             CommandsForKey.TxnInfo minUndecided = cfk.minUndecidedManaged();
                             if (minUndecided != null)
                                 throw new AssertionError("Undecided txn: " + minUndecided);

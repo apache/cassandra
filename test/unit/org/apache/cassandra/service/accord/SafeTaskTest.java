@@ -46,7 +46,7 @@ import org.slf4j.LoggerFactory;
 import accord.api.RoutingKey;
 import accord.local.CheckedCommands;
 import accord.local.Command;
-import accord.local.PreLoadContext;
+import accord.local.ExecutionContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.StoreParticipants;
@@ -77,29 +77,33 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordCommandStore.ExclusiveCaches;
-import org.apache.cassandra.service.accord.AccordExecutor.ExclusiveGlobalCaches;
+import org.apache.cassandra.service.accord.execution.AccordCache;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
+import org.apache.cassandra.service.accord.execution.AccordExecutor.ExclusiveGlobalCaches;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.execution.SafeTask;
 import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Condition;
 
+import static accord.local.ExecutionContext.contextFor;
+import static accord.local.ExecutionContext.unsequencedReadWrite;
 import static accord.local.LoadKeys.SYNC;
 import static accord.local.LoadKeysFor.READ_WRITE;
-import static accord.local.PreLoadContext.contextFor;
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordService.getBlocking;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createAccordCommandStore;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialTxn;
 import static org.apache.cassandra.service.accord.AccordTestUtils.keys;
-import static org.apache.cassandra.service.accord.AccordTestUtils.loaded;
 import static org.apache.cassandra.service.accord.AccordTestUtils.txnId;
 
-public class AccordTaskTest
+public class SafeTaskTest
 {
-    private static final Logger logger = LoggerFactory.getLogger(AccordTaskTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(SafeTaskTest.class);
     private static final AtomicLong clock = new AtomicLong(0);
 
     @BeforeClass
@@ -127,7 +131,7 @@ public class AccordTaskTest
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
 
-        getBlocking(commandStore.execute(PreLoadContext.contextFor(txnId, "Test"), instance -> {
+        getBlocking(commandStore.execute(ExecutionContext.unsequenced(txnId, "Test"), instance -> {
             // TODO review: This change to `ifInitialized` was done in a lot of places and it doesn't preserve this property
             // I fixed this reference to point to `ifLoadedAndInitialised` and but didn't update other places
             Assert.assertNull(instance.ifInitialised(txnId));
@@ -141,7 +145,7 @@ public class AccordTaskTest
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
 
-        getBlocking(commandStore.execute(PreLoadContext.contextFor(txnId, "Test"), safe -> {
+        getBlocking(commandStore.execute(ExecutionContext.unsequenced(txnId, "Test"), safe -> {
             StoreParticipants participants = StoreParticipants.empty(txnId);
             SafeCommand command = safe.get(txnId, participants);
             Assert.assertNotNull(command);
@@ -155,7 +159,7 @@ public class AccordTaskTest
         Txn txn = AccordTestUtils.createWriteTxn((int)clock.incrementAndGet());
         TokenKey key = ((PartitionKey) Iterables.getOnlyElement(txn.keys())).toUnseekable();
 
-        getBlocking(commandStore.execute((PreLoadContext.Empty)() -> "Test", instance -> {
+        getBlocking(commandStore.execute((ExecutionContext.Empty)() -> "Test", instance -> {
             SafeCommandsForKey cfk = instance.ifLoadedAndInitialised(key);
             Assert.assertNull(cfk);
         }));
@@ -172,9 +176,6 @@ public class AccordTaskTest
     private static Command createStableAndPersist(AccordCommandStore commandStore, TxnId txnId, Timestamp executeAt)
     {
         Command command = AccordTestUtils.Commands.stable(txnId, createPartialTxn(0), executeAt);
-        AccordSafeCommand safeCommand = new AccordSafeCommand(loaded(txnId, null));
-        safeCommand.set(command);
-
         appendDiffToLog(commandStore).accept(null, command);
         return command;
     }
@@ -198,7 +199,7 @@ public class AccordTaskTest
         route.overlapping(ranges);
         PartialDeps deps = PartialDeps.builder(ranges, true).build();
 
-        Command command = getBlocking(commandStore.submit(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
+        Command command = getBlocking(commandStore.submit(unsequencedReadWrite(txnId, route, "Test"), safe -> {
             CheckedCommands.preaccept(safe, txnId, partialTxn, route, appendDiffToLog(commandStore));
             CheckedCommands.commit(safe, SaveStatus.Stable, Ballot.ZERO, txnId, route, partialTxn, executeAt, deps, appendDiffToLog(commandStore));
             return safe.ifInitialised(txnId).current();
@@ -209,12 +210,12 @@ public class AccordTaskTest
         try (ExclusiveGlobalCaches cache = commandStore.executor().lockCaches())
         {
             cacheSize = cache.global.capacity();
-            cache.global.setCapacity(0);
+            commandStore.executor().setCapacity(0);
         }
 
         try (ExclusiveGlobalCaches cache = commandStore.executor().lockCaches())
         {
-            cache.global.setCapacity(cacheSize);
+            commandStore.executor().setCapacity(cacheSize);
         }
 
         while (commandStore.executor().hasTasks())
@@ -246,7 +247,7 @@ public class AccordTaskTest
         Route<?> partialRoute = route.overlapping(ranges);
         PartialDeps deps = PartialDeps.builder(ranges, true).build();
 
-        Command command = getBlocking(commandStore.submit(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
+        Command command = getBlocking(commandStore.submit(unsequencedReadWrite(txnId, route, "Test"), safe -> {
             CheckedCommands.preaccept(safe, txnId, partialTxn, route, appendDiffToLog(commandStore));
             CheckedCommands.accept(safe, txnId, Ballot.ZERO, partialRoute, executeAt, deps, appendDiffToLog(commandStore));
             CheckedCommands.commit(safe, SaveStatus.Committed, Ballot.ZERO, txnId, route, partialTxn, executeAt, deps, appendDiffToLog(commandStore));
@@ -259,11 +260,11 @@ public class AccordTaskTest
         try (ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
         {
             cacheSize = cache.global.capacity();
-            cache.global.setCapacity(0);
+            commandStore.executor().setCapacity(0);
         }
         try (ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
         {
-            cache.global.setCapacity(cacheSize);
+            commandStore.executor().setCapacity(cacheSize);
         }
 
         while (commandStore.executor().hasTasks())
@@ -281,7 +282,7 @@ public class AccordTaskTest
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         try (AccordExecutor.ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
         {
-            cache.global.setCapacity(0);
+            commandStore.executor().setCapacity(0);
         }
         Gen<TxnId> txnIdGen = rs -> txnId(1, clock.incrementAndGet(), 1);
 
@@ -298,7 +299,7 @@ public class AccordTaskTest
                 awaitDone(commandStore, ids, participants);
                 assertNoReferences(commandStore, ids, participants);
 
-                PreLoadContext ctx = contextFor(ids.get(0), ids.size() == 1 ? null : ids.get(1), participants, SYNC, READ_WRITE, "Test");
+                ExecutionContext ctx = contextFor(ids.get(0), ids.size() == 1 ? null : ids.get(1), participants, SYNC, READ_WRITE, "Test");
                 Consumer<SafeCommandStore> consumer = Mockito.mock(Consumer.class);
 
                 Map<TxnId, Boolean> failed = selectFailedTxn(rs, ids);
@@ -312,7 +313,7 @@ public class AccordTaskTest
                                                               throw new NullPointerException("txn_id " + txnId);
                                                           });
                 }
-                AccordTask<Void> o1 = AccordTask.create(commandStore, ctx, consumer);
+                SafeTask<Void> o1 = SafeTask.create(commandStore, ctx, consumer);
                 AssertionUtils.assertThatThrownBy(() -> getBlocking(o1.chain()))
                               .hasRootCause()
                               .isInstanceOf(NullPointerException.class)
@@ -333,7 +334,7 @@ public class AccordTaskTest
                         return cmd;
                     });
                 }
-                AccordTask<Void> o2 = AccordTask.create(commandStore, ctx, store -> {
+                SafeTask<Void> o2 = SafeTask.create(commandStore, ctx, store -> {
                     ids.forEach(id -> {
                         store.ifInitialised(id).readyToExecute(store);
                     });
@@ -363,13 +364,13 @@ public class AccordTaskTest
             assertNoReferences(commandStore, ids, participants);
             createCommand(commandStore, rs, ids);
 
-            PreLoadContext ctx = contextFor(ids.get(0), ids.size() == 1 ? null : ids.get(1), participants, SYNC, READ_WRITE, "Test");
+            ExecutionContext ctx = contextFor(ids.get(0), ids.size() == 1 ? null : ids.get(1), participants, SYNC, READ_WRITE, "Test");
 
             Consumer<SafeCommandStore> consumer = Mockito.mock(Consumer.class);
             String errorMsg = "txn_ids " + ids;
             Mockito.doThrow(new NullPointerException(errorMsg)).when(consumer).accept(Mockito.any());
 
-            AccordTask<Void> operation = AccordTask.create(commandStore, ctx, consumer);
+            SafeTask<Void> operation = SafeTask.create(commandStore, ctx, consumer);
 
             AssertionUtils.assertThatThrownBy(() -> getBlocking(operation.chain()))
                           .hasRootCause()
@@ -441,7 +442,7 @@ public class AccordTaskTest
         AssertionError error = null;
         for (T key : keys)
         {
-            AccordCacheEntry<T, ?> node = cache.getUnsafe(key);
+            AccordCacheEntry<T, ?, ?> node = cache.getUnsafe(key);
             if (node == null) continue;
             try
             {
@@ -476,7 +477,7 @@ public class AccordTaskTest
     {
         for (T key : keys)
         {
-            AccordCacheEntry<T, ?> node = cache.getUnsafe(key);
+            AccordCacheEntry<T, ?, ?> node = cache.getUnsafe(key);
             if (node == null) continue;
             Awaitility.await("For node " + node.key() + " to complete")
             .atMost(Duration.ofMinutes(1))

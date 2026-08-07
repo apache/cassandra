@@ -49,6 +49,7 @@ import org.junit.Test;
 import accord.api.Agent;
 import accord.api.AsyncExecutor;
 import accord.api.DataStore;
+import accord.api.ExclusiveAsyncExecutor;
 import accord.api.Journal;
 import accord.api.Key;
 import accord.api.OwnershipEventListener;
@@ -66,13 +67,12 @@ import accord.local.CommandBuilder;
 import accord.local.CommandStore;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
+import accord.local.ExecutionContext;
 import accord.local.Node;
 import accord.local.NodeCommandStoreService;
-import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
-import accord.local.SequentialAsyncExecutor;
 import accord.local.StoreParticipants;
 import accord.local.TimeService;
 import accord.local.cfk.CommandsForKey;
@@ -505,8 +505,8 @@ public class CommandsForKeySerializerTest
             {
                 int next = source.nextInt(commands.size());
                 Command command = commands.get(next);
-                if (command.txnId.isSyncPoint()) cfk = cfk.registerUnmanaged(new TestSafeCommandStore(PreLoadContext.contextFor(command.txnId(), "Test")), new TestSafeCommand(command), REGISTER).cfk();
-                else cfk = cfk.update(new TestSafeCommandStore(PreLoadContext.contextFor(command.txnId(), "Test")), command).cfk();
+                if (command.txnId.isSyncPoint()) cfk = cfk.registerUnmanaged(new TestSafeCommandStore(ExecutionContext.unsequenced(command.txnId(), "Test")), new TestSafeCommand(command), REGISTER).cfk();
+                else cfk = cfk.update(new TestSafeCommandStore(ExecutionContext.unsequenced(command.txnId(), "Test")), command).cfk();
                 commands.set(next, commands.get(commands.size() - 1));
                 commands.remove(commands.size() - 1);
             }
@@ -547,33 +547,10 @@ public class CommandsForKeySerializerTest
 
     static class TestSafeCommand extends SafeCommand
     {
-        final Command command;
         TestSafeCommand(Command command)
         {
             super(command.txnId);
-            this.command = command;
-        }
-
-        @Override
-        public Command current()
-        {
-            return command;
-        }
-
-        @Override
-        public void markUnsafe()
-        {
-        }
-
-        @Override
-        public boolean isUnsafe()
-        {
-            return false;
-        }
-
-        @Override
-        protected void set(Command command)
-        {
+            current = command;
         }
     }
 
@@ -667,8 +644,8 @@ public class CommandsForKeySerializerTest
         }
 
         @Override public boolean inStore() { return true; }
-        @Override public AsyncChain<Void> chain(PreLoadContext context, Consumer<? super SafeCommandStore> consumer) { throw new UnsupportedOperationException();}
-        @Override public <T> AsyncChain<T> chain(PreLoadContext context, Function<? super SafeCommandStore, T> apply) { throw new UnsupportedOperationException(); }
+        @Override public AsyncChain<Void> chain(ExecutionContext context, Consumer<? super SafeCommandStore> consumer) { throw new UnsupportedOperationException();}
+        @Override public <T> AsyncChain<T> chain(ExecutionContext context, Function<? super SafeCommandStore, T> apply) { throw new UnsupportedOperationException(); }
 
         @Override public Journal.Replayer replayer(AbstractReplayer.Mode mode) { throw new UnsupportedOperationException(); }
 
@@ -702,9 +679,9 @@ public class CommandsForKeySerializerTest
 
     public static class TestSafeCommandStore extends AbstractSafeCommandStore
     {
-        public TestSafeCommandStore(PreLoadContext context)
+        public TestSafeCommandStore(ExecutionContext context)
         {
-            super(context, TestCommandStore.INSTANCE);
+            super(context);
         }
 
         @Override protected CommandStoreCaches tryGetCaches() { return null; }
@@ -712,13 +689,14 @@ public class CommandsForKeySerializerTest
         @Override protected SafeCommandsForKey add(SafeCommandsForKey safeCfk, CommandStoreCaches caches) { return null; }
         @Override protected SafeCommand getInternal(TxnId txnId) { return null; }
         @Override protected SafeCommandsForKey getInternal(RoutingKey key) { return null; }
+        @Override public CommandStore commandStore() { return TestCommandStore.INSTANCE; }
         @Override public DataStore dataStore() { return null; }
         @Override public Agent agent() { return null; }
         @Override public ProgressLog progressLog() { return null; }
         @Override public NodeCommandStoreService node() { return new NodeCommandStoreService()
         {
             @Override public AsyncExecutor someExecutor() { throw new UnsupportedOperationException(); }
-            @Override public SequentialAsyncExecutor someSequentialExecutor() { throw new UnsupportedOperationException(); }
+            @Override public ExclusiveAsyncExecutor someExclusiveExecutor() { throw new UnsupportedOperationException(); }
             @Override public long epoch() { return 0;}
             @Override public Node.Id id() { return Node.Id.NONE; }
             @Override public Timeouts timeouts() { return null; }

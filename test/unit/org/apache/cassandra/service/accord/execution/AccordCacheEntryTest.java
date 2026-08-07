@@ -15,19 +15,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.execution;
 
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.service.accord.AccordCache.Type;
-import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
+import accord.local.SafeState;
+
+import org.apache.cassandra.service.accord.execution.AccordCache.Type;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry.LockMode;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status;
 
 public class AccordCacheEntryTest
 {
-    static class CacheEntry extends AccordCacheEntry<String, String>
+    static class TestSafeState extends SafeState<String> implements SaferState<String, String, TestSafeState>
     {
-        public CacheEntry(String key, Type<String, String, ?>.Instance instance)
+        @Override public AccordCacheEntry<String, String, TestSafeState> global() { return null; }
+        @Override public void preExecute(SafeTask<?> owner, LockMode lockMode) {}
+        @Override public void postExecute(SafeTask<?> owner) {}
+    }
+
+    static class CacheEntry extends AccordCacheEntry<String, String, TestSafeState>
+    {
+        public CacheEntry(String key, Type<String, String, TestSafeState>.Instance instance)
         {
             super(key, instance);
         }

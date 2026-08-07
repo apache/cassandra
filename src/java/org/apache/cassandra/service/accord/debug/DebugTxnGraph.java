@@ -40,7 +40,7 @@ import javax.annotation.Nullable;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
-import accord.local.PreLoadContext;
+import accord.local.ExecutionContext;
 import accord.local.SafeCommandStore;
 import accord.primitives.PartialDeps;
 import accord.primitives.Participants;
@@ -221,7 +221,7 @@ public abstract class DebugTxnGraph<T, P>
 
     private AsyncChain<TxnInfos<T>> submitRoot(CommandStore commandStore, TxnId txnId)
     {
-        return commandStore.chain(PreLoadContext.contextFor(txnId, "Populate txn_graph"), safeStore -> {
+        return commandStore.chain(ExecutionContext.unsequenced(txnId, "Populate txn_graph"), safeStore -> {
             Command command = safeStore.unsafeGetNoCleanup(txnId).current();
             if (command == null || command.saveStatus() == SaveStatus.Uninitialised)
                 return AsyncChains.<TxnInfos<T>>success(null);
@@ -232,7 +232,7 @@ public abstract class DebugTxnGraph<T, P>
     private AsyncChain<TxnInfos<T>> submitParent(CommandStore commandStore, TxnId txnId, P param, Map<TxnId, SaveInfo> infos, Set<TxnId> visitedParent, int depth)
     {
 
-        return commandStore.chain(PreLoadContext.contextFor(txnId, "Populate txn_graph"), safeStore -> {
+        return commandStore.chain(ExecutionContext.unsequenced(txnId, "Populate txn_graph"), safeStore -> {
             Command command = safeStore.unsafeGetNoCleanup(txnId).current();
             if (command == null || command.saveStatus() == SaveStatus.Uninitialised)
                 return AsyncChains.<TxnInfos<T>>success(null);
@@ -344,7 +344,7 @@ public abstract class DebugTxnGraph<T, P>
 
     private AsyncChain<Void> populateTxnAsync(CommandStore commandStore, TxnId txnId, Map<TxnId, SaveInfo> visited)
     {
-        return commandStore.chain(PreLoadContext.contextFor(txnId, "Populate txn_graph"), safeStore -> {
+        return commandStore.chain(ExecutionContext.unsequenced(txnId, "Populate txn_graph"), safeStore -> {
             Command command = safeStore.unsafeGetNoCleanup(txnId).current();
             visited.putIfAbsent(txnId, command == null || command.saveStatus() == SaveStatus.Uninitialised ? SaveInfo.NONE : new SaveInfo(command.saveStatus(), command.executeAtIfKnown()));
         });

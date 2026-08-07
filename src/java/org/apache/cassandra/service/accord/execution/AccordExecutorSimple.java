@@ -16,22 +16,22 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.execution;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 
 import accord.api.Agent;
 import accord.utils.Invariants;
-import accord.utils.QuadFunction;
-import accord.utils.QuintConsumer;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
-class AccordExecutorSimple extends AccordExecutor
+public class AccordExecutorSimple extends AccordExecutor
 {
     final ExecutorPlus executor;
     final ReentrantLock lock;
@@ -82,7 +82,8 @@ class AccordExecutorSimple extends AccordExecutor
 
     protected void run()
     {
-        Thread self = Thread.currentThread();
+        TaskRunner self = TaskRunner.get();
+        self.setAccordActiveExecutor(AccordExecutorSimple.this);
         lock.lock();
         try
         {
@@ -95,12 +96,7 @@ class AccordExecutorSimple extends AccordExecutor
                     return;
                 }
 
-                try { task.preRunExclusive(); task.runInternal(); }
-                catch (Throwable t) { task.fail(t); }
-                finally
-                {
-                    completeTaskExclusive(task);
-                }
+                prepareRunComplete(self, task);
             }
         }
         finally
@@ -112,12 +108,12 @@ class AccordExecutorSimple extends AccordExecutor
     }
 
     @Override
-    <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Task> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
+    <P1> void submit(Consumer<P1> sync, Function<P1, Task> async, P1 p1)
     {
         lock.lock();
         try
         {
-            sync.accept(this, p1s, p2, p3, p4);
+            sync.accept(p1);
         }
         finally
         {
@@ -128,8 +124,20 @@ class AccordExecutorSimple extends AccordExecutor
         }
     }
 
+    final boolean hasWaitingToRun()
+    {
+        updateWaitingToRunExclusive();
+        return hasAlreadyWaitingToRun();
+    }
+
+    final Task pollWaitingToRunExclusive()
+    {
+        updateWaitingToRunExclusive();
+        return pollAlreadyWaitingToRunExclusive();
+    }
+
     @Override
-    boolean isOwningThread()
+    public boolean isOwningThread()
     {
         return lock.isHeldByCurrentThread();
     }

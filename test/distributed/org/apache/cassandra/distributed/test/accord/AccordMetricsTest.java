@@ -54,7 +54,7 @@ import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.metrics.RatioGaugeSet;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.service.accord.AccordExecutor;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.exceptions.AccordReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.AccordWritePreemptedException;

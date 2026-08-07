@@ -126,6 +126,7 @@ import org.apache.cassandra.service.accord.api.AccordTopologySorter;
 import org.apache.cassandra.service.accord.api.AccordViolationHandler;
 import org.apache.cassandra.service.accord.api.CompositeTopologySorter;
 import org.apache.cassandra.service.accord.api.TokenKey.KeyspaceSplitter;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
 import org.apache.cassandra.service.accord.interop.AccordInteropAdapter.AccordInteropFactory;
 import org.apache.cassandra.service.accord.journal.AccordJournal;
 import org.apache.cassandra.service.accord.journal.ReplayMarkers;
@@ -384,6 +385,11 @@ public class AccordService implements IAccordService, Shutdownable
             AccordService as = new AccordService(tcmIdToAccord(tcmId));
             unsafeInstance = replyInstance = as;
             as.localStartup();
+
+            AccordReplicaMetrics.touch();
+            AccordSystemMetrics.touch();
+            AccordExecutorMetrics.touch();
+            AccordViolationHandler.setup();
         }
     }
 
@@ -397,11 +403,6 @@ public class AccordService implements IAccordService, Shutdownable
             return as;
 
         as.distributedStartupInternal();
-
-        AccordReplicaMetrics.touch();
-        AccordSystemMetrics.touch();
-        AccordExecutorMetrics.touch();
-        AccordViolationHandler.setup();
         return as;
     }
 
@@ -464,6 +465,7 @@ public class AccordService implements IAccordService, Shutdownable
         agent.setup(localId);
         AccordTimeService time = new AccordTimeService();
         this.scheduler = new AccordScheduler();
+        // TODO (expected): can we pass ImmediateExecutor rather than Scheduler?
         final RequestCallbacks callbacks = new RequestCallbacks(time, scheduler);
         this.dataStore = new AccordDataStore();
         this.journal = new AccordJournal(DatabaseDescriptor.getAccord().journal);
@@ -964,7 +966,7 @@ public class AccordService implements IAccordService, Shutdownable
             return syncInternal(minBound, keys, syncLocal, syncRemote);
 
         return KeyBarriers.find(node, minBound, keys.get(0).toUnseekable(), syncLocal, syncRemote).chain()
-                          .flatMap(found -> KeyBarriers.await(node, node.someSequentialExecutor(), found, syncLocal, syncRemote))
+                          .flatMap(found -> KeyBarriers.await(node, node.someExclusiveExecutor(), found, syncLocal, syncRemote))
                           .flatMap(success -> {
                               if (success)
                                   return null;

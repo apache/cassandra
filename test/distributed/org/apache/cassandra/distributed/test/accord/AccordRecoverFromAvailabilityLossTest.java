@@ -47,7 +47,7 @@ import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordOperations;
-import org.apache.cassandra.service.accord.AccordSafeCommandStore;
+import org.apache.cassandra.service.accord.execution.SaferCommandStore;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -187,7 +187,7 @@ public class AccordRecoverFromAvailabilityLossTest extends AccordBootstrapTestBa
                         getBlocking(service().node().commandStores().forEach("Test", RoutingKeys.of(partitionKey.toUnseekable()), Long.MIN_VALUE, Long.MAX_VALUE, safeStore -> {
                             if (safeStore.ranges().currentRanges().contains(partitionKey))
                             {
-                                AccordSafeCommandStore ss = (AccordSafeCommandStore) safeStore;
+                                SaferCommandStore ss = (SaferCommandStore) safeStore;
                                 Assert.assertFalse(ss.bootstrapBeganAt().isEmpty());
                                 Assert.assertFalse(ss.safeToReadAt().isEmpty());
 

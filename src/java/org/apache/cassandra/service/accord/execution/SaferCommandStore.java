@@ -16,14 +16,9 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.execution;
 
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
 import java.util.function.Predicate;
-
-import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -36,86 +31,76 @@ import accord.impl.AbstractSafeCommandStore;
 import accord.local.Command;
 import accord.local.CommandStores;
 import accord.local.CommandSummaries;
+import accord.local.ExecutionContext;
 import accord.local.NodeCommandStoreService;
 import accord.local.RedundantBefore;
+import accord.local.SafeState;
 import accord.local.cfk.CommandsForKey;
 import accord.local.cfk.SafeCommandsForKey;
+import accord.primitives.AbstractUnseekableKeys;
+import accord.primitives.Routables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn.Kind.Kinds;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import accord.utils.Invariants;
+import accord.utils.UnhandledEnum;
 
 import org.apache.cassandra.metrics.LogLinearDecayingHistograms;
+import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandStore.ExclusiveCaches;
 import org.apache.cassandra.service.accord.AccordCommandStore.SafeRedundantBefore;
 import org.apache.cassandra.service.accord.AccordDurableOnFlush.ReportDurable;
 import org.apache.cassandra.service.paxos.PaxosState;
 
 import static accord.utils.Invariants.illegalState;
+import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.LockMode.UNQUEUED;
 
-public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeCommand, AccordSafeCommandsForKey, AccordCommandStore.ExclusiveCaches>
+public final class SaferCommandStore extends AbstractSafeCommandStore<SaferCommand, SaferCommandsForKey, ExclusiveCaches>
 {
-    final AccordTask<?> task;
-    private final @Nullable CommandSummaries commandsForRanges;
-    private final AccordCommandStore commandStore;
+    final SafeTask<?> task;
 
-    private AccordSafeCommandStore(AccordTask<?> task,
-                                   @Nullable CommandSummaries commandsForRanges,
-                                   AccordCommandStore commandStore)
+    SaferCommandStore(SafeTask<?> task, ExecutionContext context)
     {
-        super(task.preLoadContext(), commandStore);
+        super(context);
         this.task = task;
-        this.commandsForRanges = commandsForRanges;
-        this.commandStore = commandStore;
-    }
-
-    @Override
-    public CommandStores.RangesForEpoch ranges()
-    {
-        CommandStores.RangesForEpoch ranges = super.ranges();
-        if (ranges != null)
-            return ranges;
-
-        return commandStore.unsafeGetRangesForEpoch();
-    }
-
-    public static AccordSafeCommandStore create(AccordTask<?> task,
-                                                @Nullable CommandSummaries commandsForRanges,
-                                                AccordCommandStore commandStore)
-    {
-        return new AccordSafeCommandStore(task, commandsForRanges, commandStore);
     }
 
     @VisibleForTesting
-    public Set<RoutingKey> commandsForKeysKeys()
+    public Iterable<SafeCommandsForKey> safeCommandsForKeys()
     {
-        if (task.commandsForKey() == null)
-            return Collections.emptySet();
-        return task.commandsForKey().keySet();
+        return task.refs.values().stream()
+                        .filter(v -> v instanceof SafeCommandsForKey)
+                        .map(v -> (SafeCommandsForKey)v)::iterator;
     }
 
     @Override
-    protected AccordSafeCommand getInternal(TxnId txnId)
+    protected SaferCommand getInternal(TxnId txnId)
     {
-        Map<TxnId, AccordSafeCommand> commands = task.commands();
-        if (commands == null)
-            return null;
-        return commands.get(txnId);
+        return (SaferCommand) task.refs.get(txnId);
     }
 
     @Override
     protected ExclusiveCaches tryGetCaches()
     {
-        return commandStore.tryLockCaches();
+        if (task.isIncremental())
+        {
+            // We could relax this, but requires careful consideration of semantics when:
+            //  - touching keys we have scheduled to process later
+            //  - touching txnIds we may have to logically lock until the whole processing completes to
+            //    ensure persistent state machine updates are consistent with incremental updates to cache
+            return null;
+        }
+        return commandStore().tryLockCaches();
     }
 
-    protected AccordSafeCommand add(AccordSafeCommand safeCommand, ExclusiveCaches caches)
+    protected SaferCommand add(SaferCommand safeCommand, ExclusiveCaches caches)
     {
-        Object check = task.ensureCommands().putIfAbsent(safeCommand.txnId(), safeCommand);
+        Object check = task.refs.putIfAbsent(safeCommand.txnId(), safeCommand);
         if (check == null)
         {
-            safeCommand.preExecute();
+            Invariants.require(!task.isIncremental()); // if isIncremental we'll have to supply holdQueue==true, but for now we forbid it
+            safeCommand.preExecute(task, UNQUEUED);
             return safeCommand;
         }
         else
@@ -131,7 +116,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         // Field persistence is handled by AccordTask
     }
 
-    protected void persistFieldUpdatesInternal(Runnable onDone)
+    void persistFieldUpdatesInternal(Runnable onDone)
     {
         FieldUpdates updates = fieldUpdates();
         if (updates == null)
@@ -139,26 +124,22 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
 
         if (updates.newRedundantBefore != null)
         {
-            long ticket = AccordCommandStore.nextSafeRedundantBeforeTicket.incrementAndGet();
-            SafeRedundantBefore update = new SafeRedundantBefore(ticket, updates.newRedundantBefore);
-            Runnable reportRedundantBefore = () -> {
-                AccordCommandStore.safeRedundantBeforeUpdater.accumulateAndGet(commandStore, update, SafeRedundantBefore::max);
-            };
+            Runnable reportRedundantBefore = SafeRedundantBefore.updater(commandStore(), updates.newRedundantBefore);
             Runnable prevOnDone = onDone;
             onDone = prevOnDone == null ? reportRedundantBefore : () -> {
                 try { reportRedundantBefore.run(); }
                 finally { prevOnDone.run(); }
             };
         }
-        commandStore.persistFieldUpdates(updates, onDone);
+        commandStore().persistFieldUpdates(updates, onDone);
     }
 
-    protected AccordSafeCommandsForKey add(AccordSafeCommandsForKey safeCfk, ExclusiveCaches caches)
+    protected SaferCommandsForKey add(SaferCommandsForKey safeCfk, ExclusiveCaches caches)
     {
-        Object check = task.ensureCommandsForKey().putIfAbsent(safeCfk.key(), safeCfk);
+        Object check = task.refs.putIfAbsent(safeCfk.key(), safeCfk);
         if (check == null)
         {
-            safeCfk.preExecute();
+            safeCfk.preExecute(task, UNQUEUED);
             return safeCfk;
         }
         else
@@ -169,19 +150,19 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
-    protected AccordSafeCommandsForKey getInternal(RoutingKey key)
+    protected SaferCommandsForKey getInternal(RoutingKey key)
     {
-        Map<RoutingKey, AccordSafeCommandsForKey> commandsForKey = task.commandsForKey();
-        if (commandsForKey == null)
+        SaferCommandsForKey safeCfk = (SaferCommandsForKey) task.refs.get(key);
+        if (safeCfk == null || safeCfk.isUninitialised())
             return null;
-        return commandsForKey.get(key);
+        return safeCfk;
     }
 
     @Override
     public void setRangesForEpoch(CommandStores.RangesForEpoch rangesForEpoch)
     {
         super.setRangesForEpoch(rangesForEpoch);
-        commandStore.updateMinHlc(PaxosState.ballotTracker().getLowBound().unixMicros() + 1);
+        commandStore().updateMinHlc(PaxosState.ballotTracker().getLowBound().unixMicros() + 1);
     }
 
     @Override
@@ -194,13 +175,13 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     public void reportDurable(RedundantBefore addRedundantBefore, int flags)
     {
         upsertRedundantBefore(addRedundantBefore);
-        commandStore.maybeTerminated(ReportDurable.isCommandStoreFlush(flags), ReportDurable.isDataStoreFlush(flags));
+        ReportDurable.reportMaybeTerminate(commandStore(), flags);
     }
 
     @Override
     public AccordCommandStore commandStore()
     {
-        return commandStore;
+        return task.commandStore;
     }
 
     @Override
@@ -212,7 +193,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     public Agent agent()
     {
-        return commandStore.agent();
+        return commandStore().agent();
     }
 
     @Override
@@ -224,43 +205,58 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     public NodeCommandStoreService node()
     {
-        return commandStore.node();
+        return commandStore().node();
     }
 
     public LogLinearDecayingHistograms.Buffer histogramBuffer()
     {
         if (task.histogramBuffer == null)
         {
-            task.histogramBuffer = commandStore.metricsBuffer;
+            task.histogramBuffer = commandStore().metricsBuffer;
             if (task.histogramBuffer == null)
-                task.histogramBuffer = commandStore.metricsBuffer = new LogLinearDecayingHistograms.Buffer(commandStore.executor().histograms);
-            Invariants.require(task.histogramBuffer.isEmpty());
+                task.histogramBuffer = commandStore().metricsBuffer = new LogLinearDecayingHistograms.Buffer(commandStore().executor().histograms);
+            if (!Invariants.expect(task.histogramBuffer.isEmpty()))
+                task.histogramBuffer.clear();
         }
         return task.histogramBuffer;
     }
 
     private boolean visitForKey(Unseekables<?> keysOrRanges, Predicate<CommandsForKey> forEach)
     {
-        Map<RoutingKey, AccordSafeCommandsForKey> commandsForKey = task.commandsForKey;
-        if (commandsForKey == null)
-            return true;
-
-        Unseekables<?> skip = context.keys().without(keysOrRanges);
-        for (SafeCommandsForKey safeCfk : commandsForKey.values())
+        Unseekables<?> unseekables = context.keys();
+        switch (unseekables.domain())
         {
-            if (skip.contains(safeCfk.key()))
-                continue;
+            default: throw new UnhandledEnum(unseekables.domain());
+            case Key:
+                AbstractUnseekableKeys keys = (AbstractUnseekableKeys) context.keys();
+                return Routables.foldl(keys, keysOrRanges, (self, f, key, v, index) -> {
+                    SafeCommandsForKey safeCfk = (SafeCommandsForKey) self.task.refs.get(key);
+                    return f.test(safeCfk.current());
+                }, this, forEach, Boolean.TRUE, cont -> !cont);
 
-            if (!forEach.test(safeCfk.current()))
-                return false;
+            case Range:
+                Unseekables<?> skip = context.keys().without(keysOrRanges);
+                for (SafeState<?> safeState : task.refs.values())
+                {
+                    if (!(safeState instanceof SaferCommandsForKey))
+                        continue;
+
+                    SafeCommandsForKey safeCfk = (SafeCommandsForKey) safeState;
+                    if (skip.contains(safeCfk.key()))
+                        continue;
+
+                    if (!forEach.test(safeCfk.current()))
+                        return false;
+                }
+                return true;
         }
-        return true;
     }
 
     @Override
     public <P1, P2> void visit(Unseekables<?> keysOrRanges, Timestamp startedBefore, Kinds testKind, ActiveCommandVisitor<P1, P2> visitor, P1 p1, P2 p2)
     {
         visitForKey(keysOrRanges, cfk -> { cfk.visit(startedBefore, testKind, visitor, p1, p2); return true; });
+        CommandSummaries commandsForRanges = task.commandsForRanges();
         if (commandsForRanges != null)
             commandsForRanges.visit(keysOrRanges, startedBefore, testKind, visitor, p1, p2);
     }
@@ -268,8 +264,11 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     public boolean visit(Unseekables<?> keysOrRanges, TxnId testTxnId, Kinds testKind, SupersedingCommandVisitor visit)
     {
-        return visitForKey(keysOrRanges, cfk -> cfk.visit(testTxnId, testKind, visit))
-               && (commandsForRanges == null || commandsForRanges.visit(keysOrRanges, testTxnId, testKind, visit));
+        if (!visitForKey(keysOrRanges, cfk -> cfk.visit(testTxnId, testKind, visit)))
+            return false;
+
+        CommandSummaries commandsForRanges = task.commandsForRanges();
+        return commandsForRanges == null || commandsForRanges.visit(keysOrRanges, testTxnId, testKind, visit);
     }
 
     @Override

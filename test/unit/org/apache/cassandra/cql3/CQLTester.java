@@ -188,7 +188,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.AccordCache;
+import org.apache.cassandra.service.accord.execution.AccordCache;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.transport.Event;

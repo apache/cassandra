@@ -39,10 +39,12 @@ import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.api.Tracing;
 import accord.coordinate.Coordination;
+import accord.coordinate.CoordinationFailed;
 import accord.coordinate.Exhausted;
 import accord.coordinate.Preempted;
 import accord.coordinate.Timeout;
 import accord.local.Command;
+import accord.local.CommandStore;
 import accord.local.LogUnavailableException;
 import accord.local.Node;
 import accord.local.SafeCommand;
@@ -84,6 +86,7 @@ import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.NoSpamLogger.NoDuplicateSpamLogStatement;
 
 import static accord.primitives.Routable.Domain.Key;
 import static accord.utils.SortedArrays.SortedArrayList.ofSorted;
@@ -107,12 +110,14 @@ import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retry
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowRead;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowTxnPreaccept;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.txn_data;
+import static org.apache.cassandra.utils.NoSpamLogger.NoDuplicateSpamLogStatement.exceptionId;
 
 // TODO (expected): merge with AccordService
 public class AccordAgent implements Agent, OwnershipEventListener
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordAgent.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, MINUTES);
+    private static final NoDuplicateSpamLogStatement noSpamException = new NoDuplicateSpamLogStatement(logger, "", 1L, MINUTES);
     private static final ReplicaEventListener replicaEventListener = new AccordReplicaMetrics.Listener();
 
     private static BiConsumer<TxnId, Throwable> onFailedBarrier;
@@ -153,6 +158,12 @@ public class AccordAgent implements Agent, OwnershipEventListener
     {
         self = id;
         config = DatabaseDescriptor.getAccord();
+    }
+
+    @Override
+    public void onSuccessfulBootstrap(CommandStore commandStore, int attempt, long epoch, Ranges ranges)
+    {
+        logger.info("{}: Completed bootstrap of {} on epoch {}", commandStore, ranges, epoch);
     }
 
     @Override
@@ -212,11 +223,17 @@ public class AccordAgent implements Agent, OwnershipEventListener
             return;
 
         AccordSystemMetrics.metrics.errors.inc();
-        if (t instanceof CancellationException || t instanceof TimeoutException || t instanceof Timeout || t instanceof Preempted || t instanceof Exhausted || t instanceof LogUnavailableException)
-            // TODO (required): leaky logger, permitting multiple messages per time period and reporting how many were dropped
-            noSpamLogger.warn("", t);
+        if (expectedException(t)) // TODO (required): leaky logger, permitting multiple messages per time period and reporting how many were dropped
+            noSpamException.warn(exceptionId(t), t);
         else
             JVMStabilityInspector.uncaughtException(Thread.currentThread(), t);
+    }
+
+    public static boolean expectedException(Throwable t)
+    {
+        if (t instanceof CancellationException)
+            return t.getCause() == null;
+        return t instanceof TimeoutException || t instanceof LogUnavailableException || t instanceof CoordinationFailed;
     }
 
     @Override

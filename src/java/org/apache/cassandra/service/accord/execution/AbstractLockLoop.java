@@ -16,47 +16,43 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.accord;
+package org.apache.cassandra.service.accord.execution;
 
 import java.util.concurrent.locks.Lock;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 import accord.api.Agent;
-import accord.utils.QuadFunction;
-import accord.utils.QuintConsumer;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.service.accord.AccordExecutorLoops.LoopTask;
-import org.apache.cassandra.service.accord.debug.DebugExecution.DebugExecutorLoop;
+import org.apache.cassandra.service.accord.execution.Loops.LoopTask;
 
-import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITH_LOCK;
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXECUTION;
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.Mode.RUN_WITH_LOCK;
 
-abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
+abstract class AbstractLockLoop extends AbstractLoop
 {
-    private static final int YIELD_INTERVAL = DatabaseDescriptor.getAccord().queue_yield_interval;
     int runningThreads;
     boolean shutdown;
 
-    AccordExecutorAbstractLockLoop(Lock lock, int executorId, Agent agent)
+    AbstractLockLoop(Lock lock, int executorId, Agent agent)
     {
         super(lock, executorId, agent);
     }
 
     abstract void notifyWork();
     abstract void notifyWorkExclusive();
-    void loopYieldExclusive() throws InterruptedException {}
     abstract void awaitExclusive() throws InterruptedException;
-    abstract <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Task> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4);
+    abstract <P1> void submitExternal(Consumer<P1> sync, Function<P1, Task> async, P1 p1);
 
-    <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Task> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
+    final <P1> void submit(Consumer<P1> sync, Function<P1, Task> async, P1 p1)
     {
         // if we're a loop thread, we will poll the waitingToRun queue when we come around
         // NOTE: this assumes no synchronous blocking tasks are submitted to this executor
-        if (isInLoop() || isOwningThread()) push(async.apply(p1a, p2, p3, p4));
-        else submitExternal(sync, async, p1s, p1a, p2, p3, p4);
+        if (isInLoop() || isOwningThread()) push(async.apply(p1));
+        else submitExternal(sync, async, p1);
     }
 
-    <P1s, P2, P3, P4> void submitExternalExclusive(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, P1s p1s, P2 p2, P3 p3, P4 p4)
+    final <P1> void submitExternalExclusive(Consumer<P1> sync, Function<P1, Task> async, P1 p1)
     {
         try
         {
@@ -66,11 +62,11 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
             }
             catch (Throwable t)
             {
-                try { sync.accept(this, p1s, p2, p3, p4); }
+                try { sync.accept(p1); }
                 catch (Throwable t2) { t.addSuppressed(t2); }
                 throw t;
             }
-            sync.accept(this, p1s, p2, p3, p4);
+            sync.accept(p1);
         }
         finally
         {
@@ -82,6 +78,73 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
     {
         if (hasWaitingToRun())
             notifyWorkExclusive();
+    }
+
+    final boolean hasWaitingToRun()
+    {
+        updateWaitingToRunExclusive();
+        return hasAlreadyWaitingToRun();
+    }
+
+    final Task pollWaitingToRunExclusive()
+    {
+        updateWaitingToRunExclusive();
+        return pollAlreadyWaitingToRunExclusive();
+    }
+
+    final void updateWaitingToRunExclusive()
+    {
+        drainUnqueuedExclusive();
+        super.updateWaitingToRunExclusive();
+    }
+
+    final void drainUnqueuedExclusive()
+    {
+        Task cur = Task.reverse(acquireUnqueuedExclusive());
+        while (cur != null)
+            cur = enqueueOneExclusive(cur);
+    }
+
+    final void drainUnqueuedNewWorkExclusive()
+    {
+        Task cur = acquireUnqueuedExclusive();
+        Task prev = null, requeue = null, requeueLast = null;
+        while (cur != null)
+        {
+            Task next = cur.next;
+            if (cur.isNewWork())
+            {
+                cur.next = prev;
+                prev = cur;
+            }
+            else
+            {
+                if (requeue == null) requeue = cur;
+                else requeueLast.next = cur;
+                requeueLast = cur;
+            }
+            cur = next;
+        }
+
+        if (requeue != null)
+        {
+            while (true)
+            {
+                Task next = unqueued;
+                requeueLast.next = next;
+                if (unqueuedUpdater.compareAndSet(this, next, requeue))
+                    break;
+            }
+        }
+
+        cur = prev;
+        while (cur != null)
+        {
+            Task next = cur.next;
+            cur.submitExclusiveNoExcept();
+            cur.next = null;
+            cur = next;
+        }
     }
 
     @Override
@@ -130,36 +193,22 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
             @Override
             public void run()
             {
-                Thread self = Thread.currentThread();
+                Thread thread = Thread.currentThread();
+                TaskRunner self = TaskRunner.get(thread);
+                self.setAccordActiveExecutor(AbstractLockLoop.this);
+                setWrapped(self);
+
                 Task task;
                 while (true)
                 {
-                    lock();
+                    lock(self);
                     try
                     {
                         enterLockLoop();
                         while (true)
                         {
                             task = pollWaitingToRunExclusive();
-
-                            if (task != null)
-                            {
-                                setRunning(task);
-                                try
-                                {
-                                    task.preRunExclusive();
-                                    task.runInternal();
-                                }
-                                catch (Throwable t)
-                                {
-                                    task.fail(t);
-                                }
-                                finally
-                                {
-                                    completeTaskExclusive(task);
-                                    clearRunning();
-                                }
-                            }
+                            if (task != null) prepareRunComplete(self, task);
                             else
                             {
                                 if (shutdown)
@@ -179,13 +228,12 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
                     catch (Throwable t)
                     {
                         exitLockLoop();
-
                         try { agent.onException(t); }
                         catch (Throwable t2) { }
                     }
                     finally
                     {
-                        unlock();
+                        unlock(self);
                     }
                 }
             }
@@ -196,42 +244,39 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
     {
         return new LoopTask(name)
         {
-            final DebugExecutorLoop debug = DEBUG_EXECUTION ? new DebugExecutorLoop(AccordExecutorAbstractLockLoop.this.debug) : null;
             @Override
             public void run()
             {
-                int count = 0;
+                Thread thread = Thread.currentThread();
+                TaskRunner self = TaskRunner.get(thread);
+                self.setAccordActiveExecutor(AbstractLockLoop.this);
+                setWrapped(self);
+
                 Task task = null;
                 while (true)
                 {
-                    if (DEBUG_EXECUTION) debug.onLock();
-                    lock();
+                    lock(self);
                     try
                     {
-                        if (DEBUG_EXECUTION) debug.onEnterLock();
                         enterLockLoop();
                         if (task != null)
                         {
                             Task tmp = task;
                             task = null;
-                            completeTaskExclusive(tmp);
-                            clearRunning();
-                        }
-
-                        if (count >= YIELD_INTERVAL)
-                        {
-                            loopYieldExclusive();
-                            count = 0;
+                            tmp.completeExclusiveNoExcept();
                         }
 
                         while (true)
                         {
                             task = pollWaitingToRunExclusive();
-
                             if (task != null)
                             {
-                                setRunning(task);
-                                task.preRunExclusive();
+                                if (!task.prepareExclusiveNoExcept())
+                                {
+                                    task = null;
+                                    continue;
+                                }
+
                                 if (DEBUG_EXECUTION) debug.onExitLock();
                                 exitLockLoop();
                                 break;
@@ -250,56 +295,22 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
                             awaitExclusive();
                             if (DEBUG_EXECUTION) debug.onEnterLock();
                             resumeLoop();
-                            count = 0;
                         }
                     }
                     catch (Throwable t)
                     {
-                        if (task != null)
-                        {
-                            try { task.fail(t); }
-                            catch (Throwable t2) { t.addSuppressed(t2); }
-                            try { completeTaskExclusive(task); }
-                            catch (Throwable t2) { t.addSuppressed(t2); }
-                            try { agent.onException(t); }
-                            catch (Throwable t2) { /* nothing we can sensibly do after already reporting */ }
-                            task = null;
-                        }
-                        else
-                        {
-                            try { agent.onException(t); }
-                            catch (Throwable t2) { /* nothing we can sensibly do after already reporting */ }
-                        }
+                        try { agent.onException(t); }
+                        catch (Throwable t2) { }
                         exitLockLoop();
                         continue;
                     }
                     finally
                     {
                         if (DEBUG_EXECUTION) debug.onExitLock();
-                        unlock();
+                        unlock(self);
                     }
 
-                    try
-                    {
-                        ++count;
-                        task.runInternal();
-                    }
-                    catch (Throwable t)
-                    {
-                        try { task.fail(t); }
-                        catch (Throwable t2)
-                        {
-                            try
-                            {
-                                t2.addSuppressed(t);
-                                agent.onException(t2);
-                            }
-                            catch (Throwable t3)
-                            {
-                                // empty to ensure we definitely loop so we cleanup the task
-                            }
-                        }
-                    }
+                    task.runNoExcept(self);
                 }
             }
         };

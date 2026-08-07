@@ -35,7 +35,6 @@ import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
 import static org.apache.cassandra.config.AccordConfig.CatchupMode.NORMAL;
-import static org.apache.cassandra.config.AccordConfig.QueuePriorityModel.HLC_FIFO;
 import static org.apache.cassandra.config.AccordConfig.QueueShardModel.THREAD_POOL_PER_SHARD;
 import static org.apache.cassandra.config.AccordConfig.QueueSubmissionModel.SYNC;
 import static org.apache.cassandra.config.AccordConfig.RangeIndexMode.in_memory;
@@ -134,25 +133,44 @@ public class AccordConfig
         FIFO,
 
         /**
-         * If the work has an associated TxnId, prioritise by its HLC (and FIFO otherwise)
+         * If the work has an associated TxnId of Ballot, prioritise by the newest HLC (and FIFO otherwise)
          */
         HLC_FIFO,
 
         /**
-         * Prioritise Apply, Stable, Commit, Accept, and PreAccept messages in that order.
-         * Within a given message type, prioritise by HLC.
-         * Other messages will be mixed with PreAccept messages, but using the next counter rather than the HLC of the TxnId.
-         * Note: this can have some performance edge cases for contended keys, as we may process Stable messages for later commands before
-         *       we process earlier Accept/Commit, which may delay execution
+         * If the work has an associated TxnId, prioritise by its HLC (and FIFO otherwise)
          */
-        PHASE_HLC_FIFO,
+        ORIG_HLC_FIFO
+    }
+
+    public enum QueueBalancingModel
+    {
+        /**
+         * Always pick the task by priority
+         */
+        PRIORITY_ONLY,
 
         /**
-         * Prioritise Apply, Stable, Commit, Accept, and PreAccept messages from the original coordinator only, in that order.
-         * Within a given message type, prioritise by HLC.
-         * Other messages will be mixed with PreAccept messages, but using the next counter rather than the HLC of the TxnId.
+         * Pick by phase first, so the highest phase with work ALWAYS runs.
+         * Within a phase, pick by priority.
          */
-        ORIG_PHASE_HLC_FIFO
+        PHASE_ONLY,
+
+        /**
+         * Pick by phase first, selecting the phase that has processed the least work recently relative to arrivals.
+         * Within a phase, pick by priority.
+         */
+        PHASE_FAIR,
+
+        /**
+         * While phases are within a threshold of imbalance, pick tasks by priority.
+         * Once the threshold is crossed, over-processed phases have a small penalty applied
+         * and work is prioritised by phase with the phase with the least recent work processed picked first,
+         * until the imbalance is resolved.
+         *
+         * Within a phase, pick by priority.
+         */
+        BLENDED_PRIORITY_PHASE_FAIR,
     }
 
     public QueueShardModel queue_shard_model = THREAD_POOL_PER_SHARD;
@@ -168,7 +186,34 @@ public class AccordConfig
      */
     public volatile OptionaldPositiveInt queue_thread_count = OptionaldPositiveInt.UNDEFINED;
 
-    public QueuePriorityModel queue_priority_model = HLC_FIFO;
+    public QueuePriorityModel queue_priority_model;
+    public QueueBalancingModel queue_balancing_model;
+
+    public Integer queue_flow_imbalance_onset = null;
+    public Integer queue_flow_imbalance_width_shift = null;
+
+    public String queue_active_limits;
+
+    public Boolean queue_nonsync_enabled;
+
+    /**
+     * Size at which we will begin processing a task that is ASYNC, INCR OR INCR_ATOMIC.
+     * Note that a size of zero will effectively give implicit priority to INCR_ATOMIC tasks, as they may immediately
+     * take a FIFO queue slot (which is processed preferentially).
+     */
+    public Integer queue_nonsync_min_batch_size;
+
+    /**
+     * If there are more than min_batch_size keys ready for an ASYNC, INCR or INCR_ATOMIC task,
+     * process up to this many keys at once.
+     */
+    public Integer queue_nonsync_max_batch_size;
+
+    /**
+     * An ASYNC, INCR or INCR_ATOMIC task that is ready to run but waiting for batch_size work will proceed
+     * once this number of tasks are blocked behind it, regardless of batch_size.
+     */
+    public Integer queue_nonsync_blocked_limit;
 
     /**
      * If set, the signal loop does not match park/unpark pairs, but instead consumers perform timed-park spin waits
@@ -180,15 +225,6 @@ public class AccordConfig
      * by this interval.
      */
     public DurationSpec.LongMicrosecondsBound queue_stop_check_interval;
-
-    /**
-     * If set, the signal loop reduces the number of threads it is using when the time spent parked exceeds real-time
-     * by this interval.
-     */
-    public DurationSpec.LongMicrosecondsBound queue_signal_stop_check_interval_credit;
-
-    // yield to other executor threads after executing this many tasks in a row, if there are waiting threads and tasks
-    public int queue_yield_interval = 100;
 
     /**
      * If the HLC is older than this, queue by FIFO instead
@@ -203,9 +239,6 @@ public class AccordConfig
      * TODO (expected): adjust this by proportion of ring
      */
     public volatile OptionaldPositiveInt command_store_shard_count = OptionaldPositiveInt.UNDEFINED;
-
-    public volatile OptionaldPositiveInt max_queued_loads = OptionaldPositiveInt.UNDEFINED;
-    public volatile OptionaldPositiveInt max_queued_range_loads = OptionaldPositiveInt.UNDEFINED;
 
     public volatile OptionaldPositiveInt progress_log_concurrency = OptionaldPositiveInt.UNDEFINED;
     public DurationSpec.IntMillisecondsBound progress_log_query_fallback_timeout = new DurationSpec.IntMillisecondsBound("1m");

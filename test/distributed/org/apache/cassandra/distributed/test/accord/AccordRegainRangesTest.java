@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.local.CommandStore;
 import accord.local.CommandStores.PreviouslyOwned;
-import accord.local.PreLoadContext;
+import accord.local.ExecutionContext;
 import accord.primitives.AbstractRanges;
 import accord.primitives.Ranges;
 import accord.topology.ActiveEpochs;
@@ -121,7 +121,7 @@ public class AccordRegainRangesTest extends AccordTestBase
 
                 Ranges range = Ranges.EMPTY;
                 for (CommandStore commandStore : AccordService.instance().node().commandStores().all()) {
-                    Ranges safeToReadRanges = getBlocking(commandStore.submit((PreLoadContext.Empty) () -> "No overlapping safeToReadRanges", safeCommandStore -> {
+                    Ranges safeToReadRanges = getBlocking(commandStore.submit((ExecutionContext.Empty) () -> "No overlapping safeToReadRanges", safeCommandStore -> {
                         Ranges mergedRanges = Ranges.EMPTY;
                         for (Ranges r : safeCommandStore.safeToReadAt().values())
                             mergedRanges = mergedRanges.union(AbstractRanges.UnionMode.MERGE_ADJACENT, r);

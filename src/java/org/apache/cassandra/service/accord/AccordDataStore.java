@@ -165,7 +165,7 @@ public class AccordDataStore implements DataStore
                         break;
                     case ABORT:
                     case ERROR:
-                        IllegalStateException ex = new IllegalStateException(String.format("Repair failed: %s", event));
+                        RuntimeException ex = new RuntimeException(String.format("Repair failed (%s):", event.getType(), event.getMessage()));
                         callback.fail(ranges, ex);
                         syncResult.tryFailure(ex);
                         break;
