@@ -18,6 +18,7 @@
 package org.apache.cassandra.replication;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
@@ -46,12 +47,15 @@ import static org.junit.Assert.assertTrue;
 
 public class SegmentReferenceTrackerTest
 {
+    private static final UUID LOCAL_HOST = UUID.randomUUID();
+    private static final UUID REMOTE_HOST = UUID.randomUUID();
+
     @Test
     public void testInitialAddRefsEverySegmentInTheInterval()
     {
         int startSegment = 5;
         int endSegment = 7;
-        SegmentReferenceTracker tracker = new SegmentReferenceTracker();
+        SegmentReferenceTracker tracker = newTracker();
         SSTableReader sstable = unrepaired(intervals(startSegment, 0, endSegment, 100));
 
         tracker.handleNotification(new InitialSSTableAddedNotification(List.of(sstable)), null);
@@ -69,7 +73,7 @@ public class SegmentReferenceTrackerTest
     {
         int startSegment = 5;
         int endSegment = 7;
-        SegmentReferenceTracker tracker = new SegmentReferenceTracker();
+        SegmentReferenceTracker tracker = newTracker();
         SSTableReader sstable = repaired(intervals(startSegment, 0, endSegment, 100));
 
         tracker.handleNotification(new SSTableAddedNotification(List.of(sstable), null), null);
@@ -82,7 +86,7 @@ public class SegmentReferenceTrackerTest
     @Test
     public void testUnrepairedSSTableWithoutCoordinatorLogOffsetsHoldsNoRefs()
     {
-        SegmentReferenceTracker tracker = new SegmentReferenceTracker();
+        SegmentReferenceTracker tracker = newTracker();
         // Unrepaired, but carries no tracked mutations (empty coordinatorLogOffsets) -> not tracked. This is the
         // untracked / pre-migration case: such an sstable's commitLogIntervals reference the commit log, not the
         // mutation journal, so it must never hold a segment reference (CASSANDRA-21406).
@@ -96,11 +100,26 @@ public class SegmentReferenceTrackerTest
     }
 
     @Test
+    public void testStreamedSSTableHoldsNoRefs()
+    {
+        SegmentReferenceTracker tracker = newTracker();
+        // Unrepaired with tracked mutations, but streamed from another host: its commitLogIntervals reference that
+        // host's journal segments, not ours, so it must never hold a local segment reference (CASSANDRA-21406).
+        SSTableReader sstable = sstable(intervals(5, 0, 7, 100), () -> false, coordinatorLogOffsets(true), REMOTE_HOST);
+
+        tracker.handleNotification(new SSTableAddedNotification(List.of(sstable), null), null);
+
+        for (long segment = 5; segment <= 7; segment++)
+            assertFalse("segment " + segment, tracker.isReferenced(segment));
+        assertEquals(0, tracker.trackedSstableCountForTesting());
+    }
+
+    @Test
     public void testAddIsIdempotent()
     {
         int startSegment = 5;
         int endSegment = 7;
-        SegmentReferenceTracker tracker = new SegmentReferenceTracker();
+        SegmentReferenceTracker tracker = newTracker();
         SSTableReader sstable = unrepaired(intervals(startSegment, 0, endSegment, 100));
 
         tracker.handleNotification(new SSTableAddedNotification(List.of(sstable), null), null);
@@ -113,7 +132,7 @@ public class SegmentReferenceTrackerTest
     @Test
     public void testMultipleDisjointIntervalsRefEachContainedSegment()
     {
-        SegmentReferenceTracker tracker = new SegmentReferenceTracker();
+        SegmentReferenceTracker tracker = newTracker();
         // Two disjoint intervals: [3:0..3:100] and [9:0..10:50].
         IntervalSet.Builder<CommitLogPosition> builder = new IntervalSet.Builder<>();
         builder.add(new CommitLogPosition(3, 0), new CommitLogPosition(3, 100));
@@ -133,7 +152,7 @@ public class SegmentReferenceTrackerTest
     @Test
     public void testEmptyIntervalsHoldNoRefs()
     {
-        SegmentReferenceTracker tracker = new SegmentReferenceTracker();
+        SegmentReferenceTracker tracker = newTracker();
         SSTableReader sstable = unrepaired(IntervalSet.empty());
 
         tracker.handleNotification(new SSTableAddedNotification(List.of(sstable), null), null);
@@ -146,7 +165,7 @@ public class SegmentReferenceTrackerTest
     @Test
     public void testCompactionPreservesRefsWhenInputAndOutputOverlapSameSegment()
     {
-        SegmentReferenceTracker tracker = new SegmentReferenceTracker();
+        SegmentReferenceTracker tracker = newTracker();
         SSTableReader input = unrepaired(intervals(5, 0, 5, 100));
         SSTableReader output = unrepaired(intervals(5, 0, 5, 200));
 
@@ -168,7 +187,7 @@ public class SegmentReferenceTrackerTest
     @Test
     public void testCompactionToRepairedOutputReleasesRefs()
     {
-        SegmentReferenceTracker tracker = new SegmentReferenceTracker();
+        SegmentReferenceTracker tracker = newTracker();
         SSTableReader input = unrepaired(intervals(5, 0, 5, 100));
         SSTableReader output = repaired(intervals(5, 0, 5, 200));
 
@@ -188,7 +207,7 @@ public class SegmentReferenceTrackerTest
     @Test
     public void testRepairPromotionReleasesRefs()
     {
-        SegmentReferenceTracker tracker = new SegmentReferenceTracker();
+        SegmentReferenceTracker tracker = newTracker();
         AtomicReference<Boolean> repaired = new AtomicReference<>(false);
         SSTableReader sstable = sstableWithRepairSupplier(intervals(5, 0, 7, 0), repaired::get);
 
@@ -208,7 +227,7 @@ public class SegmentReferenceTrackerTest
     @Test
     public void testRepairStatusFlippingBackToUnrepairedReAcquires()
     {
-        SegmentReferenceTracker tracker = new SegmentReferenceTracker();
+        SegmentReferenceTracker tracker = newTracker();
         AtomicReference<Boolean> repaired = new AtomicReference<>(true);
         SSTableReader sstable = sstableWithRepairSupplier(intervals(5, 0, 5, 100), repaired::get);
 
@@ -227,7 +246,7 @@ public class SegmentReferenceTrackerTest
     @Test
     public void testMultipleSstablesAccumulateRefsOnSharedSegments()
     {
-        SegmentReferenceTracker tracker = new SegmentReferenceTracker();
+        SegmentReferenceTracker tracker = newTracker();
         SSTableReader a = unrepaired(intervals(5, 0, 6, 0));
         SSTableReader b = unrepaired(intervals(6, 0, 7, 0));
 
@@ -252,7 +271,7 @@ public class SegmentReferenceTrackerTest
     @Test
     public void testReleaseOfUntrackedSstableIsNoOp()
     {
-        SegmentReferenceTracker tracker = new SegmentReferenceTracker();
+        SegmentReferenceTracker tracker = newTracker();
         SSTableReader sstable = unrepaired(intervals(5, 0, 5, 100));
 
         assertFalse(tracker.isReferenced(5));
@@ -271,7 +290,7 @@ public class SegmentReferenceTrackerTest
     public void testCallbackFiredWhenLastReferenceReleased()
     {
         int[] calls = { 0 };
-        SegmentReferenceTracker tracker = new SegmentReferenceTracker(() -> calls[0]++);
+        SegmentReferenceTracker tracker = newTracker(() -> calls[0]++);
         SSTableReader sstable = unrepaired(intervals(5, 0, 7, 0));
 
         tracker.handleNotification(new SSTableAddedNotification(List.of(sstable), null), null);
@@ -290,7 +309,7 @@ public class SegmentReferenceTrackerTest
     public void testCallbackNotFiredWhileSegmentStillReferenced()
     {
         int[] calls = { 0 };
-        SegmentReferenceTracker tracker = new SegmentReferenceTracker(() -> calls[0]++);
+        SegmentReferenceTracker tracker = newTracker(() -> calls[0]++);
         SSTableReader a = unrepaired(intervals(5, 0, 5, 100));
         SSTableReader b = unrepaired(intervals(5, 0, 5, 200));
 
@@ -307,6 +326,17 @@ public class SegmentReferenceTrackerTest
     }
 
     // -- helpers ---------------------------------------------------------
+
+    private static SegmentReferenceTracker newTracker()
+    {
+        return newTracker(() -> {});
+    }
+
+    private static SegmentReferenceTracker newTracker(Runnable onSegmentsUnreferenced)
+    {
+        // Fixed local host id so the mock sstables (originating from LOCAL_HOST) are treated as locally originated.
+        return new SegmentReferenceTracker(onSegmentsUnreferenced, () -> LOCAL_HOST);
+    }
 
     private static IntervalSet<CommitLogPosition> intervals(long startSegment, int startPosition, long endSegment, int endPosition)
     {
@@ -341,9 +371,17 @@ public class SegmentReferenceTrackerTest
                                          BooleanSupplier isRepairedSupplier,
                                          ImmutableCoordinatorLogOffsets coordinatorLogOffsets)
     {
+        return sstable(intervals, isRepairedSupplier, coordinatorLogOffsets, LOCAL_HOST);
+    }
+
+    private static SSTableReader sstable(IntervalSet<CommitLogPosition> intervals,
+                                         BooleanSupplier isRepairedSupplier,
+                                         ImmutableCoordinatorLogOffsets coordinatorLogOffsets,
+                                         UUID originatingHostId)
+    {
         SSTableReader reader = Mockito.mock(SSTableReader.class);
         Mockito.when(reader.isRepaired()).thenAnswer(ref -> isRepairedSupplier.getAsBoolean());
-        Mockito.when(reader.getSSTableMetadata()).thenReturn(stats(intervals));
+        Mockito.when(reader.getSSTableMetadata()).thenReturn(stats(intervals, originatingHostId));
         Mockito.when(reader.getCoordinatorLogOffsets()).thenReturn(coordinatorLogOffsets);
         return reader;
     }
@@ -354,7 +392,7 @@ public class SegmentReferenceTrackerTest
         return nonEmpty ? Mockito.mock(ImmutableCoordinatorLogOffsets.class) : ImmutableCoordinatorLogOffsets.NONE;
     }
 
-    private static StatsMetadata stats(IntervalSet<CommitLogPosition> intervals)
+    private static StatsMetadata stats(IntervalSet<CommitLogPosition> intervals, UUID originatingHostId)
     {
         return new StatsMetadata(new EstimatedHistogram(155),                     // estimatedPartitionSize
                                  new EstimatedHistogram(118),                     // estimatedCellPerPartitionCount
@@ -375,7 +413,7 @@ public class SegmentReferenceTrackerTest
                                  0L,                                              // totalColumnsSet
                                  0L,                                              // totalRows
                                  Double.NaN,                                      // tokenSpaceCoverage
-                                 null,                                            // originatingHostId
+                                 originatingHostId,
                                  ActiveRepairService.NO_PENDING_REPAIR,
                                  false,                                           // hasPartitionLevelDeletions
                                  ImmutableCoordinatorLogOffsets.NONE,

@@ -21,8 +21,10 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.LongConsumer;
+import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -39,6 +41,7 @@ import org.apache.cassandra.notifications.InitialSSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.notifications.SSTableRepairStatusChanged;
+import org.apache.cassandra.service.StorageService;
 
 /**
  * Tracks how many unrepaired sstables of tracked tables reference each mutation journal segment.
@@ -74,15 +77,20 @@ public class SegmentReferenceTracker implements INotificationConsumer
     // a segment droppable (the other being its needsReplay flag being cleared) — CASSANDRA-21406.
     private final Runnable onSegmentsUnreferenced;
 
-    @VisibleForTesting
-    public SegmentReferenceTracker()
-    {
-        this(() -> {});
-    }
+    // Resolves the local host id. Injectable for testing; may return null very early in startup (before
+    // ClusterMetadata is ready), in which case no sstable is treated as locally originated.
+    private final Supplier<UUID> localHostIdSupplier;
 
     public SegmentReferenceTracker(Runnable onSegmentsUnreferenced)
     {
+        this(onSegmentsUnreferenced, StorageService.instance::getLocalHostUUID);
+    }
+
+    @VisibleForTesting
+    SegmentReferenceTracker(Runnable onSegmentsUnreferenced, Supplier<UUID> localHostIdSupplier)
+    {
         this.onSegmentsUnreferenced = onSegmentsUnreferenced;
+        this.localHostIdSupplier = localHostIdSupplier;
     }
 
     @Override
@@ -184,14 +192,26 @@ public class SegmentReferenceTracker implements INotificationConsumer
     }
 
     /**
-     * A sstable is tracked while it is unrepaired and carries tracked mutations (non-empty coordinatorLogOffsets).
-     * Repaired sstables have been reconciled and no longer need the journal to rebuild; sstables with empty
-     * coordinatorLogOffsets (untracked or pre-migration data) reference the commit log rather than the mutation
-     * journal, so must never be counted (CASSANDRA-21406).
+     * A sstable is tracked while it is locally originated, unrepaired, and carries tracked mutations (non-empty
+     * coordinatorLogOffsets). Repaired sstables have been reconciled and no longer need the journal to rebuild;
+     * sstables with empty coordinatorLogOffsets (untracked or pre-migration data) reference the commit log rather
+     * than the mutation journal; and sstables streamed from another host reference that host's journal segments,
+     * not ours — none of these must be counted (CASSANDRA-21406). Segment ref tracking is purely local.
      */
-    private static boolean shouldTrack(SSTableReader sstable)
+    private boolean shouldTrack(SSTableReader sstable)
     {
-        return !sstable.isRepaired() && !sstable.getCoordinatorLogOffsets().isEmpty();
+        return isLocallyOriginated(sstable)
+               && !sstable.isRepaired()
+               && !sstable.getCoordinatorLogOffsets().isEmpty();
+    }
+
+    private boolean isLocallyOriginated(SSTableReader sstable)
+    {
+        UUID originatingHostId = sstable.getSSTableMetadata().originatingHostId;
+        UUID localHostId = localHostIdSupplier.get();
+        // Matches CommitLogReplayer / MetadataCollector: a null originating (or not-yet-known local) host id is
+        // treated as not locally originated, and therefore not tracked.
+        return originatingHostId != null && originatingHostId.equals(localHostId);
     }
 
     private void acquireIfTracked(SSTableReader sstable)
