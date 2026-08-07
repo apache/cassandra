@@ -1,5 +1,8 @@
 6.0-alpha3
  * Implement CMS rediscovery and recovery protocol (CASSANDRA-20476)
+Merged from 5.0:
+ * Fix ThreadLocalReadAheadBuffer#fill() to throw a CorruptBlockException if chunk metadata and file size are out of sync (CASSANDRA-21519)
+ * Fix memtable on-heap accounting drift in BTree.update and BTreeRow.merge (CASSANDRA-21472)
 
 
 6.0-alpha2
@@ -77,7 +80,6 @@
  * Fix a removed TTLed row re-appearance in a materialized view after a cursor compaction (CASSANDRA-21152)
  * Rework ZSTD dictionary compression logic to create a trainer per training (CASSANDRA-21209)
 Merged from 5.0:
- * Fix ThreadLocalReadAheadBuffer#fill() to throw a CorruptBlockException if chunk metadata and file size are out of sync (CASSANDRA-21519)
  * SAI Component Checksum Validation Should be Segment-Aware (CASSANDRA-21516)
  * Support Python 3.12 and 3.13 in cqlsh (CASSANDRA-20997)
  * Make synchronization on VectorMemoryIndex inserts more granular (CASSANDRA-21160)
@@ -91,7 +93,6 @@ Merged from 4.1:
  * Add Paxos v2 option and informatin in cassandra.yaml (CASSANDRA-21316)
  * Harden data resurrection startup check with atomic heartbeat file write with fallback (CASSANDRA-21290)
 Merged from 4.0:
- * Fix memtable on-heap accounting drift in BTree.update and BTreeRow.merge (CASSANDRA-21472)
  * Bound declared value length against readable bytes in CBUtil (CASSANDRA-21521)
  * Verify extension type before initializing reflectively-loaded classes (CASSANDRA-21525)
  * Rename conflicting nodetool import --copy-data short option from -p to -cd (CASSANDRA-20214)
