@@ -3,6 +3,7 @@
  * Allow DatabaseDescriptor.setCompressedReadAheadBufferSizeInKb(0) to disable read-ahead buffer (CASSANDRA-21522)
  * Return CorruptSSTableException if chunk metadata and file size are out of sync (CASSANDRA-21519)
 Merged from 4.0:
+ * Do not make DNS lookup when querying system_views.clients for hostname column by removing it (CASSANDRA-21539)
  * Fix memtable on-heap accounting drift in BTree.update and BTreeRow.merge (CASSANDRA-21472)
 
 
