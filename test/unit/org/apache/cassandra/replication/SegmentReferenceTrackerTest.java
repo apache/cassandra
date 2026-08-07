@@ -209,6 +209,31 @@ public class SegmentReferenceTrackerTest
     }
 
     @Test
+    public void testMultipleIntervalsInSameSegmentCountedOnce()
+    {
+        SegmentReferenceTracker tracker = newTracker();
+        // Two disjoint intervals within the SAME segment (different position ranges): forEachSegment emits
+        // segment 5 twice for this sstable, but the referrer set de-dupes so it is counted exactly once.
+        IntervalSet.Builder<CommitLogPosition> builder = new IntervalSet.Builder<>();
+        builder.add(new CommitLogPosition(5, 0), new CommitLogPosition(5, 100));
+        builder.add(new CommitLogPosition(5, 200), new CommitLogPosition(5, 300));
+        SSTableReader sstable = unrepaired(builder.build());
+
+        tracker.handleNotification(new SSTableAddedNotification(List.of(sstable), null), null);
+
+        assertEquals("a segment spanned by multiple intervals of one sstable is referenced once, not n times",
+                     1L, tracker.referenceCountForTesting(5));
+        assertEquals(1, tracker.trackedSstableCountForTesting());
+
+        // Releasing clears the single reference (no residual double-count).
+        tracker.handleNotification(
+        new SSTableListChangedNotification(List.of(), List.of(sstable), OperationType.COMPACTION),
+        null);
+        assertFalse(tracker.isReferenced(5));
+        assertEquals(0, tracker.trackedSstableCountForTesting());
+    }
+
+    @Test
     public void testEmptyIntervalsHoldNoRefs()
     {
         SegmentReferenceTracker tracker = newTracker();
