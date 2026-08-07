@@ -28,6 +28,7 @@ import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.sequences.Move;
 
 import static org.junit.Assert.assertEquals;
+import static org.psjava.util.AssertStatus.assertTrue;
 
 public class AllowIPChangeWithMoveTest extends IPChangeWithMSOBase
 {
@@ -54,6 +55,7 @@ public class AllowIPChangeWithMoveTest extends IPChangeWithMSOBase
                     });
                     // resume decommission
                     cluster.get(TO_MOVE + 6).nodetoolResult("move", "--resume").asserts().success();
+                    cluster.get(7).runOnInstance(() -> assertTrue(ClusterMetadata.current().directory.states.values().stream().allMatch(s -> s == NodeState.JOINED)));
                 });
     }
 }

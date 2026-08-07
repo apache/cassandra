@@ -32,15 +32,21 @@ import net.bytebuddy.implementation.bind.annotation.SuperCall;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ownership.DataPlacements;
+import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.sequences.SequenceState;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.psjava.util.AssertStatus.assertTrue;
 
 public class IPChangeWithMSOBase extends TestBaseImpl
 {
@@ -63,14 +69,30 @@ public class IPChangeWithMSOBase extends TestBaseImpl
             // change all ips;
             for (int i = 1; i <= 6; i++)
             {
-                cluster.get(i).shutdown();
+                cluster.get(i).shutdown().get();
                 IInstanceConfig nodeConfig = cluster.newInstanceConfig();
                 nodeConfig.set("data_file_directories", cluster.get(i).config().get("data_file_directories"));
                 cluster.bootstrap(nodeConfig, AbstractCluster.CURRENT_VERSION).startup();
             }
 
             afterIPChange.accept(cluster);
+            assertRecalculatedPlacements(cluster.get(7));
         }
+    }
+
+    public static void assertRecalculatedPlacements(IInvokableInstance instance)
+    {
+        instance.runOnInstance(() -> {
+            ClusterMetadata metadata = ClusterMetadata.current();
+            DataPlacements calculatedPlacements = new UniformRangePlacement().calculatePlacements(metadata.epoch,
+                                                                                                  metadata,
+                                                                                                  metadata.schema.getKeyspaces());
+            metadata.directory.states.forEach((nodeId, state) -> {
+                InetAddressAndPort ep = metadata.directory.endpoint(nodeId);
+                assertTrue(ep.addressBytes[ep.addressBytes.length - 1] > 6);
+                assertTrue(calculatedPlacements.equivalentTo(metadata.placements()));
+            });
+        });
     }
 
     public static class BBHelper

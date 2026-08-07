@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test.log.mso;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -31,53 +32,67 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeState;
-import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
+import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS_FIRST_BOOT;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.junit.Assert.fail;
 import static org.psjava.util.AssertStatus.assertTrue;
 
-public class AllowIPChangeWithBootstrapTest extends TestBaseImpl
+public class AllowIPChangeWithReplaceTest extends TestBaseImpl
 {
-    /**
-     * This test fails a bootstrap after either START_JOIN or MID_JOIN, then changes ips for all instances (including
-     * the bootstrapping node), and resumes the bootstrap.
-     */
     @Test
-    public void testBootstrap() throws Exception
+    public void testReplace() throws Exception
     {
         int NUM_NODES = 6;
-        TokenSupplier ts = TokenSupplier.evenlyDistributedTokens(NUM_NODES);
+        int TO_REPLACE = 5;
+        TokenSupplier ts = new TokenSupplier()
+        {
+            TokenSupplier delegate = TokenSupplier.evenlyDistributedTokens(NUM_NODES);
+            @Override
+            public Collection<String> tokens(int i)
+            {
+                if (i < NUM_NODES)
+                    return delegate.tokens(i);
+                if (i == NUM_NODES || i == NUM_NODES * 2) // the replacement
+                    return delegate.tokens(TO_REPLACE);
+                return delegate.tokens(i - NUM_NODES);
+            }
+        };
+
         try (Cluster cluster = builder().withNodes(NUM_NODES - 1)
                                         .withConfig(config -> config.with(NETWORK, GOSSIP))
-                                        .withTokenSupplier((TokenSupplier)i -> i <= NUM_NODES ? ts.tokens(i) : ts.tokens(i - NUM_NODES))
+                                        .withTokenSupplier(ts)
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(NUM_NODES * 2, "dc0", "rack0"))
-                                        .withInstanceInitializer((cl, i) -> IPChangeWithMSOBase.BBHelper.install(6, BootstrapAndJoin.class, cl, i))
+                                        .withInstanceInitializer((cl, i) -> IPChangeWithMSOBase.BBHelper.install(6, BootstrapAndReplace.class, cl, i))
                                         .start())
         {
             cluster.get(1).nodetoolResult("cms", "reconfigure", "3").asserts().success();
-            IInstanceConfig bootstrapConfig = cluster.newInstanceConfig();
-            bootstrapConfig.set("auto_bootstrap", "true");
-            bootstrapConfig.set(Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN, "false");
-            IInvokableInstance bootstrapped = cluster.bootstrap(bootstrapConfig, AbstractCluster.CURRENT_VERSION);
-            try
+            cluster.get(TO_REPLACE).shutdown();
+            IInstanceConfig replacementConfig = cluster.newInstanceConfig();
+            replacementConfig.set(Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN, "false");
+            replacementConfig.set("auto_bootstrap", "true");
+            IInvokableInstance replacement = cluster.bootstrap(replacementConfig, AbstractCluster.CURRENT_VERSION);
+            try (WithProperties replacementProps = new WithProperties())
             {
-                bootstrapped.startup();
+                replacementProps.set(REPLACE_ADDRESS_FIRST_BOOT,
+                                     cluster.get(TO_REPLACE).config().broadcastAddress().getAddress().getHostAddress());
+                replacement.startup();
                 fail();
             }
             catch (Exception ignored)
             {}
-            bootstrapped.shutdown();
+            replacement.shutdown();
             cluster.get(1).runOnInstance(() -> {
-                assertTrue(ClusterMetadata.current().directory.states.containsValue(NodeState.BOOTSTRAPPING));
+                assertTrue(ClusterMetadata.current().directory.states.containsValue(NodeState.BOOT_REPLACING));
             });
 
-            // change all ips and bootstrap node6/12;
-            for (int i = 1; i < 6; i++)
+            for (int i = 1; i < TO_REPLACE; i++)
             {
                 cluster.get(i).shutdown().get();
                 IInstanceConfig nodeConfig = cluster.newInstanceConfig();
@@ -85,18 +100,16 @@ public class AllowIPChangeWithBootstrapTest extends TestBaseImpl
                 cluster.bootstrap(nodeConfig, AbstractCluster.CURRENT_VERSION).startup();
             }
 
-            bootstrapConfig = cluster.newInstanceConfig();
+            replacementConfig = cluster.newInstanceConfig();
             Map<String, String> parameters = new HashMap<>();
             String seedAddress = cluster.get(7).config().getString("listen_address");
             int port = cluster.get(7).config().getInt("storage_port");
             parameters.put("seeds", seedAddress+":"+port);
-            bootstrapConfig.set("seed_provider", new ParameterizedClass("org.apache.cassandra.locator.SimpleSeedProvider", parameters));
-            bootstrapConfig.set("auto_bootstrap", "true");
-            bootstrapConfig.set("data_file_directories", cluster.get(6).config().get("data_file_directories"));
-            bootstrapped = cluster.bootstrap(bootstrapConfig, AbstractCluster.CURRENT_VERSION);
-            long mark = bootstrapped.logs().mark();
-            bootstrapped.startup();
-            bootstrapped.logs().watchFor(mark, "Committing FINISH_JOIN");
+            replacementConfig.set("seed_provider", new ParameterizedClass("org.apache.cassandra.locator.SimpleSeedProvider", parameters));
+            replacementConfig.set("auto_bootstrap", "true");
+            replacementConfig.set("data_file_directories", cluster.get(6).config().get("data_file_directories"));
+            replacement = cluster.bootstrap(replacementConfig, AbstractCluster.CURRENT_VERSION);
+            replacement.startup();
             IPChangeWithMSOBase.assertRecalculatedPlacements(cluster.get(7));
             cluster.get(7).runOnInstance(() -> assertTrue(ClusterMetadata.current().directory.states.values().stream().allMatch(s -> s == NodeState.JOINED)));
         }

@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test.log.mso;
 import org.junit.Test;
 
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 
@@ -36,12 +37,14 @@ public class AllowIPChangeWithDecomTest extends IPChangeWithMSOBase
         runTest((cl, i) -> BBHelper.install(TO_DECOM, UnbootstrapAndLeave.class, cl, i),
                 (cluster) -> cluster.get(TO_DECOM).nodetoolResult("decommission").asserts().failure(),
                 (cluster) -> {
-                    cluster.get(TO_DECOM + 6).runOnInstance(() -> {
+                    int nodeId = cluster.get(TO_DECOM + 6).callOnInstance(() -> {
                         ClusterMetadata metadata = ClusterMetadata.current();
                         assertEquals(NodeState.LEAVING, metadata.directory.peerState(metadata.myNodeId()));
+                        return metadata.myNodeId().id();
                     });
                     // resume decommission
                     cluster.get(TO_DECOM + 6).nodetoolResult("decommission").asserts().success();
+                    cluster.get(7).runOnInstance(() -> assertEquals(NodeState.LEFT, ClusterMetadata.current().directory.peerState(new NodeId(nodeId))));
                 });
     }
 }
