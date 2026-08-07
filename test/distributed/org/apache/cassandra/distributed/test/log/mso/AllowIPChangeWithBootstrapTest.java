@@ -18,79 +18,85 @@
 
 package org.apache.cassandra.distributed.test.log.mso;
 
-import java.util.Collection;
-import java.util.Random;
-import java.util.concurrent.Callable;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import net.bytebuddy.ByteBuddy;
-import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
-import net.bytebuddy.implementation.MethodDelegation;
-import net.bytebuddy.implementation.bind.annotation.SuperCall;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.junit.Test;
 
-import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.Constants;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.TokenSupplier;
+import org.apache.cassandra.distributed.impl.AbstractCluster;
+import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeState;
-import org.apache.cassandra.tcm.sequences.Move;
-import org.apache.cassandra.tcm.sequences.SequenceState;
+import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 
-import static net.bytebuddy.matcher.ElementMatchers.named;
-import static org.junit.Assert.assertEquals;
+import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.junit.Assert.fail;
+import static org.psjava.util.AssertStatus.assertTrue;
 
-public class AllowIPChangeWithBootstrapTest extends IPChangeWithMSOBase
+public class AllowIPChangeWithBootstrapTest extends TestBaseImpl
 {
-    static int TO_MOVE = 5;
+    /**
+     * This test fails a bootstrap after either START_JOIN or MID_JOIN, then changes ips for all instances (including
+     * the bootstrapping node), and resumes the bootstrap.
+     */
     @Test
-    public void testMove() throws Exception
+    public void testBootstrap() throws Exception
     {
-        runTest(BBHelper::install,
-                (cluster) -> {
-                    long token = cluster.get(TO_MOVE).callOnInstance(() -> {
-                        ClusterMetadata metadata = ClusterMetadata.current();
-                        Collection<Token> tokens = metadata.tokenMap.tokens(metadata.myNodeId());
-                        return tokens.iterator().next().getLongValue();
-                    });
-                    cluster.get(TO_MOVE).nodetoolResult("move", String.valueOf(token - 1000)).asserts().failure();
-                },
-                (cluster) -> {
-                    cluster.get(TO_MOVE + 6).runOnInstance(() -> {
-                        ClusterMetadata metadata = ClusterMetadata.current();
-                        assertEquals(NodeState.MOVING, metadata.directory.peerState(metadata.myNodeId()));
-                    });
-                    // resume decommission
-                    cluster.get(TO_MOVE + 6).nodetoolResult("move", "--resume").asserts().success();
-                });
-    }
-
-    public static class BBHelper
-    {
-        public static AtomicBoolean enabled = new AtomicBoolean(true);
-        public static AtomicInteger cnt = new AtomicInteger();
-        // step 1 = after StartLeave, step 2 = after MidLeave
-        private static final int failStep = new Random().nextInt(2) + 1;
-        public static void install(ClassLoader cl, int i)
+        int NUM_NODES = 6;
+        TokenSupplier ts = TokenSupplier.evenlyDistributedTokens(NUM_NODES);
+        try (Cluster cluster = builder().withNodes(NUM_NODES - 1)
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .withTokenSupplier((TokenSupplier)i -> i <= NUM_NODES ? ts.tokens(i) : ts.tokens(i - NUM_NODES))
+                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(NUM_NODES * 2, "dc0", "rack0"))
+                                        .withInstanceInitializer((cl, i) -> IPChangeWithMSOBase.BBHelper.install(6, BootstrapAndJoin.class, cl, i))
+                                        .start())
         {
-            if (i != TO_MOVE)
-               return;
-
-            new ByteBuddy().rebase(Move.class)
-                           .method(named("executeNext"))
-                           .intercept(MethodDelegation.to(BBHelper.class))
-                           .make()
-                           .load(cl, ClassLoadingStrategy.Default.INJECTION);
-        }
-
-        public static SequenceState executeNext(@SuperCall Callable<SequenceState> zuper) throws Exception
-        {
-            if (enabled.get())
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "3").asserts().success();
+            IInstanceConfig bootstrapConfig = cluster.newInstanceConfig();
+            bootstrapConfig.set("auto_bootstrap", "true");
+            bootstrapConfig.set(Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN, "false");
+            IInvokableInstance bootstrapped = cluster.bootstrap(bootstrapConfig, AbstractCluster.CURRENT_VERSION);
+            try
             {
-                if (cnt.incrementAndGet() > failStep)
-                    throw new RuntimeException("EXPECTED");
+                bootstrapped.startup();
+                fail();
             }
-            return zuper.call();
+            catch (Exception ignored)
+            {}
+            bootstrapped.shutdown();
+            cluster.get(1).runOnInstance(() -> {
+                assertTrue(ClusterMetadata.current().directory.states.containsValue(NodeState.BOOTSTRAPPING));
+            });
+
+            // change all ips and bootstrap node6/12;
+            for (int i = 1; i < 6; i++)
+            {
+                cluster.get(i).shutdown();
+                IInstanceConfig nodeConfig = cluster.newInstanceConfig();
+                nodeConfig.set("data_file_directories", cluster.get(i).config().get("data_file_directories"));
+                cluster.bootstrap(nodeConfig, AbstractCluster.CURRENT_VERSION).startup();
+            }
+
+            bootstrapConfig = cluster.newInstanceConfig();
+            Map<String, String> parameters = new HashMap<>();
+            String seedAddress = cluster.get(7).config().getString("listen_address");
+            int port = cluster.get(7).config().getInt("storage_port");
+            parameters.put("seeds", seedAddress+":"+port);
+            bootstrapConfig.set("seed_provider", new ParameterizedClass("org.apache.cassandra.locator.SimpleSeedProvider", parameters));
+            bootstrapConfig.set("auto_bootstrap", "true");
+            bootstrapConfig.set("data_file_directories", cluster.get(6).config().get("data_file_directories"));
+            bootstrapped = cluster.bootstrap(bootstrapConfig, AbstractCluster.CURRENT_VERSION);
+            long mark = bootstrapped.logs().mark();
+            bootstrapped.startup();
+            bootstrapped.logs().watchFor(mark, "Committing FINISH_JOIN");
         }
     }
 }

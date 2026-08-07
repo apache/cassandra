@@ -18,24 +18,12 @@
 
 package org.apache.cassandra.distributed.test.log.mso;
 
-import java.util.Random;
-import java.util.concurrent.Callable;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import net.bytebuddy.ByteBuddy;
-import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
-import net.bytebuddy.implementation.MethodDelegation;
-import net.bytebuddy.implementation.bind.annotation.SuperCall;
-
 import org.junit.Test;
 
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeState;
-import org.apache.cassandra.tcm.sequences.SequenceState;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 
-import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.junit.Assert.assertEquals;
 
 public class AllowIPChangeWithDecomTest extends IPChangeWithMSOBase
@@ -45,7 +33,7 @@ public class AllowIPChangeWithDecomTest extends IPChangeWithMSOBase
     public void testDecommission() throws Exception
     {
 
-        runTest(BBHelper::install,
+        runTest((cl, i) -> BBHelper.install(TO_DECOM, UnbootstrapAndLeave.class, cl, i),
                 (cluster) -> cluster.get(TO_DECOM).nodetoolResult("decommission").asserts().failure(),
                 (cluster) -> {
                     cluster.get(TO_DECOM + 6).runOnInstance(() -> {
@@ -55,34 +43,5 @@ public class AllowIPChangeWithDecomTest extends IPChangeWithMSOBase
                     // resume decommission
                     cluster.get(TO_DECOM + 6).nodetoolResult("decommission").asserts().success();
                 });
-    }
-
-    public static class BBHelper
-    {
-        public static AtomicBoolean enabled = new AtomicBoolean(true);
-        public static AtomicInteger cnt = new AtomicInteger();
-        // step 1 = after StartLeave, step 2 = after MidLeave
-        private static final int failStep = new Random().nextInt(2) + 1;
-        public static void install(ClassLoader cl, int i)
-        {
-            if (i != TO_DECOM)
-               return;
-
-            new ByteBuddy().rebase(UnbootstrapAndLeave.class)
-                           .method(named("executeNext"))
-                           .intercept(MethodDelegation.to(BBHelper.class))
-                           .make()
-                           .load(cl, ClassLoadingStrategy.Default.INJECTION);
-        }
-
-        public static SequenceState executeNext(@SuperCall Callable<SequenceState> zuper) throws Exception
-        {
-            if (enabled.get())
-            {
-                if (cnt.incrementAndGet() > failStep)
-                    throw new RuntimeException("EXPECTED");
-            }
-            return zuper.call();
-        }
     }
 }

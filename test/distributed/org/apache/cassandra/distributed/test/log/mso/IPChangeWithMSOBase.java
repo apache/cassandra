@@ -18,8 +18,17 @@
 
 package org.apache.cassandra.distributed.test.log.mso;
 
+import java.util.Random;
+import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
+import net.bytebuddy.implementation.MethodDelegation;
+import net.bytebuddy.implementation.bind.annotation.SuperCall;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
@@ -27,7 +36,9 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.tcm.sequences.SequenceState;
 
+import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
@@ -59,6 +70,35 @@ public class IPChangeWithMSOBase extends TestBaseImpl
             }
 
             afterIPChange.accept(cluster);
+        }
+    }
+
+    public static class BBHelper
+    {
+        public static AtomicBoolean enabled = new AtomicBoolean(true);
+        public static AtomicInteger cnt = new AtomicInteger();
+        // step 1 = after StartX, step 2 = after MidX
+        private static final int failStep = new Random().nextInt(2) + 1;
+        public static void install(int installOn, Class<?> c, ClassLoader cl, int i)
+        {
+            if (i != installOn)
+                return;
+
+            new ByteBuddy().rebase(c)
+                           .method(named("executeNext"))
+                           .intercept(MethodDelegation.to(BBHelper.class))
+                           .make()
+                           .load(cl, ClassLoadingStrategy.Default.INJECTION);
+        }
+
+        public static SequenceState executeNext(@SuperCall Callable<SequenceState> zuper) throws Exception
+        {
+            if (enabled.get())
+            {
+                if (cnt.incrementAndGet() > failStep)
+                    throw new RuntimeException("EXPECTED");
+            }
+            return zuper.call();
         }
     }
 }
