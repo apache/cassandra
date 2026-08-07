@@ -196,7 +196,8 @@ public class AutoRepair
             UUID myId = Gossiper.instance.getHostId(FBUtilities.getBroadcastAddressAndPort());
 
             // If it's too soon to run repair, don't bother checking if it's our turn.
-            if (tooSoonToRunRepair(repairType, repairState, config, myId))
+            // Force repair bypasses this check to ensure immediate repair trigger.
+            if (!AutoRepairUtils.isForceRepairSetForNode(repairType, myId) && tooSoonToRunRepair(repairType, repairState, config, myId))
             {
                 return;
             }

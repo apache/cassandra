@@ -20,6 +20,7 @@ package org.apache.cassandra.repair.autorepair;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -29,16 +30,22 @@ import org.junit.Assert;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.schema.SchemaTestUtil;
+import org.apache.cassandra.schema.SystemDistributedKeyspace;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -158,5 +165,61 @@ public class AutoRepairTest extends CQLTester
                 Assert.assertFalse(AutoRepairUtils.shouldConsiderKeyspace(ks));
             }
         }
+    }
+
+    @Test
+    public void testForceRepairBypassesMinRepairInterval()
+    {
+        RepairType repairType = RepairType.FULL;
+        UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
+        long now = System.currentTimeMillis();
+
+        // Truncate history table to start fresh
+        QueryProcessor.executeInternal(String.format(
+            "TRUNCATE %s.%s",
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
+
+        // Insert with finish_ts > start_ts to simulate a recently completed repair
+        AutoRepairUtils.insertNewRepairHistory(repairType, myId, now - 1000, now);
+
+        // Set force repair for this node
+        AutoRepairUtils.setForceRepair(repairType, myId);
+
+        // Verify force repair is set
+        assertTrue(AutoRepairUtils.isForceRepairSetForNode(repairType, myId));
+    }
+
+    @Test
+    public void testIsForceRepairSetForNodeReturnsFalseWhenNotSet()
+    {
+        RepairType repairType = RepairType.FULL;
+        UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
+        long now = System.currentTimeMillis();
+
+        // Truncate history table to start fresh
+        QueryProcessor.executeInternal(String.format(
+            "TRUNCATE %s.%s",
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
+
+        // Insert without setting force repair
+        AutoRepairUtils.insertNewRepairHistory(repairType, myId, now - 1000, now);
+
+        // Verify force repair is not set
+        assertFalse(AutoRepairUtils.isForceRepairSetForNode(repairType, myId));
+    }
+
+    @Test
+    public void testIsForceRepairSetForNodeReturnsFalseWhenNoHistory()
+    {
+        RepairType repairType = RepairType.FULL;
+        UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
+
+        // Truncate history table to start fresh
+        QueryProcessor.executeInternal(String.format(
+            "TRUNCATE %s.%s",
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
+
+        // Verify force repair is not set when no history exists
+        assertFalse(AutoRepairUtils.isForceRepairSetForNode(repairType, myId));
     }
 }
