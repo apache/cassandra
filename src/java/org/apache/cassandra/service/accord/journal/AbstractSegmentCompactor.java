@@ -93,6 +93,7 @@ public abstract class AbstractSegmentCompactor<V> implements SegmentCompactor<Jo
     // Only valid in the scope of a single `compact` call
     private JournalKey prevKey;
     private DecoratedKey prevDecoratedKey;
+    private volatile boolean stopped;
 
     @Override
     public Collection<StaticSegment<JournalKey, V>> compact(Collection<StaticSegment<JournalKey, V>> segments)
@@ -129,6 +130,9 @@ public abstract class AbstractSegmentCompactor<V> implements SegmentCompactor<Jo
             KeyOrderReader<JournalKey> reader;
             while ((reader = readers.poll()) != null)
             {
+                if (stopped)
+                    throw new Stopped();
+
                 if (key == null || !reader.key().equals(key))
                 {
                     maybeWritePartition(key, merger, serializer, firstDescriptor, firstOffset);
@@ -230,6 +234,12 @@ public abstract class AbstractSegmentCompactor<V> implements SegmentCompactor<Jo
             PartitionUpdate update = PartitionUpdate.singleRowUpdate(AccordKeyspace.Journal, decoratedKey, row);
             writer().append(update.unfilteredIterator());
         }
+    }
+
+    @Override
+    public void stop()
+    {
+        stopped = true;
     }
 
     private static int normalize(int cmp)

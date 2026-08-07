@@ -83,16 +83,14 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordCommandStore;
-import org.apache.cassandra.service.accord.AccordExecutor;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static accord.local.LoadKeys.SYNC;
-import static accord.local.LoadKeysFor.READ_WRITE;
-import static accord.local.PreLoadContext.contextFor;
+import static accord.local.ExecutionContext.unsequencedReadWrite;
 import static accord.local.RedundantStatus.SomeStatus.GC_BEFORE_AND_LOCALLY_DURABLE;
 import static accord.primitives.Routable.Domain.Range;
 import static accord.primitives.Timestamp.Flag.HLC_BOUND;
@@ -287,11 +285,11 @@ public class CompactionAccordIteratorsTest
         try (AccordExecutor.ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
         {
             cacheSize = cache.global.capacity();
-            cache.global.setCapacity(0);
+            commandStore.executor().setCapacity(0);
         }
         try (AccordExecutor.ExclusiveGlobalCaches cache = commandStore.executor().lockCaches();)
         {
-            cache.global.setCapacity(cacheSize);
+            commandStore.executor().setCapacity(cacheSize);
         }
         commandsForKey.forceBlockingFlush(FlushReason.UNIT_TESTS);
         while (commandStore.executor().hasTasks())
@@ -322,28 +320,28 @@ public class CompactionAccordIteratorsTest
             PartialDeps partialDeps = Deps.NONE.intersecting(AccordTestUtils.fullRange(txn));
             PartialTxn partialTxn = txn.slice(commandStore.unsafeGetRangesForEpoch().currentRanges(), true);
             Route<?> partialRoute = route.overlapping(commandStore.unsafeGetRangesForEpoch().currentRanges());
-            getBlocking(commandStore.execute(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
+            getBlocking(commandStore.execute(unsequencedReadWrite(txnId, route, "Test"), safe -> {
                 CheckedCommands.preaccept(safe, txnId, partialTxn, route, (a, b) -> {});
             }));
             flush(commandStore);
-            getBlocking(commandStore.execute(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
+            getBlocking(commandStore.execute(unsequencedReadWrite(txnId, route, "Test"), safe -> {
                 CheckedCommands.accept(safe, txnId, Ballot.ZERO, partialRoute, txnId, partialDeps, (a, b) -> {});
             }));
             flush(commandStore);
-            getBlocking(commandStore.execute(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
+            getBlocking(commandStore.execute(unsequencedReadWrite(txnId, route, "Test"), safe -> {
                 CheckedCommands.commit(safe, SaveStatus.Stable, Ballot.ZERO, txnId, route, partialTxn, txnId, partialDeps, (a, b) -> {});
             }));
             flush(commandStore);
-            getBlocking(commandStore.chain(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
+            getBlocking(commandStore.chain(unsequencedReadWrite(txnId, route, "Test"), safe -> {
                 return AccordTestUtils.processTxnResultDirect(safe, txnId, partialTxn, txnId);
-            }).flatMap(i -> i).flatMap(result -> commandStore.chain(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
+            }).flatMap(i -> i).flatMap(result -> commandStore.chain(unsequencedReadWrite(txnId, route, "Test"), safe -> {
                 CheckedCommands.apply(safe, txnId, route, txnId, partialDeps, partialTxn, result.left, result.right, (a, b) -> {});
             })));
             flush(commandStore);
             // The apply chain is asychronous, so it is easiest to just spin until it is applied
             // in order to have the updated state in the system table
             spinAssertEquals(true, 5, () -> {
-                return getBlocking(commandStore.submit(contextFor(txnId, route, SYNC, READ_WRITE, "Test"), safe -> {
+                return getBlocking(commandStore.submit(unsequencedReadWrite(txnId, route, "Test"), safe -> {
                     StoreParticipants participants = StoreParticipants.all(route);
                     Command command = safe.get(txnId, participants).current();
                     return command.hasBeen(Status.Applied);

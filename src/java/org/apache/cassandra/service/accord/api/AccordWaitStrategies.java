@@ -38,7 +38,7 @@ import static org.apache.cassandra.service.TimeoutStrategy.LatencySourceFactory.
 
 public class AccordWaitStrategies
 {
-    static TimeoutStrategy slowTxnPreaccept, slowSyncPointPreaccept, slowRead;
+    static TimeoutStrategy slowTxnPreaccept, slowSyncPointPreaccept, slowRead, slowDurability;
     static TimeoutStrategy expireTxn, expireSyncPoint, expireDurability, expireEpochWait;
     static TimeoutStrategy fetchTxn, fetchSyncPoint;
     static RetryStrategy recoverTxn, recoverSyncPoint, retrySyncPoint, retryDurability, retryBootstrap, retryJoinBootstrap;
@@ -88,6 +88,7 @@ public class AccordWaitStrategies
         setSlowRead(config.slow_read);
         setSlowTxnPreaccept(config.slow_txn_preaccept);
         setSlowSyncPointPreaccept(config.slow_syncpoint_preaccept);
+        setSlowDurability(config.slow_durability);
         setExpireTxn(config.expire_txn);
         setExpireSyncPoint(config.expire_syncpoint);
         setExpireDurability(config.expire_durability);
@@ -117,6 +118,11 @@ public class AccordWaitStrategies
     public static void setSlowSyncPointPreaccept(String spec)
     {
         slowSyncPointPreaccept = TimeoutStrategy.parse(spec, none());
+    }
+
+    public static void setSlowDurability(String spec)
+    {
+        slowDurability = TimeoutStrategy.parse(spec, none());
     }
 
     public static void setExpireTxn(String spec)

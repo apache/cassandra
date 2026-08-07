@@ -35,12 +35,14 @@ import javax.annotation.Nullable;
 import org.assertj.core.api.Assertions;
 
 import accord.api.AsyncExecutor;
+import accord.api.ExclusiveAsyncExecutor;
 import accord.api.Journal;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
 import accord.api.RemoteListeners;
 import accord.api.Result;
 import accord.api.RoutingKey;
+import accord.api.Scheduler;
 import accord.api.Timeouts;
 import accord.coordinate.Coordinations;
 import accord.impl.DefaultLocalListeners;
@@ -54,12 +56,11 @@ import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
+import accord.local.ExecutionContext;
 import accord.local.Node;
 import accord.local.NodeCommandStoreService;
-import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
-import accord.local.SequentialAsyncExecutor;
 import accord.local.TimeService;
 import accord.local.durability.DurabilityService;
 import accord.messages.BeginRecovery;
@@ -100,6 +101,10 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.execution.AccordCache;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
+import org.apache.cassandra.service.accord.execution.AccordExecutorSimple;
 import org.apache.cassandra.service.accord.journal.RangeSearcher;
 import org.apache.cassandra.service.accord.journal.SegmentRangeSearcher;
 import org.apache.cassandra.service.accord.topology.AccordTopology;
@@ -182,7 +187,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             }
 
             @Override
-            public SequentialAsyncExecutor someSequentialExecutor()
+            public ExclusiveAsyncExecutor someExclusiveExecutor()
             {
                 return null;
             }
@@ -264,6 +269,12 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             }
 
             @Override public Coordinations coordinations() { return new Coordinations(); }
+
+            @Override
+            public Scheduler scheduler()
+            {
+                return null;
+            }
         };
 
         TestAgent.RethrowAgent agent = new TestAgent.RethrowAgent()
@@ -448,7 +459,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         return process(request, request);
     }
 
-    public <T extends Reply> T process(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function) throws ExecutionException, InterruptedException
+    public <T extends Reply> T process(ExecutionContext loadCtx, Function<? super SafeCommandStore, T> function) throws ExecutionException, InterruptedException
     {
         var result = processAsync(loadCtx, function);
         processAll();
@@ -460,7 +471,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         return processAsync(request, request);
     }
 
-    public <T extends Reply> AsyncResult<T> processAsync(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function)
+    public <T extends Reply> AsyncResult<T> processAsync(ExecutionContext loadCtx, Function<? super SafeCommandStore, T> function)
     {
         return commandStore.submit(loadCtx, function);
     }

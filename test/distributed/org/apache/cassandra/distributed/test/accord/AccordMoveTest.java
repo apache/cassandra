@@ -38,7 +38,7 @@ import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.AccordSafeCommandStore;
+import org.apache.cassandra.service.accord.execution.SaferCommandStore;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 
 import static com.google.common.collect.Iterables.getOnlyElement;
@@ -112,7 +112,7 @@ public class AccordMoveTest extends AccordBootstrapTestBase
                             getBlocking(service().node().commandStores().forEach("Test", RoutingKeys.of(partitionKey.toUnseekable()), moveMax, moveMax, safeStore -> {
                                 if (!safeStore.ranges().allAt(preMove).contains(partitionKey))
                                 {
-                                    AccordSafeCommandStore ss = (AccordSafeCommandStore) safeStore;
+                                    SaferCommandStore ss = (SaferCommandStore) safeStore;
                                     Assert.assertFalse(ss.bootstrapBeganAt().isEmpty());
                                     Assert.assertFalse(ss.safeToReadAt().isEmpty());
 

@@ -62,7 +62,7 @@ import org.apache.cassandra.harry.checker.ModelChecker;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.AccordSafeCommandStore;
+import org.apache.cassandra.service.accord.execution.SaferCommandStore;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.IAccordService.DelegatingAccordService;
@@ -89,7 +89,7 @@ public class AccordIncrementalRepairTest extends TestBaseImpl
         }
 
         @Override
-        public AsyncResult<Void> sync(Object requestedBy, @Nullable TxnId onOrAfter, Ranges ranges, @Nullable Collection<Node.Id> include, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
+        public AsyncResult<?> sync(Object requestedBy, @Nullable TxnId onOrAfter, Ranges ranges, @Nullable Collection<Node.Id> include, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
         {
             return delegate.sync(requestedBy, onOrAfter, ranges, include, syncLocal, syncRemote, 10L, TimeUnit.MINUTES).map(v -> {
                 executedBarriers = true;
@@ -98,7 +98,7 @@ public class AccordIncrementalRepairTest extends TestBaseImpl
         }
 
         @Override
-        public AsyncChain<Void> sync(@Nullable TxnId onOrAfter, Keys keys, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
+        public AsyncChain<?> sync(@Nullable TxnId onOrAfter, Keys keys, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
         {
             return delegate.sync(onOrAfter, keys, syncLocal, syncRemote).map(v -> {
                 executedBarriers = true;
@@ -209,7 +209,7 @@ public class AccordIncrementalRepairTest extends TestBaseImpl
         Node node = accordService().node();
         AtomicReference<TxnId> waitFor = new AtomicReference<>(null);
         getBlocking(node.commandStores().forEach("Test", RoutingKeys.of(key), Long.MIN_VALUE, Long.MAX_VALUE, safeStore -> {
-            AccordSafeCommandStore store = (AccordSafeCommandStore) safeStore;
+            SaferCommandStore store = (SaferCommandStore) safeStore;
             SafeCommandsForKey safeCfk = store.ifLoadedAndInitialised(key);
             if (safeCfk == null)
                 return;

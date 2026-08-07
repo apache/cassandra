@@ -25,7 +25,11 @@ import accord.impl.AbstractFetchCoordinator.FetchRequest;
 import accord.impl.AbstractFetchCoordinator.FetchResponse;
 import accord.messages.ReadData.CommitOrReadNack;
 import accord.messages.ReadData.ReadReply;
+import accord.primitives.PartialDeps;
+import accord.primitives.PartialTxn;
 import accord.primitives.Ranges;
+import accord.primitives.TxnId;
+import accord.utils.Invariants;
 import accord.utils.VIntCoding;
 
 import org.apache.cassandra.db.TypeSizes;
@@ -51,18 +55,20 @@ public class FetchSerializers
             out.writeUnsignedVInt(request.executeAtEpoch);
             CommandSerializers.txnId.serialize(request.txnId, out);
             KeySerializers.ranges.serialize((Ranges) request.scope, out);
-            DepsSerializers.partialDeps.serialize(request.partialDeps, out);
+            DepsSerializers.partialDeps.serialize(PartialDeps.NONE, out);
             StreamingTxn.serializer.serialize(request.read, out, version);
         }
 
         @Override
         public FetchRequest deserialize(DataInputPlus in, Version version) throws IOException
         {
-            return new AccordFetchRequest(in.readUnsignedVInt(),
-                                          CommandSerializers.txnId.deserialize(in),
-                                          KeySerializers.ranges.deserialize(in),
-                                          DepsSerializers.partialDeps.deserialize(in),
-                                          StreamingTxn.serializer.deserialize(in, version));
+            long epoch = in.readUnsignedVInt();
+            TxnId txnId = CommandSerializers.txnId.deserialize(in);
+            Ranges ranges = KeySerializers.ranges.deserialize(in);
+            PartialDeps deps = DepsSerializers.partialDeps.deserialize(in);
+            Invariants.require(deps.isEmpty());
+            PartialTxn txn = StreamingTxn.serializer.deserialize(in, version);
+            return new AccordFetchRequest(epoch, txnId, ranges, txn);
         }
 
         @Override
@@ -71,7 +77,7 @@ public class FetchSerializers
             return TypeSizes.sizeofUnsignedVInt(request.executeAtEpoch)
                    + CommandSerializers.txnId.serializedSize(request.txnId)
                    + KeySerializers.ranges.serializedSize((Ranges) request.scope)
-                   + DepsSerializers.partialDeps.serializedSize(request.partialDeps)
+                   + DepsSerializers.partialDeps.serializedSize(PartialDeps.NONE)
                    + StreamingTxn.serializer.serializedSize(request.read, version);
         }
     };

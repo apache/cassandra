@@ -31,13 +31,14 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
 import accord.api.DataStore;
+import accord.api.ExclusiveAsyncExecutor;
 import accord.api.Journal;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
 import accord.local.CommandStores;
 import accord.local.NodeCommandStoreService;
-import accord.local.SequentialAsyncExecutor;
 import accord.local.ShardDistributor;
+import accord.utils.Invariants;
 import accord.utils.RandomSource;
 import accord.utils.Reduce;
 import accord.utils.async.AsyncChain;
@@ -54,14 +55,20 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.journal.Descriptor;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordCommandStore.DurablyAppliedTo;
-import org.apache.cassandra.service.accord.AccordExecutor.AccordExecutorFactory;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
+import org.apache.cassandra.service.accord.execution.AccordExecutor.AccordExecutorFactory;
+import org.apache.cassandra.service.accord.execution.AccordExecutorAsyncSubmit;
+import org.apache.cassandra.service.accord.execution.AccordExecutorSemiSyncSubmit;
+import org.apache.cassandra.service.accord.execution.AccordExecutorSignalLoop;
+import org.apache.cassandra.service.accord.execution.AccordExecutorSimple;
+import org.apache.cassandra.service.accord.execution.AccordExecutorSyncSubmit;
 
 import static org.apache.cassandra.config.AccordConfig.QueueShardModel.THREAD_PER_SHARD;
+import static org.apache.cassandra.config.AccordConfig.QueueShardModel.THREAD_PER_SHARD_SYNC_QUEUE;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccord;
-import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITHOUT_LOCK;
-import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITH_LOCK;
-import static org.apache.cassandra.service.accord.AccordExecutor.constant;
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.Mode.RUN_WITHOUT_LOCK;
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.Mode.RUN_WITH_LOCK;
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.constant;
 import static org.apache.cassandra.service.accord.journal.ReplayMarkers.saveDirectory;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -73,7 +80,6 @@ public class AccordCommandStores extends CommandStores implements CacheSize, Shu
     private final int mask;
 
     private long cacheSize, workingSetSize;
-    private int maxQueuedLoads, maxQueuedRangeLoads;
     private boolean shrinkingOn;
 
     AccordCommandStores(NodeCommandStoreService node, Agent agent, DataStore store, RandomSource random,
@@ -87,12 +93,9 @@ public class AccordCommandStores extends CommandStores implements CacheSize, Shu
 
         cacheSize = DatabaseDescriptor.getAccordCacheSizeInMiB() << 20;
         workingSetSize = DatabaseDescriptor.getAccordWorkingSetSizeInMiB() << 20;
-        AccordConfig config = DatabaseDescriptor.getAccord();
-        maxQueuedLoads = maxQueuedLoads(config);
-        maxQueuedRangeLoads = maxQueuedRangeLoads(config);
         shrinkingOn = DatabaseDescriptor.getAccordCacheShrinkingOn();
         refreshCapacities();
-        ScheduledExecutors.scheduledFastTasks.scheduleWithFixedDelay(() -> {
+        ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(() -> {
             for (AccordExecutor executor : executors)
             {
                 executor.executeDirectlyWithLock(() -> {
@@ -122,19 +125,21 @@ public class AccordCommandStores extends CommandStores implements CacheSize, Shu
                     break;
                 case EXEC_ST:
                     factory = AccordExecutorSimple::new;
+                    Invariants.require(executors.length == 1, "Executors that hold their lock during execution cannot support multiple executor shards, as they cannot lock multiple executors at once");
                     maxThreads = 1;
                     break;
             }
 
+            QueueShardModel shardModel = config.queue_shard_model;
+            Invariants.require(shardModel != THREAD_PER_SHARD_SYNC_QUEUE || executors.length == 1, "Executors that hold their lock during execution cannot support multiple executor shards, as they cannot lock multiple executors at once");
             for (int id = 0; id < executors.length; id++)
             {
-                QueueShardModel shardModel = config.queue_shard_model;
                 String baseName = AccordExecutor.class.getSimpleName() + '[' + id;
                 switch (shardModel)
                 {
                     case THREAD_PER_SHARD:
                     case THREAD_PER_SHARD_SYNC_QUEUE:
-                        executors[id] = factory.get(id, shardModel == THREAD_PER_SHARD ? RUN_WITHOUT_LOCK : RUN_WITH_LOCK, 1, constant(baseName + ']'), agent);
+                        executors[id] = factory.get(id, shardModel == THREAD_PER_SHARD_SYNC_QUEUE ? RUN_WITH_LOCK : RUN_WITHOUT_LOCK, 1, constant(baseName + ']'), agent);
                         break;
                     case THREAD_POOL_PER_SHARD:
                         int threads = Math.min(maxThreads, Math.max(DatabaseDescriptor.getAccordConcurrentOps() / executors.length, 1));
@@ -148,10 +153,10 @@ public class AccordCommandStores extends CommandStores implements CacheSize, Shu
     }
 
     @Override
-    public SequentialAsyncExecutor someSequentialExecutor()
+    public ExclusiveAsyncExecutor someExclusiveExecutor()
     {
         int idx = ((int) Thread.currentThread().getId()) & mask;
-        return executors[idx].newSequentialExecutor();
+        return executors[idx].newExclusiveExecutor();
     }
 
     public synchronized void setCapacity(long bytes)
@@ -170,13 +175,6 @@ public class AccordCommandStores extends CommandStores implements CacheSize, Shu
     {
         cacheSize = newCacheSize;
         workingSetSize = newWorkingSetSize;
-        refreshCapacities();
-    }
-
-    public synchronized void setMaxQueuedLoads(int total, int range)
-    {
-        maxQueuedLoads = total;
-        maxQueuedRangeLoads = range;
         refreshCapacities();
     }
 
@@ -213,14 +211,11 @@ public class AccordCommandStores extends CommandStores implements CacheSize, Shu
     {
         long capacityPerExecutor = cacheSize / executors.length;
         long workingSetPerExecutor = workingSetSize < 0 ? Long.MAX_VALUE : workingSetSize / executors.length;
-        int maxLoadsPerExecutor = Math.max(1, (maxQueuedLoads + executors.length - 1) / executors.length);
-        int maxRangeLoadsPerExecutor = Math.max(1, (maxQueuedRangeLoads + executors.length - 1) / executors.length);
         for (AccordExecutor executor : executors)
         {
             executor.executeDirectlyWithLock(() -> {
                 executor.setCapacity(capacityPerExecutor);
                 executor.setWorkingSetSize(workingSetPerExecutor);
-                executor.setMaxQueuedLoads(maxLoadsPerExecutor, maxRangeLoadsPerExecutor);
                 executor.cacheExclusive().setShrinkingOn(shrinkingOn);
             });
         }
@@ -341,21 +336,4 @@ public class AccordCommandStores extends CommandStores implements CacheSize, Shu
                 return Math.max(1, config.queue_shard_count.or(DatabaseDescriptor.getAvailableProcessors() / 8));
         }
     }
-
-    private static int threads(AccordConfig config)
-    {
-        return config.queue_thread_count.or(2 * FBUtilities.getAvailableProcessors());
-    }
-
-    public static int maxQueuedLoads(AccordConfig config)
-    {
-        return config.max_queued_loads.or(FBUtilities.getAvailableProcessors());
-    }
-
-    public static int maxQueuedRangeLoads(AccordConfig config)
-    {
-        return config.max_queued_range_loads.or(maxQueuedLoads(config) / 4);
-    }
-
-
 }

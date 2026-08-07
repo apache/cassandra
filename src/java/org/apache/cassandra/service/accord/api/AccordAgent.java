@@ -39,16 +39,16 @@ import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.api.Tracing;
 import accord.coordinate.Coordination;
-import accord.coordinate.Exhausted;
-import accord.coordinate.Preempted;
-import accord.coordinate.Timeout;
+import accord.coordinate.CoordinationFailed;
 import accord.local.Command;
+import accord.local.CommandStore;
 import accord.local.LogUnavailableException;
 import accord.local.Node;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.TimeService;
 import accord.messages.MessageType;
+import accord.primitives.Ballot;
 import accord.primitives.Keys;
 import accord.primitives.Participants;
 import accord.primitives.Ranges;
@@ -84,6 +84,7 @@ import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.NoSpamLogger.NoDuplicateSpamLogStatement;
 
 import static accord.primitives.Routable.Domain.Key;
 import static accord.utils.SortedArrays.SortedArrayList.ofSorted;
@@ -107,12 +108,14 @@ import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retry
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowRead;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowTxnPreaccept;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.txn_data;
+import static org.apache.cassandra.utils.NoSpamLogger.NoDuplicateSpamLogStatement.exceptionId;
 
 // TODO (expected): merge with AccordService
 public class AccordAgent implements Agent, OwnershipEventListener
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordAgent.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, MINUTES);
+    private static final NoDuplicateSpamLogStatement noSpamException = new NoDuplicateSpamLogStatement(logger, "", 1L, MINUTES);
     private static final ReplicaEventListener replicaEventListener = new AccordReplicaMetrics.Listener();
 
     private static BiConsumer<TxnId, Throwable> onFailedBarrier;
@@ -153,6 +156,12 @@ public class AccordAgent implements Agent, OwnershipEventListener
     {
         self = id;
         config = DatabaseDescriptor.getAccord();
+    }
+
+    @Override
+    public void onSuccessfulBootstrap(CommandStore commandStore, int attempt, long epoch, Ranges ranges)
+    {
+        logger.info("{}: Completed bootstrap of {} on epoch {}", commandStore, ranges, epoch);
     }
 
     @Override
@@ -212,11 +221,17 @@ public class AccordAgent implements Agent, OwnershipEventListener
             return;
 
         AccordSystemMetrics.metrics.errors.inc();
-        if (t instanceof CancellationException || t instanceof TimeoutException || t instanceof Timeout || t instanceof Preempted || t instanceof Exhausted || t instanceof LogUnavailableException)
-            // TODO (required): leaky logger, permitting multiple messages per time period and reporting how many were dropped
-            noSpamLogger.warn("", t);
+        if (expectedException(t)) // TODO (required): leaky logger, permitting multiple messages per time period and reporting how many were dropped
+            noSpamException.warn(exceptionId(t), t);
         else
             JVMStabilityInspector.uncaughtException(Thread.currentThread(), t);
+    }
+
+    public static boolean expectedException(Throwable t)
+    {
+        if (t instanceof CancellationException)
+            return t.getCause() == null;
+        return t instanceof TimeoutException || t instanceof LogUnavailableException || t instanceof CoordinationFailed;
     }
 
     @Override
@@ -249,6 +264,11 @@ public class AccordAgent implements Agent, OwnershipEventListener
     // TODO (expected): we probably want additional configuration here so we can prune on shorter time horizons when we have a lot of transactions on a single key
     @Override
     public long cfkHlcPruneDelta()
+    {
+        return cfkHlcPruneDelta(config);
+    }
+
+    public static long cfkHlcPruneDelta(AccordConfig config)
     {
         return config.commands_for_key_prune_delta.to(MICROSECONDS);
     }
@@ -308,24 +328,12 @@ public class AccordAgent implements Agent, OwnershipEventListener
     @Override
     public long slowCoordinatorDelay(Node node, SafeCommandStore safeStore, TxnId txnId, TimeUnit units, int attempt)
     {
-        SafeCommand safeCommand = safeStore.unsafeGetNoCleanup(txnId);
-        if (safeCommand == null)
-        {
-            noSpamLogger.warn("{} invoked slowCoordinatorDelay for {} without having it in cache", safeStore.commandStore(), txnId, new RuntimeException());
-            return recover(txnId).computeWait(attempt, units);
-        }
-
-        Command command = safeCommand.current();
-        if (command == null)
-        {
-            noSpamLogger.warn("{} invoked slowCoordinatorDelay for {} without knowing the command", safeStore.commandStore(), txnId, new RuntimeException());
-            return recover(txnId).computeWait(attempt, units);
-        }
-
+        Command command = command(safeStore, txnId, "slowCoordinatorDelay");
+        Ballot promised = promised(command);
 
         // TODO (expected): make this a configurable calculation on normal request latencies (like ContentionStrategy)
         long nowMicros = MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
-        long mostRecentStart = mostRecentStart(command, nowMicros);
+        long mostRecentStart = mostRecentStart(txnId, promised, nowMicros);
         long waitMicros = recover(txnId).computeWait(attempt, MICROSECONDS);
         long startTime = mostRecentStart + waitMicros;
         if (startTime < nowMicros)
@@ -338,7 +346,7 @@ public class AccordAgent implements Agent, OwnershipEventListener
         }
 
         RoutingKey homeKey = command.route().homeKey();
-        Shard shard = node.topology().active().forEpochIfKnown(homeKey, command.txnId().epoch());
+        Shard shard = node.topology().active().forEpochIfKnown(homeKey, txnId.epoch());
 
         startTime = nonClashingStartTime(startTime, shard == null ? null : shard.nodes, node.id(), ONE_SECOND, random);
         long delayMicros = Math.max(1, startTime - nowMicros);
@@ -346,15 +354,15 @@ public class AccordAgent implements Agent, OwnershipEventListener
         return units.convert(delayMicros, MICROSECONDS);
     }
 
-    private static long mostRecentStart(Command command, long nowMicros)
+    private static long mostRecentStart(TxnId txnId, Ballot promised, long nowMicros)
     {
         // TODO (expected): make this a configurable calculation on normal request latencies (like ContentionStrategy)
-        long promisedHlc = command.promised().hlc();
+        long promisedHlc = promised.hlc();
         if (promisedHlc > nowMicros + ONE_MINUTE)
             promisedHlc = 0;
-        long result = Math.max(command.txnId().hlc(), promisedHlc);
+        long result = Math.max(txnId.hlc(), promisedHlc);
         if (result > nowMicros + ONE_SECOND)
-            noSpamLogger.warn("max({},{})>{}", command.txnId(), command.promised(), nowMicros);
+            noSpamLogger.warn("max({},{})>{}", txnId, promised, nowMicros);
         return result;
     }
 
@@ -388,25 +396,36 @@ public class AccordAgent implements Agent, OwnershipEventListener
         return newStartTime;
     }
 
-    @Override
-    public long slowReplicaDelay(Node node, SafeCommandStore safeStore, TxnId txnId, int attempt, BlockedUntil blockedUntil, TimeUnit units)
+    private static Ballot promised(@Nullable Command command)
+    {
+        return command == null ? Ballot.ZERO : command.promised();
+    }
+
+    private static Command command(SafeCommandStore safeStore, TxnId txnId, String source)
     {
         SafeCommand safeCommand = safeStore.unsafeGetNoCleanup(txnId);
         if (safeCommand == null)
         {
-            noSpamLogger.warn("{} invoked slowReplicaDelay for {} without having it in cache", safeStore.commandStore(), txnId, new RuntimeException());
-            return fetch(txnId).computeWait(attempt, units);
+            noSpamLogger.warn("{} invoked {} for {} without having it in cache", safeStore.commandStore(), source, txnId, new RuntimeException());
+            return null;
         }
 
         Command command = safeCommand.current();
         if (command == null)
         {
-            noSpamLogger.warn("{} invoked slowReplicaDelay for {} without knowing the command", safeStore.commandStore(), txnId, new RuntimeException());
-            return fetch(txnId).computeWait(attempt, units);
+            noSpamLogger.warn("{} invoked {} for {} without knowing the command", safeStore.commandStore(), source, txnId, new RuntimeException());
+            return null;
         }
 
+        return command;
+    }
+
+    @Override
+    public long slowReplicaDelay(Node node, SafeCommandStore safeStore, TxnId txnId, int attempt, BlockedUntil blockedUntil, TimeUnit units)
+    {
+        Ballot promised = promised(command(safeStore, txnId, "slowReplicaDelay"));
         long nowMicros = MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
-        long mostRecentStart = mostRecentStart(command, nowMicros);
+        long mostRecentStart = mostRecentStart(txnId, promised, nowMicros);
         long waitMicros = fetch(txnId).computeWait(attempt, units);
         long startTime = mostRecentStart + waitMicros;
         if (startTime < nowMicros)

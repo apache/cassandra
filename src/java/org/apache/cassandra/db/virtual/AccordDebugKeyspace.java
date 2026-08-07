@@ -62,7 +62,8 @@ import accord.impl.CommandChange;
 import accord.impl.progresslog.DefaultProgressLog;
 import accord.impl.progresslog.DefaultProgressLog.ModeFlag;
 import accord.impl.progresslog.TxnStateKind;
-import accord.local.CatchupHard;
+import accord.local.BootstrapReason;
+import accord.local.Catchup;
 import accord.local.Cleanup;
 import accord.local.Command;
 import accord.local.CommandStore;
@@ -71,9 +72,9 @@ import accord.local.CommandStores.LatentStoreSelector;
 import accord.local.Commands;
 import accord.local.Commands.NotifyWaitingOnPlus;
 import accord.local.DurableBefore;
+import accord.local.ExecutionContext;
 import accord.local.MaxConflicts;
 import accord.local.Node;
-import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.StoreParticipants;
@@ -132,11 +133,8 @@ import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.AccordCache;
-import org.apache.cassandra.service.accord.AccordCacheEntry;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandStores;
-import org.apache.cassandra.service.accord.AccordExecutor;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordOperations;
 import org.apache.cassandra.service.accord.AccordService;
@@ -154,6 +152,10 @@ import org.apache.cassandra.service.accord.debug.DebugTxnDepsAll;
 import org.apache.cassandra.service.accord.debug.DebugTxnDepsOrdered;
 import org.apache.cassandra.service.accord.debug.DebugTxnGraph;
 import org.apache.cassandra.service.accord.debug.TxnKindsAndDomains;
+import org.apache.cassandra.service.accord.execution.AccordCache;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
+import org.apache.cassandra.service.accord.execution.TaskInfo;
 import org.apache.cassandra.service.accord.journal.AccordJournal;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.service.consensus.migration.TableMigrationState;
@@ -165,6 +167,8 @@ import org.apache.cassandra.utils.concurrent.Future;
 import static accord.coordinate.Infer.InvalidIf.NotKnownToBeInvalid;
 import static accord.impl.CommandChange.Field.ACCEPTED;
 import static accord.impl.CommandChange.Field.PROMISED;
+import static accord.local.BootstrapReason.LOG_CORRUPTED;
+import static accord.local.BootstrapReason.LOG_INCOMPLETE;
 import static accord.local.RedundantStatus.Property.GC_BEFORE;
 import static accord.local.RedundantStatus.Property.LOCALLY_APPLIED;
 import static accord.local.RedundantStatus.Property.LOCALLY_DURABLE_TO_COMMAND_STORE;
@@ -182,6 +186,7 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 import static org.apache.cassandra.db.virtual.AbstractLazyVirtualTable.OnTimeout.BEST_EFFORT;
 import static org.apache.cassandra.db.virtual.AbstractLazyVirtualTable.OnTimeout.FAIL;
+import static org.apache.cassandra.db.virtual.AccordDebugKeyspace.CommandStoreOpsTable.CommandStoreOp.REBOOTSTRAP_CORRUPTED;
 import static org.apache.cassandra.db.virtual.VirtualTable.Sorted.ASC;
 import static org.apache.cassandra.db.virtual.VirtualTable.Sorted.SORTED;
 import static org.apache.cassandra.db.virtual.VirtualTable.Sorted.UNSORTED;
@@ -331,22 +336,22 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 int executorId = executor.executorId();
                 collector.partition(executorId).collect(rows -> {
                     int uniquePos = 0;
-                    AccordExecutor.TaskInfo prev = null;
-                    for (AccordExecutor.TaskInfo info : executor.taskSnapshot())
+                    TaskInfo prev = null;
+                    for (TaskInfo info : executor.taskSnapshot())
                     {
                         if (prev != null && info.status() == prev.status() && info.position() == prev.position()) ++uniquePos;
                         else uniquePos = 0;
                         prev = info;
-                        PreLoadContext preLoadContext = info.preLoadContext();
+                        ExecutionContext executionContext = info.preLoadContext();
                         rows.add(info.status().name(), info.position(), uniquePos)
                                  .lazyCollect(columns -> {
                                      columns.add("description", info.describe())
                                             .add("command_store_id", info.commandStoreId())
-                                            .add("txn_id", preLoadContext, PreLoadContext::primaryTxnId, TO_STRING)
-                                            .add("txn_id_additional", preLoadContext, PreLoadContext::additionalTxnId, TO_STRING)
-                                            .add("keys", preLoadContext, PreLoadContext::keys, TO_STRING)
-                                            .add("keys_loading", preLoadContext, PreLoadContext::loadKeys, TO_STRING)
-                                            .add("keys_loading_for", preLoadContext, PreLoadContext::loadKeysFor, TO_STRING);
+                                            .add("txn_id", executionContext, ExecutionContext::primaryTxnId, TO_STRING)
+                                            .add("txn_id_additional", executionContext, ExecutionContext::additionalTxnId, TO_STRING)
+                                            .add("keys", executionContext, ExecutionContext::keys, TO_STRING)
+                                            .add("keys_loading", executionContext, ExecutionContext::loadKeys, TO_STRING)
+                                            .add("keys_loading_for", executionContext, ExecutionContext::loadKeysFor, TO_STRING);
                         });
                     }
                 });
@@ -740,7 +745,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             collector.partition(commandStore.id())
                      .collect(rows -> {
                          // TODO (desired): support maybe execute immediately with safeStore
-                         Future<?> future = toFuture(commandStore.chain((PreLoadContext.Empty) metadata::toString, safeStore -> { addRows(safeStore, rows); }));
+                         Future<?> future = toFuture(commandStore.chain((ExecutionContext.Empty) metadata::toString, safeStore -> { addRows(safeStore, rows); }));
                          if (!future.awaitUntilThrowUncheckedOnInterrupt(collector.deadlineNanos()))
                              throw new InternalTimeoutException();
                      });
@@ -1650,7 +1655,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         {
             try (AccordCommandStore.ExclusiveCaches caches = commandStore.lockCaches())
             {
-                AccordCacheEntry<TxnId, Command> entry = caches.commands().getUnsafe(txnId);
+                AccordCacheEntry<TxnId, Command, ?> entry = caches.commands().getUnsafe(txnId);
                 return entry == null ? null : entry.getExclusive();
             }
         }
@@ -1794,7 +1799,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         SafeCommand safeCommand = safeStore.unsafeGet(txnId);
                         Command command = safeCommand.current();
                         if (command.saveStatus() == SaveStatus.Applying)
-                            return Commands.applyChain(safeStore, command);
+                            return Commands.applyChain(safeStore, command.asExecuted());
                         Commands.maybeExecute(safeStore, safeCommand, command, true, true, NotifyWaitingOnPlus.adapter(ignore -> {}, true, true));
                         return AsyncChains.success(null);
                     });
@@ -1875,7 +1880,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             Node node = AccordService.unsafeInstance().node();
             if (Route.isFullRoute(route))
             {
-                PrepareRecovery.recover(node, node.someSequentialExecutor(), txnId, NotKnownToBeInvalid, (FullRoute<?>) route, null, LatentStoreSelector.standard(), (success, fail) -> {
+                PrepareRecovery.recover(node, node.someExclusiveExecutor(), txnId, NotKnownToBeInvalid, (FullRoute<?>) route, null, LatentStoreSelector.standard(), (success, fail) -> {
                     if (fail != null) result.setFailure(fail);
                     else result.setSuccess(null);
                 });
@@ -1895,7 +1900,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             AccordService.getBlocking(accord.node()
                                             .commandStores()
                                             .forId(commandStoreId)
-                                            .chain(PreLoadContext.contextFor(txnId, TXN_OPS), apply)
+                                            .chain(ExecutionContext.unsequenced(txnId, TXN_OPS), apply)
                                             .flatMap(i -> i));
         }
 
@@ -1987,8 +1992,10 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             UNSET_PROGRESS_LOG_MODE("Unset the specified progress log mode."),
             TRY_EXECUTE_LISTENING("Try to execute all of the transactions (and their dependencies) that have registered listeners on other transactions."),
             REPLAY("Run journal replay for all transactions"),
-            REBOOTSTRAP("Rebootstrap the command store. This invalidates the local journal, synchronises its data via data repair and rejoins the distributed state machine."),
-            HARD_CATCHUP("Hard catchup the command store. This invalidates the local journal for any ranges not up to date with some quorum, synchronises its data via data repair and rejoins the distributed state machine."),
+            // TODO (expected): specify ranges
+            REBOOTSTRAP_CORRUPTED("Rebootstrap the command store. This invalidates the local journal, synchronises its data via data repair and rejoins the distributed state machine."),
+            REBOOTSTRAP_INCOMPLETE("Rebootstrap the command store. This invalidates the local journal, synchronises its data via data repair and rejoins the distributed state machine."),
+            REBOOTSTRAP_IF_BEHIND("Hard catchup the command store. This invalidates the local journal for any ranges not up to date with some quorum, synchronises its data via data repair and rejoins the distributed state machine."),
             ;
 
             final String description;
@@ -2081,13 +2088,15 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                     };
                     break;
                 }
-                case REBOOTSTRAP:
-                    allFunction = () -> node.commandStores().rebootstrap(node);
-                    function = commandStore -> commandStore.rebootstrap(node);
+                case REBOOTSTRAP_CORRUPTED:
+                case REBOOTSTRAP_INCOMPLETE:
+                    BootstrapReason reason = op == REBOOTSTRAP_CORRUPTED ? LOG_CORRUPTED : LOG_INCOMPLETE;
+                    allFunction = () -> node.commandStores().rebootstrap(node, reason);
+                    function = commandStore -> commandStore.rebootstrap(node, reason);
                     break;
-                case HARD_CATCHUP:
-                    allFunction = () -> CatchupHard.catchup(node, Arrays.asList(node.commandStores().all())).beginAsResult();
-                    function = commandStore -> CatchupHard.catchup(node, Collections.singletonList(commandStore)).beginAsResult();
+                case REBOOTSTRAP_IF_BEHIND:
+                    allFunction = () -> Catchup.rebootstrapIfBehind(node, Arrays.asList(node.commandStores().all())).beginAsResult();
+                    function = commandStore -> Catchup.rebootstrapIfBehind(node, Collections.singletonList(commandStore)).beginAsResult();
                     break;
             }
 
@@ -2483,7 +2492,6 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         {
             throw new InvalidRequestException("Unknown bucket_mode '" + value + '\'');
         }
-
     }
 
     private static int checkNonNegative(Object value, String field, int ifNull)

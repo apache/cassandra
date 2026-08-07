@@ -28,12 +28,12 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.function.BiConsumer;
 
 import accord.api.Data;
+import accord.api.ExclusiveAsyncExecutor;
 import accord.api.Result;
 import accord.coordinate.CoordinationAdapter;
 import accord.coordinate.ExecuteFlag.CoordinationFlags;
 import accord.local.Node;
 import accord.local.Node.Id;
-import accord.local.SequentialAsyncExecutor;
 import accord.messages.Commit;
 import accord.messages.Commit.Kind;
 import accord.primitives.AbstractRanges;
@@ -94,6 +94,7 @@ import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
 
+import static accord.api.ProtocolModifiers.sendMinimal;
 import static accord.coordinate.CoordinationAdapter.Factory.Kind.Standard;
 import static accord.primitives.Txn.Kind.Write;
 import static accord.topology.SelectShards.LIVE;
@@ -125,7 +126,7 @@ public class AccordInteropExecution implements ReadCoordinator
     private final Timestamp executeAt;
     private final Deps deps;
     private final BiConsumer<? super Result, Throwable> callback;
-    private final SequentialAsyncExecutor executor;
+    private final ExclusiveAsyncExecutor executor;
     private final ConsistencyLevel consistencyLevel;
     private final AccordEndpointMapper endpointMapper;
 
@@ -141,9 +142,10 @@ public class AccordInteropExecution implements ReadCoordinator
     private volatile long uniqueHlc;
 
     public AccordInteropExecution(Node node, TxnId txnId, Txn txn, AccordUpdate.Kind updateKind, FullRoute<?> route, Ballot ballot, Timestamp executeAt, Deps deps, BiConsumer<? super Result, Throwable> callback,
-                                  SequentialAsyncExecutor executor, ConsistencyLevel consistencyLevel, AccordEndpointMapper endpointMapper) throws TopologyException
+                                  ExclusiveAsyncExecutor executor, ConsistencyLevel consistencyLevel, AccordEndpointMapper endpointMapper) throws TopologyException
     {
         requireArgument(!txn.read().keys().isEmpty() || updateKind == AccordUpdate.Kind.UNRECOVERABLE_REPAIR);
+        // TODO (required): this does not support privileged coordinator optimisation, as must apply local stable before any other message is sent
         this.node = node;
         this.txnId = txnId;
         this.txn = txn;
@@ -217,8 +219,7 @@ public class AccordInteropExecution implements ReadCoordinator
         // TODO (desired): It would be better to use the re-use the command from the transaction but it's fragile
         //  to try and figure out exactly what changed for things like read repair and short read protection
         //  Also this read scope doesn't reflect the contents of this particular read and is larger than it needs to be
-        // TODO (required): understand interop and whether StableFastPath is appropriate
-        AccordInteropStableThenRead commit = new AccordInteropStableThenRead(id, allTopologies, txnId, Kind.StableFastPath, executeAt, txn, deps, route, message.payload);
+        AccordInteropStableThenRead commit = new AccordInteropStableThenRead(id, allTopologies, txnId, commitKind(), executeAt, txn, deps, route, message.payload);
         node.send(id, commit, executor, new AccordInteropRead.ReadCallback(id, to, message, callback, this), null);
     }
 
@@ -376,7 +377,7 @@ public class AccordInteropExecution implements ReadCoordinator
         {
             InetAddressAndPort endpoint = endpointMapper.mappedEndpointOrNull(to);
             if (endpoint != null && !contacted.contains(endpoint))
-                node.send(to, new Commit(Kind.StableFastPath, to, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps), null);
+                node.send(to, new Commit(commitKind(), to, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps), null);
         }
     }
 
@@ -387,7 +388,7 @@ public class AccordInteropExecution implements ReadCoordinator
             for (Node.Id to : allTopologies.nodes())
             {
                 if (!executeTopology.contains(to))
-                    node.send(to, new Commit(Kind.StableFastPath, to, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps), null);
+                    node.send(to, new Commit(commitKind(), to, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps), null);
             }
         }
         AsyncChain<Data> result;
@@ -415,6 +416,11 @@ public class AccordInteropExecution implements ReadCoordinator
         });
     }
 
+    private static Commit.Kind commitKind()
+    {
+        return sendMinimal() ? Kind.StableFastPath : Kind.StableWithTxnAndDeps;
+    }
+
     private AsyncChain<Data> executeUnrecoverableRepairUpdate()
     {
         return AsyncChains.chain(Stage.ACCORD_MIGRATION.executor(), () -> {
@@ -423,7 +429,7 @@ public class AccordInteropExecution implements ReadCoordinator
             // and can be extended similar to MessageType which allows additional types not from Accord to be added
             // This commit won't necessarily execute before the interop read repair message so there could be an insufficient which is fine
             for (Node.Id to : executeTopology.nodes())
-                    node.send(to, new Commit(Kind.StableFastPath, to, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps), null);
+                    node.send(to, new Commit(commitKind(), to, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps), null);
             repairUpdate.runBRR(AccordInteropExecution.this);
             return new TxnData();
         });
