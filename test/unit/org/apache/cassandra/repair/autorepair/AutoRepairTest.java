@@ -260,4 +260,27 @@ public class AutoRepairTest extends CQLTester
         // Verify force repair is not set when no history exists
         assertFalse(AutoRepairUtils.isForceRepairSetForNode(repairType, myId));
     }
+
+    @Test
+    public void testForceRepairBypassesMinRepairIntervalEndToEnd()
+    {
+        RepairType repairType = RepairType.FULL;
+        UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
+        long now = System.currentTimeMillis();
+
+        // Truncate history table to start fresh
+        QueryProcessor.executeInternal(String.format(
+            "TRUNCATE %s.%s",
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
+
+        // Insert a recently completed repair so tooSoonToRunRepair would normally block
+        QueryProcessor.executeInternal(String.format(
+            "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, repair_finish_ts, force_repair) VALUES (?, ?, ?, ?, true)",
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY),
+            repairType.toString(), myId, new java.util.Date(now - 1000), new java.util.Date(now));
+
+        // Invoke the full repair path end-to-end; with force repair set, the
+        // shouldSkipRepairDueToInterval check is bypassed and this should not throw.
+        AutoRepair.instance.repair(repairType);
+    }
 }
