@@ -181,12 +181,17 @@ public class AutoRepairUtils
     "SELECT %s FROM %s.%s WHERE %s = ? AND %s = ?", COL_REPAIR_START_TS, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
     SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE, COL_HOST_ID);
 
+    final static String SELECT_FORCE_REPAIR_FOR_NODE = String.format(
+    "SELECT %s FROM %s.%s WHERE %s = ? AND %s = ?", COL_FORCE_REPAIR, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+    SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE, COL_HOST_ID);
+
     static ModificationStatement delStatementRepairHistory;
     static SelectStatement selectStatementRepairHistory;
     static ModificationStatement delStatementPriorityStatus;
     static SelectStatement selectStatementRepairPriority;
     static SelectStatement selectLastRepairTimeForNode;
     static SelectStatement selectLastRepairStartTimeForNode;
+    static SelectStatement selectForceRepairForNode;
     static ModificationStatement addPriorityHost;
     static ModificationStatement insertNewRepairHistoryStatement;
     static ModificationStatement recordStartRepairHistoryStatement;
@@ -214,6 +219,8 @@ public class AutoRepairUtils
                                                                                                                       .forInternalCalls());
         selectLastRepairStartTimeForNode = (SelectStatement) QueryProcessor.getStatement(SELECT_LAST_REPAIR_START_TIME_FOR_NODE, ClientState
                                                                                                                                  .forInternalCalls());
+        selectForceRepairForNode = (SelectStatement) QueryProcessor.getStatement(SELECT_FORCE_REPAIR_FOR_NODE, ClientState
+                                                                                                               .forInternalCalls());
         delStatementPriorityStatus = (ModificationStatement) QueryProcessor.getStatement(DEL_REPAIR_PRIORITY, ClientState
                                                                                                               .forInternalCalls());
         addPriorityHost = (ModificationStatement) QueryProcessor.getStatement(ADD_PRIORITY_HOST, ClientState
@@ -483,6 +490,29 @@ public class AutoRepairUtils
                                         Dispatcher.RequestTime.forImmediateExecution());
 
         logger.info("Set force repair repair type: {}, node: {}", repairType, hostId);
+    }
+
+    /**
+     * Check if force repair is set for the given node.
+     *
+     * @param repairType the repair type to check
+     * @param hostId the host id to check
+     * @return true if force repair is set for this node
+     */
+    public static boolean isForceRepairSetForNode(RepairType repairType, UUID hostId)
+    {
+        ResultMessage.Rows rows = selectForceRepairForNode.execute(QueryState.forInternalCalls(),
+                                                                   QueryOptions.forInternalCalls(internalQueryCL,
+                                                                                                 Lists.newArrayList(
+                                                                                                 ByteBufferUtil.bytes(repairType.toString()),
+                                                                                                 ByteBufferUtil.bytes(hostId))),
+                                                                   Dispatcher.RequestTime.forImmediateExecution());
+        UntypedResultSet result = UntypedResultSet.create(rows.result);
+        if (result.isEmpty())
+        {
+            return false;
+        }
+        return result.one().has(COL_FORCE_REPAIR) && result.one().getBoolean(COL_FORCE_REPAIR);
     }
 
     public static long getLastRepairFinishTimeForNode(RepairType repairType, UUID hostId)
