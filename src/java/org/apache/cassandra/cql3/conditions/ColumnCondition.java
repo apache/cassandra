@@ -297,7 +297,14 @@ public final class ColumnCondition
         @Override
         public boolean appliesTo(Row row)
         {
-            return operator.isSatisfiedBy(column.type, rowValue(row), value);
+            ByteBuffer left = rowValue(row);
+            ByteBuffer right = value;
+            if (operator.supportsNullCondition())
+            {
+                left = column.type.sanitize(left);
+                right = column.type.sanitize(right);
+            }
+            return operator.isSatisfiedBy(column.type, left, right);
         }
 
         @Override
@@ -411,8 +418,14 @@ public final class ColumnCondition
         @Override
         public boolean appliesTo(Row row)
         {
-            ByteBuffer element = elementValue(row);
-            return operator.isSatisfiedBy(elementType, element, value);
+            ByteBuffer left = elementValue(row);
+            ByteBuffer right = value;
+            if (operator.supportsNullCondition())
+            {
+                left = elementType.sanitize(left);
+                right = elementType.sanitize(right);
+            }
+            return operator.isSatisfiedBy(elementType, left, right);
         }
 
         private ByteBuffer elementValue(Row row)

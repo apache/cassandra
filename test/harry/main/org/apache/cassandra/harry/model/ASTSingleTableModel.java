@@ -943,6 +943,9 @@ public class ASTSingleTableModel
             {
                 case cas:
                 {
+                    lhs = where.lhs.type().sanitize(lhs);
+                    rhs = where.rhs.type().sanitize(rhs);
+
                     // If anything is null avoid doing the test, but there is a special case where this returns true... both sides are null!
                     // This logic isn't consistent with other parts of the database and is local to CAS IF clause
                     // see ML@Inconsistent null handling between WHERE and IF clauses
