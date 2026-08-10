@@ -100,6 +100,24 @@ public class SAIUtil
         }
     }
 
+    public static void setEnableFused(boolean enableFused)
+    {
+        try
+        {
+            CassandraRelevantProperties.SAI_VECTOR_ENABLE_FUSED.setBoolean(enableFused);
+            Field field = JVectorVersionUtil.class.getDeclaredField("ENABLE_FUSED");
+            field.setAccessible(true);
+            Field modifiersField = ReflectionUtils.getField(Field.class, "modifiers");
+            modifiersField.setAccessible(true);
+            modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
+            field.set(null, enableFused);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     public static void setEnableNVQ(boolean enableNVQ)
     {
         try

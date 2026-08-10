@@ -191,7 +191,10 @@ public class VectorTester extends SAITester
         @Parameterized.Parameter(1)
         public boolean ENABLE_NVQ;
 
-        @Parameterized.Parameters(name = "{0} {1}")
+        @Parameterized.Parameter(2)
+        public boolean ENABLE_FUSED;
+
+        @Parameterized.Parameters(name = "version={0} enableNVQ={1} enableFused={2}")
         public static Collection<Object[]> data()
         {
             // See Version file for explanation of changes associated with each version
@@ -201,7 +204,17 @@ public class VectorTester extends SAITester
                                   var enableNVQ = JVectorVersionUtil.versionSupportsNVQ(v)
                                                   ? new Boolean[]{ true, false }
                                                   : new Boolean[]{ false };
-                                  return Arrays.stream(enableNVQ).map(nvq -> new Object[]{ v, nvq });
+                                  // FA always uses FusedPQ regardless of the flag, so only test enableFused=true there.
+                                  // FB+ allows toggling the flag, so test both values.
+                                  // Pre-FA versions don't support FusedPQ at all.
+                                  var enableFused = v.onOrAfter(Version.FB)
+                                                    ? new Boolean[]{ true, false }
+                                                    : JVectorVersionUtil.versionSupportsFused(v)
+                                                      ? new Boolean[]{ true }   // FA: always-on
+                                                      : new Boolean[]{ false };  // pre-FA: unsupported
+                                  return Arrays.stream(enableNVQ).flatMap(nvq ->
+                                      Arrays.stream(enableFused).map(fused -> new Object[]{ v, nvq, fused })
+                                  );
                               }).collect(Collectors.toList());
         }
 
@@ -215,6 +228,12 @@ public class VectorTester extends SAITester
         public void setEnableNVQ()
         {
             SAIUtil.setEnableNVQ(ENABLE_NVQ);
+        }
+
+        @Before
+        public void setEnableFused()
+        {
+            SAIUtil.setEnableFused(ENABLE_FUSED);
         }
     }
 

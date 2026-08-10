@@ -54,17 +54,18 @@ public class JVectorVersionUtilTest extends SAITester
     @Test
     public void testFusedPQSupport()
     {
-        // FusedPQ requires jvector format 6 or later (FA+)
+        // versionSupportsFused: true for FA and FB (jvector format 6+), false for pre-FA
         int jvectorFormat = version.onDiskFormat().jvectorFileFormatVersion();
         boolean expectedSupport = jvectorFormat >= JVECTOR_FORMAT_FUSED_PQ;
-        
+
         assertEquals(String.format("Version %s (jvector format %d) FusedPQ support mismatch", version, jvectorFormat),
                      expectedSupport,
                      JVectorVersionUtil.versionSupportsFused(version));
-        
-        // For FA+, FusedPQ is always enabled (tied to version)
-        assertEquals(String.format("Version %s (jvector format %d) shouldWriteFused mismatch", version, jvectorFormat),
-                     expectedSupport,
+
+        // shouldWriteFused: FA always on; FB+ requires ENABLE_FUSED flag (default false); pre-FA always false
+        boolean expectedWrite = version.equals(Version.FA);  // default flag is false, so only FA is unconditionally on
+        assertEquals(String.format("Version %s (jvector format %d) shouldWriteFused mismatch (ENABLE_FUSED=false)", version, jvectorFormat),
+                     expectedWrite,
                      JVectorVersionUtil.shouldWriteFused(version));
     }
 

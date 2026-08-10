@@ -407,11 +407,12 @@ abstract public class VectorCompactionTest extends VectorTester
                             }
                             else if (numRows >= MIN_PQ_ROWS)
                             {
-                                // With FA + fused PQ, PQ metadata is present and used by the graph, but there is no
-                                // standalone CompressedVectors instance to validate against.
-                                // TODO: further investigate what other checks are needed here
-                                assertEquals("Expected fused PQ path only for FA+", Version.FA, version);
-                                assertNotNull("Expected PQ metadata for FA fused PQ", searcher.getPQ());
+                                // With fused PQ (FA always; GA+ only when enabled), PQ metadata is stored inline
+                                // with the graph nodes — there is no standalone CompressedVectors to validate against.
+                                // Without fused PQ (GA+ default, pre-FA), we should never reach this branch.
+                                assertTrue("Found " + numRows + " rows without CompressedVectors; expected fused PQ for version " + version,
+                                           JVectorVersionUtil.shouldWriteFused(version));
+                                assertNotNull("Expected PQ metadata for fused PQ on version " + version, searcher.getPQ());
                             }
                         }
                     }

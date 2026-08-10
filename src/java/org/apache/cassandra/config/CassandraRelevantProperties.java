@@ -473,11 +473,14 @@ public enum CassandraRelevantProperties
     // Use non-positive value to disable it. Period in millis to trigger a flush for SAI vector memtable index.
     SAI_VECTOR_FLUSH_PERIOD_IN_MILLIS("cassandra.sai.vector_flush_period_in_millis", "-1"),
     /**
-     * @deprecated This property is deprecated and no longer has any effect. FusedPQ is now automatically enabled
-     * for all indexes using version FA or later (jvector file format version 6+). The property cannot be used to
-     * disable FusedPQ for FA+ versions.
+     * Whether compaction should build vector indexes using a fused graph, i.e. a graph where the quantized vectors
+     * are stored inline with the graph nodes (FusedPQ). This is an experimental feature that significantly increases
+     * disk usage and should only be enabled where it makes sense.
+     * See: <a href="https://github.com/riptano/cndb/issues/17471">CNDB-17471</a>
+     * <p>
+     * Note: for indexes using version FA (jvector file format version 6), FusedPQ is always enabled regardless
+     * of this property. For version FB and later, this property controls whether FusedPQ is used.
      */
-    @Deprecated
     SAI_VECTOR_ENABLE_FUSED("cassandra.sai.vector.enable_fused", "false"),
     // Use nvq when building graphs in compaction. Disabled by default for now. Enabling will reduce recall slightly
     // while also reducing the storage footprint.

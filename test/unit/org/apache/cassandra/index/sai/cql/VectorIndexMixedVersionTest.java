@@ -28,6 +28,8 @@ import org.apache.cassandra.index.sai.SAIUtil;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.vector.CassandraOnHeapGraph;
 
+import static org.junit.Assert.assertEquals;
+
 // We do not parameterize this test because it is not intended to run multiple versions at once.
 public class VectorIndexMixedVersionTest extends VectorTester
 {
@@ -45,7 +47,7 @@ public class VectorIndexMixedVersionTest extends VectorTester
     }
 
     @Test
-    public void testMultiVersionJVectorCompatibility() throws Throwable
+    public void testMultiVersionJVectorCompatibility()
     {
         createTable("CREATE TABLE %s (pk int, vec vector<float, 4>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(vec) USING 'StorageAttachedIndex'");
@@ -65,10 +67,10 @@ public class VectorIndexMixedVersionTest extends VectorTester
         }
 
         // Run basic query to confirm we can, no need to validate results
-        execute("SELECT pk FROM %s ORDER BY vec ANN OF [2.0, 2.0, 3.0, 4.0] LIMIT 2");
+        assertEquals(2, execute("SELECT pk FROM %s ORDER BY vec ANN OF [2.0, 2.0, 3.0, 4.0] LIMIT 2").size());
 
         // Confirm we can compact them all and run a query too
         compact();
-        execute("SELECT pk FROM %s ORDER BY vec ANN OF [2.0, 2.0, 3.0, 4.0] LIMIT 2");
+        assertEquals(2, execute("SELECT pk FROM %s ORDER BY vec ANN OF [2.0, 2.0, 3.0, 4.0] LIMIT 2").size());
     }
 }

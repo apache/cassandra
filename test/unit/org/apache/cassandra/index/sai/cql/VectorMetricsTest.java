@@ -100,8 +100,9 @@ public class VectorMetricsTest extends VectorTester
             execute("INSERT INTO %s (pk, val) VALUES (?, ?)", i, vector(1 + i, 2 + i, 3 + i));
         flush();
 
-        // FusedPQ is tied to version: enabled for FA+, disabled for pre-FA
-        boolean fusedPQ = JVectorVersionUtil.versionSupportsFused(version);
+        // FA always uses FusedPQ; FB+ uses it only when cassandra.sai.vector.enable_fused=true (default false).
+        // Pre-FA versions never use FusedPQ.
+        boolean fusedPQ = JVectorVersionUtil.shouldWriteFused(version);
         long pqMemoryAfterFlush = vectorMetrics.quantizationMemoryBytes.sum();
 
         if (fusedPQ)
@@ -116,7 +117,7 @@ public class VectorMetricsTest extends VectorTester
             assertTrue("Version " + version + " should have PQ memory without FusedPQ",
                       pqMemoryAfterFlush > 0);
         }
-        
+
         assertEquals(0, vectorMetrics.ordinalsMapMemoryBytes.sum()); // unique vectors means no cache required
         assertEquals(1, vectorMetrics.onDiskGraphsCount.sum());
         assertEquals(CassandraOnHeapGraph.MIN_PQ_ROWS, vectorMetrics.onDiskGraphVectorsCount.sum());
