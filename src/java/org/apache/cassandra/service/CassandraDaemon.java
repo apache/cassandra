@@ -82,6 +82,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
+import org.apache.cassandra.metrics.NettyMemoryMetrics;
 import org.apache.cassandra.net.StartupClusterConnectivityChecker;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -351,6 +352,10 @@ public class CassandraDaemon
                 logger.warn("Unable to start GCInspector (currently only supported on the Sun JVM)");
             }
         }
+
+        // Netty accounts for its direct memory separately from java.nio.Bits, with its own limit, so it needs its own
+        // metrics. See NettyMemoryMetrics for how this relates to gcstats and BufferPoolMetrics.
+        NettyMemoryMetrics.register();
 
         // Replay any CommitLogSegments found on disk
         PaxosState.initializeTrackers();
