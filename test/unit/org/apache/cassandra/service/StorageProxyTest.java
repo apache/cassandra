@@ -122,7 +122,6 @@ public class StorageProxyTest
         });
     }
 
-
     /**
      * Ensure that the timer backing the JMX endpoint to transiently enable blocking read repairs both enables
      * and disables the way we'd expect.
