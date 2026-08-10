@@ -32,6 +32,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 import org.apache.cassandra.utils.concurrent.Ref;
@@ -81,6 +82,7 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
                                      }
                                  }
                              })
+                             .executor(ImmediateExecutor.INSTANCE)
                              .build();
     }
 
