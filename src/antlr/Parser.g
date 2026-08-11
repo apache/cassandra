@@ -73,6 +73,9 @@ options {
         if (!isParsingTxn)
             throw new SyntaxException("Cannot create a row data reference unless parsing a transaction");
 
+        if (tuple == null)
+            throw new SyntaxException("Invalid syntax for row data reference");
+
         if (references == null)
             references = new ArrayList<>();
 

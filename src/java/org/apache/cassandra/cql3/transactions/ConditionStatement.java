@@ -108,9 +108,9 @@ public class ConditionStatement
                 RowDataReference.Raw rowDataReferenceRHS = ((RowDataReference.Raw) rhs);
 
                 if (rowDataReferenceLHS.column() == null)
-                    throw new IllegalStateException(String.format("Row reference (%s) can only be used with IS NULL/IS NOT NULL conditions", lhs.getText()));
+                    throw new InvalidRequestException(String.format("Row reference (%s) can only be used with IS NULL/IS NOT NULL conditions", lhs.getText()));
                 if (rowDataReferenceRHS.column() == null)
-                    throw new IllegalStateException(String.format("Row reference (%s) can only be used with IS NULL/IS NOT NULL conditions", rhs.getText()));
+                    throw new InvalidRequestException(String.format("Row reference (%s) can only be used with IS NULL/IS NOT NULL conditions", rhs.getText()));
                 reference = rowDataReferenceLHS.prepareAsReceiver();
                 value = rowDataReferenceRHS.prepareAsReceiver();
                 if (!reference.toResultMetadata().type.equals(((RowDataReference) value).toResultMetadata().type))

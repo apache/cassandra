@@ -634,7 +634,7 @@ public abstract class TxnCondition
         public Reference(TxnReference.ColumnReference referenceLHS, Kind kind, TxnReference.ColumnReference referenceRHS, ProtocolVersion version)
         {
             super(kind);
-            Invariants.requireArgument(KINDS.contains(kind), "Kind " + kind + " cannot be used with a value condition");
+            Invariants.requireArgument(KINDS.contains(kind), "Kind " + kind + " cannot be used with a reference condition");
             this.referenceLHS = referenceLHS;
             this.referenceRHS = referenceRHS;
             this.version = version;
@@ -822,7 +822,7 @@ public abstract class TxnCondition
 
     public static final ParameterisedUnversionedSerializer<TxnCondition, TableMetadatas> serializer = new ParameterisedUnversionedSerializer<>()
     {
-        // TOP_BIT is used to differentiate between Value.Serializer and Reference.Serialzer,
+        // TOP_BIT is used to differentiate between Value.Serializer and Reference.Serializer,
         // in order to implement comparison between LET variables.
         // The reason we use TOP_BIT is to support users who have been deploying off trunk
         // to upgrade nodes without breaking them. Upgrading is safe under the following assumptions:

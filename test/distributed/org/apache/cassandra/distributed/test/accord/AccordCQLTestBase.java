@@ -3765,7 +3765,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     @Test
     public void testLetComparisonWithFrozenCollections() throws Throwable
     {
-        test("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v list<int>) WITH " + transactionalMode.asCqlParam(), cluster -> {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v frozen<list<int>>) WITH " + transactionalMode.asCqlParam(), cluster -> {
 
             String insert = "BEGIN TRANSACTION\n" +
                             "  INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (0, [9, 5]);\n" +

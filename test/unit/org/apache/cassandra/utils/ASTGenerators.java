@@ -1376,7 +1376,7 @@ public class ASTGenerators
                 Txn.Builder builder = Txn.builder();
                 builder.addLet("r1", select1);
                 Reference ref1 = Reference.of(Symbol.unknownType("r1"));
-                builder.addLet("r2", select1);
+                builder.addLet("r2", select2);
                 Reference ref2 = Reference.of(Symbol.unknownType("r2"));
 
                 builder.addReturn(select(metadata, pk1));

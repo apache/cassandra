@@ -497,7 +497,7 @@ public class TxnConditionTest
             Clustering<?> clusteringRHS = BufferClustering.make(valueRHS);
             SimplePartition partitionRHS = new SimplePartition(metadata, metadata.partitioner.decorateKey(valueRHS));
 
-            for (TxnCondition.Kind kind : TxnCondition.Value.supported())
+            for (TxnCondition.Kind kind : TxnCondition.Reference.supported())
             {
                 for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
                 {
