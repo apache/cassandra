@@ -683,7 +683,7 @@ public final class TxnUpdate extends AccordUpdate
                 {
                     int[] fragmentIds = conditionsIndexToFragmentId.get(i).stream().mapToInt(x -> x).toArray();
                     SerializedTxnCondition serializedCondition = new SerializedTxnCondition(conditions[i], tables);
-                    conditionalBlocks[conditionalBlockIndex] = new ConditionalBlock(conditionalBlockIndex, serializedCondition, fragmentIds);
+                    conditionalBlocks[i] = new ConditionalBlock(conditionalBlockIndex, serializedCondition, fragmentIds);
                     conditionalBlockIndex++;
                 }
 
