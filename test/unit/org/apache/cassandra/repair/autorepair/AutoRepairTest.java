@@ -268,6 +268,9 @@ public class AutoRepairTest extends CQLTester
         UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
         long now = System.currentTimeMillis();
 
+        // Ensure repair tasks don't artificially sleep
+        DatabaseDescriptor.getAutoRepairConfig().setRepairTaskMinDuration("0s");
+
         // Truncate history table to start fresh
         QueryProcessor.executeInternal(String.format(
             "TRUNCATE %s.%s",
@@ -279,8 +282,16 @@ public class AutoRepairTest extends CQLTester
             SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY),
             repairType.toString(), myId, new java.util.Date(now - 1000), new java.util.Date(now));
 
-        // Invoke the full repair path end-to-end; with force repair set, the
-        // shouldSkipRepairDueToInterval check is bypassed and this should not throw.
+        // Record the finish time before repair runs
+        long finishTimeBefore = AutoRepairUtils.getLastRepairTimeForNode(repairType, myId);
+
+        // Invoke the full repair path; with force repair set, the interval check is bypassed
         AutoRepair.instance.repair(repairType);
+
+        // Verify that repair_finish_ts has advanced, proving repair actually ran
+        long finishTimeAfter = AutoRepairUtils.getLastRepairTimeForNode(repairType, myId);
+        assertTrue("repair_finish_ts should advance after force repair runs, but was "
+                   + finishTimeBefore + " -> " + finishTimeAfter,
+                   finishTimeAfter > finishTimeBefore);
     }
 }
