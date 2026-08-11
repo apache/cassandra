@@ -20,6 +20,7 @@ package org.apache.cassandra.auth;
 
 import java.util.Collections;
 
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -30,15 +31,17 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.CreateRoleStatement;
 import org.apache.cassandra.cql3.statements.ListPermissionsStatement;
+import org.apache.cassandra.cql3.statements.ListRolesStatement;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.auth.AuthenticatedUser.SYSTEM_USER;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class CassandraAuthorizerTest extends CQLTester
 {
+    private static final RoleResource ADMIN_ROLE = RoleResource.role("admin");
     private static final RoleResource PARENT_ROLE = RoleResource.role("parent");
     private static final RoleResource CHILD_ROLE = RoleResource.role("child");
     private static final RoleResource OTHER_ROLE = RoleResource.role("other");
@@ -51,6 +54,24 @@ public class CassandraAuthorizerTest extends CQLTester
                                new PasswordAuthenticator(),
                                new RoleTestUtils.LocalCassandraAuthorizer(),
                                new RoleTestUtils.LocalCassandraNetworkAuthorizer());
+    }
+
+    @Before
+    public void beforeEachTest()
+    {
+        // Reset the roles each test uses so tests are independent. Later branches do the same with
+        // "DROP ROLE IF EXISTS" via executeNet; here we use the role manager directly.
+        dropRoleIfExists(ADMIN_ROLE);
+        dropRoleIfExists(PARENT_ROLE);
+        dropRoleIfExists(CHILD_ROLE);
+        dropRoleIfExists(OTHER_ROLE);
+    }
+
+    private static void dropRoleIfExists(RoleResource role)
+    {
+        IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
+        if (roleManager.isExistingRole(role))
+            roleManager.dropRole(SYSTEM_USER, role);
     }
 
     @Test
@@ -83,7 +104,7 @@ public class CassandraAuthorizerTest extends CQLTester
 
         // list child permissions by other user that is not their parent
         DatabaseDescriptor.getRoleManager().createRole(SYSTEM_USER, OTHER_ROLE, RoleTestUtils.getLoginRoleOptions());
-        Assertions.assertThatThrownBy(() -> listPermissionsStatement.execute(getClientState(OTHER_ROLE.getRoleName())))
+        assertThatThrownBy(() -> listPermissionsStatement.execute(getClientState(OTHER_ROLE.getRoleName())))
                   .isInstanceOf(UnauthorizedException.class)
                   .hasMessage("You are not authorized to view child's permissions");
     }
@@ -93,5 +114,52 @@ public class CassandraAuthorizerTest extends CQLTester
         ClientState state = ClientState.forInternalCalls();
         state.login(new AuthenticatedUser(username));
         return state;
+    }
+
+    @Test
+    public void testListDoesNotLeakRoleExistenceToUnauthorizedUsers()
+    {
+        // A superuser (authorized to view anything), a low-privilege login role with no DESCRIBE on
+        // the root roles resource, and an unrelated role that the low-privilege role cannot view.
+        RoleOptions superuserOptions = new RoleOptions();
+        superuserOptions.setOption(IRoleManager.Option.LOGIN, true);
+        superuserOptions.setOption(IRoleManager.Option.SUPERUSER, true);
+        DatabaseDescriptor.getRoleManager().createRole(SYSTEM_USER, ADMIN_ROLE, superuserOptions);
+        DatabaseDescriptor.getRoleManager().createRole(SYSTEM_USER, CHILD_ROLE, RoleTestUtils.getLoginRoleOptions());
+        DatabaseDescriptor.getRoleManager().createRole(SYSTEM_USER, OTHER_ROLE, RoleTestUtils.getLoginRoleOptions());
+
+        // An authorized caller (superuser) still gets the friendly existence error for a missing role.
+        assertThatThrownBy(() -> listRoles("nonexistent_role").execute(getClientState(ADMIN_ROLE.getRoleName())))
+                  .hasMessageContaining("doesn't exist");
+        assertThatThrownBy(() -> listPermissions("nonexistent_role").execute(getClientState(ADMIN_ROLE.getRoleName())))
+                  .hasMessageContaining("doesn't exist");
+
+        // Unauthorized caller: a non-existent role and an existing-but-unviewable role must be
+        // indistinguishable - both "not authorized", never "doesn't exist".
+        assertThatThrownBy(() -> listRoles("nonexistent_role").execute(getClientState(CHILD_ROLE.getRoleName())))
+                  .isInstanceOf(UnauthorizedException.class)
+                  .hasMessageContaining("You are not authorized to view roles granted to nonexistent_role");
+        assertThatThrownBy(() -> listRoles(OTHER_ROLE.getRoleName()).execute(getClientState(CHILD_ROLE.getRoleName())))
+                  .isInstanceOf(UnauthorizedException.class)
+                  .hasMessageContaining("You are not authorized to view roles granted to " + OTHER_ROLE.getRoleName());
+
+        assertThatThrownBy(() -> listPermissions("nonexistent_role").execute(getClientState(CHILD_ROLE.getRoleName())))
+                  .isInstanceOf(UnauthorizedException.class)
+                  .hasMessageContaining("You are not authorized to view nonexistent_role's permissions");
+        assertThatThrownBy(() -> listPermissions(OTHER_ROLE.getRoleName()).execute(getClientState(CHILD_ROLE.getRoleName())))
+                  .isInstanceOf(UnauthorizedException.class)
+                  .hasMessageContaining("You are not authorized to view " + OTHER_ROLE.getRoleName() + "'s permissions");
+    }
+
+    private static ListRolesStatement listRoles(String grantee)
+    {
+        return (ListRolesStatement) QueryProcessor.parseStatement("LIST ROLES OF " + grantee)
+                                                  .prepare(ClientState.forInternalCalls());
+    }
+
+    private static ListPermissionsStatement listPermissions(String grantee)
+    {
+        return (ListPermissionsStatement) QueryProcessor.parseStatement("LIST ALL PERMISSIONS OF " + grantee)
+                                                        .prepare(ClientState.forInternalCalls());
     }
 }
