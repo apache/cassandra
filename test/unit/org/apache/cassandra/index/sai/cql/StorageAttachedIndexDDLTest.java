@@ -1039,6 +1039,37 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
+    public void rebuildRegeneratesCorruptSharedPerSSTableComponents() throws Throwable
+    {
+        Injections.Counter sharedContextBuilds = Injections.newCounter("SharedPerSSTableContextBuilds")
+                                                           .add(InvokePointBuilder.newInvokePoint().onClass(SSTableContext.class).onMethod("create"))
+                                                           .build();
+        Injections.inject(sharedContextBuilds);
+
+        createTable(CREATE_TABLE_TEMPLATE);
+        String v1Index = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        String v2Index = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2"));
+
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('0', 0, '100')");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('1', 1, '101')");
+        flush();
+
+        assertEquals(1, sharedContextBuilds.get());
+
+        corruptIndexComponent(IndexComponent.ROW_TO_PARTITION, CorruptionType.EMPTY_FILE);
+        sharedContextBuilds.reset();
+        assertEquals(0, sharedContextBuilds.get());
+
+        rebuildIndexes(v1Index, v2Index);
+
+        assertEquals("corrupt shared per-SSTable components must be regenerated on rebuild",
+                     1, sharedContextBuilds.get());
+
+        assertEquals(1, execute("SELECT id1 FROM %s WHERE v1 = 0").size());
+        assertEquals(1, execute("SELECT id1 FROM %s WHERE v2 = '101'").size());
+    }
+
+    @Test
     public void verifyCleanupFailedPerIndexFiles() throws Throwable
     {
         createTable(CREATE_TABLE_TEMPLATE);
