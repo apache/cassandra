@@ -345,6 +345,93 @@ public class MmappedRegionsTest
         }
     }
 
+    /**
+     * A compressed file whose first chunk does NOT start at physical 0, i.e. one carrying leading bytes that belong
+     * to no chunk. {@link org.apache.cassandra.io.sstable.ZeroCopySSTableSplitter} produces exactly this when it
+     * aligns a child's Data.db so its extents can be shared with the parent's.
+     * <p>
+     * Segments are placed at a cumulative sum of {@code chunk.length + 4}, so seeding that sum at 0 rather than at
+     * the first chunk's offset mapped every region {@code pad} bytes too early and left the last {@code pad} bytes
+     * unmapped. MAX_SEGMENT_SIZE is forced down to one chunk per region so the multi-region form of the bug shows
+     * up, which a split of a test-sized sstable (one 2 GiB region) cannot reach.
+     */
+    @Test
+    public void testMapForCompressionMetadataWithFrontPad() throws Exception
+    {
+        int OLD_MAX_SEGMENT_SIZE = MmappedRegions.MAX_SEGMENT_SIZE;
+        MmappedRegions.MAX_SEGMENT_SIZE = 1024;
+
+        int pad = 12345;
+        ByteBuffer buffer = allocateBuffer(128 * 1024);
+        File f = FileUtils.createTempFile("testMapForCompressionMetadataWithFrontPad", "1");
+        f.deleteOnExit();
+        File cf = FileUtils.createTempFile(f.name() + ".metadata", "1");
+        cf.deleteOnExit();
+
+        // Write an ordinary compressed file, then rebuild it with `pad` junk bytes in front and shift every chunk
+        // offset by the same amount -- byte for byte what the splitter's aligned copy produces.
+        MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
+        try (SequentialWriter writer = new CompressedSequentialWriter(f, cf.absolutePath(),
+                                                                     null, SequentialWriterOption.DEFAULT,
+                                                                     CompressionParams.snappy(), sstableMetadataCollector))
+        {
+            writer.write(buffer);
+            writer.finish();
+        }
+
+        byte[] unpadded = java.nio.file.Files.readAllBytes(f.toPath());
+        byte[] padded = new byte[pad + unpadded.length];
+        new Random(1).nextBytes(padded);                              // the pad is junk, and must never be read
+        System.arraycopy(unpadded, 0, padded, pad, unpadded.length);
+        java.nio.file.Files.write(f.toPath(), padded);
+
+        CompressionMetadata unshifted = new CompressionMetadata(cf.absolutePath(), unpadded.length, true);
+        int chunkCount = Ints.checkedCast((unshifted.dataLength + unshifted.chunkLength() - 1) / unshifted.chunkLength());
+        Memory offsets = Memory.allocate(chunkCount * 8L);
+        for (int k = 0; k < chunkCount; k++)
+            offsets.setLong(k * 8L, unshifted.chunkFor((long) k * unshifted.chunkLength()).offset + pad);
+        unshifted.close();
+
+        CompressionMetadata metadata = new CompressionMetadata(cf.absolutePath(), CompressionParams.snappy(),
+                                                              offsets, chunkCount * 8L,
+                                                              128 * 1024, padded.length);
+        try (ChannelProxy channel = new ChannelProxy(f);
+             MmappedRegions regions = MmappedRegions.map(channel, metadata))
+        {
+            assertFalse(regions.isEmpty());
+            int i = 0;
+            while (i < buffer.capacity())
+            {
+                CompressionMetadata.Chunk chunk = metadata.chunkFor(i);
+                assertTrue("every chunk must sit past the pad", chunk.offset >= pad);
+
+                MmappedRegions.Region region = regions.floor(chunk.offset);
+                assertNotNull(region);
+
+                // one chunk per region, so the region must BE the chunk: this is the assertion that fails when the
+                // segment placement ignores the pad, and it fails for every region but the first
+                assertEquals(chunk.offset, region.offset());
+                assertEquals(chunk.offset + chunk.length + 4, region.end());
+                assertEquals(chunk.length + 4, region.buffer.duplicate().capacity());
+
+                // and the mapped bytes must be the file's bytes at that offset, not shifted by the pad
+                ByteBuffer mapped = region.buffer();
+                assertEquals("mapped byte 0 of the chunk at " + chunk.offset,
+                             padded[Ints.checkedCast(chunk.offset)], mapped.get(0));
+                assertEquals("mapped last byte of the chunk at " + chunk.offset,
+                             padded[Ints.checkedCast(chunk.offset + chunk.length + 3)],
+                             mapped.get(chunk.length + 3));
+
+                i += metadata.chunkLength();
+            }
+        }
+        finally
+        {
+            MmappedRegions.MAX_SEGMENT_SIZE = OLD_MAX_SEGMENT_SIZE;
+            metadata.close();
+        }
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void testIllegalArgForMap1() throws Exception
     {

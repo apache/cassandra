@@ -1062,6 +1062,52 @@ sstable_preemptive_open_interval: 50MiB
 # and eventually get removed from the configuration.
 uuid_sstable_identifiers_enabled: false
 
+# Anticompact an sstable by splitting it - copying its compression chunks verbatim - instead of rewriting every
+# row, when its full/transient/unrepaired partitions form contiguous token runs. Anything else, notably the
+# interleaved ranges vnodes produce, falls back to the normal rewrite. The copy is bounded by
+# compaction_throughput, appears in nodetool compactionstats as an ANTICOMPACTION, and is stopped by nodetool
+# stop ANTICOMPACTION, TRUNCATE and DROP.
+#
+# NOTE: a verbatim copy cannot purge tombstones, so anticompaction stops dropping droppable tombstones and
+# shadowed data for the sstables it handles. That is retention only, never data loss, but disk usage after
+# anticompaction can be higher until the children are compacted normally.
+#
+# NOTE: the children's sstable statistics are inherited rather than recomputed, since recomputing them means
+# deserializing every row - the cost this path avoids. Each child inherits the parent's whole-sstable cell
+# count, row count and tombstone-drop histogram, while its partition count and partition size histogram are
+# exact. Expect per-table aggregates to over-report by roughly the number of children, and single-sstable
+# tombstone compaction to fire less readily than tombstone_threshold suggests. All conservative in direction.
+#
+# NOTE: children written from the middle or end of the parent carry a dead prefix at the head of their Data.db.
+# Every read path tolerates it, but a node running an older build will fail nodetool verify on such an sstable.
+#
+# Tables with a secondary index are refused and anticompact the old way, so no configuration is needed. Not
+# supported on JBOD: children are always written into the parent sstable's own directory with no free-space
+# check, so they cannot move to a disk that has room and splitting a parent larger than the free space on its
+# own disk will fill that disk.
+# zero_copy_anticompaction_enabled: false
+
+# Let the zero-copy splitter share each child's Data.db extents with the parent instead of copying them, using
+# the Linux FICLONERANGE ioctl ("reflink"). Where it works a split writes no data blocks and needs no additional
+# disk space, since the parent's extents become the children's when the parent is unlinked. Requires xfs
+# formatted with `-m reflink=1` or btrfs; elsewhere the first attempt per data directory fails, is logged once,
+# and every split from then on copies exactly as before. Both paths produce identical children.
+#
+# NOTE: sharing costs up to 64 KiB of alignment padding at the head of each child's Data.db, so children smaller
+# than 1 MiB are copied regardless. Shared extents are counted once per file by `du` but once in total by `df`,
+# so per-table disk usage over-reports until the parent is unlinked.
+# zero_copy_split_reflink_enabled: true
+
+# Write Digest.crc32 for the children of a zero-copy split. Producing it is one full sequential read of every
+# child, which once the extents above are shared is the entire remaining cost of a split. Nothing requires the
+# component, and a compressed sstable is self-checking without it because every chunk carries an inline CRC32
+# that this path preserves and every read verifies.
+#
+# NOTE: what it costs is verification speed, not strength. `nodetool verify` and `nodetool import
+# --verify-sstables` treat a missing digest as a reason to run a full extended verification instead of a
+# whole-file CRC. `nodetool verify -q` never looks at it.
+# zero_copy_split_digest_enabled: true
+
 # When enabled, permits Cassandra to zero-copy stream entire eligible
 # SSTables between nodes, including every component.
 # This speeds up the network transfer significantly subject to

@@ -155,7 +155,11 @@ public class MmappedRegions extends SharedCloseableImpl
     private void updateState(CompressionMetadata metadata)
     {
         long offset = 0;
-        long lastSegmentOffset = 0;
+        // Where the first chunk physically starts: 0 for every sstable a writer produces, but not for one whose
+        // Data.db carries leading bytes belonging to no chunk (a ZeroCopySSTableSplitter child aligned so its
+        // extents can be shared with its parent). Segments are placed at a cumulative sum of chunk lengths, so
+        // seeding that sum at 0 for such a file maps every segment too early and leaves the file's tail unmapped.
+        long lastSegmentOffset = metadata.dataLength > 0 ? metadata.chunkFor(0).offset : 0;
         long segmentSize = 0;
 
         while (offset < metadata.dataLength)

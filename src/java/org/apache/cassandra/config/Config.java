@@ -438,6 +438,34 @@ public class Config
     @Replaces(oldName = "sstable_preemptive_open_interval_in_mb", converter = Converters.NEGATIVE_MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public volatile DataStorageSpec.IntMebibytesBound sstable_preemptive_open_interval = new DataStorageSpec.IntMebibytesBound("50MiB");
 
+    /**
+     * Anticompact by splitting an sstable with {@code ZeroCopySSTableSplitter} -- copying compression chunks
+     * verbatim -- when its full / transient / unrepaired partitions form contiguous token runs. Interleaved
+     * ranges, which is what vnodes produce, fall back to the normal rewrite.
+     * <p>
+     * A verbatim copy cannot purge tombstones, so anticompaction stops doing so for the sstables it handles
+     * (retention only, never data loss), and the children's per-sstable statistics are inherited rather than
+     * recomputed. Refused outright for tables with a secondary index; unsupported but NOT refused on JBOD, since
+     * children are always written into the parent's directory with no free-space check.
+     */
+    public volatile boolean zero_copy_anticompaction_enabled = false;
+
+    /**
+     * Let the zero-copy splitter share a child's Data.db extents with its parent via {@code FICLONERANGE} rather
+     * than copying them, so a split writes no data blocks and uses no extra disk space. Needs xfs with
+     * {@code -m reflink=1} or btrfs, discovered by trying: elsewhere the first attempt per directory fails, is
+     * logged once, and every split from then on copies as before. Both paths produce identical children.
+     */
+    public volatile boolean zero_copy_split_reflink_enabled = true;
+
+    /**
+     * Write Digest.crc32 for the children of a zero-copy split. Producing it is one full read of every child,
+     * which with the extents shared is the whole remaining cost of a split. Nothing requires the component and a
+     * compressed sstable is self-checking without it, but {@code Verifier} answers its absence with a full
+     * extended verification, so {@code nodetool verify} gets slower for those children.
+     */
+    public volatile boolean zero_copy_split_digest_enabled = true;
+
     public volatile boolean key_cache_migrate_during_compaction = true;
     public volatile int key_cache_keys_to_save = Integer.MAX_VALUE;
     @Replaces(oldName = "key_cache_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_LONG, deprecated = true)

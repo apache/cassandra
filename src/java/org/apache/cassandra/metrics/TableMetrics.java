@@ -204,6 +204,12 @@ public class TableMetrics
     public final Counter bytesAnticompacted;
     /** number of bytes where the whole sstable was contained in a repairing range so that we only mutated the repair status */
     public final Counter bytesMutatedAnticompaction;
+    /**
+     * number of Data.db bytes copied verbatim by the zero-copy anticompaction split. A subset of
+     * {@link #bytesAnticompacted}, which is charged before the split path can claim any sstable, so
+     * {@link #mutatedAnticompactionGauge} keeps its existing meaning.
+     */
+    public final Counter bytesZeroCopyAnticompaction;
     /** ratio of how much we anticompact vs how much we could mutate the repair status*/
     public final Gauge<Double> mutatedAnticompactionGauge;
 
@@ -900,6 +906,7 @@ public class TableMetrics
         partitionsValidated = createTableHistogram("PartitionsValidated", cfs.keyspace.metric.partitionsValidated, false);
         bytesAnticompacted = createTableCounter("BytesAnticompacted");
         bytesMutatedAnticompaction = createTableCounter("BytesMutatedAnticompaction");
+        bytesZeroCopyAnticompaction = createTableCounter("BytesZeroCopyAnticompaction");
         mutatedAnticompactionGauge = createTableGauge("MutatedAnticompactionGauge", () ->
         {
             double bytesMutated = bytesMutatedAnticompaction.getCount();

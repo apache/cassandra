@@ -258,6 +258,11 @@ read during validation.
 anticompacting because the sstable was fully contained in the repaired
 range.
 
+|BytesZeroCopyAnticompaction |Counter |How many Data.db bytes we copied
+verbatim during anticompaction instead of rewriting them, because the
+sstable's full/transient/unrepaired partitions formed contiguous token
+runs. A subset of BytesAnticompacted.
+
 |MutatedAnticompactionGauge |Gauge<Double> |Ratio of bytes mutated vs
 total bytes repaired.
 |===

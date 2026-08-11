@@ -245,8 +245,15 @@ public class Verifier implements Closeable
             ByteBuffer nextIndexKey = ByteBufferUtil.readWithShortLength(indexFile);
             {
                 long firstRowPositionFromIndex = rowIndexEntrySerializer.deserializePositionAndSkip(indexFile);
-                if (firstRowPositionFromIndex != 0)
-                    markAndThrow(new RuntimeException("firstRowPositionFromIndex != 0: "+firstRowPositionFromIndex));
+                // Usually 0, making the seek a no-op. A ZeroCopySSTableSplitter child instead begins with a dead
+                // prefix: chunk boundaries are pinned to multiples of chunkLength, so a child not starting on one
+                // carries leading bytes belonging to no partition. A position OUTSIDE the file is still a corrupt
+                // index, and goes through markAndThrow so it resets the sstable to UNREPAIRED and honours the disk
+                // failure policy, rather than escaping as the bare IllegalArgumentException seek() would raise.
+                if (firstRowPositionFromIndex < 0 || firstRowPositionFromIndex >= dataFile.length())
+                    markAndThrow(new RuntimeException("firstRowPositionFromIndex is outside the data file: "
+                                                      + firstRowPositionFromIndex + " not in [0, " + dataFile.length() + ')'));
+                dataFile.seek(firstRowPositionFromIndex);
             }
 
             List<Range<Token>> ownedRanges = isOffline ? Collections.emptyList() : Range.normalize(tokenLookup.apply(cfs.metadata().keyspace));

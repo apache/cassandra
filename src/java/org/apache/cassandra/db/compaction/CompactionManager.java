@@ -88,6 +88,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.IndexSummaryRedistribution;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
+import org.apache.cassandra.io.sstable.ZeroCopySSTableSplitter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -1667,12 +1668,253 @@ public class CompactionManager implements CompactionManagerMBean
         {
             try (LifecycleTransaction groupTxn = txn.split(sstableGroup))
             {
-                int antiCompacted = antiCompactGroup(cfs, ranges, groupTxn, pendingRepair, isCancelled);
-                antiCompactedSSTableCount += antiCompacted;
+                Set<SSTableReader> groupOriginals = new HashSet<>(groupTxn.originals());
+                Set<SSTableReader> handledByZeroCopy = new HashSet<>();
+
+                if (DatabaseDescriptor.getZeroCopyAnticompactionEnabled())
+                    antiCompactedSSTableCount += zeroCopyAntiCompact(cfs, ranges, groupTxn, pendingRepair,
+                                                                     isCancelled, handledByZeroCopy);
+
+                // Every sstable must be handled by exactly one path. One that fell through both would silently stay
+                // unrepaired while the repair session believes its data is pending, so fail rather than lie.
+                Set<SSTableReader> remaining = new HashSet<>(groupTxn.originals());
+                if (!Sets.intersection(handledByZeroCopy, remaining).isEmpty()
+                    || handledByZeroCopy.size() + remaining.size() != groupOriginals.size()
+                    || !groupOriginals.containsAll(remaining)
+                    || !groupOriginals.containsAll(handledByZeroCopy))
+                {
+                    throw new IllegalStateException(String.format("Anticompaction accounting is inconsistent for " +
+                                                                  "%s.%s: group was %s, zero-copy handled %s, " +
+                                                                  "left for rewrite %s",
+                                                                  cfs.keyspace.getName(), cfs.getTableName(),
+                                                                  groupOriginals, handledByZeroCopy, remaining));
+                }
+
+                if (!remaining.isEmpty())
+                    antiCompactedSSTableCount += antiCompactGroup(cfs, ranges, groupTxn, pendingRepair, isCancelled);
             }
         }
         String format = "Anticompaction completed successfully, anticompacted from {} to {} sstable(s) for {}.";
         logger.info(format, originalCount, antiCompactedSSTableCount, pendingRepair);
+    }
+
+    /**
+     * Anticompact every sstable of {@code groupTxn} that {@link AntiCompactionRunPlanner} finds eligible by splitting
+     * it with {@link ZeroCopySSTableSplitter} rather than rewriting it, carving those out of {@code groupTxn} so the
+     * caller's rewrite does not see them again. Ineligible sstables are left untouched.
+     * <p>
+     * Unlike the rewrite this does not purge tombstones -- a verbatim chunk copy retains everything the parent held.
+     * Retention, never loss; see {@link Config#zero_copy_anticompaction_enabled}.
+     * <p>
+     * Planning happens before anything is carved out, so an ineligible or unreadable sstable simply stays in
+     * {@code groupTxn}. Once carved into its own transaction a failed split falls back to {@link #antiCompactGroup}
+     * on that same unused transaction, which is the race-free way to keep the sstable anticompacted -- aborting
+     * would unmark it as compacting and let a normal compaction take it.
+     *
+     * @param handledByZeroCopy out-param: every parent this removed from {@code groupTxn}, all fully anticompacted
+     * @return the number of output sstables produced
+     */
+    @VisibleForTesting
+    int zeroCopyAntiCompact(ColumnFamilyStore cfs,
+                            RangesAtEndpoint ranges,
+                            LifecycleTransaction groupTxn,
+                            TimeUUID pendingRepair,
+                            BooleanSupplier isCancelled,
+                            Set<SSTableReader> handledByZeroCopy)
+    {
+        int produced = 0;
+        // groupTxn.originals() is a live view that split() mutates, so iterate over a copy
+        for (SSTableReader parent : new ArrayList<>(groupTxn.originals()))
+        {
+            // The repair session's own cancellation, checked between sstables: whatever is left stays in groupTxn and
+            // antiCompactGroup raises the interruption. The other channel is the CompactionInfo.Holder registered in
+            // zeroCopySplitOne, used by nodetool stop / truncate / drop, which aborts mid-copy.
+            if (isCancelled.getAsBoolean())
+            {
+                logger.info("Zero-copy anticompaction cancelled for {}, leaving the rest to the rewrite path",
+                            pendingRepair);
+                break;
+            }
+
+            AntiCompactionRunPlanner.Plan plan;
+            try
+            {
+                plan = AntiCompactionRunPlanner.plan(parent, ranges, pendingRepair);
+            }
+            catch (Throwable t)
+            {
+                JVMStabilityInspector.inspectThrowable(t);
+                logger.warn("Could not plan a zero-copy anticompaction of {}, falling back to the rewrite path",
+                            parent.descriptor, t);
+                continue;   // untouched, still in groupTxn
+            }
+
+            if (!plan.eligible)
+            {
+                logger.debug("Not zero-copy anticompacting {}: {}", parent.descriptor, plan.ineligibleReason);
+                continue;   // untouched, still in groupTxn
+            }
+
+            produced += zeroCopySplitOne(cfs, ranges, parent, plan, groupTxn, pendingRepair, isCancelled);
+            handledByZeroCopy.add(parent);
+        }
+        return produced;
+    }
+
+    /**
+     * Carve one eligible sstable out of {@code groupTxn} and replace it with its zero-copy split children.
+     * <p>
+     * The transaction sequence is {@code SSTableRewriter.doPrepare}'s for a 1-to-N replacement, so the parent leaves
+     * the live set and the children enter it in one {@code tracker.apply} -- no window where the key range is served
+     * by neither. The parent is obsoleted rather than cancelled: a plain {@code finish()} would remove it from its
+     * compaction strategy while leaving it in the live view.
+     * <p>
+     * The parent's reference in {@code validatedForRepair} is deliberately not released here; commit only drops the
+     * Tracker's, and the repair session's is what defers the unlink to the end of {@code performAnticompaction}.
+     */
+    private int zeroCopySplitOne(ColumnFamilyStore cfs,
+                                 RangesAtEndpoint ranges,
+                                 SSTableReader parent,
+                                 AntiCompactionRunPlanner.Plan plan,
+                                 LifecycleTransaction groupTxn,
+                                 TimeUUID pendingRepair,
+                                 BooleanSupplier isCancelled)
+    {
+        // split() asserts the transaction has never been used, so this must happen before groupTxn is updated or
+        // obsoleted. The new transaction owns its own txn log file, which is what makes the children crash-safe: the
+        // splitter trackNew's them on it, so an abort or a crash deletes them.
+        LifecycleTransaction zcTxn = groupTxn.split(singleton(parent));
+        List<ZeroCopySSTableSplitter.Child> children = Collections.emptyList();
+        int published = 0;
+        boolean settled = false;
+        try
+        {
+            ZeroCopySSTableSplitter.Result result;
+            try
+            {
+                // Registering with `active` is what makes the copy an ordinary compaction-family operation: visible in
+                // nodetool compactionstats, bounded by getRateLimiter(), and stoppable by nodetool stop / truncate /
+                // drop / runWithCompactionsDisabled, all of which walk active.getCompactions() and call Holder.stop().
+                ZeroCopySSTableSplitter.Progress progress =
+                    ZeroCopySSTableSplitter.progressFor(parent, getRateLimiter());
+                active.beginCompaction(progress);
+                try
+                {
+                    result = ZeroCopySSTableSplitter.split(parent, plan.boundaries, plan.perChild, zcTxn, progress);
+                }
+                finally
+                {
+                    active.finishCompaction(progress);
+                }
+                children = result.children;
+                // Every planned run holds at least one partition, so no child can have been dropped. If one somehow
+                // were, the per-child repair state would be mis-paired and children stamped with the wrong session.
+                if (children.size() != plan.perChild.size())
+                    throw new IllegalStateException("zero-copy split of " + parent.descriptor + " produced " +
+                                                    children.size() + " children for " + plan.perChild.size() +
+                                                    " planned runs; repair state would be mis-paired");
+            }
+            catch (CompactionInterruptedException e)
+            {
+                // Somebody asked for this to stop. Falling back to the rewrite would answer that with strictly more
+                // work than the copy just cancelled, so propagate and let the finally below delete the children.
+                logger.info("Zero-copy anticompaction of {} was stopped", parent.descriptor);
+                throw e;
+            }
+            catch (Throwable t)
+            {
+                // Nothing has been update()d yet, so zcTxn is unused and the ordinary rewrite can run on it verbatim.
+                // Skipping the sstable would leave data unrepaired that the repair session believes is pending.
+                JVMStabilityInspector.inspectThrowable(t);
+                logger.warn("Zero-copy anticompaction of {} failed, falling back to the rewrite path",
+                            parent.descriptor, t);
+                discardUnpublishedChildren(zcTxn, children, 0);
+                children = Collections.emptyList();
+                int rewritten = antiCompactGroup(cfs, ranges, zcTxn, pendingRepair, isCancelled);
+                settled = true;   // antiCompactGroup committed zcTxn
+                return rewritten;
+            }
+
+            for (ZeroCopySSTableSplitter.Child child : children)
+            {
+                zcTxn.update(child.reader, false);   // ownership of the child's selfRef transfers here
+                published++;
+            }
+            zcTxn.obsoleteOriginals();
+            zcTxn.prepareToCommit();
+            zcTxn.commit();
+            settled = true;
+
+            // The metric is the data volume that went through this path, not the I/O it cost: it is a subset of
+            // bytesAnticompacted, and sharing extents does not make less data get anticompacted.
+            cfs.metric.bytesZeroCopyAnticompaction.inc(result.totalPhysicalBytesCopied);
+            logger.info("Zero-copy anticompacted {} in {}.{} into {} children for {}: {} bytes handled, {} shared " +
+                        "with the parent as copy-on-write extents and {} actually written, {} bytes dead prefix, " +
+                        "{} bytes head pad, {} bytes duplicated, {} ms. NOTE: this path copies compression chunks " +
+                        "verbatim and therefore RETAINS droppable tombstones and shadowed data that a rewriting " +
+                        "anticompaction would have purged (retention only, never data loss).",
+                        parent.descriptor, cfs.keyspace.getName(), cfs.getTableName(), children.size(),
+                        pendingRepair, result.totalPhysicalBytesCopied, result.totalBytesCloned,
+                        result.totalBytesWritten(), result.totalDeadPrefixBytes, result.totalHeadPadBytes,
+                        result.duplicatedChunkBytes, TimeUnit.NANOSECONDS.toMillis(result.nanos));
+            return children.size();
+        }
+        finally
+        {
+            if (!settled)
+            {
+                // Children that never reached update() are still ours; those that did belong to the transaction and
+                // are released by abort(). Releasing one twice throws "BAD RELEASE".
+                discardUnpublishedChildren(zcTxn, children, published);
+                try
+                {
+                    zcTxn.abort();
+                }
+                catch (Throwable t)
+                {
+                    logger.error("Failed aborting the zero-copy anticompaction of {}", parent.descriptor, t);
+                }
+            }
+            try
+            {
+                zcTxn.close();   // no-op once committed or aborted
+            }
+            catch (Throwable t)
+            {
+                logger.error("Failed closing the zero-copy anticompaction transaction of {}", parent.descriptor, t);
+            }
+        }
+    }
+
+    /**
+     * Release and delete the children from {@code from} onwards: those written and trackNew'd but never handed to
+     * {@code update()}. Never call this for a child that reached {@code update()} -- the transaction owns that
+     * reference and releases it itself.
+     */
+    private static void discardUnpublishedChildren(LifecycleTransaction zcTxn,
+                                                   List<ZeroCopySSTableSplitter.Child> children,
+                                                   int from)
+    {
+        for (int i = from; i < children.size(); i++)
+        {
+            ZeroCopySSTableSplitter.Child child = children.get(i);
+            try
+            {
+                child.reader.selfRef().release();
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Failed releasing unpublished zero-copy child {}", child.descriptor, t);
+            }
+            try
+            {
+                zcTxn.untrackNew(child.reader);   // drops the ADD record and deletes any surviving files
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Failed untracking unpublished zero-copy child {}", child.descriptor, t);
+            }
+        }
     }
 
     @VisibleForTesting
