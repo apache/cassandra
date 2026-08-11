@@ -138,7 +138,7 @@ public class TxnUpdateTest
                     fragmentConditionIndexPair.add(Pair.create(fragments.get(i), rs.nextInt(0, conditions.length)));
             }
 
-            preTransformedBlocks.add(new TxnUpdate.PreTransformedBlock(conditions, fragmentConditionIndexPair, null));
+            preTransformedBlocks.add(TxnUpdate.PreTransformedBlock.createConditionPreTransformedBlock(conditions, fragmentConditionIndexPair));
 
             TxnCondition[] trailingCondition = new TxnCondition[] { TxnCondition.none() };
             List<Fragment> noneCondition = new ArrayList<>();
@@ -146,7 +146,7 @@ public class TxnUpdateTest
             if (shouldHaveTrailingUpdate)
             {
                 noneCondition = Gens.lists(fragment(tables)).ofSizeBetween(conditions.length, conditions.length + 15).next(rs);
-                preTransformedBlocks.add(new TxnUpdate.PreTransformedBlock(trailingCondition, null, noneCondition));
+                preTransformedBlocks.add(TxnUpdate.PreTransformedBlock.createNoneConditionPreTransformedBlock(trailingCondition, noneCondition));
             }
 
             int blockSize = 0;

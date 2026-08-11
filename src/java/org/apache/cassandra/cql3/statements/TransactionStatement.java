@@ -574,18 +574,18 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                     idx++;
                 }
 
-                preTransformedBlocks.add(new TxnUpdate.PreTransformedBlock(conditions, fragmentConditionIndexPair, null));
+                preTransformedBlocks.add(TxnUpdate.PreTransformedBlock.createConditionPreTransformedBlock(conditions, fragmentConditionIndexPair));
             }
 
-            List<TxnWrite.Fragment> noneConditions = new ArrayList<>();
+            List<TxnWrite.Fragment> noneConditionFragments = new ArrayList<>();
             if (idx < groupedFragments.size())
             {
-                noneConditions.addAll(groupedFragments.get(idx));
-                preTransformedBlocks.add(new TxnUpdate.PreTransformedBlock(new TxnCondition[]{ TxnCondition.none() }, null, noneConditions));
+                noneConditionFragments.addAll(groupedFragments.get(idx));
+                preTransformedBlocks.add(TxnUpdate.PreTransformedBlock.createNoneConditionPreTransformedBlock(new TxnCondition[]{ TxnCondition.none() }, noneConditionFragments));
             }
 
             List<TxnNamedRead> reads = createNamedReads(options, autoReads, keyCollector);
-            if (fragmentConditionIndexPair.isEmpty() && noneConditions.isEmpty()) // ModificationStatement yield no Mutation (DELETE WHERE pk=0 AND c < 0 AND c > 0 -- matches no keys; so has no mutation)
+            if (fragmentConditionIndexPair.isEmpty() && noneConditionFragments.isEmpty()) // ModificationStatement yield no Mutation (DELETE WHERE pk=0 AND c < 0 AND c > 0 -- matches no keys; so has no mutation)
             {
                 // cleanup memory
                 keyCollector.clear();

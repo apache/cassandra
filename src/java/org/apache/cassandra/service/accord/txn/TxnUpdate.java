@@ -609,30 +609,40 @@ public final class TxnUpdate extends AccordUpdate
         @Nullable
         private final List<Pair<TxnWrite.Fragment, Integer>> fragmentConditionIndexPair;
         @Nullable
-        private final List<TxnWrite.Fragment> noneConditions;
+        private final List<TxnWrite.Fragment> noneConditionFragments;
 
-        public PreTransformedBlock(TxnCondition[] conditions, List<Pair<TxnWrite.Fragment, Integer>> fragmentConditionIndexPair, List<TxnWrite.Fragment> noneConditions)
+        private PreTransformedBlock(TxnCondition[] conditions, List<Pair<TxnWrite.Fragment, Integer>> fragmentConditionIndexPair, List<TxnWrite.Fragment> noneConditionFragments)
         {
-            Invariants.require((fragmentConditionIndexPair == null && noneConditions != null) || (fragmentConditionIndexPair != null && noneConditions == null));
+            Invariants.require((fragmentConditionIndexPair == null && noneConditionFragments != null) || (fragmentConditionIndexPair != null && noneConditionFragments == null));
             this.conditions = conditions;
             if (fragmentConditionIndexPair != null)
                 fragmentConditionIndexPair.sort((l, r) -> TxnWrite.Fragment.compareKeys(l.left(), r.left()));
             this.fragmentConditionIndexPair = fragmentConditionIndexPair;
-            if (noneConditions != null)
-                noneConditions.sort(Fragment::compareKeys);
-            this.noneConditions = noneConditions;
+            if (noneConditionFragments != null)
+                noneConditionFragments.sort(Fragment::compareKeys);
+            this.noneConditionFragments = noneConditionFragments;
+        }
+
+        public static PreTransformedBlock createConditionPreTransformedBlock(TxnCondition[] conditions, List<Pair<Fragment,Integer>> fragmentConditionIndexPair)
+        {
+            return new PreTransformedBlock(conditions, fragmentConditionIndexPair, null);
+        }
+
+        public static PreTransformedBlock createNoneConditionPreTransformedBlock(TxnCondition[] conditions, List<TxnWrite.Fragment> noneConditionFragments)
+        {
+            return new PreTransformedBlock(conditions, null, noneConditionFragments);
         }
 
         private boolean isTrailingUpdate()
         {
-            return noneConditions != null;
+            return noneConditionFragments != null;
         }
 
         public void accumulateKeys(List<Key> keys)
         {
             if (isTrailingUpdate())
-                for (int i = 0; i < noneConditions.size(); i++)
-                    keys.add(noneConditions.get(i).key);
+                for (int i = 0; i < noneConditionFragments.size(); i++)
+                    keys.add(noneConditionFragments.get(i).key);
             else
                 for (int i = 0; i < fragmentConditionIndexPair.size(); i++)
                     keys.add(fragmentConditionIndexPair.get(i).left().key);
@@ -642,11 +652,11 @@ public final class TxnUpdate extends AccordUpdate
         {
             if (isTrailingUpdate())
             {
-                BlockFragment[] blockFragments = new BlockFragment[noneConditions.size()];
-                int[] fragmentIds = new int[noneConditions.size()];
-                for (int i = 0 ; i < noneConditions.size() ; ++i)
+                BlockFragment[] blockFragments = new BlockFragment[noneConditionFragments.size()];
+                int[] fragmentIds = new int[noneConditionFragments.size()];
+                for (int i = 0 ; i < noneConditionFragments.size() ; ++i)
                 {
-                    Fragment fragment = noneConditions.get(i);
+                    Fragment fragment = noneConditionFragments.get(i);
                     blockFragments[i] = new BlockFragment(i, fragment.key, Fragment.FragmentSerializer.serialize(fragment, tables, Version.LATEST));
                     fragmentIds[i] = i;
                 }
