@@ -224,23 +224,9 @@ public class ForwardedWrite
              * the coordinator, we need to abort here and now.
              */
             MutationId id = MutationTrackingService.instance().nextMutationId(keyspaceName, token);
-            Participants shardParticipants = MutationTrackingService.instance().getLogParticipants(id.asLogId());
-            Participants liveAndDownParticipants = Participants.merge(liveReplicas, downReplicas);
-            if (!shardParticipants.equals(liveAndDownParticipants))
-            {
-                MutationTrackingService.instance().completeLocalWrite(id);
-                TCMMetrics.instance.coordinatorBehindPlacements.mark();
-                String msg =
-                    format("Mutation id %s: shard participants %s disagree with plan replicas %s; coordinator must refresh and retry",
-                           id, shardParticipants, liveAndDownParticipants);
-                throw new CoordinatorBehindException(msg);
-            }
-            Mutation mutation = this.mutation.withMutationId(id);
 
-            // Do not wait for handler completion, since the coordinator is already waiting and we don't want to block the stage
-            LeaderCallback handler = new LeaderCallback(id, ackTo);
-
-            boolean applyLocally = false;
+            Mutation mutation;
+            LeaderCallback handler;
 
             // this DC replicas
             List<Replica> localDCReplicas = null;
@@ -251,14 +237,32 @@ public class ForwardedWrite
             // only need to create a Message for non-local writes
             Message<Mutation> message = null;
 
-            // Expensive, but easier to work with Replica than InetAddressAndPort for now
-            Int2ObjectHashMap<Replica> replicas = new Int2ObjectHashMap<>(liveReplicas.size(), 0.65f);
-            EndpointsForToken endpoints = writePlacements.get();
-            for (Replica replica : endpoints)
-                replicas.put(cm.directory.peerId(replica.endpoint()).id(), replica);
-
             try
             {
+                Participants shardParticipants = MutationTrackingService.instance().getLogParticipants(id.asLogId());
+                Participants liveAndDownParticipants = Participants.merge(liveReplicas, downReplicas);
+                if (!shardParticipants.equals(liveAndDownParticipants))
+                {
+                    TCMMetrics.instance.coordinatorBehindPlacements.mark();
+                    String msg =
+                        format("Mutation id %s: shard participants %s disagree with plan replicas %s; coordinator must refresh and retry",
+                               id, shardParticipants, liveAndDownParticipants);
+                    throw new CoordinatorBehindException(msg);
+                }
+
+                mutation = this.mutation.withMutationId(id);
+
+                // Do not wait for handler completion, since the coordinator is already waiting and we don't want to block the stage
+                handler = new LeaderCallback(id, ackTo);
+
+                boolean applyLocally = false;
+
+                // Expensive, but easier to work with Replica than InetAddressAndPort for now
+                Int2ObjectHashMap<Replica> replicas = new Int2ObjectHashMap<>(liveReplicas.size(), 0.65f);
+                EndpointsForToken endpoints = writePlacements.get();
+                for (Replica replica : endpoints)
+                    replicas.put(cm.directory.peerId(replica.endpoint()).id(), replica);
+
                 // For performance, Mutation caches serialized buffers that are computed lazily in serializedBuffer(). That
                 // computation is not synchronized however, and we will potentially call that method concurrently for each
                 // dispatched message (not that concurrent calls to serializedBuffer() are "unsafe" per se, just that they
@@ -307,7 +311,7 @@ public class ForwardedWrite
             }
             catch (Throwable t)
             {
-                MutationTrackingService.instance().completeLocalWrite(mutation.id());
+                MutationTrackingService.instance().completeLocalWrite(id);
                 throw t;
             }
 
