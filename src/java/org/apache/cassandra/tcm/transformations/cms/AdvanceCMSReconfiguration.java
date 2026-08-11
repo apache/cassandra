@@ -20,7 +20,6 @@ package org.apache.cassandra.tcm.transformations.cms;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -160,8 +159,9 @@ public class AdvanceCMSReconfiguration implements Transformation
         ClusterMetadata.Transformer transformer = prev.transformer().startJoiningCMS(addition);
 
         // Construct a set of sources for the new member to stream log tables from (essentially this is the existing members)
-        // TODO: this needs to be Set<NodeId>!
-        Set<InetAddressAndPort> streamCandidates = prev.fullCMSMembers();
+        ReconfigureCMS.ActiveTransition activeTransition = prev.directory.commonSerializationVersion.isBefore(Version.V9) ?
+                                                           ReconfigureCMS.ActiveTransition.withEndpoints(addition, prev.fullCMSMembers()) :
+                                                           ReconfigureCMS.ActiveTransition.withNodeIds(addition, prev.fullCMSMemberIds());
 
         // Set up the next step in the sequence. This encapsulates the entire state of the reconfiguration sequence,
         // including the remaining add/remove operations and the streaming that needs to be done by the joining node
@@ -169,7 +169,7 @@ public class AdvanceCMSReconfiguration implements Transformation
         AdvanceCMSReconfiguration next = next(prev.nextEpoch(),
                                               newAdditions,
                                               diff.removals,
-                                              new ReconfigureCMS.ActiveTransition(addition, streamCandidates));
+                                              activeTransition);
 
         // Create a new sequence instance with the next step to reflect that the state has progressed.
         ReconfigureCMS advanced = sequence.advance(next);
@@ -316,13 +316,7 @@ public class AdvanceCMSReconfiguration implements Transformation
 
             out.writeBoolean(transformation.activeTransition != null);
             if (transformation.activeTransition != null)
-            {
-                ReconfigureCMS.ActiveTransition activeTransition = transformation.activeTransition;
-                NodeId.serializer.serialize(activeTransition.nodeId, out, version);
-                out.writeInt(activeTransition.streamCandidates.size());
-                for (InetAddressAndPort e : activeTransition.streamCandidates)
-                    InetAddressAndPort.MetadataSerializer.serializer.serialize(e, out, version);
-            }
+                ReconfigureCMS.ActiveTransition.serializer.serialize(transformation.activeTransition, out, version);
         }
 
         public AdvanceCMSReconfiguration deserialize(DataInputPlus in, Version version) throws IOException
@@ -336,14 +330,7 @@ public class AdvanceCMSReconfiguration implements Transformation
             boolean hasActiveTransition = in.readBoolean();
             ReconfigureCMS.ActiveTransition activeTransition = null;
             if (hasActiveTransition)
-            {
-                NodeId nodeId = NodeId.serializer.deserialize(in, version);
-                int streamCandidatesCount = in.readInt();
-                Set<InetAddressAndPort> streamCandidates = new HashSet<>();
-                for (int i = 0; i < streamCandidatesCount; i++)
-                    streamCandidates.add(InetAddressAndPort.MetadataSerializer.serializer.deserialize(in, version));
-                activeTransition = new ReconfigureCMS.ActiveTransition(nodeId, streamCandidates);
-            }
+                activeTransition = ReconfigureCMS.ActiveTransition.serializer.deserialize(in, version);
 
             return new AdvanceCMSReconfiguration(idx, lastModified, lockKey, diff, activeTransition);
         }
@@ -360,11 +347,7 @@ public class AdvanceCMSReconfiguration implements Transformation
             size += TypeSizes.BOOL_SIZE;
             if (transformation.activeTransition != null)
             {
-                ReconfigureCMS.ActiveTransition activeTransition = transformation.activeTransition;
-                size += NodeId.serializer.serializedSize(activeTransition.nodeId, version);
-                size += TypeSizes.INT_SIZE;
-                for (InetAddressAndPort e : activeTransition.streamCandidates)
-                    size += InetAddressAndPort.MetadataSerializer.serializer.serializedSize(e, version);
+                size += ReconfigureCMS.ActiveTransition.serializer.serializedSize(transformation.activeTransition, version);
             }
 
             return size;

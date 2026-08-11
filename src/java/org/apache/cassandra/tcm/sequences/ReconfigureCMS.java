@@ -24,10 +24,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -35,6 +37,7 @@ import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -64,6 +67,7 @@ import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Retry;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
@@ -188,9 +192,9 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
                 // stream up to date distributed log tables before being able to serve reads & participate in quorums.
                 // If this is the case, do that streaming now.
                 ActiveTransition activeTransition = transitionCMS.next.activeTransition;
-                InetAddressAndPort endpoint = metadata.directory.endpoint(activeTransition.nodeId);
+                InetAddressAndPort endpoint = metadata.endpointLookup().endpoint(activeTransition.nodeId);
                 Replica replica = new Replica(endpoint, entireRange, true);
-                streamRanges(replica, activeTransition.streamCandidates);
+                streamRanges(replica, activeTransition.streamCandidates(metadata.endpointLookup()));
             }
             else
             {
@@ -394,13 +398,39 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
 
     public static class ActiveTransition
     {
-        public final NodeId nodeId;
-        public final Set<InetAddressAndPort> streamCandidates;
+        public static final Serializer serializer = new Serializer();
 
-        public ActiveTransition(NodeId nodeId, Set<InetAddressAndPort> streamCandidates)
+        public final NodeId nodeId;
+        private final Set<NodeId> streamCandidates;
+        private final Set<InetAddressAndPort> streamCandidateEndpoints;
+
+        private ActiveTransition(NodeId nodeId, Set<NodeId> streamCandidates, Set<InetAddressAndPort> streamCandidateEndpoints)
         {
             this.nodeId = nodeId;
-            this.streamCandidates = Collections.unmodifiableSet(streamCandidates);
+            this.streamCandidateEndpoints = streamCandidateEndpoints == null ? null : Collections.unmodifiableSet(streamCandidateEndpoints);
+            this.streamCandidates = streamCandidates == null ? null : Collections.unmodifiableSet(streamCandidates);
+        }
+
+        public static ActiveTransition withEndpoints(NodeId nodeId, Set<InetAddressAndPort> streamCandidateEndpoints)
+        {
+            return new ActiveTransition(nodeId, null, streamCandidateEndpoints);
+        }
+
+        public static ActiveTransition withNodeIds(NodeId nodeId, Set<NodeId> streamCandidates)
+        {
+            return new ActiveTransition(nodeId, streamCandidates, null);
+        }
+
+        public Set<InetAddressAndPort> streamCandidates(EndpointLookup epLookup)
+        {
+            if (streamCandidateEndpoints != null)
+                return streamCandidateEndpoints;
+            Set<InetAddressAndPort> candidates = streamCandidates.stream().map(epLookup::endpoint).filter(Objects::nonNull).collect(Collectors.toSet());
+            if (candidates.isEmpty())
+                throw new IllegalStateException("Could not resolve any streamCandidates node ids to endpoints: " + streamCandidates);
+            if (candidates.size() != streamCandidates.size())
+                logger.warn("Could not resolve all streamCandidates to endpoints: {} {}", candidates, streamCandidates);
+            return candidates;
         }
 
         @Override
@@ -408,8 +438,112 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
         {
             return "ActiveTransition{" +
                    "nodeId=" + nodeId +
+                   ", streamCandidateEndpoints=" + streamCandidateEndpoints +
                    ", streamCandidates=" + streamCandidates +
                    '}';
+        }
+
+        public static class Serializer implements MetadataSerializer<ActiveTransition>
+        {
+            @Override
+            public void serialize(ActiveTransition activeTransition, DataOutputPlus out, Version version) throws IOException
+            {
+                NodeId.serializer.serialize(activeTransition.nodeId, out, version);
+                assert activeTransition.streamCandidates == null ^ activeTransition.streamCandidateEndpoints == null;
+                if (version.isBefore(Version.V9))
+                {
+                    assert activeTransition.streamCandidateEndpoints != null;
+                    out.writeInt(activeTransition.streamCandidateEndpoints.size());
+                    for (InetAddressAndPort e : activeTransition.streamCandidateEndpoints)
+                        InetAddressAndPort.MetadataSerializer.serializer.serialize(e, out, version);
+                }
+                else
+                {
+                    // we might reserialize a V8 ActiveTransition as V9 when a node is catching up, so we need to handle both cases here
+                    if (activeTransition.streamCandidates != null)
+                    {
+                        out.writeBoolean(true);
+                        out.writeUnsignedVInt32(activeTransition.streamCandidates.size());
+                        for (NodeId nodeId : activeTransition.streamCandidates)
+                            NodeId.serializer.serialize(nodeId, out, version);
+                    }
+                    else
+                    {
+                        out.writeBoolean(false);
+                        out.writeUnsignedVInt32(activeTransition.streamCandidateEndpoints.size());
+                        for (InetAddressAndPort e : activeTransition.streamCandidateEndpoints)
+                            InetAddressAndPort.MetadataSerializer.serializer.serialize(e, out, version);
+                    }
+                }
+            }
+
+            @Override
+            public ActiveTransition deserialize(DataInputPlus in, Version version) throws IOException
+            {
+                NodeId nodeId = NodeId.serializer.deserialize(in, version);
+                if (version.isBefore(Version.V9))
+                {
+                    return deserializeOld(nodeId, in.readInt(), in, version);
+                }
+                else
+                {
+                    boolean hasNodeIdCandidates = in.readBoolean();
+                    int streamCandidatesCount = in.readUnsignedVInt32();
+                    if (hasNodeIdCandidates)
+                    {
+                        Set<NodeId> candidates = new HashSet<>();
+                        for (int i = 0; i < streamCandidatesCount; i++)
+                            candidates.add(NodeId.serializer.deserialize(in, version));
+                        return ReconfigureCMS.ActiveTransition.withNodeIds(nodeId, candidates);
+                    }
+                    else
+                    {
+                        logger.debug("Deserialized V8-serialized streamCandidates in V9");
+                        return deserializeOld(nodeId, streamCandidatesCount, in, version);
+                    }
+                }
+            }
+
+            private static ActiveTransition deserializeOld(NodeId nodeId, int streamCandidatesCount, DataInputPlus in, Version version) throws IOException
+            {
+                Set<InetAddressAndPort> streamCandidates = new HashSet<>();
+                for (int i = 0; i < streamCandidatesCount; i++)
+                    streamCandidates.add(InetAddressAndPort.MetadataSerializer.serializer.deserialize(in, version));
+                return ReconfigureCMS.ActiveTransition.withEndpoints(nodeId, streamCandidates);
+            }
+
+            @Override
+            public long serializedSize(ActiveTransition activeTransition, Version version)
+            {
+                assert activeTransition.streamCandidates == null ^ activeTransition.streamCandidateEndpoints == null;
+                long size = 0;
+                size += NodeId.serializer.serializedSize(activeTransition.nodeId, version);
+                if (version.isBefore(Version.V9))
+                {
+                    assert activeTransition.streamCandidateEndpoints != null;
+                    size += TypeSizes.INT_SIZE;
+                    for (InetAddressAndPort e : activeTransition.streamCandidateEndpoints)
+                        size += InetAddressAndPort.MetadataSerializer.serializer.serializedSize(e, version);
+                }
+                else
+                {
+                    if (activeTransition.streamCandidates != null)
+                    {
+                        size += TypeSizes.sizeofUnsignedVInt(activeTransition.streamCandidates.size());
+                        size += TypeSizes.BOOL_SIZE;
+                        for (NodeId nodeId : activeTransition.streamCandidates)
+                            size += NodeId.serializer.serializedSize(nodeId, version);
+                    }
+                    else
+                    {
+                        size += TypeSizes.sizeofUnsignedVInt(activeTransition.streamCandidateEndpoints.size());
+                        size += TypeSizes.BOOL_SIZE;
+                        for (InetAddressAndPort e : activeTransition.streamCandidateEndpoints)
+                            size += InetAddressAndPort.MetadataSerializer.serializer.serializedSize(e, version);
+                    }
+                }
+                return size;
+            }
         }
     }
 

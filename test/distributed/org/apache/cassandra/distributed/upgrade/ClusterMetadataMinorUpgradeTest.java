@@ -42,7 +42,7 @@ import static org.junit.Assert.fail;
 public class ClusterMetadataMinorUpgradeTest extends UpgradeTestBase
 {
     @Test
-    public void simpleUpgradeTest() throws Throwable
+    public void disallowUpgradingMetadataVersionTest() throws Throwable
     {
         Consumer<UpgradeableCluster.Builder> builderUpdater = builder -> builder.withInstanceInitializer((cl, i) -> IPChangeWithMSOBase.BBHelper.install(2, Move.class, cl, i));
         new TestCase()
