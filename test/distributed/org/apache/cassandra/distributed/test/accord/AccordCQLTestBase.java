@@ -304,9 +304,9 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     @Test
     public void testRejectTransactionWithUpdatesToSamePrimaryKeyInTrailingUpdate() throws Throwable
     {
-        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, z int, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
-            try
-            {
+        try
+        {
+            test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, z int, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
                 cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, v, z) VALUES (?, ?, ?, ?)"), ConsistencyLevel.ALL, 1, 1, 1, 1);
                 String txn = "BEGIN TRANSACTION\n" +
                              " LET k1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1 AND c = 1);\n" +
@@ -319,14 +319,14 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                              "COMMIT TRANSACTION";
 
                 cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
-                fail("Expected exception");
-            }
-            catch (Throwable t)
-            {
-                assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
-                assertEquals(TransactionStatement.DUPLICATE_KEYS_IN_SAME_TRANSACTION_MESSAGE, t.getMessage());
-            }
-        });
+            });
+            fail("Expected exception");
+        }
+        catch (Throwable t)
+        {
+            assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
+            assertEquals(TransactionStatement.DUPLICATE_KEYS_IN_SAME_TRANSACTION_MESSAGE, t.getMessage());
+        }
     }
 
     @Test
