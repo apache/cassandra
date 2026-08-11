@@ -331,8 +331,8 @@ END IF
 -- Trailing update after conditions
 IF account_info IS NOT NULL AND account_info.balance > 0 THEN
   -- statements
--- statements
 END IF
+-- statements
 ----
 
 **Important Notes:**

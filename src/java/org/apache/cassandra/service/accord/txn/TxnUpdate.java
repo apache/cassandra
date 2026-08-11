@@ -377,7 +377,7 @@ public final class TxnUpdate extends AccordUpdate
 
             ConditionalBlock[] outConditions;
             {
-                List<ConditionalBlock> collect = new ArrayList<>(conditionalBlocks.length - 1);
+                List<ConditionalBlock> collect = new ArrayList<>(conditionalBlocks.length);
                 for (int i = 0 ; i < conditionalBlocks.length ; ++i)
                 {
                     ConditionalBlock cb = conditionalBlocks[i];
