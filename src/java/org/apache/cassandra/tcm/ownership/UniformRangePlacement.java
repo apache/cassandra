@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -34,12 +33,12 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.serialization.Version;
 
@@ -130,7 +129,7 @@ public class UniformRangePlacement implements PlacementProvider
             toMaximal.put(params, startPlacement.difference(metadata, maximalPlacements.get(params)));
             toFinal.put(params, maximalPlacements.get(params).difference(metadata, finalPlacements.get(params)));
         });
-        Function<NodeId, InetAddressAndPort> endpointLookup = metadata.directory::endpoint;
+        EndpointLookup endpointLookup = metadata.endpointLookup();
         // double check that the deltas make sense
         PlacementTransitionPlan plan = new PlacementTransitionPlan(toStart.build(), toMaximal.build(), toFinal.build(), PlacementDeltas.empty());
         DataPlacements afterExecution = base.applyDelta(endpointLookup, metadata.nextEpoch(), plan.toSplit)
@@ -139,7 +138,7 @@ public class UniformRangePlacement implements PlacementProvider
                                             .applyDelta(endpointLookup, metadata.nextEpoch(), plan.removeFromWrites());
         assertDiff(afterExecution, finalPlacements, metadata);
         if (metadata.directory.commonSerializationVersion.isBefore(Version.V9))
-            return plan.withEndpointDeltas(metadata.directory::endpoint);
+            return plan.withEndpointDeltas(endpointLookup);
         return plan;
     }
 
@@ -193,7 +192,7 @@ public class UniformRangePlacement implements PlacementProvider
 
         PlacementTransitionPlan plan = new PlacementTransitionPlan(split.build(), toMaximal.build(), toFinal.build(), merge.build());
         if (metadata.directory.commonSerializationVersion.isBefore(Version.V9))
-            return plan.withEndpointDeltas(metadata.directory::endpoint);
+            return plan.withEndpointDeltas(metadata.endpointLookup());
         return plan;
     }
 
@@ -235,7 +234,7 @@ public class UniformRangePlacement implements PlacementProvider
         });
         PlacementTransitionPlan plan = new PlacementTransitionPlan(PlacementDeltas.empty(), toMaximal.build(), toFinal.build(), merge.build());
         if (metadata.directory.commonSerializationVersion.isBefore(Version.V9))
-            return plan.withEndpointDeltas(metadata.directory::endpoint);
+            return plan.withEndpointDeltas(metadata.endpointLookup());
         return plan;
     }
 
@@ -263,7 +262,7 @@ public class UniformRangePlacement implements PlacementProvider
         });
         PlacementTransitionPlan plan = new PlacementTransitionPlan(PlacementDeltas.empty(), toMaximal.build(), toFinal.build(), PlacementDeltas.empty());
         if (metadata.directory.commonSerializationVersion.isBefore(Version.V9))
-            return plan.withEndpointDeltas(metadata.directory::endpoint);
+            return plan.withEndpointDeltas(metadata.endpointLookup());
         return plan;
     }
 

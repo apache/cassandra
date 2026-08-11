@@ -21,7 +21,6 @@ package org.apache.cassandra.tcm.ownership;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -37,7 +36,7 @@ import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
-import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 
 /**
@@ -102,7 +101,7 @@ public class PlacementTransitionPlan
         return affectedRanges;
     }
 
-    public PlacementTransitionPlan withEndpointDeltas(Function<NodeId, InetAddressAndPort> endpointLookup)
+    public PlacementTransitionPlan withEndpointDeltas(EndpointLookup endpointLookup)
     {
         if (addToWrites == null || moveReads == null || removeFromWrites == null || affectedRanges == null)
             compile();
@@ -182,11 +181,11 @@ public class PlacementTransitionPlan
      */
     public void assertPreExistingWriteReplica(ClusterMetadata metadata)
     {
-        assertPreExistingWriteReplica(metadata.directory::endpoint, metadata.placements(), toSplit, addToWrites(), moveReads(), removeFromWrites());
+        assertPreExistingWriteReplica(metadata.endpointLookup(), metadata.placements(), toSplit, addToWrites(), moveReads(), removeFromWrites());
     }
 
     @VisibleForTesting
-    protected void assertPreExistingWriteReplica(Function<NodeId, InetAddressAndPort> endpointLookup, DataPlacements placements, PlacementDeltas... deltasInOrder)
+    protected void assertPreExistingWriteReplica(EndpointLookup endpointLookup, DataPlacements placements, PlacementDeltas... deltasInOrder)
     {
         for (PlacementDeltas deltas : deltasInOrder)
         {

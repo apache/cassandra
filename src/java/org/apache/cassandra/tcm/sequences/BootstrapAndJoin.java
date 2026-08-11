@@ -25,7 +25,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -59,6 +58,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
@@ -328,7 +328,7 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
     public ClusterMetadata.Transformer cancel(ClusterMetadata metadata)
     {
         DataPlacements placements = metadata.placements();
-        Function<NodeId, InetAddressAndPort> endpointLookup = metadata.directory::endpoint;
+        EndpointLookup endpointLookup = metadata.endpointLookup();
         switch (next)
         {
             // need to undo MID_JOIN and START_JOIN, then merge the ranges split by PrepareJoin
@@ -359,7 +359,7 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
     @VisibleForTesting
     public Pair<MovementMap, MovementMap> getMovementMaps(ClusterMetadata metadata)
     {
-        Function<NodeId, InetAddressAndPort> endpointLookup = metadata.directory::endpoint;
+        EndpointLookup endpointLookup = metadata.endpointLookup();
         MovementMap movementMap = movementMap(endpointLookup, metadata.directory.endpoint(startJoin.nodeId()), metadata.placements(), startJoin.delta());
         MovementMap strictMovementMap = toStrict(endpointLookup, movementMap, finishJoin.delta());
         return Pair.create(movementMap, strictMovementMap);
@@ -427,7 +427,7 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
         }
     }
 
-    private static MovementMap movementMap(Function<NodeId, InetAddressAndPort> endpointLookup, InetAddressAndPort joining, DataPlacements placements, PlacementDeltas startDelta)
+    private static MovementMap movementMap(EndpointLookup endpointLookup, InetAddressAndPort joining, DataPlacements placements, PlacementDeltas startDelta)
     {
         MovementMap.Builder movementMapBuilder = MovementMap.builder();
         // we need all original placements for the ranges to stream - after initial split these new ranges exist in placements
@@ -447,7 +447,7 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
         return movementMapBuilder.build();
     }
 
-    private static MovementMap toStrict(Function<NodeId, InetAddressAndPort> endpointLookup, MovementMap completeMovementMap, PlacementDeltas finishDelta)
+    private static MovementMap toStrict(EndpointLookup endpointLookup, MovementMap completeMovementMap, PlacementDeltas finishDelta)
     {
         MovementMap.Builder movementMapBuilder = MovementMap.builder();
         completeMovementMap.forEach((params, byreplica) -> {

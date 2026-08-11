@@ -33,6 +33,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesByEndpoint;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -97,19 +98,19 @@ public class EndpointDelta implements Delta
     }
 
     @Override
-    public EndpointDelta asEndpointDelta(Function<NodeId, InetAddressAndPort> endpointLookup)
+    public EndpointDelta asEndpointDelta(EndpointLookup endpointLookup)
     {
         return this;
     }
 
     @Override
-    public RangesByEndpoint removals(Function<NodeId, InetAddressAndPort> endpointLookup)
+    public RangesByEndpoint removals(EndpointLookup endpointLookup)
     {
         return removals;
     }
 
     @Override
-    public RangesByEndpoint additions(Function<NodeId, InetAddressAndPort> endpointLookup)
+    public RangesByEndpoint additions(EndpointLookup endpointLookup)
     {
         return additions;
     }

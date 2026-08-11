@@ -23,7 +23,6 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -34,7 +33,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -42,6 +40,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
@@ -255,7 +254,7 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
     public ClusterMetadata.Transformer cancel(ClusterMetadata metadata)
     {
         DataPlacements placements = metadata.placements();
-        Function<NodeId, InetAddressAndPort> endpointLookup = metadata.directory::endpoint;
+        EndpointLookup endpointLookup = metadata.endpointLookup();
         switch (next)
         {
             // need to undo MID_LEAVE and START_LEAVE, but PrepareLeave doesn't affect placement

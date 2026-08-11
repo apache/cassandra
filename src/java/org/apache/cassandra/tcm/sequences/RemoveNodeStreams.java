@@ -20,7 +20,6 @@ package org.apache.cassandra.tcm.sequences;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -37,6 +36,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.streaming.DataMovement;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
@@ -111,7 +111,7 @@ public class RemoveNodeStreams implements LeaveStreams
     private static MovementMap movementMap(ClusterMetadata metadata, InetAddressAndPort leaving, PlacementDeltas startDelta)
     {
         MovementMap.Builder allMovements = MovementMap.builder();
-        Function<NodeId, InetAddressAndPort> endpointLookup = metadata.directory::endpoint;
+        EndpointLookup endpointLookup = metadata.endpointLookup();
         // map of dest->src* movements, keyed by replication settings. During unbootstrap, this will be used to construct
         // a stream plan for each keyspace, based on their replication params.
         startDelta.forEach((params, delta) -> {

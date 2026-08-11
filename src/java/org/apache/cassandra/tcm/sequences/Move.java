@@ -26,7 +26,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -55,7 +54,6 @@ import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.EndpointsByReplica;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.RangesByEndpoint;
 import org.apache.cassandra.locator.Replica;
@@ -75,6 +73,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
@@ -434,7 +433,7 @@ public class Move extends MultiStepOperation<Epoch>
     public ClusterMetadata.Transformer cancel(ClusterMetadata metadata)
     {
         DataPlacements placements = metadata.placements();
-        Function<NodeId, InetAddressAndPort> endpointLookup = metadata.directory::endpoint;
+        EndpointLookup endpointLookup = metadata.endpointLookup();
         switch (next)
         {
             case FINISH_MOVE:
@@ -465,10 +464,10 @@ public class Move extends MultiStepOperation<Epoch>
         DataPlacements placements = metadata.placements();
         MovementMap.Builder allMovements = MovementMap.builder();
         toStart.forEach((params, delta) -> {
-            RangesByEndpoint targets = delta.writes.additions(metadata.directory::endpoint);
+            RangesByEndpoint targets = delta.writes.additions(metadata.endpointLookup());
             ReplicaGroups oldOwners = placements.get(params).reads;
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
-            Iterable<Replica> replicaRemovals = midDeltas.get(params).reads.removals(metadata.directory::endpoint).flattenValues();
+            Iterable<Replica> replicaRemovals = midDeltas.get(params).reads.removals(metadata.endpointLookup()).flattenValues();
             targets.flattenValues().forEach(destination -> {
                 SourceHolder sources = new SourceHolder(fd, metadata, destination, toSplitRanges.get(params), strictConsistency);
                 AtomicBoolean needsRelaxedSources = new AtomicBoolean();
@@ -544,7 +543,7 @@ public class Move extends MultiStepOperation<Epoch>
                     {
                         // a transient replica is being removed, now, to be able to safely skip streaming from this
                         // replica we need to make sure it remains a replica for the range after the move has finished:
-                        Map<Range<Token>, Replica> byRange = splitDelta.writes.additions(metadata.directory::endpoint)
+                        Map<Range<Token>, Replica> byRange = splitDelta.writes.additions(metadata.endpointLookup())
                                                                                   .get(source.endpoint())
                                                                                   .stream()
                                                                                   .collect(Collectors.toMap(Replica::range, r -> r));

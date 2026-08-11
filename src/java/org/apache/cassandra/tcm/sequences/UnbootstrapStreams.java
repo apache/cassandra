@@ -96,14 +96,14 @@ public class UnbootstrapStreams implements LeaveStreams
                 return;
 
             // first identify ranges to be migrated off the leaving node
-            Map<Range<Token>, Replica> oldReplicas = delta.writes.removals(metadata.directory::endpoint).get(leaving).byRange();
+            Map<Range<Token>, Replica> oldReplicas = delta.writes.removals(metadata.endpointLookup()).get(leaving).byRange();
             // next go through the additions to the write groups that will be applied during the
             // first step of the plan. These represent the ranges moving to new replicas so in
             // order to construct a streaming plan we can match these up with the corresponding
             // removals to produce a src->dest mapping.
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
-            RangesByEndpoint startWriteAdditions = startDelta.get(params).writes.additions(metadata.directory::endpoint);
-            RangesByEndpoint startWriteRemovals = startDelta.get(params).writes.removals(metadata.directory::endpoint);
+            RangesByEndpoint startWriteAdditions = startDelta.get(params).writes.additions(metadata.endpointLookup());
+            RangesByEndpoint startWriteRemovals = startDelta.get(params).writes.removals(metadata.endpointLookup());
             startWriteAdditions.flattenValues()
                                .forEach(newReplica -> {
                                    if (startWriteRemovals.get(newReplica.endpoint()).contains(newReplica.range(), false))

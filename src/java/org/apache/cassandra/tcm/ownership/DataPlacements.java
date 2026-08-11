@@ -44,6 +44,7 @@ import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataValue;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -185,7 +186,7 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
         return builder.build();
     }
 
-    public DataPlacements applyDelta(Function<NodeId, InetAddressAndPort> endpointLookup, Epoch epoch, PlacementDeltas deltas)
+    public DataPlacements applyDelta(EndpointLookup endpointLookup, Epoch epoch, PlacementDeltas deltas)
     {
         return deltas.apply(endpointLookup, epoch, this);
     }

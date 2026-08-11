@@ -35,6 +35,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -74,7 +75,7 @@ public class PlacementDeltas extends ReplicationMap<PlacementDeltas.PlacementDel
                '}';
     }
 
-    public DataPlacements apply(Function<NodeId, InetAddressAndPort> endpointLookup, Epoch epoch, DataPlacements placements)
+    public DataPlacements apply(EndpointLookup endpointLookup, Epoch epoch, DataPlacements placements)
     {
         DataPlacements.Builder builder = placements.unbuild();
         asMap().forEach((params, delta) -> {
@@ -106,7 +107,7 @@ public class PlacementDeltas extends ReplicationMap<PlacementDeltas.PlacementDel
         return EMPTY;
     }
 
-    public PlacementDeltas withEndpointDeltas(Function<NodeId, InetAddressAndPort> endpointLookup)
+    public PlacementDeltas withEndpointDeltas(EndpointLookup endpointLookup)
     {
         PlacementDeltas.Builder builder = PlacementDeltas.builder();
         for (Map.Entry<ReplicationParams, PlacementDelta> entry : map.entrySet())
@@ -154,7 +155,7 @@ public class PlacementDeltas extends ReplicationMap<PlacementDeltas.PlacementDel
             return new PlacementDelta(NodeIdDelta.empty(), writes);
         }
 
-        public DataPlacement apply(Function<NodeId, InetAddressAndPort> endpointLookup, Epoch epoch, DataPlacement placement)
+        public DataPlacement apply(EndpointLookup endpointLookup, Epoch epoch, DataPlacement placement)
         {
             DataPlacement.Builder builder = placement.unbuild();
             reads.removals(endpointLookup).flattenValues().forEach(r -> builder.reads.withoutReplica(epoch, r));
@@ -183,7 +184,7 @@ public class PlacementDeltas extends ReplicationMap<PlacementDeltas.PlacementDel
             return new PlacementDelta(reads.invert(), writes.invert());
         }
 
-        public PlacementDelta withEndpointDeltas(Function<NodeId, InetAddressAndPort> endpointLookup)
+        public PlacementDelta withEndpointDeltas(EndpointLookup endpointLookup)
         {
             return new PlacementDelta(reads.asEndpointDelta(endpointLookup),
                                       writes.asEndpointDelta(endpointLookup));
