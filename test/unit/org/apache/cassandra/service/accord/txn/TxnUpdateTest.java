@@ -159,6 +159,7 @@ public class TxnUpdateTest
 
             List<Block> blocks = update.blocks;
             assertThat(blocks.size()).isEqualTo(blockSize);
+            assertThat(ensureThatConditionalBlockIndexesAreDisjointAcrossBlocks(blocks)).isTrue();
 
             for (int blockIdx = 0; blockIdx < blocks.size(); blockIdx++)
             {
@@ -278,6 +279,19 @@ public class TxnUpdateTest
                 assertThat(ensureInjectivityOfFragmentIdsToFragments(selectedBlock)).isTrue();
             }
         });
+    }
+
+    private boolean ensureThatConditionalBlockIndexesAreDisjointAcrossBlocks(List<Block> blocks)
+    {
+        Set<Integer> seenConditionalBlockIndexes = new HashSet<>();
+        for (Block block : blocks)
+        {
+            for (ConditionalBlock conditionalBlock : block.conditionalBlocks)
+                if (!seenConditionalBlockIndexes.add(conditionalBlock.id))
+                    return false;
+        }
+
+        return true;
     }
 
     private boolean ensureFragmentIdsAreOrdered(Block block)
