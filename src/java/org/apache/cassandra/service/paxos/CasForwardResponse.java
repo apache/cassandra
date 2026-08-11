@@ -51,7 +51,7 @@ import static org.apache.cassandra.db.rows.DeserializationHelper.Flag.FROM_REMOT
  */
 public class CasForwardResponse
 {
-    public final RowIterator result;
+    private final FilteredPartition result;
     public final CassandraException exception;
 
     @Nonnull
@@ -59,25 +59,46 @@ public class CasForwardResponse
 
     public CasForwardResponse(RowIterator result, List<String> warnings)
     {
-        this(result, null, warnings);
+        this(materialize(result), null, warnings);
     }
 
     public CasForwardResponse(PartitionIterator result, List<String> warnings)
     {
-        // Extract the single partition from the iterator (consensus reads are single partition)
-        this(result != null && result.hasNext() ? result.next() : null, null, warnings);
+        this(materialize(result), null, warnings);
     }
 
     public CasForwardResponse(CassandraException exception, List<String> warnings)
     {
-        this(null, exception, warnings);
+        this((FilteredPartition) null, exception, warnings);
     }
 
-    private CasForwardResponse(RowIterator result, CassandraException exception, List<String> warnings)
+    private CasForwardResponse(FilteredPartition result, CassandraException exception, List<String> warnings)
     {
         this.result = result;
         this.exception = exception;
         this.warnings = warnings == null ? Collections.emptyList() : warnings;
+    }
+
+    private static FilteredPartition materialize(RowIterator rows)
+    {
+        if (rows == null)
+            return null;
+
+        try (RowIterator toClose = rows)
+        {
+            return new FilteredPartition(toClose);
+        }
+    }
+
+    private static FilteredPartition materialize(PartitionIterator partitions)
+    {
+        if (partitions == null)
+            return null;
+
+        try (PartitionIterator toClose = partitions)
+        {
+            return toClose.hasNext() ? materialize(toClose.next()) : null;
+        }
     }
 
     public boolean isSuccess()
@@ -85,12 +106,20 @@ public class CasForwardResponse
         return exception == null;
     }
 
-    /**
-     * Get the result as a PartitionIterator.
-     */
+    public boolean hasResult()
+    {
+        return result != null;
+    }
+
+    public RowIterator rowIterator()
+    {
+        return result == null ? null : result.rowIterator(false);
+    }
+
     public PartitionIterator partitionIterator()
     {
-        return result == null ? null : PartitionIterators.singletonIterator(result);
+        RowIterator rows = rowIterator();
+        return rows == null ? null : PartitionIterators.singletonIterator(rows);
     }
 
     public static final Serializer serializer = new Serializer();
@@ -104,15 +133,15 @@ public class CasForwardResponse
         @Override
         public void serialize(CasForwardResponse response, DataOutputPlus out, int version) throws IOException
         {
-            int flags = (response.result != null ? HAS_RESULT : 0)
+            int flags = (response.hasResult() ? HAS_RESULT : 0)
                       | (response.exception != null ? HAS_EXCEPTION : 0)
                       | (!response.warnings.isEmpty() ? HAS_WARNINGS : 0)
                       ;
             out.write(flags);
 
-            if (response.result != null)
+            if (response.hasResult())
             {
-                FilteredPartition partition = new FilteredPartition(response.result);
+                FilteredPartition partition = response.result;
                 partition.metadata().id.serializeCompact(out);
                 try (UnfilteredRowIterator iterator = partition.unfilteredIterator())
                 {
@@ -135,14 +164,17 @@ public class CasForwardResponse
             boolean hasException = (flags & HAS_EXCEPTION) != 0;
             boolean hasWarnings  = (flags & HAS_WARNINGS)  != 0;
 
-            RowIterator result = null;
+            FilteredPartition result = null;
             if (hasResult)
             {
                 TableMetadata metadata = Schema.instance.getExistingTableMetadata(TableId.deserializeCompact(in));
                 UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(metadata, in, version, FROM_REMOTE, STABLE, null);
                 try (UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, metadata, FROM_REMOTE, header))
                 {
-                    result = UnfilteredRowIterators.filter(partition, 0);
+                    // Materialise inside the block: the deserialized iterator reads lazily from `in`,
+                    // so it has to be drained here — both so the result outlives the iterator, and so
+                    // the stream is positioned past the partition for the fields that follow.
+                    result = new FilteredPartition(UnfilteredRowIterators.filter(partition, 0));
                 }
             }
 
@@ -162,9 +194,9 @@ public class CasForwardResponse
         {
             long size = TypeSizes.BYTE_SIZE; // flags byte
 
-            if (response.result != null)
+            if (response.hasResult())
             {
-                FilteredPartition partition = new FilteredPartition(response.result);
+                FilteredPartition partition = response.result;
                 size += partition.metadata().id.serializedCompactSize();
                 try (UnfilteredRowIterator iterator = partition.unfilteredIterator())
                 {
