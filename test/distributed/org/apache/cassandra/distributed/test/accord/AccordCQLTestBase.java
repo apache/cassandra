@@ -3776,11 +3776,11 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     }
 
     @Test
-    public void testUpdateTwoShardsWithinIfElseStatement() throws Throwable
+    public void testUpdateTwoShardsInEachBranch() throws Throwable
     {
         String keyspace = "ks" + System.currentTimeMillis();
         String currentTable = keyspace + ".tbl";
-        List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + keyspace + ";",
+        List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + keyspace + ';',
                                           "CREATE KEYSPACE " + keyspace + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}",
                                           "CREATE TABLE " + currentTable + " (k blob PRIMARY KEY, v int) WITH transactional_mode='" + transactionalMode + "'");
         List<ByteBuffer> keys = tokensToKeys(tokens());
@@ -3812,6 +3812,49 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                           "COMMIT TRANSACTION";
 
             int[] result = new int[] { 6, 5 };
+            for (int i = 0; i < keys.size(); i++)
+            {
+                SimpleQueryResult qr = cluster.coordinator(1).executeWithResult(read, ConsistencyLevel.SERIAL, keys.get(i));
+                assertThat(qr).hasSize(1).contains(keys.get(i), result[i]);
+            }
+        });
+    }
+
+    @Test
+    public void testUpdateWithDisjointKeysInEachBranch() throws Throwable
+    {
+        String keyspace = "ks" + System.currentTimeMillis();
+        String currentTable = keyspace + ".tbl";
+        List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + keyspace + ';',
+                                          "CREATE KEYSPACE " + keyspace + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}",
+                                          "CREATE TABLE " + currentTable + " (k blob PRIMARY KEY, v int) WITH transactional_mode='" + transactionalMode + "'");
+        List<ByteBuffer> keys = tokensToKeys(tokens());
+
+        test(ddls, cluster -> {
+            String insert = "BEGIN TRANSACTION\n" +
+                            " INSERT INTO " + currentTable + " (k, v) VALUES (?, 2);\n" +
+                            " INSERT INTO " + currentTable + " (k, v) VALUES (?, 8);\n" +
+                            "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(insert, ConsistencyLevel.SERIAL, keys.get(0), keys.get(1));
+
+            String query = "BEGIN TRANSACTION\n" +
+                           " LET k1 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                           " LET k2 = (SELECT * FROM " + currentTable + " WHERE k = ?);\n" +
+                           " IF k1.v = 2 THEN \n" +
+                           "    UPDATE " + currentTable + " SET v = 6 WHERE k = ?;\n" +
+                           " ELSE \n" +
+                           "    UPDATE " + currentTable + " SET v = 15 WHERE k = ?;\n" +
+                           " END IF\n" +
+                           "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.SERIAL, keys.get(0), keys.get(1), keys.get(0), keys.get(1));
+
+            String read = "BEGIN TRANSACTION\n" +
+                          " SELECT * FROM " + currentTable + " WHERE k = ?; \n" +
+                          "COMMIT TRANSACTION";
+
+            int[] result = new int[] { 6, 8 };
             for (int i = 0; i < keys.size(); i++)
             {
                 SimpleQueryResult qr = cluster.coordinator(1).executeWithResult(read, ConsistencyLevel.SERIAL, keys.get(i));
