@@ -35,6 +35,7 @@ import javax.annotation.Nonnull;
 import com.google.common.base.Preconditions;
 
 import org.agrona.collections.IntArrayList;
+import org.jctools.maps.NonBlockingHashMap;
 import org.jctools.maps.NonBlockingHashMapLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -159,23 +160,25 @@ public class Shard
 
     /**
      * Incremented before this shard allocates a MutationId.
-     * Decremented once the mutation has applied or failed locally.
+     * Decremented once the id has been allocated and added to the pending writes set.
      * Used by shard sealing logic for drain() step.
      */
-    private final AtomicInteger pendingLocalWrites = new AtomicInteger();
+    private final AtomicInteger pendingIdAllocations = new AtomicInteger();
+    private final NonBlockingHashMap<MutationId, Boolean> pendingLocalWrites = new NonBlockingHashMap<>();
 
     @Nonnull
     MutationId nextMutationId()
     {
-        pendingLocalWrites.incrementAndGet();
+        pendingIdAllocations.incrementAndGet();
         try
         {
-            return nextId();
+            MutationId id = nextId();
+            pendingLocalWrites.put(id, true);
+            return id;
         }
-        catch (Throwable t)
+        finally
         {
-            pendingLocalWrites.decrementAndGet();
-            throw t;
+            pendingIdAllocations.decrementAndGet();
         }
     }
 
@@ -213,11 +216,11 @@ public class Shard
     }
 
     /**
-     * Must be called exactly once per {@code nextId()} invocation.
+     * Must be called at least once per {@code nextId()} invocation.
      */
-    void completeLocalWrite()
+    void completeLocalWrite(MutationId mutationId)
     {
-        pendingLocalWrites.decrementAndGet();
+        pendingLocalWrites.remove(mutationId);
     }
 
     void receivedWriteResponse(ShortMutationId mutationId, InetAddressAndPort fromHost)
@@ -252,6 +255,7 @@ public class Shard
     void finishWriting(Mutation mutation)
     {
         getOrCreate(mutation).finishWriting(mutation);
+        pendingLocalWrites.remove(mutation.id());
     }
 
     void addSummaryForKey(Token token, boolean includePending, MutationSummary.Builder builder)
@@ -479,7 +483,7 @@ public class Shard
 
     boolean isDrained()
     {
-        return state != State.ACTIVE && pendingLocalWrites.get() == 0;
+        return state != State.ACTIVE && pendingIdAllocations.get() == 0 && pendingLocalWrites.isEmpty();
     }
 
     /**

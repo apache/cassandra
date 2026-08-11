@@ -463,7 +463,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         Shard shard = getShardNullable(id.asLogId());
         if (null == shard)
             throw new IllegalStateException(format("Shard for log %s was not found in log2ShardMap", id.asLogId()));
-        shard.completeLocalWrite();
+        shard.completeLocalWrite(id);
     }
 
     /**
