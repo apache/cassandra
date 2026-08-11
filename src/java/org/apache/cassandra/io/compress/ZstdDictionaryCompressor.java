@@ -33,6 +33,7 @@ import com.github.benmanes.caffeine.cache.RemovalCause;
 import com.github.luben.zstd.Zstd;
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
@@ -56,6 +57,7 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
                     compressor.dictionaryRef.release();
                 }
             })
+            .executor(ImmediateExecutor.INSTANCE)
             .build();
 
     // dictionary and its ref are null, when they are absent.
