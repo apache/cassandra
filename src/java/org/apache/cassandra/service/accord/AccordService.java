@@ -154,7 +154,6 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Condition;
@@ -535,10 +534,9 @@ public class AccordService implements IAccordService, Shutdownable
 
         boolean rebootstrap = false;
         {
-            Pair<Long, Long> startMarkerPair = ReplayMarkers.readStartMarker();
-            Pair<Long, Long> stopMarkerPair = ReplayMarkers.readStopMarker();
-            long startMarkerSegmentId = startMarkerPair.left;
-            long stopMarkerSegmentId = stopMarkerPair.left;
+            ReplayMarkers.ReplayMarkerMetadata stopMarkerMetadata = ReplayMarkers.readStopMarker();
+            long startMarkerSegmentId = ReplayMarkers.readStartMarker().getSegmentId();
+            long stopMarkerSegmentId = stopMarkerMetadata.getSegmentId();
 
             if (stopMarkerSegmentId < startMarkerSegmentId)
             {
@@ -559,7 +557,7 @@ public class AccordService implements IAccordService, Shutdownable
                 }
             }
 
-            node.uniqueNow(stopMarkerPair.right);
+            node.uniqueNow(stopMarkerMetadata.getLastUniqueTimeStamp());
         }
 
         logger.info("Starting background compaction of system_accord");
@@ -690,7 +688,7 @@ public class AccordService implements IAccordService, Shutdownable
 
         // we set ourselves to STARTED before starting progress logs as this is the condition we use to decide if we
         // start the progress log on command store initialisation (so creates a synchronisation point)
-        journal.writeStartMarker(node.uniqueNow());
+        journal.writeStartMarker();
         state = State.STARTED;
         instance = requestInstance = this;
         node.commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start());

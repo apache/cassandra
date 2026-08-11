@@ -621,9 +621,9 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         return rangeSearch.rangeSearcher();
     }
 
-    public void writeStartMarker(long lastUniqueTimeStamp)
+    public void writeStartMarker()
     {
-        writeMarker(startMarker(), segments.peekSegmentId(), lastUniqueTimeStamp);
+        writeMarker(startMarker(), segments.peekSegmentId(), -1L);
     }
 
     public void writeSafeStopMarker(long lastUniqueTimeStamp)
