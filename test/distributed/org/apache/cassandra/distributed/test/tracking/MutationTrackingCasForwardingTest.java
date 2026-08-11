@@ -20,7 +20,12 @@ package org.apache.cassandra.distributed.test.tracking;
 
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import com.google.common.collect.Iterators;
 
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -31,9 +36,11 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.replication.CoordinatorLogId;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTrackingService;
@@ -61,6 +68,13 @@ public class MutationTrackingCasForwardingTest extends TestBaseImpl
 
     private static final String CONDITIONAL_INSERT_CQL = "INSERT INTO " + KEYSPACE + ".tbl (k, v) VALUES (1, 1) IF NOT EXISTS";
 
+    /** Partition read back by the forwarded SERIAL read tests, and how many rows it holds. */
+    private static final int READ_KEY = 1;
+    private static final int READ_ROWS = 4;
+
+    /** Forwarded consensus reads seen by the message filter, asserted per query by the read helpers. */
+    private final AtomicInteger consensusReadForwards = new AtomicInteger();
+
     @Test
     public void testCasForwardingPaxosV1() throws Throwable
     {
@@ -83,6 +97,211 @@ public class MutationTrackingCasForwardingTest extends TestBaseImpl
     public void testCasForwardingPaxosV2ReplicaCoordinator() throws Throwable
     {
         testCasForwarding("v2", true); // replica coordinator
+    }
+
+    @Test
+    public void testForwardedSerialReadOrderingPaxosV1() throws Throwable
+    {
+        testForwardedSerialReadOrdering("v1");
+    }
+
+    @Test
+    public void testForwardedSerialReadOrderingPaxosV2() throws Throwable
+    {
+        testForwardedSerialReadOrdering("v2");
+    }
+
+    /**
+     * A forwarded SERIAL read can return a whole partition, unlike CAS, so a reversed slice has to come
+     * back from the replica coordinator in the order it was read in.
+     */
+    private void testForwardedSerialReadOrdering(String paxosVariant) throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(4)
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK)
+                                                            .with(Feature.GOSSIP)
+                                                            .set("paxos_variant", paxosVariant))
+                                      .start())
+        {
+            cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
+                                              "{'class': 'SimpleStrategy', 'replication_factor': 3} " +
+                                              "AND replication_type='tracked';"));
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.ascending (k int, c int, v int, PRIMARY KEY (k, c));"));
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.descending (k int, c int, v int, PRIMARY KEY (k, c)) " +
+                                              "WITH CLUSTERING ORDER BY (c DESC);"));
+
+            int coordinator = nonReplicaCoordinator(cluster, "ascending", READ_KEY);
+            logger.info("DEBUG testForwardedSerialReadOrdering: Using non-replica coordinator: " + coordinator);
+
+            for (int c = 1; c <= READ_ROWS; c++)
+            {
+                cluster.coordinator(coordinator).execute(withKeyspace("INSERT INTO %s.ascending (k, c, v) VALUES (?, ?, ?)"),
+                                                         ConsistencyLevel.ALL, READ_KEY, c, c);
+                cluster.coordinator(coordinator).execute(withKeyspace("INSERT INTO %s.descending (k, c, v) VALUES (?, ?, ?)"),
+                                                         ConsistencyLevel.ALL, READ_KEY, c, c);
+            }
+
+            // Count the forwards, so each assertion below can prove the read left the coordinator
+            cluster.filters()
+                   .verbs(Verb.CONSENSUS_READ_FORWARD_REQ.id)
+                   .messagesMatching((from, to, message) -> {
+                       consensusReadForwards.incrementAndGet();
+                       return false; // count only, deliver as normal
+                   })
+                   .drop();
+
+            // Controls: rows are stored in the clustering order these read, so the direction cannot show
+            assertSerialReadOrder(cluster, coordinator, "ascending", "", 1, 2, 3, 4);
+            assertSerialReadOrder(cluster, coordinator, "descending", "", 4, 3, 2, 1);
+
+            // Reversed slices, the reads that come back the wrong way round without the direction
+            assertSerialReadOrder(cluster, coordinator, "ascending", " ORDER BY c DESC", 4, 3, 2, 1);
+            assertSerialReadOrder(cluster, coordinator, "descending", " ORDER BY c ASC", 1, 2, 3, 4);
+
+            // Explicit orderings that agree with the clustering order
+            assertSerialReadOrder(cluster, coordinator, "ascending", " ORDER BY c ASC", 1, 2, 3, 4);
+            assertSerialReadOrder(cluster, coordinator, "descending", " ORDER BY c DESC", 4, 3, 2, 1);
+
+            // An empty result carries no partition, so no direction is consulted
+            int missingKey = unwrittenNonReplicaKey(cluster, "ascending", coordinator);
+            assertForwardedReadIsEmpty(cluster, coordinator, "ascending", "k = " + missingKey, "");
+            assertForwardedReadIsEmpty(cluster, coordinator, "descending", "k = " + missingKey, " ORDER BY c ASC");
+            // A partition that exists, sliced so that it selects no rows
+            assertForwardedReadIsEmpty(cluster, coordinator, "ascending", "k = " + READ_KEY + " AND c > 100", " ORDER BY c DESC");
+
+            // Paging does more than reorder: the next page's boundary comes from these rows as they
+            // stream past, so a page handed back ascending repeats or skips rows
+            assertPagedSerialReadOrder(cluster, coordinator, "ascending", " ORDER BY c DESC", 4, 3, 2, 1);
+            assertPagedSerialReadOrder(cluster, coordinator, "descending", " ORDER BY c ASC", 1, 2, 3, 4);
+        }
+    }
+
+    /**
+     * Asserts the forwarded SERIAL read returns the partition in the order the same query returns it at a
+     * non-serial consistency, which does not forward.
+     */
+    private void assertSerialReadOrder(Cluster cluster, int coordinator, String table, String ordering, int... expected)
+    {
+        String cql = withKeyspace("SELECT c FROM %s." + table + " WHERE k = " + READ_KEY) + ordering;
+        assertForwardedReadMatches(cluster, coordinator, cql, expectedRows(expected));
+    }
+
+    private void assertForwardedReadIsEmpty(Cluster cluster, int coordinator, String table, String predicate, String ordering)
+    {
+        String cql = withKeyspace("SELECT c FROM %s." + table + " WHERE " + predicate) + ordering;
+        assertForwardedReadMatches(cluster, coordinator, cql, new Object[0][]);
+    }
+
+    /**
+     * Checks the forwarded result against the ordinary read path. The forward count is asserted per query,
+     * since one assertion at the end would be satisfied by the control reads alone.
+     */
+    private void assertForwardedReadMatches(Cluster cluster, int coordinator, String cql, Object[][] expectedRows)
+    {
+        int beforeReference = consensusReadForwards.get();
+        assertRowsInOrder(cql, ConsistencyLevel.ALL, cluster, coordinator, expectedRows);
+        assertEquals("A non-serial read should not have been forwarded: " + cql,
+                     beforeReference, consensusReadForwards.get());
+
+        for (ConsistencyLevel serial : new ConsistencyLevel[]{ ConsistencyLevel.SERIAL, ConsistencyLevel.LOCAL_SERIAL })
+        {
+            int before = consensusReadForwards.get();
+            assertRowsInOrder(cql, serial, cluster, coordinator, expectedRows);
+            assertTrue('"' + cql + "\" at " + serial + " should have been forwarded to a replica coordinator",
+                       consensusReadForwards.get() > before);
+        }
+    }
+
+    /** The same read paged in twos, so the direction has to hold within a page and across the boundary. */
+    private void assertPagedSerialReadOrder(Cluster cluster, int coordinator, String table, String ordering, int... expected)
+    {
+        String cql = withKeyspace("SELECT c FROM %s." + table + " WHERE k = " + READ_KEY) + ordering;
+        Object[][] expectedRows = expectedRows(expected);
+
+        for (ConsistencyLevel consistencyLevel : new ConsistencyLevel[]{ ConsistencyLevel.ALL, ConsistencyLevel.SERIAL })
+        {
+            Object[][] actual = Iterators.toArray(cluster.coordinator(coordinator).executeWithPaging(cql, consistencyLevel, 2),
+                                                  Object[].class);
+            try
+            {
+                AssertUtils.assertRows(actual, expectedRows);
+            }
+            catch (AssertionError e)
+            {
+                throw new AssertionError('"' + cql + "\" paged at " + consistencyLevel + ": " + e.getMessage(), e);
+            }
+        }
+    }
+
+    private static Object[][] expectedRows(int... expected)
+    {
+        Object[][] expectedRows = new Object[expected.length][];
+        for (int i = 0; i < expected.length; i++)
+            expectedRows[i] = AssertUtils.row(expected[i]);
+        return expectedRows;
+    }
+
+    private void assertRowsInOrder(String cql, ConsistencyLevel consistencyLevel, Cluster cluster, int coordinator, Object[][] expectedRows)
+    {
+        Object[][] actual = cluster.coordinator(coordinator).execute(cql, consistencyLevel);
+        try
+        {
+            AssertUtils.assertRows(actual, expectedRows);
+        }
+        catch (AssertionError e)
+        {
+            throw new AssertionError('"' + cql + "\" at " + consistencyLevel + ": " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * With RF=3 across four nodes exactly one node is not a replica for the key, and a non-replica
+     * coordinator is the only one that forwards.
+     */
+    private int nonReplicaCoordinator(Cluster cluster, String tableName, int key)
+    {
+        Set<Integer> replicaNodes = replicaNodes(cluster, tableName, key);
+
+        for (int node = 1; node <= cluster.size(); node++)
+        {
+            if (!replicaNodes.contains(node))
+                return node;
+        }
+
+        throw new AssertionError("Every node is a replica for key " + key + ", nothing would be forwarded: " + replicaNodes);
+    }
+
+    /**
+     * A key nothing has been written to that the given coordinator is not a replica for, so that reading
+     * it both forwards and comes back empty. Only {@link #READ_KEY} is ever written.
+     */
+    private int unwrittenNonReplicaKey(Cluster cluster, String tableName, int coordinator)
+    {
+        for (int key = READ_KEY + 1; key <= READ_KEY + 100; key++)
+        {
+            if (!replicaNodes(cluster, tableName, key).contains(coordinator))
+                return key;
+        }
+
+        throw new AssertionError("Found no unwritten key that node " + coordinator + " is not a replica for");
+    }
+
+    private Set<Integer> replicaNodes(Cluster cluster, String tableName, int key)
+    {
+        String keyspaceName = KEYSPACE;
+        String replicaEndpoints = cluster.get(1).callOnInstance(
+            () -> String.join(",", StorageService.instance.getNaturalEndpointsWithPort(keyspaceName, tableName, Integer.toString(key))));
+
+        Set<Integer> replicaNodes = new HashSet<>();
+        for (String endpoint : replicaEndpoints.split(","))
+        {
+            // Addresses arrive as "127.0.0.3:7000" or "/127.0.0.3:7000"
+            int colonIndex = endpoint.indexOf(':');
+            String hostPart = colonIndex > 0 ? endpoint.substring(0, colonIndex) : endpoint;
+            replicaNodes.add(Integer.parseInt(hostPart.substring(hostPart.lastIndexOf('.') + 1)));
+        }
+
+        return replicaNodes;
     }
 
     private void testCasForwarding(String paxosVariant, boolean useReplicaCoordinator) throws Throwable

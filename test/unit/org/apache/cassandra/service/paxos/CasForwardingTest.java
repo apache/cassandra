@@ -25,6 +25,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import com.google.common.collect.Lists;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -36,7 +38,9 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -160,6 +164,49 @@ public class CasForwardingTest
         // The read forwarding verb reaches the same payload through the PartitionIterator constructor.
         assertRoundTrips(new CasForwardResponse(PartitionIterators.singletonIterator(twoRowResult()), null),
                          twoRowValues(), Collections.emptyList());
+    }
+
+    /**
+     * {@link org.apache.cassandra.db.partitions.FilteredPartition} always stores rows in clustering order,
+     * so a reversed multi-row result has to carry the direction it was read in.
+     */
+    @Test
+    public void testReversedResultRoundTrip() throws IOException
+    {
+        // Guard the fixture: a reversed result that matched the ascending one would assert nothing
+        List<String> ascending = twoRowValues(false);
+        List<String> descending = twoRowValues(true);
+        assertEquals("Reversed fixture should be the ascending rows in reverse",
+                     Lists.reverse(ascending), descending);
+
+        assertRoundTrips(new CasForwardResponse(twoRowResult(true), null), descending, true, Collections.emptyList());
+    }
+
+    @Test
+    public void testReversedConsensusReadResultRoundTrip() throws IOException
+    {
+        // The read forwarding verb reaches the same payload through the PartitionIterator constructor
+        assertRoundTrips(new CasForwardResponse(PartitionIterators.singletonIterator(twoRowResult(true)), null),
+                         twoRowValues(true), true, Collections.emptyList());
+    }
+
+    /** A handler reads the result locally before messaging serializes it, so reading must not consume it. */
+    @Test
+    public void testReversedResultIsReadableRepeatedly() throws IOException
+    {
+        CasForwardResponse response = new CasForwardResponse(twoRowResult(true), null);
+
+        List<String> expected = twoRowValues(true);
+        for (int i = 0; i < 3; i++)
+        {
+            assertEquals("partitionIterator() read " + i, expected, rowValues(response.partitionIterator()));
+            try (RowIterator rows = response.rowIterator())
+            {
+                assertTrue("rowIterator() read " + i + " should still be reversed", rows.isReverseOrder());
+            }
+        }
+
+        assertRoundTrips(response, expected, true, Collections.emptyList());
     }
 
     @Test
@@ -296,7 +343,15 @@ public class CasForwardingTest
                                                        List<String> expectedRows,
                                                        List<String> expectedWarnings) throws IOException
     {
-        assertRows("Result", expectedRows, response);
+        return assertRoundTrips(response, expectedRows, false, expectedWarnings);
+    }
+
+    private static CasForwardResponse assertRoundTrips(CasForwardResponse response,
+                                                       List<String> expectedRows,
+                                                       boolean expectedReversed,
+                                                       List<String> expectedWarnings) throws IOException
+    {
+        assertRows("Result", expectedRows, expectedReversed, response);
 
         byte[] bytes = serializeCheckingSize(response);
         assertArrayEquals("Repeated serialization should produce identical bytes",
@@ -310,7 +365,7 @@ public class CasForwardingTest
 
         assertEquals("Success should survive the round trip", response.isSuccess(), deserialized.isSuccess());
         assertEquals("Warnings should survive the round trip", expectedWarnings, deserialized.warnings);
-        assertRows("Deserialized result", expectedRows, deserialized);
+        assertRows("Deserialized result", expectedRows, expectedReversed, deserialized);
 
         byte[] reserialized = serializeCheckingSize(deserialized);
         // A deserialized exception picks up the stack frames of the deserialize call, so only the
@@ -334,7 +389,7 @@ public class CasForwardingTest
         }
     }
 
-    private static void assertRows(String what, List<String> expectedRows, CasForwardResponse response)
+    private static void assertRows(String what, List<String> expectedRows, boolean expectedReversed, CasForwardResponse response)
     {
         if (expectedRows == null)
         {
@@ -346,10 +401,36 @@ public class CasForwardingTest
         {
             assertTrue(what + " should be present", response.hasResult());
             assertEquals(what + " rows should match", expectedRows, rowValues(response.partitionIterator()));
+            assertEquals(what + " should report the direction it was read in",
+                         expectedReversed, isReverseOrder(response.rowIterator()));
+            assertEquals(what + " partition iterator should report the direction it was read in",
+                         expectedReversed, isReverseOrder(response.partitionIterator()));
+        }
+    }
+
+    private static boolean isReverseOrder(RowIterator rows)
+    {
+        try (RowIterator toClose = rows)
+        {
+            return toClose.isReverseOrder();
+        }
+    }
+
+    private static boolean isReverseOrder(PartitionIterator partitions)
+    {
+        try (PartitionIterator toClose = partitions)
+        {
+            assertTrue("Result should contain a partition", toClose.hasNext());
+            return isReverseOrder(toClose.next());
         }
     }
 
     private static RowIterator twoRowResult()
+    {
+        return twoRowResult(false);
+    }
+
+    private static RowIterator twoRowResult(boolean reversed)
     {
         TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE1, CF_STANDARD1);
 
@@ -360,12 +441,20 @@ public class CasForwardingTest
                                                                     .clustering("c2").add("val", "v2")
                                                                     .buildUpdate()));
 
-        return UnfilteredRowIterators.filter(update.unfilteredIterator(), FBUtilities.nowInSeconds());
+        // all(update.columns()) rather than all(metadata) keeps the non-reversed fixture byte-identical to
+        // the no-arg unfilteredIterator() this replaced, whose selection lands in the serialization header
+        return UnfilteredRowIterators.filter(update.unfilteredIterator(ColumnFilter.all(update.columns()), Slices.ALL, reversed),
+                                             FBUtilities.nowInSeconds());
     }
 
     private static List<String> twoRowValues()
     {
-        return rowValues(PartitionIterators.singletonIterator(twoRowResult()));
+        return twoRowValues(false);
+    }
+
+    private static List<String> twoRowValues(boolean reversed)
+    {
+        return rowValues(PartitionIterators.singletonIterator(twoRowResult(reversed)));
     }
 
     private static List<String> rowValues(PartitionIterator partitions)

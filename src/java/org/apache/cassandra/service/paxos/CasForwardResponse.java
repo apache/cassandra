@@ -53,6 +53,13 @@ import static org.apache.cassandra.db.rows.DeserializationHelper.Flag.FROM_REMOT
 public class CasForwardResponse
 {
     private final FilteredPartition result;
+
+    /**
+     * Direction {@link #result} was read in. {@link FilteredPartition} always stores rows in clustering
+     * order, so a reversed slice needs its direction carried alongside.
+     */
+    private final boolean reversed;
+
     public final CassandraException exception;
 
     @Nonnull
@@ -60,52 +67,74 @@ public class CasForwardResponse
 
     public CasForwardResponse(RowIterator result, List<String> warnings)
     {
-        this(materialize(result), null, warnings);
+        this(Materialized.of(result), null, warnings);
     }
 
     public CasForwardResponse(PartitionIterator result, List<String> warnings)
     {
-        this(materialize(result), null, warnings);
+        this(Materialized.of(result), null, warnings);
     }
 
     public CasForwardResponse(CassandraException exception, List<String> warnings)
     {
-        this((FilteredPartition) null, exception, warnings);
+        this(Materialized.NONE, exception, warnings);
     }
 
-    private CasForwardResponse(FilteredPartition result, CassandraException exception, List<String> warnings)
+    private CasForwardResponse(Materialized result, CassandraException exception, List<String> warnings)
+    {
+        this(result.partition, result.reversed, exception, warnings);
+    }
+
+    private CasForwardResponse(FilteredPartition result, boolean reversed, CassandraException exception, List<String> warnings)
     {
         this.result = result;
+        this.reversed = reversed;
         this.exception = exception;
         this.warnings = warnings == null ? Collections.emptyList() : warnings;
     }
 
-    private static FilteredPartition materialize(RowIterator rows)
+    /** A materialized result and the direction it was read in, taken before the iterator is consumed. */
+    private static class Materialized
     {
-        if (rows == null)
-            return null;
+        private static final Materialized NONE = new Materialized(null, false);
 
-        try (RowIterator toClose = rows)
+        private final FilteredPartition partition;
+        private final boolean reversed;
+
+        private Materialized(FilteredPartition partition, boolean reversed)
         {
-            return new FilteredPartition(toClose);
+            this.partition = partition;
+            this.reversed = reversed;
         }
-    }
 
-    private static FilteredPartition materialize(PartitionIterator partitions)
-    {
-        if (partitions == null)
-            return null;
-
-        try (PartitionIterator toClose = partitions)
+        private static Materialized of(RowIterator rows)
         {
-            if (!toClose.hasNext())
-                return null;
+            if (rows == null)
+                return NONE;
 
-            FilteredPartition materialized = materialize(toClose.next());
-            // Serial reads are single partition, enforced in StorageProxy.readWithConsensusInternal.
-            // Asked only after the partition above is drained, per the note in PartitionIterators.
-            checkState(!toClose.hasNext(), "Forwarded read response cannot carry more than one partition");
-            return materialized;
+            try (RowIterator toClose = rows)
+            {
+                boolean reversed = toClose.isReverseOrder();
+                return new Materialized(new FilteredPartition(toClose), reversed);
+            }
+        }
+
+        private static Materialized of(PartitionIterator partitions)
+        {
+            if (partitions == null)
+                return NONE;
+
+            try (PartitionIterator toClose = partitions)
+            {
+                if (!toClose.hasNext())
+                    return NONE;
+
+                Materialized materialized = of(toClose.next());
+                // Serial reads are single partition, enforced in StorageProxy.readWithConsensusInternal.
+                // Asked only after the partition above is drained, per the note in PartitionIterators.
+                checkState(!toClose.hasNext(), "Forwarded read response cannot carry more than one partition");
+                return materialized;
+            }
         }
     }
 
@@ -121,7 +150,7 @@ public class CasForwardResponse
 
     public RowIterator rowIterator()
     {
-        return result == null ? null : result.rowIterator(false);
+        return result == null ? null : result.rowIterator(reversed);
     }
 
     public PartitionIterator partitionIterator()
@@ -137,6 +166,8 @@ public class CasForwardResponse
         private static final int HAS_RESULT    = 0x01;
         private static final int HAS_EXCEPTION = 0x02;
         private static final int HAS_WARNINGS  = 0x04;
+        /** Rows are always written in clustering order, so this records the direction asked for. */
+        private static final int IS_REVERSED   = 0x08;
 
         @Override
         public void serialize(CasForwardResponse response, DataOutputPlus out, int version) throws IOException
@@ -144,6 +175,7 @@ public class CasForwardResponse
             int flags = (response.hasResult() ? HAS_RESULT : 0)
                       | (response.exception != null ? HAS_EXCEPTION : 0)
                       | (!response.warnings.isEmpty() ? HAS_WARNINGS : 0)
+                      | (response.reversed ? IS_REVERSED : 0)
                       ;
             out.write(flags);
 
@@ -171,6 +203,7 @@ public class CasForwardResponse
             boolean hasResult    = (flags & HAS_RESULT)    != 0;
             boolean hasException = (flags & HAS_EXCEPTION) != 0;
             boolean hasWarnings  = (flags & HAS_WARNINGS)  != 0;
+            boolean reversed     = (flags & IS_REVERSED)   != 0;
 
             FilteredPartition result = null;
             if (hasResult)
@@ -194,7 +227,7 @@ public class CasForwardResponse
             if (hasWarnings)
                 warnings = CollectionSerializers.deserializeList(in, version, StringSerializer.instance);
 
-            return new CasForwardResponse(result, exception, warnings);
+            return new CasForwardResponse(result, reversed, exception, warnings);
         }
 
         @Override
