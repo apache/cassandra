@@ -268,6 +268,7 @@ public class AutoRepairTest extends CQLTester
         UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
         long now = System.currentTimeMillis();
 
+        DurationSpec.LongSecondsBound repairTaskMinDuration = DatabaseDescriptor.getAutoRepairConfig().getRepairTaskMinDuration();
         // Ensure repair tasks don't artificially sleep
         DatabaseDescriptor.getAutoRepairConfig().setRepairTaskMinDuration("0s");
 
@@ -293,5 +294,8 @@ public class AutoRepairTest extends CQLTester
         assertTrue("repair_finish_ts should advance after force repair runs, but was "
                    + finishTimeBefore + " -> " + finishTimeAfter,
                    finishTimeAfter > finishTimeBefore);
+
+        // Restore original value
+        DatabaseDescriptor.getAutoRepairConfig().setRepairTaskMinDuration(repairTaskMinDuration.toString());
     }
 }
