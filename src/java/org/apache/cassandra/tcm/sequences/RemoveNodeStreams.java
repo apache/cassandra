@@ -36,7 +36,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.streaming.DataMovement;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
@@ -111,7 +110,6 @@ public class RemoveNodeStreams implements LeaveStreams
     private static MovementMap movementMap(ClusterMetadata metadata, InetAddressAndPort leaving, PlacementDeltas startDelta)
     {
         MovementMap.Builder allMovements = MovementMap.builder();
-        EndpointLookup endpointLookup = metadata.endpointLookup();
         // map of dest->src* movements, keyed by replication settings. During unbootstrap, this will be used to construct
         // a stream plan for each keyspace, based on their replication params.
         startDelta.forEach((params, delta) -> {
@@ -120,8 +118,8 @@ public class RemoveNodeStreams implements LeaveStreams
                 return;
 
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
-            RangesByEndpoint startWriteAdditions = startDelta.get(params).writes.additions(endpointLookup);
-            RangesByEndpoint startWriteRemovals = startDelta.get(params).writes.removals(endpointLookup);
+            RangesByEndpoint startWriteAdditions = startDelta.get(params).writes.additions(metadata.directory);
+            RangesByEndpoint startWriteRemovals = startDelta.get(params).writes.removals(metadata.directory);
             // find current placements from the metadata, we need to stream from replicas that are not changed and are therefore not in the deltas
             ReplicaGroups currentPlacements = metadata.placement(params).reads;
             startWriteAdditions.flattenValues()

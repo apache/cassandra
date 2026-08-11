@@ -328,16 +328,15 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
     public ClusterMetadata.Transformer cancel(ClusterMetadata metadata)
     {
         DataPlacements placements = metadata.placements();
-        EndpointLookup endpointLookup = metadata.endpointLookup();
         switch (next)
         {
             // need to undo MID_JOIN and START_JOIN, then merge the ranges split by PrepareJoin
             case FINISH_JOIN:
-                placements = midJoin.inverseDelta().apply(endpointLookup, metadata.nextEpoch(), placements);
+                placements = midJoin.inverseDelta().apply(metadata.directory, metadata.nextEpoch(), placements);
             case MID_JOIN:
-                placements = startJoin.inverseDelta().apply(endpointLookup, metadata.nextEpoch(), placements);
+                placements = startJoin.inverseDelta().apply(metadata.directory, metadata.nextEpoch(), placements);
             case START_JOIN:
-                placements = toSplitRanges.invert().apply(endpointLookup, metadata.nextEpoch(), placements);
+                placements = toSplitRanges.invert().apply(metadata.directory, metadata.nextEpoch(), placements);
                 break;
             default:
                 throw new IllegalStateException("Can't revert join from " + next);
@@ -359,9 +358,8 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
     @VisibleForTesting
     public Pair<MovementMap, MovementMap> getMovementMaps(ClusterMetadata metadata)
     {
-        EndpointLookup endpointLookup = metadata.endpointLookup();
-        MovementMap movementMap = movementMap(endpointLookup, metadata.directory.endpoint(startJoin.nodeId()), metadata.placements(), startJoin.delta());
-        MovementMap strictMovementMap = toStrict(endpointLookup, movementMap, finishJoin.delta());
+        MovementMap movementMap = movementMap(metadata.directory, metadata.directory.endpoint(startJoin.nodeId()), metadata.placements(), startJoin.delta());
+        MovementMap strictMovementMap = toStrict(metadata.directory, movementMap, finishJoin.delta());
         return Pair.create(movementMap, strictMovementMap);
     }
 

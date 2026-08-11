@@ -227,7 +227,7 @@ public class PlacementTransitionPlanTest
         new PlacementTransitionPlan(PlacementDeltas.empty(),
                                     PlacementDeltas.empty(),
                                     PlacementDeltas.empty(),
-                                    PlacementDeltas.empty()).assertPreExistingWriteReplica(metadata.endpointLookup(), start, deltasInOrder);
+                                    PlacementDeltas.empty()).assertPreExistingWriteReplica(metadata.directory, start, deltasInOrder);
     }
 
     private PlacementDeltas.PlacementDelta addReadDelta(ImmutableMultimap<NodeId, ReplicaNode> replica)

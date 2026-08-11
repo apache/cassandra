@@ -170,7 +170,7 @@ public class PrepareJoin implements Transformation
             assertPreExistingWriteReplica(prev, transitionPlan);
 
         LockedRanges newLockedRanges = prev.lockedRanges.lock(lockKey, rangesToLock);
-        DataPlacements startingPlacements = transitionPlan.toSplit.apply(prev.directory::endpoint, prev.nextEpoch(), prev.placements());
+        DataPlacements startingPlacements = transitionPlan.toSplit.apply(prev.directory, prev.nextEpoch(), prev.placements());
         ClusterMetadata.Transformer proposed = prev.transformer()
                                                    .with(newLockedRanges)
                                                    .with(startingPlacements)

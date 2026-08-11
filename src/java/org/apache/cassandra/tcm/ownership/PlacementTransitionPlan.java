@@ -181,7 +181,7 @@ public class PlacementTransitionPlan
      */
     public void assertPreExistingWriteReplica(ClusterMetadata metadata)
     {
-        assertPreExistingWriteReplica(metadata.endpointLookup(), metadata.placements(), toSplit, addToWrites(), moveReads(), removeFromWrites());
+        assertPreExistingWriteReplica(metadata.directory, metadata.placements(), toSplit, addToWrites(), moveReads(), removeFromWrites());
     }
 
     @VisibleForTesting

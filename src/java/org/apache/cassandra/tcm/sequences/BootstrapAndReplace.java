@@ -54,7 +54,6 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Directory;
-import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
@@ -320,15 +319,14 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
     public ClusterMetadata.Transformer cancel(ClusterMetadata metadata)
     {
         DataPlacements placements = metadata.placements();
-        EndpointLookup endpointLookup = metadata.endpointLookup();
         switch (next)
         {
             // need to undo MID_REPLACE and START_REPLACE, but PREPARE_REPLACE doesn't affect placements
             case FINISH_REPLACE:
-                placements = midReplace.inverseDelta().apply(endpointLookup, metadata.nextEpoch(), placements);
+                placements = midReplace.inverseDelta().apply(metadata.directory, metadata.nextEpoch(), placements);
             case MID_REPLACE:
             case START_REPLACE:
-                placements = startReplace.inverseDelta().apply(endpointLookup, metadata.nextEpoch(), placements);
+                placements = startReplace.inverseDelta().apply(metadata.directory, metadata.nextEpoch(), placements);
                 break;
             default:
                 throw new IllegalStateException("Can't revert replacement from " + next);
@@ -362,7 +360,7 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
         startDelta.forEach((params, delta) -> {
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
             DataPlacement originalPlacements = placements.get(params);
-            delta.writes.additions(metadata.endpointLookup()).flattenValues().forEach((destination) -> {
+            delta.writes.additions(metadata.directory).flattenValues().forEach((destination) -> {
                 originalPlacements.reads.forRange(destination.range())
                                         .get().stream()
                                         .filter(r -> !r.endpoint().equals(beingReplacedEndpoint))

@@ -83,7 +83,7 @@ public abstract class ApplyPlacementDeltas implements Transformation
         ClusterMetadata.Transformer next = prev.transformer();
 
         if (!delta.isEmpty())
-            next = next.with(delta.apply(prev.directory::endpoint, prev.nextEpoch(), prev.placements()));
+            next = next.with(delta.apply(prev.directory, prev.nextEpoch(), prev.placements()));
 
         next = transform(prev, next);
 

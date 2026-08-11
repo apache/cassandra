@@ -192,9 +192,9 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
                 // stream up to date distributed log tables before being able to serve reads & participate in quorums.
                 // If this is the case, do that streaming now.
                 ActiveTransition activeTransition = transitionCMS.next.activeTransition;
-                InetAddressAndPort endpoint = metadata.endpointLookup().endpoint(activeTransition.nodeId);
+                InetAddressAndPort endpoint = metadata.directory.endpoint(activeTransition.nodeId);
                 Replica replica = new Replica(endpoint, entireRange, true);
-                streamRanges(replica, activeTransition.streamCandidates(metadata.endpointLookup()));
+                streamRanges(replica, activeTransition.streamCandidates(metadata.directory));
             }
             else
             {

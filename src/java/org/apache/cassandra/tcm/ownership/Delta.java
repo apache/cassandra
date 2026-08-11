@@ -23,6 +23,9 @@ import java.util.Collection;
 import java.util.Set;
 import java.util.function.Function;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -55,6 +58,7 @@ public interface Delta
 
     class Serializer implements MetadataSerializer<Delta>
     {
+        private static final Logger logger = LoggerFactory.getLogger(Delta.Serializer.class);
         @Override
         public void serialize(Delta t, DataOutputPlus out, Version version) throws IOException
         {
@@ -91,7 +95,11 @@ public interface Delta
             if (in.readBoolean())
                 return NodeIdDelta.serializer.deserialize(in, version);
             else
-                return EndpointDelta.serializer.deserialize(in, version);
+            {
+                EndpointDelta delta = EndpointDelta.serializer.deserialize(in, version);
+                logger.debug("Deserialized EndpointDelta (V8 or earlier) on V9: {}", delta);
+                return delta;
+            }
         }
 
         @Override
