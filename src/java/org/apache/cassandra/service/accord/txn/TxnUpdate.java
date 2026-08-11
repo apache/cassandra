@@ -577,7 +577,7 @@ public final class TxnUpdate extends AccordUpdate
     {
         requireArgument(cassandraCommitCL == null || IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(cassandraCommitCL));
         this.tables = tables;
-        this.keys = sortedFragmentKeys(preTransformedBlocks);
+        this.keys = getKeys(preTransformedBlocks);
 
         List<Block> blocks = new ArrayList<>();
         int nextConditionIndex = 0;
@@ -593,19 +593,13 @@ public final class TxnUpdate extends AccordUpdate
         this.preserveTimestamps = preserveTimestamps;
     }
 
-    private static Keys sortedFragmentKeys(List<PreTransformedBlock> preTransformedBlocks)
+    private static Keys getKeys(List<PreTransformedBlock> preTransformedBlocks)
     {
         List<Key> keys = new ArrayList<>();
 
         for (PreTransformedBlock preTransformedBlock : preTransformedBlocks)
             preTransformedBlock.accumulateKeys(keys);
 
-        // The PreTransformedBlock constructor maintains the invariant that
-        // all TxnWrite.Fragments are sorted by key, so we do not need to sort them again
-        if (preTransformedBlocks.size() == 1)
-            return Keys.of(keys);
-
-        keys.sort(RoutableKey::compareTo);
         return Keys.of(keys);
     }
 
