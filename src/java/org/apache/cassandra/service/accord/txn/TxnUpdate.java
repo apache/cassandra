@@ -31,6 +31,8 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.agrona.collections.IntArrayList;
+
 import accord.api.Data;
 import accord.api.Key;
 import accord.api.Update;
@@ -662,9 +664,9 @@ public final class TxnUpdate extends AccordUpdate
             }
             else
             {
-                List<List<Integer>> conditionsIndexToFragmentId = new ArrayList<>(conditions.length);
+                List<IntArrayList> conditionsIndexToFragmentId = new ArrayList<>(conditions.length);
                 for (int i = 0; i < conditions.length; i++)
-                    conditionsIndexToFragmentId.add(new ArrayList<>());
+                    conditionsIndexToFragmentId.add(new IntArrayList());
 
                 BlockFragment[] blockFragments = new BlockFragment[fragmentConditionIndexPair.size()];
                 ConditionalBlock[] conditionalBlocks = new ConditionalBlock[conditions.length];
@@ -681,7 +683,7 @@ public final class TxnUpdate extends AccordUpdate
 
                 for (int i = 0; i < conditions.length; i++)
                 {
-                    int[] fragmentIds = conditionsIndexToFragmentId.get(i).stream().mapToInt(x -> x).toArray();
+                    int[] fragmentIds = conditionsIndexToFragmentId.get(i).toIntArray();
                     SerializedTxnCondition serializedCondition = new SerializedTxnCondition(conditions[i], tables);
                     conditionalBlocks[i] = new ConditionalBlock(conditionalBlockIndex, serializedCondition, fragmentIds);
                     conditionalBlockIndex++;
