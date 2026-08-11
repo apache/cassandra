@@ -97,7 +97,7 @@ public interface Delta
             else
             {
                 EndpointDelta delta = EndpointDelta.serializer.deserialize(in, version);
-                logger.debug("Deserialized EndpointDelta (V8 or earlier) on V9: {}", delta);
+                logger.debug("Deserialized EndpointDelta at V8 or earlier on V9: {}", delta);
                 return delta;
             }
         }

@@ -27,6 +27,8 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.tcm.ClusterMetadata;
 
+import static org.junit.Assert.assertTrue;
+
 public class ClusterMetadataDeltaMinorUpgradeTest extends UpgradeTestBase
 {
     @Test
@@ -49,7 +51,14 @@ public class ClusterMetadataDeltaMinorUpgradeTest extends UpgradeTestBase
             cluster.get(4).flush("system");
             cluster.get(4).shutdown().get();
             cluster.get(4).startup();
-            cluster.get(4).logs().watchFor("Deserialized EndpointDelta (V8 or earlier) on V9");
+            cluster.get(4).logs().watchFor("Deserialized EndpointDelta at V8 or earlier on V9");
+            cluster.get(4).logs().watchFor("Enacted FinishMove");
+            // and now fully on V9 - run another move, make sure we don't get any EndpointDeltas
+            long mark = cluster.get(4).logs().mark();
+            cluster.get(1).nodetoolResult("move", "123455").asserts().success();
+            cluster.get(4).logs().watchFor(mark, "Enacted FinishMove");
+            assertTrue(cluster.get(4).logs().grep(mark, "Deserialized EndpointDelta at V8 or earlier on V9").getResult().isEmpty());
+
         }).run();
     }
 }
