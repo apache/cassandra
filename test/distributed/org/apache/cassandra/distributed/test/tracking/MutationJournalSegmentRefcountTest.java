@@ -123,9 +123,6 @@ public class MutationJournalSegmentRefcountTest extends TestBaseImpl
 
             cluster.forEach(i -> i.nodetoolResult("disableautocompaction", KEYSPACE, "tbl").asserts().success());
 
-            // Block offset broadcasts so the flushed sstables stay unrepaired and keep holding their segments.
-            cluster.filters().verbs(Verb.MT_BROADCAST_LOG_OFFSETS.id).drop();
-
             for (int i = 0; i < 50; i++)
             {
                 cluster.coordinator(1)
@@ -136,7 +133,29 @@ public class MutationJournalSegmentRefcountTest extends TestBaseImpl
             cluster.forEach(i -> i.nodetoolResult("flush", KEYSPACE).asserts().success());
             cluster.forEach(i -> i.runOnInstance(() -> MutationJournal.instance().closeCurrentSegmentForTestingIfNonEmpty()));
 
-            // While tracked, the unrepaired sstables hold their segments: a drop pass is a no-op.
+            // Durably reconcile every offset (but keep the flushed sstables unrepaired, since we never compact),
+            // driving the cross-node offset exchange to convergence. This satisfies the reconciliation gate (W) so
+            // the *only* thing still pinning the segments is the unrepaired sstable references (R) -- making the
+            // eviction below the sole reason they can finally drop.
+            boolean reconciled = false;
+            for (int round = 0; round < 30 && !reconciled; round++)
+            {
+                for (int n = 1; n <= cluster.size(); n++)
+                    cluster.get(n).runOnInstance(() -> MutationTrackingService.instance().persistLogStateForTesting());
+                for (int n = 1; n <= cluster.size(); n++)
+                    cluster.get(n).runOnInstance(() -> MutationTrackingService.instance().broadcastOffsetsForTesting());
+                for (int n = 1; n <= cluster.size(); n++)
+                    cluster.get(n).runOnInstance(() -> MutationTrackingService.instance().persistLogStateForTesting());
+
+                reconciled = true;
+                for (int n = 1; n <= cluster.size(); n++)
+                    reconciled &= cluster.get(n).callOnInstance(() ->
+                        MutationTrackingService.instance().allStaticSegmentsDurablyReconciledForTesting());
+            }
+            assertTrue("Reconciliation must converge so only the sstable references still pin the segments", reconciled);
+
+            // While tracked, the (fully reconciled but) unrepaired sstables still hold their segments: a drop pass
+            // is a no-op.
             cluster.forEach(i -> i.runOnInstance(() -> {
                 int before = MutationJournal.instance().countStaticSegmentsForTesting();
                 assertTrue("Expected a static segment held by the unrepaired sstables, got " + before, before > 0);
@@ -225,6 +244,75 @@ public class MutationJournalSegmentRefcountTest extends TestBaseImpl
                 assertEquals("Static segments must be dropped after size-triggered promotion of reconciled sstables",
                              0, remaining);
             }));
+        }
+    }
+
+    /**
+     * A transient (witness) replica journals witnessed writes but never applies them to a memtable, so it never
+     * flushes an sstable for them. Such witness-only journal data must not pin {@code needsReplay} (only a flush
+     * clears it, so it would otherwise stay set forever) and cannot be reclaimed by the reference path (there
+     * is no sstable to promote). Its journal segments are instead governed purely by the reconciliation gate.
+     * This exercises the full transient-replication path end to end on a {@code '3/1'} keyspace where every
+     * node is a full replica for some ranges and a witness for others: once every offset is durably
+     * reconciled and the full-replica sstables are compacted to repaired, every node reclaims all of its static
+     * segments, including those holding only witnessed data.
+     */
+    @Test(timeout = 120_000)
+    public void testWitnessSegmentsReleasedOnceReconciled() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(3)
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK).with(Feature.GOSSIP)
+                                                            .set("transient_replication_enabled", "true"))
+                                      .start())
+        {
+            cluster.schemaChange(withKeyspace(
+                "CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3/1'} " +
+                "AND replication_type = 'tracked'"));
+            cluster.schemaChange(String.format(CREATE_TABLE, KEYSPACE));
+
+            cluster.forEach(i -> i.nodetoolResult("disableautocompaction", KEYSPACE, "tbl").asserts().success());
+
+            for (int i = 0; i < 50; i++)
+            {
+                cluster.coordinator(1)
+                       .execute(withKeyspace("INSERT INTO %s.tbl (pk, val) VALUES (?, ?)"),
+                                ConsistencyLevel.QUORUM, i, "v" + i);
+            }
+
+            cluster.forEach(i -> i.nodetoolResult("flush", KEYSPACE).asserts().success());
+            cluster.forEach(i -> i.runOnInstance(() -> MutationJournal.instance().closeCurrentSegmentForTestingIfNonEmpty()));
+
+            cluster.forEach(i -> i.runOnInstance(() ->
+                assertTrue("Expected static segments after flush+close",
+                           MutationJournal.instance().countStaticSegmentsForTesting() > 0)));
+
+            // Reconcile to convergence across full replicas and witnesses.
+            boolean reconciled = false;
+            for (int round = 0; round < 30 && !reconciled; round++)
+            {
+                for (int n = 1; n <= cluster.size(); n++)
+                    cluster.get(n).runOnInstance(() -> MutationTrackingService.instance().persistLogStateForTesting());
+                for (int n = 1; n <= cluster.size(); n++)
+                    cluster.get(n).runOnInstance(() -> MutationTrackingService.instance().broadcastOffsetsForTesting());
+                for (int n = 1; n <= cluster.size(); n++)
+                    cluster.get(n).runOnInstance(() -> MutationTrackingService.instance().persistLogStateForTesting());
+
+                reconciled = true;
+                for (int n = 1; n <= cluster.size(); n++)
+                    reconciled &= cluster.get(n).callOnInstance(() ->
+                        MutationTrackingService.instance().allStaticSegmentsDurablyReconciledForTesting());
+            }
+            assertTrue("Reconciliation must converge across all replicas and witnesses", reconciled);
+
+            // Compact so the full-replica sstables are promoted to repaired and release their segment references.
+            // Witness-only segments have no sstable and no pinned needsReplay, so the reconciliation above already
+            // made them reclaimable.
+            cluster.forEach(i -> i.nodetoolResult("compact", KEYSPACE, "tbl").asserts().success());
+
+            cluster.forEach(i -> i.runOnInstance(() -> MutationTrackingService.instance().persistLogStateForTesting()));
+            cluster.forEach(i -> i.runOnInstance(() ->
+                assertEquals("All static segments (including witness-only ranges) must be reclaimed once reconciled",
+                             0, MutationJournal.instance().countStaticSegmentsForTesting())));
         }
     }
 }

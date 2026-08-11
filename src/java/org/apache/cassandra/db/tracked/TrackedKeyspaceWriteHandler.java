@@ -26,6 +26,7 @@ import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.service.replication.migration.MigrationRouter;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
@@ -45,7 +46,12 @@ public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
             if (makeDurable)
             {
                 Tracing.trace("Appending to mutation journal");
-                pointer = MutationJournal.instance().write(mutation.id(), mutation);
+                // Witness status is uniform per mutation (single partition key / token). Compute it here so the
+                // journal only marks the segment dirty for full-replica writes: a witnessed-only mutation is
+                // journaled but never applied to a memtable, so it must not pin needsReplay (CASSANDRA-21406).
+                Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
+                boolean fullReplica = keyspace.isFullReplicaFor(mutation.key().getToken(), ClusterMetadata.current());
+                pointer = MutationJournal.instance().write(mutation.id(), mutation, fullReplica);
             }
 
             return new CassandraWriteContext(group, pointer);

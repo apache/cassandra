@@ -36,6 +36,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 
 import org.agrona.collections.Long2LongHashMap;
+import org.agrona.collections.Long2ObjectHashMap;
 import org.jctools.maps.NonBlockingHashMapLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -74,6 +75,7 @@ import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Semaphore;
@@ -207,12 +209,17 @@ public class MutationJournal
     // recording of needsReplay=false is deferred — we record the segment in pendingClearReplay and let the
     // LogStatePersister drain the queue after it has written witnessed offsets to system.coordinator_logs.
     //
+    // A null tracker means the segment holds no full-replica (memtable-backed) data — it is either empty or holds
+    // only witnessed-only mutations, which are never applied to a memtable and so never flushed. Such a segment
+    // has nothing to replay for local durability, so it is immediately eligible; any remaining retention is
+    // governed by reconciliation coverage in dropSegments, not by needsReplay.
+    //
     // See the comment in LogStatePersister or CASSANDRA-21443 for an explanation of why we do this
     private void maybeCleanupStaticSegment(Segment<ShortMutationId, Mutation> segment)
     {
         Invariants.require(segment.isStatic());
         SegmentStateTracker tracker = segmentStateTrackers.get(segment.id());
-        if (tracker != null && tracker.removeCleanFromDirty())
+        if (tracker == null || tracker.removeCleanFromDirty())
             pendingClearReplay.add(segment.id());
     }
 
@@ -288,23 +295,45 @@ public class MutationJournal
         journal.shutdown();
     }
 
+    @VisibleForTesting
     public RecordPointer write(ShortMutationId id, Mutation mutation)
+    {
+        return write(id, mutation, true);
+    }
+
+    /**
+     * Append a mutation to the journal.
+     *
+     * @param id          the short mutation id
+     * @param mutation    the mutation to be applied to the journal
+     * @param fullReplica whether this node is a full replica for the mutation's token. Only full-replica
+     *                    writes mark the segment dirty: a witnessed-only mutation is journaled
+     *                    (and witnessed for reconciliation) but never applied to a memtable, so marking
+     *                    it dirty would pin the segment's needsReplay forever preventing it from flushing.
+     *                    A witness-only segment is instead retained until its offsets are durably reconciled
+     *                    (see dropSegments).
+     * @return the record pointer to the journal
+     */
+    public RecordPointer write(ShortMutationId id, Mutation mutation, boolean fullReplica)
     {
         // TODO (required): why are we using blocking write here? We can/should wait for completion on `close` of WriteContext.
         RecordPointer ptr = journal.blockingWrite(id, mutation);
 
         // IMPORTANT: there should be no way for mutation to be applied to memtable before we mark it as dirty here,
         // since this will introduce a race between marking as dirty and marking as clean.
-        for (TableId tableId : mutation.getTableIds())
+        if (fullReplica)
         {
-            SegmentStateTracker tracker = lastSegmentTracker;
-            if (tracker == null || tracker.segmentId() != ptr.segmentId)
+            for (TableId tableId : mutation.getTableIds())
             {
-                tracker = segmentStateTrackers.computeIfAbsent(ptr.segmentId, SegmentStateTracker::new);
-                lastSegmentTracker = tracker;
-            }
+                SegmentStateTracker tracker = lastSegmentTracker;
+                if (tracker == null || tracker.segmentId() != ptr.segmentId)
+                {
+                    tracker = segmentStateTrackers.computeIfAbsent(ptr.segmentId, SegmentStateTracker::new);
+                    lastSegmentTracker = tracker;
+                }
 
-            tracker.markDirty(tableId, ptr);
+                tracker.markDirty(tableId, ptr);
+            }
         }
 
         return ptr;
@@ -394,6 +423,12 @@ public class MutationJournal
                 // TODO: if (commitLogReplayer.pointInTimeExceeded(mutation))
                 final Keyspace keyspace = Keyspace.open(value.getKeyspaceName());
 
+                // Witnessed-only mutations are still replayed (so their offsets are re-witnessed on startup) but must
+                // not mark the segment dirty — they are never applied to a memtable, so a dirty mark would pin the
+                // segment's needsReplay forever. Witness status is per keyspace+token, hence uniform across this
+                // mutation's tables.
+                final boolean fullReplica = keyspace.isFullReplicaFor(value.key().getToken(), ClusterMetadata.current());
+
                 Mutation.PartitionUpdateCollector newPUCollector = null;
                 // TODO (required): replayFilter
                 for (Map.Entry<TableId, PartitionUpdate> e : value.modifications().entrySet())
@@ -404,9 +439,10 @@ public class MutationJournal
                         continue; // dropped
                     TableId tableId = e.getKey();
 
-                    // Start segment state tracking
-                    segmentStateTrackers.computeIfAbsent(segmentId, SegmentStateTracker::new)
-                                        .markDirty(tableId, segmentId, position);
+                    // Start segment state tracking (full-replica, memtable-backed data only; see comment above)
+                    if (fullReplica)
+                        segmentStateTrackers.computeIfAbsent(segmentId, SegmentStateTracker::new)
+                                            .markDirty(tableId, segmentId, position);
                     // TODO (required): shouldReplay
                     if (newPUCollector == null)
                         newPUCollector = new Mutation.PartitionUpdateCollector(value.id(), value.getKeyspaceName(), value.key());
@@ -455,13 +491,29 @@ public class MutationJournal
         }
     }
 
-    // Synchronized so the (now several) event-driven callers cannot both select and then discard the same
-    // segment, which would over-release its reference (CASSANDRA-21406).
-    @VisibleForTesting
-    synchronized int dropUnreferencedSegments()
+    /**
+     * Drop every static segment that is safe to reclaim, i.e. one that:
+     * <ol>
+     *   <li>(F) does not need replay — every full-replica memtable holding its data has been flushed; and</li>
+     *   <li>(R) is not referenced by any unrepaired local sstable — otherwise the journal may still be needed to
+     *       rebuild that sstable with minority writes filtered out; and</li>
+     *   <li>(W) is fully covered by the given durably-reconciled offsets, so any witnessed-only mutations it
+     *       carries (which never produce an sstable) have been durably reconciled across peers (CASSANDRA-21406).</li>
+     * </ol>
+     * For a full replica (F)+(R) dominate ((W) is implied, since an sstable becomes repaired — and thus stops
+     * referencing the segment — only once reconciled); for a witness (R) is trivially satisfied (no sstables) and
+     * (W) is the real gate, restoring the pre-reference-tracking reconciliation-based drop condition.
+     *
+     * <p>Synchronized so the several event-driven callers cannot both select and then discard the same segment,
+     * which would over-release its reference.
+     */
+    synchronized int dropSegments(Log2OffsetsMap<?> durablyReconciled)
     {
-        return journal.dropStaticSegments(segment -> !segment.metadata().needsReplay()
-                                                     && !segmentReferenceTracker.isReferenced(segment.id()));
+        return journal.dropStaticSegments(segment -> {
+            return !segment.metadata().needsReplay()
+                   && !segmentReferenceTracker.isReferenced(segment.id())
+                   && ((StaticOffsetRanges) segment.keyStats()).isFullyCovered(durablyReconciled);
+        });
     }
 
     /**
@@ -826,6 +878,32 @@ public class MutationJournal
             Crc.validate(crc, in.readInt());
             return new StaticOffsetRanges(ranges);
         }
+
+        /**
+         * @return whether every key range in this segment is fully covered by the given (durably reconciled)
+         * offsets — i.e. every mutation id the segment holds has been durably reconciled across peers. Used to
+         * decide when a segment holding witnessed-only data may be dropped.
+         */
+        @SuppressWarnings("unchecked")
+        boolean isFullyCovered(Log2OffsetsMap<?> durablyReconciled)
+        {
+            Long2ObjectHashMap<Offsets> reconciledMap = ((Log2OffsetsMap<Offsets>) durablyReconciled).asMap();
+            for (Long2LongHashMap.EntryIterator iter = ranges.entrySet().iterator(); iter.hasNext();)
+            {
+                iter.next();
+
+                long logId = iter.getLongKey();
+                long range = iter.getLongValue();
+                int min = minOffset(range);
+                int max = maxOffset(range);
+
+                Offsets offsets = reconciledMap.get(logId);
+                if (offsets == null
+                    || !offsets.containsRange(min, max))
+                    return false;
+            }
+            return true;
+        }
     }
 
     static final class OffsetRangesFactory implements KeyStats.Factory<ShortMutationId>
@@ -885,6 +963,18 @@ public class MutationJournal
     public int countStaticSegmentsForTesting()
     {
         return journal.countStaticSegmentsForTesting();
+    }
+
+    /**
+     *  Lets tests wait for reconciliation to converge without having to first release the sstable references
+     *  that gate (R).
+     * @return the number of static segments not yet fully covered by the given durably-reconciled offsets.
+     */
+    @VisibleForTesting
+    public int countStaticSegmentsPendingReconciliationForTesting(Log2OffsetsMap<?> durablyReconciled)
+    {
+        return journal.countStaticSegmentsForTesting(
+        segment -> !((StaticOffsetRanges) segment.keyStats()).isFullyCovered(durablyReconciled));
     }
 
     public long getDiskSpaceUsed()

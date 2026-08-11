@@ -28,7 +28,9 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
@@ -1431,6 +1433,23 @@ public class Journal<K, V> implements Shutdownable
         {
             LockSupport.parkNanos(1000);
         }
+        // The segment is switched out of the active set, but CloseActiveSegmentRunnable (fsync, open-as-static and
+        // its onDone callback, e.g. MutationJournal's needs-replay cleanup) runs asynchronously on the sequential
+        // closer. Flush the closer so callers observe a fully closed segment (including any deferred cleanup)
+        // deterministically rather than racing the closer thread.
+        try
+        {
+            closer.submit(() -> {}).get();
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     @VisibleForTesting
@@ -1445,5 +1464,13 @@ public class Journal<K, V> implements Shutdownable
     public int countStaticSegmentsForTesting()
     {
         return segments.get().count(Segment::isStatic);
+    }
+
+    @VisibleForTesting
+    public int countStaticSegmentsForTesting(Predicate<StaticSegment<K, V>> matches)
+    {
+        AtomicInteger counter = new AtomicInteger(0);
+        segments().consumeStatic(matches, staticSegment -> counter.incrementAndGet());
+        return counter.get();
     }
 }

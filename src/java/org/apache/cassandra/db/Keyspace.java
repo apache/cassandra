@@ -57,7 +57,6 @@ import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.metrics.KeyspaceMetrics;
 import org.apache.cassandra.repair.KeyspaceRepairManager;
 import org.apache.cassandra.replication.MutationTrackingService;
@@ -659,33 +658,19 @@ public class Keyspace
                         continue;
                     }
 
-                    // If this range is only witnessed then don't apply the update to the underlying column family store
-                    // We still want the mutation tracking log to see the update so that it can witness it
-                    // and participate in reconciliation of the mutation
-                    AbstractReplicationStrategy replicationStrategy = cfs.keyspace.getReplicationStrategy();
-                    if (replicationStrategy.hasTransientReplicas())
+                    // If this range is only witnessed then don't apply the update to the underlying column family
+                    // store. We still want the mutation tracking log to witness it (via startWriting above) so it can
+                    // participate in reconciliation of the mutation. (The journal write in beginWrite already skipped
+                    // marking the segment dirty for witnessed-only mutations; see MutationJournal.write.)
+                    if (!isFullReplicaFor(cfs.keyspace.getReplicationStrategy(), upd.partitionKey().getToken(), cm))
                     {
-                        RangesAtEndpoint localRanges = replicationStrategy.getLocalRanges(cm);
-                        Token token = upd.partitionKey().getToken();
-                        boolean foundMatch = false;
-                        for (Range<Token> r : localRanges.onlyFull().ranges())
-                        {
-                            if (r.contains(token))
-                            {
-                                foundMatch = true;
-                                break;
-                            }
-                        }
-                        if (!foundMatch)
-                        {
-                            // TODO checkState(!mutation.allowsPotentialTxnConflicts)
-                            // Basically if a transaction system thinks it is writing to a non-witness but is writing to a
-                            // witness then we are probably going to have issues.
-                            // This is problematic/racy in general because schema changes aren't really synced with
-                            // transaction systems yet when in reality they really should be completed by a transaction or some
-                            // other similar solution.
-                            continue;
-                        }
+                        // TODO checkState(!mutation.allowsPotentialTxnConflicts)
+                        // Basically if a transaction system thinks it is writing to a non-witness but is writing to a
+                        // witness then we are probably going to have issues.
+                        // This is problematic/racy in general because schema changes aren't really synced with
+                        // transaction systems yet when in reality they really should be completed by a transaction or
+                        // some other similar solution.
+                        continue;
                     }
 
                     cfs.getWriteHandler().write(mutation.id(), upd, ctx, true);
@@ -708,6 +693,37 @@ public class Keyspace
     public AbstractReplicationStrategy getReplicationStrategy()
     {
         return getMetadata().replicationStrategy;
+    }
+
+    /**
+     * @param token the token to check for the given keyspace
+     * @param cm    the cluster metadata instance
+     * @return whether this node is a full replica for the given token in this keyspace, i.e. whether
+     * a tracked mutation for that token should be applied to the local memtable. Keyspaces without
+     * transient replicas are always full replicas for tokens they own.
+     */
+    public boolean isFullReplicaFor(Token token, ClusterMetadata cm)
+    {
+        return isFullReplicaFor(getReplicationStrategy(), token, cm);
+    }
+
+    /**
+     * @param replicationStrategy the replication strategy for the keyspace
+     * @param token               the token to check for the given keyspace
+     * @param cm                  the cluster metadata instance
+     * @return whether this node is a full replica for the given token, i.e. whether
+     * a tracked mutation for that token should be applied to the local memtable. Keyspaces without
+     * transient replicas are always full replicas for tokens they own.
+     */
+    static boolean isFullReplicaFor(AbstractReplicationStrategy replicationStrategy, Token token, ClusterMetadata cm)
+    {
+        if (!replicationStrategy.hasTransientReplicas())
+            return true;
+
+        for (Range<Token> range : replicationStrategy.getLocalRanges(cm).onlyFull().ranges())
+            if (range.contains(token))
+                return true;
+        return false;
     }
 
     public List<Future<?>> flush(ColumnFamilyStore.FlushReason reason)

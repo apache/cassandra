@@ -19,9 +19,12 @@ package org.apache.cassandra.journal;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import org.agrona.collections.Long2ObjectHashMap;
 
@@ -217,8 +220,26 @@ public class Segments<K, V>
     void selectStatic(Predicate<StaticSegment<K, V>> filter, Collection<StaticSegment<K, V>> into)
     {
         for (Segment<K, V> segment : segments.values())
-            if (segment.isStatic() && filter.test(segment.asStatic()))
-                into.add(segment.asStatic());
+        {
+            if (!segment.isStatic())
+                continue;
+            StaticSegment<K, V> staticSegment = segment.asStatic();
+            if (filter.test(staticSegment))
+                into.add(staticSegment);
+        }
+    }
+
+    @VisibleForTesting
+    void consumeStatic(Predicate<StaticSegment<K, V>> filter, Consumer<StaticSegment<K, V>> consumer)
+    {
+        for (Segment<K, V> segment : segments.values())
+        {
+            if (!segment.isStatic())
+                continue;
+            StaticSegment<K, V> staticSegment = segment.asStatic();
+            if (filter.test(staticSegment))
+                consumer.accept(staticSegment);
+        }
     }
 
     /**

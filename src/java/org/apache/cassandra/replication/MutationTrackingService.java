@@ -1114,7 +1114,30 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
     private void truncateMutationJournal()
     {
-        MutationJournal.instance().dropUnreferencedSegments();
+        Log2OffsetsMap.Mutable durablyReconciled = new Log2OffsetsMap.Mutable();
+        collectDurablyReconciledOffsets(durablyReconciled);
+        MutationJournal.instance().dropSegments(durablyReconciled);
+    }
+
+    /**
+     * Collect every log's durably-reconciled offsets. A segment all of whose offsets are covered by these is safe
+     * (from a reconciliation standpoint) to reclaim once it also no longer needs replay and holds no unrepaired
+     * sstable references — this is what lets witness-only segments (which never produce an sstable) be dropped
+     */
+    private void collectDurablyReconciledOffsets(Log2OffsetsMap.Mutable into)
+    {
+        forEachKeyspace(keyspace -> keyspace.collectDurablyReconciledOffsets(into));
+    }
+
+    /**
+     * @return true once every static journal segment is fully covered by the durably-reconciled offsets
+     */
+    @VisibleForTesting
+    public boolean allStaticSegmentsDurablyReconciledForTesting()
+    {
+        Log2OffsetsMap.Mutable durablyReconciled = new Log2OffsetsMap.Mutable();
+        collectDurablyReconciledOffsets(durablyReconciled);
+        return MutationJournal.instance().countStaticSegmentsPendingReconciliationForTesting(durablyReconciled) == 0;
     }
 
     @VisibleForTesting
@@ -1494,6 +1517,11 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         {
             for (Shard shard : shards.values())
                 consumer.accept(shard);
+        }
+
+        void collectDurablyReconciledOffsets(Log2OffsetsMap.Mutable into)
+        {
+            forEachShard(shard -> shard.collectDurablyReconciledOffsets(into));
         }
 
         Shard lookUp(Mutation mutation)

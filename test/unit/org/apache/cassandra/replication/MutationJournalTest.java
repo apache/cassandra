@@ -183,12 +183,13 @@ public class MutationJournalTest
     }
 
     @Test
-    public void testDropUnreferencedSegments()
+    public void testDropSegments()
     {
-        ShortMutationId id1 = id(100L, 0);
-        ShortMutationId id2 = id(100L, 1);
-        ShortMutationId id3 = id(200L, 2);
-        ShortMutationId id4 = id(200L, 3);
+        // Distinct logIds from the read tests (which use logId 100) so writes to the shared journal don't collide.
+        ShortMutationId id1 = id(1000L, 0);
+        ShortMutationId id2 = id(1000L, 1);
+        ShortMutationId id3 = id(2000L, 2);
+        ShortMutationId id4 = id(2000L, 3);
 
         Mutation mutation1 = mutation("key1", "ck1", "value1");
         Mutation mutation2 = mutation("key2", "ck2", "value2");
@@ -197,6 +198,9 @@ public class MutationJournalTest
 
         SegmentReferenceTracker refs = journal.segmentReferenceTracker();
 
+        // Baseline of static segments already present (this journal is shared across tests in the class).
+        int baseline = journal.countStaticSegmentsForTesting();
+
         // write two mutations to the first segment and flush it to make static
         long firstSegment = journal.getCurrentPosition().segmentId;
         journal.write(id1, mutation1);
@@ -204,33 +208,76 @@ public class MutationJournalTest
         journal.closeCurrentSegmentForTestingIfNonEmpty();
 
         // write two mutations to the second segment and flush it to make static
-        long secondSegment = journal.getCurrentPosition().segmentId;
         journal.write(id3, mutation3);
         journal.write(id4, mutation4);
         journal.closeCurrentSegmentForTestingIfNonEmpty();
 
+        // durably-reconciled offsets covering every mutation written above (logId 1000 -> {0,1}, 2000 -> {2,3})
+        Log2OffsetsMap.Mutable allReconciled = new Log2OffsetsMap.Mutable();
+        for (ShortMutationId id : List.of(id1, id2, id3, id4))
+            allReconciled.add(id);
+
         {
-            // Both segments still need replay; even with no sstable references they must be retained.
-            assertEquals(0, journal.dropUnreferencedSegments());
-            assertEquals(2, journal.countStaticSegmentsForTesting());
+            // (F) Both segments still need replay; even fully reconciled and unreferenced they must be retained.
+            assertEquals(0, journal.dropSegments(allReconciled));
+            assertEquals(baseline + 2, journal.countStaticSegmentsForTesting());
         }
 
-        // mark both segments as not needing replay
+        // mark both segments as not needing replay (simulate their memtables having been flushed)
         journal.clearNeedsReplayForTesting();
 
         {
-            // Pretend an unrepaired sstable references the first segment.
+            // (W) Not reconciled -> retained even when !needsReplay and unreferenced (the witness gate).
+            assertEquals(0, journal.dropSegments(new Log2OffsetsMap.Mutable()));
+            assertEquals(baseline + 2, journal.countStaticSegmentsForTesting());
+        }
+
+        {
+            // (R) An unrepaired sstable referencing the first segment retains it; the second (unreferenced,
+            // reconciled, !needsReplay) is dropped.
             SSTableReader referrer = Mockito.mock(SSTableReader.class);
             refs.addReferenceForTesting(firstSegment, referrer);
-            assertEquals(1, journal.dropUnreferencedSegments());
-            // Only the second (unreferenced) segment got dropped.
-            assertEquals(1, journal.countStaticSegmentsForTesting());
+            assertEquals(1, journal.dropSegments(allReconciled));
+            assertEquals(baseline + 1, journal.countStaticSegmentsForTesting());
 
             // Releasing the last reference allows the first segment to drop too.
             refs.removeReferenceForTesting(firstSegment, referrer);
-            assertEquals(1, journal.dropUnreferencedSegments());
-            assertEquals(0, journal.countStaticSegmentsForTesting());
+            assertEquals(1, journal.dropSegments(allReconciled));
+            assertEquals(baseline, journal.countStaticSegmentsForTesting());
         }
+    }
+
+    @Test
+    public void testWitnessOnlyWritesDoNotPinNeedsReplay()
+    {
+        // Isolate a fresh segment holding only the witness-only writes below.
+        journal.closeCurrentSegmentForTestingIfNonEmpty();
+        long witnessSegment = journal.getCurrentPosition().segmentId;
+
+        // Witnessed-only writes (fullReplica=false): journaled but never applied to a memtable, so never marked
+        // dirty. A segment holding only such data has nothing to flush.
+        journal.write(id(300L, 0), mutation("wk1", "ck", "v1"), false);
+        journal.write(id(300L, 1), mutation("wk2", "ck", "v2"), false);
+        journal.closeCurrentSegmentForTestingIfNonEmpty();
+
+        assertTrue("witness-only segment should be eligible to clear needsReplay without a flush to prevent " +
+                   "the journal to grow unbounded on witness-only nodes",
+                   journal.pendingCleanupForTesting().contains(witnessSegment));
+    }
+
+    @Test
+    public void testFullReplicaWritesPinNeedsReplayUntilFlushed()
+    {
+        // Isolate a fresh segment holding only the full-replica write below.
+        journal.closeCurrentSegmentForTestingIfNonEmpty();
+        long fullSegment = journal.getCurrentPosition().segmentId;
+
+        // Full-replica write marks the segment dirty; without a flush it still needs replay.
+        journal.write(id(400L, 0), mutation("fk1", "ck", "v1"), /* fullReplica = */ true);
+        journal.closeCurrentSegmentForTestingIfNonEmpty();
+
+        assertFalse("full-replica segment must not clear needsReplay before its memtable is flushed",
+                    journal.pendingCleanupForTesting().contains(fullSegment));
     }
 
     private ShortMutationId id(long logId, int offset)
