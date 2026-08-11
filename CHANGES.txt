@@ -1,5 +1,6 @@
 4.1.13
 Merged from 4.0:
+ * Make runWithCompactionsDisabled return non-null on success (CASSANDRA-21527)
  * Fix regression in PasswordObfuscator for dollar-quoted passwords (CASSANDRA-21559)
  * Do not make DNS lookup when querying system_views.clients for hostname column by removing it (CASSANDRA-21539)
  * Fix memtable on-heap accounting drift in BTree.update and BTreeRow.merge (CASSANDRA-21472)

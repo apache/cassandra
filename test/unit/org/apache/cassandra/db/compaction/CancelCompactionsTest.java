@@ -32,6 +32,12 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.Uninterruptibles;
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.agent.ByteBuddyAgent;
+import net.bytebuddy.dynamic.loading.ClassReloadingStrategy;
+import net.bytebuddy.implementation.StubMethod;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
@@ -51,6 +57,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
+import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -58,6 +66,7 @@ import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -361,6 +370,118 @@ public class CancelCompactionsTest extends CQLTester
     Token token(long t)
     {
         return new Murmur3Partitioner.LongToken(t);
+    }
+
+    private LifecycleTransaction blockCompactions(ColumnFamilyStore cfs, List<SSTableReader> sstables)
+    {
+        LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.COMPACTION);
+        assertNotNull(txn);
+        return txn;
+    }
+
+    private ClassReloadingStrategy stubWaitForCessation()
+    {
+        ByteBuddyAgent.install();
+        ClassReloadingStrategy strategy = ClassReloadingStrategy.fromInstalledAgent();
+        new ByteBuddy().redefine(CompactionManager.class)
+                       .method(named("waitForCessation"))
+                       .intercept(StubMethod.INSTANCE)
+                       .make()
+                       .load(CompactionManager.class.getClassLoader(), strategy);
+        return strategy;
+    }
+
+    @Test
+    public void testForceCompactionThrowsWhenCompactionsCannotBeDisabled() throws Exception
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        List<SSTableReader> sstables = createSSTables(cfs, 3, 0);
+
+        LifecycleTransaction txn = blockCompactions(cfs, sstables);
+        ClassReloadingStrategy strategy = stubWaitForCessation();
+        try
+        {
+            Range<Token> allData = new Range<>(cfs.getPartitioner().getMinimumToken(), cfs.getPartitioner().getMaximumToken());
+
+            // forceCompaction should fail at the null runWithCompactionsDisabled result
+            Assertions.assertThatThrownBy(() -> cfs.forceCompactionForTokenRange(Collections.singleton(allData)))
+                      .as("Unable to cancel in-progress compactions. Usually retrying will work")
+                      .isInstanceOf(RuntimeException.class);
+        }
+        finally
+        {
+            strategy.reset(CompactionManager.class);
+            txn.abort();
+        }
+    }
+
+    @Test
+    public void testGarbageCollectReturnsUnableToCancelWhenCompactionsCannotBeDisabled() throws Throwable
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        List<SSTableReader> sstables = createSSTables(cfs, 3, 0);
+
+        LifecycleTransaction txn = blockCompactions(cfs, sstables);
+        ClassReloadingStrategy strategy = stubWaitForCessation();
+        try
+        {
+            // garbageCollect goes through parallelAllSSTableOperation, which must handle a null
+            // LifecycleTransaction from markAllCompacting without NPEing.
+            assertEquals(CompactionManager.AllSSTableOpStatus.UNABLE_TO_CANCEL, cfs.garbageCollect(TombstoneOption.ROW, 0));
+        }
+        finally
+        {
+            strategy.reset(CompactionManager.class);
+            txn.abort();
+        }
+    }
+
+    @Test
+    public void testReleaseRepairDataReturnsUnsuccessfulWhenCompactionsCannotBeDisabled() throws Exception
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        List<SSTableReader> sstables = createSSTables(cfs, 3, 0);
+
+        // releaseRepairData only tries to cancel compactions on sstables pending one of these sessions,
+        // so tag one of our blocked sstables with a pending session to make it match
+        TimeUUID pendingSession = nextTimeUUID();
+        Set<TimeUUID> sessions = ImmutableSet.of(pendingSession, nextTimeUUID());
+        AbstractPendingRepairTest.mutateRepaired(sstables.get(0), pendingSession, false);
+
+        LifecycleTransaction txn = blockCompactions(cfs, sstables);
+        ClassReloadingStrategy strategy = stubWaitForCessation();
+        try
+        {
+            // force release should report the sessions as unsuccessful rather than throwing
+            CleanupSummary summary = cfs.releaseRepairData(sessions, true);
+            assertTrue(summary.successful.isEmpty());
+            assertEquals(sessions, summary.unsuccessful);
+        }
+        finally
+        {
+            strategy.reset(CompactionManager.class);
+            txn.abort();
+        }
+    }
+
+    @Test
+    public void testSubmitMaximalNoOpsWhenCompactionsCannotBeDisabled() throws Exception
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        List<SSTableReader> sstables = createSSTables(cfs, 3, 0);
+
+        LifecycleTransaction txn = blockCompactions(cfs, sstables);
+        ClassReloadingStrategy strategy = stubWaitForCessation();
+        try
+        {
+            // submitMaximal should no-op on null getMaximalTasks result
+            assertTrue(CompactionManager.instance.submitMaximal(cfs, -1, false).isEmpty());
+        }
+        finally
+        {
+            strategy.reset(CompactionManager.class);
+            txn.abort();
+        }
     }
 
     private List<SSTableReader> createSSTables(ColumnFamilyStore cfs, int count, int startGeneration)

@@ -92,6 +92,9 @@ public class TableViews extends AbstractCollection<View>
 
     public Iterable<ColumnFamilyStore> allViewsCfs()
     {
+        if (views.isEmpty())
+            return Collections.emptyList();
+
         Keyspace keyspace = Keyspace.open(baseTableMetadata.keyspace);
         return Iterables.transform(views, view -> keyspace.getColumnFamilyStore(view.getDefinition().name()));
     }
