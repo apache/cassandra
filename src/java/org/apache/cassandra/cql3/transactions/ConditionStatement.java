@@ -113,6 +113,11 @@ public class ConditionStatement
                     throw new InvalidRequestException(String.format("Row reference (%s) can only be used with IS NULL/IS NOT NULL conditions", rhs.getText()));
                 reference = rowDataReferenceLHS.prepareAsReceiver();
                 value = rowDataReferenceRHS.prepareAsReceiver();
+
+                // Done for validation of element selection
+                reference.getValueReceiver();
+                ((RowDataReference) value).getValueReceiver();
+
                 if (!reference.toResultMetadata().type.equals(((RowDataReference) value).toResultMetadata().type))
                     throw new InvalidRequestException(String.format("Row reference (%s) must have the same type as row reference (%s)", lhs.getText(), rhs.getText()));
             }
