@@ -19,6 +19,8 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
+import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.TimeoutException;
 
 import org.junit.BeforeClass;
@@ -226,11 +228,27 @@ public class MutationTrackingMigrationTest extends TestBaseImpl
         assertTrue(journalEntriesAfterMigrationWrites > journalEntriesBeforeMigrationWrites);
 
         // complete migration
+        long logMark = SHARED_CLUSTER.get(1).logs().mark();
         SHARED_CLUSTER.get(1).nodetoolResult("repair", testKeyspace, TEST_TABLE).asserts().success();
 
         waitForEpochOf(SHARED_CLUSTER, 1);
 
         verifyKeyspaceState(testKeyspace, ExpectedKeyspaceState.TRACKED);
+
+        // Completion is logged once, and the contributing repair names itself and its ranges
+        List<String> completionLines = SHARED_CLUSTER.get(1).logs()
+                                                     .watchFor(logMark, Duration.ofMinutes(1), "Mutation tracking migration completed for keyspace " + testKeyspace)
+                                                     .getResult();
+        assertEquals(1, completionLines.size());
+
+        List<String> advancementLines = SHARED_CLUSTER.get(1).logs()
+                                                     .grep(logMark, "advanced mutation tracking migration of " + testKeyspace + '.' + TEST_TABLE)
+                                                     .getResult();
+        assertFalse(advancementLines.isEmpty());
+        String advancement = advancementLines.get(0);
+        assertTrue(advancement, advancement.contains("parent session"));
+        assertTrue(advancement, advancement.contains("range(s) remain to be repaired"));
+        assertTrue(advancement, advancement.contains("range(s) already repaired"));
 
         long journalEntriesBeforeTracked = countJournalEntries();
 
