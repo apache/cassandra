@@ -30,6 +30,8 @@ import org.apache.cassandra.auth.RoleOptions;
 import static org.apache.cassandra.cql3.PasswordObfuscator.*;
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class PasswordObfuscatorTest
@@ -486,5 +488,61 @@ public class PasswordObfuscatorTest
             }
             fail(sb.toString());
         }
+    }
+
+    /**
+     * Reproducer for the PasswordObfuscator finding (CASSANDRA-21113).
+     *
+     * Bug: {@link PasswordObfuscator#obfuscate(String, RoleOptions)} escapes the password
+     *      from RoleOptions using the conventional CQL rule (single-quote doubling) and then
+     *      matches that escaped form literally via Pattern.quote(). CQL also accepts pg-style
+     *      dollar-quoted string literals ($$...$$) in which single quotes are NOT doubled.
+     *      For a password containing a single quote supplied via $$...$$, the built pattern
+     *      (doubled quote) never matches the raw query (single quote), so obfuscate() returns
+     *      the query unchanged and the password is logged/audited in CLEARTEXT.
+     *
+     * <p>Expected (correct): the returned string does not contain the cleartext password.
+     * <p>Actual   (buggy)  : the query is returned unchanged, password in cleartext.
+     *
+     * <p>Failure criterion: assertFalse(obfuscated.contains(rawPassword)) -- fails on buggy code.
+     */
+    @Test
+    public void testDollarQuotedPasswordWithSingleQuoteIsObfuscated()
+    {
+        // TRIGGER: a password containing a single quote, supplied via a dollar-quoted CQL literal
+        String rawPassword = "secr'et";
+        RoleOptions opts = new RoleOptions();
+        opts.setOption(IRoleManager.Option.PASSWORD, rawPassword);
+        String query = "CREATE ROLE r WITH PASSWORD = $$secr'et$$";
+
+        // HARNESS: the static obfuscator invoked on the audit / query-logging path
+        String obfuscated = obfuscate(query, opts);
+
+        // ORACLE: the cleartext password must not survive obfuscation
+        assertFalse("Password leaked in cleartext after obfuscation: <" + obfuscated + '>',
+                    obfuscated.contains(rawPassword));
+        assertTrue("Obfuscation token missing; password was not obfuscated: <" + obfuscated + '>',
+                   obfuscated.contains(OBFUSCATION_TOKEN));
+    }
+
+    /**
+     * Control (passes on the current buggy code): the SAME single-quote password supplied via a
+     * conventional quoted literal (single quote doubled, per CQL) IS obfuscated. This isolates the
+     * defect to dollar-quoted literals and proves the fixture/API usage is sound (not a setup error).
+     */
+    @Test
+    public void testConventionallyQuotedPasswordWithSingleQuoteIsObfuscated_control()
+    {
+        String rawPassword = "secr'et";
+        RoleOptions opts = new RoleOptions();
+        opts.setOption(IRoleManager.Option.PASSWORD, rawPassword);
+        String query = "CREATE ROLE r WITH PASSWORD = 'secr''et'"; // CQL doubles the embedded quote
+
+        String obfuscated = obfuscate(query, opts);
+
+        assertFalse("Password leaked in cleartext: <" + obfuscated + '>',
+                    obfuscated.contains(rawPassword));
+        assertTrue("Obfuscation token missing: <" + obfuscated + '>',
+                   obfuscated.contains(OBFUSCATION_TOKEN));
     }
 }
