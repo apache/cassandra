@@ -52,6 +52,14 @@ public class ExceptionsTable extends AbstractMutableVirtualTable
      */
     static final List<ExceptionRow> preInitialisationBuffer = Collections.synchronizedList(new ArrayList<>());
 
+    /**
+     * Upper bound on {@link #preInitialisationBuffer}. Bounds heap retention if uncaught exceptions storm during early
+     * startup (before virtual tables are registered), or in offline/tool contexts that never register virtual tables
+     * and thus never call {@link #flush()}. Kept in line with the live buffer's default cap.
+     */
+    @VisibleForTesting
+    static final int PRE_INITIALISATION_BUFFER_CAPACITY = 1000;
+
     @VisibleForTesting
     static volatile ExceptionsTable INSTANCE;
 
@@ -62,7 +70,7 @@ public class ExceptionsTable extends AbstractMutableVirtualTable
     ExceptionsTable(String keyspace)
     {
         // for starters capped to 1k, I do not think we need to make this configurable (yet).
-        this(keyspace, 1000);
+        this(keyspace, PRE_INITIALISATION_BUFFER_CAPACITY);
     }
 
     ExceptionsTable(String keyspace, int maxSize)
@@ -84,10 +92,19 @@ public class ExceptionsTable extends AbstractMutableVirtualTable
 
     public void flush()
     {
-        for (ExceptionRow row : preInitialisationBuffer)
-            add(row.exceptionClass, row.exceptionLocation, row.message, row.stackTrace, row.occurrence.getTime());
+        // Drain under the list's monitor and iterate a private copy: preInitialisationBuffer is a synchronizedList,
+        // whose contract requires holding its monitor while iterating. A concurrent persist() on another thread could
+        // otherwise add() during iteration and trigger a ConcurrentModificationException, which would propagate out of
+        // setupVirtualKeyspaces() and abort node startup.
+        List<ExceptionRow> drained;
+        synchronized (preInitialisationBuffer)
+        {
+            drained = new ArrayList<>(preInitialisationBuffer);
+            preInitialisationBuffer.clear();
+        }
 
-        preInitialisationBuffer.clear();
+        for (ExceptionRow row : drained)
+            add(row.exceptionClass, row.exceptionLocation, row.message, row.stackTrace, row.occurrence.getTime());
     }
 
     @Override
@@ -178,12 +195,19 @@ public class ExceptionsTable extends AbstractMutableVirtualTable
         }
         else
         {
-            preInitialisationBuffer.add(new ExceptionRow(toPersist.getClass().getName(),
-                                                         stackTrace.isEmpty() ? "unknown" : stackTrace.get(0),
-                                                         0,
-                                                         toPersist.getMessage(),
-                                                         stackTrace,
-                                                         now));
+            // Bound retention (see PRE_INITIALISATION_BUFFER_CAPACITY): keep the earliest entries, which are usually the
+            // most diagnostic, and drop once full rather than growing without limit. Guard the size check and the add
+            // together under the list monitor so concurrent persist() calls cannot race past the cap.
+            synchronized (preInitialisationBuffer)
+            {
+                if (preInitialisationBuffer.size() < PRE_INITIALISATION_BUFFER_CAPACITY)
+                    preInitialisationBuffer.add(new ExceptionRow(toPersist.getClass().getName(),
+                                                                 stackTrace.isEmpty() ? "unknown" : stackTrace.get(0),
+                                                                 0,
+                                                                 toPersist.getMessage(),
+                                                                 stackTrace,
+                                                                 now));
+            }
         }
     }
 

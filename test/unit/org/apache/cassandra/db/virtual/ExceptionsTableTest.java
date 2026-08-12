@@ -287,6 +287,25 @@ public class ExceptionsTableTest extends CQLTester
         });
     }
 
+    @Test
+    public void testPreInitialisationBufferIsBounded()
+    {
+        doWithVTable(100, table ->
+        {
+            // Do not register the table, so INSTANCE stays null and every persist() lands in the pre-initialisation
+            // buffer. Persisting well past the cap must not grow the buffer without bound.
+            ExceptionsTable.INSTANCE = null;
+            ExceptionsTable.preInitialisationBuffer.clear();
+
+            int overCap = ExceptionsTable.PRE_INITIALISATION_BUFFER_CAPACITY + 50;
+            for (int i = 0; i < overCap; i++)
+                ExceptionsTable.persist(new MyUncaughtException("boom " + i));
+
+            assertEquals(ExceptionsTable.PRE_INITIALISATION_BUFFER_CAPACITY,
+                         ExceptionsTable.preInitialisationBuffer.size());
+        });
+    }
+
     private List<UntypedResultSet.Row> rows(String query)
     {
         return execute(query).stream().collect(toList());
