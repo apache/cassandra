@@ -218,6 +218,19 @@ public class KeyspaceMigrationInfo
         return ranges != null ? ranges : NormalizedRanges.empty();
     }
 
+    /** The entire ring, which every table starts a migration needing to repair. */
+    public static NormalizedRanges<Token> fullRing()
+    {
+        Token minimumToken = DatabaseDescriptor.getPartitioner().getMinimumToken();
+        return NormalizedRanges.normalizedRanges(Collections.singleton(new Range<>(minimumToken, minimumToken)));
+    }
+
+    /** Ranges that have finished migrating for a table: the full ring minus whatever is still pending. */
+    public NormalizedRanges<Token> getMigratedRangesForTable(@Nonnull TableId tableId)
+    {
+        return fullRing().subtract(getPendingRangesForTable(tableId));
+    }
+
     /**
      * Check if token is in any pending range.
      * Used for routing decisions during migration.

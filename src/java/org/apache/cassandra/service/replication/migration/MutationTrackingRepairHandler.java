@@ -25,8 +25,10 @@ import com.google.common.util.concurrent.FutureCallback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairResult;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -49,9 +51,10 @@ public class MutationTrackingRepairHandler
             {
                 try
                 {
-                    String keyspace = repairResult.desc.keyspace;
-                    String tableName = repairResult.desc.columnFamily;
-                    Collection<Range<Token>> repairedRanges = repairResult.desc.ranges;
+                    RepairJobDesc desc = repairResult.desc;
+                    String keyspace = desc.keyspace;
+                    String tableName = desc.columnFamily;
+                    Collection<Range<Token>> repairedRanges = desc.ranges;
 
                     ClusterMetadata clusterMetadata = ClusterMetadata.current();
 
@@ -60,6 +63,8 @@ public class MutationTrackingRepairHandler
 
                     if (migrationInfo == null)
                     {
+                        logger.info("Repair session {} (parent session {}) completed for {}.{} but the keyspace is not migrating, not advancing mutation tracking migration",
+                                    desc.sessionId, desc.parentSessionId, keyspace, tableName);
                         return;
                     }
 
@@ -68,37 +73,61 @@ public class MutationTrackingRepairHandler
 
                     if (tableMetadata == null)
                     {
-                        logger.warn("Repair completed for unknown table {}.{}, cannot advance migration",
-                                   keyspace, tableName);
+                        logger.warn("Repair session {} (parent session {}) completed for unknown table {}.{}, cannot advance mutation tracking migration",
+                                    desc.sessionId, desc.parentSessionId, keyspace, tableName);
                         return;
                     }
 
                     if (migrationInfo.getPendingRangesForTable(tableMetadata.id).isEmpty())
                     {
-                        // Table already fully migrated
+                        logger.info("Repair session {} (parent session {}) completed for {}.{} but the table has no ranges left to migrate, not advancing mutation tracking migration",
+                                    desc.sessionId, desc.parentSessionId, keyspace, tableName);
+                        return;
+                    }
+
+                    MutationTrackingMigrationRepairResult migrationRepairResult = repairResult.mutationTrackingMigrationRepairResult;
+
+                    // Before the epoch check: an ineligible result carries no epoch and would look stale
+                    if (!migrationRepairResult.eligible)
+                    {
+                        logger.info("Repair session {} (parent session {}) completed for {}.{} but is ineligible to advance mutation tracking migration because {}",
+                                    desc.sessionId, desc.parentSessionId, keyspace, tableName, migrationRepairResult.ineligibleReason);
                         return;
                     }
 
                     // Epoch eligibility check: Only count repairs started after the migration started
-                    if (repairResult.mutationTrackingMigrationRepairResult.minEpoch.isBefore(migrationInfo.startedAtEpoch))
+                    if (migrationRepairResult.minEpoch.isBefore(migrationInfo.startedAtEpoch))
                     {
-                        logger.debug("Repair completed for {}.{} but current epoch {} is before migration start epoch {}, ignoring",
-                                    keyspace, tableName, clusterMetadata.epoch, migrationInfo.startedAtEpoch);
+                        logger.info("Repair session {} (parent session {}) completed for {}.{} but the repair started at epoch {}, before the migration started at epoch {}, not advancing mutation tracking migration",
+                                    desc.sessionId, desc.parentSessionId, keyspace, tableName, migrationRepairResult.minEpoch, migrationInfo.startedAtEpoch);
                         return;
                     }
 
-                    if (!repairResult.mutationTrackingMigrationRepairResult.eligible)
-                    {
-                        logger.debug("Repair completed for {}.{} but repair is ineligible for mutation tracking migration, ignoring",
-                                    keyspace, tableName);
-                        return;
-                    }
-
-                    logger.info("Repair completed for {}.{}, proposing migration advancement for {} ranges",
-                               keyspace, tableName, repairedRanges.size());
-
-                    ClusterMetadataService.instance().commit(
+                    ClusterMetadata committed = ClusterMetadataService.instance().commit(
                         new AdvanceMutationTrackingMigration(keyspace, tableMetadata.id, repairedRanges));
+
+                    // Report from the metadata commit returned, not current(), which races with other epochs
+                    KeyspaceMigrationInfo advanced = committed.mutationTrackingMigrationState.getKeyspaceInfo(keyspace);
+                    boolean keyspaceComplete = advanced == null;
+                    NormalizedRanges<Token> pending = keyspaceComplete ? NormalizedRanges.empty()
+                                                                      : advanced.getPendingRangesForTable(tableMetadata.id);
+                    NormalizedRanges<Token> repaired = keyspaceComplete ? KeyspaceMigrationInfo.fullRing()
+                                                                       : advanced.getMigratedRangesForTable(tableMetadata.id);
+
+                    // INFO once per repair job, with the ranges listed in full rather than a prefix
+                    logger.info("Repair session {} (parent session {}) advanced mutation tracking migration of {}.{} at epoch {}: " +
+                                "contributed {} range(s) {}; {} range(s) remain to be repaired {}; {} range(s) already repaired {}; " +
+                                "{} table(s) in the keyspace still migrating",
+                                desc.sessionId, desc.parentSessionId, keyspace, tableName, committed.epoch,
+                                repairedRanges.size(), repairedRanges,
+                                pending.size(), pending,
+                                repaired.size(), repaired,
+                                keyspaceComplete ? 0 : advanced.pendingRangesPerTable.size());
+
+                    // Only the advancement that empties the last table sees the keyspace disappear
+                    if (keyspaceComplete)
+                        logger.info("Mutation tracking migration completed for keyspace {} at epoch {}, every table has been fully repaired; final contribution from repair session {} (parent session {}) on table {}",
+                                    keyspace, committed.epoch, desc.sessionId, desc.parentSessionId, tableName);
                 }
                 catch (Exception e)
                 {

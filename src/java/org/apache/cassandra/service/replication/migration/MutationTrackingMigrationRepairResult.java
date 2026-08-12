@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service.replication.migration;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.tcm.Epoch;
 
 /**
@@ -27,21 +29,29 @@ import org.apache.cassandra.tcm.Epoch;
  */
 public class MutationTrackingMigrationRepairResult
 {
-    private static final MutationTrackingMigrationRepairResult INELIGIBLE = new MutationTrackingMigrationRepairResult(Epoch.EMPTY, false);
+    private static final MutationTrackingMigrationRepairResult DEAD_NODES_EXCLUDED =
+        new MutationTrackingMigrationRepairResult(Epoch.EMPTY, false, "dead nodes were excluded from the repair");
+    private static final MutationTrackingMigrationRepairResult PREVIEW =
+        new MutationTrackingMigrationRepairResult(Epoch.EMPTY, false, "the repair was a preview");
 
     public final Epoch minEpoch;
     public final boolean eligible;
 
-    private MutationTrackingMigrationRepairResult(Epoch minEpoch, boolean eligible)
+    /** Why this repair cannot contribute to migration, for logging. Null when eligible. */
+    @Nullable
+    public final String ineligibleReason;
+
+    private MutationTrackingMigrationRepairResult(Epoch minEpoch, boolean eligible, @Nullable String ineligibleReason)
     {
         this.minEpoch = minEpoch;
         this.eligible = eligible;
+        this.ineligibleReason = ineligibleReason;
     }
 
     public static MutationTrackingMigrationRepairResult fromRepair(Epoch minEpoch, boolean deadNodesExcluded, boolean isPreview)
     {
-        if (deadNodesExcluded) return INELIGIBLE;
-        if (isPreview) return INELIGIBLE;
-        return new MutationTrackingMigrationRepairResult(minEpoch, true);
+        if (deadNodesExcluded) return DEAD_NODES_EXCLUDED;
+        if (isPreview) return PREVIEW;
+        return new MutationTrackingMigrationRepairResult(minEpoch, true, null);
     }
 }
