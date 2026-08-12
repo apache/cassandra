@@ -42,6 +42,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.CollectionSerializers;
 import org.apache.cassandra.utils.StringSerializer;
 
+import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.db.SerializationHeader.StableHeaderSerializer.STABLE;
 import static org.apache.cassandra.db.rows.DeserializationHelper.Flag.FROM_REMOTE;
 
@@ -97,7 +98,14 @@ public class CasForwardResponse
 
         try (PartitionIterator toClose = partitions)
         {
-            return toClose.hasNext() ? materialize(toClose.next()) : null;
+            if (!toClose.hasNext())
+                return null;
+
+            FilteredPartition materialized = materialize(toClose.next());
+            // Serial reads are single partition, enforced in StorageProxy.readWithConsensusInternal.
+            // Asked only after the partition above is drained, per the note in PartitionIterators.
+            checkState(!toClose.hasNext(), "Forwarded read response cannot carry more than one partition");
+            return materialized;
         }
     }
 

@@ -32,7 +32,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  * This is used when the original coordinator is not a replica but needs to
  * execute a consensus read for a tracked keyspace that requires proper coordination.
  *
- * Consensus reads only ever contain a single read command.
+ * Serial reads are single partition, enforced in StorageProxy.readWithConsensusInternal, so one command
+ * goes out and one partition's rows come back.
  */
 public class ConsensusReadForwardRequest
 {
