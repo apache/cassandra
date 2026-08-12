@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.distributed.test.tracking;
 
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 
 import org.junit.Test;
@@ -41,8 +43,12 @@ import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 
+import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
+import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.getOnlyLogId;
 import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.summaryIdSpace;
+import static org.apache.cassandra.distributed.test.tracking.PaxosMigrationTestUtils.assertCasApplied;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -130,20 +136,7 @@ public class MutationTrackingCasForwardingTest extends TestBaseImpl
                 logger.info("DEBUG testCasForwarding: Using replica coordinator: " + coordinatorNode);
             } else {
                 // Find the non-replica node
-                coordinatorNode = -1;
-            for (int i = 1; i <= 4; i++) {
-                    boolean isReplica = false;
-                    for (int replicaNode : replicaNodes) {
-                        if (i == replicaNode) {
-                            isReplica = true;
-                            break;
-                        }
-                    }
-                    if (!isReplica) {
-                        coordinatorNode = i;
-                        break;
-                    }
-                }
+                coordinatorNode = nonReplicaNode(replicaNodes);
                 logger.info("DEBUG testCasForwarding: Using non-replica coordinator: " + coordinatorNode);
             }
             
@@ -175,7 +168,9 @@ public class MutationTrackingCasForwardingTest extends TestBaseImpl
 
             // Perform CAS operation from determined coordinator
             // This should trigger forwarding if coordinator is not a replica
-            cluster.coordinator(coordinatorNode).execute(CONDITIONAL_INSERT_CQL, ConsistencyLevel.SERIAL, ConsistencyLevel.QUORUM);
+            Object[][] casResult = cluster.coordinator(coordinatorNode).execute(CONDITIONAL_INSERT_CQL, ConsistencyLevel.SERIAL, ConsistencyLevel.QUORUM);
+            // A forwarded CAS has to hand its outcome back, not just its side effect
+            assertCasApplied(casResult);
 
             // Verify that unblocked replica nodes have the mutation tracked
             for (int replicaNode : replicaNodes) {
@@ -267,6 +262,47 @@ public class MutationTrackingCasForwardingTest extends TestBaseImpl
             for (int i = 1; i < mutationIds.length; i++) {
                 assertEquals("All replicas should have same mutation ID", mutationIds[0], mutationIds[i]);
             }
+
+            // A CAS that does not apply hands back the row that stopped it. Left until here so the
+            // tracking assertions above see only the mutation the applying CAS wrote.
+            Object[][] notAppliedResult = cluster.coordinator(coordinatorNode).execute(CONDITIONAL_INSERT_CQL, ConsistencyLevel.SERIAL, ConsistencyLevel.QUORUM);
+            assertRows(notAppliedResult, row(false, 1, 1));
+
+            // A serial read spanning partitions is refused wherever it is coordinated. Before the fix a
+            // non-replica coordinator answered it with partition 1 alone, no error and no warning.
+            cluster.coordinator(coordinatorNode).execute(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (2, 2)"), ConsistencyLevel.ALL);
+            String multiPartitionRead = withKeyspace("SELECT * FROM %s.tbl WHERE k IN (1, 2)");
+            for (int node : new int[]{ replicaNodes[0], nonReplicaNode(replicaNodes) })
+            {
+                assertThatThrownBy(() -> cluster.coordinator(node).execute(multiPartitionRead, ConsistencyLevel.SERIAL))
+                .describedAs("SERIAL read spanning two partitions, coordinated by node " + node)
+                .hasMessageContaining("may only be requested for one partition at a time");
+
+                // Both partitions are readable without SERIAL. Sort by key, they arrive in token order
+                Object[][] bothPartitions = cluster.coordinator(node).execute(multiPartitionRead, ConsistencyLevel.ALL);
+                Arrays.sort(bothPartitions, Comparator.comparingInt(partitionRow -> (int) partitionRow[0]));
+                assertRows(bothPartitions, row(1, 1), row(2, 2));
+            }
         }
+    }
+
+    /** The one node of four that is not a replica for key 1, and so has to forward. */
+    private static int nonReplicaNode(int[] replicaNodes)
+    {
+        for (int node = 1; node <= 4; node++)
+        {
+            boolean isReplica = false;
+            for (int replicaNode : replicaNodes)
+            {
+                if (node == replicaNode)
+                {
+                    isReplica = true;
+                    break;
+                }
+            }
+            if (!isReplica)
+                return node;
+        }
+        throw new AssertionError("Expected one of the four nodes to not be a replica for key 1");
     }
 }

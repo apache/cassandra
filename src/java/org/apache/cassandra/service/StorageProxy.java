@@ -2725,6 +2725,10 @@ public class StorageProxy implements StorageProxyMBean
     private static PartitionIterator readWithConsensusInternal(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime, boolean alreadyForwarded)
     throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException
     {
+        // Refused here, above forwarding and the protocol choice, so every coordinator rejects identically
+        if (group.queries.size() > 1)
+            throw new InvalidRequestException("SERIAL/LOCAL_SERIAL consistency may only be requested for one partition at a time");
+
         // Check if this consensus read needs to be forwarded to a replica coordinator for tracked keyspaces
         CasForwarding.Forwarded<PartitionIterator> forwarded = CasForwarding.checkAndForwardConsensusReadIfNeeded(group,
                                                                                                                   consistencyLevel,
@@ -2861,9 +2865,6 @@ public class StorageProxy implements StorageProxyMBean
     throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException
     {
         long start = nanoTime();
-        if (group.queries.size() > 1)
-            throw new InvalidRequestException("SERIAL/LOCAL_SERIAL consistency may only be requested for one partition at a time");
-
         SinglePartitionReadCommand command = group.queries.get(0);
         TableMetadata metadata = command.metadata();
         DecoratedKey key = command.partitionKey();
