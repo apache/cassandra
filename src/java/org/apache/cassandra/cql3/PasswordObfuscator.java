@@ -68,11 +68,16 @@ public class PasswordObfuscator
         if (!pass.isPresent() || pass.get().isEmpty())
             return query;
 
-        // CQL-escape the password, the password in RoleOptions is unescaped, but the query contains the escaped form.
-        String escapedPassword = pass.get().replace("'", "''");
+        // The password in RoleOptions is unescaped. Depending on the CQL string-literal syntax used
+        // in the query it appears either single-quote-escaped (conventional '...' literals double any
+        // embedded single quote) or verbatim (pg-style $$...$$ literals do not escape anything). Match
+        // either form so both are obfuscated - matching only one leaks the password for the other
+        // (e.g. CREATE ROLE r WITH PASSWORD = $$pa'ss$$). Pattern.quote() keeps regex metacharacters literal.
+        String rawPassword = pass.get();
+        String escapedPassword = rawPassword.replace("'", "''");
 
-        // Use Pattern.quote() to safely handle all special regex characters.
-        String pattern = "((?si)" + PASSWORD_TOKEN + ".+?)" + Pattern.quote(escapedPassword);
+        String passwordForms = Pattern.quote(escapedPassword) + '|' + Pattern.quote(rawPassword);
+        String pattern = "((?si)" + PASSWORD_TOKEN + ".+?)(?:" + passwordForms + ')';
         return query.replaceAll(pattern, "$1" + OBFUSCATION_TOKEN);
     }
 }
