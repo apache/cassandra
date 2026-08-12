@@ -25,6 +25,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.annotation.JsonValue;
 import com.google.common.primitives.Ints;
 
 import static java.util.concurrent.TimeUnit.DAYS;
@@ -199,6 +200,7 @@ public abstract class DurationSpec
         return unit.convert(other.quantity, other.unit) == quantity && other.unit.convert(quantity, unit) == other.quantity;
     }
 
+    @JsonValue
     @Override
     public String toString()
     {
