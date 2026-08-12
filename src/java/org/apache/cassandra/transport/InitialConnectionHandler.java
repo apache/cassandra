@@ -150,6 +150,10 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                         promise = new VoidChannelPromise(ctx.channel(), false);
                     }
 
+                    // Count the STARTUP request. This path processes STARTUP directly rather than
+                    // via Dispatcher#dispatch, so it must increment the counter itself; we are on the
+                    // channel's Netty event loop here.
+                    serverConnection.incrementRequests();
                     final Message.Response response = Dispatcher.processRequest(ctx.channel(), startup, Overload.NONE, Dispatcher.RequestTime.forImmediateExecution());
 
                     outbound = response.encode(inbound.header.version, inbound.header.streamId);

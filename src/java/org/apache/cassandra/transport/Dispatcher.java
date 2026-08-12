@@ -119,6 +119,9 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
             return;
         }
 
+        // Count every request accepted for dispatch. This runs on the connection's Netty event loop.
+        ((ServerConnection) request.connection()).incrementRequests();
+
         // if native_transport_max_auth_threads is < 1, don't delegate to new pool on auth messages
         boolean isAuthQuery = DatabaseDescriptor.getNativeTransportMaxAuthThreads() > 0 &&
                               (request.type == Message.Type.AUTH_RESPONSE || request.type == Message.Type.CREDENTIALS);
@@ -425,7 +428,6 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
         QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion());
 
         Message.logger.trace("Received: {}, v={}", request, connection.getVersion());
-        connection.requests.inc();
         Message.Response response = request.execute(qstate, requestTime);
 
         if (request.isTrackable())
