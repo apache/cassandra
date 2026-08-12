@@ -18,14 +18,24 @@
 
 package org.apache.cassandra.db.virtual;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.annotation.JsonValue;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.collect.ImmutableList;
 import org.junit.Assert;
 import org.junit.Before;
@@ -41,11 +51,16 @@ import org.apache.cassandra.config.DefaultLoader;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.config.Properties;
+import org.apache.cassandra.config.SubnetGroups;
 import org.apache.cassandra.config.TransparentDataEncryptionOptions;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.StartupChecks.StartupCheckType;
+import org.apache.cassandra.utils.JsonUtils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.introspector.Property;
@@ -88,6 +103,31 @@ public class SettingsTableTest extends CQLTester
                                                                                           "alias",
                                                                                           new ParameterizedClass("SomeClass",
                                                                                                                  params));
+
+        // populate settings that default to null, so their rendering is exercised by the tests
+        // (in particular testCollectionSettingsRenderAsValidJson) instead of being skipped
+        config.crypto_provider = new ParameterizedClass("org.apache.cassandra.security.JREProvider",
+                                                        Map.of("fail_on_missing_provider", "false"));
+        config.internode_authenticator = new ParameterizedClass("org.apache.cassandra.auth.AllowAllInternodeAuthenticator",
+                                                                Map.of());
+        config.commitlog_compression = new ParameterizedClass("LZ4Compressor",
+                                                              Map.of("lz4_compressor_type", "fast"));
+        config.hints_compression = new ParameterizedClass("SnappyCompressor",
+                                                          Map.of("chunk_length_in_kb", "64"));
+        config.default_compaction = new ParameterizedClass("SizeTieredCompactionStrategy",
+                                                           Map.of("min_threshold", "4"));
+        // populated (rather than default-empty) so the CASSANDRA-21579 fix for SubnetGroups.Group
+        // is exercised through the production render path
+        config.client_error_reporting_exclusions = new SubnetGroups(List.of("127.0.0.1", "10.110.60.0/26"));
+        config.internode_error_reporting_exclusions = new SubnetGroups(List.of("192.168.0.0/16"));
+        // likewise for the DurationSpec fix: repair_type_overrides is empty by default, but any node
+        // that touches auto-repair populates it via AutoRepairConfig.getOptions(), and a single
+        // unserializable nested type makes Jackson fail for the whole setting
+        AutoRepairConfig.Options autoRepairOverrides = new AutoRepairConfig.Options();
+        autoRepairOverrides.min_repair_interval = new DurationSpec.IntSecondsBound("24h");
+        autoRepairOverrides.table_max_repair_time = new DurationSpec.IntSecondsBound("6h");
+        config.auto_repair.repair_type_overrides.put("full", autoRepairOverrides);
+
         table = new SettingsTable(KS_NAME, config);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
         disablePreparedReuseForTest();
@@ -419,5 +459,159 @@ public class SettingsTableTest extends CQLTester
 
         check("json_false.settings", "data_file_directories", "[/my/data/directory, /another/data/directory]");
         check("json_false.settings", "seed_provider.parameters", "{seeds=127.0.0.1:7000}");
+    }
+
+    /**
+     * Every array/collection/map-valued setting (the only shapes {@link SettingsTable} renders as
+     * JSON; scalars are rendered via toString() by design) must produce valid JSON:
+     * 1) whatever the current config renders must parse as a JSON array or object, and
+     * 2) every element type must be visible to Jackson, including nested properties, so that a
+     *    populated value cannot silently fall back to toString() the way SubnetGroups.Group and
+     *    the DurationSpec family did (CASSANDRA-21579).
+     */
+    @Test
+    public void testCollectionSettingsRenderAsValidJson()
+    {
+        // note: normally-null and normally-empty settings are populated in config() so this check
+        // exercises their real rendering rather than skipping nulls / serializing empty collections
+        Set<String> failures = new TreeSet<>();
+
+        SettingsTable jsonTable;
+        try (WithProperties properties = new WithProperties().set(CassandraRelevantProperties.VIRTUAL_TABLE_COMPLEX_SETTINGS_FORMAT_JSON, "true"))
+        {
+            jsonTable = new SettingsTable(KS_NAME, config);
+        }
+
+        for (Map.Entry<String, Property> e : Properties.defaultLoader().flatten(Config.class).entrySet())
+        {
+            Property prop = e.getValue();
+            Class<?> type = prop.getType();
+
+            List<Class<?>> elements = new ArrayList<>();
+            if (type.isArray())
+            {
+                elements.add(type.getComponentType());
+            }
+            else if (Collection.class.isAssignableFrom(type) || Map.class.isAssignableFrom(type))
+            {
+                Class<?>[] args = prop.getActualTypeArguments();
+                if (args != null)
+                {
+                    if (Map.class.isAssignableFrom(type) && args.length == 2)
+                        elements.add(args[1]); // keys are stringified by SettingsTable; values serialize as-is
+                    else if (args.length >= 1)
+                        elements.add(args[0]);
+                }
+            }
+            else
+            {
+                continue; // scalar settings are rendered via toString() by design
+            }
+
+            // 1) the rendered value, through the production path, must be valid JSON
+            String rendered = jsonTable.getValue(prop);
+            if (rendered != null)
+            {
+                try
+                {
+                    JsonNode node = JsonUtils.JSON_OBJECT_MAPPER.readTree(rendered);
+                    if (!node.isArray() && !node.isObject())
+                        failures.add(e.getKey() + ": rendered as neither JSON array nor object: " + rendered);
+                }
+                catch (Exception ex)
+                {
+                    failures.add(e.getKey() + ": rendered value is not valid JSON: " + rendered);
+                }
+            }
+
+            // 2) element types must be Jackson-visible, or a populated value will silently degrade
+            for (Class<?> element : elements)
+            {
+                if (element == null)
+                    continue;
+                Class<?> nestedType = unrenderableType(element);
+                if (nestedType != null)
+                    failures.add(e.getKey() + ": element type " + element.getName() + " is not JSON-renderable" +
+                                 (nestedType == element ? "" : ", because it reaches " + nestedType.getName()) +
+                                 ": no Jackson-visible properties. Annotate that type (e.g. @JsonValue, the way" +
+                                 " SubnetGroups.Group and DurationSpec were fixed in CASSANDRA-21579) or this" +
+                                 " setting will silently fall back to toString() when populated");
+            }
+        }
+
+        Assert.assertTrue(String.join("\n", failures), failures.isEmpty());
+    }
+
+    /**
+     * @return null if Jackson can serialize {@code type}, else the type in its property graph that
+     *         Jackson would choke on -- {@code type} itself, or something it reaches
+     */
+    private static Class<?> unrenderableType(Class<?> type)
+    {
+        return unrenderableType(type, Collections.newSetFromMap(new IdentityHashMap<>()));
+    }
+
+    /**
+     * Approximates Jackson's default serialization visibility. A type is renderable if Jackson can
+     * discover at least one property on it (or a @JsonValue) and, transitively, every property it
+     * discovers is itself renderable. The recursion is the point: {@link AutoRepairConfig.Options} has
+     * plenty of visible properties but nests {@link DurationSpec}, and one unserializable nested type
+     * makes Jackson throw for the whole setting.
+     *
+     * This is a bounded approximation. Property types are inspected erased, so a type hidden inside a
+     * property's own generic parameters (a {@code Set<Bad>} field, say) is not caught here; check 1 of
+     * {@link #testCollectionSettingsRenderAsValidJson} covers that once the setting is populated.
+     *
+     * @param visiting types on the current path, so a cyclic reference does not recurse forever
+     */
+    private static Class<?> unrenderableType(Class<?> type, Set<Class<?>> visiting)
+    {
+        if (type.isArray())
+            return unrenderableType(type.getComponentType(), visiting);
+        if (type.isPrimitive() || type.isEnum() || type.isInterface())
+            return null; // interfaces: the runtime type decides, cannot be judged statically
+        if (type.getName().startsWith("java.") || type.getName().startsWith("javax."))
+            return null;
+        if (CharSequence.class.isAssignableFrom(type) || Number.class.isAssignableFrom(type)
+            || Boolean.class == type || Character.class == type)
+            return null;
+        if (!visiting.add(type))
+            return null; // already being checked further up the path; a cycle is not itself a failure
+
+        try
+        {
+            List<Class<?>> properties = new ArrayList<>();
+            for (Method method : type.getMethods())
+            {
+                if (method.isAnnotationPresent(JsonValue.class))
+                    return null;
+                if (Modifier.isStatic(method.getModifiers()) || method.getParameterCount() != 0
+                    || method.getReturnType() == void.class)
+                    continue;
+                String name = method.getName();
+                if ((name.startsWith("get") && name.length() > 3 && !name.equals("getClass"))
+                    || (name.startsWith("is") && name.length() > 2 && (method.getReturnType() == boolean.class || method.getReturnType() == Boolean.class)))
+                    properties.add(method.getReturnType());
+            }
+            for (Field field : type.getFields())
+                if (!Modifier.isStatic(field.getModifiers()))
+                    properties.add(field.getType());
+
+            if (properties.isEmpty())
+                return type; // Jackson discovers nothing to serialize and fails the enclosing value
+
+            for (Class<?> property : properties)
+            {
+                Class<?> nestedTypes = unrenderableType(property, visiting);
+                if (nestedTypes != null)
+                    return nestedTypes;
+            }
+
+            return null;
+        }
+        finally
+        {
+            visiting.remove(type);
+        }
     }
 }

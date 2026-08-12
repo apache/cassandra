@@ -29,6 +29,8 @@ import java.util.stream.Collectors;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 
+import com.fasterxml.jackson.annotation.JsonValue;
+
 import inet.ipaddr.IPAddressNetwork;
 import inet.ipaddr.IPAddressString;
 
@@ -130,6 +132,7 @@ public class SubnetGroups
             return Objects.hash(subnet);
         }
 
+        @JsonValue
         @Override
         public String toString()
         {

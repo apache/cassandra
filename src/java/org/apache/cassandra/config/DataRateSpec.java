@@ -23,6 +23,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.annotation.JsonValue;
 import com.google.common.math.DoubleMath;
 import com.google.common.primitives.Ints;
 
@@ -209,6 +210,7 @@ public abstract class DataRateSpec
         return unit.convert(other.quantity, other.unit) == quantity && other.unit.convert(quantity, unit) == other.quantity;
     }
 
+    @JsonValue
     @Override
     public String toString()
     {
