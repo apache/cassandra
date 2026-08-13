@@ -33,9 +33,9 @@ public class MutationTrackingSpec
     /**
      * When the on-disk mutation journal grows beyond this size, out-of-band promotion of already
      * durably-reconciled but still-unrepaired sstables to repaired is triggered so the journal segments they hold
-     * can be released and reclaimed (CASSANDRA-21406). {@code null} (the default) disables the mechanism.
+     * can be released and reclaimed (CASSANDRA-21406). {@code null} disables the mechanism. The default is 256MiB.
      */
-    public volatile DataStorageSpec.LongBytesBound journal_promotion_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound journal_promotion_threshold = new DataStorageSpec.LongBytesBound("256MiB");
 
     /**
      * @return the on-disk mutation journal size (in bytes) beyond which out-of-band promotion of durably-reconciled
