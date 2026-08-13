@@ -120,10 +120,10 @@ public class RolesTest
     {
         // Confirm special treatment of superuser
         ConsistencyLevel readLevel = CassandraRoleManager.consistencyForRoleRead(PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME);
-        Assert.assertEquals(CassandraRoleManager.DEFAULT_SUPERUSER_CONSISTENCY_LEVEL, readLevel);
+        Assert.assertEquals(AuthUtils.DEFAULT_SUPERUSER_CONSISTENCY_LEVEL, readLevel);
 
         ConsistencyLevel writeLevel = CassandraRoleManager.consistencyForRoleWrite(PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME);
-        Assert.assertEquals(CassandraRoleManager.DEFAULT_SUPERUSER_CONSISTENCY_LEVEL, writeLevel);
+        Assert.assertEquals(AuthUtils.DEFAULT_SUPERUSER_CONSISTENCY_LEVEL, writeLevel);
 
         // Confirm standard config-based treatment of non
         ConsistencyLevel nonPrivReadLevel = CassandraRoleManager.consistencyForRoleRead("non-privilaged");
@@ -147,10 +147,10 @@ public class RolesTest
             MutualTlsDefaultRoleInitializer.IDENTITY, "spiffe1")));
 
             ConsistencyLevel readLevel = CassandraRoleManager.consistencyForRoleRead(customRole);
-            Assert.assertEquals(CassandraRoleManager.DEFAULT_SUPERUSER_CONSISTENCY_LEVEL, readLevel);
+            Assert.assertEquals(AuthUtils.DEFAULT_SUPERUSER_CONSISTENCY_LEVEL, readLevel);
 
             ConsistencyLevel writeLevel = CassandraRoleManager.consistencyForRoleWrite(customRole);
-            Assert.assertEquals(CassandraRoleManager.DEFAULT_SUPERUSER_CONSISTENCY_LEVEL, writeLevel);
+            Assert.assertEquals(AuthUtils.DEFAULT_SUPERUSER_CONSISTENCY_LEVEL, writeLevel);
 
             ConsistencyLevel legacyReadLevel = CassandraRoleManager.consistencyForRoleRead(PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME);
             Assert.assertEquals(legacyReadLevel, DatabaseDescriptor.getAuthReadConsistencyLevel());

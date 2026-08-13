@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.auth;
 
+import java.util.Map;
+import java.util.Set;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,19 +76,17 @@ public interface IDefaultRoleInitializer
      *
      * @throws ConfigurationException when there is a configuration error.
      */
-    default void validateConfiguration() throws ConfigurationException
-    {
-    }
+    void validateConfiguration() throws ConfigurationException;
 
     /*
      * Create the default superuser role to bootstrap role creation on a clean system. Preemptively
      * gives the role the default password so PasswordAuthenticator can be used to log in (if
      * configured)
      */
-    default void setupDefaultRole()
+    default void initializeDefaultRoleIfNeeded()
     {
         if (ClusterMetadata.current().tokenMap.tokens().isEmpty())
-            throw new IllegalStateException("CassandraRoleManager skipped default role setup: no known tokens in ring");
+            throw new IllegalStateException(getClass().getSimpleName() + " skipped default role setup: no known tokens in ring");
 
         try
         {
@@ -96,7 +97,7 @@ public interface IDefaultRoleInitializer
         }
         catch (RequestExecutionException e)
         {
-            logger.warn("CassandraRoleManager skipped default role setup: some nodes were not ready");
+            logger.warn(getClass().getSimpleName() + " skipped default role setup: some nodes were not ready");
             throw e;
         }
     }
@@ -109,5 +110,15 @@ public interface IDefaultRoleInitializer
         return !QueryProcessor.process(defaultRoleQuery, ConsistencyLevel.ONE).isEmpty()
                || !QueryProcessor.process(defaultRoleQuery, ConsistencyLevel.QUORUM).isEmpty()
                || !QueryProcessor.process(allUsersQuery, ConsistencyLevel.QUORUM).isEmpty();
+    }
+
+    static void validateSupportedParams(Map<String, String> parameters, Set<String> supportedParams, Class<?> implClass)
+    {
+        for (String param : parameters.keySet())
+        {
+            if (!supportedParams.contains(param))
+                throw new ConfigurationException(String.format("Unsupported parameter '%s' for %s, supported parameters are %s",
+                                                               param, implClass.getSimpleName(), supportedParams));
+        }
     }
 }

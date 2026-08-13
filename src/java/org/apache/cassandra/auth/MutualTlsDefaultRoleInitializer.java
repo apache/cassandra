@@ -31,8 +31,8 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.SchemaConstants;
 
-import static org.apache.cassandra.auth.CassandraRoleManager.consistencyForRoleWrite;
-import static org.apache.cassandra.auth.CassandraRoleManager.escape;
+import static org.apache.cassandra.auth.AuthUtils.consistencyForRoleWrite;
+import static org.apache.cassandra.auth.AuthUtils.escape;
 
 public class MutualTlsDefaultRoleInitializer implements IDefaultRoleInitializer
 {
@@ -46,13 +46,7 @@ public class MutualTlsDefaultRoleInitializer implements IDefaultRoleInitializer
 
     public MutualTlsDefaultRoleInitializer(Map<String, String> parameters)
     {
-        for (String params : parameters.keySet())
-        {
-            if (!SUPPORTED_PARAMS.contains(params))
-            {
-                throw new ConfigurationException(String.format("Unsupported parameter %s for %s, supported parameters are %s", params, getClass().getSimpleName(), SUPPORTED_PARAMS));
-            }
-        }
+        IDefaultRoleInitializer.validateSupportedParams(parameters, SUPPORTED_PARAMS, getClass());
         role = parameters.get(ROLE);
         identity = parameters.get(IDENTITY);
     }

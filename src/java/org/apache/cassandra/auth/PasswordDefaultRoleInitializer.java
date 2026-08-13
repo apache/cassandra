@@ -31,9 +31,9 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.SchemaConstants;
 
-import static org.apache.cassandra.auth.CassandraRoleManager.consistencyForRoleWrite;
-import static org.apache.cassandra.auth.CassandraRoleManager.escape;
-import static org.apache.cassandra.auth.CassandraRoleManager.hashpw;
+import static org.apache.cassandra.auth.AuthUtils.consistencyForRoleWrite;
+import static org.apache.cassandra.auth.AuthUtils.escape;
+import static org.apache.cassandra.auth.AuthUtils.hashpw;
 
 /**
  * Creates the default role with a password, so that it can be authenticated with
@@ -74,11 +74,7 @@ public class PasswordDefaultRoleInitializer implements IDefaultRoleInitializer
 
     public PasswordDefaultRoleInitializer(Map<String, String> parameters)
     {
-        for (String param : parameters.keySet())
-        {
-            if (!SUPPORTED_PARAMS.contains(param))
-                throw new ConfigurationException(String.format("Unsupported parameter '%s' for %s, supported parameters are %s", param, getClass().getSimpleName(), SUPPORTED_PARAMS));
-        }
+        IDefaultRoleInitializer.validateSupportedParams(parameters, SUPPORTED_PARAMS, getClass());
 
         role = parameters.getOrDefault(ROLE, DEFAULT_SUPERUSER_NAME);
         passwordHash = parameters.get(PASSWORD_HASH);

@@ -45,8 +45,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.commons.lang3.StringUtils;
-import org.mindrot.jbcrypt.BCrypt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -127,13 +125,6 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
     static final String PARAM_INVALID_ROLE_DISCONNECT_TASK_MAX_JITTER = "invalid_role_disconnect_task_max_jitter";
 
     public static final String MBEAN_NAME = "org.apache.cassandra.auth:type=CassandraRoleManager";
-
-    /**
-     * We need to treat the default superuser as a special case since during initial node startup, we may end up with
-     * duplicate creation or deletion + re-creation of this user on different nodes unless we check at quorum to see if
-     * it's already been done.
-     */
-    static final ConsistencyLevel DEFAULT_SUPERUSER_CONSISTENCY_LEVEL = ConsistencyLevel.QUORUM;
 
     // Transform a row in the AuthKeyspace.ROLES to a Role instance
     private static final Function<UntypedResultSet.Row, Role> ROW_TO_ROLE = row ->
@@ -239,7 +230,7 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
             try
             {
                 // Try to set up synchronously
-                defaultRoleInitializer().setupDefaultRole();
+                defaultRoleInitializer().initializeDefaultRoleIfNeeded();
                 return;
             }
             catch (Throwable t)
@@ -248,7 +239,7 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
             }
         }
         scheduleSetupTask(() -> {
-            defaultRoleInitializer().setupDefaultRole();
+            defaultRoleInitializer().initializeDefaultRoleIfNeeded();
             return null;
         });
     }
@@ -743,12 +734,12 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
 
     static String hashpw(String password)
     {
-        return BCrypt.hashpw(password, PasswordSaltSupplier.get());
+        return AuthUtils.hashpw(password);
     }
 
     static String escape(String name)
     {
-        return StringUtils.replace(name, "'", "''");
+        return AuthUtils.escape(name);
     }
 
     private static ByteBuffer byteBuf(String str)
@@ -759,16 +750,12 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
     /** Allows selective overriding of the consistency level for specific roles. */
     protected static ConsistencyLevel consistencyForRoleWrite(String role)
     {
-        return role.equals(DatabaseDescriptor.getRoleManager().defaultRoleInitializer().defaultRoleName()) ?
-               DEFAULT_SUPERUSER_CONSISTENCY_LEVEL :
-               CassandraAuthorizer.authWriteConsistencyLevel();
+        return AuthUtils.consistencyForRoleWrite(role);
     }
 
     protected static ConsistencyLevel consistencyForRoleRead(String role)
     {
-        return role.equals(DatabaseDescriptor.getRoleManager().defaultRoleInitializer().defaultRoleName()) ?
-               DEFAULT_SUPERUSER_CONSISTENCY_LEVEL :
-               CassandraAuthorizer.authReadConsistencyLevel();
+        return AuthUtils.consistencyForRoleRead(role);
     }
 
     /**
