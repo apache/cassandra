@@ -184,8 +184,7 @@ public class UnbootstrapStreams implements LeaveStreams
             if (rangesWithEndpoints.isEmpty())
                 continue;
 
-            //Description is always Unbootstrap? Is that right?
-            Map<InetAddressAndPort, Set<Range<Token>>> transferredRangePerKeyspace = SystemKeyspace.getTransferredRanges("Unbootstrap",
+            Map<InetAddressAndPort, Set<Range<Token>>> transferredRangePerKeyspace = SystemKeyspace.getTransferredRanges(StreamOperation.DECOMMISSION,
                                                                                                                          keyspace,
                                                                                                                          ClusterMetadata.current().tokenMap.partitioner());
             RangesByEndpoint.Builder replicasPerEndpoint = new RangesByEndpoint.Builder();
@@ -196,7 +195,7 @@ public class UnbootstrapStreams implements LeaveStreams
                 Set<Range<Token>> transferredRanges = transferredRangePerKeyspace.get(remote.endpoint());
                 if (transferredRanges != null && transferredRanges.contains(local.range()))
                 {
-                    logger.debug("Skipping transferred range {} of keyspace {}, endpoint {}", local, keyspace, remote);
+                    logger.info("Skipping transferred range {} of keyspace {}, endpoint {}", local, keyspace, remote);
                     continue;
                 }
 
