@@ -427,7 +427,7 @@ public class MutationJournal
                 // not mark the segment dirty — they are never applied to a memtable, so a dirty mark would pin the
                 // segment's needsReplay forever. Witness status is per keyspace+token, hence uniform across this
                 // mutation's tables.
-                final boolean fullReplica = keyspace.isFullReplicaFor(value.key().getToken(), ClusterMetadata.current());
+                final boolean isFullReplica = keyspace.isFullReplicaFor(value.key().getToken(), ClusterMetadata.current());
 
                 Mutation.PartitionUpdateCollector newPUCollector = null;
                 // TODO (required): replayFilter
@@ -440,7 +440,7 @@ public class MutationJournal
                     TableId tableId = e.getKey();
 
                     // Start segment state tracking (full-replica, memtable-backed data only; see comment above)
-                    if (fullReplica)
+                    if (isFullReplica)
                         segmentStateTrackers.computeIfAbsent(segmentId, SegmentStateTracker::new)
                                             .markDirty(tableId, segmentId, position);
                     // TODO (required): shouldReplay
