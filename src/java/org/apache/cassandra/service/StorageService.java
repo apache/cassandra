@@ -4989,6 +4989,32 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             PendingRangeCalculatorService.instance.blockUntilFinished();
 
+            // In 5.0 we need to handle DECOMMISSION_FAILED which can be legitimately resumed
+            // hence operationMode != NORMAL clause chosen, and kept same on 4.0/4.1/5.0 for simplicity
+            // Checking OperationMode alone is insufficient since consider the following sequence:
+            //
+            // 1. Run a decommission, get far enough to persist transferred ranges, then fail, setting operationMode to DECOMMISSION_FAILED
+            // 2. Restart instance go NORMAL again, lose pending endpoints
+            // 3. Write comes in and is now not written to pending endpoint for one of the transferred ranges
+            // 4. Attempt decommission which fails before resetTransferredRanges, leaving operationMode as DECOMMISSION_FAILED
+            // 5. Re-attempt decommission which now sees operationMode == DECOMMISSION_FAILED
+            // (!= NORMAL) so skips resetting transferred ranges
+            // 6. decommission completes and write from step 3 has not been transferred via streaming or write path to the new owner.
+            //
+            // So checking tokenMetadata.isLeaving in addition means that on step 5 we now fail the isLeaving check
+            // (cleared by the restart in step 2, and step 4 never reached startLeaving) and truncate transferred ranges
+            boolean resumingInFlightDecommission = tokenMetadata.isLeaving(FBUtilities.getBroadcastAddressAndPort())
+                                                   && operationMode != Mode.NORMAL;
+
+            // We reset transferred ranges upon starting a new decommission so that we fully stream
+            // anything written since a previous attempt, which may not have been persisted to a pending endpoint.
+            // See CASSANDRA-16290.
+            if (!resumingInFlightDecommission)
+            {
+                logger.info("resetting transferred ranges to force re-streaming");
+                SystemKeyspace.resetTransferredRanges();
+            }
+
             String dc = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
 
             if (operationMode != Mode.LEAVING) // If we're already decommissioning there is no point checking RF/pending ranges
@@ -6013,8 +6039,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (rangesWithEndpoints.isEmpty())
                 continue;
 
-            //Description is always Unbootstrap? Is that right?
-            Map<InetAddressAndPort, Set<Range<Token>>> transferredRangePerKeyspace = SystemKeyspace.getTransferredRanges("Unbootstrap",
+            Map<InetAddressAndPort, Set<Range<Token>>> transferredRangePerKeyspace = SystemKeyspace.getTransferredRanges(StreamOperation.DECOMMISSION,
                                                                                                                          keyspace,
                                                                                                                          StorageService.instance.getTokenMetadata().partitioner);
             RangesByEndpoint.Builder replicasPerEndpoint = new RangesByEndpoint.Builder();
@@ -6025,7 +6050,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 Set<Range<Token>> transferredRanges = transferredRangePerKeyspace.get(remote.endpoint());
                 if (transferredRanges != null && transferredRanges.contains(local.range()))
                 {
-                    logger.debug("Skipping transferred range {} of keyspace {}, endpoint {}", local, keyspace, remote);
+                    logger.info("Skipping transferred range {} of keyspace {}, endpoint {}", local, keyspace, remote);
                     continue;
                 }
 
