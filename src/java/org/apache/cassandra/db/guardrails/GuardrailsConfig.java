@@ -606,6 +606,24 @@ public interface GuardrailsConfig
     void setSaiStringTermSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail);
 
     /**
+     * @return the warning threshold for the size of blob terms written to an SAI index
+     */
+    DataStorageSpec.LongBytesBound getSaiBlobTermSizeWarnThreshold();
+
+    /**
+     * @return the failure threshold for the size of blob terms written to an SAI index
+     */
+    DataStorageSpec.LongBytesBound getSaiBlobTermSizeFailThreshold();
+
+    /**
+     * Sets warning and failure thresholds for the size of blob terms written to an SAI index
+     *
+     * @param warn value to set for warn threshold
+     * @param fail value to set for fail threshold
+     */
+    void setSaiBlobTermSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail);
+
+    /**
      * @return the warning threshold for the size of frozen terms written to an SAI index
      */
     DataStorageSpec.LongBytesBound getSaiFrozenTermSizeWarnThreshold();

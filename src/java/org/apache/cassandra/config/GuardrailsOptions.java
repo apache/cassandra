@@ -1262,6 +1262,34 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     @Override
     @Nullable
+    public DataStorageSpec.LongBytesBound getSaiBlobTermSizeWarnThreshold()
+    {
+        return config.sai_blob_term_size_warn_threshold;
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getSaiBlobTermSizeFailThreshold()
+    {
+        return config.sai_blob_term_size_fail_threshold;
+    }
+
+    @Override
+    public void setSaiBlobTermSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
+    {
+        validateSizeThreshold(warn, fail, false, "sai_blob_term_size");
+        updatePropertyWithLogging("sai_blob_term_size_warn_threshold",
+                                  warn,
+                                  () -> config.sai_blob_term_size_warn_threshold,
+                                  x -> config.sai_blob_term_size_warn_threshold = x);
+        updatePropertyWithLogging("sai_blob_term_size_fail_threshold",
+                                  fail,
+                                  () -> config.sai_blob_term_size_fail_threshold,
+                                  x -> config.sai_blob_term_size_fail_threshold = x);
+    }
+
+    @Override
+    @Nullable
     public DataStorageSpec.LongBytesBound getSaiFrozenTermSizeWarnThreshold()
     {
         return config.sai_frozen_term_size_warn_threshold;
