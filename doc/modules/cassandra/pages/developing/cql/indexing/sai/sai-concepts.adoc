@@ -20,11 +20,11 @@ SAI adds column-level indexes to any CQL table column of almost any CQL data typ
 SAI enables queries that filter based on:
 
 * vector embeddings
-* AND/OR logic for numeric and text types
-* IN logic (use an array of values) for numeric and text types
+* AND/OR logic for numeric, text, and blob types
+* IN logic (use an array of values) for numeric, text, and blob types
 * numeric range  
 * non-variable length numeric types
-* text type equality
+* text and blob type equality
 * CONTAINs logic (for collections)
 * tokenized data
 * row-aware query path
