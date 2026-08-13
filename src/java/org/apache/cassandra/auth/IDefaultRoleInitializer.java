@@ -21,8 +21,17 @@ package org.apache.cassandra.auth;
 import java.util.Map;
 import java.util.Set;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.tcm.ClusterMetadata;
+
+import static org.apache.cassandra.auth.CassandraRoleManager.escape;
 
 /**
  * Creates the initial role on a cluster which has no roles yet, so that there is some
@@ -37,6 +46,8 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
  */
 public interface IDefaultRoleInitializer
 {
+    Logger logger = LoggerFactory.getLogger(IDefaultRoleInitializer.class);
+
     /**
      * Creates the default role.
      * When using this in connection with CassandraRoleManager, every node runs this independently during initial
@@ -67,23 +78,39 @@ public interface IDefaultRoleInitializer
      */
     void validateConfiguration() throws ConfigurationException;
 
-    /**
-     * Checks {@link #hasExistingRoles()} and, if the cluster has none yet, calls {@link #createDefaultRole()}.
-     * Implemented once, sealed, by {@link AbstractDefaultRoleInitializer} — see that class for the logic.
+    /*
+     * Create the default superuser role to bootstrap role creation on a clean system. Preemptively
+     * gives the role the default password so PasswordAuthenticator can be used to log in (if
+     * configured)
      */
-    void initializeDefaultRoleIfNeeded();
+    default void initializeDefaultRoleIfNeeded()
+    {
+        if (ClusterMetadata.current().tokenMap.tokens().isEmpty())
+            throw new IllegalStateException(getClass().getSimpleName() + " skipped default role setup: no known tokens in ring");
 
-    /**
-     * @return true if the cluster already has at least one role (or the configured default role specifically).
-     * Implemented once, sealed, by {@link AbstractDefaultRoleInitializer} — see that class for the logic.
-     */
-    boolean hasExistingRoles();
+        try
+        {
+            if (!hasExistingRoles())
+            {
+                createDefaultRole();
+            }
+        }
+        catch (RequestExecutionException e)
+        {
+            logger.warn(getClass().getSimpleName() + " skipped default role setup: some nodes were not ready");
+            throw e;
+        }
+    }
 
-    /**
-     * @param manager manager to check the support of
-     * @return true if this role initializer conceptually works together with specified role manager, false otherwise
-     */
-    boolean supportsRoleManager(IRoleManager manager);
+    default boolean hasExistingRoles()
+    {
+        // Try looking up the configured default role first, to avoid the range query if possible.
+        String defaultRoleQuery = String.format("SELECT * FROM %s.%s WHERE role = '%s'", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES, escape(defaultRoleName()));
+        String allUsersQuery = String.format("SELECT * FROM %s.%s LIMIT 1", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES);
+        return !QueryProcessor.process(defaultRoleQuery, ConsistencyLevel.ONE).isEmpty()
+               || !QueryProcessor.process(defaultRoleQuery, ConsistencyLevel.QUORUM).isEmpty()
+               || !QueryProcessor.process(allUsersQuery, ConsistencyLevel.QUORUM).isEmpty();
+    }
 
     static void validateSupportedParams(Map<String, String> parameters, Set<String> supportedParams, Class<?> implClass)
     {

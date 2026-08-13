@@ -107,10 +107,6 @@ public final class AuthConfig
         if (authenticator instanceof PasswordAuthenticator && !(roleManager instanceof CassandraRoleManager))
             throw new ConfigurationException(authenticator.getClass().getName() + " requires " + CassandraRoleManager.class.getName(), false);
 
-        if (!defaultRoleInitializer.supportsRoleManager(roleManager))
-            throw new ConfigurationException(defaultRoleInitializer.getClass().getName()
-                                             + " does not support " + roleManager.getClass().getName());
-
         DatabaseDescriptor.setRoleManager(roleManager);
 
         // authenticator

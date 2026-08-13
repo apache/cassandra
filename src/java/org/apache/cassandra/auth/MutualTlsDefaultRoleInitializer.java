@@ -34,7 +34,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import static org.apache.cassandra.auth.AuthUtils.consistencyForRoleWrite;
 import static org.apache.cassandra.auth.AuthUtils.escape;
 
-public class MutualTlsDefaultRoleInitializer extends AbstractDefaultRoleInitializer
+public class MutualTlsDefaultRoleInitializer implements IDefaultRoleInitializer
 {
     private static final Logger logger = LoggerFactory.getLogger(MutualTlsDefaultRoleInitializer.class);
     public static final String ROLE = "role";
@@ -49,12 +49,6 @@ public class MutualTlsDefaultRoleInitializer extends AbstractDefaultRoleInitiali
         IDefaultRoleInitializer.validateSupportedParams(parameters, SUPPORTED_PARAMS, getClass());
         role = parameters.get(ROLE);
         identity = parameters.get(IDENTITY);
-    }
-
-    @Override
-    public boolean supportsRoleManager(IRoleManager manager)
-    {
-        return manager instanceof CassandraRoleManager;
     }
 
     @Override
