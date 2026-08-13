@@ -19,7 +19,6 @@ package org.apache.cassandra.journal;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
@@ -220,26 +219,18 @@ public class Segments<K, V>
     void selectStatic(Predicate<StaticSegment<K, V>> filter, Collection<StaticSegment<K, V>> into)
     {
         for (Segment<K, V> segment : segments.values())
-        {
-            if (!segment.isStatic())
-                continue;
-            StaticSegment<K, V> staticSegment = segment.asStatic();
-            if (filter.test(staticSegment))
-                into.add(staticSegment);
-        }
+            if (segment.isStatic() && filter.test(segment.asStatic()))
+                into.add(segment.asStatic());
     }
 
     @VisibleForTesting
-    void consumeStatic(Predicate<StaticSegment<K, V>> filter, Consumer<StaticSegment<K, V>> consumer)
+    int countStatic(Predicate<StaticSegment<K, V>> filter)
     {
+        int count = 0;
         for (Segment<K, V> segment : segments.values())
-        {
-            if (!segment.isStatic())
-                continue;
-            StaticSegment<K, V> staticSegment = segment.asStatic();
-            if (filter.test(staticSegment))
-                consumer.accept(staticSegment);
-        }
+            if (segment.isStatic() && filter.test(segment.asStatic()))
+                count++;
+        return count;
     }
 
     /**

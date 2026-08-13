@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
@@ -1469,8 +1468,6 @@ public class Journal<K, V> implements Shutdownable
     @VisibleForTesting
     public int countStaticSegmentsForTesting(Predicate<StaticSegment<K, V>> matches)
     {
-        AtomicInteger counter = new AtomicInteger(0);
-        segments().consumeStatic(matches, staticSegment -> counter.incrementAndGet());
-        return counter.get();
+        return segments().countStatic(matches);
     }
 }
