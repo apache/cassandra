@@ -28,6 +28,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
@@ -67,7 +68,6 @@ public class MutationTrackingTables
         private static final String FSYNCED_TO = "fsynced_to";
         private static final String NEEDS_REPLAY = "needs_replay";
         private static final String FILE_PATH = "file_path";
-        private static final String REFERENCE_COUNT = "reference_count";
         private static final String REFERRING_SSTABLES = "referring_sstables";
 
         MutationJournalTable(String keyspace)
@@ -84,8 +84,7 @@ public class MutationTrackingTables
                                .addRegularColumn(FSYNCED_TO, Int32Type.instance)
                                .addRegularColumn(NEEDS_REPLAY, BooleanType.instance)
                                .addRegularColumn(FILE_PATH, UTF8Type.instance)
-                               .addRegularColumn(REFERENCE_COUNT, Int32Type.instance)
-                               .addRegularColumn(REFERRING_SSTABLES, UTF8Type.instance)
+                               .addRegularColumn(REFERRING_SSTABLES, ListType.getInstance(UTF8Type.instance, false))
                                .build());
         }
 
@@ -106,8 +105,7 @@ public class MutationTrackingTables
                       .column(FSYNCED_TO, segment.fsyncedTo())
                       .column(NEEDS_REPLAY, segment.metadata().needsReplay())
                       .column(FILE_PATH, segment.filePath())
-                      .column(REFERENCE_COUNT, referringSstables.size())
-                      .column(REFERRING_SSTABLES, String.join(",", referringSstables));
+                      .column(REFERRING_SSTABLES, referringSstables);
             }
 
             return result;

@@ -82,7 +82,6 @@ public class MutationJournalTableTest extends CQLTester
                 "fsynced_to",
                 "needs_replay",
                 "file_path",
-                "reference_count",
                 "referring_sstables"
             ));
 
@@ -102,11 +101,9 @@ public class MutationJournalTableTest extends CQLTester
             int fsyncedTo = r.getInt("fsynced_to");
             r.getBool("needs_replay"); // Just verify it's accessible
             r.getString("file_path");  // Just verify it's accessible
-            int referenceCount = r.getInt("reference_count");
-            r.getString("referring_sstables"); // Just verify it's accessible
+            r.getList("referring_sstables", String.class);// Just verify it's accessible
 
             assertThat(segmentId).isGreaterThan(0L);
-            assertThat(referenceCount).isGreaterThanOrEqualTo(0);
 
             if (isActive) { foundActiveSegment = true; }
 
