@@ -3732,7 +3732,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     }
 
     @Test
-    public void testTrailingUpdateIsAlwaysApplied() throws Throwable
+    public void testTrailingUpdateIsApplied() throws Throwable
     {
         test("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH " + transactionalMode.asCqlParam(), cluster -> {
             String insert = "BEGIN TRANSACTION\n" +
@@ -3771,6 +3771,41 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                           "COMMIT TRANSACTION";
 
             result = cluster.coordinator(1).executeWithResult(read, ConsistencyLevel.SERIAL);
+            assertThat(result).hasSize(1).contains(2, 78);
+        });
+    }
+
+    @Test
+    public void testConditionsAllFalseTrailingUpdateIsApplied() throws Throwable
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            String insert = "BEGIN TRANSACTION\n" +
+                            " INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (1, 2);\n" +
+                            " INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (2, 3);\n" +
+                            "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(insert, ConsistencyLevel.SERIAL);
+
+            String query = "BEGIN TRANSACTION\n" +
+                           " LET k1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1);\n" +
+                           " LET k2 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 2);\n" +
+                           " IF k1.v > 5 THEN \n" +
+                           "    UPDATE " + qualifiedAccordTableName + " SET v = 10 WHERE k = 1;\n" +
+                           " ELSE IF k2.v = 1 THEN \n" +
+                           "    UPDATE " + qualifiedAccordTableName + " SET v = 127 WHERE k = 1;\n" +
+                           " ELSE IF k2.v = 5 THEN \n" +
+                           "    UPDATE " + qualifiedAccordTableName + " SET v = 129 WHERE k = 1;\n" +
+                           " END IF\n" +
+                           " UPDATE " + qualifiedAccordTableName + " SET v = 78 WHERE k = 2;\n" +
+                           "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.SERIAL);
+
+            String read = "BEGIN TRANSACTION\n" +
+                   " SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 2;\n" +
+                   "COMMIT TRANSACTION";
+
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult(read, ConsistencyLevel.SERIAL);
             assertThat(result).hasSize(1).contains(2, 78);
         });
     }
