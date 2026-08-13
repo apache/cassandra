@@ -67,7 +67,6 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.JMXUtil;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.shared.WithProperties;
-import org.apache.cassandra.distributed.test.DecommissionTest;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
@@ -330,8 +329,13 @@ public class BootstrapTest extends TestBaseImpl
 
     public static void populate(ICluster cluster, int from, int to, int coord, int rf, ConsistencyLevel cl)
     {
+        populate(cluster, from, to, coord, rf, cl, "pk int, ck int, v int");
+    }
+
+    public static void populate(ICluster cluster, int from, int to, int coord, int rf, ConsistencyLevel cl, String columnDefinitions)
+    {
         cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + rf + "};");
-        cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
+        cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".tbl (" + columnDefinitions + ", PRIMARY KEY (pk, ck))");
         for (int i = from; i < to; i++)
         {
             cluster.coordinator(coord).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (?, ?, ?)",
@@ -356,9 +360,13 @@ public class BootstrapTest extends TestBaseImpl
             {
                 return;
             }
+            // bootstrapFinished is implemented by this class, so delegate here. The previous
+            // target (DecommissionTest.BB) was wrong but bound anyway while that class had
+            // exactly one @SuperCall interceptor method; CASSANDRA-16290 adds a second one,
+            // which makes the binding ambiguous.
             new ByteBuddy().rebase(StorageService.class)
                            .method(named("bootstrapFinished"))
-                           .intercept(MethodDelegation.to(DecommissionTest.BB.class))
+                           .intercept(MethodDelegation.to(BB.class))
                            .make()
                            .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
         }
