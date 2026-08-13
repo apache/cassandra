@@ -49,6 +49,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.DecimalType;
@@ -80,7 +81,8 @@ public class IndexTermType
     private static final Set<AbstractType<?>> EQ_ONLY_TYPES = ImmutableSet.of(UTF8Type.instance,
                                                                               AsciiType.instance,
                                                                               BooleanType.instance,
-                                                                              UUIDType.instance);
+                                                                              UUIDType.instance,
+                                                                              BytesType.instance);
 
     private static final byte[] IPV4_PREFIX = new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1 };
 
@@ -104,6 +106,7 @@ public class IndexTermType
         BIG_DECIMAL,
         LONG,
         BOOLEAN,
+        BYTES,
         LITERAL,
         REVERSED,
         FROZEN,
@@ -174,7 +177,7 @@ public class IndexTermType
 
     /**
      * Returns {@code true} if the index type is a literal type and will use a literal index. This applies to
-     * string types, frozen types, composite types and boolean type.
+     * string types, frozen types, composite types, bytes type and boolean type.
      */
     public boolean isLiteral()
     {
@@ -206,6 +209,14 @@ public class IndexTermType
     public boolean isReversed()
     {
         return capabilities.contains(Capability.REVERSED);
+    }
+
+    /**
+     * Returns {@code true} if the index type is a bytes/blob type.
+     */
+    public boolean isBytes()
+    {
+        return capabilities.contains(Capability.BYTES);
     }
 
     /**
@@ -778,8 +789,12 @@ public class IndexTermType
         if (indexType instanceof BooleanType)
             capabilities.add(Capability.BOOLEAN);
 
+        if (indexType instanceof BytesType)
+            capabilities.add(Capability.BYTES);
+
         if (capabilities.contains(Capability.STRING) ||
             capabilities.contains(Capability.BOOLEAN) ||
+            capabilities.contains(Capability.BYTES) ||
             capabilities.contains(Capability.FROZEN) ||
             capabilities.contains(Capability.COMPOSITE))
             capabilities.add(Capability.LITERAL);

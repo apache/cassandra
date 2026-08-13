@@ -2707,6 +2707,10 @@ max_security_label_length: 48
 # sai_string_term_size_warn_threshold: 1KiB
 # sai_string_term_size_fail_threshold: 8KiB
 
+# Guardrail specifying warn/fail thresholds for the size of blob terms written to an SAI index
+# sai_blob_term_size_warn_threshold: 1KiB
+# sai_blob_term_size_fail_threshold: 8KiB
+
 # Guardrail specifying warn/fail thresholds for the size of frozen terms written to an SAI index
 # sai_frozen_term_size_warn_threshold: 1KiB
 # sai_frozen_term_size_fail_threshold: 8KiB

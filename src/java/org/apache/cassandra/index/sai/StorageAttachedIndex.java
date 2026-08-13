@@ -166,7 +166,8 @@ public class StorageAttachedIndex implements Index
                                                                         CQL3Type.Native.SMALLINT, CQL3Type.Native.TEXT, CQL3Type.Native.TIME,
                                                                         CQL3Type.Native.TIMESTAMP, CQL3Type.Native.TIMEUUID, CQL3Type.Native.TINYINT,
                                                                         CQL3Type.Native.UUID, CQL3Type.Native.VARCHAR, CQL3Type.Native.INET,
-                                                                        CQL3Type.Native.VARINT, CQL3Type.Native.DECIMAL, CQL3Type.Native.BOOLEAN);
+                                                                        CQL3Type.Native.VARINT, CQL3Type.Native.DECIMAL, CQL3Type.Native.BOOLEAN,
+                                                                        CQL3Type.Native.BLOB);
 
     private static final Set<Class<? extends IPartitioner>> ILLEGAL_PARTITIONERS =
             ImmutableSet.of(OrderPreservingPartitioner.class, LocalPartitioner.class, ByteOrderedPartitioner.class, RandomPartitioner.class);
@@ -206,10 +207,14 @@ public class StorageAttachedIndex implements Index
         analyzerFactory = AbstractAnalyzer.fromOptions(indexTermType, indexMetadata.options);
         memtableIndexManager = new MemtableIndexManager(this);
         indexMetrics = new IndexMetrics(this, memtableIndexManager);
-        maxTermSizeGuardrail = indexTermType.isVector()
-                               ? Guardrails.saiVectorTermSize
-                               : (indexTermType.isFrozen() ? Guardrails.saiFrozenTermSize
-                                                           : Guardrails.saiStringTermSize);
+        if (indexTermType.isVector())
+            maxTermSizeGuardrail = Guardrails.saiVectorTermSize;
+        else if (indexTermType.isFrozen())
+            maxTermSizeGuardrail = Guardrails.saiFrozenTermSize;
+        else if (indexTermType.isBytes())
+            maxTermSizeGuardrail = Guardrails.saiBlobTermSize;
+        else
+            maxTermSizeGuardrail = Guardrails.saiStringTermSize;
     }
 
     /**
