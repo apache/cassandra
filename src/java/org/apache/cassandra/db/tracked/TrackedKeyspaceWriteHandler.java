@@ -46,9 +46,6 @@ public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
             if (makeDurable)
             {
                 Tracing.trace("Appending to mutation journal");
-                // Witness status is uniform per mutation (single partition key / token). Compute it here so the
-                // journal only marks the segment dirty for full-replica writes: a witnessed-only mutation is
-                // journaled but never applied to a memtable, so it must not pin needsReplay (CASSANDRA-21406).
                 Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
                 boolean isFullReplica = keyspace.isFullReplicaFor(mutation.key().getToken(), ClusterMetadata.current());
                 pointer = MutationJournal.instance().write(mutation.id(), mutation, isFullReplica);

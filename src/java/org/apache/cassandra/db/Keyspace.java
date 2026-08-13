@@ -698,8 +698,7 @@ public class Keyspace
     /**
      * @param token the token to check for the given keyspace
      * @param cm    the cluster metadata instance
-     * @return whether this node is a full replica for the given token in this keyspace, i.e. whether
-     * a tracked mutation for that token should be applied to the local memtable. Keyspaces without
+     * @return whether this node is a full replica for the given token in this keyspace. Keyspaces without
      * transient replicas are always full replicas for tokens they own.
      */
     public boolean isFullReplicaFor(Token token, ClusterMetadata cm)
@@ -711,8 +710,7 @@ public class Keyspace
      * @param replicationStrategy the replication strategy for the keyspace
      * @param token               the token to check for the given keyspace
      * @param cm                  the cluster metadata instance
-     * @return whether this node is a full replica for the given token, i.e. whether
-     * a tracked mutation for that token should be applied to the local memtable. Keyspaces without
+     * @return whether this node is a full replica for the given token. Keyspaces without
      * transient replicas are always full replicas for tokens they own.
      */
     static boolean isFullReplicaFor(AbstractReplicationStrategy replicationStrategy, Token token, ClusterMetadata cm)

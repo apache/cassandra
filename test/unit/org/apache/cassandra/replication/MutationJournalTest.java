@@ -198,7 +198,6 @@ public class MutationJournalTest
 
         SegmentReferenceTracker refs = journal.segmentReferenceTracker();
 
-        // Baseline of static segments already present (this journal is shared across tests in the class).
         int baseline = journal.countStaticSegmentsForTesting();
 
         // write two mutations to the first segment and flush it to make static
@@ -218,7 +217,7 @@ public class MutationJournalTest
             allReconciled.add(id);
 
         {
-            // (F) Both segments still need replay; even fully reconciled and unreferenced they must be retained.
+            // Both segments still need replay; even fully reconciled and unreferenced they must be retained.
             assertEquals(0, journal.dropSegments(allReconciled));
             assertEquals(baseline + 2, journal.countStaticSegmentsForTesting());
         }
@@ -227,13 +226,13 @@ public class MutationJournalTest
         journal.clearNeedsReplayForTesting();
 
         {
-            // (W) Not reconciled -> retained even when !needsReplay and unreferenced (the witness gate).
+            // Not reconciled -> retained even when !needsReplay and unreferenced (the witness gate).
             assertEquals(0, journal.dropSegments(new Log2OffsetsMap.Mutable()));
             assertEquals(baseline + 2, journal.countStaticSegmentsForTesting());
         }
 
         {
-            // (R) An unrepaired sstable referencing the first segment retains it; the second (unreferenced,
+            // An unrepaired sstable referencing the first segment retains it; the second (unreferenced,
             // reconciled, !needsReplay) is dropped.
             SSTableReader referrer = Mockito.mock(SSTableReader.class);
             refs.addReferenceForTesting(firstSegment, referrer);

@@ -91,7 +91,7 @@ public class SegmentReferenceTrackerTest
         SegmentReferenceTracker tracker = newTracker();
         // Unrepaired, but carries no tracked mutations (empty coordinatorLogOffsets) -> not tracked. This is the
         // untracked / pre-migration case: such an sstable's commitLogIntervals reference the commit log, not the
-        // mutation journal, so it must never hold a segment reference (CASSANDRA-21406).
+        // mutation journal, so it must never hold a segment reference.
         SSTableReader sstable = sstable(intervals(5, 0, 7, 100), () -> false, coordinatorLogOffsets(false));
 
         tracker.handleNotification(new SSTableAddedNotification(List.of(sstable), null), null);
@@ -340,7 +340,6 @@ public class SegmentReferenceTrackerTest
         assertEquals(2L, tracker.referenceCountForTesting(6));
         assertEquals(1L, tracker.referenceCountForTesting(7));
 
-        // Drop one; the shared segment still has a holder.
         tracker.handleNotification(
         new SSTableListChangedNotification(List.of(),
                                            List.of(a),
@@ -348,7 +347,7 @@ public class SegmentReferenceTrackerTest
         null);
 
         assertFalse(tracker.isReferenced(5));
-        assertEquals(1L, tracker.referenceCountForTesting(6));
+        assertEquals("there's still a reference from the shared segment from b", 1L, tracker.referenceCountForTesting(6));
         assertEquals(1L, tracker.referenceCountForTesting(7));
     }
 
@@ -360,14 +359,13 @@ public class SegmentReferenceTrackerTest
 
         assertFalse(tracker.isReferenced(5));
 
-        // Never added -- removal must not underflow.
         tracker.handleNotification(
         new SSTableListChangedNotification(List.of(),
                                            List.of(sstable),
                                            OperationType.COMPACTION),
         null);
 
-        assertFalse(tracker.isReferenced(5));
+        assertFalse("ensure a never added sstable does not underflow during removal", tracker.isReferenced(5));
     }
 
     @Test

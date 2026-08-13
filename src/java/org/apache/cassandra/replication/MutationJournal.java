@@ -191,9 +191,6 @@ public class MutationJournal
                                   });
                               }
                           };
-        // When a segment loses its last unrepaired-sstable reference, attempt to drop it. This (together with a
-        // segment's needsReplay being cleared) is what triggers journal truncation now that it is event-driven
-        // rather than performed every LogStatePersister tick (CASSANDRA-21406).
         segmentReferenceTracker = new SegmentReferenceTracker(
             () -> MutationTrackingService.instance().scheduleSegmentDropAttempt());
         segmentStateTrackers = new NonBlockingHashMapLong<>();
@@ -263,11 +260,6 @@ public class MutationJournal
             }
         }
 
-        // Clearing needsReplay is one of the two events that can make a segment droppable (the other being its
-        // last unrepaired-sstable reference being released), so attempt a drop now that we've cleared some
-        // (CASSANDRA-21406). No-op if the executor has been shut down (e.g. during the final flush at shutdown,
-        // where the caller drops synchronously instead). Guarded on isEnabled() so a standalone journal in unit
-        // tests (no running service) doesn't reach for the service singleton.
         if (anyCleared && MutationTrackingService.isEnabled())
             MutationTrackingService.instance().scheduleSegmentDropAttempt();
     }
@@ -422,11 +414,6 @@ public class MutationJournal
                     return;
                 // TODO: if (commitLogReplayer.pointInTimeExceeded(mutation))
                 final Keyspace keyspace = Keyspace.open(value.getKeyspaceName());
-
-                // Witnessed-only mutations are still replayed (so their offsets are re-witnessed on startup) but must
-                // not mark the segment dirty — they are never applied to a memtable, so a dirty mark would pin the
-                // segment's needsReplay forever. Witness status is per keyspace+token, hence uniform across this
-                // mutation's tables.
                 final boolean isFullReplica = keyspace.isFullReplicaFor(value.key().getToken(), ClusterMetadata.current());
 
                 Mutation.PartitionUpdateCollector newPUCollector = null;
@@ -439,7 +426,6 @@ public class MutationJournal
                         continue; // dropped
                     TableId tableId = e.getKey();
 
-                    // Start segment state tracking (full-replica, memtable-backed data only; see comment above)
                     if (isFullReplica)
                         segmentStateTrackers.computeIfAbsent(segmentId, SegmentStateTracker::new)
                                             .markDirty(tableId, segmentId, position);

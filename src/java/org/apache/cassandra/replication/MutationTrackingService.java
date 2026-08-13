@@ -1014,9 +1014,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             {
                 case MIGRATE_FROM:
                     // TODO (expected): Implement shard deletion for tracked → untracked migration completion (CASSANDRA-20955)
-                    // Release the journal-segment references still held by this keyspace's sstables. Once untracked,
-                    // those sstables are never promoted to repaired (that path is gated on the table being tracked),
-                    // so their segments would otherwise be pinned forever (CASSANDRA-21406).
                     evictSegmentReferences(keyspace);
                 case NONE:
                     if (current != null)
@@ -1054,11 +1051,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         return updated;
     }
 
-    /**
-     * Release any journal-segment references still held by the given keyspace's live sstables. Invoked when the
-     * keyspace migrates away from tracked replication (CASSANDRA-21406): such sstables keep their (now stale)
-     * journal references but are never promoted to repaired, so their segments would otherwise be pinned forever.
-     */
     private static void evictSegmentReferences(String keyspace)
     {
         if (!DatabaseDescriptor.getMutationTrackingEnabled())
@@ -1087,14 +1079,10 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         }
     }
 
-    // Set while a segment-drop attempt is queued or running on the executor, so the events that can make a segment
-    // droppable (a referrer count reaching zero, or a needsReplay clear) coalesce into at most one pending attempt.
     private final AtomicBoolean segmentDropScheduled = new AtomicBoolean();
 
     /**
-     * Schedule a best-effort attempt to drop now-droppable journal segments on the mutation-tracking executor.
-     * Safe to call from any thread (e.g. a compaction thread delivering an SSTable notification). Coalesces
-     * concurrent requests, and is a no-op once the executor has been shut down.
+     * Best-effort attempt to drop journal segments
      */
     void scheduleSegmentDropAttempt()
     {
@@ -1106,8 +1094,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
     private void runScheduledSegmentDrop()
     {
-        // Clear the flag before doing the work so an event racing in during this run re-arms a follow-up attempt.
-        // The executor is single-threaded, so re-armed attempts run sequentially, never concurrently.
         segmentDropScheduled.set(false);
         truncateMutationJournal();
     }
@@ -1119,11 +1105,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         MutationJournal.instance().dropSegments(durablyReconciled);
     }
 
-    /**
-     * Collect every log's durably-reconciled offsets. A segment all of whose offsets are covered by these is safe
-     * (from a reconciliation standpoint) to reclaim once it also no longer needs replay and holds no unrepaired
-     * sstable references — this is what lets witness-only segments (which never produce an sstable) be dropped
-     */
     private void collectDurablyReconciledOffsets(Log2OffsetsMap.Mutable into)
     {
         forEachKeyspace(keyspace -> keyspace.collectDurablyReconciledOffsets(into));
@@ -1189,13 +1170,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
      * Out-of-band promotion of already durably-reconciled but still-unrepaired sstables to repaired, triggered
      * once the on-disk mutation journal grows past {@code mutation_tracking.journal_promotion_threshold}.
      *
-     * <p>Under normal operation a segment can stay referenced for a long time if its unrepaired sstables never
-     * compact — and compaction is now where a reconciled sstable is normally born repaired (CASSANDRA-21406).
-     * Promoting reconciled sstables eagerly flips them to repaired, which releases their segment references (the
-     * resulting {@code SSTableRepairStatusChanged} is handled by {@link SegmentReferenceTracker}) and lets the
-     * journal reclaim space. Only fully durably-reconciled sstables are promoted, so there are no minority writes
-     * left to filter out — the metadata-only flip is equivalent to what the next compaction would have produced.
-     *
      * <p>Best-effort: a failure to flip one table's sstables is logged and retried on a later trigger. Not gated
      * by {@code runWithCompactionsDisabled} (which would interrupt validation/repair); {@code mutateRepaired}
      * only rewrites the stats component and reloads, and a concurrently-compacted sstable simply retries.
@@ -1219,9 +1193,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
                 List<SSTableReader> toPromote = new ArrayList<>();
                 for (SSTableReader sstable : cfs.getLiveSSTables())
                 {
-                    // shouldTrack picks out the sstables that hold a local segment reference (local, unrepaired,
-                    // non-empty offsets, still-tracked table); of those, only durably-reconciled ones are safe to
-                    // flip to repaired (no minority writes left to filter).
                     if (tracker.shouldTrack(sstable) && isDurablyReconciled(sstable.getCoordinatorLogOffsets()))
                         toPromote.add(sstable);
                 }
@@ -1790,19 +1761,10 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         {
             if (isPaused)
                 return;
-            // Periodic ticks only persist witnessed offsets and durably clear needsReplay. Journal truncation is
-            // no longer triggered here (CASSANDRA-21406): it is event-driven, triggered when a segment's last
-            // unrepaired reference is released (SegmentReferenceTracker) or when its needsReplay is cleared
-            // (MutationJournal.drainCleanup).
             persistAndDrain();
-            // If the journal has grown past the configured threshold, promote reconciled unrepaired sstables to
-            // repaired so their segment references are released (this is not done every tick — only over threshold).
             MutationTrackingService.instance().maybePromoteReconciledSstables();
         }
 
-        // Persist per-log witnessed offsets and durably clear needsReplay for eligible segments. Bypasses isPaused,
-        // so it is also the entry point for the manual test hooks and the shutdown flush. Does NOT truncate the
-        // journal; drainCleanup schedules any resulting drop, and callers that need a synchronous drop do it themselves.
         void persistAndDrain()
         {
             MutationJournal.PendingClearReplay toDrain = MutationJournal.instance().snapshotPendingClearReplay();
@@ -1837,7 +1799,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     @VisibleForTesting
     public void persistLogStateForTesting()
     {
-        // Persist + drain, then drop synchronously so tests observe truncation immediately after the call.
         offsetsPersister.persistAndDrain();
         truncateMutationJournal();
     }

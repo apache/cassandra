@@ -70,22 +70,20 @@ public class SegmentReferenceTracker implements INotificationConsumer
     // Guards both referrersBySegment and trackedSstables to keep transitions atomic across notifications.
     private final ReentrantLock lock = new ReentrantLock();
 
-    // segment id -> set of local unrepaired sstables referencing it. A segment with no entry is unreferenced;
-    // a set is removed as soon as it becomes empty, so isReferenced is a simple containsKey.
+    // segment id -> set of local unrepaired sstables referencing it
     private final Long2ObjectHashMap<Set<SSTableReader>> referrersBySegment = new Long2ObjectHashMap<>();
 
-    // Sstables we currently hold refs for (i.e. those that were unrepaired at the time we observed them).
+    // Sstables we currently hold refs for.
     // Required so SSTableRepairStatusChanged can transition an sstable in/out without the notification
     // having to carry the previous repair state.
     private final Set<SSTableReader> trackedSstables = new HashSet<>();
 
-    // Invoked (outside the lock) whenever a notification drives at least one segment's reference count to zero,
-    // so the journal can attempt to drop the now-unreferenced segment(s). This is one of the two events that make
-    // a segment droppable (the other being its needsReplay flag being cleared) — CASSANDRA-21406.
+    // Invoked whenever a notification drives at least one segment's reference count to zero,
+    // so the journal can attempt to drop the now-unreferenced segment(s).
     private final Runnable onSegmentsUnreferenced;
 
-    // Resolves the local host id. Injectable for testing; may return null very early in startup (before
-    // ClusterMetadata is ready), in which case no sstable is treated as locally originated.
+    // Resolves the local host id. May return null very early in startup, in which case no sstable is
+    // treated as locally originated.
     private final Supplier<UUID> localHostIdSupplier;
 
     public SegmentReferenceTracker(Runnable onSegmentsUnreferenced)
@@ -111,18 +109,6 @@ public class SegmentReferenceTracker implements INotificationConsumer
             onListChanged((SSTableListChangedNotification) notification);
         else if (notification instanceof SSTableRepairStatusChanged)
             onRepairStatusChanged(((SSTableRepairStatusChanged) notification).sstables);
-
-        // Other lifecycle notifications are deliberately not handled because the actual sstable-lifecycle
-        // effect is delivered by SSTableListChangedNotification:
-        //   - SSTableDeletingNotification: fires when the on-disk files are scheduled for deletion, after
-        //     the sstable has already left the live view via SSTableListChangedNotification. Handling it
-        //     here would double-decrement.
-        //   - TruncationNotification: truncate calls notifyTruncated for higher-level concerns (snapshots,
-        //     truncatedAt persistence), then discardSSTables -> Tracker.dropSSTables -> notifySSTablesChanged
-        //     which fires SSTableListChangedNotification(removed, empty) covering the refcount release.
-        //   - TableDroppedNotification: drop table fires notifyDropped for MBean/snapshot cleanup, then
-        //     CFS.invalidate(..., dropData=true) -> data.dropSSTables() which again fires
-        //     SSTableListChangedNotification(removed, empty) covering the refcount release.
     }
 
     /**
@@ -201,10 +187,7 @@ public class SegmentReferenceTracker implements INotificationConsumer
 
     /**
      * Release every reference currently held for the given sstables, dropping each from every segment's referrer
-     * set. Used when a table migrates away from tracked replication (CASSANDRA-21406): such sstables are never
-     * promoted to repaired (their reconcile→repaired path is gated on the table still being tracked), so their
-     * journal-segment references would otherwise be pinned forever. Idempotent: sstables that aren't currently
-     * tracked are ignored.
+     * set.
      */
     public void evict(Iterable<SSTableReader> sstables)
     {
@@ -245,8 +228,6 @@ public class SegmentReferenceTracker implements INotificationConsumer
     {
         UUID originatingHostId = sstable.getSSTableMetadata().originatingHostId;
         UUID localHostId = localHostIdSupplier.get();
-        // Matches CommitLogReplayer / MetadataCollector: a null originating (or not-yet-known local) host id is
-        // treated as not locally originated, and therefore not tracked.
         return originatingHostId != null && originatingHostId.equals(localHostId);
     }
 
@@ -258,8 +239,7 @@ public class SegmentReferenceTracker implements INotificationConsumer
     }
 
     /**
-     * @return true if releasing this sstable emptied at least one segment's referrer set (i.e. that segment is
-     * no longer referenced).
+     * @return true if releasing this sstable emptied at least one segment's referrer set
      */
     private boolean releaseIfTracked(SSTableReader sstable)
     {

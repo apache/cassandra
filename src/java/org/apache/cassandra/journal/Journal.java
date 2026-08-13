@@ -1432,10 +1432,6 @@ public class Journal<K, V> implements Shutdownable
         {
             LockSupport.parkNanos(1000);
         }
-        // The segment is switched out of the active set, but CloseActiveSegmentRunnable (fsync, open-as-static and
-        // its onDone callback, e.g. MutationJournal's needs-replay cleanup) runs asynchronously on the sequential
-        // closer. Flush the closer so callers observe a fully closed segment (including any deferred cleanup)
-        // deterministically rather than racing the closer thread.
         try
         {
             closer.submit(() -> {}).get();
