@@ -257,8 +257,13 @@ public class BootstrapTest extends TestBaseImpl
 
     public static void populate(ICluster cluster, int from, int to, int coord, int rf, ConsistencyLevel cl)
     {
+        populate(cluster, from, to, coord, rf, cl, "pk int, ck int, v int");
+    }
+
+    public static void populate(ICluster cluster, int from, int to, int coord, int rf, ConsistencyLevel cl, String columnDefinitions)
+    {
         cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + rf + "};");
-        cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
+        cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".tbl (" + columnDefinitions + ", PRIMARY KEY (pk, ck))");
         populateExistingTable(cluster, from, to, coord, cl);
         for (int i = from; i < to; i++)
         {
