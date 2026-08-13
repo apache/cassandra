@@ -338,6 +338,8 @@ END IF
 **Important Notes:**
 
 * Null handling is strict (any null comparison returns false)
+* Every `IF`, `ELSE IF`, and `ELSE` branch must contain at least one modification
+statement; an empty branch body is rejected as a syntax error.
 
 == Restrictions
 
@@ -372,8 +374,8 @@ BEGIN TRANSACTION
     [modificationStatements]
   [ELSE]
     [modificationStatements]
-  [modificationStatements]
   [END IF]
+  [modificationStatements]
 COMMIT TRANSACTION
 ----
 

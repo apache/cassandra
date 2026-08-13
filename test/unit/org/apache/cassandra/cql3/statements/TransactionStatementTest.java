@@ -50,6 +50,7 @@ import static org.apache.cassandra.cql3.statements.TransactionStatement.EMPTY_TR
 import static org.apache.cassandra.cql3.statements.TransactionStatement.ILLEGAL_RANGE_QUERY_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.INCOMPLETE_PARTITION_KEY_SELECT_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE;
+import static org.apache.cassandra.cql3.statements.TransactionStatement.MISSING_BODY_BLOCK_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_AGGREGATION_IN_TXNS_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_CONDITIONS_IN_UPDATES_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_GROUP_BY_IN_TXNS_MESSAGE;
@@ -139,6 +140,119 @@ public class TransactionStatementTest
 
         Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(SyntaxException.class);
+    }
+
+    @Test
+    public void shouldRejectEmptyIfBody()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET row1 = (SELECT * FROM ks.tbl1 WHERE k=1 AND c=2);\n" +
+                       "  IF row1.v = 3 THEN\n" +
+                       "  END IF\n" +
+                       "COMMIT TRANSACTION";
+
+        Assertions.assertThatThrownBy(() -> prepare(query))
+                  .isInstanceOf(SyntaxException.class)
+                  .hasMessage(MISSING_BODY_BLOCK_MESSAGE);
+    }
+
+    @Test
+    public void shouldRejectEmptyIfBodyWithTrailingUpdate()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET row1 = (SELECT * FROM ks.tbl1 WHERE k=1 AND c=2);\n" +
+                       "  IF row1.v = 3 THEN\n" +
+                       "  END IF\n" +
+                       "  UPDATE ks.tbl1 SET v=1 WHERE k=1 AND c=2;\n" +
+                       "COMMIT TRANSACTION";
+
+        Assertions.assertThatThrownBy(() -> prepare(query))
+                  .isInstanceOf(SyntaxException.class)
+                  .hasMessage(MISSING_BODY_BLOCK_MESSAGE);
+    }
+
+    @Test
+    public void shouldRejectEmptyIfBodyWithElseAndTrailingUpdate()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET row1 = (SELECT * FROM ks.tbl1 WHERE k=1 AND c=2);\n" +
+                       "  IF row1.v = 3 THEN\n" +
+                       "  ELSE\n" +
+                       "    UPDATE ks.tbl1 SET v=1 WHERE k=1 AND c=2;\n" +
+                       "  END IF\n" +
+                       "  UPDATE ks.tbl1 SET v=2 WHERE k=1 AND c=3;\n" +
+                       "COMMIT TRANSACTION";
+
+        Assertions.assertThatThrownBy(() -> prepare(query))
+                  .isInstanceOf(SyntaxException.class)
+                  .hasMessage(MISSING_BODY_BLOCK_MESSAGE);
+    }
+
+    @Test
+    public void shouldRejectEmptyElseBodyWithTrailingUpdate()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET row1 = (SELECT * FROM ks.tbl1 WHERE k=1 AND c=2);\n" +
+                       "  IF row1.v = 3 THEN\n" +
+                       "    UPDATE ks.tbl1 SET v=1 WHERE k=1 AND c=2;\n" +
+                       "  ELSE\n" +
+                       "  END IF\n" +
+                       "  UPDATE ks.tbl1 SET v=2 WHERE k=1 AND c=3;\n" +
+                       "COMMIT TRANSACTION";
+
+        Assertions.assertThatThrownBy(() -> prepare(query))
+                  .isInstanceOf(SyntaxException.class)
+                  .hasMessage(MISSING_BODY_BLOCK_MESSAGE);
+    }
+
+    @Test
+    public void shouldRejectEmptyElseIfBody()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET row1 = (SELECT * FROM ks.tbl1 WHERE k=1 AND c=2);\n" +
+                       "  IF row1.v = 3 THEN\n" +
+                       "    UPDATE ks.tbl1 SET v=1 WHERE k=1 AND c=2;\n" +
+                       "  ELSE IF row1.v = 4 THEN\n" +
+                       "  ELSE\n" +
+                       "    UPDATE ks.tbl1 SET v=2 WHERE k=1 AND c=2;\n" +
+                       "  END IF\n" +
+                       "COMMIT TRANSACTION";
+
+        Assertions.assertThatThrownBy(() -> prepare(query))
+                  .isInstanceOf(SyntaxException.class)
+                  .hasMessage(MISSING_BODY_BLOCK_MESSAGE);
+    }
+
+    @Test
+    public void shouldRejectEmptyElseBody()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET row1 = (SELECT * FROM ks.tbl1 WHERE k=1 AND c=2);\n" +
+                       "  IF row1.v = 3 THEN\n" +
+                       "    UPDATE ks.tbl1 SET v=1 WHERE k=1 AND c=2;\n" +
+                       "  ELSE\n" +
+                       "  END IF\n" +
+                       "COMMIT TRANSACTION";
+
+        Assertions.assertThatThrownBy(() -> prepare(query))
+                  .isInstanceOf(SyntaxException.class)
+                  .hasMessage(MISSING_BODY_BLOCK_MESSAGE);
+    }
+
+    @Test
+    public void shouldRejectAllEmptyBranchBodies()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET row1 = (SELECT * FROM ks.tbl1 WHERE k=1 AND c=2);\n" +
+                       "  IF row1.v = 3 THEN\n" +
+                       "  ELSE IF row1.v = 4 THEN\n" +
+                       "  ELSE\n" +
+                       "  END IF\n" +
+                       "COMMIT TRANSACTION";
+
+        Assertions.assertThatThrownBy(() -> prepare(query))
+                  .isInstanceOf(SyntaxException.class)
+                  .hasMessage(MISSING_BODY_BLOCK_MESSAGE);
     }
 
     @Test

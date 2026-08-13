@@ -364,10 +364,16 @@ public final class TxnUpdate extends AccordUpdate
                 }
 
                 if (count == fragments.length)
+                {
+                    cachedInts().forceDiscard(outFragmentIds);
                     return this;
+                }
 
                 if (count == 0)
+                {
+                    cachedInts().forceDiscard(outFragmentIds);
                     return new Block(NO_BLOCK_FRAGMENTS, NO_CONDITIONAL_BLOCKS);
+                }
 
                 outFragments = new BlockFragment[count];
                 for (int i = 0 ; i < count ; ++i)
@@ -605,6 +611,7 @@ public final class TxnUpdate extends AccordUpdate
 
     public static class PreTransformedBlock
     {
+        @Nullable
         private final TxnCondition[] conditions;
         @Nullable
         private final List<Pair<TxnWrite.Fragment, Integer>> fragmentConditionIndexPair;
@@ -613,7 +620,7 @@ public final class TxnUpdate extends AccordUpdate
 
         private PreTransformedBlock(TxnCondition[] conditions, List<Pair<TxnWrite.Fragment, Integer>> fragmentConditionIndexPair, List<TxnWrite.Fragment> noneConditionFragments)
         {
-            Invariants.require((fragmentConditionIndexPair == null && noneConditionFragments != null) || (fragmentConditionIndexPair != null && noneConditionFragments == null));
+            Invariants.require((conditions == null && fragmentConditionIndexPair == null && noneConditionFragments != null) || (conditions != null && fragmentConditionIndexPair != null && noneConditionFragments == null));
             this.conditions = conditions;
             if (fragmentConditionIndexPair != null)
                 fragmentConditionIndexPair.sort((l, r) -> TxnWrite.Fragment.compareKeys(l.left(), r.left()));
@@ -628,9 +635,9 @@ public final class TxnUpdate extends AccordUpdate
             return new PreTransformedBlock(conditions, fragmentConditionIndexPair, null);
         }
 
-        public static PreTransformedBlock createNoneConditionPreTransformedBlock(TxnCondition[] conditions, List<TxnWrite.Fragment> noneConditionFragments)
+        public static PreTransformedBlock createNoneConditionPreTransformedBlock(List<TxnWrite.Fragment> noneConditionFragments)
         {
-            return new PreTransformedBlock(conditions, null, noneConditionFragments);
+            return new PreTransformedBlock(null,null, noneConditionFragments);
         }
 
         private boolean isTrailingUpdate()

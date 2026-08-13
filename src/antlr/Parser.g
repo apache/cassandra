@@ -788,9 +788,9 @@ batchTxnStatement returns [TransactionStatement.Parsed expr]
       ( let=letStatement ';' { assignments.add(let); })*
       ( ( (selectStatement) => s=selectStatement ';' { select = s; }) | ( K_SELECT drs=rowDataReferences ';' { returning = drs; }) )?
       (
-          K_IF c=txnConditions K_THEN u=updateStatements { conditions.add(c); if (!u.isEmpty()) updates.add(u); }
-          ( K_ELSE K_IF c=txnConditions K_THEN u=updateStatements { conditions.add(c); if (!u.isEmpty()) updates.add(u); } )*
-          ( K_ELSE u=updateStatements { conditions.add(Collections.singletonList(new ConditionStatement.Raw(null, ConditionStatement.Kind.ELSE, null))); if (!u.isEmpty()) updates.add(u); } )?
+          K_IF c=txnConditions K_THEN u=updateStatements { conditions.add(c); if (!u.isEmpty()) updates.add(u); else throw new SyntaxException(TransactionStatement.MISSING_BODY_BLOCK_MESSAGE); }
+          ( K_ELSE K_IF c=txnConditions K_THEN u=updateStatements { conditions.add(c); if (!u.isEmpty()) updates.add(u); else throw new SyntaxException(TransactionStatement.MISSING_BODY_BLOCK_MESSAGE); } )*
+          ( K_ELSE u=updateStatements { conditions.add(Collections.singletonList(new ConditionStatement.Raw(null, ConditionStatement.Kind.ELSE, null))); if (!u.isEmpty()) updates.add(u); else throw new SyntaxException(TransactionStatement.MISSING_BODY_BLOCK_MESSAGE); } )?
           K_END K_IF
       )?
       ( (updateStatements) => u=updateStatements { if (!u.isEmpty()) updates.add(u); } )?

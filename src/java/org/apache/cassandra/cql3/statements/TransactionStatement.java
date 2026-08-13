@@ -139,6 +139,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     public static final String NO_PARTITION_IN_CLAUSE_WITH_LIMIT = "Partition key is present in IN clause and there is a LIMIT... this is currently not supported; %s statement %s";
     public static final String WRITE_TXN_EMPTY_WITH_IGNORED_READS = "Write txn produced no mutation, and its reads do not return to the caller; ignoring...";
     public static final String WRITE_TXN_EMPTY_WITH_NO_READS = "Write txn produced no mutation, and had no reads; ignoring...";
+    public static final String MISSING_BODY_BLOCK_MESSAGE = "Missing body block";
 
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(LoggerFactory.getLogger(TransactionStatement.class), 1, TimeUnit.MINUTES);
 
@@ -578,10 +579,12 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             }
 
             List<TxnWrite.Fragment> noneConditionFragments = new ArrayList<>();
-            if (idx < groupedFragments.size())
+            // Even though groupedUpdates.get(idx) can't be empty, groupedFragments.get(idx) can.
+            // This is because (DELETE WHERE pk=0 AND c < 0 AND c > 0) can produce no fragments
+            if (idx < groupedFragments.size() && !groupedFragments.get(idx).isEmpty())
             {
                 noneConditionFragments.addAll(groupedFragments.get(idx));
-                preTransformedBlocks.add(TxnUpdate.PreTransformedBlock.createNoneConditionPreTransformedBlock(new TxnCondition[]{ TxnCondition.none() }, noneConditionFragments));
+                preTransformedBlocks.add(TxnUpdate.PreTransformedBlock.createNoneConditionPreTransformedBlock(noneConditionFragments));
             }
 
             List<TxnNamedRead> reads = createNamedReads(options, autoReads, keyCollector);

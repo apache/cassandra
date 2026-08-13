@@ -140,19 +140,18 @@ public class TxnUpdateTest
 
             preTransformedBlocks.add(TxnUpdate.PreTransformedBlock.createConditionPreTransformedBlock(conditions, fragmentConditionIndexPair));
 
-            TxnCondition[] trailingCondition = new TxnCondition[] { TxnCondition.none() };
-            List<Fragment> noneCondition = new ArrayList<>();
+            List<Fragment> noneConditionFragments = new ArrayList<>();
             boolean shouldHaveTrailingUpdate = rs.nextBoolean();
             if (shouldHaveTrailingUpdate)
             {
-                noneCondition = Gens.lists(fragment(tables)).ofSizeBetween(conditions.length, conditions.length + 15).next(rs);
-                preTransformedBlocks.add(TxnUpdate.PreTransformedBlock.createNoneConditionPreTransformedBlock(trailingCondition, noneCondition));
+                noneConditionFragments = Gens.lists(fragment(tables)).ofSizeBetween(conditions.length, conditions.length + 15).next(rs);
+                preTransformedBlocks.add(TxnUpdate.PreTransformedBlock.createNoneConditionPreTransformedBlock(noneConditionFragments));
             }
 
             int blockSize = 0;
             if (!fragmentConditionIndexPair.isEmpty())
                 blockSize++;
-            if (!noneCondition.isEmpty())
+            if (!noneConditionFragments.isEmpty())
                 blockSize++;
 
             TxnUpdate update = new TxnUpdate(metadatas, preTransformedBlocks, null, PreserveTimestamp.no);
@@ -169,7 +168,7 @@ public class TxnUpdateTest
                 assertThat(ensureInjectivityOfFragmentIdsToFragments(block)).isTrue();
 
                 boolean inTrailingUpdateBlock = shouldHaveTrailingUpdate && (blockIdx == blocks.size() - 1);
-                assertThat(ensureConditionalBlockIdsPreserveOrder(block, inTrailingUpdateBlock ? trailingCondition : conditions, metadatas)).isTrue();
+                assertThat(ensureConditionalBlockPreserveOrder(block, inTrailingUpdateBlock ? new TxnCondition[] { TxnCondition.none() } : conditions, metadatas)).isTrue();
             }
         });
     }
@@ -274,7 +273,7 @@ public class TxnUpdateTest
 
                 Block selectedBlock = block.select(new Keys(subListKey));
                 assertThat(ensureFragmentIdsAreOrdered(selectedBlock)).isTrue();
-                assertThat(ensureConditionalBlockIdsPreserveOrder(selectedBlock, block)).isTrue();
+                assertThat(ensureConditionalBlockPreserveOrder(selectedBlock, block)).isTrue();
                 assertThat(ensureBlockFragmentsAreSortedByKey(selectedBlock)).isTrue();
                 assertThat(ensureInjectivityOfFragmentIdsToFragments(selectedBlock)).isTrue();
             }
@@ -306,25 +305,26 @@ public class TxnUpdateTest
         return true;
     }
 
-    private boolean ensureConditionalBlockIdsPreserveOrder(Block selectedBlock, Block originalBlock)
+    private boolean ensureConditionalBlockPreserveOrder(Block selectedBlock, Block originalBlock)
     {
-        List<Integer> originalBlockOrder = Arrays.stream(originalBlock.conditionalBlocks).map(i -> i.id).collect(Collectors.toList());
-        List<Integer> selectedBlockOrder = Arrays.stream(selectedBlock.conditionalBlocks).map(i -> i.id).collect(Collectors.toList());
+        ConditionalBlock[] selectedConditionalBlocks = selectedBlock.conditionalBlocks;
+        ConditionalBlock[] originalConditionalBlocks = originalBlock.conditionalBlocks;
 
         int selectedIndex = 0;
         int originalIndex = 0;
-        while (selectedIndex < selectedBlockOrder.size() && originalIndex < originalBlockOrder.size())
+        while (selectedIndex < selectedConditionalBlocks.length && originalIndex < originalConditionalBlocks.length)
         {
-            if (!originalBlockOrder.get(originalIndex).equals(selectedBlockOrder.get(selectedIndex)))
-                originalIndex++;
-            else
+            ConditionalBlock selected = selectedConditionalBlocks[selectedIndex];
+            ConditionalBlock original = originalConditionalBlocks[originalIndex];
+            if (selected.id == original.id)
                 selectedIndex++;
+            originalIndex++;
         }
 
-        return selectedIndex == selectedBlockOrder.size();
+        return selectedIndex == selectedConditionalBlocks.length;
     }
 
-    private boolean ensureConditionalBlockIdsPreserveOrder(Block block, TxnCondition[] conditions, TableMetadatas metadatas)
+    private boolean ensureConditionalBlockPreserveOrder(Block block, TxnCondition[] conditions, TableMetadatas metadatas)
     {
         if (block.conditionalBlocks.length != conditions.length)
             return false;
