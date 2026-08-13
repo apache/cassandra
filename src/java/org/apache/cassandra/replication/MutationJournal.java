@@ -298,12 +298,7 @@ public class MutationJournal
      *
      * @param id          the short mutation id
      * @param mutation    the mutation to be applied to the journal
-     * @param fullReplica whether this node is a full replica for the mutation's token. Only full-replica
-     *                    writes mark the segment dirty: a witnessed-only mutation is journaled
-     *                    (and witnessed for reconciliation) but never applied to a memtable, so marking
-     *                    it dirty would pin the segment's needsReplay forever preventing it from flushing.
-     *                    A witness-only segment is instead retained until its offsets are durably reconciled
-     *                    (see dropSegments).
+     * @param fullReplica whether this node is a full replica for the mutation's token
      * @return the record pointer to the journal
      */
     public RecordPointer write(ShortMutationId id, Mutation mutation, boolean fullReplica)
@@ -495,11 +490,9 @@ public class MutationJournal
      */
     synchronized int dropSegments(Log2OffsetsMap<?> durablyReconciled)
     {
-        return journal.dropStaticSegments(segment -> {
-            return !segment.metadata().needsReplay()
-                   && !segmentReferenceTracker.isReferenced(segment.id())
-                   && ((StaticOffsetRanges) segment.keyStats()).isFullyCovered(durablyReconciled);
-        });
+        return journal.dropStaticSegments(segment -> !segment.metadata().needsReplay()
+                                                     && !segmentReferenceTracker.isReferenced(segment.id())
+                                                     && ((StaticOffsetRanges) segment.keyStats()).isFullyCovered(durablyReconciled));
     }
 
     /**
