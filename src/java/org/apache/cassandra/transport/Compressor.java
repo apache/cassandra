@@ -25,12 +25,29 @@ import org.xerial.snappy.SnappyError;
 
 import net.jpountz.lz4.LZ4Factory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 public interface Compressor
 {
     public Envelope compress(Envelope uncompressed) throws IOException;
     public Envelope decompress(Envelope compressed) throws IOException;
+
+    /**
+     * Validates the uncompressed length declared in the header of a compressed frame before it is used to size a
+     * destination buffer.
+     *
+     * @param uncompressedLength the expected uncompressed length
+     * @throws ProtocolException when the uncompressed is negative, zero, or exceeds {@code native_transport_max_frame_size}
+     */
+    static void validateUncompressedLength(int uncompressedLength)
+    {
+        int maxFrameSize = DatabaseDescriptor.getNativeTransportMaxFrameSize();
+        if (uncompressedLength < 0 || uncompressedLength > maxFrameSize)
+            throw new ProtocolException(String.format("Invalid uncompressed frame length %d; it must be non-negative and " +
+                                                      "no greater than native_transport_max_frame_size (%d bytes)",
+                                                      uncompressedLength, maxFrameSize));
+    }
 
     /*
      * TODO: We can probably do more efficient, like by avoiding copy.
@@ -90,29 +107,34 @@ public interface Compressor
 
         public Envelope decompress(Envelope compressed) throws IOException
         {
-            byte[] input = CBUtil.readRawBytes(compressed.body);
-
-            if (!Snappy.isValidCompressedBuffer(input, 0, input.length))
-                throw new ProtocolException("Provided frame does not appear to be Snappy compressed");
-
-            ByteBuf output = CBUtil.allocator.heapBuffer(Snappy.uncompressedLength(input));
-
             try
             {
-                int size = Snappy.uncompress(input, 0, input.length, output.array(), output.arrayOffset());
-                output.writerIndex(size);
-            }
-            catch (final Throwable e)
-            {
-                output.release();
-                throw e;
+                byte[] input = CBUtil.readRawBytes(compressed.body);
+
+                if (!Snappy.isValidCompressedBuffer(input, 0, input.length))
+                    throw new ProtocolException("Provided frame does not appear to be Snappy compressed");
+
+                int uncompressedLength = Snappy.uncompressedLength(input);
+                validateUncompressedLength(uncompressedLength);
+                ByteBuf output = CBUtil.allocator.heapBuffer(uncompressedLength);
+
+                try
+                {
+                    int size = Snappy.uncompress(input, 0, input.length, output.array(), output.arrayOffset());
+                    output.writerIndex(size);
+                }
+                catch (final Throwable e)
+                {
+                    output.release();
+                    throw e;
+                }
+
+                return compressed.with(output);
             }
             finally
             {
                 compressed.release();
             }
-
-            return compressed.with(output);
         }
     }
 
@@ -174,29 +196,36 @@ public interface Compressor
 
         public Envelope decompress(Envelope compressed) throws IOException
         {
-            byte[] input = CBUtil.readRawBytes(compressed.body);
-
-            int uncompressedLength = ((input[0] & 0xFF) << 24)
-                                   | ((input[1] & 0xFF) << 16)
-                                   | ((input[2] & 0xFF) <<  8)
-                                   | ((input[3] & 0xFF));
-
-            ByteBuf output = CBUtil.allocator.heapBuffer(uncompressedLength);
-
             try
             {
-                int read = decompressor.decompress(input, INTEGER_BYTES, output.array(), output.arrayOffset(), uncompressedLength);
-                if (read != input.length - INTEGER_BYTES)
-                    throw new IOException("Compressed lengths mismatch");
+                byte[] input = CBUtil.readRawBytes(compressed.body);
 
-                output.writerIndex(uncompressedLength);
+                if (input.length < INTEGER_BYTES)
+                    throw new ProtocolException("Provided frame does not appear to be LZ4 compressed");
 
-                return compressed.with(output);
-            }
-            catch (final Throwable e)
-            {
-                output.release();
-                throw e;
+                int uncompressedLength = ((input[0] & 0xFF) << 24)
+                                       | ((input[1] & 0xFF) << 16)
+                                       | ((input[2] & 0xFF) <<  8)
+                                       | ((input[3] & 0xFF));
+
+                validateUncompressedLength(uncompressedLength);
+                ByteBuf output = CBUtil.allocator.heapBuffer(uncompressedLength);
+
+                try
+                {
+                    int read = decompressor.decompress(input, INTEGER_BYTES, output.array(), output.arrayOffset(), uncompressedLength);
+                    if (read != input.length - INTEGER_BYTES)
+                        throw new IOException("Compressed lengths mismatch");
+
+                    output.writerIndex(uncompressedLength);
+
+                    return compressed.with(output);
+                }
+                catch (final Throwable e)
+                {
+                    output.release();
+                    throw e;
+                }
             }
             finally
             {
