@@ -88,6 +88,7 @@ Merged from 5.0:
  * Use estimated compressed size for tables to check if there is enough free space for a compaction (CASSANDRA-21245)
  * Fix failing select on system_views.settings for non-string keys (CASSANDRA-21348)
 Merged from 4.0:
+ * Validate authz before performing role check in LIST ROLES/PERMISSIONS (CASSANDRA-21560)
  * Add validation to uncompressed length during decompression (CASSANDRA-21567)
  * Fix regression in PasswordObfuscator for dollar-quoted passwords (CASSANDRA-21559)
  * Do not make DNS lookup when querying system_views.clients for hostname column by removing it (CASSANDRA-21539)
