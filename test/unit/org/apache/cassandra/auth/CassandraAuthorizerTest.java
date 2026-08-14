@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.auth;
 
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -40,6 +41,16 @@ public class CassandraAuthorizerTest extends CQLTester
         CQLTester.setUpClass();
         requireAuthentication();
         requireNetwork();
+    }
+
+    @Before
+    public void beforeEachTest() throws Throwable
+    {
+        useSuperUser();
+
+        executeNet(format("DROP ROLE IF EXISTS %s", PARENT));
+        executeNet(format("DROP ROLE IF EXISTS %s", CHILD));
+        executeNet(format("DROP ROLE IF EXISTS %s", OTHER));
     }
 
     @Test
@@ -91,5 +102,34 @@ public class CassandraAuthorizerTest extends CQLTester
         // alter child's role by parent
         executeNet(format("ALTER ROLE %s WITH login = false", CHILD));
         executeNet(format("DROP ROLE %s", CHILD));
+    }
+
+    @Test
+    public void testListDoesNotLeakRoleExistenceToUnauthorizedUsers() throws Throwable
+    {
+        useSuperUser();
+
+        // A low-privilege login role with no DESCRIBE on the root roles resource, plus an unrelated
+        // role it is not authorized to view.
+        executeNet(format("CREATE ROLE %s WITH login=true AND password='%s'", CHILD, PASSWORD));
+        executeNet(format("CREATE ROLE %s WITH login=true AND password='%s'", OTHER, PASSWORD));
+
+        // An authorized caller (superuser) still gets the friendly existence error for a missing role.
+        assertInvalidMessageNet("doesn't exist", "LIST ROLES OF nonexistent_role");
+        assertInvalidMessageNet("doesn't exist", "LIST ALL PERMISSIONS OF nonexistent_role");
+
+        useUser(CHILD, PASSWORD);
+
+        // Unauthorized caller: a non-existent role and an existing-but-unviewable role must be
+        // indistinguishable - both "not authorized", never "doesn't exist".
+        assertInvalidMessageNet("You are not authorized to view roles granted to nonexistent_role",
+                                "LIST ROLES OF nonexistent_role");
+        assertInvalidMessageNet(format("You are not authorized to view roles granted to %s", OTHER),
+                                format("LIST ROLES OF %s", OTHER));
+
+        assertInvalidMessageNet("You are not authorized to view nonexistent_role's permissions",
+                                "LIST ALL PERMISSIONS OF nonexistent_role");
+        assertInvalidMessageNet(format("You are not authorized to view %s's permissions", OTHER),
+                                format("LIST ALL PERMISSIONS OF %s", OTHER));
     }
 }

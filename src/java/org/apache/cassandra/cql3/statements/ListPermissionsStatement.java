@@ -69,26 +69,23 @@ public class ListPermissionsStatement extends AuthorizationStatement
         // a check to ensure the existence of the user isn't being leaked by user existence check.
         state.ensureNotAnonymous();
 
+        // Resolve the resource (fills in the current keyspace) so execute() can query it, but
+        // defer the existence checks until after the authorizer has confirmed access, so that
+        // an unauthorized caller cannot use the "doesn't exist" error as an existence oracle.
         if (resource != null)
-        {
             resource = maybeCorrectResource(resource, state);
-            if (!resource.exists())
-                throw new InvalidRequestException(String.format("%s doesn't exist", resource));
-        }
-
-        if ((grantee != null) && !DatabaseDescriptor.getRoleManager().isExistingRole(grantee))
-            throw new InvalidRequestException(String.format("%s doesn't exist", grantee));
-   }
+    }
 
     public void authorize(ClientState state)
     {
-        // checked in validate
+        // Authorization is enforced by IAuthorizer.list() inside execute(), which throws
+        // UnauthorizedException before any existence check is reached.
     }
 
     // TODO: Create a new ResultMessage type (?). Rows will do for now.
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
-        List<PermissionDetails> details = new ArrayList<PermissionDetails>();
+        List<PermissionDetails> details = new ArrayList<>();
 
         if (resource != null && recursive)
         {
@@ -99,6 +96,12 @@ public class ListPermissionsStatement extends AuthorizationStatement
         {
             details.addAll(list(state, resource));
         }
+
+        if (resource != null && !resource.exists())
+            throw new InvalidRequestException(String.format("%s doesn't exist", resource));
+
+        if ((grantee != null) && !DatabaseDescriptor.getRoleManager().isExistingRole(grantee))
+            throw new InvalidRequestException(String.format("%s doesn't exist", grantee));
 
         Collections.sort(details);
         return resultMessage(details);
