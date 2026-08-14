@@ -829,12 +829,12 @@ public class QueryController implements Plan.Executor, Plan.CostEstimator
         PrimaryKey firstKey = keys.get(0);
 
         assert !indexFeatureSet.isRowAware() ||
-               cfs.metadata().comparator.size() == 0 && !firstKey.hasClustering() ||
-               cfs.metadata().comparator.size() > 0 && (firstKey.hasClustering() || cfs.metadata().hasStaticColumns()) :
+               !cfs.metadata().hasClustering() && !firstKey.hasClustering() ||
+               cfs.metadata().hasClustering() && (firstKey.hasClustering() || cfs.metadata().hasStaticColumns()) :
         "PrimaryKey " + firstKey + " clustering does not match table. There should be a clustering of size " + cfs.metadata().comparator.size();
 
         ClusteringIndexFilter clusteringIndexFilter = command.clusteringIndexFilter(firstKey.partitionKey());
-        if (cfs.metadata().comparator.size() == 0 || !firstKey.hasClustering())
+        if (!cfs.metadata().hasClustering() || !firstKey.hasClustering())
         {
             return clusteringIndexFilter;
         }

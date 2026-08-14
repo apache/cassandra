@@ -23,6 +23,8 @@ import java.nio.ByteOrder;
 import java.util.EnumSet;
 import java.util.Set;
 
+import com.google.common.base.Preconditions;
+
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sai.IndexContext;
@@ -87,14 +89,14 @@ public class V2OnDiskFormat extends V1OnDiskFormat
     @Override
     public PrimaryKey.Factory newPrimaryKeyFactory(ClusteringComparator comparator)
     {
-        return new RowAwarePrimaryKeyFactory(comparator);
+        return new V2RowAwarePrimaryKeyFactory(comparator);
     }
 
     @Override
     public PrimaryKeyMap.Factory newPrimaryKeyMapFactory(IndexComponents.ForRead perSSTableComponents, PrimaryKey.Factory primaryKeyFactory, SSTableReader sstable)
     {
-        assert primaryKeyFactory instanceof RowAwarePrimaryKeyFactory;
-        return new RowAwarePrimaryKeyMap.RowAwarePrimaryKeyMapFactory(perSSTableComponents, (RowAwarePrimaryKeyFactory) primaryKeyFactory, sstable);
+        Preconditions.checkArgument(primaryKeyFactory instanceof V2RowAwarePrimaryKeyFactory);
+        return new RowAwarePrimaryKeyMap.RowAwarePrimaryKeyMapFactory(perSSTableComponents, (V2RowAwarePrimaryKeyFactory) primaryKeyFactory, sstable);
     }
 
     @Override
@@ -113,7 +115,7 @@ public class V2OnDiskFormat extends V1OnDiskFormat
     @Override
     public PerSSTableWriter newPerSSTableWriter(IndexDescriptor indexDescriptor) throws IOException
     {
-        return new SSTableComponentsWriter(indexDescriptor.newPerSSTableComponentsForWrite());
+        return new V2SSTableComponentsWriter(indexDescriptor.newPerSSTableComponentsForWrite());
     }
 
     @Override
@@ -125,13 +127,13 @@ public class V2OnDiskFormat extends V1OnDiskFormat
     }
 
     @Override
-    public Set<IndexComponentType> perSSTableComponentTypes()
+    public Set<IndexComponentType> perSSTableComponentTypes(boolean hasClustering)
     {
         return PER_SSTABLE_COMPONENTS;
     }
 
     @Override
-    public int openFilesPerSSTable()
+    public int openFilesPerSSTable(boolean hasClustering)
     {
         return 4;
     }

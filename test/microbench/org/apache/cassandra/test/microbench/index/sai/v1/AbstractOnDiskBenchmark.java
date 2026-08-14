@@ -38,7 +38,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponentType;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.io.IndexInput;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesMeta;
-import org.apache.cassandra.index.sai.disk.v1.SSTableComponentsWriter;
+import org.apache.cassandra.index.sai.disk.v1.V1SSTableComponentsWriter;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.BlockPackedReader;
 import org.apache.cassandra.index.sai.disk.v1.MetadataSource;
 import org.apache.cassandra.index.sai.disk.v1.postings.PostingsReader;
@@ -183,7 +183,7 @@ public abstract class AbstractOnDiskBenchmark
 
     private void writeSSTableComponents(int rows) throws IOException
     {
-        SSTableComponentsWriter writer = new SSTableComponentsWriter(indexDescriptor.newPerSSTableComponentsForWrite());
+        V1SSTableComponentsWriter writer = new V1SSTableComponentsWriter(indexDescriptor.newPerSSTableComponentsForWrite());
         for (int i = 0; i < rows; i++)
             writer.recordCurrentTokenOffset(toToken(i), toOffset(i));
 

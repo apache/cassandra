@@ -67,7 +67,7 @@ public class PostingListKeyRangeIterator extends KeyRangeIterator
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
     private boolean needsSkipping = false;
-    private PrimaryKey skipToToken = null;
+    private PrimaryKey skipToKey = null;
     private long lastSegmentRowId = -1;
 
     /**
@@ -100,13 +100,13 @@ public class PostingListKeyRangeIterator extends KeyRangeIterator
         if (indexContext.getDefinition().isStatic())
             nextKey = nextKey.forStaticRow();
 
-        // If skipToToken is equal to nextKey, we take the nextKey because in practice, it is greater than or equal
-        // to the skipToToken. This is because token only PKs are considered equal to all PKs with the same token,
+        // If skipToKey is equal to nextKey, we take the nextKey because in practice, it is greater than or equal
+        // to the skipToKey. This is because token only PKs are considered equal to all PKs with the same token,
         // and for a range query, we first skip on the token-only PK.
-        if (skipToToken != null && skipToToken.compareTo(nextKey) > 0)
+        if (skipToKey != null && skipToKey.compareTo(nextKey) > 0)
             return;
 
-        skipToToken = nextKey;
+        skipToKey = nextKey;
         needsSkipping = true;
     }
 
@@ -150,16 +150,16 @@ public class PostingListKeyRangeIterator extends KeyRangeIterator
 
             FileUtils.closeQuietly(postingList, primaryKeyMap);
         }
-        else {
+        else
+        {
             logger.warn("PostingListKeyRangeIterator is already closed",
                         new IllegalStateException("PostingListKeyRangeIterator is already closed"));
         }
-
     }
 
     private boolean exhausted()
     {
-        return needsSkipping && skipToToken.compareTo(getMaximum()) > 0;
+        return needsSkipping && skipToKey.compareTo(getMaximum()) > 0;
     }
 
     /**
@@ -170,8 +170,8 @@ public class PostingListKeyRangeIterator extends KeyRangeIterator
         long segmentRowId;
         if (needsSkipping)
         {
-            long targetSstableRowId = primaryKeyMap.ceiling(skipToToken);
-            // skipToToken is larger than max token in token file
+            long targetSstableRowId = primaryKeyMap.ceiling(skipToKey);
+            // skipToKey is larger than max token in token file
             if (targetSstableRowId < 0)
             {
                 return PostingList.END_OF_STREAM;

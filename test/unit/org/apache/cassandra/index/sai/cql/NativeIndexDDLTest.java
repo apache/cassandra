@@ -33,16 +33,16 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.AppenderBase;
-import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.slf4j.LoggerFactory;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.AppenderBase;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.exceptions.InvalidConfigurationInQueryException;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
@@ -50,6 +50,7 @@ import com.datastax.driver.core.exceptions.ReadFailureException;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.restrictions.IndexRestrictions;
+import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -88,8 +89,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
+import org.assertj.core.api.Assertions;
 import org.mockito.Mockito;
-import org.slf4j.LoggerFactory;
 
 import static java.util.Collections.singletonList;
 import static junit.framework.TestCase.fail;
@@ -1249,7 +1250,8 @@ public class NativeIndexDDLTest extends SAITester
         IndexContext numericIndexContext = getIndexContext(numericIndexName);
         IndexContext stringIndexContext = getIndexContext(stringIndexName);
 
-        for (IndexComponentType component : Version.current(KEYSPACE).onDiskFormat().perSSTableComponentTypes())
+        for (IndexComponentType component : Version.current(KEYSPACE).onDiskFormat()
+                                                   .perSSTableComponentTypes(currentTableMetadata().hasClustering()))
             verifyRebuildIndexComponent(numericIndexContext, stringIndexContext, component, null, corruptionType, true, true, rebuild);
 
         for (IndexComponentType component : Version.current(KEYSPACE).onDiskFormat().perIndexComponentTypes(numericIndexContext))
@@ -1268,17 +1270,24 @@ public class NativeIndexDDLTest extends SAITester
                                              boolean failedNumericIndex,
                                              boolean rebuild) throws Throwable
     {
-        // The completion markers are valid if they exist on the file system so we only need to test
+        // The completion markers are valid if they exist on the file system, so we only need to test
         // their removal. If we are testing with encryption then we don't want to test any components
         // that are encryptable unless they have been removed because encrypted components aren't
         // checksum validated.
-
-        if (component == IndexComponentType.PRIMARY_KEY_TRIE || component == IndexComponentType.PRIMARY_KEY_BLOCKS || component == IndexComponentType.PRIMARY_KEY_BLOCK_OFFSETS)
-            return;
-
         if (((component == IndexComponentType.GROUP_COMPLETION_MARKER) ||
              (component == IndexComponentType.COLUMN_COMPLETION_MARKER)) &&
             (corruptionType != CorruptionType.REMOVED))
+            return;
+
+        // Skip per SSTable components for v2 primary key maps
+        if (component == IndexComponentType.PRIMARY_KEY_TRIE || component == IndexComponentType.PRIMARY_KEY_BLOCKS || component == IndexComponentType.PRIMARY_KEY_BLOCK_OFFSETS)
+            return;
+
+        // Skip per SSTables components for v9 primary key maps
+        if (component == IndexComponentType.ROW_TO_TOKEN || component == IndexComponentType.ROW_TO_PARTITION ||
+            component == IndexComponentType.PARTITION_TO_SIZE || component == IndexComponentType.PARTITION_KEY_BLOCKS ||
+            component == IndexComponentType.PARTITION_KEY_BLOCK_OFFSETS || component == IndexComponentType.CLUSTERING_KEY_BLOCKS ||
+            component == IndexComponentType.CLUSTERING_KEY_BLOCK_OFFSETS)
             return;
 
         logger.info("CORRUPTING: {}, corruption type = {}", component, corruptionType);

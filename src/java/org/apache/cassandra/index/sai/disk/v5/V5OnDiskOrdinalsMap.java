@@ -334,7 +334,7 @@ public class V5OnDiskOrdinalsMap implements OnDiskOrdinalsMap
         public void forEachOrdinalInRange(int startRowId, int endRowId, OrdinalConsumer consumer) throws IOException
         {
             int rawIndex = Arrays.binarySearch(extraRowIds, startRowId);
-            int extraIndex = rawIndex >= 0 ? rawIndex : -rawIndex - 1;
+            int extraIndex = rawIndex >= 0 ? rawIndex : ~rawIndex;
             for (int rowId = max(0, startRowId); rowId <= min(endRowId, maxRowId); rowId++)
             {
                 if (extraIndex < extraRowIds.length && extraRowIds[extraIndex] == rowId)

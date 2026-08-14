@@ -145,7 +145,8 @@ public class SSTableContext extends SharedCloseableImpl
      */
     public int openFilesPerSSTable()
     {
-        return perSSTableComponents.onDiskFormat().openFilesPerSSTable();
+        return perSSTableComponents.onDiskFormat()
+                                   .openFilesPerSSTable(sstable.metadata().hasClustering());
     }
 
     @Override

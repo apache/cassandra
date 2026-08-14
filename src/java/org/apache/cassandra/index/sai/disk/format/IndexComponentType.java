@@ -34,7 +34,7 @@ public enum IndexComponentType
      */
     META("Meta"),
     /**
-     * KDTree written by {@code BKDWriter} indexes mappings of term to one ore more segment row IDs
+     * KDTree written by {@code BKDWriter} indexes mappings of term to one or more segment row IDs
      * (segment row ID = SSTable row ID - segment row ID offset).
      *
      * V1
@@ -116,7 +116,53 @@ public enum IndexComponentType
     /**
      * Stores document length information for BM25 scoring
      */
-    DOC_LENGTHS("DocLengths");
+    DOC_LENGTHS("DocLengths"),
+
+    /**
+     * An on-disk block packed index mapping rowIds to token values.
+     * <p>
+     * V9
+     */
+    ROW_TO_TOKEN("RowToToken"),
+
+    /**
+     * An on-disk block packed index mapping rowIds to partitionIds.
+     * <p>
+     * V9
+     */
+    ROW_TO_PARTITION("RowToPartition"),
+
+    /**
+     * An on-disk block packed index mapping partitionIds to the number of rows for the partition.
+     * <p>
+     * V9
+     */
+    PARTITION_TO_SIZE("PartitionToSize"),
+
+    /**
+     * Prefix-compressed blocks of partition keys used for rowId to partition key lookups
+     * <p>
+     * V9
+     */
+    PARTITION_KEY_BLOCKS("PKBlocks"),
+    /**
+     * Encoded sequence of offsets to partition key blocks
+     * <p>
+     * V9
+     */
+    PARTITION_KEY_BLOCK_OFFSETS("PKBlockOffsets"),
+    /**
+     * Prefix-compressed blocks of clustering keys used for rowId to clustering key lookups
+     * <p>
+     * V9
+     */
+    CLUSTERING_KEY_BLOCKS("CKBlocks"),
+    /**
+     * Encoded sequence of offsets to clustering key blocks
+     * <p>
+     * V9
+     */
+    CLUSTERING_KEY_BLOCK_OFFSETS("CKBlockOffsets");
 
     public final String representation;
 

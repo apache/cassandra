@@ -26,7 +26,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ObjectArrays;
-import org.apache.cassandra.cql3.CQLTester;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -34,6 +34,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.sai.IndexContext;
@@ -368,7 +369,9 @@ public class NodeStartupTest extends SAITester
             case VALID:
                 break;
             case ALL_EMPTY:
-                Version.current(KEYSPACE).onDiskFormat().perSSTableComponentTypes().forEach(this::remove);
+                Version.current(KEYSPACE).onDiskFormat()
+                       .perSSTableComponentTypes(currentTableMetadata().hasClustering())
+                       .forEach(this::remove);
                 Version.current(KEYSPACE).onDiskFormat().perIndexComponentTypes(indexContext).forEach(c -> remove(c, indexContext));
                 break;
             case PER_SSTABLE_INCOMPLETE:

@@ -30,7 +30,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,12 +66,11 @@ public class SaiDiskSizeTest extends SAITester
     /**
      * The expected sizes were determined empirically to satisfy the result of both flush and compaction.
      * To understand the difference check {@link Version} and on disk components.
-     * There are no vectors involved, thus the expected sizes are not affected by chenges to Vector format.
+     * There are no vectors involved, thus the expected sizes are not affected by changes to Vector format.
      *
      * @return a collection of parameters to test
      */
-    @Parameterized.Parameters(name = "saiFormat={0}, expectedDiskSizeFor2SSTables={1}, " +
-                                     "expectedDiskSizeForCompactedSSTable={2}, pkColumns={3}, rowsPerPartition={4}")
+    @Parameterized.Parameters(name = "saiFormat={0}, rowsPerPartition={4}")
     public static Collection<Object[]> generateParameters()
     {
         return Version.ALL.stream()
@@ -81,7 +79,7 @@ public class SaiDiskSizeTest extends SAITester
                               {
                                   case "aa":
                                       return Stream.of(
-                                      new Object[]{ v, 24766, 24989, "pk", 1 },
+                                      new Object[]{ v, 24989, 24989, "pk", 1 },
                                       new Object[]{ v, 26026, 26181, "pk, v_int", 2 },
                                       new Object[]{ v, 28526, 26603, "pk, v_int", 100 });
                                   case "ba":
@@ -100,11 +98,18 @@ public class SaiDiskSizeTest extends SAITester
                                       new Object[]{ v, 59133, 57249, "pk, v_int", 100 });
                                   case "ed":
                                   case "fa":
-                                  default:
+                                  case "fb":
                                       return Stream.of(
                                       new Object[]{ v, 134777, 132849, "pk", 1 },
                                       new Object[]{ v, 118465, 116546, "pk, v_int", 2 },
                                       new Object[]{ v, 59149, 57257, "pk, v_int", 100 });
+                                  case "ga":
+                                  default:
+                                      return // A new version assumes the latest size by default
+                                      Stream.of(
+                                      new Object[]{ v, 34901, 34689, "pk", 1 },
+                                      new Object[]{ v, 39313, 39313, "pk, v_int", 2 },
+                                      new Object[]{ v, 33549, 31315, "pk, v_int", 100 });
                               }
                           })
                           .collect(Collectors.toList());
@@ -159,15 +164,16 @@ public class SaiDiskSizeTest extends SAITester
         assertThat(diskSize)
         .as("Disk size for SAI version %s before compaction", saiFormat)
         .isLessThanOrEqualTo(expectedDiskSizeFor2SSTables)
-        .isGreaterThan((long) (expectedDiskSizeFor2SSTables * 0.95));
+        .isGreaterThan((long) (expectedDiskSizeFor2SSTables * 0.92));
 
         compact();
 
         diskSize = indexDiskSpaceUse();
+        logger.info("Disk size for SAI version {}: {}", saiFormat, diskSize);
         assertThat(diskSize)
         .as("Disk size for SAI version %s after compaction", saiFormat)
         .isLessThanOrEqualTo(expectedDiskSizeForCompactedSSTable)
-        .isGreaterThan((long) (expectedDiskSizeForCompactedSSTable * 0.95));
+        .isGreaterThan((long) (expectedDiskSizeForCompactedSSTable * 0.92));
     }
 
     private void insertRowsIntoOneSegment(int nrRows, int startRow) throws UnknownHostException

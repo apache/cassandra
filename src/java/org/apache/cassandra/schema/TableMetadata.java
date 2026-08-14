@@ -414,6 +414,14 @@ public class TableMetadata implements SchemaElement
         return dropped.column;
     }
 
+    /**
+     * Determines whether the table has clustering.
+     */
+    public boolean hasClustering()
+    {
+        return comparator.size() > 0;
+    }
+
     public boolean hasStaticColumns()
     {
         return !staticColumns().isEmpty();

@@ -21,7 +21,6 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 public final class TokenOnlyPrimaryKey implements PrimaryKey

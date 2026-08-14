@@ -85,8 +85,25 @@ public abstract class AbstractBlockPackedReader implements LongArray
             return -1;
 
         long index = findBlockIndex(targetValue);
-        lastIndex = index >= 0 ? index : -index - 1;
+        lastIndex = index >= 0 ? index : ~index;
         return isOutOfRangeState() ? -1 : lastIndex;
+    }
+
+    /**
+     * Find the index of the largest value less than or equal to the target value.
+     * This is the floor operation, complementary to ceilingIndex.
+     *
+     * @param targetValue Value to search for
+     * @return The index of the floor value, or -1 if the target is smaller than all values
+     */
+    @Override
+    public long floorIndex(long targetValue)
+    {
+        // Check if we're before the start of the array
+        if (targetValue < get(0))
+            return -1;
+
+        return findBlockIndexForFloor(targetValue);
     }
 
     @Override
@@ -97,7 +114,7 @@ public abstract class AbstractBlockPackedReader implements LongArray
             return Long.MIN_VALUE;
 
         long index = findBlockIndex(targetValue);
-        lastIndex = index >= 0 ? index : -index - 1;
+        lastIndex = index >= 0 ? index : ~index;
         return isOutOfRangeState() ? Long.MIN_VALUE : index;
     }
 
@@ -140,6 +157,19 @@ public abstract class AbstractBlockPackedReader implements LongArray
     }
 
     /**
+     * Find the block and index for floor operation.
+     * Similar to findBlockIndex but searches for the largest value <= target.
+     */
+    private long findBlockIndexForFloor(long targetValue)
+    {
+        int blockIndex = binarySearchBlockMaxValues(targetValue);
+
+        // blockIndex is now the block that might contain our floor value
+        // Search for the floor value within the identified block
+        return findBlockIndexForFloor(targetValue, blockIndex);
+    }
+
+    /**
      *
      * @return a positive block index for an exact match, or a negative one for a non-exact match
      */
@@ -163,9 +193,9 @@ public abstract class AbstractBlockPackedReader implements LongArray
             }
             else if (cmp < 0)
             {
-                // We're in the same block. Indicate a non-exact match, and this value will be both
-                // negated and then decremented to wind up at the current value of "low" here.
-                return -low - 1;
+                // We're in the same block. Indicate a non-exact match; the caller inverts this
+                // to recover the current value of "low".
+                return ~low;
             }
 
             // The target is greater than the next block's min value, so advance to that
@@ -206,6 +236,34 @@ public abstract class AbstractBlockPackedReader implements LongArray
         return -low; // no exact match found
     }
 
+    /**
+     * Binary search block max values to find the block containing the floor.
+     * Searches the last value of each block (block max) to determine which block
+     * could contain the largest value <= target.
+     *
+     * @return positive block index for exact match on block max, negative for non-exact match
+     */
+    private int binarySearchBlockMaxValues(long targetValue)
+    {
+        int min = binarySearchBlockMinValues(targetValue);
+        int highest = Math.toIntExact(blockBitsPerValue.length) - 1;
+        if (min < 0)
+            min = -min;
+        if (min > highest)
+            min--;
+        // Check if the target value is smaller than the first value in min block
+        if (targetValue < delta(min, 0))
+            return Math.max(min - 1, 0);
+        int max = min;
+        // Check for duplicates in the next blocks
+        while (min <= highest && delta(min, 0) <= targetValue)
+        {
+            max = min;
+            min++;
+        }
+        return max;
+    }
+
     private long findBlockIndex(long targetValue, long blockIdx, boolean exactMatch)
     {
         // Calculate the global offset for the selected block:
@@ -218,6 +276,21 @@ public abstract class AbstractBlockPackedReader implements LongArray
         long high = Math.min(offset + blockSize - 1 + (exactMatch ? 1 : 0), valueCount - 1);
 
         return binarySearchBlock(targetValue, low, high);
+    }
+
+    /**
+     * Find the floor index within the specific block.
+     */
+    private long findBlockIndexForFloor(long targetValue, int blockIdx)
+    {
+        assert blockIdx >= 0 : "Block index cannot be negative";
+
+        // Calculate the global offset for the selected block
+        long offset = (long) blockIdx << blockShift;
+
+        // Search from the start of the block to the end of the block
+        long high = Math.min(offset + blockSize - 1, valueCount - 1);
+        return binarySearchBlockForFloor(targetValue, offset, high);
     }
 
     /**
@@ -261,6 +334,35 @@ public abstract class AbstractBlockPackedReader implements LongArray
 
         // target not found
         return -(low + 1);
+    }
+
+    /**
+     * Binary search for floor value between low and high indices.
+     *
+     * @return index of the largest value <= target, or -1 if all values > target
+     */
+    private long binarySearchBlockForFloor(long target, long low, long high)
+    {
+        long result = -1; // Track the best floor candidate found so far
+
+        while (low <= high)
+        {
+            long mid = low + ((high - low) >> 1);
+            long midVal = get(mid);
+
+            if (midVal <= target)
+            {
+                // This could be our floor, but there might be a larger one further right
+                result = mid;
+                low = mid + 1;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+
+        return result;
     }
 
     @Override

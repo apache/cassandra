@@ -91,13 +91,13 @@ public class RowAwareSkinnyPrimaryKeyMapTest extends SAITester.Versioned.RowAwar
     public void testExactRowIdOrInvertedCeiling()
     {
         assertThat(map.exactRowIdOrInvertedCeiling(beforeFirst(map))).as("before first expects the inverted first")
-                                                                     .isEqualTo(invert(0));
+                                                                     .isEqualTo(~0);
 
         assertThat(map.exactRowIdOrInvertedCeiling(exactFirstRow(map))).as("exact first")
                                                                        .isEqualTo(0);
 
         assertThat(map.exactRowIdOrInvertedCeiling(betweenFirstAndSecond(map))).as("between first and second expects the inverted second")
-                                                                               .isEqualTo(invert(1));
+                                                                               .isEqualTo(~1);
 
         assertThat(map.exactRowIdOrInvertedCeiling(exactLastRow(map))).as("exact last")
                                                                       .isEqualTo(map.count() - 1);
@@ -178,10 +178,5 @@ public class RowAwareSkinnyPrimaryKeyMapTest extends SAITester.Versioned.RowAwar
         PrimaryKey lastPk = map.primaryKeyFromRowId(map.count() - 1);
         long lastToken = lastPk.token().getLongValue();
         return pkFactory.createTokenOnly(partitioner.getTokenFactory().fromLongValue(lastToken + 1));
-    }
-
-    private long invert(long rowId)
-    {
-        return -rowId - 1;
     }
 }

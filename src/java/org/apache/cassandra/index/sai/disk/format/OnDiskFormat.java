@@ -150,9 +150,10 @@ public interface OnDiskFormat
      * This is a complete set of componentstypes that could exist on-disk. It does not imply that the
      * components currently exist on-disk.
      *
+     * @param hasClustering true if the SSTable forms part of a table using clustering columns
      * @return The set of {@link IndexComponentType} for the per-SSTable index
      */
-    Set<IndexComponentType> perSSTableComponentTypes();
+    Set<IndexComponentType> perSSTableComponentTypes(boolean hasClustering);
 
     /**
      * Returns the set of {@link IndexComponentType} for the per-index part of an index.
@@ -174,9 +175,10 @@ public interface OnDiskFormat
      * This is a static indication of the files that can be held open by an index
      * for queries. It is not a dynamic calculation.
      *
+     * @param hasClustering true if the SSTable forms part of a table using clustering columns
      * @return The number of open per-SSTable files
      */
-    int openFilesPerSSTable();
+    int openFilesPerSSTable(boolean hasClustering);
 
     /**
      * Return the number of open per-index files that can be open during a query.
@@ -215,5 +217,4 @@ public interface OnDiskFormat
      * @return the JVector file format version that this on-disk format uses.
      */
     int jvectorFileFormatVersion();
-
 }

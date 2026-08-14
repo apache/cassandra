@@ -38,7 +38,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.SAIUtil;
 import org.apache.cassandra.index.sai.disk.format.Version;
-import org.apache.cassandra.index.sai.disk.v2.RowAwarePrimaryKeyFactory;
+import org.apache.cassandra.index.sai.disk.v2.V2RowAwarePrimaryKeyFactory;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -73,7 +73,7 @@ public class RowAwarePrimaryKeyTest extends SAITester
         PrimaryKey.Factory factory = version.onDiskFormat().newPrimaryKeyFactory(EMPTY_COMPARATOR);
 
         // Test relies on this implementation detail
-        assertTrue(factory instanceof RowAwarePrimaryKeyFactory);
+        assertTrue(factory instanceof V2RowAwarePrimaryKeyFactory);
 
         // Set up the primary key
         Token token = new Murmur3Partitioner.LongToken(1);
@@ -100,7 +100,7 @@ public class RowAwarePrimaryKeyTest extends SAITester
         PrimaryKey.Factory factory = version.onDiskFormat().newPrimaryKeyFactory(EMPTY_COMPARATOR);
 
         // Test relies on this implementation detail
-        assertTrue(factory instanceof RowAwarePrimaryKeyFactory);
+        assertTrue(factory instanceof V2RowAwarePrimaryKeyFactory);
 
         // Set up the primary key
         Token token1 = new Murmur3Partitioner.LongToken(1);
@@ -122,7 +122,7 @@ public class RowAwarePrimaryKeyTest extends SAITester
         PrimaryKey.Factory factory = version.onDiskFormat().newPrimaryKeyFactory(comparator);
 
         // Test relies on this implementation detail
-        assertTrue(factory instanceof RowAwarePrimaryKeyFactory);
+        assertTrue(factory instanceof V2RowAwarePrimaryKeyFactory);
 
         // Set up the primary key
         Token token1 = new Murmur3Partitioner.LongToken(1);
@@ -143,7 +143,7 @@ public class RowAwarePrimaryKeyTest extends SAITester
         PrimaryKey.Factory factory = version.onDiskFormat().newPrimaryKeyFactory(EMPTY_COMPARATOR);
 
         // Test relies on this implementation detail
-        assertTrue(factory instanceof RowAwarePrimaryKeyFactory);
+        assertTrue(factory instanceof V2RowAwarePrimaryKeyFactory);
 
         // Create keys with the same token
         Token token = new Murmur3Partitioner.LongToken(100);
@@ -153,7 +153,7 @@ public class RowAwarePrimaryKeyTest extends SAITester
         PrimaryKey fullKey = factory.create(decoratedKey, Clustering.EMPTY);
 
         // When tokens are equal, token-only key should compare equal to full key.
-        // This is the critical behavior tested in RowAwarePrimaryKeyFactory.compareTo.
+        // This is the critical behavior tested in V2RowAwarePrimaryKeyFactory.compareTo.
         assertEquals(0, tokenOnlyKey.compareTo(fullKey));
         assertEquals(0, fullKey.compareTo(tokenOnlyKey));
 
@@ -168,7 +168,7 @@ public class RowAwarePrimaryKeyTest extends SAITester
         PrimaryKey.Factory factory = version.onDiskFormat().newPrimaryKeyFactory(EMPTY_COMPARATOR);
 
         // Test relies on this implementation detail
-        assertTrue(factory instanceof RowAwarePrimaryKeyFactory);
+        assertTrue(factory instanceof V2RowAwarePrimaryKeyFactory);
 
         // Create token-only keys with different tokens
         Token token1 = new Murmur3Partitioner.LongToken(50);
@@ -192,7 +192,7 @@ public class RowAwarePrimaryKeyTest extends SAITester
         PrimaryKey.Factory factory = version.onDiskFormat().newPrimaryKeyFactory(comparator);
 
         // Test relies on this implementation detail
-        assertTrue(factory instanceof RowAwarePrimaryKeyFactory);
+        assertTrue(factory instanceof V2RowAwarePrimaryKeyFactory);
 
         // Create keys with the same token but different clustering
         Token token = new Murmur3Partitioner.LongToken(100);
@@ -213,7 +213,7 @@ public class RowAwarePrimaryKeyTest extends SAITester
         PrimaryKey.Factory factory = version.onDiskFormat().newPrimaryKeyFactory(EMPTY_COMPARATOR);
 
         // Test relies on this implementation detail
-        assertTrue(factory instanceof RowAwarePrimaryKeyFactory);
+        assertTrue(factory instanceof V2RowAwarePrimaryKeyFactory);
 
         // Create token-only keys with the same token
         Token token = new Murmur3Partitioner.LongToken(42);

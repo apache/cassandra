@@ -92,7 +92,7 @@ public class V1OnDiskFormat implements OnDiskFormat
     /**
      * Global limit on heap consumed by all index segment building that occurs outside the context of Memtable flush.
      *
-     * Note that to avoid flushing extremly small index segments, a segment is only flushed when
+     * Note that to avoid flushing extremely small index segments, a segment is only flushed when
      * both the global size of all building segments has breached the limit and the size of the
      * segment in question reaches (segment_write_buffer_space_mb / # currently building column indexes).
      *
@@ -174,7 +174,7 @@ public class V1OnDiskFormat implements OnDiskFormat
                                           SegmentMetadata segmentMetadata) throws IOException
     {
         if (indexContext.isLiteral())
-            // We filter because the CA format wrote maps acording to a different order than their abstract type.
+            // We filter because the CA format wrote maps according to a different order than their abstract type.
             return new InvertedIndexSearcher(sstableContext, indexFiles, segmentMetadata, indexContext, Version.AA, true);
         return new KDTreeIndexSearcher(sstableContext.primaryKeyMapFactory(), indexFiles, segmentMetadata, indexContext);
     }
@@ -182,7 +182,7 @@ public class V1OnDiskFormat implements OnDiskFormat
     @Override
     public PerSSTableWriter newPerSSTableWriter(IndexDescriptor indexDescriptor) throws IOException
     {
-        return new SSTableComponentsWriter(indexDescriptor.newPerSSTableComponentsForWrite());
+        return new V1SSTableComponentsWriter(indexDescriptor.newPerSSTableComponentsForWrite());
     }
 
     @Override
@@ -257,7 +257,7 @@ public class V1OnDiskFormat implements OnDiskFormat
     }
 
     @Override
-    public Set<IndexComponentType> perSSTableComponentTypes()
+    public Set<IndexComponentType> perSSTableComponentTypes(boolean hasClustering)
     {
         return PER_SSTABLE_COMPONENTS;
     }
@@ -271,7 +271,7 @@ public class V1OnDiskFormat implements OnDiskFormat
     }
 
     @Override
-    public int openFilesPerSSTable()
+    public int openFilesPerSSTable(boolean hasClustering)
     {
         return 2;
     }
@@ -279,7 +279,9 @@ public class V1OnDiskFormat implements OnDiskFormat
     @Override
     public int openFilesPerIndex(IndexContext indexContext)
     {
-        // For the V1 format there are always 2 open files per index - index (kdtree or terms) + postings
+        // For the V1 format there are always 2 open files per index:
+        // - index (balanced tree or terms)
+        // - auxiliary postings for the balanced tree and postings for the literal terms
         return 2;
     }
 

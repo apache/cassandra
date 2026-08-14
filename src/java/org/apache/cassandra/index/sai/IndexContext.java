@@ -87,8 +87,8 @@ import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_INDEX_READS_DISABLED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_INDEX_METRICS_ENABLED;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_INDEX_READS_DISABLED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.VALIDATE_MAX_TERM_SIZE_AT_COORDINATOR;
 import static org.apache.cassandra.index.sai.plan.QueryController.INDEX_VERSION_DOES_NOT_SUPPORT_BM25;
 
@@ -955,7 +955,10 @@ public class IndexContext
                 else
                 {
                     long count = context.primaryKeyMapFactory().count();
-                    logger.debug(logMessage("Successfully loaded index for SSTable {} with {} rows."), context.descriptor(), count);
+                    if (count > 0)
+                        logger.debug(logMessage("Successfully loaded index for SSTable {} with {} rows."), context.descriptor(), count);
+                    else
+                        logger.debug(logMessage("Skipped loading index for SSTable {} as it is empty."), context.descriptor());
                 }
 
                 // Try to add new index to the set, if set already has such index, we'll simply release and move on.

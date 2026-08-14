@@ -40,6 +40,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.SequentialWriterOption;
+import org.apache.cassandra.schema.TableMetadata;
 
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class SaiRandomizedTest extends RandomizedTest
@@ -95,6 +96,16 @@ public class SaiRandomizedTest extends RandomizedTest
                                                                                .trickleFsyncByteInterval(nextInt(1 << 10, 1 << 16))
                                                                                .finishOnClose(true)
                                                                                .build());
+    }
+
+    public static IndexDescriptor newClusteringIndexDescriptor(TableMetadata metadata) throws IOException
+    {
+        return indexInputLeakDetector.newIndexDescriptor(new Descriptor(new File(temporaryFolder.newFolder()),
+                                                                        randomSimpleString(5, 13),
+                                                                        randomSimpleString(3, 17),
+                                                                        new SequenceBasedSSTableId(randomIntBetween(0, 128))),
+                                                         IndexFileUtils.defaultWriterOption,
+                                                         metadata.comparator);
     }
 
     public String newIndex()

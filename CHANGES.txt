@@ -1,4 +1,5 @@
 Future version (tbd)
+ * Reduce size of per-SSTable index components for SAI (CASSANDRA-18673)
  * Support for add and replace in IntervalTree (CASSANDRA-20513)
  * Add SSTableIntervalTree latency metric (CASSANDRA-20502)
  * Improve IntervalTree build throughput (CASSANDRA-19596)

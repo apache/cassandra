@@ -33,6 +33,9 @@ import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.SSTableIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.SegmentBuilder;
+import org.apache.cassandra.index.sai.disk.v1.V1SSTableComponentsWriter;
+import org.apache.cassandra.index.sai.disk.v2.V2SSTableComponentsWriter;
+import org.apache.cassandra.index.sai.disk.v9.V9SSTableComponentsWriter;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.inject.Injection;
 import org.apache.cassandra.inject.Injections;
@@ -77,13 +80,19 @@ public abstract class SegmentFlushingFailureTest extends SAITester
 
     private static final Injection v1sstableComponentsWriterFailure =
             newFailureOnEntry("sstableComponentsWriterFailure",
-                              org.apache.cassandra.index.sai.disk.v1.SSTableComponentsWriter.class,
+                              V1SSTableComponentsWriter.class,
                               "complete",
                               RuntimeException.class);
 
     private static final Injection v2sstableComponentsWriterFailure =
     newFailureOnEntry("sstableComponentsWriterFailure",
-                      org.apache.cassandra.index.sai.disk.v2.SSTableComponentsWriter.class,
+                      V2SSTableComponentsWriter.class,
+                      "complete",
+                      RuntimeException.class);
+
+    private static final Injection v9sstableComponentsWriterFailure =
+    newFailureOnEntry("sstableComponentsWriterFailure",
+                      V9SSTableComponentsWriter.class,
                       "complete",
                       RuntimeException.class);
 
@@ -141,9 +150,21 @@ public abstract class SegmentFlushingFailureTest extends SAITester
     @Test
     public void shouldZeroMemoryTrackerOnOffsetsRuntimeFailure() throws Throwable
     {
-        shouldZeroMemoryTrackerOnFailure(Version.current(KEYSPACE) == Version.AA ? v1sstableComponentsWriterFailure : v2sstableComponentsWriterFailure, "v1");
+        shouldZeroMemoryTrackerOnFailure(getSstableComponentsWriterFailure(),
+                                         "v1");
         resetCounters();
-        shouldZeroMemoryTrackerOnFailure(Version.current(KEYSPACE) == Version.AA ? v1sstableComponentsWriterFailure : v2sstableComponentsWriterFailure, "v2");
+        shouldZeroMemoryTrackerOnFailure(getSstableComponentsWriterFailure(),
+                                         "v2");
+    }
+
+    private static Injection getSstableComponentsWriterFailure()
+    {
+        if (Version.current(KEYSPACE).onOrAfter(Version.GA))
+            return v9sstableComponentsWriterFailure;
+        else if (Version.current(KEYSPACE).onOrAfter(Version.BA))
+            return v2sstableComponentsWriterFailure;
+        else
+            return v1sstableComponentsWriterFailure;
     }
 
     @Test

@@ -28,7 +28,7 @@ import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
-class PrimaryKeyWithSource implements PrimaryKey
+public class PrimaryKeyWithSource implements PrimaryKey
 {
     private final SSTableId<?> sourceSstableId;
     private final long sourceRowId;
@@ -37,7 +37,7 @@ class PrimaryKeyWithSource implements PrimaryKey
     private final PrimaryKey sourceSstableMinKey;
     private final PrimaryKey sourceSstableMaxKey;
 
-    PrimaryKeyWithSource(PrimaryKeyMap primaryKeyMap, long sstableRowId, PrimaryKey sourceSstableMinKey, PrimaryKey sourceSstableMaxKey)
+    public PrimaryKeyWithSource(PrimaryKeyMap primaryKeyMap, long sstableRowId, PrimaryKey sourceSstableMinKey, PrimaryKey sourceSstableMaxKey)
     {
         this.primaryKeyMap = primaryKeyMap;
         this.sourceSstableId = primaryKeyMap.getSSTableId();

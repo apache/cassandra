@@ -33,6 +33,7 @@ import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.format.IndexComponents;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
@@ -114,7 +115,7 @@ public class RowAwareWidePrimaryKeyMapTest extends SAITester.Versioned.RowAware
     public void testExactRowIdOrInvertedCeiling()
     {
         assertThat(map.exactRowIdOrInvertedCeiling(beforeFirst(map))).as("before first expects the inverted first")
-                                                                     .isEqualTo(invert(0));
+                                                                     .isEqualTo(~0);
 
         assertThat(map.exactRowIdOrInvertedCeiling(exactFirstRow(map))).as("exact first row")
                                                                        .isEqualTo(0);
@@ -129,18 +130,22 @@ public class RowAwareWidePrimaryKeyMapTest extends SAITester.Versioned.RowAware
                                                                   .isEqualTo(idPk1Ck1 + 2);
 
         assertThat(map.exactRowIdOrInvertedCeiling(buildPk(1, 4))).as("between pk=1 ck=3 and ck=10 expects inverted ck=10")
-                                                                  .isEqualTo(invert(idPk1Ck10));
+                                                                  .isEqualTo(~idPk1Ck10);
 
         assertThat(map.exactRowIdOrInvertedCeiling(buildPk(1, 10))).as("exact pk=1, ck=10 expects next after pk=1, ck=3")
                                                                    .isEqualTo(idPk1Ck1 + 3);
 
         assertThat(map.exactRowIdOrInvertedCeiling(buildPk(1, Integer.MAX_VALUE))).as("after last ck in pk=1 expects inverted next partition first row or out of range if the last partition")
                                                                                   .isEqualTo(idPk1Ck10 < map.count()
-                                                                                             ? invert(idPk1Ck10 + 1)
+                                                                                             ? ~(idPk1Ck10 + 1)
                                                                                              : Integer.MAX_VALUE);
 
         assertThat(map.exactRowIdOrInvertedCeiling(exactLastRow(map))).as("exact last row")
                                                                       .isEqualTo(map.count() - 1);
+
+        if (Version.current(KEYSPACE).onOrAfter(Version.GA)) // See CNDB-18024
+            assertThat(map.exactRowIdOrInvertedCeiling(buildPk(1000, 11))).as("after last row in last partition expects out of range")
+                                                                          .isEqualTo(Long.MIN_VALUE);
 
         assertThat(map.exactRowIdOrInvertedCeiling(afterLastToken(map))).as("after last expects out of range")
                                                                         .isEqualTo(Long.MIN_VALUE);
@@ -177,6 +182,10 @@ public class RowAwareWidePrimaryKeyMapTest extends SAITester.Versioned.RowAware
 
         assertThat(map.ceiling(exactLastRow(map))).as("exact last row")
                                                   .isEqualTo(map.count() - 1);
+
+        if (Version.current(KEYSPACE).onOrAfter(Version.GA)) // See CNDB-18024
+            assertThat(map.ceiling(buildPk(1000, 11))).as("after last row in last partition expects out of range")
+                                                      .isEqualTo(-1);
 
         assertThat(map.ceiling(afterLastToken(map))).as("after last expects out of range")
                                                     .isEqualTo(-1);
@@ -215,6 +224,10 @@ public class RowAwareWidePrimaryKeyMapTest extends SAITester.Versioned.RowAware
         assertThat(map.floor(buildPk(1000, 11))).as("after last row in last partition expects the last")
                                                 .isEqualTo(map.count() - 1);
 
+        if (Version.current(KEYSPACE).onOrAfter(Version.GA)) // See CNDB-18024
+            assertThat(map.floor(buildPk(1000, 11))).as("after last row in last partition expects the last row")
+                                                    .isEqualTo(map.count() - 1);
+
         assertThat(map.floor(afterLastToken(map))).as("after last token expects the last")
                                                   .isEqualTo(map.count() - 1);
     }
@@ -249,10 +262,5 @@ public class RowAwareWidePrimaryKeyMapTest extends SAITester.Versioned.RowAware
         PrimaryKey lastPk = map.primaryKeyFromRowId(map.count() - 1);
         long lastToken = lastPk.token().getLongValue();
         return pkFactory.createTokenOnly(partitioner.getTokenFactory().fromLongValue(lastToken + 1));
-    }
-
-    private long invert(long rowId)
-    {
-        return -rowId - 1;
     }
 }

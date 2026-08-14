@@ -66,7 +66,7 @@ public class IndexGroupMetricsTest extends AbstractMetricsTest
 
         // with 10 sstable
         int indexopenFileCountWithOnlyNumeric = getOpenIndexFiles();
-        assertEquals(sstables * (Version.current(KEYSPACE).onDiskFormat().openFilesPerSSTable() +
+        assertEquals(sstables * (Version.current(KEYSPACE).onDiskFormat().openFilesPerSSTable(false) +
                                  Version.current(KEYSPACE).onDiskFormat().openFilesPerIndex(v1IndexContext)),
                      indexopenFileCountWithOnlyNumeric);
 
@@ -89,14 +89,14 @@ public class IndexGroupMetricsTest extends AbstractMetricsTest
         compact();
 
         long perSSTableFileDiskUsage = getDiskUsage();
-        assertEquals(Version.current(KEYSPACE).onDiskFormat().openFilesPerSSTable() +
+        assertEquals(Version.current(KEYSPACE).onDiskFormat().openFilesPerSSTable(false) +
                      Version.current(KEYSPACE).onDiskFormat().openFilesPerIndex(v2IndexContext) +
                      Version.current(KEYSPACE).onDiskFormat().openFilesPerIndex(v1IndexContext),
                      getOpenIndexFiles());
 
         // drop string index, reduce open string index files, per-sstable file disk usage remains the same
         dropIndex("DROP INDEX %s." + v2IndexName);
-        assertEquals(Version.current(KEYSPACE).onDiskFormat().openFilesPerSSTable() +
+        assertEquals(Version.current(KEYSPACE).onDiskFormat().openFilesPerSSTable(false) +
                      Version.current(KEYSPACE).onDiskFormat().openFilesPerIndex(v1IndexContext),
                      getOpenIndexFiles());
         assertEquals(perSSTableFileDiskUsage, getDiskUsage());

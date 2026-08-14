@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.disk.format;
 import java.util.List;
 import java.util.Optional;
 import java.util.regex.Pattern;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -40,6 +41,7 @@ import org.apache.cassandra.index.sai.disk.v5.V5OnDiskFormat;
 import org.apache.cassandra.index.sai.disk.v6.V6OnDiskFormat;
 import org.apache.cassandra.index.sai.disk.v7.V7OnDiskFormat;
 import org.apache.cassandra.index.sai.disk.v8.V8OnDiskFormat;
+import org.apache.cassandra.index.sai.disk.v9.V9OnDiskFormat;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -80,10 +82,13 @@ public class Version implements Comparable<Version>
     public static final Version FA = new Version("fa", V8OnDiskFormat.instance, (c, i, g) -> stargazerFileNameFormat(c, i, g, "fa"));
     // FB format: same jvector file format version 6 as FA, but FusedPQ is opt-in via cassandra.sai.vector.enable_fused
     public static final Version FB = new Version("fb", V8OnDiskFormat.instance, (c, i, g) -> stargazerFileNameFormat(c, i, g, "fb"));
+    // Replaces primary key components with partition key and clustering key components and
+    // uses key lookup store instead of sorted terms.
+    public static final Version GA = new Version("ga", V9OnDiskFormat.instance, (c, i, g) -> stargazerFileNameFormat(c, i, g, "ga"));
 
     // These are in reverse-chronological order so that the latest version is first. Version matching tests
     // are more likely to match the latest version, so we want to test that one first.
-    public static final List<Version> ALL = Lists.newArrayList(FB, FA, ED, EC, EB, DC, DB, CA, BA, AA);
+    public static final List<Version> ALL = Lists.newArrayList(GA, FB, FA, ED, EC, EB, DC, DB, CA, BA, AA);
 
     public static final Version EARLIEST = AA;
     public static final Version VECTOR_EARLIEST = BA;

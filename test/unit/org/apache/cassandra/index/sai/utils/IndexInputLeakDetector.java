@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
+import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.io.IndexInput;
 import org.apache.cassandra.index.sai.disk.io.TrackingIndexFileUtils;
@@ -38,10 +39,15 @@ public class IndexInputLeakDetector extends TestRuleAdapter
 
     public IndexDescriptor newIndexDescriptor(Descriptor descriptor, SequentialWriterOption sequentialWriterOption)
     {
+        return newIndexDescriptor(descriptor, sequentialWriterOption, new ClusteringComparator());
+    }
+
+    public IndexDescriptor newIndexDescriptor(Descriptor descriptor, SequentialWriterOption sequentialWriterOption, ClusteringComparator comparator)
+    {
         TrackingIndexFileUtils trackingIndexFileUtils = new TrackingIndexFileUtils(sequentialWriterOption);
         trackedIndexFileUtils.add(trackingIndexFileUtils);
         IndexFileUtils.instance = trackingIndexFileUtils;
-        return IndexDescriptor.empty(descriptor);
+        return IndexDescriptor.empty(descriptor, comparator);
     }
 
     @Override

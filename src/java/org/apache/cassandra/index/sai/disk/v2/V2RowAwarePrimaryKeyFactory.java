@@ -38,13 +38,13 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
  * A row-aware {@link PrimaryKey.Factory}. This creates {@link PrimaryKey} instances that are
  * sortable by {@link DecoratedKey} and {@link Clustering}.
  */
-public class RowAwarePrimaryKeyFactory implements PrimaryKey.Factory
+public class V2RowAwarePrimaryKeyFactory implements PrimaryKey.Factory
 {
-    private final ClusteringComparator clusteringComparator;
-    private final boolean hasClustering;
+    protected final ClusteringComparator clusteringComparator;
+    public final boolean hasClustering;
 
 
-    public RowAwarePrimaryKeyFactory(ClusteringComparator clusteringComparator)
+    public V2RowAwarePrimaryKeyFactory(ClusteringComparator clusteringComparator)
     {
         this.clusteringComparator = clusteringComparator;
         this.hasClustering = clusteringComparator.size() > 0;
@@ -62,19 +62,19 @@ public class RowAwarePrimaryKeyFactory implements PrimaryKey.Factory
         return new RowAwarePrimaryKey(partitionKey.getToken(), partitionKey, clustering, null);
     }
 
-    PrimaryKey createWithSource(PrimaryKeyMap primaryKeyMap, long sstableRowId, PrimaryKey sourceSstableMinKey, PrimaryKey sourceSstableMaxKey)
+    public PrimaryKey createWithSource(PrimaryKeyMap primaryKeyMap, long sstableRowId, PrimaryKey sourceSstableMinKey, PrimaryKey sourceSstableMaxKey)
     {
         return new PrimaryKeyWithSource(primaryKeyMap, sstableRowId, sourceSstableMinKey, sourceSstableMaxKey);
     }
 
-    private class RowAwarePrimaryKey implements PrimaryKey
+    protected class RowAwarePrimaryKey implements PrimaryKey
     {
         private final Token token;
-        private DecoratedKey partitionKey;
-        private Clustering<?> clustering;
+        protected DecoratedKey partitionKey;
+        protected Clustering<?> clustering;
         private Supplier<PrimaryKey> primaryKeySupplier;
 
-        private RowAwarePrimaryKey(Token token, DecoratedKey partitionKey, Clustering<?> clustering, Supplier<PrimaryKey> primaryKeySupplier)
+        protected RowAwarePrimaryKey(Token token, DecoratedKey partitionKey, Clustering<?> clustering, Supplier<PrimaryKey> primaryKeySupplier)
         {
             this.token = token;
             this.partitionKey = partitionKey;
@@ -148,47 +148,53 @@ public class RowAwarePrimaryKeyFactory implements PrimaryKey.Factory
             return asComparableBytes(ByteSource.GT_NEXT_COMPONENT, version, true);
         }
 
-        private ByteSource asComparableBytes(int terminator, ByteComparable.Version version, boolean isPrefix)
+        protected ByteSource asComparableBytes(int terminator, ByteComparable.Version version, boolean isPrefix)
+        {
+            return ByteSource.withTerminator(terminator, buildComparableSources(version, isPrefix, true));
+        }
+
+        protected ByteSource[] buildComparableSources(ByteComparable.Version version, boolean isPrefix, boolean includeToken)
         {
             // We need to make sure that the key is loaded before returning a
-            // byte comparable representation. If we don't we won't get a correct
+            // byte comparable representation. If we don't, we won't get a correct
             // comparison because we potentially won't be using the partition key
             // and clustering for the lookup
             loadDeferred();
 
-            ByteSource tokenComparable = token.asComparableBytes(version);
-            ByteSource keyComparable = ByteSource.of(partitionKey.getKey(), version);
+            int size = (includeToken ? 1 : 0) + 1 + ((hasClustering() || !isPrefix) ? 1 : 0);
+            ByteSource[] comparableSources = new ByteSource[size];
 
-            // It is important that the ClusteringComparator.asBytesComparable method is used
-            // to maintain the correct clustering sort order
-            ByteSource clusteringComparable = clusteringComparator.size() == 0 ||
-                                              clustering == null ||
-                                              clustering.isEmpty() ? null
-                                                                   : clusteringComparator.asByteComparable(clustering)
-                                                                                         .asComparableBytes(version);
+            int index = 0;
 
-            // prefix doesn't include null components
-            if (isPrefix && clusteringComparable == null)
-                return ByteSource.withTerminator(terminator, tokenComparable, keyComparable);
-            else
-                return ByteSource.withTerminator(terminator, tokenComparable, keyComparable, clusteringComparable);
+            if (includeToken)
+                comparableSources[index++] = token.asComparableBytes(version);
+
+            comparableSources[index++] = ByteSource.of(partitionKey.getKey(), version);
+
+            if (hasClustering())
+                // It is important that the ClusteringComparator.asBytesComparable method is used
+                // to maintain the correct clustering sort order
+                comparableSources[index++] = clusteringComparator.asByteComparable(clustering).asComparableBytes(version);
+            else if (!isPrefix)
+                // prefix doesn't include null components
+                comparableSources[index++] = null;
+
+            assert index == comparableSources.length;
+            return comparableSources;
         }
 
         @Override
         public int compareTo(PrimaryKey o)
         {
+            // Always start comparison with token, since comparing directly on partition key requires loading it
             int cmp = token().compareTo(o.token());
-
-            // If the tokens don't match then we don't need to compare any more of the key.
-            // Otherwise if either this key or given key are token only,
-            // then we can only compare tokens
-            if ((cmp != 0) || isTokenOnly() || o.isTokenOnly())
+            if (cmp != 0 || o.isTokenOnly())
                 return cmp;
 
-            // Next compare the partition keys. If they are not equal or
+            // Compare the partition keys. If they are not equal or
             // this is a single row partition key or there are no
-            // clusterings then we can return the result of this without
-            // needing to compare the clusterings
+            // clusterings, then return the result of this without
+            // needing to compare the clusterings.
             cmp = partitionKey().compareTo(o.partitionKey());
             if (cmp != 0 || !hasClustering() || !o.hasClustering())
                 return cmp;

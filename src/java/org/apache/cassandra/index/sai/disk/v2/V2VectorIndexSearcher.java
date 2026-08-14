@@ -542,9 +542,9 @@ public class V2VectorIndexSearcher extends IndexSearcher
 
                 if (sstableRowId < 0)
                 {
-                    // The given PK doesn't exist in this sstable, so sstableRowId represents the negation
-                    // of the next-highest.  Turn that back into a PK so we can skip ahead in keysInRange.
-                    long ceilingRowId = - sstableRowId - 1;
+                    // The given PK doesn't exist in this sstable, so sstableRowId is the inversion
+                    // of the next-highest row ID.  Invert it back to get the ceiling row ID.
+                    long ceilingRowId = ~sstableRowId;
                     if (ceilingRowId > metadata.maxSSTableRowId)
                     {
                         // The next greatest primary key is greater than all the primary keys in this segment
@@ -576,8 +576,8 @@ public class V2VectorIndexSearcher extends IndexSearcher
                         var keysRemaining = keysInRange.subList(i, keysInRange.size());
                         int nextIndexForCeiling = Collections.binarySearch(keysRemaining, ceilingPrimaryKey);
                         if (nextIndexForCeiling < 0)
-                            // We got: -(insertion point) - 1. Invert it so we get the insertion point.
-                            nextIndexForCeiling = -nextIndexForCeiling - 1;
+                            // We got the inversion of the insertion point. Invert it to get the insertion point.
+                            nextIndexForCeiling = ~nextIndexForCeiling;
                         else
                             ceilingPrimaryKeyMatchesKeyInRange = true;
 

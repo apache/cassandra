@@ -95,7 +95,7 @@ public class SortedTermsTest extends SaiRandomizedTest
         {
             ByteBuffer buffer = UTF8Type.instance.decompose(Integer.toString(x));
             DecoratedKey partitionKey = Murmur3Partitioner.instance.decorateKey(buffer);
-            PrimaryKey primaryKey = SAITester.TEST_FACTORY.create(partitionKey, Clustering.EMPTY);
+            PrimaryKey primaryKey = SAITester.ROW_AWARE_TEST_FACTORY.create(partitionKey, Clustering.EMPTY);
             primaryKeys.add(primaryKey);
         }
 

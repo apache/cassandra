@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -265,7 +266,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
     @Override
     public SSTableFlushObserver getFlushObserver(Descriptor descriptor, LifecycleNewTracker tracker, TableMetadata tableMetadata, long keyCount)
     {
-        IndexDescriptor indexDescriptor = IndexDescriptor.empty(descriptor);
+        IndexDescriptor indexDescriptor = IndexDescriptor.empty(descriptor, tableMetadata.comparator);
         try
         {
             return new StorageAttachedIndexWriter(indexDescriptor, tableMetadata, indices, tracker, keyCount, baseCfs.metric);
@@ -290,7 +291,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
     @Override
     public Set<Component> componentsForNewSSTable()
     {
-        return IndexDescriptor.componentsForNewlyFlushedSSTable(indices, version);
+        return IndexDescriptor.componentsForNewlyFlushedSSTable(indices, version, baseCfs.metadata().hasClustering());
     }
 
     @Override

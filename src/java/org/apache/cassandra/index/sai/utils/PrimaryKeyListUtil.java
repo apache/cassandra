@@ -37,7 +37,7 @@ public class PrimaryKeyListUtil
         int index = Collections.binarySearch(keys, key);
 
         if (index < 0)
-            return -index - 1;
+            return ~index;
 
         // When findMax is true, we are finding an exclusive upper bound, but binary search is inclusive, so we
         // increment by 1 to get the exclusive upper bound.

@@ -59,7 +59,7 @@ public class QuerySelectivityBench extends CQLTester
     static final Random RANDOM = new Random();
 
     /** The SAI index format version, {@code none} for no index. */
-    @Param({ "aa", "ec", "none" })
+    @Param({ "aa", "ec", "ga", "none" })
     public String version;
 
     /** The number of partitions to be inserted. */
