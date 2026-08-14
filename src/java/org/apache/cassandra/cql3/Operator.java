@@ -114,12 +114,6 @@ public enum Operator
         {
             return true;
         }
-
-        @Override
-        public boolean supportsNullCondition()
-        {
-            return true;
-        }
     },
     LT(4)
     {
@@ -377,12 +371,6 @@ public enum Operator
         {
             return expression.kind() == ColumnsExpression.Kind.SINGLE_COLUMN || expression.kind() == ColumnsExpression.Kind.MULTI_COLUMN;
         }
-
-        @Override
-        public boolean supportsNullCondition()
-        {
-            return true;
-        }
     },
     CONTAINS(5)
     {
@@ -546,12 +534,6 @@ public enum Operator
         {
             return true;
         }
-
-        @Override
-        public boolean supportsNullCondition()
-        {
-            return true;
-        }
     },
     IS_NOT(9)
     {
@@ -710,12 +692,6 @@ public enum Operator
         public boolean isSupportedByRestrictionsOn(ColumnsExpression expression)
         {
             return expression.kind() == ColumnsExpression.Kind.SINGLE_COLUMN || expression.kind() == ColumnsExpression.Kind.MULTI_COLUMN;
-        }
-
-        @Override
-        public boolean supportsNullCondition()
-        {
-            return true;
         }
     },
     NOT_CONTAINS(17)
@@ -1115,15 +1091,6 @@ public enum Operator
      * @return {@code true} if this operator requires a secondary index, {@code false} otherwise.
      */
     public boolean requiresIndexing()
-    {
-        return false;
-    }
-
-    /**
-     * Checks if this operator supports null value comparisons, as used in LWT IF conditions.
-     * @return {@code true} if null is supported, {@code false} otherwise.
-     */
-    public boolean supportsNullCondition()
     {
         return false;
     }

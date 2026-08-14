@@ -342,8 +342,6 @@ public class ColumnConditionTest
         assertFalse(appliesSimpleCondition(ONE, EQ, null));
         assertFalse(appliesSimpleCondition(null, EQ, ONE));
         assertTrue(appliesSimpleCondition(null, EQ, null));
-        assertTrue(appliesSimpleCondition(null, EQ, EMPTY_BYTE_BUFFER));
-        assertTrue(appliesSimpleCondition(EMPTY_BYTE_BUFFER, EQ, null));
 
         // NEQ
         assertFalse(appliesSimpleCondition(ONE, NEQ, ONE));
@@ -355,8 +353,6 @@ public class ColumnConditionTest
         assertTrue(appliesSimpleCondition(ONE, NEQ, null));
         assertTrue(appliesSimpleCondition(null, NEQ, ONE));
         assertFalse(appliesSimpleCondition(null, NEQ, null));
-        assertFalse(appliesSimpleCondition(null, NEQ, EMPTY_BYTE_BUFFER));
-        assertFalse(appliesSimpleCondition(EMPTY_BYTE_BUFFER, NEQ, null));
 
         // LT
         assertFalse(appliesSimpleCondition(ONE, LT, ONE));
@@ -397,33 +393,6 @@ public class ColumnConditionTest
         assertTrue(appliesSimpleCondition(EMPTY_BYTE_BUFFER, GTE, EMPTY_BYTE_BUFFER));
         assertThrowsIRE(() -> appliesSimpleCondition(ONE, GTE, null), "Invalid comparison with null for operator \">=\"");
         assertFalse(appliesSimpleCondition(null, GTE, ONE));
-    }
-
-    private static boolean appliesINCondition(ByteBuffer rowValue, List<ByteBuffer> inValues)
-    {
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", Int32Type.instance, ColumnMetadata.NO_UNIQUE_ID);
-        ByteBuffer packed = ListType.getInstance(Int32Type.instance, false).pack(inValues);
-        ColumnCondition.SimpleBound bound = new ColumnCondition.SimpleBound(definition, null, Operator.IN, packed);
-        return bound.appliesTo(newRow(definition, rowValue));
-    }
-
-    @Test
-    public void testSimpleBoundINNullHandling() throws InvalidRequestException
-    {
-        // Normal matching
-        assertTrue(appliesINCondition(ONE, list(ONE, TWO)));
-        assertFalse(appliesINCondition(ONE, list(TWO)));
-        assertFalse(appliesINCondition(ONE, list((ByteBuffer) null, TWO)));
-
-        // Absent/null cell matches null element in IN list
-        assertTrue(appliesINCondition(null, list((ByteBuffer) null, ONE)));
-        assertFalse(appliesINCondition(null, list(ONE, TWO)));
-        // TODO: it should be assertTrue once list sanitization is added.
-        assertFalse(appliesINCondition(null, list(EMPTY_BYTE_BUFFER, ONE)));
-
-        // Legacy 0-byte stored value (Int32Type is meaningless-empty) matches null in IN list
-        assertTrue(appliesINCondition(EMPTY_BYTE_BUFFER, list((ByteBuffer) null, ONE)));
-        assertFalse(appliesINCondition(EMPTY_BYTE_BUFFER, list(ONE, TWO)));
     }
 
     private static List<ByteBuffer> list(ByteBuffer... values)
@@ -873,9 +842,6 @@ public class ColumnConditionTest
         assertFalse(conditionUDTApplies(ONE, EQ, ByteBufferUtil.EMPTY_BYTE_BUFFER));
         assertFalse(conditionUDTApplies(ByteBufferUtil.EMPTY_BYTE_BUFFER, EQ, ONE));
         assertTrue(conditionUDTApplies(ByteBufferUtil.EMPTY_BYTE_BUFFER, EQ, ByteBufferUtil.EMPTY_BYTE_BUFFER));
-        // Legacy 0-byte stored value must match null condition and vice versa (elementValue() sanitizes left)
-        assertTrue(conditionUDTApplies(null, EQ, ByteBufferUtil.EMPTY_BYTE_BUFFER));
-        assertTrue(conditionUDTApplies(ByteBufferUtil.EMPTY_BYTE_BUFFER, EQ, null));
 
         // NEQ
         assertFalse(conditionUDTApplies(ONE, NEQ, ONE));
@@ -891,9 +857,6 @@ public class ColumnConditionTest
         assertTrue(conditionUDTApplies(ONE, NEQ, ByteBufferUtil.EMPTY_BYTE_BUFFER));
         assertTrue(conditionUDTApplies(ByteBufferUtil.EMPTY_BYTE_BUFFER, NEQ, ONE));
         assertFalse(conditionUDTApplies(ByteBufferUtil.EMPTY_BYTE_BUFFER, NEQ, ByteBufferUtil.EMPTY_BYTE_BUFFER));
-        // Legacy 0-byte stored value must not differ from null condition and vice versa
-        assertFalse(conditionUDTApplies(null, NEQ, ByteBufferUtil.EMPTY_BYTE_BUFFER));
-        assertFalse(conditionUDTApplies(ByteBufferUtil.EMPTY_BYTE_BUFFER, NEQ, null));
 
         // LT
         assertFalse(conditionUDTApplies(ONE, LT, ONE));

@@ -83,6 +83,11 @@ public interface Conditional extends Expression
                 this.value = value;
             }
 
+            public boolean isEqualityBased()
+            {
+                return this == EQUAL || this == NOT_EQUAL;
+            }
+
             public boolean test(AbstractType<?> type, ByteBuffer a, ByteBuffer b)
             {
                 int rc = type.compare(a, b);
