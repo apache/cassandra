@@ -244,6 +244,26 @@ role_manager:
     invalid_role_disconnect_task_period: 4h
     invalid_role_disconnect_task_max_jitter: 1h
 
+# Creates the initial role on a cluster which has no roles yet, implementing IDefaultRoleInitializer.
+# Most functions of the IRoleManager require an authenticated login, so a cluster with no roles has no way
+# to create the first one; this option controls how that role is bootstrapped.
+#
+# Defaults to PasswordDefaultRoleInitializer, which creates a 'cassandra' superuser whose password is also
+# 'cassandra'. That password is a published constant, so deployments using it must rotate or drop the role
+# before the native transport is reachable.
+#
+# MutualTlsDefaultRoleInitializer instead creates the role with no password at all and maps a client
+# certificate identity onto it, so there is no credential to guess. It requires an authenticator supporting
+# mutual TLS, such as MutualTlsAuthenticator or MutualTlsWithPasswordFallbackAuthenticator.
+#
+# default_role_initializer:
+#   class_name: PasswordDefaultRoleInitializer   # or: MutualTlsDefaultRoleInitializer
+#   parameters:
+#     role: cassandra
+#     password: cassandra                         # PasswordDefaultRoleInitializer: plaintext password
+#     # password_hash: "$2a$04$wsvzFamDJPDrTwMjgfcgpO.mKc.CMEuHBFZSjhGz2Ts6.v8PUO2rC"   # ...or a bcrypt hash instead
+#     # identity: "spiffe1"                       # MutualTlsDefaultRoleInitializer: cert identity to map
+
 # Network authorization backend, implementing INetworkAuthorizer; used to restrict user
 # access to certain DCs
 # Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllNetworkAuthorizer,
