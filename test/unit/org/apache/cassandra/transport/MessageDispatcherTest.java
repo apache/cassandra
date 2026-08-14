@@ -191,7 +191,7 @@ public class MessageDispatcherTest
     {
         Connection.Tracker tracker = Mockito.mock(Connection.Tracker.class);
         Mockito.when(tracker.isRunning()).thenAnswer(invocation -> true);
-        Connection c = Mockito.mock(Connection.class);
+        Connection c = Mockito.mock(ServerConnection.class);
         Mockito.when(c.getTracker()).thenAnswer(invocation -> tracker);
         return c;
     }
