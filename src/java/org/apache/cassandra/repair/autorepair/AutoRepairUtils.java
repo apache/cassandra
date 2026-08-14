@@ -428,10 +428,10 @@ public class AutoRepairUtils
                                                                    Dispatcher.RequestTime.forImmediateExecution());
         UntypedResultSet result = UntypedResultSet.create(rows.result);
         if (result.isEmpty())
-        {
             return false;
-        }
-        return result.one().has(COL_FORCE_REPAIR) && result.one().getBoolean(COL_FORCE_REPAIR);
+
+        UntypedResultSet.Row one = result.one();
+        return one.has(COL_FORCE_REPAIR) && one.getBoolean(COL_FORCE_REPAIR);
     }
 
     public static long getLastRepairTimeForNode(RepairType repairType, UUID hostId)
