@@ -108,7 +108,7 @@ public final class ForwardingInfo implements Serializable
             for (int i = 0; i < count; i++)
             {
                 targets.add(inetAddressAndPortSerializer.deserialize(in, version));
-                ids[i] = in.readUnsignedVInt32();
+                ids[i] = in.readUnsignedVInt();
             }
 
             return new ForwardingInfo(targets, ids);

@@ -44,6 +44,42 @@ public class ForwardingInfoTest
             testVersion(version.value);
     }
 
+    /**
+     * Message ids are drawn from an unsigned 32-bit counter, so they span the whole [1, 2^32) range. They are written
+     * as 64-bit unsigned vints, and the reader has to use the matching width: reading them back as a 32-bit vint
+     * throws {@link org.apache.cassandra.utils.vint.VIntOutOfRangeException} for any id above Integer.MAX_VALUE.
+     */
+    @Test
+    public void testLargeMessageIdsRoundTrip() throws Exception
+    {
+        InetAddressAndPort.initializeDefaultPort(65532);
+        List<InetAddressAndPort> addresses = ImmutableList.of(InetAddressAndPort.getByName("127.0.0.1:7000"),
+                                                              InetAddressAndPort.getByName("127.0.0.2:7000"),
+                                                              InetAddressAndPort.getByName("127.0.0.3:7000"),
+                                                              InetAddressAndPort.getByName("127.0.0.4:7000"));
+
+        long[] ids = { 1L, Integer.MAX_VALUE, Integer.MAX_VALUE + 1L, 0xFFFFFFFFL };
+        ForwardingInfo forwardingInfo = new ForwardingInfo(addresses, ids);
+
+        for (MessagingService.Version version : MessagingService.Version.supportedVersions())
+        {
+            ByteBuffer buffer;
+            try (DataOutputBuffer dob = new DataOutputBuffer())
+            {
+                ForwardingInfo.serializer.serialize(forwardingInfo, dob, version.value);
+                buffer = dob.buffer();
+            }
+
+            assertEquals(buffer.remaining(), ForwardingInfo.serializer.serializedSize(forwardingInfo, version.value));
+
+            try (DataInputBuffer dib = new DataInputBuffer(buffer, false))
+            {
+                ForwardingInfo deserialized = ForwardingInfo.serializer.deserialize(dib, version.value);
+                assertTrue(Arrays.equals(ids, deserialized.messageIds));
+            }
+        }
+    }
+
     private void testVersion(int version) throws Exception
     {
         InetAddressAndPort.initializeDefaultPort(65532);
