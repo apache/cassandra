@@ -188,8 +188,8 @@ public class AutoRepair
             //consistency level to use for local query
             UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
 
-            // If it's too soon to run repair, don't bother checking if it's our turn.
-            // Force repair bypasses this check to ensure immediate repair trigger.
+            // Skip this repair cycle if the minimum interval since the last repair has not elapsed,
+            // unless force repair is set for this node, which bypasses the interval check
             if (shouldSkipRepairDueToInterval(repairType, repairState, config, myId))
             {
                 return;
@@ -422,6 +422,14 @@ public class AutoRepair
         return tooSoonToRunRepair(repairType, repairState, config, myId);
     }
 
+    /**
+     * Determines whether it is too soon to run a repair based on the minimum repair interval configured
+     * for the given repair type. If no last repair time is recorded in the state, it fetches the most
+     * recent repair time for this node from the database.
+     *
+     * @return true if the elapsed time since the last repair is less than the configured
+     *         minimum interval
+     */
     @VisibleForTesting
     boolean tooSoonToRunRepair(AutoRepairConfig.RepairType repairType, AutoRepairState repairState, AutoRepairConfig config, UUID myId)
     {
