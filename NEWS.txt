@@ -144,6 +144,7 @@ New features
 Upgrading
 ---------
     [The following is a placeholder, to be revised asap]
+    - trickle_fsync is by default set to "true" instead of "false" in cassandra.yaml (see CASSANDRA-21572)
     - Upgrading to 5.1 is currently only supported from 4.0, 4.1 or 5.0. Clusters running earlier releases must first
     upgrade to at least the latest 4.0 release. When a cluster is upgraded to 5.1 there is an additional step for
     operators to perform. The upgrade is not considered complete until:

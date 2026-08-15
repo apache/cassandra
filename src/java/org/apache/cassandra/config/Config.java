@@ -545,7 +545,7 @@ public class Config
     public volatile boolean use_creation_time_for_hint_ttl = true;
 
     public volatile boolean incremental_backups = false;
-    public boolean trickle_fsync = false;
+    public boolean trickle_fsync = true;
     @Replaces(oldName = "trickle_fsync_interval_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
     public DataStorageSpec.IntKibibytesBound trickle_fsync_interval = new DataStorageSpec.IntKibibytesBound("10240KiB");
 

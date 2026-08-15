@@ -4480,9 +4480,9 @@ public class DatabaseDescriptor
         return conf.trickle_fsync;
     }
 
-    public static int getTrickleFsyncIntervalInKiB()
+    public static long getTrickleFsyncIntervalInBytes()
     {
-        return conf.trickle_fsync_interval.toKibibytes();
+        return conf.trickle_fsync_interval.toBytesInLong();
     }
 
     public static long getKeyCacheSizeInMiB()
