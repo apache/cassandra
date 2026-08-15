@@ -22,6 +22,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -47,9 +49,21 @@ public class GossipDigestAck
         this.epStateMap = epStateMap;
     }
 
+    @VisibleForTesting
+    public static GossipDigestAck getInstanceUnsafeForTesting(List<GossipDigest> gDigestList, Map<InetAddressAndPort, EndpointState> epStateMap)
+    {
+        return new GossipDigestAck(gDigestList, epStateMap);
+    }
+
     List<GossipDigest> getGossipDigestList()
     {
         return gDigestList;
+    }
+
+    @VisibleForTesting
+    public Map<InetAddressAndPort, EndpointState> getEndpointStateMapUnsafeForTest()
+    {
+        return epStateMap;
     }
 
     Map<InetAddressAndPort, EndpointState> getEndpointStateMap()
