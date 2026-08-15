@@ -42,7 +42,7 @@ public class IndexFileUtils
     @VisibleForTesting
     public static final SequentialWriterOption DEFAULT_WRITER_OPTION = SequentialWriterOption.newBuilder()
                                                                                              .trickleFsync(DatabaseDescriptor.getTrickleFsync())
-                                                                                             .trickleFsyncByteInterval(DatabaseDescriptor.getTrickleFsyncIntervalInKiB() * 1024)
+                                                                                             .trickleFsyncByteInterval(DatabaseDescriptor.getTrickleFsyncIntervalInBytes())
                                                                                              .bufferType(BufferType.OFF_HEAP)
                                                                                              .finishOnClose(true)
                                                                                              .build();
