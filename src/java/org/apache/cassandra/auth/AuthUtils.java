@@ -37,7 +37,7 @@ public class AuthUtils
 
     public static String escape(String name)
     {
-        return StringUtils.replace(name, "", "''");
+        return StringUtils.replace(name, "'", "''");
     }
 
     /** Allows selective overriding of the consistency level for specific roles. */

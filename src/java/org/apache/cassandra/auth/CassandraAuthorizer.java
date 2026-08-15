@@ -67,6 +67,8 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
+import static org.apache.cassandra.auth.AuthUtils.escape;
+
 /**
  * CassandraAuthorizer is an IAuthorizer implementation that keeps
  * user permissions internally in C* using the system_auth.role_permissions
@@ -426,12 +428,6 @@ public class CassandraAuthorizer implements IAuthorizer
                                      permissionsTable,
                                      entityname);
         return (SelectStatement) QueryProcessor.getStatement(query, ClientState.forInternalCalls());
-    }
-
-    // We only worry about one character ('). Make sure it's properly escaped.
-    private String escape(String name)
-    {
-        return StringUtils.replace(name, "'", "''");
     }
 
     ResultMessage.Rows select(SelectStatement statement, QueryOptions options)

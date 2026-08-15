@@ -83,6 +83,10 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.NoSpamLogger;
 
+import static org.apache.cassandra.auth.AuthUtils.consistencyForRoleRead;
+import static org.apache.cassandra.auth.AuthUtils.consistencyForRoleWrite;
+import static org.apache.cassandra.auth.AuthUtils.escape;
+import static org.apache.cassandra.auth.AuthUtils.hashpw;
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
@@ -732,30 +736,9 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
         throw new OverloadedException(failure);
     }
 
-    static String hashpw(String password)
-    {
-        return AuthUtils.hashpw(password);
-    }
-
-    static String escape(String name)
-    {
-        return AuthUtils.escape(name);
-    }
-
     private static ByteBuffer byteBuf(String str)
     {
         return UTF8Type.instance.decompose(str);
-    }
-
-    /** Allows selective overriding of the consistency level for specific roles. */
-    protected static ConsistencyLevel consistencyForRoleWrite(String role)
-    {
-        return AuthUtils.consistencyForRoleWrite(role);
-    }
-
-    protected static ConsistencyLevel consistencyForRoleRead(String role)
-    {
-        return AuthUtils.consistencyForRoleRead(role);
     }
 
     /**
