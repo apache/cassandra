@@ -50,7 +50,7 @@ import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.auth.CassandraRoleManager.consistencyForRoleRead;
+import static org.apache.cassandra.auth.AuthUtils.consistencyForRoleRead;
 
 /**
  * PasswordAuthenticator is an IAuthenticator implementation

@@ -27,7 +27,7 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.tcm.ClusterMetadata;
 
-import static org.apache.cassandra.auth.AuthUtils.escape;
+import static org.apache.cassandra.auth.AuthUtils.escapeCqlLiteral;
 
 public abstract class AbstractDefaultRoleInitializer implements IDefaultRoleInitializer
 {
@@ -54,7 +54,7 @@ public abstract class AbstractDefaultRoleInitializer implements IDefaultRoleInit
     public final boolean hasExistingRoles()
     {
         // Try looking up the configured default role first, to avoid the range query if possible.
-        String defaultRoleQuery = String.format("SELECT * FROM %s.%s WHERE role = '%s'", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES, escape(defaultRoleName()));
+        String defaultRoleQuery = String.format("SELECT * FROM %s.%s WHERE role = '%s'", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES, escapeCqlLiteral(defaultRoleName()));
         String allUsersQuery = String.format("SELECT * FROM %s.%s LIMIT 1", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES);
         return !QueryProcessor.process(defaultRoleQuery, ConsistencyLevel.ONE).isEmpty()
                || !QueryProcessor.process(defaultRoleQuery, ConsistencyLevel.QUORUM).isEmpty()

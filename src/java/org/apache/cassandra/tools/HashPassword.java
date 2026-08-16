@@ -35,7 +35,7 @@ import org.mindrot.jbcrypt.BCrypt;
 
 import org.apache.cassandra.io.util.File;
 
-import static org.apache.cassandra.auth.AuthUtils.escape;
+import static org.apache.cassandra.auth.AuthUtils.escapeCqlLiteral;
 
 public class HashPassword
 {
@@ -132,7 +132,7 @@ public class HashPassword
                         "(bcrypt) can only compare up to 72 bytes. The password will be accepted and work, but only compared up to 72 bytes.",
                         password.getBytes().length));
 
-            String hashed = escape(hashpw(password, logRounds));
+            String hashed = escapeCqlLiteral(hashpw(password, logRounds));
             System.out.print(hashed);
             System.out.flush();
         }

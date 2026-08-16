@@ -85,7 +85,7 @@ import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.auth.AuthUtils.consistencyForRoleRead;
 import static org.apache.cassandra.auth.AuthUtils.consistencyForRoleWrite;
-import static org.apache.cassandra.auth.AuthUtils.escape;
+import static org.apache.cassandra.auth.AuthUtils.escapeCqlLiteral;
 import static org.apache.cassandra.auth.AuthUtils.hashpw;
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -348,14 +348,14 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
                          ? String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) VALUES ('%s', %s, %s, '%s')",
                                          SchemaConstants.AUTH_KEYSPACE_NAME,
                                          AuthKeyspace.ROLES,
-                                         escape(role.getRoleName()),
+                                         escapeCqlLiteral(role.getRoleName()),
                                          options.getSuperuser().orElse(false),
                                          options.getLogin().orElse(false),
-                                         options.getHashedPassword().orElseGet(() -> escape(hashpw(options.getPassword().get()))))
+                                         options.getHashedPassword().orElseGet(() -> escapeCqlLiteral(hashpw(options.getPassword().get()))))
                          : String.format("INSERT INTO %s.%s (role, is_superuser, can_login) VALUES ('%s', %s, %s)",
                                          SchemaConstants.AUTH_KEYSPACE_NAME,
                                          AuthKeyspace.ROLES,
-                                         escape(role.getRoleName()),
+                                         escapeCqlLiteral(role.getRoleName()),
                                          options.getSuperuser().orElse(false),
                                          options.getLogin().orElse(false));
         process(insertCql, consistencyForRoleWrite(role.getRoleName()));
@@ -366,7 +366,7 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
         process(String.format("DELETE FROM %s.%s WHERE role = '%s'",
                               SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.ROLES,
-                              escape(role.getRoleName())),
+                              escapeCqlLiteral(role.getRoleName())),
                 consistencyForRoleWrite(role.getRoleName()));
         removeAllMembers(role.getRoleName());
         removeAllIdentitiesOfRole(role.getRoleName());
@@ -386,7 +386,7 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
                                   SchemaConstants.AUTH_KEYSPACE_NAME,
                                   AuthKeyspace.ROLES,
                                   assignments,
-                                  escape(role.getRoleName())),
+                                  escapeCqlLiteral(role.getRoleName())),
                     consistencyForRoleWrite(role.getRoleName()));
         }
     }
@@ -421,8 +421,8 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
         process(String.format("INSERT INTO %s.%s (role, member) values ('%s', '%s')",
                               SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.ROLE_MEMBERS,
-                              escape(role.getRoleName()),
-                              escape(grantee.getRoleName())),
+                              escapeCqlLiteral(role.getRoleName()),
+                              escapeCqlLiteral(grantee.getRoleName())),
                 consistencyForRoleWrite(role.getRoleName()));
     }
 
@@ -438,8 +438,8 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
         process(String.format("DELETE FROM %s.%s WHERE role = '%s' and member = '%s'",
                               SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.ROLE_MEMBERS,
-                              escape(role.getRoleName()),
-                              escape(revokee.getRoleName())),
+                              escapeCqlLiteral(role.getRoleName()),
+                              escapeCqlLiteral(revokee.getRoleName())),
                 consistencyForRoleWrite(role.getRoleName()));
     }
 
@@ -617,8 +617,8 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
                               SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.ROLES,
                               op,
-                              escape(role),
-                              escape(grantee)),
+                              escapeCqlLiteral(role),
+                              escapeCqlLiteral(grantee)),
                 consistencyForRoleWrite(grantee));
     }
 
@@ -656,7 +656,7 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
         UntypedResultSet rows = process(String.format("SELECT member FROM %s.%s WHERE role = '%s'",
                                                       SchemaConstants.AUTH_KEYSPACE_NAME,
                                                       AuthKeyspace.ROLE_MEMBERS,
-                                                      escape(role)),
+                                                      escapeCqlLiteral(role)),
                                         consistencyForRoleRead(role));
         if (rows.isEmpty())
             return;
@@ -669,7 +669,7 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
         process(String.format("DELETE FROM %s.%s WHERE role = '%s'",
                               SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.ROLE_MEMBERS,
-                              escape(role)),
+                              escapeCqlLiteral(role)),
                 consistencyForRoleWrite(role));
     }
 
@@ -690,7 +690,7 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
                                    case SUPERUSER:
                                        return String.format("is_superuser = %s", entry.getValue());
                                    case PASSWORD:
-                                       return String.format("salted_hash = '%s'", escape(hashpw((String) entry.getValue())));
+                                       return String.format("salted_hash = '%s'", escapeCqlLiteral(hashpw((String) entry.getValue())));
                                    case HASHED_PASSWORD:
                                        return String.format("salted_hash = '%s'", (String) entry.getValue());
                                    default:

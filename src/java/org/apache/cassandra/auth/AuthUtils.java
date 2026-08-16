@@ -35,7 +35,15 @@ public class AuthUtils
         return BCrypt.hashpw(password, PasswordSaltSupplier.get());
     }
 
-    public static String escape(String name)
+    /**
+     * Escapes a value for safe interpolation into a single-quoted CQL string literal by doubling any
+     * single quotes it contains (e.g. {@code o'brien} becomes {@code o''brien}). Used when building auth
+     * DDL/DML from role, identity and resource names via {@link String#format}.
+     *
+     * @param name the raw value to escape; {@code null} is returned unchanged
+     * @return the value with every {@code '} doubled
+     */
+    public static String escapeCqlLiteral(String name)
     {
         return StringUtils.replace(name, "'", "''");
     }

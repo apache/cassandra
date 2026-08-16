@@ -32,7 +32,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.SchemaConstants;
 
 import static org.apache.cassandra.auth.AuthUtils.consistencyForRoleWrite;
-import static org.apache.cassandra.auth.AuthUtils.escape;
+import static org.apache.cassandra.auth.AuthUtils.escapeCqlLiteral;
 import static org.apache.cassandra.auth.AuthUtils.hashpw;
 
 /**
@@ -123,7 +123,7 @@ public class PasswordDefaultRoleInitializer extends AbstractDefaultRoleInitializ
         return String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) VALUES ('%s', true, true, '%s') USING TIMESTAMP 0",
                              SchemaConstants.AUTH_KEYSPACE_NAME,
                              AuthKeyspace.ROLES,
-                             escape(role),
-                             escape(password == null ? passwordHash : hashpw(password)));
+                             escapeCqlLiteral(role),
+                             escapeCqlLiteral(password == null ? passwordHash : hashpw(password)));
     }
 }

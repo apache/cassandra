@@ -32,7 +32,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.SchemaConstants;
 
 import static org.apache.cassandra.auth.AuthUtils.consistencyForRoleWrite;
-import static org.apache.cassandra.auth.AuthUtils.escape;
+import static org.apache.cassandra.auth.AuthUtils.escapeCqlLiteral;
 
 public class MutualTlsDefaultRoleInitializer extends AbstractDefaultRoleInitializer
 {
@@ -64,15 +64,15 @@ public class MutualTlsDefaultRoleInitializer extends AbstractDefaultRoleInitiali
                                              "VALUES ('%s', true, true) USING TIMESTAMP 0",
                                              SchemaConstants.AUTH_KEYSPACE_NAME,
                                              AuthKeyspace.ROLES,
-                                             escape(role)),
+                                             escapeCqlLiteral(role)),
                                consistencyForRoleWrite(role));
 
         QueryProcessor.process(String.format("INSERT INTO %s.%s (identity, role) " +
                                              "VALUES ('%s', '%s') USING TIMESTAMP 0",
                                              SchemaConstants.AUTH_KEYSPACE_NAME,
                                              AuthKeyspace.IDENTITY_TO_ROLES,
-                                             escape(identity),
-                                             escape(role)),
+                                             escapeCqlLiteral(identity),
+                                             escapeCqlLiteral(role)),
                                consistencyForRoleWrite(role));
 
         logger.info("Created passwordless default superuser role '{}' with mapped identity '{}'", role, identity);
