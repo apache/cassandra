@@ -1604,7 +1604,7 @@ public class AccordService implements IAccordService, Shutdownable
                 this.debug = debug;
             }
         }
-        if (Invariants.isTesting())
+        if (DefaultProgressLog.DEBUG_LEVEL > 1)
         {
             DefaultProgressLog.setDebugDeletion(txnId -> {
                 String stack = Threads.prettyPrintStackTrace(Thread.currentThread(), true, ";").intern();
