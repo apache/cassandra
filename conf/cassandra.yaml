@@ -986,7 +986,11 @@ index_summary_resize_interval: 60m
 # buffers. Enable this to avoid sudden dirty buffer flushing from
 # impacting read latencies. Almost always a good idea on SSDs; not
 # necessarily on platters.
-trickle_fsync: false
+trickle_fsync: true
+# The interval bounds how much dirty data one fsync forces out, so it bounds the
+# size of a single writeback burst. Raising it trades read tail latency for write
+# throughput; raise it far enough and the kernel's own dirty page thresholds
+# start the writeback instead, which is the burst this setting exists to avoid.
 # The interval is counted in uncompressed bytes, so for compressed SSTables
 # (the default) an fsync fires after fewer bytes than this reach the disk.
 # Min unit: KiB

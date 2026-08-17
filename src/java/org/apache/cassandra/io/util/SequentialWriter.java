@@ -62,7 +62,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
     // whether to do trickling fsync() to avoid sudden bursts of dirty buffer flushing by kernel causing read
     // latency spikes
     protected final SequentialWriterOption option;
-    private int bytesSinceTrickleFsync = 0;
+    private long bytesSinceTrickleFsync = 0;
 
     protected long lastFlushOffset;
 

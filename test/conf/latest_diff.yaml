@@ -48,8 +48,6 @@ commitlog_disk_access_mode: auto
 
 background_write_disk_access_mode: direct
 
-trickle_fsync: true
-
 sstable:
   selected_format: bti
 
