@@ -32,6 +32,7 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -46,6 +47,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.Tracing;
 import accord.primitives.Unseekables;
 import accord.topology.SelectShards;
 import accord.topology.Topologies;
@@ -86,6 +88,11 @@ import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.OverloadedException;
+<<<<<<< HEAD
+=======
+import org.apache.cassandra.exceptions.RequestFailureException;
+import org.apache.cassandra.exceptions.RequestTimeoutException;
+>>>>>>> 6d9234e582a (testFastModify)
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -3476,6 +3483,59 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                  int actual = (int) result[0][1];
                  assertTrue(actual >= success);
                  assertTrue(actual <= success + unknown);
+             }
+        );
+    }
+
+    @Test
+    public void testFastModify() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH transactional_mode='" + transactionalMode + "'",
+             cluster ->
+             {
+                 ICoordinator coordinator = cluster.coordinator(1);
+                 int rows = 2;
+                 for (int i = 0; i < rows ; ++i)
+                    coordinator.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, ck, v) VALUES (1, " + i + ", 100) USING TIMESTAMP 0", ConsistencyLevel.ALL);
+
+                 ArrayDeque<Future<SimpleQueryResult>> writes = new ArrayDeque<>();
+                 ArrayDeque<Future<SimpleQueryResult>> reads = new ArrayDeque<>();
+                 for (int ii = 0; ii < 10000; ii++)
+                 {
+                     int delta = ThreadLocalRandom.current().nextInt(1, 10);
+                     int addRow = ThreadLocalRandom.current().nextInt(rows);
+                     int subRow = rows == 2 ? 2 - addRow : addRow;
+                     while (subRow == addRow)
+                         subRow = ThreadLocalRandom.current().nextInt(rows);
+
+                     String update = Tracing.safeFormat("BEGIN TRANSACTION\n" +
+                                                        "  UPDATE %s SET v += %s WHERE pk=1 AND ck=%s;\n" +
+                                                        "  UPDATE %s SET v -= %s WHERE pk=1 AND ck=%s;\n" +
+                                                        "COMMIT TRANSACTION",
+                                                        qualifiedAccordTableName, delta, addRow, qualifiedAccordTableName, delta, subRow);
+
+                     String check = "BEGIN TRANSACTION\n" +
+                                    "  SELECT * FROM " + qualifiedAccordTableName + " WHERE pk = 1;\n" +
+                                    "COMMIT TRANSACTION";
+
+                     writes.add(coordinator.asyncExecuteWithResult(update, ConsistencyLevel.ANY));
+                     reads.add(coordinator.asyncExecuteWithResult(check, ConsistencyLevel.ANY));
+                     while (writes.size() + reads.size() > maxConcurrency)
+                     {
+                         try { writes.pollFirst().get(); }
+                         catch (Throwable t) {}
+                         Object[][] result;
+                         try
+                         {
+                             result = reads.pollFirst().get().toObjectArrays();
+                         }
+                         catch (Throwable t) { continue; }
+                         int sum = 0;
+                         for (int i = 0 ; i < rows ; ++i)
+                             sum += (int) result[0][2];
+                         assertEquals(rows * 100, sum);
+                     }
+                 }
              }
         );
     }
