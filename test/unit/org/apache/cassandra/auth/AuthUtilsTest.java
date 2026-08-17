@@ -19,7 +19,6 @@
 package org.apache.cassandra.auth;
 
 import org.junit.Test;
-
 import org.mindrot.jbcrypt.BCrypt;
 
 import static org.assertj.core.api.Assertions.assertThat;
