@@ -51,6 +51,7 @@ public enum RequestFailureReason
     INVALID_ROUTING                         (9),
     COORDINATOR_BEHIND                      (10),
     RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM   (11),
+    TRUNCATE_FAILED                         (12),
     // The following codes have been ported from an external fork, where they were offset explicitly to avoid conflicts.
     INDEX_BUILD_IN_PROGRESS                 (503),
     ;
@@ -95,6 +96,7 @@ public enum RequestFailureReason
         exceptionToReasonMap.put(CoordinatorBehindException.class, COORDINATOR_BEHIND);
         exceptionToReasonMap.put(IndexBuildInProgressException.class, INDEX_BUILD_IN_PROGRESS);
         exceptionToReasonMap.put(RetryOnDifferentSystemException.class, RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM);
+        exceptionToReasonMap.put(TruncateException.class, TRUNCATE_FAILED);
 
         if (exceptionToReasonMap.size() != reasons.length - withoutExceptions.size())
         {
