@@ -107,8 +107,7 @@ public final class AuthConfig
         if (authenticator instanceof PasswordAuthenticator && !(roleManager instanceof CassandraRoleManager))
             throw new ConfigurationException(authenticator.getClass().getName() + " requires " + CassandraRoleManager.class.getName(), false);
 
-        if (!defaultRoleInitializer.supportsRoleManager(roleManager))
-            throw new ConfigurationException(defaultRoleInitializer.getClass().getName() + " does not support " + roleManager.getClass().getName(), false);
+        validateDefaultRoleInitializerSupportsRoleManager(conf.default_role_initializer, defaultRoleInitializer, roleManager);
 
         DatabaseDescriptor.setRoleManager(roleManager);
 
@@ -155,6 +154,16 @@ public final class AuthConfig
         networkAuthorizer.validateConfiguration();
         cidrAuthorizer.validateConfiguration();
         DatabaseDescriptor.getInternodeAuthenticator().validateConfiguration();
+    }
+
+    @VisibleForTesting
+    static void validateDefaultRoleInitializerSupportsRoleManager(ParameterizedClass configuredInitializer,
+                                                                  IDefaultRoleInitializer defaultRoleInitializer,
+                                                                  IRoleManager roleManager)
+    {
+        boolean explicitlyConfigured = configuredInitializer != null && configuredInitializer.class_name != null;
+        if (explicitlyConfigured && !defaultRoleInitializer.supportsRoleManager(roleManager))
+            throw new ConfigurationException(defaultRoleInitializer.getClass().getName() + " does not support " + roleManager.getClass().getName(), false);
     }
 
     private static <T> T authInstantiate(ParameterizedClass authCls, Class<T> expectedType, Class<? extends T> defaultCls)

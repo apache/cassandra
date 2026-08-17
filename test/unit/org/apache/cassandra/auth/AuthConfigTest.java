@@ -193,6 +193,42 @@ public class AuthConfigTest
             .hasMessageContaining("creates a role with no password");
     }
 
+    @Test
+    public void testDefaultRoleInitializerSupportEnforcedOnlyWhenExplicitlyConfigured()
+    {
+        baseConfig();
+        IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
+        assertNotNull(roleManager);
+        ParameterizedClass configured = new ParameterizedClass("SomeInitializer", Collections.emptyMap());
+
+        // Explicitly configured + unsupported role manager -> rejected (the guard is still active).
+        assertThatThrownBy(() -> AuthConfig.validateDefaultRoleInitializerSupportsRoleManager(configured, new FixedSupportInitializer(false), roleManager))
+            .isInstanceOf(ConfigurationException.class)
+            .hasMessageContaining("does not support");
+
+        AuthConfig.validateDefaultRoleInitializerSupportsRoleManager(null, new FixedSupportInitializer(false), roleManager);
+
+        AuthConfig.validateDefaultRoleInitializerSupportsRoleManager(configured, new FixedSupportInitializer(true), roleManager);
+    }
+
+    /** IDefaultRoleInitializer whose role-manager support is fixed at construction, for exercising the guard. */
+    private static class FixedSupportInitializer implements IDefaultRoleInitializer
+    {
+        private final boolean supports;
+
+        FixedSupportInitializer(boolean supports)
+        {
+            this.supports = supports;
+        }
+
+        public void createDefaultRole() {}
+        public String defaultRoleName() { return "test"; }
+        public void validateConfiguration() {}
+        public void initializeDefaultRoleIfNeeded() {}
+        public boolean hasExistingRoles() { return false; }
+        public boolean supportsRoleManager(IRoleManager manager) { return supports; }
+    }
+
     private static final String PROBE = ClassLoadingTestNonAssignable.class.getName();
 
     private static Config baseConfig()
