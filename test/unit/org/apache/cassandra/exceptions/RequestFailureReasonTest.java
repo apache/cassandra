@@ -41,6 +41,7 @@ public class RequestFailureReasonTest
     { 9, "INVALID_ROUTING" },
     { 10, "COORDINATOR_BEHIND" },
     { 11, "RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM" },
+    { 12, "TRUNCATE_FAILED" },
     { 503, "INDEX_BUILD_IN_PROGRESS" },
     };
 
