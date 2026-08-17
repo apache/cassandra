@@ -166,6 +166,35 @@ public class RolesTest
     }
 
     @Test
+    public void consistencyForRoleToleratesUnsetRoleManager()
+    {
+        IRoleManager previousRoleManager = DatabaseDescriptor.getRoleManager();
+        IDefaultRoleInitializer previousInitializer = DatabaseDescriptor.getDefaultRoleInitializer();
+        try
+        {
+            // Before auth setup runs, both the role manager and the initializer can be unset. consistencyForRole*
+            // must not NPE: it falls back to the historical default role name (see AuthUtils#defaultRoleName).
+            DatabaseDescriptor.setRoleManager(null);
+            DatabaseDescriptor.setDefaultRoleInitializer(null);
+
+            Assert.assertEquals(AuthUtils.DEFAULT_SUPERUSER_CONSISTENCY_LEVEL,
+                                AuthUtils.consistencyForRoleWrite(PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME));
+            Assert.assertEquals(AuthUtils.DEFAULT_SUPERUSER_CONSISTENCY_LEVEL,
+                                AuthUtils.consistencyForRoleRead(PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME));
+
+            Assert.assertEquals(DatabaseDescriptor.getAuthWriteConsistencyLevel(),
+                                AuthUtils.consistencyForRoleWrite("non-privileged"));
+            Assert.assertEquals(DatabaseDescriptor.getAuthReadConsistencyLevel(),
+                                AuthUtils.consistencyForRoleRead("non-privileged"));
+        }
+        finally
+        {
+            DatabaseDescriptor.setRoleManager(previousRoleManager);
+            DatabaseDescriptor.setDefaultRoleInitializer(previousInitializer);
+        }
+    }
+
+    @Test
     public void testSuperUsers()
     {
         Assert.assertEquals(new HashSet<>(Arrays.asList("testSuperuser", "role_b_1", "role_b_2")),

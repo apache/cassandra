@@ -39,13 +39,14 @@ public abstract class AbstractDefaultRoleInitializer implements IDefaultRoleInit
         if (ClusterMetadata.current().tokenMap.tokens().isEmpty())
             throw new IllegalStateException(getClass().getSimpleName() + " skipped role setup: no known tokens in the ring");
 
-        try {
+        try
+        {
             if (!hasExistingRoles())
                 createDefaultRole();
-
-        } catch (RequestExecutionException e)
+        }
+        catch (RequestExecutionException e)
         {
-            logger.warn(getClass().getSimpleName() + " skipped default role setup: some nodes were not ready");
+            logger.warn("{} skipped default role setup: some nodes were not ready", getClass().getSimpleName());
             throw e;
         }
     }

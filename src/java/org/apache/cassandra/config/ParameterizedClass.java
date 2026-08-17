@@ -32,7 +32,6 @@ import com.google.common.base.Objects;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.Shared;
 
-import static java.util.stream.Collectors.toMap;
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
@@ -178,12 +177,9 @@ public class ParameterizedClass
         }
         else
         {
-            Map<String, String> sanitizedMap = parameters.entrySet()
-                                                         .stream()
-                                                         .collect(toMap(Entry::getKey,
-                                                                        e -> isSensitive(e.getKey()) ? "<REDACTED>" : e.getValue(),
-                                                                        (a, b) -> a,
-                                                                        TreeMap::new));
+            Map<String, String> sanitizedMap = new TreeMap<>();
+            for (Entry<String, String> entry : parameters.entrySet())
+                sanitizedMap.put(entry.getKey(), isSensitive(entry.getKey()) ? "<REDACTED>" : entry.getValue());
             return class_name + sanitizedMap;
         }
     }

@@ -131,6 +131,7 @@ public class MutualTlsDefaultRoleInitializerTest extends TestBaseImpl
             UntypedResultSet result = QueryProcessor.executeInternal(
                 String.format("SELECT is_superuser, can_login, salted_hash FROM %s.%s WHERE role = '%s'",
                               SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES, TEST_ROLE));
+            Assert.assertNotNull(result);
             if (result.isEmpty())
                 return null;
             UntypedResultSet.Row row = result.one();

@@ -26,6 +26,7 @@ import com.datastax.driver.core.Session;
 import com.datastax.driver.core.policies.LoadBalancingPolicy;
 
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -81,6 +82,7 @@ public class PasswordDefaultRoleInitializerTest extends TestBaseImpl
             UntypedResultSet result = QueryProcessor.executeInternal(
                 String.format("SELECT is_superuser, can_login, salted_hash FROM %s.%s WHERE role = '%s'",
                               SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES, DEFAULT_SUPERUSER_NAME));
+            Assert.assertNotNull(result);
             if (result.isEmpty())
                 return null;
             UntypedResultSet.Row row = result.one();

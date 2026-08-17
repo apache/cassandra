@@ -24,6 +24,8 @@ import org.mindrot.jbcrypt.BCrypt;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 
+import static org.apache.cassandra.auth.PasswordDefaultRoleInitializer.DEFAULT_SUPERUSER_NAME;
+
 public class AuthUtils
 {
     static final ConsistencyLevel DEFAULT_SUPERUSER_CONSISTENCY_LEVEL = ConsistencyLevel.QUORUM;
@@ -51,11 +53,20 @@ public class AuthUtils
     /** Allows selective overriding of the consistency level for specific roles. */
     public static ConsistencyLevel consistencyForRoleWrite(String role)
     {
-        return role.equals(DatabaseDescriptor.getRoleManager().defaultRoleInitializer().defaultRoleName()) ? DEFAULT_SUPERUSER_CONSISTENCY_LEVEL : CassandraAuthorizer.authWriteConsistencyLevel();
+        return defaultRoleName().equals(role) ? DEFAULT_SUPERUSER_CONSISTENCY_LEVEL : CassandraAuthorizer.authWriteConsistencyLevel();
     }
 
     public static ConsistencyLevel consistencyForRoleRead(String role)
     {
-        return role.equals(DatabaseDescriptor.getRoleManager().defaultRoleInitializer().defaultRoleName()) ? DEFAULT_SUPERUSER_CONSISTENCY_LEVEL : CassandraAuthorizer.authReadConsistencyLevel();
+        return defaultRoleName().equals(role) ? DEFAULT_SUPERUSER_CONSISTENCY_LEVEL : CassandraAuthorizer.authReadConsistencyLevel();
+    }
+
+    private static String defaultRoleName()
+    {
+        IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
+        IDefaultRoleInitializer initializer = roleManager != null
+                                              ? roleManager.defaultRoleInitializer()
+                                              : DatabaseDescriptor.getDefaultRoleInitializer();
+        return initializer != null ? initializer.defaultRoleName() : DEFAULT_SUPERUSER_NAME;
     }
 }

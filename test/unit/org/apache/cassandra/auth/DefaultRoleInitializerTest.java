@@ -69,6 +69,14 @@ public class DefaultRoleInitializerTest
     }
 
     @Test
+    public void passwordInitializerRejectsBothPasswordAndHash()
+    {
+        assertThatThrownBy(() -> new PasswordDefaultRoleInitializer(Map.of("password", "x", "password_hash", "$2a$04$abc")).validateConfiguration())
+            .isInstanceOf(ConfigurationException.class)
+            .hasMessageContaining("Only one of password, password_hash can be specified.");
+    }
+
+    @Test
     public void passwordInitializerDefaultRoleNameMatchesConfiguredRole()
     {
         PasswordDefaultRoleInitializer initializer = new PasswordDefaultRoleInitializer(Map.of("role", "myrole", "password", "x"));

@@ -218,6 +218,16 @@ public class ParameterizedClassTest
     }
 
     @Test
+    public void testToStringRendersNonSensitiveNullValueWithoutThrowing()
+    {
+        Map<String, String> params = new HashMap<>();
+        params.put("identity", null);
+        ParameterizedClass pc = new ParameterizedClass("Foo", params);
+        // A non-sensitive key with a null value must render as key=null
+        assertThat(pc.toString()).isEqualTo("Foo{identity=null}");
+    }
+
+    @Test
     public void testIsSensitiveMatchesPasswordAndHashCaseInsensitively()
     {
         ParameterizedClass pc = new ParameterizedClass("Foo");

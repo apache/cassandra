@@ -78,9 +78,10 @@ public class PasswordDefaultRoleInitializer extends AbstractDefaultRoleInitializ
 
         role = parameters.getOrDefault(ROLE, DEFAULT_SUPERUSER_NAME);
         passwordHash = parameters.get(PASSWORD_HASH);
-        password = passwordHash == null
-                   ? parameters.getOrDefault(PASSWORD, DEFAULT_SUPERUSER_PASSWORD)
-                   : null;
+        String configuredPassword = parameters.get(PASSWORD);
+        password = (configuredPassword == null && passwordHash == null)
+                   ? DEFAULT_SUPERUSER_PASSWORD
+                   : configuredPassword;
     }
 
     @Override
