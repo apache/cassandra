@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.assertj.core.api.Assertions;
 import org.junit.Assume;
 import org.junit.Test;
 
@@ -54,6 +55,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
+import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -370,6 +373,115 @@ public class CancelCompactionsTest extends CQLTester
     Token token(long t)
     {
         return new Murmur3Partitioner.LongToken(t);
+    }
+
+    private CompactionInfo.Holder p0Holder(ColumnFamilyStore cfs)
+    {
+        return new CompactionInfo.Holder()
+        {
+            public CompactionInfo getCompactionInfo()
+            {
+                return new CompactionInfo(cfs.metadata(), OperationType.P0, 0, 100, 100, nextTimeUUID(), Collections.emptySet());
+            }
+
+            public boolean isGlobal()
+            {
+                return false;
+            }
+        };
+    }
+
+    @Test
+    public void testForceCompactionThrowsWhenCompactionsCannotBeDisabled()
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        createSSTables(cfs, 3, 0);
+
+        // Register a P0-priority compaction holder for this table to force runWithCompactionsDisabled
+        // to return null
+        CompactionInfo.Holder holder = p0Holder(cfs);
+        CompactionManager.instance.active.beginCompaction(holder);
+        try
+        {
+            Range<Token> allData = new Range<>(cfs.getPartitioner().getMinimumToken(), cfs.getPartitioner().getMaximumToken());
+
+            // forceCompaction should fail at the null runWithCompactionsDisabled result
+            Assertions.assertThatThrownBy(() -> cfs.forceCompactionForTokenRange(Collections.singleton(allData)))
+                      .as("Unable to cancel in-progress compactions. Usually retrying will work")
+                      .isInstanceOf(RuntimeException.class);
+        }
+        finally
+        {
+            CompactionManager.instance.active.finishCompaction(holder);
+        }
+    }
+
+    @Test
+    public void testGarbageCollectReturnsUnableToCancelWhenCompactionsCannotBeDisabled() throws Throwable
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        createSSTables(cfs, 3, 0);
+
+        // Register a P0-priority compaction holder for this table to force runWithCompactionsDisabled
+        // to return null immediately.
+        CompactionInfo.Holder holder = p0Holder(cfs);
+        CompactionManager.instance.active.beginCompaction(holder);
+        try
+        {
+            // garbageCollect goes through withAllSSTables, which must be able to pass a null
+            // LifecycleTransaction to its caller-supplied op without NPEing.
+            assertEquals(CompactionManager.AllSSTableOpStatus.UNABLE_TO_CANCEL, cfs.garbageCollect(TombstoneOption.ROW, 0));
+        }
+        finally
+        {
+            CompactionManager.instance.active.finishCompaction(holder);
+        }
+    }
+
+    @Test
+    public void testReleaseRepairDataReturnsUnsuccessfulWhenCompactionsCannotBeDisabled()
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        createSSTables(cfs, 3, 0);
+
+        Set<TimeUUID> sessions = ImmutableSet.of(nextTimeUUID(), nextTimeUUID());
+
+        // Register a P0-priority compaction holder for this table to force runWithCompactionsDisabled
+        // to return null immediately.
+        CompactionInfo.Holder holder = p0Holder(cfs);
+        CompactionManager.instance.active.beginCompaction(holder);
+        try
+        {
+            // force release should report the sessions as unsuccessful rather than throwing
+            CleanupSummary summary = cfs.releaseRepairData(sessions, true);
+            assertTrue(summary.successful.isEmpty());
+            assertEquals(sessions, summary.unsuccessful);
+        }
+        finally
+        {
+            CompactionManager.instance.active.finishCompaction(holder);
+        }
+    }
+
+    @Test
+    public void testSubmitMaximalNoOpsWhenCompactionsCannotBeDisabled()
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        createSSTables(cfs, 3, 0);
+
+        // Register a P0-priority compaction holder for this table to force runWithCompactionsDisabled
+        // to return null immediately.
+        CompactionInfo.Holder holder = p0Holder(cfs);
+        CompactionManager.instance.active.beginCompaction(holder);
+        try
+        {
+            // submitMaximal should no-op on null getMaximalTasks result
+            assertTrue(CompactionManager.instance.submitMaximal(cfs, -1, false).isEmpty());
+        }
+        finally
+        {
+            CompactionManager.instance.active.finishCompaction(holder);
+        }
     }
 
     private List<SSTableReader> createSSTables(ColumnFamilyStore cfs, int count, int startGeneration)
