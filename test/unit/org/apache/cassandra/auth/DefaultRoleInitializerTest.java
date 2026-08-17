@@ -19,6 +19,7 @@
 package org.apache.cassandra.auth;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.Test;
@@ -120,5 +121,18 @@ public class DefaultRoleInitializerTest
     {
         MutualTlsDefaultRoleInitializer initializer = new MutualTlsDefaultRoleInitializer(Map.of("role", "cassandra", "identity", "spiffe1"));
         assertThat(initializer.defaultRoleName()).isEqualTo("cassandra");
+    }
+
+    @Test
+    public void mutualTlsWritesIdentityMappingBeforeRole()
+    {
+        MutualTlsDefaultRoleInitializer initializer = new MutualTlsDefaultRoleInitializer(Map.of("role", "cassandra", "identity", "spiffe1"));
+        List<String> statements = initializer.defaultRoleStatements();
+
+        // The identity mapping must be written before the role row. hasExistingRoles() gates on the role, so writing
+        // it last means a retry after a partial write re-drives both idempotent statements and heals the mapping.
+        assertThat(statements).hasSize(2);
+        assertThat(statements.get(0)).contains(AuthKeyspace.IDENTITY_TO_ROLES).contains("(identity, role)");
+        assertThat(statements.get(1)).contains("(role, is_superuser, can_login)");
     }
 }

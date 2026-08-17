@@ -18,9 +18,11 @@
 
 package org.apache.cassandra.auth;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 
 import org.slf4j.Logger;
@@ -60,22 +62,32 @@ public class MutualTlsDefaultRoleInitializer extends AbstractDefaultRoleInitiali
     @Override
     public void createDefaultRole()
     {
-        QueryProcessor.process(String.format("INSERT INTO %s.%s (role, is_superuser, can_login) " +
-                                             "VALUES ('%s', true, true) USING TIMESTAMP 0",
-                                             SchemaConstants.AUTH_KEYSPACE_NAME,
-                                             AuthKeyspace.ROLES,
-                                             escapeCqlLiteral(role)),
-                               consistencyForRoleWrite(role));
-
-        QueryProcessor.process(String.format("INSERT INTO %s.%s (identity, role) " +
-                                             "VALUES ('%s', '%s') USING TIMESTAMP 0",
-                                             SchemaConstants.AUTH_KEYSPACE_NAME,
-                                             AuthKeyspace.IDENTITY_TO_ROLES,
-                                             escapeCqlLiteral(identity),
-                                             escapeCqlLiteral(role)),
-                               consistencyForRoleWrite(role));
+        for (String cql : defaultRoleStatements())
+            QueryProcessor.process(cql, consistencyForRoleWrite(role));
 
         logger.info("Created passwordless default superuser role '{}' with mapped identity '{}'", role, identity);
+    }
+
+    /**
+     * The statements {@link #createDefaultRole()} runs, in execution order. The role row is written LAST because
+     * {@link #hasExistingRoles()} gates on it: if a write fails after the identity mapping but before the role, the
+     * retry sees no role, re-runs both idempotent ({@code USING TIMESTAMP 0}) statements and heals the mapping. Were
+     * the role written first, a failure before the mapping would leave the gate satisfied and the mapping never written.
+     */
+    @VisibleForTesting
+    List<String> defaultRoleStatements()
+    {
+        return List.of(String.format("INSERT INTO %s.%s (identity, role) " +
+                                     "VALUES ('%s', '%s') USING TIMESTAMP 0",
+                                     SchemaConstants.AUTH_KEYSPACE_NAME,
+                                     AuthKeyspace.IDENTITY_TO_ROLES,
+                                     escapeCqlLiteral(identity),
+                                     escapeCqlLiteral(role)),
+                       String.format("INSERT INTO %s.%s (role, is_superuser, can_login) " +
+                                     "VALUES ('%s', true, true) USING TIMESTAMP 0",
+                                     SchemaConstants.AUTH_KEYSPACE_NAME,
+                                     AuthKeyspace.ROLES,
+                                     escapeCqlLiteral(role)));
     }
 
     @Override
