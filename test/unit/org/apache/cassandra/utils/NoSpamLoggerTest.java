@@ -32,9 +32,11 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.helpers.SubstituteLogger;
 
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.utils.NoSpamLogger.Level;
 import org.apache.cassandra.utils.NoSpamLogger.NoSpamLogStatement;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -324,8 +326,8 @@ public class NoSpamLoggerTest
     public void testNoSpamLogStatementCacheBounded()
     {
         int maxStatementsPerLogger = 10;
-        System.setProperty("cassandra.nospam_logger.max_statements_per_logger", String.valueOf(maxStatementsPerLogger));
-        try
+        try (WithProperties properties = new WithProperties().set(NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER,
+                                                                  (long) maxStatementsPerLogger))
         {
             NoSpamLogger.clearWrappedLoggersForTest();
             now = 5;
@@ -351,7 +353,6 @@ public class NoSpamLoggerTest
         }
         finally
         {
-            System.clearProperty("cassandra.nospam_logger.max_statements_per_logger");
             NoSpamLogger.clearWrappedLoggersForTest();
         }
     }
