@@ -112,6 +112,9 @@ public class CoordinatorWarnings
 
             recordAborts(merged.indexReadSSTablesCount, cql, loggableTokens, cfs.metric.tooManySSTableIndexesReadAborts, WarningsSnapshot::tooManyIndexesReadAbortMessage);
             recordWarnings(merged.indexReadSSTablesCount, cql, loggableTokens, cfs.metric.tooManySSTableIndexesReadWarnings, WarningsSnapshot::tooManyIndexesReadWarnMessage);
+
+            recordAborts(merged.sstablesPerRead, cql, loggableTokens, cfs.metric.sstablesPerReadAborts, WarningsSnapshot::tooManySSTablesReadAbortMessage);
+            recordWarnings(merged.sstablesPerRead, cql, loggableTokens, cfs.metric.sstablesPerReadWarnings, WarningsSnapshot::tooManySSTablesReadWarnMessage);
         });
     }
 

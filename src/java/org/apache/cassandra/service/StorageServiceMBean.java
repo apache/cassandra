@@ -1059,9 +1059,13 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Returns the cluster partitioner */
     public String getPartitionerName();
 
-    /** Returns the threshold for logging queries that read more than threshold amount of SSTables */
+    /** Returns the threshold for logging queries that read more than threshold amount of SSTables
+     * @deprecated See CASSANDRA-21478; superseded by the {@code sstables_per_read} guardrail. */
+    @Deprecated(since = "7.0")
     public int getSSTablesPerReadLogThreshold();
-    /** Sets the threshold for logging queries that read more than threshold amount of SSTables */
+    /** Sets the threshold for logging queries that read more than threshold amount of SSTables
+     * @deprecated See CASSANDRA-21478; superseded by the {@code sstables_per_read} guardrail. */
+    @Deprecated(since = "7.0")
     public void setSSTablesPerReadLogThreshold(int threshold);
 
     /** Returns the threshold for warning of queries with many tombstones */

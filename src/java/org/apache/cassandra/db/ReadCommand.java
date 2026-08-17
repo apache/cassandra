@@ -54,6 +54,8 @@ import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.LocalReadSizeTooLargeException;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
+import org.apache.cassandra.db.filter.TooManySSTablesReadException;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.partitions.PurgeFunction;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
@@ -759,6 +761,53 @@ public abstract class ReadCommand extends AbstractReadQuery
         return trackWarnings
                && !SchemaConstants.isSystemKeyspace(metadata().keyspace)
                && !(warnThresholdBytes == null && abortThresholdBytes == null);
+    }
+
+    protected SSTablesPerReadGuardrail sstablesPerReadGuardrail()
+    {
+        return new SSTablesPerReadGuardrail();
+    }
+
+    /**
+     * Per-read snapshot of the {@code sstables_per_read} guardrail. The warn/fail thresholds and the
+     * client-read gate are captured once, so a threshold change during the read is ignored until the
+     * next read (matching {@code local_read_size}). Limited to client reads on user tables, like
+     * {@link #shouldTrackSize}.
+     */
+    protected final class SSTablesPerReadGuardrail
+    {
+        private final boolean applies = trackWarnings && !SchemaConstants.isSystemKeyspace(metadata().keyspace);
+        private final int warnThreshold = Guardrails.CONFIG_PROVIDER.getOrCreate(null).getSSTablesPerReadWarnThreshold();
+        private final int failThreshold = Guardrails.CONFIG_PROVIDER.getOrCreate(null).getSSTablesPerReadFailThreshold();
+
+        boolean fails(int sstables)
+        {
+            return applies && failThreshold > 0 && sstables > failThreshold;
+        }
+
+        /**
+         * Aborts the local read on the replica when a client read exceeds the fail threshold, reporting
+         * the abort to the coordinator via {@link MessageParams}.
+         */
+        void failIf(int sstables)
+        {
+            if (fails(sstables))
+            {
+                String msg = String.format("Query %s attempted to read from %d SSTables in a single local read, " +
+                                           "but max allowed is %s; query aborted (see sstables_per_read_fail_threshold)",
+                                           toCQLString(), sstables, failThreshold);
+                Tracing.trace(msg);
+                MessageParams.remove(ParamType.TOO_MANY_SSTABLES_WARN);
+                MessageParams.add(ParamType.TOO_MANY_SSTABLES_FAIL, sstables);
+                throw new TooManySSTablesReadException(msg);
+            }
+        }
+
+        void warnIf(int sstables)
+        {
+            if (applies && warnThreshold > 0 && sstables > warnThreshold && !fails(sstables))
+                MessageParams.add(ParamType.TOO_MANY_SSTABLES_WARN, sstables);
+        }
     }
 
     private UnfilteredPartitionIterator withQuerySizeTracking(UnfilteredPartitionIterator iterator)

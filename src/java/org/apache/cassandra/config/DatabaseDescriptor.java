@@ -3370,14 +3370,18 @@ public class DatabaseDescriptor
         return conf.max_mutation_size.toBytes();
     }
 
+    /** @deprecated See CASSANDRA-21478 */
+    @Deprecated(since = "7.0")
     public static int getSSTablesPerReadLogThreshold()
     {
-        return conf.sstables_per_read_log_threshold;
+        return conf.sstables_per_read_warn_threshold;
     }
 
+    /** @deprecated See CASSANDRA-21478 */
+    @Deprecated(since = "7.0")
     public static void setSSTablesPerReadLogThreshold(int threshold)
     {
-        conf.sstables_per_read_log_threshold = threshold;
+        conf.sstables_per_read_warn_threshold = threshold;
     }
 
     public static int getTombstoneWarnThreshold()

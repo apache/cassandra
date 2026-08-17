@@ -252,6 +252,7 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     "sai_string_term_size_threshold               [8KiB, 1KiB]  \n" +
     "sai_vector_term_size_threshold               [32KiB, 16KiB]\n" +
     "secondary_indexes_per_table_threshold        [-1, -1]      \n" +
+    "sstables_per_read_threshold                  [-1, 100]     \n" +
     "tables_threshold                             [-1, -1]      \n" +
     "vector_dimensions_threshold                  [-1, -1]      \n";
 
@@ -314,6 +315,8 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     "sai_vector_term_size_warn_threshold               16KiB\n" +
     "secondary_indexes_per_table_fail_threshold        -1   \n" +
     "secondary_indexes_per_table_warn_threshold        -1   \n" +
+    "sstables_per_read_fail_threshold                  -1   \n" +
+    "sstables_per_read_warn_threshold                  100  \n" +
     "tables_fail_threshold                             -1   \n" +
     "tables_warn_threshold                             -1   \n" +
     "vector_dimensions_fail_threshold                  -1   \n" +

@@ -415,6 +415,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                 inputCollector.addMemtableIterator(RTBoundValidator.validate(iter, RTBoundValidator.Stage.MEMTABLE, false));
             }
 
+            SSTablesPerReadGuardrail sstablesPerReadGuardrail = sstablesPerReadGuardrail();
             int selectedSSTablesCnt = 0;
             for (SSTableReader sstable : view.sstables)
             {
@@ -425,19 +426,24 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                 if (!intersects && !hasPartitionLevelDeletions && !hasRequiredStatics)
                     continue;
 
+                // abort (client reads only) before opening this SSTable's scanner, so a pathological
+                // fan-out is stopped before opening the remaining SSTables
+                selectedSSTablesCnt++;
+                sstablesPerReadGuardrail.failIf(selectedSSTablesCnt);
+
                 UnfilteredPartitionIterator iter = sstable.partitionIterator(columnFilter(), dataRange(), readCountUpdater);
                 inputCollector.addSSTableIterator(sstable, RTBoundValidator.validate(iter, RTBoundValidator.Stage.SSTABLE, false));
 
                 if (!sstable.isRepaired())
                     controller.updateMinOldestUnrepairedTombstone(sstable.getMinLocalDeletionTime());
-
-                selectedSSTablesCnt++;
             }
 
             final int finalSelectedSSTables = selectedSSTablesCnt;
 
             if (finalSelectedSSTables > DatabaseDescriptor.getSSTablesPerReadLogThreshold())
                 noSpamLogger.info("The following query '{}' has read {} SSTables.", this.toCQLString(), finalSelectedSSTables);
+
+            sstablesPerReadGuardrail.warnIf(finalSelectedSSTables);
 
             // iterators can be empty for offline tools
             if (inputCollector.isEmpty())

@@ -90,14 +90,34 @@ New features
       deployments that authenticate over mutual TLS. PasswordDefaultRoleInitializer
       remains the default and produces the historical behaviour. See CASSANDRA-21546
       for more information.
+    - A new read threshold, sstables_per_read_warn_threshold / sstables_per_read_fail_threshold,
+      bounds the number of SSTables touched by a single local read on a replica. Like the existing
+      read-size thresholds, it is surfaced through the read-warnings framework (read_thresholds_enabled):
+      a client read that touches more than the warn threshold emits a client warning, and one that
+      exceeds the fail threshold is aborted before opening the remaining SSTables, protecting the node
+      from an exorbitantly expensive local read. See CASSANDRA-21478.
 
 Upgrading
 ---------
 
     - trickle_fsync is by default set to "true" instead of "false" in cassandra.yaml (see CASSANDRA-21572)
+    - sstables_per_read_log_threshold and its StorageServiceMBean JMX methods
+      (get/setSSTablesPerReadLogThreshold) are deprecated in favor of the new sstables_per_read
+      guardrail but keep working - the yaml key now maps to sstables_per_read_warn_threshold
+      (default 100), and the "The following query ... has read N SSTables" diagnostic log is retained
+      for all reads. Rename the key to sstables_per_read_warn_threshold to silence the startup
+      deprecation warning. See CASSANDRA-21478.
 
 Deprecation
 -----------
+
+    - sstables_per_read_log_threshold is deprecated in favor of the sstables_per_read guardrail
+      (sstables_per_read_warn_threshold / sstables_per_read_fail_threshold). See CASSANDRA-21478.
+    - In the JMX MBean `org.apache.cassandra.db:type=StorageService`: deprecate getter method
+      `getSSTablesPerReadLogThreshold` and setter method `setSSTablesPerReadLogThreshold` in favor of
+      the sstables_per_read guardrail on the JMX MBean `org.apache.cassandra.db:type=Guardrails`
+      (`getSSTablesPerReadWarnThreshold`, `getSSTablesPerReadFailThreshold`, `setSSTablesPerReadThreshold`).
+      See CASSANDRA-21478.
 
 
 6.0

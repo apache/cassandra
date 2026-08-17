@@ -3,6 +3,7 @@
  * Add prepared statement cache stats to nodetool info (CASSANDRA-14366)
  * Don't increment client metrics on messaging service connection unpause (CASSANDRA-21491)
  * Add nodetool getreplicas (CASSANDRA-17665)
+ * Add a guardrail for the number of SSTables touched per read (CASSANDRA-21478)
  * Implementation of CEP-49: Hardware-accelerated compression (CASSANDRA-20975)
  * Avoid using ObjectUtils.getFirstNonNull in Schema (CASSANDRA-21394)
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)

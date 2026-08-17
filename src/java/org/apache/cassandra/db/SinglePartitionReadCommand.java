@@ -907,12 +907,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
             List<UnfilteredRowIterator> iterators = inputCollector.finalizeIterators(cfs, nowInSec(), controller.oldestUnrepairedTombstone());
 
-            UnfilteredRowIterator result = withSSTablesIterated(iterators, cfs.metric, metricsCollector);
-
-            if (metricsCollector.getMergedSSTables() > DatabaseDescriptor.getSSTablesPerReadLogThreshold())
-                noSpamLogger.info("The following query '{}' has read {} SSTables.", this.toCQLString(), metricsCollector.getMergedSSTables());
-
-            return result;
+            return withSSTablesIterated(iterators, cfs.metric, metricsCollector);
         }
         catch (RuntimeException | Error e)
         {
@@ -999,6 +994,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                int mergedSSTablesIterated = metricsCollector.getMergedSSTables();
                metrics.updateSSTableIterated(mergedSSTablesIterated);
                Tracing.trace("Merged data from memtables and {} sstables", mergedSSTablesIterated);
+               metricsCollector.maybeLogSSTablesRead();
+               metricsCollector.guardrail.warnIf(mergedSSTablesIterated);
            }
         }
         return Transformation.apply(merged, new UpdateSstablesIterated());
@@ -1123,8 +1120,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
         cfs.metric.updateSSTableIterated(metricsCollector.getMergedSSTables());
 
-        if (metricsCollector.getMergedSSTables() > DatabaseDescriptor.getSSTablesPerReadLogThreshold())
-            noSpamLogger.info("The following query '{}' has read {} SSTables.", this.toCQLString(), metricsCollector.getMergedSSTables());
+        metricsCollector.maybeLogSSTablesRead();
+        metricsCollector.guardrail.warnIf(metricsCollector.getMergedSSTables());
 
         if (result == null || result.isEmpty())
             return EmptyIterators.unfilteredRow(metadata(), partitionKey(), false);
@@ -1514,7 +1511,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     /**
      * {@code SSTableReaderListener} used to collect metrics about SSTable read access.
      */
-    private static final class SSTableReadMetricsCollector implements SSTableReadsListener
+    private final class SSTableReadMetricsCollector implements SSTableReadsListener
     {
         /**
          * The number of SSTables that need to be merged. This counter is only updated for single partition queries
@@ -1522,11 +1519,23 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
          */
         private int mergedSSTables;
 
+        /** Ensures the diagnostic "has read N SSTables" log is emitted at most once per local read. */
+        private boolean logged;
+
+        private final SSTablesPerReadGuardrail guardrail = sstablesPerReadGuardrail();
+
         @Override
         public void onSSTableSelected(SSTableReader sstable, SelectionReason reason)
         {
             sstable.incrementReadCount();
             mergedSSTables++;
+
+            // log once before aborting, so a failing read still records how many SSTables it touched
+            if (guardrail.fails(mergedSSTables))
+            {
+                maybeLogSSTablesRead();
+                guardrail.failIf(mergedSSTables);
+            }
         }
 
         /**
@@ -1536,6 +1545,19 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         public int getMergedSSTables()
         {
             return mergedSSTables;
+        }
+
+        /**
+         * Emits the diagnostic {@code sstables_per_read} log at most once per local read.
+         */
+        void maybeLogSSTablesRead()
+        {
+            if (!logged && mergedSSTables > DatabaseDescriptor.getSSTablesPerReadLogThreshold())
+            {
+                logged = true;
+                noSpamLogger.info("The following query '{}' has read {} SSTables.",
+                                  SinglePartitionReadCommand.this.toCQLString(), mergedSSTables);
+            }
         }
     }
 

@@ -1034,6 +1034,24 @@ public interface GuardrailsMBean
     void setSaiSSTableIndexesPerQueryThreshold(int warn, int fail);
 
     /**
+     * @return the warning threshold for the number of SSTables touched by a single local read
+     */
+    int getSSTablesPerReadWarnThreshold();
+
+    /**
+     * @return the failure threshold for the number of SSTables touched by a single local read
+     */
+    int getSSTablesPerReadFailThreshold();
+
+    /**
+     * Sets warning and failure thresholds for the number of SSTables touched by a single local read
+     *
+     * @param warn value to set for warn threshold
+     * @param fail value to set for fail threshold
+     */
+    void setSSTablesPerReadThreshold(int warn, int fail);
+
+    /**
      * @return The warning threshold for string terms written to an SAI index, as a human-readable string.
      *         (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}) A {@code null} value means disabled.
      */
