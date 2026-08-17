@@ -37,7 +37,6 @@ import org.junit.Test;
 import accord.api.Key;
 import accord.primitives.Keys;
 import accord.primitives.Ranges;
-import accord.primitives.RoutableKey;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
@@ -273,12 +272,16 @@ public class TxnUpdateTest
                 int expected = count(matchedBranch >= 0 ? input.branches.get(matchedBranch) : null, key)
                                + count(input.trailing, key);
 
-                assertThat(update.completeUpdatesForKey(matched, (RoutableKey) key)).hasSize(expected);
+                List<PartitionUpdate> updates = new ArrayList<>();
+                update.completeUpdatesForKey(updates, matched, key, input.tables);
+                assertThat(updates).hasSize(expected);
 
                 // a slice containing only this key must produce the same updates, and keep all the
                 // conditional blocks that could write to it (plus any no-op branches) in declaration order
                 TxnUpdate single = update.getTxnUpdate(k -> k.overlapping(Keys.of(key)));
-                assertThat(single.completeUpdatesForKey(matched, (RoutableKey) key)).hasSize(expected);
+                updates.clear();
+                single.completeUpdatesForKey(updates, matched, key, input.tables);
+                assertThat(updates).hasSize(expected);
                 for (int i = 0 ; i < update.blocks.size() ; ++i)
                 {
                     Block original = update.blocks.get(i), sliced = single.blocks.get(i);
@@ -311,8 +314,11 @@ public class TxnUpdateTest
             TxnUpdate multi = update.getTxnUpdate(k -> k.overlapping(subset));
             for (Key key : subset)
             {
-                assertThat(multi.completeUpdatesForKey(matched, (RoutableKey) key))
-                    .hasSize(update.completeUpdatesForKey(matched, (RoutableKey) key).size());
+                List<PartitionUpdate> multiUpdates = new ArrayList<>();
+                List<PartitionUpdate> updateUpdates = new ArrayList<>();
+                multi.completeUpdatesForKey(multiUpdates, matched, key, input.tables);
+                update.completeUpdatesForKey(updateUpdates, matched, key, input.tables);
+                assertThat(multiUpdates).hasSize(updateUpdates.size());
             }
             for (Block block : multi.blocks)
                 assertBlockInvariants(block);
