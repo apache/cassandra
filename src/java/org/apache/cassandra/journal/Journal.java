@@ -285,7 +285,8 @@ public class Journal<K, V>
         return state.compareTo(State.OPEN_READABLE) >= 0 && state.compareTo(State.STOPPED_READABLE) <= 0;
     }
 
-    private boolean isNotStopped()
+    // package-private: the compactor checks this under the compaction lock before it starts a compaction
+    boolean isNotStopped()
     {
         State state = this.state;
         return state.compareTo(State.STARTING) >= 0 && state.compareTo(State.STOPPING) <= 0;
@@ -349,6 +350,7 @@ public class Journal<K, V>
         segmentPrepared.signalAll(); // Wake up all threads waiting on the new segment
 
         compactor.shutdown();
+        compactor.awaitQuiescence();
 
         currentSegment.discardUnusedTail();
         flusher.requestExtraFlush();
@@ -369,7 +371,7 @@ public class Journal<K, V>
     {
         logger.info("Closing journal");
         stateUpdater.compareAndSet(this, State.STOPPED_READABLE, State.CLOSING);
-        closeAllSegments();
+        compactor.withoutCompaction(this::closeAllSegments);
         stateUpdater.compareAndSet(this, State.CLOSING, State.CLOSED);
     }
 
@@ -1009,9 +1011,12 @@ public class Journal<K, V>
             while (discarding.selfRef().globalCount() > 0) {}
         }
 
-        Segments<K, V> statics = swapSegments(s -> s.select(Segment::isActive)).select(Segment::isStatic);
-        for (Segment<K, V> segment : statics.all())
-            ((StaticSegment) segment).discard(this);
+        // a compaction reads mmapped segments, and a discarded segment is unmapped (CASSANDRA-21412)
+        compactor.withoutCompaction(() -> {
+            Segments<K, V> statics = swapSegments(s -> s.select(Segment::isActive)).select(Segment::isStatic);
+            for (Segment<K, V> segment : statics.all())
+                ((StaticSegment<K, V>) segment).discard(this);
+        });
     }
 
     public interface Writer
