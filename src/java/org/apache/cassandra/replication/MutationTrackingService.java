@@ -80,11 +80,14 @@ import org.apache.cassandra.repair.SyncTask;
 import org.apache.cassandra.repair.SyncTasks;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.reads.tracked.TrackedLocalReads;
+import org.apache.cassandra.service.replication.migration.KeyspaceMigrationInfo;
+import org.apache.cassandra.service.replication.migration.MutationTrackingMigrationState;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -1185,11 +1188,12 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         if (trackedSSTables.isEmpty())
             return;
 
+        MutationTrackingMigrationState mutationTrackingMigrationState = ClusterMetadata.current().mutationTrackingMigrationState;
         long repairedAt = Clock.Global.currentTimeMillis();
         Map<ColumnFamilyStore, List<SSTableReader>> toPromoteByTable = new HashMap<>();
         for (SSTableReader sstable : trackedSSTables)
         {
-            if (!isDurablyReconciled(sstable.getCoordinatorLogOffsets()))
+            if (!isReconciliationPromotable(mutationTrackingMigrationState, sstable))
                 continue;
 
             ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(sstable.metadata().id);
@@ -1198,6 +1202,9 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
             toPromoteByTable.computeIfAbsent(cfs, ignore -> new ArrayList<>()).add(sstable);
         }
+
+        if (toPromoteByTable.isEmpty())
+            return;
 
         for (Map.Entry<ColumnFamilyStore, List<SSTableReader>> entry : toPromoteByTable.entrySet())
         {
@@ -1215,6 +1222,37 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
                             cfs.getKeyspaceName(), cfs.getTableName(), e);
             }
         }
+    }
+
+    /**
+     * Whether the {@code sstable} is eligible for reconciliation-based promotion to repaired.
+     *
+     * <p>We replicate the guard in {@link org.apache.cassandra.io.sstable.format.SSTableWriter#finalizeMetadata()}
+     * to exclude sstables that have a pending migration.
+     *
+     * <p>During {@code MIGRATE_TO} writes are tracked for all tokens while reads are not. So we exclude
+     * sstables already owned by a pending repair session.
+     * @param state the mutation tracking migration state
+     * @param sstable the sstable to test
+     * @return true if the sstable should be considered for promotion to repaired
+     */
+    private boolean isReconciliationPromotable(MutationTrackingMigrationState state, SSTableReader sstable)
+    {
+        if (sstable.isRepaired() || sstable.isPendingRepair())
+            return false;
+
+        ReplicationType replicationType = sstable.metadata().replicationType();
+        if (replicationType == null || !replicationType.isTracked())
+            return false;
+
+        KeyspaceMigrationInfo migrationInfo = state.getKeyspaceInfo(sstable.metadata().keyspace);
+        boolean inMigrationPendingRange = migrationInfo != null && migrationInfo.isRangeInPendingMigration(sstable.metadata().id,
+                                                                                                           sstable.getFirst().getToken(),
+                                                                                                           sstable.getLast().getToken());
+        if (inMigrationPendingRange)
+            return false;
+
+        return isDurablyReconciled(sstable.getCoordinatorLogOffsets());
     }
 
     private static List<SyncTask> unwrapped(Collection<SyncTask> tasks)
