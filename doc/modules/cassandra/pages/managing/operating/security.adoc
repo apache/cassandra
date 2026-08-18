@@ -216,6 +216,49 @@ information in the tables of the `system_auth` keyspace.
 
 See also the xref:cassandra:developing/cql/security.adoc#database-roles[`CQL documentation on roles`].
 
+[[default-role-initialization]]
+=== Bootstrapping the default role
+
+`IRoleManager` requires an authenticated login, so a freshly started cluster
+with no roles yet has no way to create the first one. This bootstrap step is
+pluggable and is configured by using `default_role_initializer` setting in
+`cassandra.yaml`.
+
+By default, Cassandra uses `PasswordDefaultRoleInitializer`, which creates a
+`cassandra` superuser whose password is also `cassandra` - reproducing
+Cassandra's historical bootstrap behaviour. Because that password is published,
+well-known constant, any deployment relying on this default must rotate or disable
+the `cassandra` role before the native transport is reachable by anyone other than
+the operator performing this setup.
+
+[source,yaml]
+----
+default_role_initializer:
+class_name: MutualTlsDefaultRoleInitializer
+parameters:
+  role: cassandra
+  identity: "spiffe://example.org/cassandra-admin"
+----
+
+This requires an authenticator that supports mutual TLS, such as a `MutualTlsAuthenticator`
+or `MutualTlsWithPasswordFallbackAuthenticator` - Cassandra refuses to start otherwise,
+since the role it would create could never be logged into.
+
+`PasswordDefaultRoleInitializer` also accepts `role`, `password` and `password_hash`
+parameters, to choose a different default role name or avoid the known default password
+entirely.
+
+[source,yaml]
+----
+default_role_initializer:
+class_name: PasswordDefaultRoleInitializer
+parameters:
+  role: cassandra
+  password_hash: "$2a$04$wsvzFamDJPDrTwMjgfcgpO.mKc.CMEuHBFZSjhGz2Ts6.v8PUO2rC"
+----
+
+See `conf/cassandra.yaml` for full list of supported parameters.
+
 == Authentication
 
 Authentication is pluggable in Cassandra and is configured using the

@@ -83,6 +83,13 @@ New features
     - CEP-49 - it is possible to implement custom compression providers, e.g.
       integrating with a specialized hardware which makes de/compression faster.
       See CASSANDRA-20975 for more information.
+    - It is now possible to bootstrap a cluster's initial superuser role without
+      creating the 'cassandra/cassandra' password, by configuring 'default_role_initializer'
+      in cassandra.yaml. The new MutualTlsDefaultRoleInitializer creates the role
+      passwordless and maps a client certificate identity onto it instead, for
+      deployments that authenticate over mutual TLS. PasswordDefaultRoleInitializer
+      remains the default and produces the historical behaviour. See CASSANDRA-21546
+      for more information.
 
 Upgrading
 ---------
