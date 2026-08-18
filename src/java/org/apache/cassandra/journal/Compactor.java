@@ -23,15 +23,19 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public final class Compactor<K, V> implements Runnable, Shutdownable
 {
@@ -42,6 +46,17 @@ public final class Compactor<K, V> implements Runnable, Shutdownable
     private final ScheduledExecutorPlus executor;
     private Future<?> scheduled;
     public final WaitQueue compacted = WaitQueue.newWaitQueue();
+
+    /**
+     * {@link #run()} is single threaded and doesn't hold references to static segments; so this lock
+     * is used to allow places to have confidence they can mutate static segments without impacting
+     * the core compaction logic.
+     *
+     * @see CASSANDRA-21412
+     */
+    private final ReentrantLock compactionLock = new ReentrantLock();
+
+    private volatile boolean isShutdown;
 
     Compactor(Journal<K, V> journal, SegmentCompactor<K, V> segmentCompactor)
     {
@@ -61,6 +76,7 @@ public final class Compactor<K, V> implements Runnable, Shutdownable
         scheduled = executor.scheduleWithFixedDelay(this, period, period, units);
     }
 
+    @VisibleForTesting
     public synchronized void updateCompactionPeriod(int period, TimeUnit units)
     {
         if (!journal.params.enableCompaction())
@@ -74,6 +90,21 @@ public final class Compactor<K, V> implements Runnable, Shutdownable
 
     @Override
     public void run()
+    {
+        compactionLock.lock();
+        try
+        {
+            if (isShutdown || !journal.isNotStopped())
+                return;
+            compact();
+        }
+        finally
+        {
+            compactionLock.unlock();
+        }
+    }
+
+    private void compact()
     {
         List<StaticSegment<K, V>> toCompact = new ArrayList<>();
         journal.segments().selectStatic(toCompact);
@@ -106,6 +137,46 @@ public final class Compactor<K, V> implements Runnable, Shutdownable
         }
     }
 
+    void withoutCompaction(Runnable task)
+    {
+        lockUninterruptibly();
+        try
+        {
+            task.run();
+        }
+        finally
+        {
+            compactionLock.unlock();
+        }
+    }
+
+    void awaitQuiescence()
+    {
+        withoutCompaction(() -> {});
+    }
+
+    private void lockUninterruptibly()
+    {
+        boolean interrupted = false;
+        long startNanos = nanoTime();
+        while (true)
+        {
+            try
+            {
+                if (compactionLock.tryLock(1, TimeUnit.MINUTES))
+                    break;
+                logger.warn("Waited {}s for an in-flight {} compaction to complete",
+                            TimeUnit.NANOSECONDS.toSeconds(nanoTime() - startNanos), journal.name);
+            }
+            catch (InterruptedException e)
+            {
+                interrupted = true;
+            }
+        }
+        if (interrupted)
+            Thread.currentThread().interrupt();
+    }
+
     @Override
     public boolean isTerminated()
     {
@@ -113,9 +184,10 @@ public final class Compactor<K, V> implements Runnable, Shutdownable
     }
 
     @Override
-    public void shutdown()
+    public synchronized void shutdown()
     {
         logger.debug("Shutting down " + executor);
+        isShutdown = true;
         if (scheduled != null)
             scheduled.cancel(false);
         executor.shutdown();
