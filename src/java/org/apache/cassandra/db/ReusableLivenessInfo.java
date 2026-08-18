@@ -43,10 +43,16 @@ public class ReusableLivenessInfo implements LivenessInfo
         return localExpirationTime;
     }
 
+    /**
+     * "Has a TTL", as specified by {@link LivenessInfo#isExpiring()} and implemented by every other
+     * liveness type ({@link LivenessInfo.ExpiringLivenessInfo}, {@link org.apache.cassandra.db.rows.AbstractCell#isExpiring()}).
+     * Note this is NOT "has an expiration time": cell liveness held here can be a tombstone, which
+     * carries a local deletion time with no TTL.
+     */
     @Override
     public boolean isExpiring()
     {
-        return localExpirationTime != NO_EXPIRATION_TIME;
+        return ttl != NO_TTL;
     }
 
     @Override
@@ -56,29 +62,28 @@ public class ReusableLivenessInfo implements LivenessInfo
     }
 
     /**
-     * {@link org.apache.cassandra.db.rows.AbstractCell#isTombstone()}
+     * The ROW contract, matching the row references: empty liveness is not live
+     * ({@link LivenessInfo#EMPTY}, whose {@code isLive} is {@code !isEmpty()}), an
+     * {@link #EXPIRED_LIVENESS_TTL} marker is never live ({@link LivenessInfo.ExpiredLivenessInfo}), and
+     * otherwise an expiring liveness is live until its expiration second.
+     *
+     * It differs from the cell contract on three inputs, which is why cell liveness has its own type;
+     * {@code ReusableCellLivenessInfo} carries that reading.
+     *
+     * The old code here read the CELL contract instead, treating an {@code EXPIRED_LIVENESS_TTL} marker
+     * (view maintenance's PK-shadow tombstone) as live until its expiration second rather than never. The
+     * flip is inert on this branch: the marker's {@code localExpirationTime} is stamped with
+     * {@code nowInSec} when the view mutation is applied, and compaction only observes the row after that
+     * mutation has been applied and flushed, so compaction-time {@code nowInSec} is never less than the
+     * stamped one — the old read could never actually return {@code true} for it either. Exercised by
+     * {@code MaterializedViewDifferentialCompactionTest}.
      */
-    public boolean isTombstone()
-    {
-        return localExpirationTime != NO_EXPIRATION_TIME && ttl == NO_TTL;
-    }
-
     @Override
     public boolean isLive(long nowInSec)
     {
-        return localExpirationTime == NO_EXPIRATION_TIME || ttl != NO_TTL && !isExpired(nowInSec);
-    }
-
-    public boolean isExpired(long nowInSec)
-    {
-        return nowInSec >= localExpirationTime;
-    }
-
-    public void ttlToTombstone()
-    {
-        // LET/LDT is now the time the TTL would have expired
-        localExpirationTime = localExpirationTime - ttl;
-        ttl = NO_TTL;
+        if (isEmpty() || isExpired())
+            return false;
+        return !isExpiring() || nowInSec < localExpirationTime;
     }
 
     public void reset(long timestamp, int ttl, long localExpirationTime)

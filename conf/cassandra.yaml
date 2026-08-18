@@ -688,6 +688,9 @@ commitlog_segment_size: 32MiB
 # The default setting is legacy when the storage compatibility is set to 4 or auto otherwise.
 commitlog_disk_access_mode: legacy
 
+# Experimental.  New garbage free compaction path.  Does not yet support collections, counters, BTI.
+cursor_compaction_enabled: false
+
 # Set the disk access mode for reading SSTables during compaction. The allowed values are:
 # - auto: inherit from disk_access_mode (default)
 # - direct: use direct I/O for compaction reads, bypassing the OS page cache

@@ -78,52 +78,31 @@ public abstract class Cells
 
     private static Cell<?> resolveRegular(Cell<?> left, Cell<?> right)
     {
-        long leftTimestamp = left.timestamp();
-        long rightTimestamp = right.timestamp();
-        if (leftTimestamp != rightTimestamp)
-            return leftTimestamp > rightTimestamp ? left : right;
-
-        long leftLocalDeletionTime = left.localDeletionTime();
-        long rightLocalDeletionTime = right.localDeletionTime();
-
-        boolean leftIsExpiringOrTombstone = leftLocalDeletionTime != Cell.NO_DELETION_TIME;
-        boolean rightIsExpiringOrTombstone = rightLocalDeletionTime != Cell.NO_DELETION_TIME;
-
-        if (leftIsExpiringOrTombstone | rightIsExpiringOrTombstone)
+        CellLivenessInfo.Resolution resolution;
+        if (left instanceof HeapAbstractCell && right instanceof HeapAbstractCell)
         {
-            // Tombstones always win reconciliation with live cells of the same timstamp
-            // CASSANDRA-14592: for consistency of reconciliation, regardless of system clock at time of reconciliation
-            // this requires us to treat expiring cells (which will become tombstones at some future date) the same wrt regular cells
-            if (leftIsExpiringOrTombstone != rightIsExpiringOrTombstone)
-                return leftIsExpiringOrTombstone ? left : right;
-
-            // for most historical consistency, we still prefer tombstones over expiring cells.
-            // While this leads to the an inconsistency over which is chosen
-            // (i.e. before expiry, the pure tombstone; after expiry, whichever is more recent)
-            // this inconsistency has no user-visible distinction, as at this point they are both logically tombstones
-            // (the only possible difference is the time at which the cells become purgeable)
-            boolean leftIsTombstone = !left.isExpiring(); // !isExpiring() == isTombstone(), but does not need to consider localDeletionTime()
-            boolean rightIsTombstone = !right.isExpiring();
-            if (leftIsTombstone != rightIsTombstone)
-                return leftIsTombstone ? left : right;
-
-            // ==> (leftIsExpiring && rightIsExpiring) or (leftIsTombstone && rightIsTombstone)
-            // if both are expiring, we do not want to consult the value bytes if we can avoid it, as like with C-14592
-            // the value bytes implicitly depend on the system time at reconciliation, as a
-            // would otherwise always win (unless it had an empty value), until it expired and was translated to a tombstone
-            if (leftLocalDeletionTime != rightLocalDeletionTime)
-                return leftLocalDeletionTime > rightLocalDeletionTime ? left : right;
-
-            // Both cells are either tombstones or expiring at the same timestamp. If expiring and the
-            // TTLs differ, write the lower one -- the write is probably from a more recent
-            // UPDATE USING TTL AND TIMESTAMP, so select the most recent one to be deterministic and be
-            // closest to client intent.
-            if (!leftIsTombstone && left.ttl() != right.ttl())
-            {
-                assert !rightIsTombstone;
-                return left.ttl() < right.ttl() ? left : right;
-            }
+            // Narrowed before the call to keep the liveness accessors bound from the static type here, rather
+            // than from resolve()'s receiver-type profile -- which is per-bytecode and shared with the cursor
+            // compaction path, so cells and the cursor's liveness holder pollute each other's. HeapAbstractCell
+            // declares those accessors and nothing below it overrides them; keep it that way, because an
+            // override anywhere under it silently returns this branch to the profile.
+            HeapAbstractCell<?> narrowLeft = (HeapAbstractCell<?>) left;
+            HeapAbstractCell<?> narrowRight = (HeapAbstractCell<?>) right;
+            resolution = CellLivenessInfo.resolve(narrowLeft, narrowRight);
         }
+        else
+        {
+            // Correct for any cell, and the branch that pays the pollution: NativeCell, SAI's CellWithSource,
+            // and anything else extending AbstractCell directly. Under memtable_allocation_type:
+            // offheap_objects the memtable's existing cells are NativeCells, so on that configuration this is
+            // the hot branch rather than the rare one.
+            resolution = CellLivenessInfo.resolve(left, right);
+        }
+
+        if (resolution == CellLivenessInfo.Resolution.LEFT)
+            return left;
+        if (resolution == CellLivenessInfo.Resolution.RIGHT)
+            return right;
 
         return compareValues(left, right) >= 0 ? left : right;
     }

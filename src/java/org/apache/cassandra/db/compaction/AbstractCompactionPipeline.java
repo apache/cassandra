@@ -21,6 +21,7 @@ package org.apache.cassandra.db.compaction;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Set;
+import java.util.concurrent.atomic.LongAdder;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.AbstractCompactionController;
@@ -31,6 +32,21 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.TimeUUID;
 
 abstract class AbstractCompactionPipeline extends CompactionInfo.Holder implements AutoCloseable {
+    // Which pipeline each compaction selected, as a delta across one compaction. Read by
+    // CompactionPipelineCounts (test), which documents why supportability alone cannot establish it.
+    private static final LongAdder CURSOR_PIPELINES_CREATED = new LongAdder();
+    private static final LongAdder ITERATOR_PIPELINES_CREATED = new LongAdder();
+
+    static long cursorPipelinesCreated()
+    {
+        return CURSOR_PIPELINES_CREATED.sum();
+    }
+
+    static long iteratorPipelinesCreated()
+    {
+        return ITERATOR_PIPELINES_CREATED.sum();
+    }
+
     static AbstractCompactionPipeline create(
         CompactionTask task,
         OperationType type,
@@ -42,9 +58,11 @@ abstract class AbstractCompactionPipeline extends CompactionInfo.Holder implemen
         if (DatabaseDescriptor.cursorCompactionEnabled()) {
             if (CursorCompactor.isSupported(scanners, controller))
             {
+                CURSOR_PIPELINES_CREATED.increment();
                 return new CursorCompactionPipeline(task, type, scanners, controller, nowInSec, compactionId);
             }
         }
+        ITERATOR_PIPELINES_CREATED.increment();
         return new IteratorCompactionPipeline(task, type, scanners, controller, nowInSec, compactionId);
     }
 

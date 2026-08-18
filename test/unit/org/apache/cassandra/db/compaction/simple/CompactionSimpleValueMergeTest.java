@@ -105,7 +105,7 @@ public class CompactionSimpleValueMergeTest extends SimpleCompactionTest
         }
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
         List<Object[]> rows = new ArrayList<>();
@@ -197,7 +197,7 @@ public class CompactionSimpleValueMergeTest extends SimpleCompactionTest
             cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
         }
 
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
 

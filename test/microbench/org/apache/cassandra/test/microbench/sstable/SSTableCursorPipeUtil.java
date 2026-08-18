@@ -21,9 +21,9 @@ package org.apache.cassandra.test.microbench.sstable;
 import java.io.IOException;
 
 import org.apache.cassandra.db.DeletionTime;
-import org.apache.cassandra.db.ReusableLivenessInfo;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.ReusableCellLivenessInfo;
 import org.apache.cassandra.io.sstable.PartitionDescriptor;
 import org.apache.cassandra.io.sstable.SSTableCursorReader;
 import org.apache.cassandra.io.sstable.SSTableCursorWriter;
@@ -92,7 +92,8 @@ public class SSTableCursorPipeUtil
                     readerState = copyRangeTombstone(reader, writer, unfilteredDescriptor, unfilteredCounter++);
             }
         }
-        writer.writePartitionEnd(keyBytes, keyLength, pDeletionTime, headerLength);
+        writer.writePartitionEnd(keyBytes, keyLength, pDeletionTime, headerLength,
+                                 unfilteredCounter > 0 ? unfilteredDescriptor : null);
         if (unfilteredCounter > 1) {
             writer.updateClusteringMetadata(unfilteredDescriptor);
         }
@@ -122,7 +123,8 @@ public class SSTableCursorPipeUtil
 
     public static int copyRowAfterDescriptor(SSTableCursorReader reader, SSTableCursorWriter writer, UnfilteredDescriptor unfilteredDescriptor, int readerState, boolean isStatic, boolean updateClusteringMetadata) throws IOException
     {
-        writer.writeRowStart(unfilteredDescriptor.livenessInfo(), unfilteredDescriptor.deletionTime(), isStatic);
+        writer.writeRowStart(unfilteredDescriptor.livenessInfo(), unfilteredDescriptor.deletionTime(),
+                             unfilteredDescriptor.isShadowableDeletion(), isStatic);
 
         // Copy cells
         while (readerState != UNFILTERED_END)
@@ -136,7 +138,7 @@ public class SSTableCursorPipeUtil
              * {@link Cell.Serializer#serialize}
              */
             int cellFlags = cellCursor.cellFlags;
-            ReusableLivenessInfo cellLiveness = cellCursor.cellLiveness;
+            ReusableCellLivenessInfo cellLiveness = cellCursor.cellLiveness;
             writer.writeCellHeader(cellFlags, cellLiveness, cellCursor.cellColumn);
             if (readerState == CELL_VALUE_START)
             {

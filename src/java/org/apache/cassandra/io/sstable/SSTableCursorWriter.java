@@ -21,40 +21,32 @@ package org.apache.cassandra.io.sstable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import com.google.common.primitives.Ints;
+import com.google.common.annotations.VisibleForTesting;
 
 import org.agrona.collections.IntArrayList;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.DeletionTime.ReusableDeletionTime;
 import org.apache.cassandra.db.LivenessInfo;
-import org.apache.cassandra.db.ReusableLivenessInfo;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.guardrails.Threshold;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellLivenessInfo;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.SerializationHelper;
-import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredSerializer;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SortedTableWriter;
-import org.apache.cassandra.io.sstable.format.big.BigFormatPartitionWriter;
 import org.apache.cassandra.io.sstable.format.big.BigTableWriter;
-import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.utils.BloomFilter;
-import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.Ref;
 
@@ -75,13 +67,18 @@ public class SSTableCursorWriter implements AutoCloseable
     private final DeletionTime.Serializer deletionTimeSerializer;
     private final MetadataCollector metadataCollector;
     private final SerializationHeader serializationHeader;
-    /**
-     * See: {@link BloomFilter#reusableIndexes}
-     */
-    private final long[] reusableIndexes = new long[21];
     private final boolean hasStaticColumns;
 
     private long partitionStart;
+    // File position of the previous non-static unfiltered's first byte, or the partition start while the
+    // partition has none. previousUnfilteredSize is the distance from it, exactly as the iterator path
+    // computes it (see SortedTablePartitionWriter.addUnfiltered): rows/markers write the distance from
+    // the previous unfiltered's start; static rows write 0 and do not advance it.
+    private long previousUnfilteredStart;
+    // The dataWriter position writeRowStart encoded previousUnfilteredSize against. Nothing may write to
+    // dataWriter between writeRowStart and writeRowEnd or that distance is stale, so writeRowEnd asserts
+    // the position has not moved.
+    private long rowStartPosition;
     // ROW contents, needed because of the order of writing and the var int fields
     private int rowFlags; // discovered as we go along
     private int rowExtendedFlags;
@@ -95,14 +92,9 @@ public class SSTableCursorWriter implements AutoCloseable
     private ColumnMetadata[] columns; // points to static/regular
     private int columnsWrittenCount = 0;
     private int nextCellIndex = 0;
-    // Index info
-    private final DataOutputBuffer rowIndexEntries = new DataOutputBuffer();
-    private final IntArrayList rowIndexEntriesOffsets = new IntArrayList();
-    private final ClusteringDescriptor rowIndexEntryLastClustering;
-    private boolean hasDistinctLastClustering = false;
-    private int indexBlockStartOffset;
-    private int rowIndexEntryOffset;
-    private final int indexBlockThreshold;
+    // Format-specific index production (BIG: promoted blocks + Index.db + bloom filter/summary;
+    // other formats own their own index structures accordingly)
+    private final CursorIndexWriter cursorIndexWriter;
 
     private SSTableCursorWriter(
         Descriptor desc,
@@ -121,8 +113,8 @@ public class SSTableCursorWriter implements AutoCloseable
         hasStaticColumns = serializationHeader.hasStatic();
         staticColumns = hasStaticColumns ? serializationHeader.columns(true).toArray(EMPTY_COL_META) : EMPTY_COL_META;
         regularColumns = serializationHeader.columns(false).toArray(EMPTY_COL_META);
-        this.indexBlockThreshold = DatabaseDescriptor.getColumnIndexSize(BigFormatPartitionWriter.DEFAULT_GRANULARITY);
-        rowIndexEntryLastClustering = new ClusteringDescriptor(serializationHeader.clusteringTypes().toArray(AbstractType[]::new));
+        this.cursorIndexWriter = new BigCursorIndexWriter((BigTableWriter.IndexWriter) indexWriter,
+                                                           this.deletionTimeSerializer);
     }
 
     public SSTableCursorWriter(SortedTableWriter<?,?> ssTableWriter)
@@ -158,19 +150,22 @@ public class SSTableCursorWriter implements AutoCloseable
 
     public int writePartitionStart(byte[] partitionKey, int partitionKeyLength, DeletionTime partitionDeletionTime) throws IOException
     {
-        rowIndexEntries.clear();
-        rowIndexEntriesOffsets.clear();
-        rowIndexEntryOffset = 0;
         openMarker.resetLive();
-        hasDistinctLastClustering = false;
 
         partitionStart = dataWriter.position();
+        previousUnfilteredStart = partitionStart;
         writePartitionHeader(partitionKey, partitionKeyLength, partitionDeletionTime);
-        updateIndexBlockStartOffset(dataWriter.position());
-        return indexBlockStartOffset;
+        cursorIndexWriter.startPartition(partitionStart, dataWriter.position());
+        // immediately after startPartition this is the partition header length — always small
+        return Math.toIntExact(cursorIndexWriter.indexBlockStartOffset());
     }
 
-    public void writePartitionEnd(byte[] partitionKey, int partitionKeyLength, DeletionTime partitionDeletionTime, int headerLength) throws IOException
+    /**
+     * @param lastName the clustering of the last non-static unfiltered written to this partition, needed as
+     *                 the last name of a trailing index block; null if the partition wrote none.
+     */
+    public void writePartitionEnd(byte[] partitionKey, int partitionKeyLength, DeletionTime partitionDeletionTime,
+                                  int headerLength, ClusteringDescriptor lastName) throws IOException
     {
         SERIALIZER.writeEndOfPartition(dataWriter);
         long partitionEnd = dataWriter.position();
@@ -187,72 +182,9 @@ public class SSTableCursorWriter implements AutoCloseable
          // this is implemented differently for BIG/BTI
          createRowIndexEntry(key, partitionLevelDeletion, partitionEnd - 1);
          */
-        appendBIGIndex(partitionKey, partitionKeyLength, partitionStart, headerLength, partitionDeletionTime, partitionEnd);
+        cursorIndexWriter.endPartition(partitionKey, partitionKeyLength, headerLength, partitionDeletionTime, partitionEnd, lastName);
     }
 
-    private void appendBIGIndex(byte[] key, int keyLength, long partitionStart, int headerLength, DeletionTime partitionDeletionTime, long partitionEnd) throws IOException
-    {
-        /**
-         * {@link BigTableWriter#createRowIndexEntry(DecoratedKey, DeletionTime, long)}
-         * {@link BigTableWriter.IndexWriter#append(DecoratedKey, RowIndexEntry, long, ByteBuffer)}
-         *
-         */
-        BigTableWriter.IndexWriter indexWriter = (BigTableWriter.IndexWriter) this.indexWriter;
-        SequentialWriter indexFileWriter = indexWriter.writer;
-        ((BloomFilter)indexWriter.bf).add(key, 0, keyLength, reusableIndexes);
-        long indexStart = indexFileWriter.position();
-        try
-        {
-            ByteArrayUtil.writeWithShortLength(key, 0, keyLength, indexFileWriter);
-
-            indexFileWriter.writeUnsignedVInt(partitionStart);
-
-            // if the list of entries has one or fewer entries, no point in index entries.
-            /** See: {@link org.apache.cassandra.io.sstable.format.big.RowIndexEntry#create} */
-            if (rowIndexEntriesOffsets.size() <= 1)
-            {
-                /**
-                 * {@link RowIndexEntry#serialize(DataOutputPlus, ByteBuffer)}
-                 */
-                indexFileWriter.writeUnsignedVInt32(0); // size
-            }
-            else {
-                // add last block
-                long indexBlockSize = (partitionEnd - partitionStart - 1) - indexBlockStartOffset;
-                if (indexBlockSize != 0) {
-                    addIndexBlock(partitionEnd - 1, indexBlockSize);
-                }
-                // if we have intermeddiate index info elements we also need to serialize the partitionDeletionTime
-                /** {@link RowIndexEntry.IndexedEntry#serialize(DataOutputPlus, ByteBuffer) */
-                // size up to the offsets?
-                int endOfEntries = rowIndexEntries.getLength();
-                // Write the headerLength, partitionDeletionTime and rowIndexEntriesOffsets.size() after the entries,
-                // just to calculate size.
-                rowIndexEntries.writeUnsignedVInt((long)headerLength);
-                deletionTimeSerializer.serialize(partitionDeletionTime, rowIndexEntries);
-
-                rowIndexEntries.writeUnsignedVInt32(rowIndexEntriesOffsets.size()); // number of entries
-
-                // bytes until offsets
-                int entriesAndOffsetsSize = rowIndexEntries.getLength() + rowIndexEntriesOffsets.size() * 4;
-                assert entriesAndOffsetsSize > 0;
-                indexFileWriter.writeUnsignedVInt32(entriesAndOffsetsSize); // size != 0
-                // copy the header elements
-                indexFileWriter.write(rowIndexEntries.getData(), endOfEntries, rowIndexEntries.getLength() - endOfEntries);
-                indexFileWriter.write(rowIndexEntries.getData(), 0, endOfEntries);
-                for (int i = 0; i < rowIndexEntriesOffsets.size(); i++)
-                {
-                    int offset = rowIndexEntriesOffsets.get(i);
-                    indexFileWriter.writeInt(offset);
-                }
-            }
-        }
-        catch (IOException e)
-        {
-            throw new FSWriteError(e, indexFileWriter.getPath());
-        }
-        indexWriter.summary.maybeAddEntry(key, 0, keyLength, indexStart);
-    }
 
     final long guardrailsPartitionSizeWarning = Guardrails.partitionSize.warnValue(null);
     final long guardrailsPartitionTombstonesWarning = Guardrails.partitionTombstones.warnValue(null);
@@ -303,41 +235,42 @@ public class SSTableCursorWriter implements AutoCloseable
         columns = staticColumns;
         // TOD: we should be able to skip the use of the row buffers in this special case, maybe it doesn't matter
         rowHeaderBuffer.clear();
-        // NOTE: if we are to write this value (which is not used), this is where we should compute it.
-        rowHeaderBuffer.writeUnsignedVInt32(0);
+        rowHeaderBuffer.writeUnsignedVInt(0L); // previousUnfilteredSize, always 0 for a static row
         rowBuffer.clear();
         columnsWrittenCount = 0;
         missingColumns.clear();
         writeRowEnd(null, false);
 
-        updateIndexBlockStartOffset(dataWriter.position());
+        cursorIndexWriter.staticRowWritten(dataWriter.position());
         return true;
     }
 
-    public void writeRowStart(LivenessInfo livenessInfo, DeletionTime deletionTime, boolean isStatic) throws IOException
+    public void writeRowStart(LivenessInfo livenessInfo, DeletionTime deletionTime, boolean isShadowable, boolean isStatic) throws IOException
     {
-        if (isStatic) {
-            rowFlags = UnfilteredSerializer.EXTENSION_FLAG;
-            rowExtendedFlags = UnfilteredSerializer.IS_STATIC;
-            columns = staticColumns;
-        }
-        else {
-            rowFlags = 0;
-            rowExtendedFlags = 0;
-            columns = regularColumns;
-        }
+        // Row.Deletion's own constructor enforces this: a live deletion is never shadowable. Callers
+        // (CursorCompactor.mergeRows) must reset isShadowable alongside every reset of deletionTime to
+        // LIVE; this catches a future caller that adds a reset path and misses that pairing.
+        assert !deletionTime.isLive() || !isShadowable : "shadowable deletion must not be live";
+        rowExtendedFlags = 0;
+        if (isStatic)
+            rowExtendedFlags |= UnfilteredSerializer.IS_STATIC;
+        if (isShadowable)
+            rowExtendedFlags |= UnfilteredSerializer.HAS_SHADOWABLE_DELETION;
+        rowFlags = rowExtendedFlags != 0 ? UnfilteredSerializer.EXTENSION_FLAG : 0;
+        columns = isStatic ? staticColumns : regularColumns;
         // NOTE: Data after this point needs a computed ahead of write size. This, combined with the cost of rewriting
         // the size after the writing completes, means we have to buffer the row timestamps (most likely to differ in length)
         // and the row columns data (will differ if they use their own timestamps, probably). Unfortunate.
         // rest of header
         rowHeaderBuffer.clear();
+        // previousUnfilteredSize leads the row body, ahead of the liveness data. dataWriter has not been
+        // written since the previous unfiltered finished, so its position is this unfiltered's first byte.
+        rowStartPosition = dataWriter.position();
+        rowHeaderBuffer.writeUnsignedVInt(isStatic ? 0 : rowStartPosition - previousUnfilteredStart);
         missingColumns.clear();
         rowBuffer.clear();
         columnsWrittenCount = 0;
         nextCellIndex = 0;
-
-        // NOTE: if we are to write this value (which is not used), this is where we should compute it.
-        rowHeaderBuffer.writeUnsignedVInt32(0);
 
         // copy TS/TTL/deletion data
         rowFlags |= writeRowTimeData(livenessInfo, deletionTime, rowHeaderBuffer);
@@ -384,7 +317,7 @@ public class SSTableCursorWriter implements AutoCloseable
         metadataCollector.update(deletionTime);
     }
 
-    public void writeCellHeader(int cellFlags, ReusableLivenessInfo cellLiveness, ColumnMetadata cellColumn) throws IOException
+    public void writeCellHeader(int cellFlags, CellLivenessInfo cellLiveness, ColumnMetadata cellColumn) throws IOException
     {
         for (; nextCellIndex < columns.length; nextCellIndex++) {
             if (columns[nextCellIndex].compareTo(cellColumn) == 0)
@@ -397,7 +330,7 @@ public class SSTableCursorWriter implements AutoCloseable
         writeCellHeader(cellFlags, cellLiveness, rowBuffer);
     }
 
-    private void writeCellHeader(int cellFlags, ReusableLivenessInfo cellLiveness, DataOutputPlus writer) throws IOException
+    private void writeCellHeader(int cellFlags, CellLivenessInfo cellLiveness, DataOutputPlus writer) throws IOException
     {
         columnsWrittenCount++;
         writer.writeByte(cellFlags);
@@ -409,8 +342,7 @@ public class SSTableCursorWriter implements AutoCloseable
             boolean isDeleted = Cell.Serializer.isDeleted(cellFlags);
             boolean isExpiring = Cell.Serializer.isExpiring(cellFlags);
             if (isDeleted || isExpiring) {
-                // TODO: is this conversion from LET to LDT correct?
-                serializationHeader.writeLocalDeletionTime(cellLiveness.localExpirationTime(), writer);
+                serializationHeader.writeLocalDeletionTime(cellLiveness.localDeletionTime(), writer);
             }
             if (isExpiring) {
                 serializationHeader.writeTTL(cellLiveness.ttl(), writer);
@@ -457,19 +389,16 @@ public class SSTableCursorWriter implements AutoCloseable
             for (; nextCellIndex < columnsLength; nextCellIndex++)
                 missingColumns.addInt(nextCellIndex);
 
-            if (columnsLength < 64) {
-                // set a bit for every missing column
-                long mask = 0;
-                for (int missingIndex : missingColumns) {
-                    mask |= (1L << missingIndex);
-                }
-                rowHeaderBuffer.writeUnsignedVInt(mask);
-            }
-            else {
-                encodeLargeColumnsSubset();
-            }
+            encodeColumnsSubset(missingColumns, columnsLength, rowHeaderBuffer);
         }
-        long unfilteredStartPosition = dataWriter.position();
+        // rowStartPosition was already captured in writeRowStart, and the invariant this class
+        // documents (nothing writes to dataWriter between writeRowStart and writeRowEnd) means
+        // a fresh read here would always equal it; reuse it instead of re-reading. The verifying
+        // read moves into the assert itself (evaluated before any of this method's own writes),
+        // so it costs nothing with assertions disabled.
+        assert isStatic || dataWriter.position() == rowStartPosition
+               : "dataWriter moved between writeRowStart and writeRowEnd: " + rowStartPosition + " != " + dataWriter.position();
+        long unfilteredStartPosition = rowStartPosition;
         /** See: {@link UnfilteredSerializer#serialize} */
         dataWriter.writeByte(rowFlags);
         if (isExtended)
@@ -482,9 +411,11 @@ public class SSTableCursorWriter implements AutoCloseable
             byte[] clustering = rHeader.clusteringBytes();
             int clusteringLength = rHeader.clusteringLength();
             dataWriter.write(clustering, 0, clusteringLength);
+            previousUnfilteredStart = unfilteredStartPosition;
         }
-
-        // Now that we know the size, write it + the rest of the data
+        // The size spans the whole row body, previousUnfilteredSize included: it is the leading vint of
+        // rowHeaderBuffer. UnfilteredSerializer.serialize reaches the same bytes by adding that field's
+        // vint width to the size of a body buffer that excludes it.
         dataWriter.writeUnsignedVInt32(rowHeaderBuffer.getLength() + rowBuffer.getLength());
 
         dataWriter.write(rowHeaderBuffer.getData(), 0, rowHeaderBuffer.getLength());
@@ -493,13 +424,22 @@ public class SSTableCursorWriter implements AutoCloseable
         long unfilteredEndPosition = getPosition();
 
         /**
-         * Matching the: {@link org.apache.cassandra.db.rows.Rows#collectStats} along with above cell level metadata updates
+         * Matching the: {@link org.apache.cassandra.db.rows.Rows#collectStats} along with above cell level metadata updates.
+         * The iterator path only collects row stats for non-empty rows
+         * ({@link org.apache.cassandra.io.sstable.format.SortedTableWriter#addStaticRow} guards with
+         * !row.isEmpty()): an empty static row is still WRITTEN for static-column tables whose
+         * partition has no static values, but it must not count towards totalRows/totalColumnsSet.
+         * Empty == no cells, no liveness timestamp/TTL, no row deletion.
          */
-        metadataCollector.updateColumnSetPerRow(columnsWrittenCount);
+        boolean rowIsEmpty = columnsWrittenCount == 0
+                             && (rowFlags & (HAS_TIMESTAMP | HAS_TTL | HAS_DELETION)) == 0;
+        if (!rowIsEmpty)
+            metadataCollector.updateColumnSetPerRow(columnsWrittenCount);
 
         if (isStatic)
         {
-            updateIndexBlockStartOffset(dataWriter.position());
+            // Nothing writes to dataWriter between the unfilteredEndPosition read above and here.
+            cursorIndexWriter.staticRowWritten(unfilteredEndPosition);
         }
         else
         {
@@ -528,8 +468,9 @@ public class SSTableCursorWriter implements AutoCloseable
             dataWriter.write(clustering, 0, clusteringLength);
         }
         rowHeaderBuffer.clear();
-        // TODO: previousUnfilteredSize
-        rowHeaderBuffer.writeUnsignedVInt32(0);
+        // previousUnfilteredSize leads the marker body, ahead of the deletion times
+        rowHeaderBuffer.writeUnsignedVInt(unfilteredStartPosition - previousUnfilteredStart);
+        previousUnfilteredStart = unfilteredStartPosition;
 
         if (kind.isBoundary())
         {
@@ -546,12 +487,15 @@ public class SSTableCursorWriter implements AutoCloseable
                 openMarker.resetLive();
         }
 
+        // The size spans the whole marker body, previousUnfilteredSize included; see
+        // UnfilteredSerializer.serialize(RangeTombstoneMarker...), which reaches the same bytes by
+        // adding that field's vint width to a body size that excludes it.
         dataWriter.writeUnsignedVInt32(rowHeaderBuffer.getLength());
         dataWriter.write(rowHeaderBuffer.getData(), 0, rowHeaderBuffer.getLength());
 
         long unfilteredEndPosition = getPosition();
 
-        /** {@link org.apache.cassandra.io.sstable.format.big.BigFormatPartitionWriter#addUnfiltered(Unfiltered)} */
+        /** {@link org.apache.cassandra.io.sstable.format.big.BigFormatPartitionWriter#addUnfiltered(org.apache.cassandra.db.rows.Unfiltered)} */
         // if we hit the index block size that we have to index after, go ahead and index it.
         updateMetadataAndIndexBlock(rangeTombstone, unfilteredStartPosition, unfilteredEndPosition, updateClusteringMetadata);
     }
@@ -562,117 +506,69 @@ public class SSTableCursorWriter implements AutoCloseable
                                              boolean updateClusteringMetadata) throws IOException
     {
         if (updateClusteringMetadata) updateClusteringMetadata(unfilteredDescriptor);
-        // write the first clustering into rowIndexEntries buffer (we will need it unless we never write the first entry)
-        if (currentOffsetInPartition(unfilteredStartPosition) == indexBlockStartOffset || (rowIndexEntryOffset == rowIndexEntries.position()))
-        {
-            writeClusteringToRowIndexEntries(unfilteredDescriptor);
-        }
-        else
-        {
-            rowIndexEntryLastClustering.copy(unfilteredDescriptor);
-            hasDistinctLastClustering = true;
-        }
-
-        /** {@link BigFormatPartitionWriter#addUnfiltered(Unfiltered)} */
-        // if we hit the index block size that we have to index after, go ahead and index it.
-        long indexBlockSize = currentOffsetInPartition(unfilteredEndPosition) - indexBlockStartOffset;
-        if (indexBlockSize >= this.indexBlockThreshold)
-            addIndexBlock(unfilteredEndPosition, indexBlockSize);
+        cursorIndexWriter.rowWritten(unfilteredDescriptor, unfilteredStartPosition, unfilteredEndPosition, openMarker);
     }
 
-    public void updateClusteringMetadata(UnfilteredDescriptor unfilteredDescriptor)
+    public void updateClusteringMetadata(ClusteringDescriptor clusteringDescriptor)
     {
-        metadataCollector.updateClusteringValues(unfilteredDescriptor);
+        metadataCollector.updateClusteringValues(clusteringDescriptor);
     }
 
     /**
-     *  See:
-     *  {@link BigFormatPartitionWriter#addIndexBlock()}
-     *  - {@link org.apache.cassandra.io.sstable.IndexInfo.Serializer#serialize(org.apache.cassandra.io.sstable.IndexInfo, org.apache.cassandra.io.util.DataOutputPlus)}
+     * Garbage-free equivalent of {@link org.apache.cassandra.db.Columns.Serializer}'s
+     * serializeSubset for a PARTIAL subset (not all-present, not all-missing — callers
+     * handle those fast paths): the < 64 missing-bitmap form, or the large-subset form
+     * (delta vint + present- or missing-index vints). Hand-mirrored because the upstream
+     * serializer requires a materialized Columns + iterator per call — a per-row allocation
+     * this path must not make. The mirror has already drifted from the upstream serializer
+     * once, producing corrupt output; {@code CursorColumnsSubsetEncodingTest} pins it byte-for-byte
+     * against the upstream serializer across sizes, shapes, and both mode boundaries.
+     *
+     * @param missingColumns ascending superset positions of the columns ABSENT from the row
      */
-    private void addIndexBlock(long endOfRowPosition, long indexBlockSize) throws IOException
+    @VisibleForTesting
+    static void encodeColumnsSubset(IntArrayList missingColumns, int supersetCount, DataOutputBuffer out) throws IOException
     {
-        if (rowIndexEntriesOffsets.isEmpty() && rowIndexEntryOffset != 0) {
-            throw new IllegalStateException();
+        if (supersetCount < 64)
+        {
+            // set a bit for every missing column (Columns.Serializer.encodeBitmap)
+            long mask = 0;
+            for (int i = 0; i < missingColumns.size(); i++)
+                mask |= 1L << missingColumns.getInt(i);
+            out.writeUnsignedVInt(mask);
+            return;
         }
 
-        // serialize the index info
-        /** {@link org.apache.cassandra.io.sstable.IndexInfo.Serializer#serialize(org.apache.cassandra.io.sstable.IndexInfo, org.apache.cassandra.io.util.DataOutputPlus)}*/
-        rowIndexEntriesOffsets.addInt(rowIndexEntryOffset);
-
-        // first clustering is already in, write last entry
-        if (!hasDistinctLastClustering)
+        out.writeUnsignedVInt32(missingColumns.size());
+        // Mode selection must mirror Columns.Serializer.serializeLargeSubset AND its
+        // deserializer exactly: present-index mode iff presentCount < supersetCount / 2.
+        // The previous condition (missing > supersetCount / 2) agreed for even superset
+        // sizes but flipped the mode for odd sizes at missing == supersetCount/2 + 1,
+        // which the deserializer then read in the WRONG mode — corrupted output.
+        int presentCount = supersetCount - missingColumns.size();
+        if (presentCount < supersetCount / 2)
         {
-            // first entry is the last entry, copy it
-            byte[] entriesData = rowIndexEntries.getData();
-            long endOfFirstEntry = rowIndexEntries.position();
-            rowIndexEntries.write(entriesData, rowIndexEntryOffset, (int) (endOfFirstEntry - rowIndexEntryOffset));
-        }
-        else
-        {
-            writeClusteringToRowIndexEntries(rowIndexEntryLastClustering);
-            rowIndexEntryLastClustering.resetClustering();
-        }
-        hasDistinctLastClustering = false;
-
-        rowIndexEntries.writeUnsignedVInt((long)indexBlockStartOffset);
-        rowIndexEntries.writeVInt(indexBlockSize - IndexInfo.Serializer.WIDTH_BASE);
-
-        boolean isDeleteTimePresent = !openMarker.isLive();
-        rowIndexEntries.writeBoolean(isDeleteTimePresent);
-        if (isDeleteTimePresent)
-            deletionTimeSerializer.serialize(openMarker, rowIndexEntries);
-        // next block starts
-        rowIndexEntryOffset = Ints.checkedCast(rowIndexEntries.position());
-        updateIndexBlockStartOffset(endOfRowPosition);
-    }
-
-    private void updateIndexBlockStartOffset(long endOfRowPosition)
-    {
-        indexBlockStartOffset = (int) (endOfRowPosition - partitionStart);
-    }
-
-    private void writeClusteringToRowIndexEntries(ClusteringDescriptor clustering) throws IOException
-    {
-        ClusteringPrefix.Kind kind = clustering.clusteringKind();
-        rowIndexEntries.writeByte(kind.ordinal());
-        if (kind != ClusteringPrefix.Kind.CLUSTERING)
-            rowIndexEntries.writeShort(clustering.clusteringColumnsBound());
-        rowIndexEntries.write(clustering.clusteringBytes(), 0, clustering.clusteringLength());
-    }
-
-    private long currentOffsetInPartition(long position)
-    {
-        return position - partitionStart;
-    }
-
-    private void encodeLargeColumnsSubset() throws IOException
-    {
-        // no columns are present, nothing to write
-        rowHeaderBuffer.writeUnsignedVInt32(missingColumns.size());
-        if (missingColumns.size() > columns.length / 2)
-        {
-            // write present columns
+            // write present column indices: the gaps between missing indices, INCLUDING the
+            // tail after the last missing index — the previous tail loop's bound was the
+            // last missing index itself (vacuously empty), so present columns sorting after
+            // the last missing one were silently dropped from the encoding and the
+            // deserializer consumed row-body bytes as column indices — corrupted output
             int presentIndex = 0;
-            int missingIndex = 0;
             for (int i = 0; i < missingColumns.size(); i++)
             {
-                missingIndex = missingColumns.get(i);
+                int missingIndex = missingColumns.getInt(i);
                 for (; presentIndex < missingIndex; presentIndex++)
-                    rowHeaderBuffer.writeUnsignedVInt32(presentIndex);
+                    out.writeUnsignedVInt32(presentIndex);
                 presentIndex = missingIndex + 1;
             }
-            if (missingIndex < columns.length-1) {
-                for (; presentIndex < missingIndex; presentIndex++)
-                    rowHeaderBuffer.writeUnsignedVInt32(presentIndex);
-            }
+            for (; presentIndex < supersetCount; presentIndex++)
+                out.writeUnsignedVInt32(presentIndex);
         }
         else
         {
-            // write missing columns
-            for (int missingIndex : missingColumns) {
-                rowHeaderBuffer.writeUnsignedVInt32(missingIndex);
-            }
+            // write missing columns (indexed loop: agrona's for-each would box per element)
+            for (int i = 0; i < missingColumns.size(); i++)
+                out.writeUnsignedVInt32(missingColumns.getInt(i));
         }
     }
 

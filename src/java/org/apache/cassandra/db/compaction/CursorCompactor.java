@@ -22,7 +22,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.List;
 import java.util.function.LongPredicate;
 
@@ -35,25 +34,28 @@ import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.AbstractCompactionController;
 import org.apache.cassandra.db.ClusteringComparator;
+import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.DeletionTime.ReusableDeletionTime;
 import org.apache.cassandra.db.LivenessInfo;
-import org.apache.cassandra.db.ReusableLivenessInfo;
-import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellLivenessInfo;
+import org.apache.cassandra.db.rows.CellLivenessInfo.Resolution;
 import org.apache.cassandra.db.rows.Cells;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
+import org.apache.cassandra.db.rows.ReusableCellLivenessInfo;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.db.rows.UnfilteredSerializer;
-import org.apache.cassandra.dht.ReusableDecoratedKey;
+import org.apache.cassandra.io.sstable.ClusteringDescriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.PartitionDescriptor;
 import org.apache.cassandra.io.sstable.SSTableCursorReader;
@@ -79,9 +81,8 @@ import static org.apache.cassandra.db.ClusteringPrefix.Kind.EXCL_START_BOUND;
 import static org.apache.cassandra.db.ClusteringPrefix.Kind.INCL_END_BOUND;
 import static org.apache.cassandra.db.ClusteringPrefix.Kind.INCL_END_EXCL_START_BOUNDARY;
 import static org.apache.cassandra.db.ClusteringPrefix.Kind.INCL_START_BOUND;
-import static org.apache.cassandra.db.compaction.CursorCompactor.CellResolution.COMPARE;
-import static org.apache.cassandra.db.compaction.CursorCompactor.CellResolution.LEFT;
-import static org.apache.cassandra.db.compaction.CursorCompactor.CellResolution.RIGHT;
+import static org.apache.cassandra.db.rows.CellLivenessInfo.Resolution.LEFT;
+import static org.apache.cassandra.db.rows.CellLivenessInfo.Resolution.RIGHT;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_END;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_HEADER_START;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_VALUE_START;
@@ -104,13 +105,16 @@ import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.isState;
  *   <li>Purge gc-able tombstones if possible (see PurgeFunction below).</li>
  *   <li>Invalidate cached partitions that are empty post-compaction. This avoids keeping partitions with
  *       only purgable tombstones in the row cache.</li>
- *   <li>Keep tracks of the compaction progress.</li>
+ *   <li>Keeps track of the compaction progress.</li>
  * </ul>
- * This compaction implementation does not support 2ndary indexes or trie indexes at this time.
+ * This compaction implementation does not support 2ndary indexes, trie (BTI) sstable output,
+ * complex (collection/UDT) columns, or counter columns, and it stands aside for a compaction that
+ * ignores gc grace for a key; see {@link #isSupported} and {@link #unsupportedMetadata} for the full
+ * set of gates.
  * <p>
-*     This compaction implmentation avoids garbage creation per partition/row/cell by utilizing reader/writer code
-*     which supports reusable copies of sstable entry components. The implementation consolidates and duplicates code
- *    from various classes to support the use of these reusable structures.
+ *     This compaction implementation avoids garbage creation per partition/row/cell by utilizing reader/writer code
+ *     which supports reusable copies of sstable entry components. The implementation consolidates and duplicates code
+ *     from various classes to support the use of these reusable structures.
  * </p>
  */
 public class CursorCompactor extends CompactionInfo.Holder
@@ -136,18 +140,36 @@ public class CursorCompactor extends CompactionInfo.Holder
                     if (LOGGER.isDebugEnabled()) logDebugReason(metadata, "Older sstable versions are not supported. version=" + version);
                     return false;
                 }
+                if (unsupportedHeaderColumns(metadata, reader))
+                    return false;
             }
         }
         // BTI index writing is not supported yet
         if (!(DatabaseDescriptor.getSelectedSSTableFormat() instanceof BigFormat))
         {
-            if (LOGGER.isDebugEnabled()) logDebugReason(metadata, "Only BIG sstable output format is supported. format=" + DatabaseDescriptor.getSelectedSSTableFormat());
+            if (LOGGER.isDebugEnabled()) logDebugReason(metadata, "Only the BIG sstable output format is supported. format=" + DatabaseDescriptor.getSelectedSSTableFormat());
             return false;
         }
         // TODO: Implement CompactionIterator.GarbageSkipper like functionality
         if (controller.tombstoneOption != CompactionParams.TombstoneOption.NONE)
         {
             if (LOGGER.isDebugEnabled()) logDebugReason(metadata, "Garbage skipping not implemented. controller.tombstoneOption=" + controller.tombstoneOption);
+            return false;
+        }
+        // ColumnFamilyStore.forceCompactionKeysIgnoringGcGrace, whose shipped caller is nodetool
+        // forcecompact, is the only thing that puts a key in this set, and so the only way a purge is
+        // decided with localDeletionTime >= gcBefore (see Purger.shouldPurge). That is the case the cursor
+        // cannot reproduce. BTreeRow.purge returns the row untouched whenever nowInSec is below the row's
+        // minimum local deletion time, so the iterator settles row-level purging all-or-nothing over the
+        // whole row before touching a cell, while a streaming cursor commits to the row's deletion and
+        // liveness before it has walked the row's cells. Under an ordinary gcBefore that short-circuit
+        // costs nothing, because such a row holds nothing purgeable either way.
+        // The set is per-table and lives for the whole force compaction, so a background compaction that
+        // starts inside that window falls back as well. Coarse, but the fallback is to the reference
+        // implementation, so it costs throughput and not correctness.
+        if (controller.cfs.shouldIgnoreGcGraceForAnyKey())
+        {
+            if (LOGGER.isDebugEnabled()) logDebugReason(metadata, "Ignoring gc_grace_seconds for a key is not supported (nodetool forcecompact).");
             return false;
         }
         if (LOGGER.isDebugEnabled()) LOGGER.debug("Cursor compaction for table: " + metadata.name + " keyspace: " + metadata.keyspace + " is supported.");
@@ -196,6 +218,47 @@ public class CursorCompactor extends CompactionInfo.Holder
         return false;
     }
 
+    /**
+     * {@link #unsupportedSchema} only sees the columns the table has NOW. Dropping a column
+     * removes it from {@link TableMetadata#regularAndStaticColumns()}, but every sstable written
+     * before the drop still lists it in that sstable's own serialization header, with its original
+     * type intact — {@code TableMetadata.recordColumnDrop} stores {@code type.expandUserTypes()},
+     * so a dropped non-frozen collection is still a multi-cell column there. The reader builds its
+     * column arrays from the header, not from the schema, so such a column reaches the cell cursor,
+     * which reads a single cell where the complex framing
+     * ({@code [complex deletion?][vint cellsCount][cells]}) requires a count-led run, and misparses
+     * the row.
+     *
+     * Whether that misparse then surfaces at all is not something the reader can decide sensibly:
+     * {@link #mergeCells} rejects complex columns outright, but reaching it depends on the
+     * dropped-column filter, and the timestamp that filter compares against the drop horizon was
+     * itself decoded from the misread framing rather than written by any cell. So the column is
+     * discarded silently or rejected loudly according to bytes that mean nothing here — neither
+     * outcome can be relied on, which is why the screening belongs at the gate.
+     *
+     * Dropping a non-frozen collection is legal and cursor compaction is on by default, so the
+     * schema check alone lets that misparse through. Screen the columns the readers will actually
+     * present. The fallback is permanent for this table: the ghost column stays in those headers
+     * until the pre-drop sstables are rewritten by the iterator path.
+     */
+    private static boolean unsupportedHeaderColumns(TableMetadata metadata, SSTableReader reader)
+    {
+        // RegularAndStaticColumns iterates statics then regulars, so this covers both
+        for (ColumnMetadata column : reader.header.columns())
+        {
+            // the header records its own type for any column whose type has since changed, so ask
+            // it as well as the schema: that is the type the reader will decode against
+            AbstractType<?> diskType = reader.header.getType(column);
+            if (column.isComplex() || column.isCounterColumn()
+                || (diskType != null && (diskType.isMultiCell() || diskType.isCounter())))
+            {
+                if (LOGGER.isDebugEnabled()) logDebugReason(metadata, "Complex and counter columns are not supported, and " + reader.descriptor + " still carries one in its header (dropped from the schema?). column=" + column);
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static void logDebugReason(TableMetadata metadata, String reason)
     {
         LOGGER.debug("Cursor compaction for table: " + metadata.name + " keyspace: " + metadata.keyspace + " is not supported. REASON: " + reason);
@@ -215,6 +278,16 @@ public class CursorCompactor extends CompactionInfo.Holder
     private final boolean[] sstableCursorsEqualsNext;
     private final boolean hasStaticColumns;
     private final boolean enforceStrictLiveness;
+
+    /**
+     * Scratch for {@link #anyMergedCellDeadAtNow}, which walks a row's cells and then puts the cursors
+     * back: the cursor ORDER and the equals-next flags its sorts overwrite, and the per-cursor state it
+     * needs to know which cursors to rewind. Null unless the table enforces strict liveness, so a
+     * non-view compaction does not allocate them at all.
+     */
+    private final StatefulCursor[] probeCursorOrder;
+    private final boolean[] probeEqualsNext;
+    private final int[] probeCursorState;
 
     // Keep targetDirectory for compactions, needed for `nodetool compactionstats`
     private volatile String targetDirectory;
@@ -242,7 +315,44 @@ public class CursorCompactor extends CompactionInfo.Holder
     final Purger purger;
 
     private StatefulCursor lastSource = null;
-    private final ReusableDecoratedKey detachedLastWrittenKey;
+    /**
+     * The PartitionDescriptor instance holding the last WRITTEN partition's header, owned by the write side.
+     * Obtained by swapping this field's previous contents into the writing cursor's prev slot, so the key is
+     * never copied. Non-final: it IS the floater, and every steal exchanges it.
+     */
+    private PartitionDescriptor lastWrittenPartition;
+    /**
+     * The cursor whose partition was written most recently, and from which the steal is still owed. Cleared by
+     * the steal, so a skipped partition leaves nothing to take and the held instance keeps describing the last
+     * partition actually written.
+     */
+    private StatefulCursor lastWrittenPartitionSource = null;
+    /** {@link StatefulCursor#partitionSwaps()} on that cursor at the moment the write happened. */
+    private long lastWrittenPartitionSourceSwaps = 0;
+    /**
+     * The UnfilteredDescriptor instance holding the last unfiltered WRITTEN to the current output partition,
+     * owned by the write side.
+     *
+     * sstableCursors[*].unfiltered() descriptors are reusable: a cursor overwrites its descriptor in place as
+     * soon as it reads its next unfiltered — including unfiltereds that then merge away or purge and never
+     * reach the output — so a reference borrowed during the merge loop can, by the time the partition closes,
+     * describe a clustering that was never written. This instance is obtained instead by swapping the field's
+     * previous contents into the writing cursor's slot, so the clustering is never copied. Non-final: it IS
+     * the floater, and every steal exchanges it.
+     */
+    private UnfilteredDescriptor lastWrittenUnfiltered;
+    /**
+     * Unfiltereds written to the current output partition, reset once per partition in
+     * {@link #mergePartitions}, immediately before the unfiltered loop rather than inside it.
+     *
+     * The zero case is load-bearing rather than an optimisation, because the instance above is
+     * compaction-global: for a partition written from only a partition-level deletion and/or a static row it
+     * still describes a PREVIOUS partition's unfiltered, so feeding it to the covered-clustering update would
+     * widen this output's Statistics.db slice to a clustering no partition of it holds there. On the very
+     * first partition it describes nothing at all — a fresh ClusteringDescriptor leaves its kind null, which
+     * would NPE in MetadataCollector rather than widen anything.
+     */
+    private int unfilteredsWrittenToPartition = 0;
 
     // Partition state. Writes can be delayed if the deletion is purged, or live and partition is empty -> LIVE deletion.
     PartitionDescriptor partitionDescriptor;
@@ -265,7 +375,14 @@ public class CursorCompactor extends CompactionInfo.Holder
     {
         this.controller = controller;
         this.type = type;
-        this.nowInSec = nowInSec;
+        // mirror CompactionIterator.purger(): accord-enabled (and accord-migrating) tables
+        // purge and expire relative to gcBefore — derived from accord's durability bounds by
+        // CompactionTask.getCompactionController — retaining data accord may still read at
+        // earlier timestamps; every nowInSec use below is a purge/expiry decision
+        TableMetadata tableMetadata = controller.cfs.metadata();
+        this.nowInSec = tableMetadata.isAccordEnabled() || tableMetadata.migratingFromAccord()
+                        ? controller.gcBefore
+                        : nowInSec;
         this.compactionId = compactionId;
 
         long inputBytes = 0;
@@ -290,7 +407,14 @@ public class CursorCompactor extends CompactionInfo.Holder
         this.activeCompactions.beginCompaction(this); // note that CompactionTask also calls this, but CT only creates CompactionIterator with a NOOP ActiveCompactions
 
         TableMetadata metadata = metadata();
-        this.hasStaticColumns = metadata.hasStaticColumns();
+        // the INPUT headers decide whether static rows can occur in this merge (and the output
+        // header, SerializationHeader.make, is their union): after ALTER TABLE ... DROP of the
+        // last static column, current metadata has no static columns but older sstables
+        // legitimately still carry static rows
+        boolean anyStaticColumns = false;
+        for (SSTableReader sstable : this.sstables)
+            anyStaticColumns |= sstable.header.hasStatic();
+        this.hasStaticColumns = anyStaticColumns;
         /**
          * Pipeline should end up similar to the one in {@link CompactionIterator}:
          * [MERGED -> ?TopPartitionTracker -> GarbageSkipper -> Purger -> org.apache.cassandra.db.transform.DuplicateRowChecker -> Abortable] -> next()
@@ -307,10 +431,41 @@ public class CursorCompactor extends CompactionInfo.Holder
         this.sstableCursors = convertScannersToCursors(scanners, sstables, DatabaseDescriptor.getCompactionReadDiskAccessMode());
         this.sstableCursorsEqualsNext = new boolean[sstables.size()];
         this.enforceStrictLiveness = controller.cfs.metadata.get().enforceStrictLiveness();
+        this.probeCursorOrder = enforceStrictLiveness ? new StatefulCursor[sstableCursors.length] : null;
+        this.probeEqualsNext = enforceStrictLiveness ? new boolean[sstableCursors.length] : null;
+        this.probeCursorState = enforceStrictLiveness ? new int[sstableCursors.length] : null;
 
-        purger = new Purger(type, controller, nowInSec);
+        purger = new Purger(type, controller);
 
-        detachedLastWrittenKey = metadata.partitioner.createReusableKey(128);
+        lastWrittenPartition = new PartitionDescriptor(metadata.partitioner.createReusableKey(0));
+        lastWrittenUnfiltered = new UnfilteredDescriptor(metadata.comparator.subtypes().toArray(AbstractType[]::new));
+        // The unfiltered steal hands one cursor's descriptor to another, and to the write side's instance built
+        // from the table comparator above, so all of them must PARSE a clustering identically. A descriptor
+        // parses with its OWN clusteringTypes and reads exactly two things from them, per column: whether the
+        // value is fixed-length, and how long (SSTableCursorReader.readUnfilteredClustering). That is what the
+        // assert covers.
+        assert clusteringParsingAgrees() : "the cursors disagree on how to parse a clustering: " + metadata;
+    }
+
+    /** @see #lastWrittenUnfiltered */
+    private boolean clusteringParsingAgrees()
+    {
+        AbstractType<?>[] writeSide = lastWrittenUnfiltered.clusteringTypes();
+        for (StatefulCursor cursor : sstableCursors)
+        {
+            AbstractType<?>[] readSide = cursor.unfiltered().clusteringTypes();
+            if (readSide.length != writeSide.length)
+                return false;
+            for (int i = 0; i < readSide.length; i++)
+            {
+                if (readSide[i].isValueLengthFixed() != writeSide[i].isValueLengthFixed())
+                    return false;
+                if (readSide[i].isValueLengthFixed()
+                    && readSide[i].valueLengthIfFixed() != writeSide[i].valueLengthIfFixed())
+                    return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -334,6 +489,10 @@ public class CursorCompactor extends CompactionInfo.Holder
             throw new CompactionInterruptedException(getCompactionInfo());
 
         int partitionMergeLimit = prepareAndSortForPartitionMerge();
+        // The round's slot advances have happened, so the steal owed by the last written partition is due. This
+        // sits ahead of the finish() exit because that path consumes the value too, through writerRollover's
+        // setLast; on it the advance came from resetAfterDone rather than from a read.
+        takeOwedPartitionSteal();
         if (partitionMergeLimit == 0)
         {
             finish();
@@ -347,7 +506,10 @@ public class CursorCompactor extends CompactionInfo.Holder
         try
         {
             DecoratedKey key = partitionDescriptor.key();
-            if (lastSource != null && currSource != lastSource && lastWrittenKey().compareTo(key) >= 0)
+            // The check begins once a partition has been written, because there is nothing to check against
+            // before that: no output exists to be out of order with, and no writer is created until the first
+            // write, so setLast is unreachable in that window.
+            if (hasWrittenPartition() && lastSource != null && currSource != lastSource && lastWrittenKey().compareTo(key) >= 0)
                 throw new IllegalStateException(String.format("Last written key %s >= current key %s", lastWrittenKey(), key));
 
             // needed if we actually write a partition, not used otherwise
@@ -358,15 +520,12 @@ public class CursorCompactor extends CompactionInfo.Holder
             if (!written)
             {
                 purger.onEmptyPartitionPostPurge();
-                // skipping a partition means the prevPartition on the lastSource is no longer stable, copy it
-                if (detachedLastWrittenKey.getKeyLength() == 0 && lastSource != null)
-                    detachedLastWrittenKey.copyKey(lastSource.prevKey().getKey());
             }
             else
             {
-                // last source has will have the prev key recorded, reset the copy
-                if (detachedLastWrittenKey.getKeyLength() != 0)
-                    detachedLastWrittenKey.reset();
+                // the steal is owed by this cursor, and lands one round later — see detachPrevPartition
+                lastWrittenPartitionSource = currSource;
+                lastWrittenPartitionSourceSwaps = currSource.partitionSwaps();
             }
             return written;
         }
@@ -403,7 +562,20 @@ public class CursorCompactor extends CompactionInfo.Holder
             int staticRowMergeLimit = prepareAndSortStaticForMerge(partitionMergeLimit);
             if (staticRowMergeLimit != 0)
             {
+                // No steal here, because this call's return value is not consumed -- but the consumed
+                // static descriptor is still in cursor 0's slot when the unfiltered loop below opens, and
+                // STATIC_CLUSTERING sorts ahead of every row, so that loop's first round calls mergeRows on
+                // it again, inside the branch that DOES steal; see the assert there for why that round
+                // writes nothing.
                 mergeRows(staticRowMergeLimit, activeDeletion, true, false);
+                // Without this, a cursor that had a static row is left at UNFILTERED_END with its
+                // unfiltered() descriptor still showing STATIC_CLUSTERING -- which sorts ahead of every
+                // real row -- so the normal-row loop below would sort it first and spuriously re-merge
+                // the same, already-fully-consumed position as a phantom regular row. Harmless to
+                // output (the phantom row has no new liveness/deletion, so it's dropped unwritten), but
+                // it inflates rowMergeCounters once per static-row partition, feeding
+                // system.compaction_history.rows_merged and the logged totalSourceRows.
+                continueReadingAfterMerge(staticRowMergeLimit, UNFILTERED_END);
             }
             if (isPartitionStarted())
             {
@@ -415,8 +587,7 @@ public class CursorCompactor extends CompactionInfo.Holder
         // Merge any common normal rows
         int unfilteredMergeLimit = partitionMergeLimit;
         boolean isFirstUnfiltered = true;
-        int unfilteredCount = 0;
-        UnfilteredDescriptor lastClustering = null;
+        unfilteredsWrittenToPartition = 0;
         while (true)
         {
             unfilteredMergeLimit = prepareAndSortUnfilteredForMerge(partitionMergeLimit, unfilteredMergeLimit);
@@ -427,9 +598,24 @@ public class CursorCompactor extends CompactionInfo.Holder
             {
                 if (mergeRows(unfilteredMergeLimit, activeDeletion, false, isFirstUnfiltered))
                 {
+                    // The static descriptor reaches this loop — STATIC_CLUSTERING sorts ahead of every row —
+                    // and must never be WRITTEN from it: its clustering has length 0, so it belongs in neither
+                    // the covered-clustering slice nor an index block. What keeps it out is that the round
+                    // writes nothing, and it writes nothing only because CQL gives a static row no
+                    // primary-key liveness: UpdateStatement adds liveness inside updatesRegularRows(), and
+                    // DeleteStatement's static branch emits cell tombstones only, so the row is dropped.
+                    //
+                    // That is a property of the write path, not of this one, which is why it is asserted.
+                    // A static row that does carry liveness — PartitionUpdate.simpleBuilder's row() with no
+                    // clustering values produces one — reaches the write and hands the covered-clustering
+                    // max a STATIC_CLUSTERING, which fails in MetadataCollector.finalizeMetadata when the
+                    // sstable is closed. That failure predates the detach; the assert only moves it to the
+                    // point where the cause is still on the stack.
+                    assert sstableCursors[0].unfiltered().clusteringKind() != ClusteringPrefix.Kind.STATIC_CLUSTERING
+                         : "a static descriptor was written from the unfiltered loop";
                     isFirstUnfiltered = false;
-                    unfilteredCount++;
-                    lastClustering = sstableCursors[0].unfiltered();
+                    unfilteredsWrittenToPartition++;
+                    detachWrittenUnfiltered();
                 }
             }
             else if (UnfilteredSerializer.isTombstoneMarker(flags)) {
@@ -437,8 +623,8 @@ public class CursorCompactor extends CompactionInfo.Holder
                 if (mergeRangeTombstones(unfilteredMergeLimit, mergedDeletion, isFirstUnfiltered))
                 {
                     isFirstUnfiltered = false;
-                    unfilteredCount++;
-                    lastClustering = sstableCursors[0].unfiltered();
+                    unfilteredsWrittenToPartition++;
+                    detachWrittenUnfiltered();
                 }
                 if (activeOpenRangeDeletion == DeletionTime.LIVE) {
                     activeDeletion = mergedDeletion;
@@ -457,10 +643,15 @@ public class CursorCompactor extends CompactionInfo.Holder
         boolean partitionWritten = isPartitionStarted();
         if (partitionWritten)
         {
-            ssTableCursorWriter.writePartitionEnd(partitionDescriptor.keyBytes(), partitionDescriptor.keyLength(), toWritePartitionDeletion, partitionHeaderLength);
-            // update metadata tracking of min/max clustering on last unfiltered
-            if (unfilteredCount > 1) {
-                ssTableCursorWriter.updateClusteringMetadata(lastClustering);
+            // The trailing index block's last name and the covered-clustering max are the same value, the
+            // clustering of the last unfiltered written here; a partition that wrote none has no trailing
+            // block to cut, hence null.
+            ClusteringDescriptor lastName = unfilteredsWrittenToPartition > 0 ? lastWrittenClustering() : null;
+            ssTableCursorWriter.writePartitionEnd(partitionDescriptor.keyBytes(), partitionDescriptor.keyLength(), toWritePartitionDeletion, partitionHeaderLength, lastName);
+            // update metadata tracking of min/max clustering on last unfiltered. The count guard is
+            // load-bearing rather than an optimisation — see unfilteredsWrittenToPartition.
+            if (unfilteredsWrittenToPartition > 1) {
+                ssTableCursorWriter.updateClusteringMetadata(lastName);
             }
         }
         // move along
@@ -529,6 +720,11 @@ public class CursorCompactor extends CompactionInfo.Holder
 
         LivenessInfo mergedRowInfo = row.livenessInfo();
         DeletionTime mergedRowDeletion = row.deletionTime();
+        // Row.Deletion.isShadowable(): deprecated (CASSANDRA-11500), reachable only on old
+        // Materialized View data. Tracked alongside mergedRowDeletion because the shadowing step
+        // below reads it, and because it has to survive to the output write attached to whichever
+        // deletion wins.
+        boolean mergedRowShadowable = row.isShadowableDeletion();
 
         for (int i = 1; i < rowMergeLimit; i++)
         {
@@ -538,26 +734,77 @@ public class CursorCompactor extends CompactionInfo.Holder
             if (row.livenessInfo().supersedes(mergedRowInfo))
                 mergedRowInfo = row.livenessInfo();
             if (row.deletionTime().supersedes(mergedRowDeletion))
+            {
                 mergedRowDeletion = row.deletionTime();
+                mergedRowShadowable = row.isShadowableDeletion();
+            }
+        }
+
+        /**
+         * {@link Row.Deletion#isShadowedBy(LivenessInfo)}, applied where
+         * {@link Row.Merger#merge(DeletionTime)} applies it: after the N-way merge and BEFORE the
+         * active-deletion comparison below. A shadowable deletion yields to a primary-key liveness that
+         * postdates it, so the row keeps the cells the deletion would otherwise shadow — and the output
+         * carries neither the deletion nor its {@code HAS_SHADOWABLE_DELETION} extension flag.
+         *
+         * Safe against exposing a cell the deletion itself shadowed: {@code BTreeRow.Builder} drops such
+         * cells at write time, so no on-disk row carries one for this step to uncover.
+         */
+        if (mergedRowShadowable && mergedRowInfo.timestamp() > mergedRowDeletion.markedForDeleteAt())
+        {
+            mergedRowDeletion = DeletionTime.LIVE;
+            mergedRowShadowable = false; // a live deletion is never shadowable
         }
 
         /**
          * See: {@link BTreeRow#purge(DeletionPurger, long, boolean)}
          */
         DeletionTime rowActiveDeletion = partitionActiveDeletion;
+        // Whether BTreeRow.purge's hasDeletion(nowInSec) guard would be open for reasons OTHER than the
+        // row's cells; see the strict-liveness branch below for why only the purger's two clearances
+        // count here.
+        boolean rowHasDeletionAtNow = false;
         if (mergedRowDeletion.supersedes(rowActiveDeletion))
         {
             rowActiveDeletion = mergedRowDeletion; // deletion is in effect before purge takes effect
-            mergedRowDeletion = purger.shouldPurge(mergedRowDeletion) ? DeletionTime.LIVE : mergedRowDeletion;
+            if (purger.shouldPurge(mergedRowDeletion))
+            {
+                mergedRowDeletion = DeletionTime.LIVE;
+                mergedRowShadowable = false; // a live deletion is never shadowable
+                rowHasDeletionAtNow = true;
+            }
         }
         else
         {
             // partition delete takes over
             mergedRowDeletion = DeletionTime.LIVE;
+            mergedRowShadowable = false; // a live deletion is never shadowable
         }
 
-        if (rowActiveDeletion.deletes(mergedRowInfo) || purger.shouldPurge(mergedRowInfo, nowInSec))
+        // Split from the single disjunction it reads as so the strict-liveness branch below can tell the
+        // two clearances apart: the reference's minLocalDeletionTime is computed AFTER the active
+        // deletion has emptied the liveness and BEFORE the purger runs, so only a purger clearance is
+        // visible to it. Splitting is behaviour-neutral, the assignment of the EMPTY singleton over an
+        // already-empty liveness included: an empty liveness carries NO_TIMESTAMP, which is
+        // Long.MIN_VALUE, so DeletionTime.deletes reports every deletion as deleting it and the first
+        // branch is always the one taken.
+        if (rowActiveDeletion.deletes(mergedRowInfo))
         {
+            mergedRowInfo = LivenessInfo.EMPTY;
+        }
+        else if (purger.shouldPurge(mergedRowInfo, nowInSec))
+        {
+            // A purged liveness contributed a reference term at or below nowInSec, so the guard is open.
+            // Not because "not live at nowInSec" implies an expiration at or below it -- an
+            // EXPIRED_LIVENESS_TTL move marker is not live at any nowInSec while its localExpirationTime
+            // can be above it, and ReusableLivenessInfo.isLive answers on that flag. It is because
+            // shouldPurge requires localDeletionTime < gcBefore, and gcBefore <= nowInSec on every path
+            // that reaches here: gcBefore is now - gc_grace with gc_grace non-negative, and an
+            // accord-enabled table takes nowInSec := gcBefore outright. The one escape from
+            // localDeletionTime < gcBefore is ignoreGcGraceSeconds -- and isSupported refuses the table
+            // while any key ignores gc grace, so that gate is load-bearing for this arm too, which is
+            // why it is named here.
+            rowHasDeletionAtNow |= !mergedRowInfo.isEmpty();
             mergedRowInfo = LivenessInfo.EMPTY;
         }
 
@@ -565,10 +812,37 @@ public class CursorCompactor extends CompactionInfo.Holder
 
         if (!isRowDropped)
         {
-            lateStartRow(mergedRowInfo, mergedRowDeletion, isStatic);
+            lateStartRow(mergedRowInfo, mergedRowDeletion, mergedRowShadowable, isStatic);
         }
 
-        if (isRowDropped && enforceStrictLiveness)
+        /**
+         * Strict liveness ({@link org.apache.cassandra.schema.TableMetadata#enforceStrictLiveness}, true
+         * only for a view whose primary key holds a base non-PK column) drops a row with no primary-key
+         * liveness and no row deletion -- but {@link BTreeRow#purge} reaches that drop only past its
+         * opening {@code if (!hasDeletion(nowInSec)) return this;}, i.e. only when
+         * {@code nowInSec >= minLocalDeletionTime} of the MERGED row. Without that precondition the
+         * cursor deleted rows the iterator returns untouched, cells included.
+         *
+         * {@code minLocalDeletionTime} is the minimum of three terms, all taken on the merged row as
+         * {@link Row.Merger#merge} leaves it -- after the active deletion has emptied the liveness and
+         * cleared the deletion it does not outrank, and before the purger runs:
+         *
+         *   liveness: {@code isExpiring() ? localExpirationTime() : Cell.MAX_DELETION_TIME}
+         *   deletion: {@code isLive() ? Cell.MAX_DELETION_TIME : Long.MIN_VALUE}
+         *   cells:    {@code Long.MIN_VALUE} for a tombstone, else the cell's local deletion time
+         *
+         * Reaching this branch at all means the post-purge deletion is live and the post-purge liveness
+         * empty, which collapses the first two terms to the purger's own two clearances. If the purger
+         * cleared the deletion, the pre-purge deletion was not live and the deletion term is
+         * {@code Long.MIN_VALUE}. If it cleared the liveness, the liveness was not live at
+         * {@code nowInSec}, which for a non-empty liveness means expiring and expired, so the liveness
+         * term is at or below {@code nowInSec}. Either way the guard is open. Otherwise both terms are
+         * {@code Cell.MAX_DELETION_TIME} and the cells decide it alone -- which is what
+         * {@link #anyMergedCellDeadAtNow} answers, and why it is only consulted when neither clearance
+         * fired.
+         */
+        if (isRowDropped && enforceStrictLiveness
+            && (rowHasDeletionAtNow || anyMergedCellDeadAtNow(rowMergeLimit, rowActiveDeletion, isStatic)))
         {
             skipRowsOnStrictLiveness(rowMergeLimit, isStatic);
         }
@@ -620,6 +894,97 @@ public class CursorCompactor extends CompactionInfo.Holder
         }
     }
 
+    /**
+     * Whether the merged row carries any cell that is not live at {@code nowInSec} — a cell tombstone,
+     * or an expiring cell already past its expiry. That is the cells' contribution to
+     * {@link BTreeRow#purge}'s {@code hasDeletion(nowInSec)} guard: {@code Cell.minDeletionTime()} is
+     * {@code Long.MIN_VALUE} for a tombstone and the local deletion time otherwise, and
+     * {@code Cell.NO_DELETION_TIME} for a plain live cell, so "at or below {@code nowInSec}" and "not
+     * live at {@code nowInSec}" name the same cells.
+     *
+     * Only the merge WINNER of each column counts, because only the winner reaches the reference's
+     * merged row, and only if it survives the active deletion — which the reference applies before
+     * reconciling. Taking the winner across all cells and then testing it against the active deletion is
+     * the same answer: the winner carries the greatest timestamp, so if the active deletion deletes it,
+     * it deletes every cell of that column and the column contributes nothing. The winner is decided by
+     * {@link CellLivenessInfo#resolve} alone, and its {@code COMPARE} verdict never leaves the two sides
+     * disagreeing about being live: it is returned either because both carry
+     * {@code Cell.NO_DELETION_TIME}, which makes both live outright, or because they agree on timestamp,
+     * deletion time and TTL. So the value comparison this skips cannot move the answer.
+     *
+     * <b>Walks the row's cells and rewinds every cursor it moved</b>, so the caller's own cell loop runs
+     * against the state it would have seen had the probe not run — the cursor ORDER and the equals-next
+     * flags included, which the cell sorts below overwrite; restoring both is defensive rather than
+     * provably needed, since the real loop's first sort re-sorts the whole group anyway. Only reached
+     * under {@code enforceStrictLiveness}, so no non-view compaction pays for the second walk or its
+     * scratch. Decided as soon as one dead cell is found, so this is the one walk that always runs to
+     * the end of the row.
+     */
+    private boolean anyMergedCellDeadAtNow(int rowMergeLimit, DeletionTime rowActiveDeletion, boolean isStatic)
+    {
+        System.arraycopy(sstableCursors, 0, probeCursorOrder, 0, rowMergeLimit);
+        System.arraycopy(sstableCursorsEqualsNext, 0, probeEqualsNext, 0, rowMergeLimit);
+        for (int i = 0; i < rowMergeLimit; i++)
+            probeCursorState[i] = sstableCursors[i].state();
+
+        boolean anyDead = false;
+        int cellMergeLimit = rowMergeLimit;
+        while (!anyDead)
+        {
+            for (int i = 0; i < cellMergeLimit; i++)
+            {
+                if (sstableCursors[i].state() == CELL_HEADER_START)
+                    sstableCursors[i].readCellHeader();
+            }
+            cellMergeLimit = prepareAndSortCellsForMerge(rowMergeLimit, cellMergeLimit);
+            if (cellMergeLimit == 0)
+                break;
+
+            ReusableCellLivenessInfo winner = sstableCursors[0].cellCursor().cellLiveness;
+            for (int i = 1; i < cellMergeLimit; i++)
+            {
+                ReusableCellLivenessInfo challenger = sstableCursors[i].cellCursor().cellLiveness;
+                if (CellLivenessInfo.resolve(winner, challenger) == RIGHT)
+                    winner = challenger;
+            }
+            anyDead = !rowActiveDeletion.deletesCellAt(winner.timestamp()) && !winner.isLive(nowInSec);
+
+            for (int i = 0; i < cellMergeLimit; i++)
+            {
+                if (sstableCursors[i].state() == CELL_VALUE_START)
+                    sstableCursors[i].skipCellValue();
+            }
+            continueReadingAfterMerge(cellMergeLimit, CELL_END);
+        }
+
+        System.arraycopy(probeCursorOrder, 0, sstableCursors, 0, rowMergeLimit);
+        System.arraycopy(probeEqualsNext, 0, sstableCursorsEqualsNext, 0, rowMergeLimit);
+        for (int i = 0; i < rowMergeLimit; i++)
+        {
+            // Every member of the group is at CELL_HEADER_START if it has a cell in this row, else
+            // UNFILTERED_END: the row-header loaders return only those two, and every member has been
+            // through one. It is the sort ORDER that keeps other states out, not a throw -- both
+            // comparators pass PARTITION_END and sort it to the back, so it either empties the group or
+            // ends it before itself; and compareByStatic sorts STATIC_ROW_START ahead of every non-static
+            // cursor, so a static group is all-static and prepareAndSortStaticForMerge has loaded every
+            // member of it.
+            // Only the first state needs rewinding, and only the first CAN be -- rewindRowCells restores
+            // the walk to the row's FIRST cell, so a cursor recorded mid-row would have its earlier cells
+            // re-presented to the merge. Asserted rather than tolerated for that reason. With assertions
+            // off a mid-row cursor is left where the probe put it, and the cell-desync check catches that
+            // only when the probe's walk had RUN OUT the row, which clears unfilteredEnd; on the
+            // early-exit path -- the one a dropped row usually takes -- the second walk consumes to the
+            // same declared end and the missing cells go unreported. That asymmetry is the reason the
+            // assert is here rather than a tolerated branch.
+            int recordedState = probeCursorState[i];
+            assert recordedState == CELL_HEADER_START || recordedState == UNFILTERED_END
+                 : "unexpected merge-group state before the strict-liveness probe: " + sstableCursors[i];
+            if (recordedState == CELL_HEADER_START)
+                sstableCursors[i].rewindRowCells(isStatic);
+        }
+        return anyDead;
+    }
+
     private DataOutputBuffer tempCellBuffer1 = new DataOutputBuffer();
     private DataOutputBuffer tempCellBuffer2 = new DataOutputBuffer();
     private final byte[] copyColumnValueBuffer = new byte[4096]; // used to copy cell contents (maybe piecemeal if very large, since we don't have a direct read option)
@@ -636,7 +1001,7 @@ public class CursorCompactor extends CompactionInfo.Holder
         // TODO: handle counters/complex cells
         StatefulCursor cellSource = sstableCursors[0];
         SSTableCursorReader.CellCursor cellCursor = cellSource.cellCursor();
-        ReusableLivenessInfo cellLiveness = cellCursor.cellLiveness;
+        ReusableCellLivenessInfo cellLiveness = cellCursor.cellLiveness;
         DataOutputBuffer tempCellBuffer = null;
 
         if (cellCursor.cellColumn.isComplex())
@@ -645,14 +1010,17 @@ public class CursorCompactor extends CompactionInfo.Holder
             throw new UnsupportedOperationException("TODO: Not ready for counter cells.");
 
         /** See: {@link Cells#reconcile(Cell, Cell)} */
-        // Find latest cell value/delete info, only one cell can win(for now... same timestamp handling awaits)!
+        // Find the winning cell across sources: CellLivenessInfo.resolve is the full decision the reference
+        // path takes, including the same-timestamp tie-breaks (deleted/expiring beats live, greater deletion
+        // time, lower TTL), and COMPARE is the value comparison it defers to us. No narrowing needed here,
+        // unlike Cells.resolveRegular: ReusableCellLivenessInfo has no subclasses to pollute the profile.
         for (int i = 1; i < cellMergeLimit; i++)
         {
             StatefulCursor oCellSource = sstableCursors[i];
             SSTableCursorReader.CellCursor oCellCursor = oCellSource.cellCursor();
-            ReusableLivenessInfo oCellLiveness = oCellCursor.cellLiveness;
+            ReusableCellLivenessInfo oCellLiveness = oCellCursor.cellLiveness;
 
-            CellResolution cellResolution = resolveRegular(cellLiveness, oCellLiveness);
+            Resolution cellResolution = CellLivenessInfo.resolve(cellLiveness, oCellLiveness);
             if (cellResolution == LEFT) {
                 if (oCellSource.state() == CELL_VALUE_START) oCellSource.skipCellValue();
             }
@@ -664,7 +1032,7 @@ public class CursorCompactor extends CompactionInfo.Holder
                 tempCellBuffer = null;
             }
             else { // COMPARE
-                if (activeDeletion.deletes(oCellLiveness)) {
+                if (activeDeletion.deletesCellAt(oCellLiveness.timestamp())) {
                     if (oCellSource.state() == CELL_VALUE_START) oCellSource.skipCellValue();
                 }
                 else {
@@ -690,9 +1058,25 @@ public class CursorCompactor extends CompactionInfo.Holder
                     if (oCellSource.state() == CELL_VALUE_START)
                         oCellSource.copyCellValue(tempCellBuffer2, copyColumnValueBuffer);
 
-                    int compare = Arrays.compareUnsigned(tempCellBuffer1.getData(), 0, tempCellBuffer1.getLength(), tempCellBuffer2.getData(), 0, tempCellBuffer2.getLength());
-                    if (compare >= 0) {
-                        // swap the buffers
+                    // Matches Cells.resolveRegular: left (the current winner) wins ties, the
+                    // challenger only wins with a strictly greater value
+                    // (compareValues(left, right) >= 0 ? left : right). The reference
+                    // comparison is over the RAW value bytes (ValueAccessor.compare, plain
+                    // unsigned lexicographic): these buffers hold the WIRE form, which for
+                    // variable-length types carries a leading length vint — comparing that
+                    // prefix orders by LENGTH first (the vint's leading byte encodes it) and
+                    // picks the wrong winner for ties between different-length values.
+                    // Fixed-length types carry no vint (and equal lengths).
+                    int skip1 = 0, skip2 = 0;
+                    if (cellCursor.cellType.valueLengthIfFixed() < 0)
+                    {
+                        skip1 = tempCellBuffer1.getLength() == 0 ? 0 : wireVintSize(tempCellBuffer1.getData()[0]);
+                        skip2 = tempCellBuffer2.getLength() == 0 ? 0 : wireVintSize(tempCellBuffer2.getData()[0]);
+                    }
+                    int compare = Arrays.compareUnsigned(tempCellBuffer1.getData(), skip1, tempCellBuffer1.getLength(),
+                                                         tempCellBuffer2.getData(), skip2, tempCellBuffer2.getLength());
+                    if (compare < 0) {
+                        // challenger wins: swap buffers so tempCellBuffer1 holds the winner's value
                         tempCellBuffer = tempCellBuffer1;
                         tempCellBuffer1 = tempCellBuffer2;
                         tempCellBuffer2 = tempCellBuffer;
@@ -737,7 +1121,7 @@ public class CursorCompactor extends CompactionInfo.Holder
             }
         }
 
-        if (activeDeletion.deletes(cellLiveness) || purger.shouldPurge(cellLiveness, nowInSec))
+        if (activeDeletion.deletesCellAt(cellLiveness.timestamp()) || purger.shouldPurge(cellLiveness, nowInSec))
         {
             if (Cell.Serializer.hasValue(cellFlags))
             {
@@ -763,17 +1147,19 @@ public class CursorCompactor extends CompactionInfo.Holder
                 isRowDropped = false;
                 lateStartRow(isStatic);
             }
-            /** {@link org.apache.cassandra.db.rows.Cell.Serializer#serialize(Cell, ColumnMetadata, DataOutputPlus, LivenessInfo, SerializationHeader)} */
+            /** {@link org.apache.cassandra.db.rows.Cell.Serializer#serialize(Cell, ColumnMetadata, DataOutputPlus, LivenessInfo, org.apache.cassandra.db.SerializationHeader)} */
             boolean isDeleted = cellLiveness.isTombstone();
+            // Cell.Serializer treats deleted/expiring as mutually exclusive (else-if below), so a
+            // tombstone must never carry IS_EXPIRING or a TTL field.
             boolean isExpiring = cellLiveness.isExpiring();
             boolean useRowTimestamp = !rowLiveness.isEmpty() && cellLiveness.timestamp() == rowLiveness.timestamp();
             boolean useRowTTL = isExpiring && rowLiveness.isExpiring() &&
                                 cellLiveness.ttl() == rowLiveness.ttl() &&
-                                cellLiveness.localExpirationTime() == rowLiveness.localExpirationTime();
+                                cellLiveness.localDeletionTime() == rowLiveness.localExpirationTime();
             // Re-write cell flags to reflect resulting contents
             cellFlags &= Cell.Serializer.HAS_EMPTY_VALUE_MASK;
             if (isDeleted) cellFlags |= Cell.Serializer.IS_DELETED_MASK;
-            if (isExpiring) cellFlags |= Cell.Serializer.IS_EXPIRING_MASK;
+            else if (isExpiring) cellFlags |= Cell.Serializer.IS_EXPIRING_MASK;
             if (useRowTimestamp) cellFlags |= Cell.Serializer.USE_ROW_TIMESTAMP_MASK;
             if (useRowTTL) cellFlags |= Cell.Serializer.USE_ROW_TTL_MASK;
             ssTableCursorWriter.writeCellHeader(cellFlags, cellLiveness, cellSource.cellCursor().cellColumn);
@@ -797,50 +1183,15 @@ public class CursorCompactor extends CompactionInfo.Holder
         return isRowDropped;
     }
 
-    enum CellResolution
+    /**
+     * Byte length of the leading unsigned vint in a wire-form variable-length value:
+     * non-negative first byte = single-byte vint (VIntCoding's own callers guard the same
+     * way before consulting numberOfExtraBytesToRead, which expects the SIGNED byte).
+     */
+    private static int wireVintSize(byte firstByte)
     {
-        LEFT, RIGHT, COMPARE
-    }
-
-    private static CellResolution resolveRegular(LivenessInfo left, LivenessInfo right)
-    {
-        long leftTimestamp = left.timestamp();
-        long rightTimestamp = right.timestamp();
-        if (leftTimestamp != rightTimestamp)
-            return leftTimestamp > rightTimestamp ? LEFT : RIGHT;
-
-        long leftLocalDeletionTime = left.localExpirationTime();
-        long rightLocalDeletionTime = right.localExpirationTime();
-
-        boolean leftIsExpiringOrTombstone = leftLocalDeletionTime != Cell.NO_DELETION_TIME;
-        boolean rightIsExpiringOrTombstone = rightLocalDeletionTime != Cell.NO_DELETION_TIME;
-
-        if (leftIsExpiringOrTombstone | rightIsExpiringOrTombstone)
-        {
-            // Tombstones always win reconciliation with live cells of the same timstamp
-            // CASSANDRA-14592: for consistency of reconciliation, regardless of system clock at time of reconciliation
-            // this requires us to treat expiring cells (which will become tombstones at some future date) the same wrt regular cells
-            if (leftIsExpiringOrTombstone != rightIsExpiringOrTombstone)
-                return leftIsExpiringOrTombstone ? LEFT : RIGHT;
-
-            // for most historical consistency, we still prefer tombstones over expiring cells.
-            // While this leads to an inconsistency over which is chosen
-            // (i.e. before expiry, the pure tombstone; after expiry, whichever is more recent)
-            // this inconsistency has no user-visible distinction, as at this point they are both logically tombstones
-            // (the only possible difference is the time at which the cells become purgeable)
-            boolean leftIsTombstone = !left.isExpiring(); // !isExpiring() == isTombstone(), but does not need to consider localDeletionTime()
-            boolean rightIsTombstone = !right.isExpiring();
-            if (leftIsTombstone != rightIsTombstone)
-                return leftIsTombstone ? LEFT : RIGHT;
-
-            // ==> (leftIsExpiring && rightIsExpiring) or (leftIsTombstone && rightIsTombstone)
-            // if both are expiring, we do not want to consult the value bytes if we can avoid it, as like with C-14592
-            // the value bytes implicitly depend on the system time at reconciliation, as a
-            // would otherwise always win (unless it had an empty value), until it expired and was translated to a tombstone
-            if (leftLocalDeletionTime != rightLocalDeletionTime)
-                return leftLocalDeletionTime > rightLocalDeletionTime ? LEFT : RIGHT;
-        }
-        return COMPARE;
+        return firstByte >= 0 ? 1
+               : 1 + org.apache.cassandra.utils.vint.VIntCoding.numberOfExtraBytesToRead(firstByte);
     }
 
     DeletionTime activeOpenRangeDeletion = DeletionTime.LIVE;
@@ -1090,16 +1441,16 @@ public class CursorCompactor extends CompactionInfo.Holder
 
     private void lateStartRow(boolean isStatic) throws IOException
     {
-        lateStartRow(LivenessInfo.EMPTY, DeletionTime.LIVE, isStatic);
+        lateStartRow(LivenessInfo.EMPTY, DeletionTime.LIVE, false, isStatic);
     }
 
-    private void lateStartRow(LivenessInfo livenessInfo, DeletionTime deletionTime, boolean isStatic) throws IOException
+    private void lateStartRow(LivenessInfo livenessInfo, DeletionTime deletionTime, boolean isShadowable, boolean isStatic) throws IOException
     {
         if (isPartitionStartDelayed())
         {
             lateStartPartition(isStatic);
         }
-        ssTableCursorWriter.writeRowStart(livenessInfo, deletionTime, isStatic);
+        ssTableCursorWriter.writeRowStart(livenessInfo, deletionTime, isShadowable, isStatic);
     }
 
     private void lateStartPartition(boolean isStatic) throws IOException
@@ -1147,12 +1498,60 @@ public class CursorCompactor extends CompactionInfo.Holder
         ssTableCursorWriter = null;
     }
 
+    private boolean hasWrittenPartition()
+    {
+        return lastWrittenPartition.keyLength() != 0;
+    }
+
     private DecoratedKey lastWrittenKey()
     {
-        if (detachedLastWrittenKey.getKeyLength() != 0)
-            return detachedLastWrittenKey;
-        else
-            return lastSource.prevKey();
+        assert hasWrittenPartition() : "no partition has been written yet";
+        return lastWrittenPartition.key();
+    }
+
+    /**
+     * Takes the owed steal, if any. Called at the top of a round, after the prepare-and-sort that performs the
+     * round's reads and before either consumer of the value: the writer-order check below, and
+     * {@code writerRollover}'s setLast reached from startPartition or from finish().
+     *
+     * The deferral is what makes it correct. On the cursor that wrote key k1, the round that reads k2 has
+     * already swapped k1 into prev and compared it against k2, so prev is consumed and can be taken; the next
+     * round swaps k2 into prev and loads k3 into the floater we handed back. Exactly one read must have
+     * happened in between, which the assert states.
+     */
+    private void takeOwedPartitionSteal()
+    {
+        if (lastWrittenPartitionSource == null)
+            return;
+        assert lastWrittenPartitionSource.partitionSwaps() == lastWrittenPartitionSourceSwaps + 1
+             : "the partition steal is not one slot advance behind its write: now "
+               + lastWrittenPartitionSource.partitionSwaps() + ", was " + lastWrittenPartitionSourceSwaps;
+        lastWrittenPartition = lastWrittenPartitionSource.detachPrevPartition(lastWrittenPartition);
+        lastWrittenPartitionSource = null;
+    }
+
+    /**
+     * Takes the instance describing the unfiltered just written from the cursor it was read into, handing that
+     * cursor the floater in exchange.
+     *
+     * sstableCursors[0] is the source because it is the instance the output was written from: the merged group
+     * shares one clustering, mergeRows writes cursor 0's descriptor, and mergeRangeTombstones stomps the
+     * clustering kind on that same instance before writing it — which the covered-clustering update then keys
+     * its boundary skip on.
+     *
+     * Immediate, not deferred by a round like the partition steal — see
+     * {@link StatefulCursor#detachUnfiltered} for why that is safe with a single slot.
+     */
+    private void detachWrittenUnfiltered()
+    {
+        lastWrittenUnfiltered = sstableCursors[0].detachUnfiltered(lastWrittenUnfiltered);
+    }
+
+    /** The clustering of the last unfiltered written to the current output partition. */
+    private ClusteringDescriptor lastWrittenClustering()
+    {
+        assert unfilteredsWrittenToPartition > 0 : "no unfiltered has been written to this partition";
+        return lastWrittenUnfiltered;
     }
 
     // SORT AND COMPARE
@@ -1220,7 +1619,7 @@ public class CursorCompactor extends CompactionInfo.Holder
             return 0;
         }
 
-        sortPerturbedCursors(perturbedCursors, sstableCursors.length, CursorCompactor::compareByPartitionKey);
+        PARTITION_KEY_SORT.sortPerturbed(sstableCursors, sstableCursorsEqualsNext, perturbedCursors, sstableCursors.length);
         // top cursor is DONE -> all cursors are DONE
         int state = sstableCursors[0].state();
         if(state == DONE)
@@ -1260,7 +1659,7 @@ public class CursorCompactor extends CompactionInfo.Holder
         }
 
         // Sort rows by their clustering
-        sortPerturbedCursors(prevMergeLimit, partitionMergeLimit, CursorCompactor::compareByRowClustering);
+        ROW_CLUSTERING_SORT.sortPerturbed(sstableCursors, sstableCursorsEqualsNext, prevMergeLimit, partitionMergeLimit);
         int state = sstableCursors[0].state();
         if (state == PARTITION_END)
         {
@@ -1278,7 +1677,7 @@ public class CursorCompactor extends CompactionInfo.Holder
 
     private int prepareAndSortStaticForMerge(int partitionMergeLimit) throws IOException
     {
-        sortPerturbedCursors(partitionMergeLimit, partitionMergeLimit, CursorCompactor::compareByStatic);
+        STATIC_SORT.sortPerturbed(sstableCursors, sstableCursorsEqualsNext, partitionMergeLimit, partitionMergeLimit);
         int state = sstableCursors[0].state();
         if (state != STATIC_ROW_START)
         {
@@ -1304,7 +1703,7 @@ public class CursorCompactor extends CompactionInfo.Holder
 
     private int prepareAndSortCellsForMerge(int rowMergeLimit, int prevCellMergeLimit)
     {
-        sortPerturbedCursors(prevCellMergeLimit, rowMergeLimit, CursorCompactor::compareByColumn);
+        COLUMN_SORT.sortPerturbed(sstableCursors, sstableCursorsEqualsNext, prevCellMergeLimit, rowMergeLimit);
         // next row/partition/done
         if (sstableCursors[0].state() == UNFILTERED_END)
             return 0;
@@ -1321,6 +1720,19 @@ public class CursorCompactor extends CompactionInfo.Holder
         }
         return cellMergeLimit;
     }
+
+    // One dedicated, separately-compiled sort per comparison kind (see PreSortedBubbleInsert's
+    // javadoc): each singleton is only ever constructed with its own compareByXxx reference, so
+    // its copy's comparator.compare() call site stays monomorphic/inlinable instead of megamorphic
+    // across all 4 comparators sharing one call site.
+    private static final PartitionKeyMergeSort<StatefulCursor> PARTITION_KEY_SORT =
+        new PartitionKeyMergeSort<>(CursorCompactor::compareByPartitionKey);
+    private static final RowClusteringMergeSort<StatefulCursor> ROW_CLUSTERING_SORT =
+        new RowClusteringMergeSort<>(CursorCompactor::compareByRowClustering);
+    private static final StaticMergeSort<StatefulCursor> STATIC_SORT =
+        new StaticMergeSort<>(CursorCompactor::compareByStatic);
+    private static final ColumnMergeSort<StatefulCursor> COLUMN_SORT =
+        new ColumnMergeSort<>(CursorCompactor::compareByColumn);
 
     private static int compareByPartitionKey(StatefulCursor c1, StatefulCursor c2)
     {
@@ -1393,8 +1805,6 @@ public class CursorCompactor extends CompactionInfo.Holder
      */
     static class Purger implements DeletionPurger
     {
-        private final long nowInSec;
-
         private final long oldestUnrepairedTombstone;
         private final boolean onlyPurgeRepairedTombstones;
         private final boolean shouldIgnoreGcGraceForAnyKey;
@@ -1408,12 +1818,11 @@ public class CursorCompactor extends CompactionInfo.Holder
 
         private long compactedUnfiltered;
 
-        Purger(OperationType type, AbstractCompactionController controller, long nowInSec)
+        Purger(OperationType type, AbstractCompactionController controller)
         {
             oldestUnrepairedTombstone = controller.compactingRepaired() ? Long.MAX_VALUE : Integer.MIN_VALUE;
             onlyPurgeRepairedTombstones = controller.cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones();
             shouldIgnoreGcGraceForAnyKey = controller.cfs.shouldIgnoreGcGraceForAnyKey();
-            this.nowInSec = nowInSec;
             this.controller = controller;
             this.type = type;
         }
@@ -1611,66 +2020,4 @@ public class CursorCompactor extends CompactionInfo.Holder
         }
     }
 
-    private void sortPerturbedCursors(int perturbedLimit, int mergeLimit, Comparator<? super StatefulCursor> comparator) {
-        for (; perturbedLimit > 0; perturbedLimit--) {
-            bubbleInsertElementToPreSorted(sstableCursors, sstableCursorsEqualsNext, perturbedLimit, mergeLimit, comparator);
-        }
-    }
-
-    /**
-     * Use bubble sort to insert the <code>sortedFrom - 1</code> element into a pre-sorted array, and track element
-     * equality to next element to help in finding merge ranges.
-     * </p>
-     * We use this method to sort the cursor array on 3 levels:
-     * <ul>
-     *     <li>Partition - insert sort the newly read partitions into the full list, comparing on pKey</li>
-     *     <li>Unfiltered - insert sort the newly read rows into the sub-list of merging partitions, comparing on clustering</li>
-     *     <li>Cell - insert sort the newly read cells into the sub-list of merging rows, comparing on column</li>
-     * </ul>
-     *
-     * @param preSortedArray partially pre-sorted array of elements to be sorted in place
-     * @param equalsNext tracking the equality between each element and the next in the sorted array
-     * @param sortedFrom elements from <code>sortedFrom</code> are assumed sorted
-     * @param sortedTo the limit of our sort effort
-     * @param comparator comparing elements in the array
-     * @param <T> element type
-     */
-    public static <T> void bubbleInsertElementToPreSorted(T[] preSortedArray,
-                                                          boolean[] equalsNext,
-                                                          int sortedFrom,
-                                                          int sortedTo,
-                                                          Comparator<T> comparator)
-    {
-        int insertInto = sortedFrom - 1;
-        T newElement = preSortedArray[insertInto];
-        for (; insertInto < sortedTo - 1; insertInto++)
-        {
-            int cmp = comparator.compare(newElement, preSortedArray[insertInto + 1]);
-            if (cmp < 0)
-            {
-                equalsNext[insertInto] = false;
-                break;
-            }
-            else if (cmp == 0) {
-                equalsNext[insertInto] = true;
-                break;
-            }
-            else
-            {
-                // skip the section of equal elements who are smaller than the new element
-                for (; insertInto < sortedTo - 1; insertInto++)
-                {
-                    if (!equalsNext[insertInto + 1])
-                    {
-                        break;
-                    }
-                    preSortedArray[insertInto] = preSortedArray[insertInto + 1];
-                    equalsNext[insertInto] = true;
-                }
-                preSortedArray[insertInto] = preSortedArray[insertInto + 1];
-                equalsNext[insertInto] = false;
-            }
-        }
-        preSortedArray[insertInto] = newElement;
-    }
 }
