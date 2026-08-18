@@ -76,7 +76,7 @@ public class SegmentReferenceTracker implements INotificationConsumer
     // Sstables we currently hold refs for.
     // Required so SSTableRepairStatusChanged can transition an sstable in/out without the notification
     // having to carry the previous repair state.
-    private final Set<SSTableReader> trackedSstables = new HashSet<>();
+    private final Set<SSTableReader> trackedSSTables = new HashSet<>();
 
     // Invoked whenever a notification drives at least one segment's reference count to zero,
     // so the journal can attempt to drop the now-unreferenced segment(s).
@@ -207,6 +207,24 @@ public class SegmentReferenceTracker implements INotificationConsumer
     }
 
     /**
+     * @return an immutable snapshot of the currently tracked SSTables
+     */
+    public Set<SSTableReader> trackedSSTables()
+    {
+        lock.lock();
+        try
+        {
+            if (trackedSSTables.isEmpty())
+                return Set.of();
+            return Set.copyOf(trackedSSTables);
+        }
+        finally
+        {
+            lock.unlock();
+        }
+    }
+
+    /**
      * @return true when all these conditions are true, the sstable is locally originated, unrepaired, carries
      * tracked mutations, and it belongs to a tracked table
      */
@@ -233,7 +251,7 @@ public class SegmentReferenceTracker implements INotificationConsumer
 
     private void acquireIfTracked(SSTableReader sstable)
     {
-        if (shouldTrack(sstable) && trackedSstables.add(sstable))
+        if (shouldTrack(sstable) && trackedSSTables.add(sstable))
             forEachSegment(sstable, segmentId ->
                                     referrersBySegment.computeIfAbsent(segmentId, k -> new HashSet<>()).add(sstable));
     }
@@ -243,7 +261,7 @@ public class SegmentReferenceTracker implements INotificationConsumer
      */
     private boolean releaseIfTracked(SSTableReader sstable)
     {
-        if (!trackedSstables.remove(sstable))
+        if (!trackedSSTables.remove(sstable))
             return false;
         boolean[] anyEmptied = { false };
         forEachSegment(sstable, segmentId -> {
@@ -327,7 +345,7 @@ public class SegmentReferenceTracker implements INotificationConsumer
         lock.lock();
         try
         {
-            return trackedSstables.size();
+            return trackedSSTables.size();
         }
         finally
         {

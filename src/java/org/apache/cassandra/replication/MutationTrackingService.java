@@ -1181,38 +1181,40 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             return;
 
         SegmentReferenceTracker tracker = MutationJournal.instance().segmentReferenceTracker();
+        Set<SSTableReader> trackedSSTables = tracker.trackedSSTables();
+        if (trackedSSTables.isEmpty())
+            return;
+
         long repairedAt = Clock.Global.currentTimeMillis();
+        Map<ColumnFamilyStore, List<SSTableReader>> toPromoteByTable = new HashMap<>();
+        for (SSTableReader sstable : trackedSSTables)
+        {
+            if (!isDurablyReconciled(sstable.getCoordinatorLogOffsets()))
+                continue;
 
-        forEachKeyspace(shards -> {
-            Keyspace keyspace = Schema.instance.getKeyspaceInstance(shards.keyspace);
-            if (keyspace == null)
-                return;
+            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(sstable.metadata().id);
+            if (cfs == null)
+                continue;
 
-            for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+            toPromoteByTable.computeIfAbsent(cfs, ignore -> new ArrayList<>()).add(sstable);
+        }
+
+        for (Map.Entry<ColumnFamilyStore, List<SSTableReader>> entry : toPromoteByTable.entrySet())
+        {
+            ColumnFamilyStore cfs = entry.getKey();
+            List<SSTableReader> toPromote = entry.getValue();
+            try
             {
-                List<SSTableReader> toPromote = new ArrayList<>();
-                for (SSTableReader sstable : cfs.getLiveSSTables())
-                {
-                    if (tracker.shouldTrack(sstable) && isDurablyReconciled(sstable.getCoordinatorLogOffsets()))
-                        toPromote.add(sstable);
-                }
-
-                if (toPromote.isEmpty())
-                    continue;
-
-                try
-                {
-                    cfs.getCompactionStrategyManager().mutateRepaired(toPromote, repairedAt, ActiveRepairService.NO_PENDING_REPAIR);
-                    logger.debug("Promoted {} reconciled sstables of {}.{} to repaired to release journal segments",
-                                 toPromote.size(), cfs.getKeyspaceName(), cfs.getTableName());
-                }
-                catch (IOException e)
-                {
-                    logger.warn("Failed to promote reconciled sstables of {}.{} to repaired; will retry",
-                                cfs.getKeyspaceName(), cfs.getTableName(), e);
-                }
+                cfs.getCompactionStrategyManager().mutateRepaired(toPromote, repairedAt, ActiveRepairService.NO_PENDING_REPAIR);
+                logger.debug("Promoted {} reconciled sstables of {}.{} to repaired to release journal segments",
+                             toPromote.size(), cfs.getKeyspaceName(), cfs.getTableName());
             }
-        });
+            catch (IOException e)
+            {
+                logger.warn("Failed to promote reconciled sstables of {}.{} to repaired; will retry",
+                            cfs.getKeyspaceName(), cfs.getTableName(), e);
+            }
+        }
     }
 
     private static List<SyncTask> unwrapped(Collection<SyncTask> tasks)
