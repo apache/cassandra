@@ -46,6 +46,7 @@ import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FreeRunningClock;
 import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static com.google.common.base.Throwables.getStackTraceAsString;
 import static org.apache.cassandra.exceptions.RemoteExceptionTest.normalizeThrowable;
@@ -367,5 +368,56 @@ public class MessageTest
 
         long localTimeNanos = localClock.now();
         assertTrue( Message.Serializer.calculateCreationTimeNanos(remoteCreatedAt, localClock.translate(), localTimeNanos) > 0);
+    }
+
+    /**
+     * The id counter is an int, so it wraps to Integer.MIN_VALUE after Integer.MAX_VALUE. Ids must stay within
+     * [0, 2^32) across that wrap: the serializer writes them as unsigned vints, so a sign-extended negative id would
+     * occupy the maximum width of 9 bytes rather than at most 5.
+     */
+    @Test
+    public void testIdsRemainUnsignedAcrossCounterWrap()
+    {
+        for (int counter : new int[]{ 1, Integer.MAX_VALUE - 1, Integer.MAX_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE + 1, -1 })
+        {
+            long id = Message.toUnsignedId(counter);
+            assertTrue("id must not be negative, got " + id + " for counter " + counter, id >= 0);
+            assertTrue("id must fit in 32 unsigned bits, got " + id, id <= 0xFFFFFFFFL);
+            assertTrue("id must encode within 5 bytes, got " + VIntCoding.computeUnsignedVIntSize(id),
+                       VIntCoding.computeUnsignedVIntSize(id) <= 5);
+        }
+
+        // the mapping stays injective, so ids remain as distinct as the counter itself
+        assertEquals(Integer.MAX_VALUE + 1L, Message.toUnsignedId(Integer.MIN_VALUE));
+        assertEquals(0xFFFFFFFFL, Message.toUnsignedId(-1));
+    }
+
+    /**
+     * Ids now span the whole unsigned 32-bit range, so the message header must round-trip the upper half too.
+     */
+    @Test
+    public void testLargeIdRoundTrips() throws IOException
+    {
+        for (Version version : Version.supportedVersions())
+        {
+            for (long id : new long[]{ 1L, Integer.MAX_VALUE, Integer.MAX_VALUE + 1L, 0xFFFFFFFFL })
+            {
+                Message<NoPayload> msg = Message.builder(Verb._TEST_1, noPayload)
+                                                .withId(id)
+                                                .from(FBUtilities.getBroadcastAddressAndPort())
+                                                .build();
+
+                try (DataOutputBuffer out = new DataOutputBuffer())
+                {
+                    serializer.serialize(msg, out, version.value);
+                    assertEquals(msg.serializedSize(version.value), out.getLength());
+
+                    try (DataInputBuffer in = new DataInputBuffer(out.buffer(), false))
+                    {
+                        assertEquals(id, serializer.deserialize(in, msg.from(), version.value).id());
+                    }
+                }
+            }
+        }
     }
 }

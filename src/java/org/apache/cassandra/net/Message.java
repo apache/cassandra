@@ -483,11 +483,25 @@ public class Message<T> implements ResponseContext
         long id;
         do
         {
-            id = nextId.incrementAndGet();
+            id = toUnsignedId(nextId.incrementAndGet());
         }
         while (id == NO_ID);
 
         return id;
+    }
+
+    /**
+     * Widens the id counter as unsigned.
+     * <p>
+     * The counter is an {@code int} and wraps to {@link Integer#MIN_VALUE} once it passes
+     * {@link Integer#MAX_VALUE}. Widening it directly would sign-extend, and {@link Serializer} writes the id as an
+     * unsigned vint, so every negative id occupies the maximum width of 9 bytes instead of at most 5. Masking keeps
+     * ids in {@code [0, 2^32)}, which covers the same number of distinct values while staying cheap to encode.
+     */
+    @VisibleForTesting
+    static long toUnsignedId(int counter)
+    {
+        return counter & 0xFFFFFFFFL;
     }
 
     /**
