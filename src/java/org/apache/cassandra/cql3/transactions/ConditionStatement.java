@@ -118,13 +118,13 @@ public class ConditionStatement
                 reference.getValueReceiver();
                 ((RowDataReference) value).getValueReceiver();
 
-                if (!reference.toResultMetadata().type.equals(((RowDataReference) value).toResultMetadata().type))
+                if (!(reference.toResultMetadata().type == (((RowDataReference) value).toResultMetadata().type)))
                     throw new InvalidRequestException(String.format("Row reference (%s) must have the same type as row reference (%s)", lhs.getText(), rhs.getText()));
             }
             else if (lhs instanceof RowDataReference.Raw)
             {
                 if (((RowDataReference.Raw) lhs).column() == null)
-                    throw new IllegalStateException(String.format("Row reference (%s) can only be used with IS NULL/IS NOT NULL conditions", lhs.getText()));
+                    throw new InvalidRequestException(String.format("Row reference (%s) can only be used with IS NULL/IS NOT NULL conditions", lhs.getText()));
                 reference = ((RowDataReference.Raw) lhs).prepareAsReceiver();
                 ColumnSpecification receiver = reference.getValueReceiver();
                 value = rhs.prepare(keyspace, receiver);
@@ -132,7 +132,7 @@ public class ConditionStatement
             else if (rhs instanceof RowDataReference.Raw)
             {
                 if (((RowDataReference.Raw) rhs).column() == null)
-                    throw new IllegalStateException(String.format("Row reference (%s) can only be used with IS NULL/IS NOT NULL conditions", rhs.getText()));
+                    throw new InvalidRequestException(String.format("Row reference (%s) can only be used with IS NULL/IS NOT NULL conditions", rhs.getText()));
                 reference = ((RowDataReference.Raw) rhs).prepareAsReceiver();
                 ColumnSpecification receiver = reference.getValueReceiver();
                 value = lhs.prepare(keyspace, receiver);

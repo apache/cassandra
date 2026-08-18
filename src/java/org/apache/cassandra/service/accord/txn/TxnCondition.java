@@ -674,7 +674,7 @@ public abstract class TxnCondition
             return referenceLHS.toString() + ' ' + kind.symbol + ' ' + referenceRHS.toString();
         }
 
-        public AbstractType<?> getColumnType(TxnReference.ColumnReference reference)
+        private static AbstractType<?> getColumnType(TxnReference.ColumnReference reference)
         {
             ColumnMetadata column = reference.column();
             if (reference.isElementSelection())
@@ -700,12 +700,12 @@ public abstract class TxnCondition
             AbstractType<?> typeLHS = getColumnType(referenceLHS);
             AbstractType<?> typeRHS = getColumnType(referenceRHS);
 
-            Invariants.require(typeLHS.equals(typeRHS));
+            Invariants.require(typeLHS == typeRHS);
 
             ByteBuffer lhs = referenceLHS.toByteBuffer(data, typeLHS);
             ByteBuffer rhs = referenceRHS.toByteBuffer(data, typeLHS);
 
-            if (lhs == null || rhs == null)
+            if (lhs == null || rhs == null || typeLHS.isNull(lhs) || typeLHS.isNull(rhs))
                 return false;
 
             return kind.operator.isSatisfiedBy(typeLHS, lhs, rhs);
