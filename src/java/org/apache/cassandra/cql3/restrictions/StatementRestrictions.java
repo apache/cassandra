@@ -68,6 +68,7 @@ import org.apache.cassandra.utils.btree.BTreeSet;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+import static org.apache.cassandra.cql3.statements.SelectStatement.ALLOW_FILTERING;
 
 /**
  * The restrictions corresponding to the relations specified on the where-clause of CQL query.
@@ -78,10 +79,10 @@ public final class StatementRestrictions
             "Cannot execute this query as it might involve data filtering and thus may have unpredictable performance. ";
 
     public static final String REQUIRES_ALLOW_FILTERING_MESSAGE = ALLOW_FILTERING_MESSAGE +
-            "If you want to execute this query despite the performance unpredictability, use ALLOW FILTERING";
+            "If you want to execute this query despite the performance unpredictability, use " + ALLOW_FILTERING;
 
     public static final String CANNOT_USE_ALLOW_FILTERING_MESSAGE = ALLOW_FILTERING_MESSAGE +
-            "Executing this query despite the performance unpredictability with ALLOW FILTERING has been disabled " +
+            "Executing this query despite the performance unpredictability with " + ALLOW_FILTERING + " has been disabled " +
             "by the allow_filtering_enabled property in cassandra.yaml";
 
     public static final String ANN_REQUIRES_INDEX_MESSAGE = "ANN ordering by vector requires the column to be indexed";

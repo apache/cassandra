@@ -32,6 +32,8 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ImmutableUniqueList;
 
+import static org.apache.cassandra.cql3.statements.SelectStatement.ALLOW_FILTERING;
+
 public class Select implements Statement
 {
     /*
@@ -162,7 +164,7 @@ FROM [keyspace_name.] table_name
             if (allowFiltering)
             {
                 formatter.section(sb);
-                sb.append("ALLOW FILTERING");
+                sb.append(ALLOW_FILTERING);
             }
         }
     }

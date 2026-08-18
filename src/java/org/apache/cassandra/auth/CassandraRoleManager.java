@@ -86,6 +86,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.NoSpamLogger;
 
+import static org.apache.cassandra.cql3.statements.SelectStatement.ALLOW_FILTERING;
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
@@ -660,7 +661,7 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
     private List<String> identitiesForRole(String role)
     {
         // Get all identities associated with a given role
-        String query = String.format("SELECT identity FROM %s.%s WHERE role = ? ALLOW FILTERING",
+        String query = String.format("SELECT identity FROM %s.%s WHERE role = ? " + ALLOW_FILTERING,
                                      SchemaConstants.AUTH_KEYSPACE_NAME,
                                      AuthKeyspace.IDENTITY_TO_ROLES);
         UntypedResultSet rows = process(query, consistencyForRoleRead(role), byteBuf(role));

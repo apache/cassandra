@@ -32,6 +32,8 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 
+import static org.apache.cassandra.cql3.statements.SelectStatement.ALLOW_FILTERING;
+
 /**
  * Base class for {@code ReadQuery} implementations.
  */
@@ -118,7 +120,7 @@ abstract class AbstractReadQuery extends MonitorableImpl implements ReadQuery
             builder.append(' ').append(limits());
 
         // ALLOW FILTERING might not be strictly necessary
-        builder.append(" ALLOW FILTERING");
+        builder.append(' ').append(ALLOW_FILTERING);
 
         builder.appendOptions(b -> {
             IndexHints indexHints = rowFilter().indexHints;

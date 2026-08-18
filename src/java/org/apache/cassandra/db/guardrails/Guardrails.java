@@ -49,6 +49,7 @@ import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.cql3.statements.SelectStatement.ALLOW_FILTERING;
 
 /**
  * Entry point for Guardrails, storing the defined guardrails and providing a few global methods over them.
@@ -303,9 +304,9 @@ public final class Guardrails implements GuardrailsMBean
      */
     public static final EnableFlag allowFilteringEnabled =
     new EnableFlag("allow_filtering",
-                   "ALLOW FILTERING can potentially visit all the data in the table and have unpredictable performance.",
+                   ALLOW_FILTERING + " can potentially visit all the data in the table and have unpredictable performance.",
                    state -> CONFIG_PROVIDER.getOrCreate(state).getAllowFilteringEnabled(),
-                   "Querying with ALLOW FILTERING");
+                   "Querying with " + ALLOW_FILTERING);
 
     /**
      * Guardrail disabling setting SimpleStrategy via keyspace creation or alteration
