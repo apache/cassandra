@@ -1312,3 +1312,80 @@ class TestCqlshOutput(BaseTestCase):
             self.assertIn('a', csv_rows[0], msg='First CSV row must be a header')
         finally:
             os.unlink(source_file)
+
+    def test_csv_null_handling(self):
+        """CSV output should use empty string for nulls, not literal 'null'."""
+        ks = get_keyspace()
+        # Insert a row with null and a row with string 'null'
+        setup = (
+            "INSERT INTO %s.has_all_types (num, textcol) VALUES (9990, null);"
+            "INSERT INTO %s.has_all_types (num, textcol) VALUES (9991, 'null');" % (ks, ks)
+        )
+        cqlsh_testcall(args=('--mode', 'csv'), prompt=None, env=self.default_env,
+                       tty=False, input=setup + '\n')
+        try:
+            query = "SELECT num, textcol FROM %s.has_all_types WHERE num IN (9990, 9991);" % ks
+            output, result = cqlsh_testcall(args=('--mode', 'csv'), prompt=None,
+                                            env=self.default_env, tty=False, input=query + '\n')
+            self.assertEqual(0, result)
+            import csv, io
+            reader = csv.reader(io.StringIO(output.strip()))
+            rows = list(reader)
+            self.assertEqual(rows[0], ['num', 'textcol'])
+
+            # Find the rows
+            data_rows = {int(r[0]): r[1] for r in rows[1:] if r[0] in ('9990', '9991')}
+
+            # Row with null should have empty string
+            self.assertEqual(data_rows[9990], '',
+                             msg='CSV null should be empty string, not literal "null"')
+            # Row with string 'null' should have 'null'
+            self.assertEqual(data_rows[9991], 'null',
+                             msg='CSV string "null" should remain as "null"')
+        finally:
+            cleanup = "DELETE FROM %s.has_all_types WHERE num IN (9990, 9991);" % ks
+            cqlsh_testcall(args=('--mode', 'csv'), prompt=None, env=self.default_env,
+                           tty=False, input=cleanup + '\n')
+
+    def test_json_float_precision(self):
+        """JSON output should preserve full float precision, not truncate to display precision."""
+        ks = get_keyspace()
+        # Insert a double with high precision
+        setup = "INSERT INTO %s.has_all_types (num, doublecol) VALUES (9992, 3.141592653589793);" % ks
+        cqlsh_testcall(args=('--mode', 'json'), prompt=None, env=self.default_env,
+                       tty=False, input=setup + '\n')
+        try:
+            query = "SELECT num, doublecol FROM %s.has_all_types WHERE num = 9992;" % ks
+            output, result = cqlsh_testcall(args=('--mode', 'json'), prompt=None,
+                                            env=self.default_env, tty=False, input=query + '\n')
+            self.assertEqual(0, result)
+            import json
+            rows = json.loads(output.strip())
+            self.assertEqual(len(rows), 1)
+            double_val = rows[0]['doublecol']
+            # Should preserve more than 5 digits (default display precision)
+            self.assertIsInstance(double_val, float)
+            # Check that we have more precision than 5 significant figures
+            self.assertAlmostEqual(double_val, 3.141592653589793, places=10,
+                                   msg='JSON should preserve full float precision')
+        finally:
+            cleanup = "DELETE FROM %s.has_all_types WHERE num = 9992;" % ks
+            cqlsh_testcall(args=('--mode', 'json'), prompt=None, env=self.default_env,
+                           tty=False, input=cleanup + '\n')
+
+    def test_json_duplicate_columns(self):
+        """JSON output with duplicate column names silently keeps only the last value."""
+        ks = get_keyspace()
+        # Select the same column multiple times
+        query = "SELECT num, num FROM %s.has_all_types WHERE num = 0;" % ks
+        output, result = cqlsh_testcall(args=('--mode', 'json'), prompt=None,
+                                        env=self.default_env, tty=False, input=query + '\n')
+        self.assertEqual(0, result)
+        import json
+        rows = json.loads(output.strip())
+        self.assertGreater(len(rows), 0)
+        # Dict comprehension silently collapses duplicate keys
+        # This is a known limitation documented in the code
+        self.assertIn('num', rows[0])
+        # Only one 'num' key should exist in the dict
+        self.assertEqual(len([k for k in rows[0].keys() if k == 'num']), 1)

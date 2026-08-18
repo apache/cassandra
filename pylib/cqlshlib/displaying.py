@@ -180,41 +180,44 @@ class CsvTablePrinter(TablePrinter):
         import csv
         self._writer = csv.writer(shell.query_out)
         self._header_written = False
-        self._colnames = None
+        self._pending_header = None
 
     def print_header(self, formatted_names):
-        self._colnames = [n.strval for n in formatted_names]
+        self._pending_header = formatted_names
 
     def print_rows(self, formatted_names, formatted_values):
         if not self._header_written:
-            self._writer.writerow(self._colnames)
+            self._writer.writerow([n.strval for n in formatted_names])
             self._header_written = True
         if formatted_values is None:
             return
         for row in formatted_values:
-            self._writer.writerow([col.strval for col in row])
+            # Rows now contain plain strings (not FormattedValue), with empty strings for nulls
+            self._writer.writerow(row)
 
     def finish(self):
-        if self._colnames is not None and not self._header_written:
-            self._writer.writerow(self._colnames)
+        if self._pending_header is not None and not self._header_written:
+            self._writer.writerow([n.strval for n in self._pending_header])
             self._header_written = True
 
 class JsonTablePrinter(TablePrinter):
     def __init__(self, shell):
         self._shell = shell
-        self._colnames = None
         self._first_row = True
 
     def print_header(self, formatted_names):
-        self._colnames = [n.strval for n in formatted_names]
         self._shell.writeresult('[')
 
     def print_rows(self, formatted_names, formatted_values):
         import json
         if formatted_values is None:
             return
+        colnames = [n.strval for n in formatted_names]
         for row in formatted_values:
-            row_dict = {self._colnames[i]: val for i, val in enumerate(row)}
+            # Note: Duplicate column names will silently collapse to the last value
+            # in the dict comprehension. This is a known limitation when SELECT
+            # returns multiple columns with the same name (e.g., SELECT id, id FROM t).
+            row_dict = {colnames[i]: val for i, val in enumerate(row)}
             serialized = json.dumps(row_dict, ensure_ascii=False)
             if self._first_row:
                 self._shell.writeresult('  ' + serialized, newline=False)

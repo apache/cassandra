@@ -46,7 +46,7 @@ from cassandra.util import datetime_from_timestamp
 from cqlshlib import cql3handling, pylexotron, sslhandling, cqlshhandling, authproviderhandling
 from cqlshlib.copyutil import ExportTask, ImportTask
 from cqlshlib.displaying import (ANSI_RESET, BLUE, COLUMN_NAME_COLORS, CYAN,
-                                 RED, WHITE, FormattedValue, colorme,
+                                 RED, WHITE, FormattedValue, colorme, get_str,
                                  TablePrinter, TabularTablePrinter, CsvTablePrinter, JsonTablePrinter)
 from cqlshlib.formatting import (DEFAULT_DATE_FORMAT, DEFAULT_NANOTIME_FORMAT,
                                  DEFAULT_TIMESTAMP_FORMAT, CqlType, DateTimeFormat,
@@ -314,7 +314,11 @@ class Shell(cmd.Cmd):
         self.auth_provider = auth_provider
         self.username = username
         self.config_file = config_file
-        self.mode = OutputMode.parse(mode)
+        try:
+            self.mode = OutputMode.parse(mode)
+        except ValueError as e:
+            sys.stderr.write("cqlsh: error: %s\n" % e)
+            sys.exit(1)
 
         if isinstance(auth_provider, PlainTextAuthProvider):
             self.username = auth_provider.username
@@ -353,7 +357,7 @@ class Shell(cmd.Cmd):
         self.browser = browser
         self.docspath = docspath
         self.color = color
-        if self.mode in ('csv', 'json'):
+        if self.mode.is_machine_readable:
             self.color = False
 
         self.display_nanotime_format = display_nanotime_format
@@ -991,16 +995,16 @@ class Shell(cmd.Cmd):
             self.print_result(result, self.get_table_meta('system_auth', 'generated_values'))
         elif result:
             # CAS INSERT/UPDATE
-            if self.mode not in ('csv', 'json'):
+            if not self.mode.is_machine_readable:
                 self.writeresult("")
-            cas_printer = TablePrinter.factory(self.mode, self)
+            cas_printer = TablePrinter.factory(self.mode.value, self)
             self.print_static_result(result, self.parse_for_update_meta(statement.query_string),
                                      with_header=True, tty=self.tty,
                                      printer=cas_printer)
             cas_printer.finish()
         if self.elapsed_enabled:
             elapsed_msg = "(%dms elapsed)" % elapsed
-            if self.mode in ('csv', 'json'):
+            if self.mode.is_machine_readable:
                 self.printerr(elapsed_msg)
             else:
                 self.writeresult(elapsed_msg)
@@ -1010,12 +1014,12 @@ class Shell(cmd.Cmd):
     def print_result(self, result, table_meta):
         self.decoding_errors = []
 
-        if self.mode not in ('csv', 'json'):
+        if not self.mode.is_machine_readable:
             self.writeresult("")
-        printer = TablePrinter.factory(self.mode, self)
+        printer = TablePrinter.factory(self.mode.value, self)
 
         def print_all(result, table_meta, tty, printer):
-            machine_mode = self.mode in ('csv', 'json')
+            machine_mode = self.mode.is_machine_readable
             effective_tty = tty and not machine_mode
             num_rows = 0
             is_first = True
@@ -1023,7 +1027,7 @@ class Shell(cmd.Cmd):
                 if result.current_rows or is_first:
                     with_header = is_first or effective_tty
                     self.print_static_result(result, table_meta, with_header, effective_tty,
-                                             num_rows, printer)
+                                             printer)
                     num_rows += len(result.current_rows)
                 if result.has_more_pages:
                     if self.shunted_query_out is None and effective_tty:
@@ -1038,7 +1042,7 @@ class Shell(cmd.Cmd):
 
         num_rows = print_all(result, table_meta, self.tty, printer)
         printer.finish()
-        if self.mode not in ('csv', 'json'):
+        if not self.mode.is_machine_readable:
             self.writeresult("(%d rows)" % num_rows)
 
         if self.decoding_errors:
@@ -1048,7 +1052,7 @@ class Shell(cmd.Cmd):
                 self.writeresult('%d more decoding errors suppressed.'
                                  % (len(self.decoding_errors) - 2), color=RED)
 
-    def print_static_result(self, result, table_meta, with_header, tty, row_count_offset=0, printer=None):
+    def print_static_result(self, result, table_meta, with_header, tty, printer=None):
         if not result.column_names and not table_meta:
             return
 
@@ -1066,26 +1070,41 @@ class Shell(cmd.Cmd):
             ks_meta = self.conn.metadata.keyspaces.get(ks_name, None)
             cql_types = [CqlType(cql_typename(t), ks_meta) for t in result.column_types]
 
-        if isinstance(printer, JsonTablePrinter):
+        if isinstance(printer, (JsonTablePrinter, CsvTablePrinter)):
             dtformats = DateTimeFormat(timestamp_format=self.display_timestamp_format,
                                        date_format=self.display_date_format,
                                        nanotime_format=self.display_nanotime_format,
                                        timezone=self.display_timezone)
-            json_rows = []
+            raw_rows = []
             for row in result.current_rows:
-                json_row = []
+                raw_row = []
                 for i, c in enumerate(column_names):
                     cqltype = cql_types[i] if i < len(cql_types) else None
-                    precision = self.display_double_precision if cqltype and cqltype.type_name == 'double' \
-                        else self.display_float_precision
-                    json_row.append(format_json_value(row[c], cqltype=cqltype,
+                    val = row[c]
+                    if isinstance(printer, JsonTablePrinter):
+                        # JSON output uses full precision for machine readability;
+                        # display precision settings are intentionally ignored.
+                        formatted = format_json_value(val, cqltype=cqltype,
                                                       encoding=self.output_codec.name,
                                                       date_time_format=dtformats,
-                                                      float_precision=precision))
-                json_rows.append(json_row)
+                                                      float_precision=None)
+                    else:  # CsvTablePrinter
+                        # For CSV, use empty string for nulls (matching COPY TO default behavior)
+                        if val is None:
+                            formatted = ''
+                        else:
+                            # Format the value without color, preserving display precision for CSV
+                            precision = self.display_double_precision if cqltype and cqltype.type_name == 'double' \
+                                else self.display_float_precision
+                            formatted_val = format_value(val, cqltype=cqltype, encoding=self.output_codec.name,
+                                                         addcolor=False, date_time_format=dtformats,
+                                                         float_precision=precision)
+                            formatted = get_str(formatted_val)
+                    raw_row.append(formatted)
+                raw_rows.append(raw_row)
             if with_header:
                 printer.print_header(formatted_names)
-            printer.print_rows(formatted_names, json_rows)
+            printer.print_rows(formatted_names, raw_rows)
             return
 
         formatted_values = [list(map(self.myformat_value, [row[c] for c in column_names], cql_types)) for row in result.current_rows]
