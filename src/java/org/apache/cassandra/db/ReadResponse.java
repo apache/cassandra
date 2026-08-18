@@ -427,6 +427,7 @@ public abstract class ReadResponse
             if (!iter.hasNext())
             {
                 // Empty response
+                ReadResponseMetrics.inMemoryResponses.inc();
                 return new InMemoryDataResponse(null, rdi.getDigest(), rdi.isConclusive());
             }
 
@@ -456,9 +457,11 @@ public abstract class ReadResponse
             }
 
             // Capture digest after consuming and closing the iterator so any RepairedDataInfo transformations are reflected.
-            return serialized != null
-                   ? new LocalDataResponse(serialized, rdi.getDigest(), rdi.isConclusive())
-                   : new InMemoryDataResponse(partition, rdi.getDigest(), rdi.isConclusive());
+            if (serialized != null)
+                return new LocalDataResponse(serialized, rdi.getDigest(), rdi.isConclusive());
+
+            ReadResponseMetrics.inMemoryResponses.inc();
+            return new InMemoryDataResponse(partition, rdi.getDigest(), rdi.isConclusive());
         }
 
         // Serializes the full response (the already-consumed in-memory prefix followed by the remaining rows) into a
