@@ -27,6 +27,12 @@ public class ReadResponseMetrics
     private static final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME);
 
     /**
+     * Incremented when a local single-partition read response is kept in memory instead of being serialized.
+     * Together with the limit-hit counters below this gives the share of local reads that avoid serialization.
+     */
+    public static final Counter inMemoryResponses = Metrics.counter(factory.createMetricName("InMemoryResponses"));
+
+    /**
      * Incremented when a local single-partition read response hit the per-request in-memory row-count limit
      */
     public static final Counter inMemoryRowLimitHits = Metrics.counter(factory.createMetricName("InMemoryRowLimitHits"));

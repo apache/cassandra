@@ -299,6 +299,19 @@ public class ReadResponseTest
             .verify();
     }
 
+    @Test
+    public void inMemoryResponseCountsEmptyResponseAsInMemory()
+    {
+        // An empty response is not serialized either, so it counts as an in-memory one.
+        ReadCommand command = command(key(), metadataWithClustering);
+        StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
+
+        long inMemoryBefore = ReadResponseMetrics.inMemoryResponses.getCount();
+        ReadResponse response = ReadResponse.createInMemoryDataResponse(EmptyIterators.unfilteredPartition(metadataWithClustering), command, rdi, 10, 0);
+        assertEquals(0, response.inMemoryUnfilteredCount());
+        assertEquals(inMemoryBefore + 1, ReadResponseMetrics.inMemoryResponses.getCount());
+    }
+
     private LimitHitAssertionBuilder limitHitAssertion()
     {
         return new LimitHitAssertionBuilder();
@@ -332,9 +345,12 @@ public class ReadResponseTest
 
             long rowHitsBefore = ReadResponseMetrics.inMemoryRowLimitHits.getCount();
             long sizeHitsBefore = ReadResponseMetrics.inMemorySizeLimitHits.getCount();
+            long inMemoryBefore = ReadResponseMetrics.inMemoryResponses.getCount();
             ReadResponse.createInMemoryDataResponse(singlePartitionIterator(update), command, rdi, maxRows, maxSize);
             assertEquals("unexpected row limit hit count", rowHitsBefore + (expectRowHit ? 1 : 0), ReadResponseMetrics.inMemoryRowLimitHits.getCount());
             assertEquals("unexpected size limit hit count", sizeHitsBefore + (expectSizeHit ? 1 : 0), ReadResponseMetrics.inMemorySizeLimitHits.getCount());
+            boolean keptInMemory = !expectRowHit && !expectSizeHit;
+            assertEquals("unexpected in-memory response count", inMemoryBefore + (keptInMemory ? 1 : 0), ReadResponseMetrics.inMemoryResponses.getCount());
         }
     }
 
