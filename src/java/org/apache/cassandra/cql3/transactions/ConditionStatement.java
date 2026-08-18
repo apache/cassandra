@@ -118,7 +118,7 @@ public class ConditionStatement
                 reference.getValueReceiver();
                 ((RowDataReference) value).getValueReceiver();
 
-                if (!(reference.toResultMetadata().type == (((RowDataReference) value).toResultMetadata().type)))
+                if (!(reference.toResultMetadata().type.equals(((RowDataReference) value).toResultMetadata().type)))
                     throw new InvalidRequestException(String.format("Row reference (%s) must have the same type as row reference (%s)", lhs.getText(), rhs.getText()));
             }
             else if (lhs instanceof RowDataReference.Raw)
