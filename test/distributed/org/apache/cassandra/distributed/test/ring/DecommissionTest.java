@@ -134,6 +134,38 @@ public class DecommissionTest extends TestBaseImpl
     }
 
     @Test
+    public void testOperationModeOnFreshDecomAfterRejectedAttempt() throws Exception
+    {
+        try (Cluster cluster = builder().withNodes(3)
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .start())
+        {
+            populate(cluster, 0, 100, 1, 2, ConsistencyLevel.QUORUM);
+
+            IInvokableInstance cmsNode = cluster.get(1);
+            IInvokableInstance leavingNode = cluster.get(2);
+
+            leavingNode.nodetoolResult("decommission").asserts().failure();
+            leavingNode.runOnInstance(() -> assertEquals(StorageService.Mode.DECOMMISSION_FAILED,
+                                                         StorageService.instance.operationMode()));
+
+            Callable<Epoch> midLeavePaused = pauseBeforeCommit(cmsNode, e -> e instanceof PrepareLeave.MidLeave);
+
+            Thread decomThread = new Thread(() -> leavingNode.nodetoolResult("decommission", "--force").asserts().success());
+            decomThread.start();
+            midLeavePaused.call();
+
+            leavingNode.runOnInstance(() ->
+                assertEquals("operationMode during re-decommission after rejected attempt should be LEAVING, not DECOMMISSION_FAILED",
+                             StorageService.Mode.LEAVING,
+                             StorageService.instance.operationMode()));
+
+            unpauseCommits(cmsNode);
+            decomThread.join(TimeUnit.MINUTES.toMillis(2));
+        }
+    }
+
+    @Test
     public void testAddressReuseAfterDecommission() throws IOException, ExecutionException, InterruptedException
     {
         // Initially, all nodes should be in dc1/rack1. Node 3 will be decommissioned and a new node added re-using
