@@ -296,19 +296,19 @@ public class MutationJournal
     /**
      * Append a mutation to the journal.
      *
-     * @param id          the short mutation id
-     * @param mutation    the mutation to be applied to the journal
-     * @param fullReplica whether this node is a full replica for the mutation's token
+     * @param id            the short mutation id
+     * @param mutation      the mutation to be applied to the journal
+     * @param isFullReplica whether this node is a full replica for the mutation's token
      * @return the record pointer to the journal
      */
-    public RecordPointer write(ShortMutationId id, Mutation mutation, boolean fullReplica)
+    public RecordPointer write(ShortMutationId id, Mutation mutation, boolean isFullReplica)
     {
         // TODO (required): why are we using blocking write here? We can/should wait for completion on `close` of WriteContext.
         RecordPointer ptr = journal.blockingWrite(id, mutation);
 
         // IMPORTANT: there should be no way for mutation to be applied to memtable before we mark it as dirty here,
         // since this will introduce a race between marking as dirty and marking as clean.
-        if (fullReplica)
+        if (isFullReplica)
         {
             for (TableId tableId : mutation.getTableIds())
             {
