@@ -1122,9 +1122,9 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     }
 
     @VisibleForTesting
-    public void maybePromoteReconciledSstablesForTesting()
+    public void maybePromoteReconciledSSTablesForTesting()
     {
-        maybePromoteReconciledSstables();
+        maybePromoteReconciledSSTables();
     }
 
     public SyncTasks alignToShardBoundaries(Keyspace keyspace, List<SyncTask> tasks)
@@ -1174,7 +1174,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
      * by {@code runWithCompactionsDisabled} (which would interrupt validation/repair); {@code mutateRepaired}
      * only rewrites the stats component and reloads, and a concurrently-compacted sstable simply retries.
      */
-    private void maybePromoteReconciledSstables()
+    private void maybePromoteReconciledSSTables()
     {
         long threshold = DatabaseDescriptor.getMutationTrackingConfig().getJournalPromotionThresholdBytes();
         if (threshold <= 0 || MutationJournal.instance().getDiskSpaceUsed() <= threshold)
@@ -1762,7 +1762,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             if (isPaused)
                 return;
             persistAndDrain();
-            MutationTrackingService.instance().maybePromoteReconciledSstables();
+            MutationTrackingService.instance().maybePromoteReconciledSSTables();
         }
 
         void persistAndDrain()

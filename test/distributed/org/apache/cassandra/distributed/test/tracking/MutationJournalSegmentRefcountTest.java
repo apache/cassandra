@@ -230,7 +230,7 @@ public class MutationJournalSegmentRefcountTest extends TestBaseImpl
                     cluster.get(n).runOnInstance(() -> MutationTrackingService.instance().broadcastOffsetsForTesting());
                 for (int n = 1; n <= cluster.size(); n++)
                     cluster.get(n).runOnInstance(() -> {
-                        MutationTrackingService.instance().maybePromoteReconciledSstablesForTesting();
+                        MutationTrackingService.instance().maybePromoteReconciledSSTablesForTesting();
                         MutationTrackingService.instance().persistLogStateForTesting();
                     });
 
