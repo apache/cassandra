@@ -40,7 +40,7 @@ options:
 ```
 
 ## Examples
-Run the current directory's fork and branch through the default "pre-commit" pipeline, connecting via your default kubeconfig
+Run the current directory's fork and branch through the default "skinny" pipeline, connecting via your default kubeconfig
 ```
 .build/run-ci
 ```
