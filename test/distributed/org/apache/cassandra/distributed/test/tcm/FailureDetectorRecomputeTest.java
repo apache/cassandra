@@ -50,6 +50,7 @@ public class FailureDetectorRecomputeTest extends TestBaseImpl
     {
         try (Cluster cluster = init(Cluster.build(3)
                                            .withInstanceInitializer(BB::install)
+                                           .withConfig(c -> c.set("metadata_snapshot_frequency", "10000"))
                                            .start()))
         {
             cluster.schemaChange(withKeyspace("create table %s.tbl (id int primary key)"));
@@ -64,6 +65,7 @@ public class FailureDetectorRecomputeTest extends TestBaseImpl
     {
         try (Cluster cluster = init(Cluster.build(3)
                                            .withInstanceInitializer(BB::install)
+                                           .withConfig(c -> c.set("metadata_snapshot_frequency", "10000"))
                                            .start()))
         {
             cluster.schemaChange(withKeyspace("create table %s.tbl (id int primary key)"));
@@ -78,7 +80,7 @@ public class FailureDetectorRecomputeTest extends TestBaseImpl
     {
         try (Cluster cluster = init(Cluster.build(3)
                                            .withInstanceInitializer(BB::install)
-                                           .withConfig(c -> c.with(Feature.values()))
+                                           .withConfig(c -> c.with(Feature.values()).set("metadata_snapshot_frequency", "10000"))
                                            .start()))
         {
             cluster.schemaChange(withKeyspace("create table %s.tbl (id int primary key, c counter)"));
