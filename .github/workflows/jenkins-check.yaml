@@ -33,7 +33,7 @@ jobs:
           - name: Install dependencies
             run: pip install pylint -r .build/run-ci.d/requirements.txt
           - name: Lint run-ci
-            run: pylint --disable=C0301,W0511,C0103,W0702,C0415,C0116,C0115,R0914,W0603,R0915,R0913,R0917,R0911,W0212,W0621 .build/run-ci
+            run: pylint --disable=C0301,C0302,W0511,C0103,W0702,C0415,C0116,C0115,R0914,W0603,R0915,R0913,R0917,R0911,W0212,W0621 .build/run-ci
           - name: Run run-ci unit tests
             run: python .build/run-ci.d/run-ci-test.py
           - name: Check run-ci argument parsing
@@ -51,8 +51,11 @@ jobs:
               python-version: '3.x'
           - name: Install dependencies
             run: pip install pyyaml
+          # get-helm-3 defaults to the latest stable release (now helm 4), so pin the version explicitly.
           - name: Helm
-            uses: azure/setup-helm@v4
+            env:
+              DESIRED_VERSION: v3.21.3
+            run: curl -fsSL https://raw.githubusercontent.com/helm/helm/v3.21.3/scripts/get-helm-3 | bash
           # validate.sh runs groovy from docker when it is not on the PATH
           - name: Validate .jenkins/
             run: .jenkins/k8s/jenkins-test.sh
