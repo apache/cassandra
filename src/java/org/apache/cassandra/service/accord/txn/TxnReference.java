@@ -438,7 +438,7 @@ public abstract class TxnReference
 
             // Account for frozen collection and reversed clustering key references:
             AbstractType<?> receiveType = type.isFrozenCollection() ? receiver.freeze().unwrap() : receiver.unwrap();
-            if (!(receiveType.equals(type.unwrap())))
+            if (!receiveType.equals(type.unwrap()))
                 throw new IllegalArgumentException("Receiving type " + receiveType + " does not match " + type.unwrap());
 
             if (column().isPartitionKey())

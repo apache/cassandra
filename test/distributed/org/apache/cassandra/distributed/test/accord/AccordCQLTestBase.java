@@ -3848,7 +3848,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     }
 
     @Test
-    public void testLetComparisonWithTwoRowsOfSameType() throws Throwable
+    public void testLetComparisonWithTwoColumnsOfTheSameType() throws Throwable
     {
         test("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v tuple<int, int>, z tuple<int, int>) WITH " + transactionalMode.asCqlParam(), cluster -> {
             String insert = "BEGIN TRANSACTION\n" +
