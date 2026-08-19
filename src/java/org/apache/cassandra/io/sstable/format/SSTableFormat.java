@@ -54,6 +54,15 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
     SSTableReaderFactory<R, ?> getReaderFactory();
 
     /**
+     * Whether cursor compaction can write this format. A format that returns true must also
+     * override {@link org.apache.cassandra.io.sstable.format.SortedTableWriter#newCursorIndexWriter}.
+     */
+    default boolean supportsCursorCompaction()
+    {
+        return false;
+    }
+
+    /**
      * All the components that the writter can produce when saving an sstable, as well as all the components
      * that the reader can read.
      */

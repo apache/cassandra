@@ -79,14 +79,23 @@ public abstract class CursorIndexWriter
                                     DeletionTime openMarker) throws IOException;
 
     /**
-     * The partition ends at partitionEnd, which includes the end-of-partition marker.
+     * The partition ends at partitionEnd, which is past its end-of-partition marker.
      *
-     * @param lastName the clustering of the last non-static unfiltered in this partition. A
-     *                 trailing index block uses it as the block's last name. Null if the
-     *                 partition wrote no non-static unfiltered, which leaves no trailing block
-     *                 to cut.
+     * @param key the partition key. The caller reuses this instance, so an implementation that
+     *            retains it past the call must copy it.
+     * @param lastName the clustering of the last non-static unfiltered written to this
+     *                 partition, or null if the partition wrote none.
      */
-    public abstract void endPartition(byte[] key, int keyLength, int headerLength,
-                                      DeletionTime partitionDeletionTime, long partitionEnd,
-                                      ClusteringDescriptor lastName) throws IOException;
+    public abstract void endPartition(org.apache.cassandra.db.DecoratedKey key, byte[] keyBytes, int keyLength,
+                                      int headerLength, DeletionTime partitionDeletionTime,
+                                      long partitionEnd, ClusteringDescriptor lastName) throws IOException;
+
+    /**
+     * Releases the per-instance index state. The owning writer calls this when it closes.
+     * The underlying file writers belong to the table writer, so an implementation must not
+     * close them.
+     */
+    public void close()
+    {
+    }
 }

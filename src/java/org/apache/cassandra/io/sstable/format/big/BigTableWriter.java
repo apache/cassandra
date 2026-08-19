@@ -32,11 +32,14 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
+import org.apache.cassandra.io.sstable.BigCursorIndexWriter;
+import org.apache.cassandra.io.sstable.CursorIndexWriter;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.Downsampling;
 import org.apache.cassandra.io.sstable.SSTable;
@@ -83,6 +86,12 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
 
         this.shouldMigrateKeyCache = DatabaseDescriptor.shouldMigrateKeycacheOnCompaction()
                                      && !txn.isOffline();
+    }
+
+    @Override
+    public CursorIndexWriter newCursorIndexWriter(SerializationHeader header)
+    {
+        return new BigCursorIndexWriter(indexWriter, DeletionTime.getSerializer(descriptor.version));
     }
 
     @Override

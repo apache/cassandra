@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.guardrails.Threshold;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
@@ -53,6 +54,7 @@ import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.CursorIndexWriter;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableFlushObserver;
@@ -307,6 +309,18 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
     {
         if (hasObservers())
             notifyObservers(o -> o.nextUnfilteredCluster(marker));
+    }
+
+    /**
+     * Builds the index writer that cursor compaction uses for this format. A format whose
+     * {@link org.apache.cassandra.io.sstable.format.SSTableFormat#supportsCursorCompaction} is false
+     * does not override this and never reaches the call.
+     *
+     * @param header the header the cursor writer writes with, which need not be this writer's own
+     */
+    public CursorIndexWriter newCursorIndexWriter(SerializationHeader header)
+    {
+        throw new UnsupportedOperationException("cursor compaction has no index writer for " + getClass().getName());
     }
 
     protected abstract AbstractRowIndexEntry createRowIndexEntry(DecoratedKey key, DeletionTime partitionLevelDeletion, long finishResult) throws IOException;

@@ -158,8 +158,8 @@ public class BigCursorIndexWriter extends CursorIndexWriter
     }
 
     @Override
-    public void endPartition(byte[] key, int keyLength, int headerLength,
-                             DeletionTime partitionDeletionTime, long partitionEnd,
+    public void endPartition(org.apache.cassandra.db.DecoratedKey decoratedKey, byte[] key, int keyLength,
+                             int headerLength, DeletionTime partitionDeletionTime, long partitionEnd,
                              ClusteringDescriptor lastName) throws IOException
     {
         /**

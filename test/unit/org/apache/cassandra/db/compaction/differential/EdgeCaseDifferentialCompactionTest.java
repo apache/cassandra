@@ -38,8 +38,7 @@ import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.big.BigTableReader;
-import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
+import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -572,8 +571,8 @@ public class EdgeCaseDifferentialCompactionTest extends DifferentialCompactionTe
         // index can be read back directly. The iterator promotes when the total block count INCLUDING
         // the tail exceeds one (RowIndexEntry.create); a merge that decides before counting the tail
         // leaves a partition crossing the threshold exactly once with no promoted index at all, and no
-        // intra-partition seeks. Byte-equality pins this via Index.db only while the reference stays
-        // correct, so the promotion is stated here directly.
+        // intra-partition seeks. Byte-equality pins this through the index component only while the
+        // reference stays correct, so the promotion is stated here directly.
         assertEquals("the cross-generation rung should leave one cursor-produced output",
                      1, cfs.getLiveSSTables().size());
         SSTableReader output = cfs.getLiveSSTables().iterator().next();
@@ -586,8 +585,8 @@ public class EdgeCaseDifferentialCompactionTest extends DifferentialCompactionTe
     /** Promoted index block count for {@code pk} in {@code sstable}; 0 when the partition is not indexed. */
     private static int blockCount(SSTableReader sstable, long pk)
     {
-        RowIndexEntry entry = ((BigTableReader) sstable).getRowIndexEntry(sstable.decorateKey(ByteBufferUtil.bytes(pk)),
-                                                                         SSTableReader.Operator.EQ);
+        AbstractRowIndexEntry entry = sstable.getRowIndexEntry(sstable.decorateKey(ByteBufferUtil.bytes(pk)),
+                                                               SSTableReader.Operator.EQ);
         assertNotNull("expected pk " + pk + " to be present in " + sstable.descriptor, entry);
         return entry.blockCount();
     }

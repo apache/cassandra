@@ -146,6 +146,23 @@ public class CursorSupportMatrixTest extends CQLTester
                         "PRIMARY KEY (pk, ck))");
     }
 
+    /** BTI output is inside the supported surface. */
+    @Test
+    public void btiFormatSupported() throws Throwable
+    {
+        org.apache.cassandra.io.sstable.format.SSTableFormat<?, ?> original =
+            org.apache.cassandra.config.DatabaseDescriptor.getSelectedSSTableFormat();
+        org.apache.cassandra.config.DatabaseDescriptor.setSelectedSSTableFormat("bti");
+        try
+        {
+            assertSupported("CREATE TABLE %s (pk bigint, ck bigint, m map<text, bigint>, v text, PRIMARY KEY (pk, ck))");
+        }
+        finally
+        {
+            org.apache.cassandra.config.DatabaseDescriptor.setSelectedSSTableFormat(original);
+        }
+    }
+
     /** Counter columns are a planned gap in the supported surface, not a permanent limit. */
     @Test
     public void countersUnsupported()

@@ -44,7 +44,6 @@ import org.apache.cassandra.db.rows.UnfilteredSerializer;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SortedTableWriter;
-import org.apache.cassandra.io.sstable.format.big.BigTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -167,8 +166,7 @@ public class SSTableCursorWriter implements AutoCloseable
         hasStaticColumns = serializationHeader.hasStatic();
         staticColumns = hasStaticColumns ? serializationHeader.columns(true).toArray(EMPTY_COL_META) : EMPTY_COL_META;
         regularColumns = serializationHeader.columns(false).toArray(EMPTY_COL_META);
-        this.cursorIndexWriter = new BigCursorIndexWriter((BigTableWriter.IndexWriter) indexWriter,
-                                                           this.deletionTimeSerializer);
+        this.cursorIndexWriter = ssTableWriter.newCursorIndexWriter(serializationHeader);
         // Same two conditions SortedTableWriter settles once, in its own constructor and in
         // guardCollectionSize: both guardrails off, or a system keyspace.
         this.collectionGuardsDisabled =
@@ -189,6 +187,7 @@ public class SSTableCursorWriter implements AutoCloseable
     @Override
     public void close()
     {
+        cursorIndexWriter.close();
         SSTableReader finish = ssTableWriter.finish(false);
         if (finish != null) {
             Ref<SSTableReader> ref = finish.ref();
@@ -225,7 +224,8 @@ public class SSTableCursorWriter implements AutoCloseable
      * @param lastName the clustering of the last non-static unfiltered written to this partition, needed as
      *                 the last name of a trailing index block; null if the partition wrote none.
      */
-    public void writePartitionEnd(byte[] partitionKey, int partitionKeyLength, DeletionTime partitionDeletionTime,
+    public void writePartitionEnd(org.apache.cassandra.db.DecoratedKey decoratedKey, byte[] partitionKey,
+                                  int partitionKeyLength, DeletionTime partitionDeletionTime,
                                   int headerLength, ClusteringDescriptor lastName) throws IOException
     {
         SERIALIZER.writeEndOfPartition(dataWriter);
@@ -243,7 +243,7 @@ public class SSTableCursorWriter implements AutoCloseable
          // this is implemented differently for BIG/BTI
          createRowIndexEntry(key, partitionLevelDeletion, partitionEnd - 1);
          */
-        cursorIndexWriter.endPartition(partitionKey, partitionKeyLength, headerLength, partitionDeletionTime, partitionEnd, lastName);
+        cursorIndexWriter.endPartition(decoratedKey, partitionKey, partitionKeyLength, headerLength, partitionDeletionTime, partitionEnd, lastName);
     }
 
 

@@ -92,7 +92,7 @@ public class SSTableCursorPipeUtil
                     readerState = copyRangeTombstone(reader, writer, unfilteredDescriptor, unfilteredCounter++);
             }
         }
-        writer.writePartitionEnd(keyBytes, keyLength, pDeletionTime, headerLength,
+        writer.writePartitionEnd(pHeader.key(), keyBytes, keyLength, pDeletionTime, headerLength,
                                  unfilteredCounter > 0 ? unfilteredDescriptor : null);
         if (unfilteredCounter > 1) {
             writer.updateClusteringMetadata(unfilteredDescriptor);

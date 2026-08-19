@@ -554,7 +554,11 @@ public abstract class DifferentialCompactionTester extends CQLTester
      */
     protected void assertCursorPathWillRun(ColumnFamilyStore cfs, Set<SSTableReader> inputs, long gcBefore) throws Exception
     {
-        assumeBigFormatSelected();
+        // A format the cursor path cannot write is an unsupported configuration, not a defect:
+        // skip instead of failing the assertion below.
+        Assume.assumeTrue("cursor compaction cannot write the selected sstable format; selected=" +
+                          DatabaseDescriptor.getSelectedSSTableFormat().name(),
+                          DatabaseDescriptor.getSelectedSSTableFormat().supportsCursorCompaction());
         try (CompactionController controller = new CompactionController(cfs, inputs, gcBefore);
              AbstractCompactionStrategy.ScannerList scanners =
                  cfs.getCompactionStrategyManager().getScanners(new ArrayList<>(inputs), null))
@@ -567,15 +571,12 @@ public abstract class DifferentialCompactionTester extends CQLTester
     }
 
     /**
-     * Cursor compaction only supports BIG output (CursorCompactor.isSupported). Under a non-BIG
-     * format — `ant test-latest` selects BTI — every scenario in this suite would fail for a reason
-     * that is not a defect. Skip instead, and keep the supportability assertion for every other
-     * unsupported-ness reason so the iterator-vs-iterator trap still fires.
+     * Skips a scenario unless the BIG sstable format is selected; `ant test-latest` selects BTI.
      * <p>
      * Separate from {@link #assertCursorPathWillRun} so a scenario that drives the harness from
-     * inside a callback can raise it OUTSIDE that callback. JUnit decides skip-versus-fail on the
-     * type it receives, so an AssumptionViolatedException crossing a broad catch that rewraps — as
-     * Harry's TestHelper.withRandom does — arrives as a failure.
+     * inside a callback can raise the assumption OUTSIDE that callback. JUnit decides
+     * skip-versus-fail on the type it receives, so an AssumptionViolatedException crossing a broad
+     * catch that rewraps, as Harry's TestHelper.withRandom does, arrives as a failure.
      */
     protected static void assumeBigFormatSelected()
     {

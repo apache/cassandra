@@ -68,7 +68,6 @@ import org.apache.cassandra.io.sstable.format.SSTableSimpleScanner;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.format.SortedTableWriter;
 import org.apache.cassandra.io.sstable.format.Version;
-import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -112,10 +111,11 @@ import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.isState;
  *       only purgable tombstones in the row cache.</li>
  *   <li>Keeps track of the compaction progress.</li>
  * </ul>
- * This compaction implementation does not support 2ndary indexes, trie (BTI) sstable output,
- * counter columns, or a multi-cell column that the schema has dropped, and it stands aside for a
- * compaction that ignores gc grace for a key; see {@link #isSupported} and
- * {@link #unsupportedMetadata} for the full set of gates.
+ * This compaction implementation writes the BIG and BTI output formats and supports complex
+ * (collection and UDT) columns. It does not support 2ndary indexes, counter columns, or a
+ * multi-cell column that the schema has dropped. It also stands aside for a compaction that
+ * ignores gc grace for a key. See {@link #isSupported} and {@link #unsupportedMetadata} for
+ * the full list of checks.
  * <p>
  *     This compaction implementation avoids garbage creation per partition/row/cell by utilizing reader/writer code
  *     which supports reusable copies of sstable entry components. The implementation consolidates and duplicates code
@@ -131,10 +131,9 @@ public class CursorCompactor extends CompactionInfo.Holder
 
         if (unsupportedScanners(metadata, scanners))
             return false;
-        // BTI index writing is not supported yet
-        if (!(DatabaseDescriptor.getSelectedSSTableFormat() instanceof BigFormat))
+        if (!DatabaseDescriptor.getSelectedSSTableFormat().supportsCursorCompaction())
         {
-            LOGGER.debug("Cursor compaction is not supported for {}.{}: only the BIG sstable output format is supported, not {}",
+            LOGGER.debug("Cursor compaction is not supported for {}.{}: the selected sstable output format {} does not support it",
                          metadata.keyspace, metadata.name, DatabaseDescriptor.getSelectedSSTableFormat());
             return false;
         }
@@ -736,7 +735,7 @@ public class CursorCompactor extends CompactionInfo.Holder
             // clustering of the last unfiltered written here; a partition that wrote none has no trailing
             // block to cut, hence null.
             ClusteringDescriptor lastName = unfilteredsWrittenToPartition > 0 ? lastWrittenClustering() : null;
-            ssTableCursorWriter.writePartitionEnd(partitionDescriptor.keyBytes(), partitionDescriptor.keyLength(), toWritePartitionDeletion, partitionHeaderLength, lastName);
+            ssTableCursorWriter.writePartitionEnd(partitionDescriptor.key(), partitionDescriptor.keyBytes(), partitionDescriptor.keyLength(), toWritePartitionDeletion, partitionHeaderLength, lastName);
             // Update min/max clustering metadata. The count guard is required; see
             // unfilteredsWrittenToPartition.
             if (unfilteredsWrittenToPartition > 1) {
