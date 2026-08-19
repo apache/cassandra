@@ -2083,9 +2083,9 @@ public class StorageProxy implements StorageProxyMBean
     public static AbstractWriteResponseHandler<IMutation> mutateCounter(CounterMutation cm, String localDataCenter, Dispatcher.RequestTime requestTime) throws UnavailableException, OverloadedException
     {
         ClusterMetadata metadata = ClusterMetadata.current();
-        Replica replica = ReplicaPlans.findCounterLeaderReplica(metadata, cm.getKeyspaceName(), cm.key(), localDataCenter, cm.consistency());
+        Pair<Replica, EndpointsForToken> replicas = ReplicaPlans.findCounterLeaderReplica(metadata, cm.getKeyspaceName(), cm.key(), localDataCenter, cm.consistency());
 
-        if (replica.isSelf())
+        if (replicas.left.isSelf())
         {
             return applyCounterMutationOnCoordinator(cm, localDataCenter, requestTime);
         }
@@ -2110,9 +2110,9 @@ public class StorageProxy implements StorageProxyMBean
             AbstractWriteResponseHandler<IMutation> responseHandler = new WriteResponseHandler<>(forWrite,
                                                                                                  WriteType.COUNTER, null, requestTime);
 
-            Tracing.trace("Enqueuing counter update to {}", replica);
+            Tracing.trace("Enqueuing counter update to {}", replicas.left);
             Message message = Message.outWithFlag(Verb.COUNTER_MUTATION_REQ, cm, MessageFlag.CALL_BACK_ON_FAILURE);
-            MessagingService.instance().sendWriteWithCallback(message, replica, responseHandler);
+            MessagingService.instance().sendWriteWithCallback(message, replicas.left, responseHandler);
             return responseHandler;
         }
     }

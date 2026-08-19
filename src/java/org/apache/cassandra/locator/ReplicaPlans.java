@@ -73,6 +73,7 @@ import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.filter;
@@ -207,13 +208,14 @@ public class ReplicaPlans
     /**
      * Construct a ReplicaPlan for writing to exactly one node, with CL.ONE. This node is *assumed* to be alive.
      */
-    public static ReplicaPlan.ForWrite forSingleReplicaWrite(ClusterMetadata metadata, Keyspace keyspace, Token token, Function<ClusterMetadata, Replica> replicaSupplier)
+    public static ReplicaPlan.ForWrite forSingleReplicaWrite(ClusterMetadata metadata, Keyspace keyspace, Token token, Function<ClusterMetadata, Pair<Replica, EndpointsForToken>> replicasSupplier)
     {
-        EndpointsForToken one = EndpointsForToken.of(token, replicaSupplier.apply(metadata));
+        Pair<Replica, EndpointsForToken> replicas = replicasSupplier.apply(metadata);
+        EndpointsForToken one = EndpointsForToken.of(token, replicas.left);
         EndpointsForToken empty = EndpointsForToken.empty(token);
 
-        return new ReplicaPlan.ForWrite(keyspace, keyspace.getReplicationStrategy(), ConsistencyLevel.ONE, empty, one, one, one,
-                                        (newClusterMetadata) -> forSingleReplicaWrite(newClusterMetadata, keyspace, token, replicaSupplier),
+        return new ReplicaPlan.ForWrite(keyspace, keyspace.getReplicationStrategy(), ConsistencyLevel.ONE, empty, replicas.right, one, one,
+                                        (newClusterMetadata) -> forSingleReplicaWrite(newClusterMetadata, keyspace, token, replicasSupplier),
                                         metadata.epoch);
     }
 
@@ -228,16 +230,16 @@ public class ReplicaPlans
      * is unclear we want to mix those latencies with read latencies, so this
      * may be a bit involved.
      */
-    public static Replica findCounterLeaderReplica(ClusterMetadata metadata, String keyspaceName, DecoratedKey key, String localDataCenter, ConsistencyLevel cl) throws UnavailableException
+    public static Pair<Replica, EndpointsForToken> findCounterLeaderReplica(ClusterMetadata metadata, String keyspaceName, DecoratedKey key, String localDataCenter, ConsistencyLevel cl) throws UnavailableException
     {
         Keyspace keyspace = Keyspace.open(keyspaceName);
         NodeProximity proximity = DatabaseDescriptor.getNodeProximity();
         AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
 
-        EndpointsForToken replicas = metadata.placement(keyspace.getMetadata().params.replication).reads.forToken(key.getToken()).get();
+        EndpointsForToken allReplicas = metadata.placement(keyspace.getMetadata().params.replication).reads.forToken(key.getToken()).get();
 
         // CASSANDRA-13043: filter out those endpoints not accepting clients yet, maybe because still bootstrapping
-        replicas = replicas.filter(replica -> StorageService.instance.isRpcReady(replica.endpoint()));
+        EndpointsForToken replicas = allReplicas.filter(replica -> StorageService.instance.isRpcReady(replica.endpoint()));
 
         // CASSANDRA-17411: filter out endpoints that are not alive
         replicas = replicas.filter(replica -> FailureDetector.instance.isAlive(replica.endpoint()));
@@ -260,19 +262,19 @@ public class ReplicaPlans
 
             // No endpoint in local DC, pick the closest endpoint according to the configured proximity measures
             replicas = proximity.sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), replicas);
-            return replicas.get(0);
+            return Pair.create(replicas.get(0), allReplicas);
         }
 
-        return localReplicas.get(ThreadLocalRandom.current().nextInt(localReplicas.size()));
+        return Pair.create(localReplicas.get(ThreadLocalRandom.current().nextInt(localReplicas.size())), allReplicas);
     }
 
     /**
      * A forwarding counter write is always sent to a single owning coordinator for the range, by the original coordinator
      * (if it is not itself an owner)
      */
-    public static ReplicaPlan.ForWrite forForwardingCounterWrite(ClusterMetadata metadata, Keyspace keyspace, Token token, Function<ClusterMetadata, Replica> replica)
+    public static ReplicaPlan.ForWrite forForwardingCounterWrite(ClusterMetadata metadata, Keyspace keyspace, Token token, Function<ClusterMetadata, Pair<Replica, EndpointsForToken>> replicas)
     {
-        return forSingleReplicaWrite(metadata, keyspace, token, replica);
+        return forSingleReplicaWrite(metadata, keyspace, token, replicas);
     }
 
     public static ReplicaPlan.ForWrite forLocalBatchlogWrite()
@@ -840,6 +842,11 @@ public class ReplicaPlans
         return forSingleReplicaRead(ClusterMetadata.current(), keyspace, token, replica);
     }
 
+    /**
+     * Create a plan for reading from a specific single replica
+     *
+     * Recompute doesn't actually recompute the replica - this means that `AbstractForRead#stillAppliesTo` will always succeed
+     */
     private static ReplicaPlan.ForTokenRead forSingleReplicaRead(ClusterMetadata metadata, Keyspace keyspace, Token token, Replica replica)
     {
         EndpointsForToken one = EndpointsForToken.of(token, replica);
@@ -860,6 +867,11 @@ public class ReplicaPlans
         return forSingleReplicaRead(ClusterMetadata.current(), keyspace, range, replica, vnodeCount);
     }
 
+    /**
+     * Create a plan for reading from a specific single replica
+     *
+     * Recompute doesn't actually recompute the replica - this means that `AbstractForRead#stillAppliesTo` will always succeed
+     */
     private static ReplicaPlan.ForRangeRead forSingleReplicaRead(ClusterMetadata metadata, Keyspace keyspace, AbstractBounds<PartitionPosition> range, Replica replica, int vnodeCount)
     {
         // TODO: this is unsafe, as one.range() may be inconsistent with our supplied range; should refactor Range/AbstractBounds to single class
