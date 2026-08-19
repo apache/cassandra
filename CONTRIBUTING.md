@@ -18,11 +18,6 @@
 #
 -->
 
-# Apache Cassandra and Pull Requests
-
-Apache Cassandra doesn't use GitHub pull requests as part of the development process.
-In fact, this repository is a GitHub mirror of [the official repo](https://gitbox.apache.org/repos/asf/cassandra.git).
-
 # How to Contribute
 
 There are many opportunities to contribute code to Apache Cassandra, including documentation updates, test improvements,
@@ -65,11 +60,11 @@ JIRA issues for more information on making contributions.
 
 The scripts under `.build/` build the project and run every kind of test, in docker or without it.  CI runs these same scripts, so a test behaves the same on a laptop as it does in a pipeline.  See `.build/README.md`, for example:
 
-  $ .build/docker/check-code.sh 17
-  $ .build/docker/run-tests.sh -a test -c 1/64
-  $ .build/docker/run-tests.sh -a jvm-dtest -t BooleanTest
+    $ .build/docker/check-code.sh 17
+    $ .build/docker/run-tests.sh -a test -c 1/64
+    $ .build/docker/run-tests.sh -a jvm-dtest -t BooleanTest
 
-Guidelines on what and how to test are in `TESTING.md`, and https://cassandra.apache.org/_/development/testing.html[on the website].
+Guidelines on what and how to test are in `TESTING.md`, and [on the website](https://cassandra.apache.org/_/development/testing.html).
 
 # Continuous Integration
 
@@ -77,16 +72,16 @@ Three separate systems test the project.  Knowing which one applies saves time.
 
 *GitHub Actions* run `ant check` (licence and checkstyle checks) against JDK 11 and JDK 17 on every push to any branch of any fork.  See `.github/workflows/`.
 
-*Pre-commit CI* runs the test pipeline against a branch, before the patch is committed.  It is driven from a checkout with `.build/run-ci`, or via the Jenkins UI, and it needs a Jenkins to run on: https://pre-ci.cassandra.apache.org[pre-ci.cassandra.apache.org] for community volunteers, donated to the project by Amazon; a clone your employer operates; or one you provision yourself in any Kubernetes cluster with `.build/run-ci --only-setup`.
+*Pre-commit CI* runs the test pipeline against a branch, before the patch is committed.  It is driven from a checkout with `.build/run-ci`, or via the Jenkins UI, and it needs a Jenkins to run on: [pre-ci.cassandra.apache.org](https://pre-ci.cassandra.apache.org) for community volunteers, donated to the project by Amazon; a clone your employer operates; or one you provision yourself in any Kubernetes cluster with `.build/run-ci --only-setup`.
 
-  # push the branch first, then
-  $ .build/run-ci --profile pre-commit --url pre-ci.cassandra.apache.org --user myuser
+    # push the branch first, then
+    $ .build/run-ci --profile pre-commit --url pre-ci.cassandra.apache.org --user myuser
 
 The run leaves `build/ci/ci_summary_*.html` and `build/ci/results_details_*.tar.xz` behind; attach both to the JIRA ticket.  Every patch is expected to carry them, and a contributor without access to any CI system should say so on the ticket, so a committer can run it for them.
 
-*Post-commit CI* at https://ci-cassandra.apache.org[ci-cassandra.apache.org] runs the full pipeline against trunk and the release branches after every merge.  It never tests uncommitted patches; results are archived at https://nightlies.apache.org/cassandra/[nightlies.apache.org] and tracked over time by https://butler.cassandra.apache.org[Butler].
+*Post-commit CI* at [ci-cassandra.apache.org](https://ci-cassandra.apache.org) runs the full pipeline against trunk and the release branches after every merge.  It never tests uncommitted patches; results are archived at [nightlies.apache.org](https://nightlies.apache.org/cassandra/) and tracked over time by [Butler](https://butler.cassandra.apache.org).
 
-The full process is documented at https://cassandra.apache.org/_/development/ci.html[cassandra.apache.org].  In-tree: `.build/run-ci.d/README.md` for every option of the script, and `.jenkins/k8s/README.md` for provisioning an instance of your own.
+The full process is documented at [cassandra.apache.org](https://cassandra.apache.org/_/development/ci.html).  In-tree: `.build/run-ci.d/README.md` for every option of the script, and `.jenkins/k8s/README.md` for provisioning an instance of your own.
 
 # Working with Submodules
 
