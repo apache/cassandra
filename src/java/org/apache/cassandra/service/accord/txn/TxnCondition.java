@@ -698,6 +698,7 @@ public abstract class TxnCondition
         public boolean applies(TxnData data)
         {
             // We have already checked earlier that the type for the LHS is the same as the type for the RHS
+            // See ConditionStatement.java
             AbstractType<?> typeLHS = getColumnType(referenceLHS);
 
             ByteBuffer lhs = referenceLHS.toByteBuffer(data, typeLHS);
