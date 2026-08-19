@@ -3877,4 +3877,35 @@ public abstract class AccordCQLTestBase extends AccordTestBase
             assertThat(result).hasSize(1).contains(1, tuple(8, 8), tuple(3, 3));
         });
     }
+
+    @Test
+    public void testLetComparisonWithDescColumn() throws Throwable
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, v int, z int, PRIMARY KEY (k, v)) WITH CLUSTERING ORDER BY (v DESC) AND " + transactionalMode.asCqlParam(), cluster -> {
+            String insert = "BEGIN TRANSACTION\n" +
+                            "INSERT INTO " + qualifiedAccordTableName + " (k, v, z) VALUES (1, 3, 3);\n" +
+                            "INSERT INTO " + qualifiedAccordTableName + " (k, v, z) VALUES (2, 3, 3);\n" +
+                            "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(insert, ConsistencyLevel.SERIAL);
+
+            String query = "BEGIN TRANSACTION\n" +
+                           "LET k1 = (SELECT v FROM " + qualifiedAccordTableName + " WHERE k = 1 AND v = 3);\n" +
+                           "LET k2 = (SELECT z FROM " + qualifiedAccordTableName + " WHERE k = 2 AND v = 3);\n" +
+                           "IF k1.v = k2.z THEN \n" +
+                           "    UPDATE " + qualifiedAccordTableName + " SET z = 8 WHERE k = 1 AND v = 3;\n" +
+                           "END IF\n" +
+                           "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.SERIAL);
+
+            String read = "BEGIN TRANSACTION\n" +
+                          "SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1 AND v = 3;\n" +
+                          "COMMIT TRANSACTION";
+
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult(read, ConsistencyLevel.SERIAL);
+
+            assertThat(result).hasSize(1).contains(1, 3, 8);
+        });
+    }
 }

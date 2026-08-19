@@ -24,6 +24,7 @@ import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.terms.Term;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnReference;
@@ -118,7 +119,10 @@ public class ConditionStatement
                 reference.getValueReceiver();
                 ((RowDataReference) value).getValueReceiver();
 
-                if (!reference.toResultMetadata().type.equals(((RowDataReference) value).toResultMetadata().type))
+                AbstractType<?> lhsType = reference.toResultMetadata().type.unwrap();
+                AbstractType<?> rhsType = ((RowDataReference) value).toResultMetadata().type.unwrap();
+
+                if (!lhsType.unwrap().equals(rhsType.unwrap()))
                     throw new InvalidRequestException(String.format("Row reference (%s) must have the same type as row reference (%s)", lhs.getText(), rhs.getText()));
             }
             else if (lhs instanceof RowDataReference.Raw)
