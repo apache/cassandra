@@ -23,15 +23,17 @@
 There are many opportunities to contribute code to Apache Cassandra, including documentation updates, test improvements,
 bug fixes, changes to the Java code base, and tooling improvements.
 
-Before getting started, please read about [Contributing Code Changes](https://cassandra.apache.org/_/development/patches.html), and familiarize yourself with Cassandra's [code style guidelines](https://cassandra.apache.org/_/development/code_style.html), [testing](https://cassandra.apache.org/_/development/testing.html) and [code review checklist](https://cassandra.apache.org/_/development/how_to_review.html).
+Before getting started, please read [Contributing to Cassandra](https://cassandra.apache.org/_/development/index.html), including the [Code Changes](https://cassandra.apache.org/_/development/patches.html), [Code Style guidelines](https://cassandra.apache.org/_/development/code_style.html), [testing](https://cassandra.apache.org/_/development/testing.html), [continuous integration](https://cassandra.apache.org/_/development/ci.html) and the [code review checklist](https://cassandra.apache.org/_/development/how_to_review.html).
 
 A recommended workflow to get started is:
 1. Find or create an issue in the [Cassandra JIRA](https://issues.apache.org/jira/browse/CASSANDRA/) that describes the work you plan to do.
 2. Create a personal fork of the [Apache Cassandra GitHub repo](https://github.com/apache/cassandra).
 3. Clone your fork into your development environment.
 4. Create your feature branch. Please see the branch naming suggestion, below.
-5. Make, build, test and self-review your changes on your feature branch.
-6. Submit the patch, either by creating a GitHub pull request, attaching a patch file to your JIRA, or posting a
+5. Make, build, test and self-review your changes on your feature branch. See 'Building and Testing' below.
+6. Push the branch to your fork and run it through a pre-commit CI, then attach the
+resulting `ci_summary` and `results_details` artefacts to the JIRA. See 'Continuous Integration' below.
+7. Submit the patch, either by creating a GitHub pull request, attaching a patch file to your JIRA, or posting a
 link to a GitHub branch with your changes.
 
 Branch naming: To ease collaboration, consider naming your feature branch like `your-name/jira-id/base-branch`. For
@@ -53,6 +55,33 @@ contributions may be welcomed, including:
 
 ... and [more](https://github.com/apache?q=cassandra&type=all&language=&sort=). Visit those repositories and their related
 JIRA issues for more information on making contributions.
+
+# Building and Testing
+
+The scripts under `.build/` build the project and run every kind of test, in docker or without it.  CI runs these same scripts, so a test behaves the same on a laptop as it does in a pipeline.  See `.build/README.md`, for example:
+
+  $ .build/docker/check-code.sh 17
+  $ .build/docker/run-tests.sh -a test -c 1/64
+  $ .build/docker/run-tests.sh -a jvm-dtest -t BooleanTest
+
+Guidelines on what and how to test are in `TESTING.md`, and https://cassandra.apache.org/_/development/testing.html[on the website].
+
+# Continuous Integration
+
+Three separate systems test the project.  Knowing which one applies saves time.
+
+*GitHub Actions* run `ant check` (licence and checkstyle checks) against JDK 11 and JDK 17 on every push to any branch of any fork.  See `.github/workflows/`.
+
+*Pre-commit CI* runs the test pipeline against a branch, before the patch is committed.  It is driven from a checkout with `.build/run-ci`, or via the Jenkins UI, and it needs a Jenkins to run on: https://pre-ci.cassandra.apache.org[pre-ci.cassandra.apache.org] for community volunteers, donated to the project by Amazon; a clone your employer operates; or one you provision yourself in any Kubernetes cluster with `.build/run-ci --only-setup`.
+
+  # push the branch first, then
+  $ .build/run-ci --profile pre-commit --url pre-ci.cassandra.apache.org --user myuser
+
+The run leaves `build/ci/ci_summary_*.html` and `build/ci/results_details_*.tar.xz` behind; attach both to the JIRA ticket.  Every patch is expected to carry them, and a contributor without access to any CI system should say so on the ticket, so a committer can run it for them.
+
+*Post-commit CI* at https://ci-cassandra.apache.org[ci-cassandra.apache.org] runs the full pipeline against trunk and the release branches after every merge.  It never tests uncommitted patches; results are archived at https://nightlies.apache.org/cassandra/[nightlies.apache.org] and tracked over time by https://butler.cassandra.apache.org[Butler].
+
+The full process is documented at https://cassandra.apache.org/_/development/ci.html[cassandra.apache.org].  In-tree: `.build/run-ci.d/README.md` for every option of the script, and `.jenkins/k8s/README.md` for provisioning an instance of your own.
 
 # Working with Submodules
 
@@ -84,13 +113,3 @@ Due to the nature of submodules, the changes to the submodules must be committed
 $ .build/sh/change-submodule-accord.sh
 $ .build/sh/bump-accord.sh
 ```
-
-# Useful Links
-
-- How you can contribute to Apache Cassandra [presentation](http://www.slideshare.net/yukim/cassandrasummit2013) by Yuki Morishita
-- Code style [wiki page](https://cwiki.apache.org/confluence/display/CASSANDRA2/CodeStyle)
-- Running Cassandra in IDEA [guide](https://cwiki.apache.org/confluence/display/CASSANDRA2/RunningCassandraInIDEA)
-- Running Cassandra in Eclipse [guide](https://cwiki.apache.org/confluence/display/CASSANDRA2/RunningCassandraInEclipse)
-- Cassandra Cluster Manager - [CCM](https://github.com/pcmanus/ccm) and a guide [blog post](http://www.datastax.com/dev/blog/ccm-a-development-tool-for-creating-local-cassandra-clusters)
-- Cassandra Distributed Tests aka [dtests](https://github.com/apache/cassandra-dtest)
-- Cassandra Testing Guidelines - see TESTING.md
