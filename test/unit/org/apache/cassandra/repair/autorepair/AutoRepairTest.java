@@ -283,8 +283,12 @@ public class AutoRepairTest extends CQLTester
             SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY),
             repairType.toString(), myId, new java.util.Date(now - 1000), new java.util.Date(now));
 
+        AutoRepairConfig config = DatabaseDescriptor.getAutoRepairConfig();
+        AutoRepairState repairState = RepairType.getAutoRepairState(repairType, config);
+
         // Record the finish time before repair runs
         long finishTimeBefore = AutoRepairUtils.getLastRepairTimeForNode(repairType, myId);
+        assertFalse(AutoRepair.instance.shouldSkipRepairDueToInterval(repairType, repairState, config, myId));
 
         // Invoke the full repair path; with force repair set, the interval check is bypassed
         AutoRepair.instance.repair(repairType);
@@ -294,6 +298,7 @@ public class AutoRepairTest extends CQLTester
         assertTrue("repair_finish_ts should advance after force repair runs, but was "
                    + finishTimeBefore + " -> " + finishTimeAfter,
                    finishTimeAfter > finishTimeBefore);
+        assertTrue(AutoRepair.instance.shouldSkipRepairDueToInterval(repairType, repairState, config, myId));
 
         // Restore original value
         DatabaseDescriptor.getAutoRepairConfig().setRepairTaskMinDuration(repairTaskMinDuration.toString());
