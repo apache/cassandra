@@ -844,6 +844,12 @@ public class TrieMemoryIndex extends MemoryIndex
             if (lastComputedKey != null && nextKey.compareTo(lastComputedKey) <= 0)
                 return;
 
+            // If this set holds static-row keys, convert the skip target to the static form of
+            // the same partition so that tailSet does not skip past the static key.  This mirrors
+            // the identical conversion in PostingListKeyRangeIterator.performSkipTo().
+            if (!primaryKeySet.isEmpty() && primaryKeySet.first().isStaticRow() && !nextKey.isStaticRow())
+                nextKey = nextKey.forStaticRow();
+
             primaryKeySet = primaryKeySet.tailSet(nextKey);
             iterator = null;
         }

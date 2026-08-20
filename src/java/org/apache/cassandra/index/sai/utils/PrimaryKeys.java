@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.index.sai.utils;
 
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.SortedSet;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -38,7 +39,28 @@ public class PrimaryKeys implements Iterable<MemoryIndex.PkWithFrequency>
     // from https://github.com/gaul/java-collection-overhead
     private static final long MAP_ENTRY_OVERHEAD = 40 + Integer.BYTES;
 
-    private final ConcurrentSkipListMap<PrimaryKey, Integer> keys = new ConcurrentSkipListMap<>();
+    /**
+     * Comparator for the internal map. It extends the natural {@link PrimaryKey} order with one extra rule:
+     * when a STATIC key and a WIDE key (one with real clustering values) compare as equal via
+     * {@code compareTo} — because {@code hasClustering()} is {@code false} for both — the STATIC key
+     * sorts before the WIDE key. This prevents the two from being treated as duplicates in the map
+     * while leaving the natural ordering used by iterators and {@code skipTo} completely unchanged.
+     * <p>
+     * Static row keys sort before all wide-row keys in the same partition.
+     */
+    static final Comparator<PrimaryKey> KEY_COMPARATOR = (a, b) -> {
+        int cmp = a.compareTo(b);
+        if (cmp != 0)
+            return cmp;
+        // Break the STATIC-vs-WIDE tie: STATIC < WIDE, STATIC == no-clustering, WIDE == WIDE.
+        if (a.isStaticRow() && b.hasClustering())
+            return -1;
+        if (b.isStaticRow() && a.hasClustering())
+            return 1;
+        return 0;
+    };
+
+    private final ConcurrentSkipListMap<PrimaryKey, Integer> keys = new ConcurrentSkipListMap<>(KEY_COMPARATOR);
 
     /**
      * Adds the specified {@link PrimaryKey} incrementing its frequency.
