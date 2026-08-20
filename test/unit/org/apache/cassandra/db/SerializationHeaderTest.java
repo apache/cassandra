@@ -25,6 +25,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.io.Files;
 
 import org.junit.Assert;
@@ -52,6 +53,8 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -65,6 +68,26 @@ public class SerializationHeaderTest
     static
     {
         DatabaseDescriptor.daemonInitialization();
+    }
+
+    @Test
+    public void testDeserializedClusteringTypesAreImmutable() throws Exception
+    {
+        TableMetadata schema = TableMetadata.builder(KEYSPACE, "testDeserializedClusteringTypesAreImmutable")
+                                              .addPartitionKeyColumn("k", Int32Type.instance)
+                                              .addClusteringColumn("c", Int32Type.instance)
+                                              .build();
+        SerializationHeader.Component component = SerializationHeader.makeWithoutStats(schema).toComponent();
+        SSTableFormat<?, ?> format = DatabaseDescriptor.getSelectedSSTableFormat();
+
+        try (DataOutputBuffer out = new DataOutputBuffer())
+        {
+            SerializationHeader.serializer.serialize(format.getLatestVersion(), component, out);
+            SerializationHeader.Component deserialized = SerializationHeader.serializer.deserialize(format.getLatestVersion(),
+                                                                                                      new DataInputBuffer(out.buffer(), true));
+
+            Assert.assertTrue(deserialized.getClusteringTypes() instanceof ImmutableList);
+        }
     }
 
     /**
