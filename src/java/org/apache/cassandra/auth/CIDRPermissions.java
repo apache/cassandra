@@ -72,7 +72,14 @@ public abstract class CIDRPermissions
 
         public boolean canAccessFrom(Set<String> cidrGroups)
         {
-            return subset.stream().anyMatch(cidrGroups::contains);
+            Set<String> smaller = subset.size() <= cidrGroups.size() ? subset : cidrGroups;
+            Set<String> larger = (smaller == subset) ? cidrGroups : subset;
+
+            for (String cidrGroup : smaller)
+                if (larger.contains(cidrGroup))
+                    return true;
+
+            return false;
         }
 
         public boolean restrictsAccess()
