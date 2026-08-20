@@ -559,11 +559,11 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
         if (updates.isEmpty())
         {
-            boolean hasConditions = false;
-            for (int i = 0; i < groupedConditions.size() && !hasConditions; i++)
-                hasConditions = !groupedConditions.get(i).isEmpty();
+            boolean doesNotHaveConditions = true;
+            for (int i = 0; i < groupedConditions.size() && doesNotHaveConditions; i++)
+                doesNotHaveConditions = groupedConditions.get(i).isEmpty();
             // TODO: Test case around this...
-            Preconditions.checkState(hasConditions, "No condition should exist without updates present");
+            Preconditions.checkState(doesNotHaveConditions, "No condition should exist without updates present");
             List<TxnNamedRead> reads = createNamedReads(options, null, keyCollector);
             Keys keys = keyCollector.build();
             TxnRead read = createTxnRead(tables, reads, consistencyLevelForAccordRead(cm, tables, keys, options.getSerialConsistency()), Domain.Key);
