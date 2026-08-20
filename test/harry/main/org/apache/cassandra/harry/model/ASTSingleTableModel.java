@@ -937,7 +937,7 @@ public class ASTSingleTableModel
                              ? (ByteBuffer) extract((ReferenceExpression) where.lhs, lets, who == Who.cas && where.kind.isEqualityBased())
                              : eval(where.lhs);
             ByteBuffer rhs = where.rhs instanceof ReferenceExpression
-                             ? (ByteBuffer) extract((ReferenceExpression) where.rhs, lets)
+                             ? (ByteBuffer) extract((ReferenceExpression) where.rhs, lets, who == Who.cas && where.kind.isEqualityBased())
                              : eval(where.rhs);
             switch (who)
             {
