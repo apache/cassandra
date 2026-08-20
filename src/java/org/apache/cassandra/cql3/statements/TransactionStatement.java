@@ -160,7 +160,6 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     private final List<RowDataReference> returningReferences;
     private final List<ModificationStatement> updates;
     private final List<List<ModificationStatement>> groupedUpdates;
-    private final List<ConditionStatement> conditions;
     private final List<List<ConditionStatement>> groupedConditions;
 
     private final VariableSpecifications bindVariables;
@@ -183,9 +182,8 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         this.assignments = assignments;
         this.returningSelect = returningSelect;
         this.returningReferences = returningReferences;
-        this.updates = groupedUpdates.stream().flatMap(Collection::stream).collect(Collectors.toList());
+        this.updates = flatten(groupedUpdates);
         this.groupedUpdates = groupedUpdates;
-        this.conditions = groupedConditions.stream().flatMap(Collection::stream).collect(Collectors.toList());
         this.groupedConditions = groupedConditions;
         this.bindVariables = bindVariables;
 
@@ -204,6 +202,22 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         {
             resultMetadata =  ResultSet.ResultMetadata.EMPTY;
         }
+    }
+
+    private static List<ModificationStatement> flatten(List<List<ModificationStatement>> groupedUpdates)
+    {
+        if (groupedUpdates.size() == 1)
+            return new ArrayList<>(groupedUpdates.get(0));
+
+        int size = 0;
+        for (int i = 0; i < groupedUpdates.size(); i++)
+            size += groupedUpdates.get(i).size();
+
+        List<ModificationStatement> flattened = new ArrayList<>(size);
+        for (int i = 0; i < groupedUpdates.size(); i++)
+            flattened.addAll(groupedUpdates.get(i));
+
+        return flattened;
     }
 
     public List<ModificationStatement> getUpdates()
@@ -546,8 +560,11 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
         if (updates.isEmpty())
         {
+            boolean hasConditions = false;
+            for (int i = 0; i < groupedConditions.size() && !hasConditions; i++)
+                hasConditions = !groupedConditions.get(i).isEmpty();
             // TODO: Test case around this...
-            Preconditions.checkState(conditions.isEmpty(), "No condition should exist without updates present");
+            Preconditions.checkState(hasConditions, "No condition should exist without updates present");
             List<TxnNamedRead> reads = createNamedReads(options, null, keyCollector);
             Keys keys = keyCollector.build();
             TxnRead read = createTxnRead(tables, reads, consistencyLevelForAccordRead(cm, tables, keys, options.getSerialConsistency()), Domain.Key);
@@ -809,7 +826,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         @Override
         protected Iterable<? extends QualifiedStatement> getStatements()
         {
-            Iterable<QualifiedStatement> group = Iterables.concat(assignments, groupedUpdates.stream().flatMap(Collection::stream).collect(Collectors.toList()));
+            Iterable<QualifiedStatement> group = Iterables.concat(assignments, Iterables.concat(groupedUpdates));
             if (select != null)
                 group = Iterables.concat(group, Collections.singleton(select));
             return group;
