@@ -149,9 +149,11 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
          * pending repair session which has been committed. In addition to the digest, a set of ids for any pending but 
          * as yet uncommitted repair sessions is recorded and returned to the coordinator. This is to help reduce false 
          * positives caused by compaction lagging which can leave sstables from committed sessions in the pending state
-         * for a time.
+         * for a time. We don't track the repaired status for tables whose replication type is tracked which purely
+         * relies on the mutation-tracking log to track reconciliation of mutations.
          */
-        boolean trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForPartitionReadsEnabled();
+        boolean trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForPartitionReadsEnabled()
+                                      && !command.metadata().replicationType().isTracked();
 
         // Do a full data read to resolve the correct response (and repair node that need be)
         DataResolver<E, P> resolver = new DataResolver<>(coordinator, command, replicaPlan, this, requestTime, trackRepairedStatus);

@@ -158,17 +158,20 @@ public class ReadExecutionController implements AutoCloseable
 
         long createdAtNanos = baseCfs.metric.topLocalReadQueryTime.isEnabled() ? clock.now() : NO_SAMPLING;
 
-        if (indexCfs == null)
-            return new ReadExecutionController(command, baseCfs.readOrdering.start(), baseCfs.metadata(), null, null, createdAtNanos, trackRepairedStatus);
-
         OpOrder.Group baseOp = null;
+        OpOrder.Group indexBaseOp = null;
         WriteContext writeContext = null;
         ReadExecutionController indexController = null;
         // OpOrder.start() shouldn't fail, but better safe than sorry.
         try
         {
             baseOp = baseCfs.readOrdering.start();
-            indexController = new ReadExecutionController(command, indexCfs.readOrdering.start(), indexCfs.metadata(), null, null, NO_SAMPLING, false);
+
+            if (indexCfs == null)
+                return new ReadExecutionController(command, baseOp, baseCfs.metadata(), null, null, createdAtNanos, trackRepairedStatus);
+
+            indexBaseOp = indexCfs.readOrdering.start();
+            indexController = new ReadExecutionController(command, indexBaseOp, indexCfs.metadata(), null, null, NO_SAMPLING, false);
             /*
              * TODO: this should perhaps not open and maintain a writeOp for the full duration, but instead only *try*
              * to delete stale entries, without blocking if there's no room
@@ -179,8 +182,6 @@ public class ReadExecutionController implements AutoCloseable
         }
         catch (RuntimeException e)
         {
-            // Note that must have writeContext == null since ReadOrderGroup ctor can't fail
-            assert writeContext == null;
             try
             {
                 if (baseOp != null)
@@ -189,7 +190,21 @@ public class ReadExecutionController implements AutoCloseable
             finally
             {
                 if (indexController != null)
-                    indexController.close();
+                {
+                    try
+                    {
+                        indexController.close();
+                    }
+                    finally
+                    {
+                        if (writeContext != null)
+                            writeContext.close();
+                    }
+                }
+                else if (indexBaseOp != null)
+                {
+                    indexBaseOp.close();
+                }
             }
             throw e;
         }
