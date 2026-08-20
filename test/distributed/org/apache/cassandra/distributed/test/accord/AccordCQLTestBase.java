@@ -3664,7 +3664,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     }
 
     @Test
-    public void testLetComparisonWithDifferentTypes() throws Throwable
+    public void testLetComparisonWithDifferentUDTFields() throws Throwable
     {
         test("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, customer person) WITH " + transactionalMode.asCqlParam(), cluster -> {
             Object personValue1 = CQLTester.userType("height", 74, "age", 37);
