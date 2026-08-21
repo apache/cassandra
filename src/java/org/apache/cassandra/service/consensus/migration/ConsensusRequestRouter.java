@@ -38,7 +38,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
@@ -838,6 +837,7 @@ public class ConsensusRequestRouter
         }
     }
 
+    // TODO: Extend this method to partition range reads after CASSANDRA-20211 is done
     public static boolean shouldUseQuorumConsistency(ClusterMetadata cm, SinglePartitionReadCommand.Group reads, ConsistencyLevel consistencyLevel)
     {
         TableMetadata tm = getTableMetadata(cm, reads.queries.get(0).metadata().id);
@@ -861,7 +861,11 @@ public class ConsensusRequestRouter
             }
         }
 
-        AbstractReplicationStrategy ars = Keyspace.open(tm.keyspace).getReplicationStrategy();
+        Optional<KeyspaceMetadata> ksm = cm.schema.maybeGetKeyspaceMetadata(tm.keyspace);
+
+        if (ksm.isEmpty())
+            return false;
+        AbstractReplicationStrategy ars = ksm.get().replicationStrategy;
 
         // If we intersect, this means that there exists a node from which we will get the latest value, so we will not need to contact a quorum
         boolean willIntersectQuorum = (ConsistencyLevel.QUORUM.blockFor(ars) + consistencyLevel.blockFor(ars)) > ConsistencyLevel.ALL.blockFor(ars);
