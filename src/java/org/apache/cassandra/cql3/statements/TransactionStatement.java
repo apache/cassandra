@@ -598,7 +598,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
             // Even though groupedUpdates.get(idx) can't be empty, groupedFragments.get(idx) can.
             // This is because (DELETE WHERE pk=0 AND c < 0 AND c > 0) can produce no fragments.
-            // In this case, we have an empty fragment for the trailing update and we skip including it.
+            // In this case, we have an empty fragment for the trailing update, and we skip including it.
             if (idx < groupedFragments.size() && !groupedFragments.get(idx).isEmpty())
             {
                 noneConditionFragments.addAll(groupedFragments.get(idx));
