@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.utils;
 
+import java.time.Duration;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -286,28 +287,7 @@ public class NoSpamLogger
      */
     private final Cache<String, NoSpamLogStatement> lastMessage = Caffeine.newBuilder()
                                                                           .maximumSize(NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER.getLong())
-                                                                          .expireAfter(new Expiry<String, NoSpamLogStatement>()
-                                                                          {
-                                                                              @Override
-                                                                              public long expireAfterCreate(String key, NoSpamLogStatement value, long currentTime)
-                                                                              {
-                                                                                  return value.expiry();
-                                                                              }
-
-                                                                              @Override
-                                                                              public long expireAfterUpdate(String key, NoSpamLogStatement value,
-                                                                                                            long currentTime, long currentDuration)
-                                                                              {
-                                                                                  return value.expiry();
-                                                                              }
-
-                                                                              @Override
-                                                                              public long expireAfterRead(String key, NoSpamLogStatement value,
-                                                                                                          long currentTime, long currentDuration)
-                                                                              {
-                                                                                  return currentDuration;
-                                                                              }
-                                                                          })
+                                                                          .expireAfter(Expiry.writing((String key, NoSpamLogStatement value) -> Duration.ofNanos(value.expiry())))
                                                                           .ticker(TICKER)
                                                                           .executor(CACHE_MAINTENANCE_EXECUTOR)
                                                                           .recordStats()

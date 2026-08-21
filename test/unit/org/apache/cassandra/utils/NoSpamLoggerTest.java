@@ -327,9 +327,8 @@ public class NoSpamLoggerTest
     {
         int maxStatementsPerLogger = 10;
         try (WithProperties properties = new WithProperties().set(NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER,
-                                                                  (long) maxStatementsPerLogger))
+                                                                  String.valueOf(maxStatementsPerLogger)))
         {
-            NoSpamLogger.clearWrappedLoggersForTest();
             now = 5;
             NoSpamLogger logger = NoSpamLogger.getLogger(mock, 5, TimeUnit.NANOSECONDS);
 
