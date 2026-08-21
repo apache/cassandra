@@ -52,7 +52,7 @@ public class CompactionDeleteAndPurgePKTest extends SimpleCompactionTest
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
         // even with GC period 0, needs some time
         Thread.sleep(1000);
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
 
         assertTrue(cfs.getLiveSSTables().isEmpty());
     }
@@ -84,7 +84,7 @@ public class CompactionDeleteAndPurgePKTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
         Thread.sleep(1000);
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         assertTrue(cfs.getLiveSSTables().isEmpty());
     }
 
@@ -130,7 +130,7 @@ public class CompactionDeleteAndPurgePKTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
         Thread.sleep(1000);
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         assertTrue(cfs.getLiveSSTables().isEmpty());
     }
 
@@ -161,7 +161,7 @@ public class CompactionDeleteAndPurgePKTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
         Thread.sleep(1000);
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
 
@@ -227,7 +227,7 @@ public class CompactionDeleteAndPurgePKTest extends SimpleCompactionTest
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
         Thread.sleep(1000);
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
         try(ISSTableScanner scanner = sstable.getScanner())

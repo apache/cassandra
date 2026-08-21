@@ -202,7 +202,8 @@ public enum CassandraRelevantProperties
     CONSISTENT_RANGE_MOVEMENT("cassandra.consistent.rangemovement", "true"),
     CONSISTENT_SIMULTANEOUS_MOVES_ALLOW("cassandra.consistent.simultaneousmoves.allow"),
     CRYPTO_PROVIDER_CLASS_NAME("cassandra.crypto_provider_class_name"),
-    CURSOR_COMPACTION_ENABLED("cassandra.cursor_compaction_enabled", "true"),
+    /** Experimental. */
+    CURSOR_COMPACTION_ENABLED("cassandra.cursor_compaction_enabled", "false"),
     CUSTOM_DISK_ERROR_HANDLER("cassandra.custom_disk_error_handler"),
     CUSTOM_GUARDRAILS_CONFIG_PROVIDER_CLASS("cassandra.custom_guardrails_config_provider_class"),
     CUSTOM_QUERY_HANDLER_CLASS("cassandra.custom_query_handler_class"),
@@ -633,6 +634,28 @@ public enum CassandraRelevantProperties
     TEST_COMPRESSION_ALGO("cassandra.test.compression.algo", "lz4"),
     TEST_DEBUG_REF_COUNT("cassandra.debugrefcount"),
     TEST_DEBUG_REF_EVENTS("cassandra.debug.refevents"),
+    /**
+     * Scale knobs for the cursor-vs-iterator differential compaction suite. The bigvolume and
+     * largepartition defaults reproduce their documented test/burn scale (40M rows / 20 sstables;
+     * a ~2.4GiB merged partition) -- override down for a quick local check.
+     */
+    TEST_DIFFERENTIAL_BIGVOLUME_PARTITIONS("cassandra.test.differential.bigvolume.partitions", "20000"),
+    TEST_DIFFERENTIAL_BIGVOLUME_ROUNDS("cassandra.test.differential.bigvolume.rounds", "20"),
+    TEST_DIFFERENTIAL_BIGVOLUME_ROWS_PER_ROUND("cassandra.test.differential.bigvolume.rows_per_round", "100"),
+    TEST_DIFFERENTIAL_BIGVOLUME_VALUE_PADDING("cassandra.test.differential.bigvolume.value_padding", "200"),
+    /** Number of generated examples the randomized differential soak runs; must be > 0. */
+    TEST_DIFFERENTIAL_EXAMPLES("cassandra.test.differential.examples"),
+    /**
+     * Preserves a failed differential comparison's captured sstables for post-mortem instead of deleting
+     * them. Off by default: the burn scenarios' captures are multi-GB and would fill a CI disk.
+     */
+    TEST_DIFFERENTIAL_KEEP_SCRATCH_ON_FAILURE("cassandra.test.differential.keep_scratch_on_failure", "false"),
+    TEST_DIFFERENTIAL_LARGEPARTITION_CK_STRIDE("cassandra.test.differential.largepartition.ck_stride"),
+    TEST_DIFFERENTIAL_LARGEPARTITION_ROWS_PER_SSTABLE("cassandra.test.differential.largepartition.rows_per_sstable", "1100000"),
+    TEST_DIFFERENTIAL_LARGEPARTITION_SSTABLES("cassandra.test.differential.largepartition.sstables", "8"),
+    TEST_DIFFERENTIAL_LARGEPARTITION_VALUE_PADDING("cassandra.test.differential.largepartition.value_padding", "240"),
+    /** Seed for the randomized differential soak; defaults to the wall clock, logged per example. */
+    TEST_DIFFERENTIAL_SEED("cassandra.test.differential.seed"),
     TEST_DRIVER_CONNECTION_TIMEOUT_MS("cassandra.test.driver.connection_timeout_ms", "5000"),
     TEST_DRIVER_READ_TIMEOUT_MS("cassandra.test.driver.read_timeout_ms", "12000"),
     TEST_ENCRYPTION("cassandra.test.encryption", "false"),

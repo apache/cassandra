@@ -23,7 +23,7 @@ import java.util.Comparator;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.db.compaction.CursorCompactor;
+import org.apache.cassandra.db.compaction.PreSortedBubbleInsert;
 
 public class PreSortedBubbleInsertTest
 {
@@ -124,8 +124,6 @@ public class PreSortedBubbleInsertTest
 
     private static <T> void bubbleSortFrom(T[] array, boolean[] equalsNext, Comparator<T> comparator, int perturbedLimit)
     {
-        for (; perturbedLimit > 0; perturbedLimit--) {
-            CursorCompactor.bubbleInsertElementToPreSorted(array, equalsNext, perturbedLimit, array.length, comparator);
-        }
+        new PreSortedBubbleInsert<>(comparator).sortPerturbed(array, equalsNext, perturbedLimit, array.length);
     }
 }

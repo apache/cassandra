@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
@@ -88,6 +89,7 @@ public class CompactionTask extends AbstractCompactionTask
     protected final boolean keepOriginals;
     protected static long totalBytesCompacted = 0;
     private ActiveCompactionsTracker activeCompactions;
+    private LongSupplier nowInSecondsSupplier = FBUtilities::nowInSeconds;
 
     public CompactionTask(ColumnFamilyStore cfs, ILifecycleTransaction txn, long gcBeforeSeconds)
     {
@@ -99,6 +101,13 @@ public class CompactionTask extends AbstractCompactionTask
         super(cfs, txn);
         this.gcBeforeSeconds = gcBeforeSeconds;
         this.keepOriginals = keepOriginals;
+    }
+
+    /** Test hook: overrides FBUtilities.nowInSeconds() for TTL-expiration decisions during this task's merge. */
+    public CompactionTask setNowInSecondsSupplier(LongSupplier nowInSecondsSupplier)
+    {
+        this.nowInSecondsSupplier = nowInSecondsSupplier;
+        return this;
     }
 
     public static synchronized long addToTotalBytesCompacted(long bytesCompacted)
@@ -258,7 +267,7 @@ public class CompactionTask extends AbstractCompactionTask
             Range<Token> tokenRange = tokenRange();
             List<Range<Token>> rangeList = tokenRange != null ? ImmutableList.of(tokenRange) : null;
 
-            long nowInSec = FBUtilities.nowInSeconds();
+            long nowInSec = nowInSecondsSupplier.getAsLong();
             try (Refs<SSTableReader> refs = Refs.ref(actuallyCompact);
                  AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(actuallyCompact, rangeList);
                  AbstractCompactionPipeline ci = AbstractCompactionPipeline.create(this, compactionType, scanners, controller, nowInSec, taskId))

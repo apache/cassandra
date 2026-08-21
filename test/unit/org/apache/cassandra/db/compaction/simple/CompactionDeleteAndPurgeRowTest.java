@@ -64,7 +64,7 @@ public class CompactionDeleteAndPurgeRowTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
         Thread.sleep(1000);
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         assertTrue(cfs.getLiveSSTables().isEmpty());
     }
 
@@ -97,7 +97,7 @@ public class CompactionDeleteAndPurgeRowTest extends SimpleCompactionTest
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
         Thread.sleep(1000);
 
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
@@ -137,7 +137,7 @@ public class CompactionDeleteAndPurgeRowTest extends SimpleCompactionTest
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
         Thread.sleep(2000);
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
 
@@ -183,7 +183,7 @@ public class CompactionDeleteAndPurgeRowTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
         Thread.sleep(1000);
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
 
         assertTrue(cfs.getLiveSSTables().isEmpty());
     }
@@ -225,7 +225,7 @@ public class CompactionDeleteAndPurgeRowTest extends SimpleCompactionTest
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
         Thread.sleep(1000);
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         assertTrue(cfs.getLiveSSTables().isEmpty());
     }
 
@@ -267,7 +267,7 @@ public class CompactionDeleteAndPurgeRowTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
         Thread.sleep(1000);
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
 
@@ -340,7 +340,7 @@ public class CompactionDeleteAndPurgeRowTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
         Thread.sleep(1000);
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
         try(ISSTableScanner scanner = sstable.getScanner())
@@ -443,7 +443,7 @@ public class CompactionDeleteAndPurgeRowTest extends SimpleCompactionTest
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
         Thread.sleep(1000);
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
         try(ISSTableScanner scanner = sstable.getScanner())
@@ -553,7 +553,7 @@ public class CompactionDeleteAndPurgeRowTest extends SimpleCompactionTest
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
         Thread.sleep(1000);
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
         try(ISSTableScanner scanner = sstable.getScanner())
@@ -630,7 +630,7 @@ public class CompactionDeleteAndPurgeRowTest extends SimpleCompactionTest
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
         Thread.sleep(1000);
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
     }

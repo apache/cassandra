@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.db.compaction;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -25,6 +27,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReusableLivenessInfo;
 import org.apache.cassandra.db.UnfilteredValidation;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.rows.ReusableCellLivenessInfo;
 import org.apache.cassandra.io.sstable.PartitionDescriptor;
 import org.apache.cassandra.io.sstable.SSTableCursorReader;
 import org.apache.cassandra.io.sstable.UnfilteredDescriptor;
@@ -32,9 +35,11 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 import static org.apache.cassandra.db.rows.Cell.INVALID_DELETION_TIME;
 import static org.apache.cassandra.db.rows.Cell.NO_DELETION_TIME;
+import static org.apache.cassandra.db.rows.Cell.NO_TTL;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_END;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_HEADER_START;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_VALUE_START;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.UNFILTERED_END;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.isState;
 
 // Cursor state
@@ -49,7 +54,11 @@ class StatefulCursor extends SSTableCursorReader
      */
     private PartitionDescriptor prevPartition;
 
-    private final UnfilteredDescriptor unfiltered;
+    /** @see #partitionSwaps() */
+    private long partitionSwaps = 0;
+
+    /** Non-final: it is exchanged by {@link #detachUnfiltered}. */
+    private UnfilteredDescriptor unfiltered;
 
     private boolean resetAfterDone = false;
     private long bytesReadPositionSnapshot = 0;
@@ -76,6 +85,77 @@ class StatefulCursor extends SSTableCursorReader
         return state;
     }
 
+    /**
+     * Hands the write side the instance holding the PREVIOUS partition's header and takes {@code floater} in
+     * its place, so the caller owns a stable "last written partition" without copying the key.
+     *
+     * It is {@code prev} rather than {@code curr} because {@code curr} is the next read's out-of-order
+     * validation source: stealing that would make the comparison run against a foreign key, which for valid
+     * data still passes — the last written key is at or below this cursor's next key — so nothing would fail
+     * and one class of corrupt input would silently stop being detected.
+     *
+     * Taking {@code prev} is safe because it has already been consumed: {@link #readPartitionHeader} compares
+     * it against the freshly read {@code curr} before returning, and the swap means the floater only ever
+     * becomes a load target, never a comparison source. Its stale contents are therefore unobservable,
+     * including in the out-of-order message, which is built after the swap.
+     */
+    PartitionDescriptor detachPrevPartition(PartitionDescriptor floater)
+    {
+        assert floater != prevPartition && floater != currPartition
+             : "the floater is already one of this cursor's slots; a steal was not handed back";
+        PartitionDescriptor detached = prevPartition;
+        prevPartition = floater;
+        return detached;
+    }
+
+    /**
+     * Times the curr/prev partition slots have been exchanged, so the write side can assert the deferral rule
+     * its steal depends on: that the prev slot has advanced exactly once since the partition it recorded was
+     * written, and therefore holds that partition. The executable form of "the prepare loop reads at most once
+     * per cursor per round".
+     *
+     * Counts swaps rather than reads because {@link #resetAfterDone} also advances the slots — it swaps and
+     * then resets only {@code curr} — and that is the path by which the last written partition reaches the prev
+     * slot when the compaction finishes. A read counter would leave the steal on the finish path unaccounted
+     * for.
+     */
+    long partitionSwaps()
+    {
+        return partitionSwaps;
+    }
+
+    /**
+     * Hands the write side the instance holding the unfiltered this cursor has just had written out, and
+     * takes {@code floater} in its place, so the caller owns a stable "last written unfiltered" without
+     * copying the clustering.
+     *
+     * Unlike {@link #detachPrevPartition} this cannot be deferred by a round: there is one slot, so a value
+     * left to wait would be overwritten by the next read. It does not need to be. Once the unfiltered has
+     * been written, everything that reads the descriptor has run — the merge, the write, and the open
+     * range-tombstone bookkeeping, which copies deletion times rather than retaining them — and the cursor
+     * is at {@code UNFILTERED_END}, which the caller advances out of immediately after; the next load into
+     * the floater comes later, in the following round's prepare-and-sort. From every state that advance can
+     * reach, the next touch of the slot is another load into it: a {@link #readRowHeader} or
+     * {@link #readTombstoneMarker} from {@code ROW_START}/{@code TOMBSTONE_START}, or
+     * {@link #resetAfterDone}'s reset. At {@code PARTITION_END} nothing reads it
+     * at all, because the clustering comparison short-circuits on that state. So the floater's stale contents
+     * are unobservable.
+     *
+     * The {@code UNFILTERED_END} premise is asserted rather than argued, because it is what makes the steal
+     * safe undeferred: a cursor stolen from in any other state would keep the floater across a clustering
+     * comparison that reads it, and mis-order the merge silently.
+     */
+    UnfilteredDescriptor detachUnfiltered(UnfilteredDescriptor floater)
+    {
+        assert floater != unfiltered
+             : "the floater is already this cursor's slot; a steal was not handed back";
+        assert state() == UNFILTERED_END
+             : "an unfiltered was stolen from a cursor that has not finished it: " + this;
+        UnfilteredDescriptor detached = unfiltered;
+        unfiltered = floater;
+        return detached;
+    }
+
     private int corruptSSTableKeysOOO()
     {
         return corruptSSTable("Keys out of order. Current key: " + keyToString(currentKey()) + " <= "  + keyToString(prevKey()));
@@ -83,6 +163,7 @@ class StatefulCursor extends SSTableCursorReader
 
     private void swapCurrAndPrevPartition()
     {
+        partitionSwaps++;
         PartitionDescriptor temp = currPartition;
         currPartition = prevPartition;
         prevPartition = temp;
@@ -102,6 +183,12 @@ class StatefulCursor extends SSTableCursorReader
             return super.skipRowCells(unfiltered().dataStart(), unfiltered().size(), false);
 
         return super.skipStaticRow(false);
+    }
+
+    /** @see SSTableCursorReader#rewindRowCells(UnfilteredDescriptor, boolean) */
+    public int rewindRowCells(boolean isStatic)
+    {
+        return super.rewindRowCells(unfiltered, isStatic);
     }
 
     @Override
@@ -205,7 +292,11 @@ class StatefulCursor extends SSTableCursorReader
     public int readCellHeader()
     {
         int state = super.readCellHeader();
-        if (corruptedTombstoneValidationEnabled)
+        // Validate only where a cell was actually surfaced. Every path that surfaces one returns
+        // CELL_VALUE_START or CELL_END, including a valueless final cell; UNFILTERED_END means the
+        // dropped-column filter discarded every remaining column, and cellLiveness then still
+        // describes the last DISCARDED cell rather than the current position.
+        if (corruptedTombstoneValidationEnabled && isState(state, CELL_VALUE_START | CELL_END))
             validateInvalidCellDeletion();
         return state;
     }
@@ -230,15 +321,34 @@ class StatefulCursor extends SSTableCursorReader
 
     private void validateInvalidCellDeletion()
     {
-        ReusableLivenessInfo cellLiveness = cellCursor().cellLiveness;
-        long ldt = cellLiveness.localExpirationTime();
-        if (cellLiveness.ttl() < 0 || ldt == INVALID_DELETION_TIME || ldt < 0 || (cellLiveness.isExpiring() && ldt == NO_DELETION_TIME)) {
+        ReusableCellLivenessInfo cellLiveness = cellCursor().cellLiveness;
+        if (hasInvalidCellDeletion(cellLiveness.ttl(), cellLiveness.localDeletionTime())) {
             UnfilteredValidation.handleInvalid(
             ssTableReader().metadata(),
             currPartition.key(),
             ssTableReader(),
             "cellLiveness="+cellLiveness);
         }
+    }
+
+    /**
+     * Mirrors {@link org.apache.cassandra.db.rows.AbstractCell#hasInvalidDeletions()}, where
+     * {@code ttl != NO_TTL} is the reference's {@code isExpiring()}.
+     */
+    @VisibleForTesting
+    static boolean hasInvalidCellDeletion(int ttl, long localExpirationTime)
+    {
+        return ttl < 0
+               || localExpirationTime == INVALID_DELETION_TIME
+               || localExpirationTime < 0
+               || (ttl != NO_TTL && localExpirationTime == NO_DELETION_TIME);
+    }
+
+    /** Mirrors the primary-key liveness clause of {@link org.apache.cassandra.db.rows.AbstractRow#hasInvalidDeletions()}. */
+    @VisibleForTesting
+    static boolean hasInvalidRowLiveness(int ttl, long localExpirationTime)
+    {
+        return ttl != NO_TTL && (ttl < 0 || localExpirationTime < 0);
     }
 
     private void validateInvalidRowDeletion()
@@ -251,7 +361,7 @@ class StatefulCursor extends SSTableCursorReader
                 "rowDeletion="+currPartition.deletionTime().toString());
         }
         ReusableLivenessInfo livenessInfo = unfiltered.livenessInfo();
-        if (livenessInfo.isExpiring() && (livenessInfo.ttl() < 0 || livenessInfo.localExpirationTime() < 0)) {
+        if (hasInvalidRowLiveness(livenessInfo.ttl(), livenessInfo.localExpirationTime())) {
             UnfilteredValidation.handleInvalid(
                 ssTableReader().metadata(),
                 currPartition.key(),

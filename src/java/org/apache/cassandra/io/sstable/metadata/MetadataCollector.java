@@ -43,6 +43,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
 import org.apache.cassandra.db.rows.ArrayCell;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellLivenessInfo;
 import org.apache.cassandra.db.rows.NativeCell;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.io.sstable.ClusteringDescriptor;
@@ -288,11 +289,25 @@ public class MetadataCollector implements PartitionStatisticsCollector
 
     /**
      * Cell level stats, if we accept that LDT and LET are the same...
+     *
+     * Mirrors {@link #update(Cell)} rather than delegating to {@link #update(LivenessInfo)}. That overload
+     * early-returns on {@link LivenessInfo#isEmpty()}, which is a ROW concept — an empty primary-key
+     * liveness contributes nothing — and applying it to a cell silently drops the timestamp, TTL and
+     * deletion-time contributions of a cell timestamped {@link LivenessInfo#NO_TIMESTAMP}.
+     * {@link #update(Cell)}, which the iterator path uses, has no such branch, so the unconditional form is
+     * the reference.
+     *
+     * It does not delegate to {@link #update(Cell)} either: that method opens with its own
+     * {@code ++currentPartitionCells}, so delegating would count every cell twice.
      */
-    public void updateCellLiveness(LivenessInfo newInfo)
+    public void updateCellLiveness(CellLivenessInfo newInfo)
     {
         ++currentPartitionCells;
-        update(newInfo);
+        updateTimestamp(newInfo.timestamp());
+        updateTTL(newInfo.ttl());
+        updateLocalDeletionTime(newInfo.localDeletionTime());
+        if (!newInfo.isLive(nowInSec))
+            updateTombstoneCount();
     }
 
     public void updatePartitionDeletion(DeletionTime dt)

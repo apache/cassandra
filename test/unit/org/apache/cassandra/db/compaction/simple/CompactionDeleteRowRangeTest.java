@@ -63,7 +63,7 @@ public class CompactionDeleteRowRangeTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
         // Expected: {"table kind":"REGULAR",
@@ -126,7 +126,7 @@ public class CompactionDeleteRowRangeTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
         // Expected: {"table kind":"REGULAR",
@@ -202,7 +202,7 @@ public class CompactionDeleteRowRangeTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
         // Expected:  {"table kind":"REGULAR","partition":{"key":["0"],"position":11},"rows":[
@@ -276,7 +276,7 @@ public class CompactionDeleteRowRangeTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
         // Expected:  {"table kind":"REGULAR","partition":{"key":["0"],"position":11},"rows":[
@@ -356,7 +356,7 @@ public class CompactionDeleteRowRangeTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
         // Expected:  {"table kind":"REGULAR","partition":{"key":["0"],"position":11},"rows":[
@@ -416,7 +416,7 @@ public class CompactionDeleteRowRangeTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
         // Expected: {"table kind":"REGULAR","partition":{"key":["0"],"position":31},"rows":
@@ -484,7 +484,7 @@ public class CompactionDeleteRowRangeTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
         // Expected: {"table kind":"REGULAR","partition":{"key":["0"],"position":27,"deletion_info":{"marked_deleted":"2025-01-14T11:20:37.220Z","local_delete_time":"2025-01-14T11:20:37Z"}},"rows":[]}
@@ -533,7 +533,7 @@ public class CompactionDeleteRowRangeTest extends SimpleCompactionTest
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
 
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
 
@@ -605,7 +605,7 @@ public class CompactionDeleteRowRangeTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
 
@@ -704,7 +704,7 @@ public class CompactionDeleteRowRangeTest extends SimpleCompactionTest
 
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
-        cfs.forceMajorCompaction();
+        majorCompact(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         verifyAndPrint(cfs, sstable);
         // {"table kind":"REGULAR","partition":{"key":["2"],"position":31},

@@ -707,6 +707,10 @@
         <gen-java-copy class="org.apache.cassandra.utils.MergeIterator" newName="RowMergeIterator"/>
         <gen-java-copy class="org.apache.cassandra.utils.MergeIterator" newName="UnfilteredMergeIterator"/>
         <gen-java-copy class="org.apache.cassandra.utils.MergeIterator" newName="ComplexCellMergeIterator"/>
+        <gen-java-copy class="org.apache.cassandra.db.compaction.PreSortedBubbleInsert" newName="PartitionKeyMergeSort"/>
+        <gen-java-copy class="org.apache.cassandra.db.compaction.PreSortedBubbleInsert" newName="RowClusteringMergeSort"/>
+        <gen-java-copy class="org.apache.cassandra.db.compaction.PreSortedBubbleInsert" newName="StaticMergeSort"/>
+        <gen-java-copy class="org.apache.cassandra.db.compaction.PreSortedBubbleInsert" newName="ColumnMergeSort"/>
     </target>
 
     <!-- create properties file with C version -->

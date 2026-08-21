@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.db;
 
+import org.apache.cassandra.db.rows.CellLivenessInfo;
+
 public interface DeletionPurger
 {
     DeletionPurger PURGE_ALL = (ts, ldt) -> true;
@@ -31,5 +33,16 @@ public interface DeletionPurger
     default boolean shouldPurge(LivenessInfo liveness, long nowInSec)
     {
         return !liveness.isLive(nowInSec) && shouldPurge(liveness.timestamp(), liveness.localExpirationTime());
+    }
+
+    /**
+     * The cell form, mirroring {@code AbstractCell.purge}. Separate from the row overload above because the
+     * two liveness contracts disagree on what "live" means; no call site can be ambiguous, since
+     * {@link org.apache.cassandra.db.rows.ReusableCellLivenessInfo} implements only one of the two interfaces
+     * and {@link org.apache.cassandra.db.rows.Cell} reaches {@code AbstractCell.purge} instead of this.
+     */
+    default boolean shouldPurge(CellLivenessInfo liveness, long nowInSec)
+    {
+        return !liveness.isLive(nowInSec) && shouldPurge(liveness.timestamp(), liveness.localDeletionTime());
     }
 }

@@ -147,11 +147,84 @@ public class DeserializationHelper
 
     public boolean isDropped(Cell<?> cell, boolean isComplex)
     {
+        return isDropped(cell.column(), cell.timestamp(), isComplex);
+    }
+
+    /**
+     * Drop rule over the decoded cell header rather than a {@link Cell}: the body of
+     * {@link #isDropped(Cell, boolean)}, and the reference form of the rule. Its simple-column branch looks
+     * the column up by name on a table that has dropped columns, so a reader that decodes cell headers in
+     * bulk builds a {@link #droppedTimeOrMin} array once per column set and tests that with
+     * {@link #isDroppedAtHorizon} instead.
+     *
+     * @param column    the cell's column; ignored when {@code isComplex}
+     * @param timestamp the cell's timestamp
+     * @param isComplex reads the {@link #currentDroppedComplex} cache instead of looking the column
+     *                  up by name. Only correct after {@link #startOfComplexColumn} has primed that
+     *                  cache for this column; a caller that has not filters nothing.
+     */
+    public boolean isDropped(ColumnMetadata column, long timestamp, boolean isComplex)
+    {
         if (!hasDroppedColumns)
             return false;
 
-        DroppedColumn dropped = isComplex ? currentDroppedComplex : droppedColumns.get(cell.column().name.bytes);
-        return dropped != null && cell.timestamp() <= dropped.droppedTime;
+        DroppedColumn dropped = isComplex ? currentDroppedComplex : droppedColumns.get(column.name.bytes);
+        return dropped != null && timestamp <= dropped.droppedTime;
+    }
+
+    public boolean hasDroppedColumns()
+    {
+        return hasDroppedColumns;
+    }
+
+    /**
+     * The sentinel {@link #droppedTimeOrMin} returns for a column with no drop horizon. It is the
+     * least possible {@code long}, so {@code timestamp <= NO_DROP_HORIZON} is NOT unconditionally
+     * false — see {@link #isDroppedAtHorizon}, which is why that predicate exists rather than a
+     * bare comparison at each call site.
+     */
+    public static final long NO_DROP_HORIZON = Long.MIN_VALUE;
+
+    /**
+     * The column's drop horizon, or {@link #NO_DROP_HORIZON} if it has none. For callers that build
+     * a per-superset array of these once (e.g. {@code SSTableCursorReader.CellCursor}), so a per-cell
+     * drop check becomes a plain array read plus {@link #isDroppedAtHorizon} instead of a map lookup.
+     */
+    public long droppedTimeOrMin(ColumnMetadata column)
+    {
+        if (!hasDroppedColumns)
+            return NO_DROP_HORIZON;
+        DroppedColumn dropped = droppedColumns.get(column.name.bytes);
+        return dropped != null ? dropped.droppedTime : NO_DROP_HORIZON;
+    }
+
+    /**
+     * The drop rule against a horizon read from a {@link #droppedTimeOrMin} array, equivalent to
+     * {@code isDropped(column, timestamp, false)} for the column that horizon came from — for every
+     * input except a column whose recorded {@code droppedTime} is itself {@code Long.MIN_VALUE}, which
+     * {@link #droppedTimeOrMin} cannot distinguish from "no drop record". No schema path produces such a
+     * horizon ({@code AlterTableStatement} uses the schema mutation timestamp, {@code TableMetadata
+     * .Builder.recordColumnDrop} from a CQL DROP uses {@code Long.MAX_VALUE}), so the lossy encoding is
+     * sound in practice — but it IS lossy, which is worth knowing before treating the array as
+     * interchangeable with the map.
+     *
+     * The {@code NO_DROP_HORIZON} test is load-bearing, not defensive. That sentinel is
+     * {@code Long.MIN_VALUE}, which is also {@link LivenessInfo#NO_TIMESTAMP}, so
+     * {@code timestamp <= dropHorizon} alone discards a cell whose timestamp is exactly
+     * {@code Long.MIN_VALUE} on a column that was NEVER dropped — while
+     * {@code UnfilteredSerializer.readSimpleColumn}, which tests {@code dropped != null} first, keeps
+     * it. No sentinel value can avoid this: {@code Long.MIN_VALUE} is the minimum, so there is no
+     * long that makes {@code <=} false for every timestamp.
+     */
+    public static boolean isDroppedAtHorizon(long timestamp, long dropHorizon)
+    {
+        return dropHorizon != NO_DROP_HORIZON && timestamp <= dropHorizon;
+    }
+
+    /** True if {@code column} has a drop horizon at all, whatever the timestamp. */
+    public boolean isDroppedColumn(ColumnMetadata column)
+    {
+        return hasDroppedColumns && droppedColumns.containsKey(column.name.bytes);
     }
 
     public boolean isDroppedComplexDeletion(DeletionTime complexDeletion)
