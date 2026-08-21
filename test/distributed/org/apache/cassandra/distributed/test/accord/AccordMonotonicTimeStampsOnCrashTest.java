@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.distributed.test.accord;
 
-import accord.local.Node;
-
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -33,6 +31,8 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.AccordTimeService;
 import org.junit.Test;
+
+import accord.local.Node;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.utils.Shared;

@@ -41,7 +41,6 @@ import static accord.utils.Property.qt;
 import static org.apache.cassandra.service.accord.journal.ReplayMarkers.safeStopMarker;
 import static org.apache.cassandra.service.accord.journal.ReplayMarkers.startMarker;
 import static org.apache.cassandra.service.accord.journal.ReplayMarkers.writeMarker;
-import static org.apache.cassandra.service.accord.journal.ReplayMarkers.ReplayMarkerMetadata;
 
 public class ReplayMarkerSerializerTest
 {
@@ -62,7 +61,7 @@ public class ReplayMarkerSerializerTest
             long lastUniqueTimeStamp = AccordTimeService.nowMicros();
             // Start marker
             writeMarker(startMarker(), timestamp, lastUniqueTimeStamp);
-            ReplayMarkerMetadata replayMarkerMetadata = ReplayMarkers.readStartMarker();
+            ReplayMarkers.ReplayMarkerMetadata replayMarkerMetadata = ReplayMarkers.readStartMarker();
             Assert.assertEquals(timestamp, Long.valueOf(replayMarkerMetadata.getSegmentId()));
             Assert.assertEquals(lastUniqueTimeStamp, replayMarkerMetadata.getLastUniqueTimeStamp());
 
@@ -130,7 +129,7 @@ public class ReplayMarkerSerializerTest
 
         long lastUniqueTimeStamp = AccordTimeService.nowMicros();
         writeMarker(startMarker(), 250L, lastUniqueTimeStamp);
-        ReplayMarkerMetadata replayMarkerMetadata = ReplayMarkers.readStartMarker();
+        ReplayMarkers.ReplayMarkerMetadata replayMarkerMetadata = ReplayMarkers.readStartMarker();
         Assert.assertEquals(250L, replayMarkerMetadata.getSegmentId());
         Assert.assertEquals(lastUniqueTimeStamp, replayMarkerMetadata.getLastUniqueTimeStamp());
 
