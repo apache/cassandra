@@ -8,6 +8,7 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Stop using Java streams in CIDRPermissions.SubsetPermissions#canAccessFrom hot method (CASSANDRA-21588)
  * Enable trickle fsync by default (CASSANDRA-21572)
  * Protect uncaught_exceptions virtual table against the crash path (CASSANDRA-21578)
  * Optimize ServerConnection.requests for both reads and writes (CASSANDRA-21569)
