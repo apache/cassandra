@@ -83,6 +83,10 @@ public enum Version
      * - Size of DataPlacements is encoded as vint
      */
     V9(9),
+    /**
+     * - SchemaTransformation CQL serialized as raw bytes to avoid utf string limit
+     */
+    V10(10),
 
     UNKNOWN(Integer.MAX_VALUE);
 
