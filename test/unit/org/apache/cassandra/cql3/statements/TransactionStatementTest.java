@@ -115,7 +115,8 @@ public class TransactionStatementTest
     {
         String query = "UPDATE ks.tbl1 SET v = row2.v WHERE k=1 AND c=2;";
         Assertions.assertThatThrownBy(() -> prepare(query))
-                  .isInstanceOf(SyntaxException.class);
+                  .isInstanceOf(SyntaxException.class)
+                  .hasMessageContaining("failed predicate");
     }
 
     @Test
