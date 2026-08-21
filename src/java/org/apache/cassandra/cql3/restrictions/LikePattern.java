@@ -112,6 +112,9 @@ public final class LikePattern
         ByteBuffer newValue = value.duplicate();
         newValue.position(beginIndex);
         newValue.limit(endIndex);
+        // Checking if we still have WILDCARD in value and if yes return error.
+        if (ByteBufferUtil.contains(newValue, WILDCARD))
+            throw invalidRequest("LIKE value can't contain a % other than at the start and/or end");
         return new LikePattern(kind, newValue);
     }
 }

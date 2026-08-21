@@ -279,6 +279,45 @@ public interface Conditional extends Expression
         }
     }
 
+    class Like implements Conditional
+    {
+        public final ReferenceExpression ref;
+        public final Expression pattern;
+
+        public Like(ReferenceExpression ref, Expression pattern)
+        {
+            this.ref = ref;
+            this.pattern = pattern;
+        }
+
+        @Override
+        public void toCQL(StringBuilder sb, CQLFormatter formatter)
+        {
+            ref.toCQL(sb, formatter);
+            sb.append(" LIKE ");
+            pattern.toCQL(sb, formatter);
+        }
+
+        @Override
+        public Stream<? extends Element> stream()
+        {
+            return Stream.of(ref, pattern);
+        }
+
+        @Override
+        public Conditional visit(Visitor v)
+        {
+            var u = v.visit(this);
+            if (u != this) return u;
+            var ref = this.ref.visit(v);
+            var pattern = this.pattern.visit(v);
+            if (ref == this.ref && pattern == this.pattern)
+                return this;
+
+            return new Like(ref, pattern);
+        }
+    }
+
     class And implements Conditional
     {
         public final Conditional left, right;
@@ -412,6 +451,11 @@ public interface Conditional extends Expression
 
         T is(ReferenceExpression ref, Is.Kind kind);
 
+        default T like(ReferenceExpression ref, Expression pattern)
+        {
+            throw new UnsupportedOperationException("LIKE is only supported in SELECT");
+        }
+
         @Override
         default T value(ReferenceExpression symbol, Expression e)
         {
@@ -486,6 +530,12 @@ public interface Conditional extends Expression
         public Builder is(ReferenceExpression ref, Is.Kind kind)
         {
             return add(new Is(ref, kind));
+        }
+
+        @Override
+        public Builder like(ReferenceExpression ref, Expression pattern)
+        {
+            return add(new Like(ref, pattern));
         }
 
         public Builder is(String ref, Is.Kind kind)
