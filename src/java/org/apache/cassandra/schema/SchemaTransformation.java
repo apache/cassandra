@@ -18,6 +18,7 @@
 package org.apache.cassandra.schema;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 import org.apache.cassandra.cql3.CQLStatement;
@@ -156,7 +157,16 @@ public interface SchemaTransformation
             out.writeBoolean(hasKeyspace);
             if (hasKeyspace)
                 out.writeUTF(transformation.keyspace());
-            out.writeUTF(transformation.cql());
+            if (version.isAtLeast(Version.V10))
+            {
+                byte [] cql = transformation.cql().getBytes(StandardCharsets.UTF_8);
+                out.writeUnsignedVInt32(cql.length);
+                out.write(cql);
+            }
+            else
+            {
+                out.writeUTF(transformation.cql());
+            }
         }
 
         public SchemaTransformation deserialize(DataInputPlus in, Version version) throws IOException
@@ -165,7 +175,18 @@ public interface SchemaTransformation
             String keyspace = null;
             if (hasKeyspace)
                 keyspace = in.readUTF();
-            String cql = in.readUTF();
+            String cql;
+            if (version.isAtLeast(Version.V10))
+            {
+                int cqlLen = in.readUnsignedVInt32();
+                byte[] cqlBytes = new byte[cqlLen];
+                in.readFully(cqlBytes);
+                cql = new String(cqlBytes, StandardCharsets.UTF_8);
+            }
+            else
+            {
+                cql = in.readUTF();
+            }
             CQLStatement statement = QueryProcessor.getStatement(cql, ClientState.forInternalCalls(keyspace));
             if (!(statement instanceof SchemaTransformation))
                 throw new IllegalArgumentException("Can not deserialize schema transformation");
@@ -177,7 +198,17 @@ public interface SchemaTransformation
             long size = TypeSizes.sizeof(true);
             if (t.keyspace() != null)
                 size += TypeSizes.sizeof(t.keyspace());
-            return size + TypeSizes.sizeof(t.cql());
+            if (version.isAtLeast(Version.V10))
+            {
+                byte [] cqlBytes = t.cql().getBytes(StandardCharsets.UTF_8);
+                size += TypeSizes.sizeofUnsignedVInt(cqlBytes.length);
+                size += cqlBytes.length;
+            }
+            else
+            {
+                size += TypeSizes.sizeof(t.cql());
+            }
+            return size;
         }
     }
 }
