@@ -901,6 +901,10 @@ public class StreamSession
     {
         if (StreamOperation.REPAIR == streamOperation())
             checkAvailableDiskSpaceAndCompactions(summaries);
+        // process stream requests will not process any reconciledKeyspaceOffsets
+        // when adding transfer ranges, this is because reconciledKeyspaceOffsets
+        // only is assigned during prepareLogTransferring (a few methods down).
+        // We need to figure out whether this needs to be wired up in the future.
         processStreamRequests(requests);
         for (StreamSummary summary : summaries)
             prepareReceiving(summary);
