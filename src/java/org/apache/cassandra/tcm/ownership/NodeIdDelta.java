@@ -197,7 +197,10 @@ public class NodeIdDelta implements Delta
                 Collection<ReplicaNode> replicas = delta.get(nodeId);
                 out.writeUnsignedVInt32(replicas.size());
                 for (ReplicaNode replica : replicas)
-                    ReplicaNode.serializer.serialize(replica, out, version);
+                {
+                    Range.serializer.serialize(replica.range, out, version);
+                    out.writeBoolean(replica.full);
+                }
             }
         }
 
@@ -210,7 +213,11 @@ public class NodeIdDelta implements Delta
                 NodeId nodeId = NodeId.serializer.deserialize(in, version);
                 int replicasSize = in.readUnsignedVInt32();
                 for (int j = 0; j < replicasSize; j++)
-                    builder.put(nodeId, ReplicaNode.serializer.deserialize(in, version));
+                {
+                    Range<Token> range = Range.serializer.deserialize(in, version);
+                    boolean full = in.readBoolean();
+                    builder.put(nodeId, new ReplicaNode(nodeId, range, full));
+                }
             }
             return builder.build();
         }
@@ -224,7 +231,10 @@ public class NodeIdDelta implements Delta
                 Collection<ReplicaNode> replicas = delta.get(nodeId);
                 size += TypeSizes.sizeofUnsignedVInt(replicas.size());
                 for (ReplicaNode replica : replicas)
-                    size += ReplicaNode.serializer.serializedSize(replica, version);
+                {
+                    size += Range.serializer.serializedSize(replica.range, version);
+                    size += TypeSizes.sizeof(replica.full);
+                }
             }
             return size;
         }

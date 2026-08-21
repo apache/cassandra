@@ -18,37 +18,23 @@
 
 package org.apache.cassandra.tcm.ownership;
 
-import java.io.IOException;
 import java.util.Objects;
 
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.serialization.MetadataSerializer;
-import org.apache.cassandra.tcm.serialization.Version;
 
 public class ReplicaNode
 {
-    public static final Serializer serializer = new Serializer();
     public final NodeId nodeId;
     public final Range<Token> range;
-    private final boolean full;
+    public final boolean full;
 
     public ReplicaNode(NodeId nodeId, Range<Token> range, boolean full)
     {
         this.nodeId = nodeId;
         this.range = range;
         this.full = full;
-    }
-
-    public Replica toReplica(EndpointLookup endpointLookup)
-    {
-       return new Replica(endpointLookup.endpoint(nodeId), range, full);
     }
 
     @Override
@@ -73,34 +59,5 @@ public class ReplicaNode
                ", range=" + range +
                ", full=" + full +
                '}';
-    }
-
-    public static class Serializer implements MetadataSerializer<ReplicaNode>
-    {
-        @Override
-        public void serialize(ReplicaNode t, DataOutputPlus out, Version version) throws IOException
-        {
-            NodeId.serializer.serialize(t.nodeId, out, version);
-            Range.serializer.serialize(t.range, out, version);
-            out.writeBoolean(t.full);
-        }
-
-        @Override
-        public ReplicaNode deserialize(DataInputPlus in, Version version) throws IOException
-        {
-            NodeId replicaNode = NodeId.serializer.deserialize(in, version);
-            Range<Token> range = Range.serializer.deserialize(in, version);
-            boolean full = in.readBoolean();
-            return new ReplicaNode(replicaNode, range, full);
-        }
-
-        @Override
-        public long serializedSize(ReplicaNode t, Version version)
-        {
-            long size = NodeId.serializer.serializedSize(t.nodeId, version);
-            size += Range.serializer.serializedSize(t.range, version);
-            size += TypeSizes.sizeof(t.full);
-            return size;
-        }
     }
 }

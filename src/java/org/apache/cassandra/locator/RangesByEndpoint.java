@@ -67,7 +67,7 @@ public class RangesByEndpoint extends ReplicaMultimap<InetAddressAndPort, Ranges
             if (ep == null)
                 throw new IllegalStateException("Could not find endpoint for node id: " + entry.getKey());
             for (ReplicaNode replicaNode : entry.getValue())
-                builder.put(ep, replicaNode.toReplica(endpointLookup));
+                builder.put(ep, new Replica(ep, replicaNode.range, replicaNode.full));
         }
         return builder.build();
     }
