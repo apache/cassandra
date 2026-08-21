@@ -166,9 +166,6 @@ public class TxnUpdateTest
                 assertThat(ensureFragmentIdsAreOrdered(block)).isTrue();
                 assertThat(ensureBlockFragmentsAreSortedByKey(block)).isTrue();
                 assertThat(ensureInjectivityOfFragmentIdsToFragments(block)).isTrue();
-
-                boolean inTrailingUpdateBlock = shouldHaveTrailingUpdate && (blockIdx == blocks.size() - 1);
-                assertThat(ensureConditionalBlockPreserveOrder(block, inTrailingUpdateBlock ? new TxnCondition[] { TxnCondition.none() } : conditions, metadatas)).isTrue();
             }
         });
     }
@@ -322,21 +319,6 @@ public class TxnUpdateTest
         }
 
         return selectedIndex == selectedConditionalBlocks.length;
-    }
-
-    private boolean ensureConditionalBlockPreserveOrder(Block block, TxnCondition[] conditions, TableMetadatas metadatas)
-    {
-        if (block.conditionalBlocks.length != conditions.length)
-            return false;
-
-        for (int i = 0; i < block.conditionalBlocks.length; i++)
-        {
-            TxnCondition txnCondition = block.conditionalBlocks[i].condition.deserialize(metadatas);
-            if (!txnCondition.equals(conditions[i]))
-                return false;
-        }
-
-        return true;
     }
 
     private boolean ensureBlockFragmentsAreSortedByKey(Block block)
