@@ -3897,4 +3897,68 @@ public abstract class AccordCQLTestBase extends AccordTestBase
             }
         });
     }
+
+    @Test
+    public void testIfStatementWithEmptyFragment() throws Throwable
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            String insert = "BEGIN TRANSACTION\n" +
+                            " INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (1, 2, 3);\n" +
+                            "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(insert, ConsistencyLevel.SERIAL);
+
+            String query = "BEGIN TRANSACTION\n" +
+                           " LET k1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1 AND c = 2);\n" +
+                           " IF k1.v = 3 THEN \n" +
+                           "    DELETE FROM " + qualifiedAccordTableName + " WHERE k = 0 AND c < 0 AND c > 0;\n" +
+                           " ELSE IF k1.v < 5 THEN \n" +
+                           "    UPDATE " + qualifiedAccordTableName + " SET v = 127 WHERE k = 1 AND c = 2;\n" +
+                           " ELSE \n" +
+                           "    UPDATE " + qualifiedAccordTableName + " SET v = 15 WHERE k = 1 AND c = 2;\n" +
+                           " END IF\n" +
+                           "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.SERIAL);
+
+            String read = "BEGIN TRANSACTION\n" +
+                          " SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1 AND c = 2;\n" +
+                          "COMMIT TRANSACTION";
+
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult(read, ConsistencyLevel.SERIAL);
+            assertThat(result).hasSize(1).contains(1, 2, 3);
+        });
+    }
+
+    @Test
+    public void testIfStatementWithEmptyFragment2() throws Throwable
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            String insert = "BEGIN TRANSACTION\n" +
+                            " INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (1, 2, 3);\n" +
+                            "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(insert, ConsistencyLevel.SERIAL);
+
+            String query = "BEGIN TRANSACTION\n" +
+                           " LET k1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1 AND c = 2);\n" +
+                           " IF k1.v = 7 THEN \n" +
+                           "    UPDATE " + qualifiedAccordTableName + " SET v = 127 WHERE k = 1 AND c = 2;\n" +
+                           " ELSE IF k1.v = 3 THEN \n" +
+                           "    DELETE FROM " + qualifiedAccordTableName + " WHERE k = 0 AND c < 0 AND c > 0;\n" +
+                           " ELSE \n" +
+                           "    UPDATE " + qualifiedAccordTableName + " SET v = 15 WHERE k = 1 AND c = 2;\n" +
+                           " END IF\n" +
+                           "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.SERIAL);
+
+            String read = "BEGIN TRANSACTION\n" +
+                          " SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1 AND c = 2;\n" +
+                          "COMMIT TRANSACTION";
+
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult(read, ConsistencyLevel.SERIAL);
+            assertThat(result).hasSize(1).contains(1, 2, 3);
+        });
+    }
 }
