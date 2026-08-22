@@ -98,7 +98,6 @@ done
 # pre-conditions
 command -v docker >/dev/null 2>&1 || { error 1 "docker needs to be installed"; }
 command -v bc >/dev/null 2>&1 || { error 1 "bc needs to be installed"; }
-command -v timeout >/dev/null 2>&1 || { error 1 "timeout needs to be installed"; }
 (docker info >/dev/null 2>&1) || { error 1 "docker needs to running"; }
 [ -f "${cassandra_dir}/build.xml" ] || { error 1 "${cassandra_dir}/build.xml must exist"; }
 [ -f "${cassandra_dir}/.build/run-tests.sh" ] || { error 1 "${cassandra_dir}/.build/run-tests.sh must exist"; }

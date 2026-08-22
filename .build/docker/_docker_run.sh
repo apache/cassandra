@@ -53,7 +53,6 @@ java_version=$3
 
 # pre-conditions
 command -v docker >/dev/null 2>&1 || { echo >&2 "docker needs to be installed"; exit 1; }
-command -v timeout >/dev/null 2>&1 || { echo >&2 "timeout needs to be installed"; exit 1; }
 (docker info >/dev/null 2>&1) || { echo >&2 "docker needs to running"; exit 1; }
 [ -f "${cassandra_dir}/build.xml" ] || { echo >&2 "${cassandra_dir}/build.xml must exist"; exit 1; }
 [ -f "${cassandra_dir}/.build/docker/${dockerfile}" ] || { echo >&2 "${cassandra_dir}/.build/docker/${dockerfile} must exist"; exit 1; }
