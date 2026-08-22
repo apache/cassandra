@@ -155,7 +155,7 @@ public class Bounds<T extends RingPosition<T>> extends AbstractBounds<T>
      * [   ] [   ]    [   ]   [  ]
      * [   ]         [       ]
      * This method will return the following bounds:
-     * [         ]    [          ]
+     * [         ]   [          ]
      *
      * @param bounds unsorted bounds to find overlaps
      * @return the non-overlapping bounds
@@ -176,11 +176,16 @@ public class Bounds<T extends RingPosition<T>> extends AbstractBounds<T>
         PeekingIterator<Bounds<T>> it = Iterators.peekingIterator(sortedBounds.iterator());
         while (it.hasNext())
         {
-            Bounds<T> beginBound = it.next();
-            Bounds<T> endBound = beginBound;
-            while (it.hasNext() && endBound.right.compareTo(it.peek().left) >= 0)
-                endBound = it.next();
-            nonOverlappingBounds.add(new Bounds<>(beginBound.left, endBound.right));
+            Bounds<T> startBound = it.next();
+            T end = startBound.right;
+            while (it.hasNext() && end.compareTo(it.peek().left) >= 0)
+            {
+                Bounds<T> bound = it.next();
+                if (end.compareTo(bound.right) < 0)
+                    end = bound.right;
+            }
+
+            nonOverlappingBounds.add(new Bounds<>(startBound.left, end));
         }
 
         return nonOverlappingBounds;
