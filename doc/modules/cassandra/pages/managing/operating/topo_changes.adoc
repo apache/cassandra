@@ -50,9 +50,41 @@ unavailable replica, set the JVM flag
 On 2.2+, if the bootstrap process fails, it's possible to resume
 bootstrap from the previous saved state by calling
 `nodetool bootstrap resume`. If for some reason the bootstrap hangs or
-stalls, it may also be resumed by simply restarting the node. In order
-to cleanup bootstrap state and start fresh, you may set the JVM startup
-flag `-Dcassandra.reset_bootstrap_progress=true`.
+stalls, it may also be resumed by simply restarting the node.
+
+==== The `cassandra.reset_bootstrap_progress` JVM property
+
+When a bootstrap finds ranges that a previous, partially successful
+bootstrap already marked as available, the behaviour depends on the
+`cassandra.reset_bootstrap_progress` JVM startup property. Leaving it
+unset is *not* the same as setting it to `true` or to `false`.
+
+[cols=",",options="header",]
+|===
+|Value |Behaviour when previous bootstrap progress is found
+
+|unset (default) | If ranges from a previous bootstrap are found,
+the bootstrap usually aborts with an error, so that no decision
+about the existing data is made on your behalf. If none are found,
+the bootstrap proceeds normally.
+
+|`true` |Discards the recorded progress and streams all ranges again.
+The files already streamed are *not* deleted, so remove them before
+retrying or you may resurrect or duplicate data. See
+https://issues.apache.org/jira/browse/CASSANDRA-17679[CASSANDRA-17679].
+
+|`false` |Keeps the recorded progress and streams only the ranges not
+already marked as available. Potentially dangerous, because the data
+streamed by the previous attempt may be missing or incomplete. Prefer
+`true` after cleaning up the old files. See
+https://issues.apache.org/jira/browse/CASSANDRA-17679[CASSANDRA-17679].
+|===
+
+In some situations, a bootstrap with the property unset doesn't abort.
+Instead, it continues and reuses the ranges that a previous attempt
+already streamed, without logging that it skipped them. To avoid this,
+we recommend setting the property to `true` after removing the files
+from the previous attempt.
 
 On lower versions, when the bootstrap proces fails it is recommended to
 wipe the node (remove all the data), and restart the bootstrap process
