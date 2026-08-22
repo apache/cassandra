@@ -14,31 +14,38 @@ Apache Cassandra is a NoSQL distributed database. This is the official Git repos
 
 ## Build
 
-```bash
-.build/sh/ai-build       # clean, build JAR, and run checkstyle (output is summarized)
-```
+Prefer the `.build/*.sh` helper scripts over calling `ant` directly. See
+[.build/README.md](./.build/README.md) for the full set.
 
-Do NOT call `ant` directly — always use the `ai-*` wrapper scripts which handle log summarization and correct working directory.
+```bash
+.build/build-jars.sh -s          # build the Cassandra JAR (runs `ant jar`)
+.build/build-jars.sh -s --clean  # clean first, then build.  `-s` summarizes output, remove for verbose
+```
 
 ## Testing
 
 - Do NOT run the entire test suite. Run only the specific test(s) relevant to your change.
+- The project must be built first (e.g. `.build/build-jars.sh`).
 
     ```bash
-    # Run a single unit test class
-    .build/sh/ai-ci-test org.apache.cassandra.service.StorageServiceServerTest
+    # Run a single test class: -a is the test type, -t is a class-name regexp
+    .build/run-tests.sh -s -a test -t StorageServiceServerTest
     ```
 
-- `ai-ci-test` does NOT support method-level filtering — it runs the entire test class.
+- `-a` is the test type (`test`, `jvm-dtest`, `long-test`, …; run `.build/run-tests.sh -h` for the full list).
+- `-t` matches the test class only, not individual methods.
+- `-s`/`--summary` provides a concise list of failed tests, remove for  the full ant output
 - When fixing a bug, first create a regression test that reproduces the failure, then implement the fix and verify.
 - Provide test(s) coverage for all new or modified code.
 
 ## Linting and Code Checks
 
-`.build/sh/ai-build` includes checkstyle validation. There is no need to run checkstyle separately.
+```bash
+.build/check-code.sh -s    # runs `ant check` (build + checkstyle + checkstyle-test). `-s` summarizes output, remove for verbose
+```
 
 ## Code Style
-Cassandra enforces style via Checkstyle (run via `.build/sh/ai-build`). The official style guide is at https://cassandra.apache.org/_/development/code_style.html. Always defer to it when in doubt.
+Cassandra enforces style via Checkstyle (run via `.build/check-code.sh`). The official style guide is at https://cassandra.apache.org/_/development/code_style.html. Always defer to it when in doubt.
 
 General style conventions:
 - 4-space indentation, no tabs.
@@ -51,10 +58,12 @@ General style conventions:
 - Commit messages format. For example:
 
     ```
-    <One sentence description, usually Jira title or CHANGES.txt summary>
+    <One sentence description, usually Jira title or CHANGES.txt summary, no jira id>
 
     <Optional lengthier description>
   
+     patch by <Authors,>; reviewed by <Reviewers,> for CASSANDRA-#####
+
     Assisted-by: AGENT_NAME:MODEL_VERSION
     ```
 

@@ -54,13 +54,12 @@ print_help() {
   echo "   -b Specify the base git branch for comparison when determining changed tests to"
   echo "      repeat. Defaults to ${BASE_BRANCH}. Note that this option is not used when"
   echo "      the '-a' option is specified."
-  echo "   -s Skip automatic detection of changed tests. Useful when you need to repeat a few ones,"
-  echo "      or when there are too many changed tests the CI env to handle."
   echo "   -e <key=value> Environment variables to be used in the repeated runs:"
   echo "                   -e REPEATED_TESTS_STOP_ON_FAILURE=false"
   echo "                   -e REPEATED_TESTS_COUNT=500"
   echo "                  If you want to specify multiple environment variables simply add multiple -e options."
   echo "   -i Ignore unknown environment variables"
+  echo "   -s Print a summary of failed tests instead of the full ant output"
   echo "   -h Print help"
 }
 
@@ -84,7 +83,8 @@ fi
 env_vars=""
 has_env_vars=false
 check_env_vars=true
-detect_changed_tests=true
+summary=false
+
 while getopts "a:t:c:e:ib:shj:" opt; do
   case $opt in
     a ) test_target="$OPTARG"
@@ -105,7 +105,7 @@ while getopts "a:t:c:e:ib:shj:" opt; do
         ;;
     i ) check_env_vars=false
         ;;
-    s ) detect_changed_tests=false
+    s ) summary=true
         ;;
     h ) print_help
         exit 0
@@ -498,4 +498,19 @@ _main() {
   popd  >/dev/null
 }
 
-_main "$@"
+if ${summary}; then
+  # Summarize the run: run-tests.sh keeps going past failing tests (ant still
+  # prints BUILD SUCCESSFUL), so the summary's exit code — derived from the
+  # test results — is what determines pass/fail here. stderr (where error()
+  # writes) is left untouched so setup failures stay visible.
+  # Disable errexit/pipefail so a non-zero _main doesn't pre-empt the summary.
+  set +o errexit +o pipefail
+  _main "$@" | "${CASSANDRA_DIR}/.build/sh/test-log-summary.py" -
+  main_status=${PIPESTATUS[0]}
+  summary_status=${PIPESTATUS[1]}
+  # a setup failure inside _main (error() exits non-zero) takes precedence
+  [[ ${main_status} -ne 0 ]] && exit ${main_status}
+  exit ${summary_status}
+else
+  _main "$@"
+fi

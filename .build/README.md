@@ -4,6 +4,29 @@ Building and Testing with the helper sripts
 Information on building and testing beyond the use of ant.
 All scripts also print help if the first argument is `-h`.
 
+`build-jars.sh`, `check-code.sh` and `run-tests.sh` accept `-s` (`--summary`).
+That prints a summary of the failures in place of the full ant output, and keeps
+the full output in a log file under the build directory.  The scripts name that
+file when a run fails.
+
+Building JARs
+-------------
+
+Build in docker:
+
+    .build/docker/build-jars.sh
+
+
+Build without docker:
+
+    .build/build-jars.sh
+
+
+Remove the artifacts of a previous build first:
+
+    .build/build-jars.sh --clean
+
+
 Code Checks and Lints
 ---------------------
 
