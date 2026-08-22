@@ -935,10 +935,10 @@ public class ASTSingleTableModel
             if (!where.lhs.type().equals(where.rhs.type()))
                 throw new UnsupportedOperationException("For now where clause must always have matching types: given " + where.lhs.type() + ' ' + where.rhs.type());
             ByteBuffer lhs = where.lhs instanceof ReferenceExpression
-                             ? (ByteBuffer) extract((ReferenceExpression) where.lhs, lets)
+                             ? (ByteBuffer) extract((ReferenceExpression) where.lhs, lets, who == Who.cas && where.kind.isEqualityBased())
                              : eval(where.lhs);
             ByteBuffer rhs = where.rhs instanceof ReferenceExpression
-                             ? (ByteBuffer) extract((ReferenceExpression) where.rhs, lets)
+                             ? (ByteBuffer) extract((ReferenceExpression) where.rhs, lets, who == Who.cas && where.kind.isEqualityBased())
                              : eval(where.rhs);
             switch (who)
             {
@@ -980,10 +980,14 @@ public class ASTSingleTableModel
         }
     }
 
-    // Either ByteBuffer (cell) or ByteBuffer[] (row)
     private static Object extract(ReferenceExpression expr, Map<String, SelectResult> lets)
     {
-        Object result = extract0(expr, lets);
+        return extract(expr, lets, false);
+    }
+
+    private static Object extract(ReferenceExpression expr, Map<String, SelectResult> lets, boolean preserveEmpty)
+    {
+        Object result = extract0(expr, lets, preserveEmpty);
         if (result instanceof SelectResult)
         {
             var rows = ((SelectResult) result).rows;
@@ -993,14 +997,14 @@ public class ASTSingleTableModel
     }
 
     // o can be Map<String, SelectResult> (lets), SelectResult (row), ByteBuffer (cell)
-    private static Object extract0(ReferenceExpression expr, @Nullable Object o)
+    private static Object extract0(ReferenceExpression expr, @Nullable Object o, boolean preserveEmpty)
     {
         if (o == null) return null;
         if (expr instanceof Reference)
         {
             Reference ref = (Reference) expr;
             for (var symbol : ref.path)
-                o = extract0(symbol, o);
+                o = extract0(symbol, o, preserveEmpty);
             return o;
         }
         else if (expr instanceof Symbol)
@@ -1017,7 +1021,7 @@ public class ASTSingleTableModel
                 if (result.rows.length == 0)
                     return null;
                 ByteBuffer bb = result.rows[0][result.columns.indexOf(symbol)];
-                if (bb != null && symbol.type().isNull(bb))
+                if (!preserveEmpty && bb != null && symbol.type().isNull(bb))
                     bb = null;
                 return bb;
             }
