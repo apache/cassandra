@@ -205,14 +205,14 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
     long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing);
 
     /**
-     * Put variant for writes performed inside an already-started mutation on the same
-     * thread, e.g. legacy 2i applying to its index table's memtable from
-     * indexer.onInserted(), which runs under the base table's memtable-internal locks.
-     * Such writes must not wait for memtable pool room: parking there would hold the
-     * enclosing locks and deadlock the flush writeBarrier (CASSANDRA-21019); the memory
-     * limit was already enforced when the enclosing mutation started.
-     * Implementations that apply write back-pressure in put() MUST override this to
-     * bypass it; only implementations without a room gate may keep this default.
+     * Put variant for a nested write, that is a write made from within an already-started mutation on the
+     * same write context, as legacy 2i does from {@code indexer.onInserted()} under the base table's
+     * memtable-internal locks. Such a write must not wait for memtable pool room: to park there holds those
+     * locks and deadlocks the flush writeBarrier (CASSANDRA-21019). The limit was enforced when the enclosing
+     * mutation started, so a nested write may overshoot it.
+     * <p>
+     * An implementation that blocks in {@link #put} MUST override this to skip that wait. Nesting is
+     * identified by {@link org.apache.cassandra.db.CassandraWriteContext#enterMemtableWrite()}.
      */
     default long putNested(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
     {

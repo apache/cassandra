@@ -77,9 +77,7 @@ public abstract class MemtableAllocator
         return offHeap;
     }
 
-    /**
-     * enforce the memtable memory limits once before a mutation starts
-     */
+    /** Enforce the memtable memory limits, once, before a mutation starts. */
     public void awaitRoomToStart(OpOrder.Group opGroup)
     {
         onHeap.awaitRoom(opGroup);
@@ -175,31 +173,27 @@ public abstract class MemtableAllocator
                 allocate(size, opGroup);
         }
 
-        // account memory in the tracker, and mark ourselves as owning it
+        // account memory in the tracker, and mark ourselves as owning it; this only tracks usage, which
+        // still drives cleaning, the limit is enforced in awaitRoom() (CASSANDRA-21019)
         public void allocate(long size, OpOrder.Group opGroup)
         {
             assert size >= 0;
 
-            // CASSANDRA-21019: individual allocations only track usage (which still drives
-            // cleaner/flush triggering via maybeClean); the memory limit is enforced once,
-            // in awaitRoom(), before a mutation starts.
             allocated(size);
         }
 
         /**
-         * Wait, if necessary, until the parent pool is below its limit, without reserving
-         * any memory. CASSANDRA-21019: this is the single point at which the memory limit
-         * pauses writes; call before starting to apply a mutation, before any
-         * memtable-internal locks are taken. Groups marked blocking by
-         * Barrier.markBlocking() skip or are released from this wait, exactly as they
-         * were from allocate(), so a flush can always drain the ops its barrier awaits.
+         * Wait, if necessary, until the parent pool is below its limit, reserving nothing. CASSANDRA-21019:
+         * the single point at which the memory limit pauses writes; call before a mutation starts, before any
+         * memtable-internal lock is taken. Groups marked blocking by Barrier.markBlocking() skip or are
+         * released from this wait, as they were from allocate(), so a flush can always drain the ops its
+         * barrier awaits.
          */
         public void awaitRoom(OpOrder.Group opGroup)
         {
-            // A pool with no limit configured is never allocated from and never signalled
-            // (e.g. the off-heap pool under heap_buffers / unslabbed_heap_buffers, both
-            // created with an off-heap limit of 0)
-            if (parent.limit <= 0)
+            // a zero-limit pool is never allocated from and never signalled, e.g. the off-heap pool under
+            // heap_buffers and unslabbed_heap_buffers, both created with an off-heap limit of 0
+            if (parent.limit == 0)
                 return;
 
             while (true)
@@ -235,7 +229,6 @@ public abstract class MemtableAllocator
                 updateReclaiming();
             }
         }
-
 
         /**
          * If the state is still live, then we update the memory we own here and in the parent.

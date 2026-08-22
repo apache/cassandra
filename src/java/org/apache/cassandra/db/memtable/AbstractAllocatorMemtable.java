@@ -132,9 +132,8 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
     }
 
     /**
-     * The memory limit is enforced once here, before a mutation starts
-     * and before any memtable-internal locks are taken; once started, a mutation runs to
-     * completion and individual allocations only track usage.
+     * The memory limit is enforced here, once per mutation and before any memtable-internal lock is taken;
+     * the allocations the mutation then makes only track usage.
      */
     @Override
     public final long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
@@ -144,9 +143,9 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
     }
 
     /**
-     * CASSANDRA-21019: nested writes skip the room gate -- the enclosing mutation was
-     * gated when it started, and waiting here would run under its memtable-internal
-     * locks, where Barrier.markBlocking() cannot release a queued pre-barrier writer.
+     * A nested write was gated when its enclosing mutation started, and must not park while holding that
+     * mutation's memtable-internal locks, where markBlocking() cannot release a queued pre-barrier writer
+     * (CASSANDRA-21019).
      */
     @Override
     public final long putNested(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)

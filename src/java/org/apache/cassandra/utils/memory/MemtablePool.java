@@ -96,14 +96,14 @@ public abstract class MemtablePool
     }
 
     /**
-     * Tracks memory attributed to this pool. Since CASSANDRA-21019 allocations only
-     * record usage (allocated/reclaiming) and drive cleaning; the limit is enforced
-     * before a mutation starts, via SubAllocator.awaitRoom() against belowLimit().
+     * Tracks the memory attributed to one purpose. Allocations only record usage and drive cleaning; the
+     * limit is enforced before a mutation starts, in {@link MemtableAllocator.SubAllocator#awaitRoom}
+     * (CASSANDRA-21019), so the recorded total may overshoot the limit by the mutations in flight.
      */
     public class SubPool
     {
 
-        // total memory/resource permitted to allocate
+        // total memory/resource permitted to allocate; 0 marks a pool that is not used, and not enforced
         public final long limit;
 
         // ratio of used to spare (both excluding 'reclaiming') at which to trigger a clean
@@ -118,6 +118,7 @@ public abstract class MemtablePool
 
         public SubPool(long limit, float cleanThreshold)
         {
+            Preconditions.checkArgument(limit >= 0, "Negative limit: %s", limit);
             this.limit = limit;
             this.cleanThreshold = cleanThreshold;
         }
@@ -150,12 +151,11 @@ public abstract class MemtablePool
 
         /** Methods to allocate space **/
 
-        /** True if the pool is under its limit; reserves nothing. See SubAllocator.awaitRoom(). */
+        /** True if the pool is under its limit; reserves nothing. */
         boolean belowLimit()
         {
             return allocated < limit;
         }
-
 
         /**
          * apply the size adjustment to allocated, bypassing any limits or constraints. If this reduces the
@@ -175,7 +175,6 @@ public abstract class MemtablePool
             adjustAllocated(size);
             maybeClean();
         }
-
 
         void released(long size)
         {
