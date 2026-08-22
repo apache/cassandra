@@ -19,8 +19,10 @@ Prefer the `.build/*.sh` helper scripts over calling `ant` directly. See
 
 ```bash
 .build/build-jars.sh -s          # build the Cassandra JAR (runs `ant jar`)
-.build/build-jars.sh -s --clean  # clean first, then build.  `-s` summarizes output, remove for verbose
+.build/build-jars.sh -s --clean  # clean first, then build
 ```
+
+All three scripts accept `-s`/`--summary`, which prints a summary of failures instead of the full ant output.  Omit it for the full output.  `--clean` applies to `.build/build-jars.sh` only.
 
 ## Testing
 
@@ -34,15 +36,22 @@ Prefer the `.build/*.sh` helper scripts over calling `ant` directly. See
 
 - `-a` is the test type (`test`, `jvm-dtest`, `long-test`, …; run `.build/run-tests.sh -h` for the full list).
 - `-t` matches the test class only, not individual methods.
-- `-s`/`--summary` provides a concise list of failed tests, remove for  the full ant output
+- `-s`/`--summary` prints a concise list of failed tests.  The full output is kept in `build/run-tests.log`.
 - When fixing a bug, first create a regression test that reproduces the failure, then implement the fix and verify.
 - Provide test(s) coverage for all new or modified code.
 
 ## Linting and Code Checks
 
 ```bash
-.build/check-code.sh -s    # runs `ant check` (build + checkstyle + checkstyle-test). `-s` summarizes output, remove for verbose
+.build/check-code.sh -s    # runs `ant check` (rat-check + checkstyle + checkstyle-test, after a build)
 ```
+
+The `check` target depends on `_main-jar`, `build-test` and `gen-asciidoc`, so
+`.build/check-code.sh` builds the jar and the test classes itself.  Do not run
+`.build/build-jars.sh` before it.
+
+The same dependencies make `check` slower than checkstyle alone: it also generates the
+documentation, and `rat-check` reads every file in the working directory.
 
 ## Code Style
 Cassandra enforces style via Checkstyle (run via `.build/check-code.sh`). The official style guide is at https://cassandra.apache.org/_/development/code_style.html. Always defer to it when in doubt.

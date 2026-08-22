@@ -1,0 +1,68 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Build Scripts
+
+# Fast checks on the .build/*.sh wrapper scripts and their log summarizers.
+# No JDK build runs here: a stub `ant` replays canned output.
+# The real toolchain jobs are in code-check.yaml, and the full test matrix is Jenkins.
+
+on:
+    push:
+        branches:
+            - '**'
+        paths:
+            - '.build/**'
+            - '.github/workflows/**'
+
+jobs:
+    # one job, as every step below runs in seconds and a second runner costs more to start
+    build-scripts:
+        runs-on: ubuntu-latest
+
+        steps:
+          - name: Checkout code
+            uses: actions/checkout@v4
+          - name: JDK 17
+            uses: actions/setup-java@v4
+            with:
+              java-version: '17'
+              distribution: 'temurin'
+          - name: Shellcheck
+            # -S error only, as the older scripts carry pre-existing style findings.
+            # Clean those first, then raise this to -S warning.
+            run: |
+              shellcheck -x -S error \
+                .build/build-jars.sh \
+                .build/check-code.sh \
+                .build/run-tests.sh \
+                .build/docker/run-tests.sh \
+                .build/docker/_docker_run.sh \
+                .build/sh/test/stub-ant-cases.sh \
+                .build/sh/test/stub-docker-cases.sh
+          - name: POSIX syntax
+            # build-jars.sh, check-code.sh and _run-ant.sh declare /bin/sh, so no bashisms
+            run: |
+              dash -n .build/build-jars.sh
+              dash -n .build/check-code.sh
+              dash -n .build/sh/_run-ant.sh
+          - name: Log summarizer unit tests
+            run: python3 -m unittest discover -s .build/sh/test -v
+          - name: Wrapper script cases
+            run: .build/sh/test/stub-ant-cases.sh
+          - name: Docker wrapper script cases
+            # a stub `docker` shadows the runner's, so no container starts here
+            run: .build/sh/test/stub-docker-cases.sh

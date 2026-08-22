@@ -32,7 +32,8 @@
 #     brief JUnit formatter,
 #   - a compile/setup "BUILD FAILED" (with the [javac] errors).
 #
-# The exit code mirrors the outcome: non-zero if any failure signal is seen.
+# The exit code mirrors the outcome: 0 for a clean run, 1 if any failure signal is
+# seen, and 2 if the log cannot be read.  ant-log-summary.py uses the same codes.
 
 import argparse
 import re
@@ -43,10 +44,13 @@ TEST_SUMMARY_RE = re.compile(
 )
 FAILURE_RATE_RE = re.compile(r"failure rate:\s*(\d+)/(\d+)")
 # run-tests.sh: echo "failed ${_target_prefix} ${_testlist_target} ..."
-RUN_TESTS_FAILED_RE = re.compile(r"^failed\s+\S+")
+# the negative lookahead skips prose such as "failed to reset/clean …"
+RUN_TESTS_FAILED_RE = re.compile(r"^failed\s+(?!to\s)\S+")
 # brief JUnit formatter: "Testcase: <name>:\tFAILED" / ":\tCaused an ERROR",
 # optionally prefixed by an ant task tag such as "[junit] ".
 TESTCASE_FAIL_RE = re.compile(r"^(?:\[[^\]]+\]\s*)?Testcase:\s.*\b(FAILED|Caused an ERROR)\b")
+# run-tests.sh microbench success marker: microbench emits no JUnit xml
+MICROBENCH_OK_RE = re.compile(r"^\S+\s+completed successfully")
 
 
 def parse_args():
@@ -79,6 +83,7 @@ def summarize(content):
     failure_rates = []      # "failure rate: X/Y" lines
     failed_testcases = []   # per-test FAILED / ERROR markers
     javac_errors = []       # compile errors, when a BUILD FAILED is present
+    microbench_ok = []      # microbench success markers
 
     build_failed = "BUILD FAILED" in content
 
@@ -99,6 +104,9 @@ def summarize(content):
         if TESTCASE_FAIL_RE.match(stripped):
             failed_testcases.append(_strip_tag(line))
             continue
+        if MICROBENCH_OK_RE.match(stripped):
+            microbench_ok.append(stripped)
+            continue
         if build_failed and "[javac]" in line and ("error:" in line or "errors" in line):
             clean = line.replace("[javac]", "").strip()
             if clean:
@@ -110,6 +118,9 @@ def summarize(content):
         if failures or errors:
             failed = True
     if failed_targets:
+        failed = True
+    if failed_testcases:
+        # targets that emit no JUnit xml have no [Test Summary] line to read
         failed = True
     for _, n in failure_rates:
         if n:
@@ -147,11 +158,15 @@ def summarize(content):
         out.append("")
         for line, _, _ in summaries:
             out.append(line)
+    elif microbench_ok:
+        # microbench emits no JUnit xml; its own success marker is the report
+        out.append("")
+        out.extend(microbench_ok)
     elif not build_failed and not failed:
         # nothing ran a test report and nothing failed
         out.append("No test summary found (nothing ran, or non-test target).")
 
-    if not failed and summaries:
+    if not failed and (summaries or microbench_ok):
         out.append("")
         out.append("TESTS PASSED")
 

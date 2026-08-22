@@ -38,14 +38,17 @@ done
 command -v ant >/dev/null 2>&1 || { echo >&2 "ant needs to be installed"; exit 1; }
 [ -d "${CASSANDRA_DIR}" ] || { echo >&2 "Directory ${CASSANDRA_DIR} must exist"; exit 1; }
 [ -f "${CASSANDRA_DIR}/build.xml" ] || { echo >&2 "${CASSANDRA_DIR}/build.xml must exist"; exit 1; }
+[ -f "${CASSANDRA_DIR}/.build/sh/_run-ant.sh" ] || { echo >&2 "${CASSANDRA_DIR}/.build/sh/_run-ant.sh must exist"; exit 1; }
 
-# execute. memory needs to fit within the specified container size, see .jenkins/Jenkinsfile
+# defines run_ant(), which reads ${CASSANDRA_DIR} and ${summary}
+# shellcheck source=.build/sh/_run-ant.sh
+. "${CASSANDRA_DIR}/.build/sh/_run-ant.sh"
+
+# execute. the check target runs rat-check, checkstyle and checkstyle-test,
+# and depends on _main-jar, build-test and gen-asciidoc. see build.xml
+# memory needs to fit within the specified container size, see .jenkins/Jenkinsfile
 # dependency-check # FIXME dependency-check now requires NVD key downloaded first
-export ANT_OPTS="-Xmx2g -XX:+PrintClassHistogram -XX:OnOutOfMemoryError='kill -QUIT %p'"
-if ${summary}; then
-  # summarize failures; the summary's exit code mirrors the build
-  ant -f "${CASSANDRA_DIR}/build.xml" check 2>&1 | "${CASSANDRA_DIR}/.build/sh/ant-log-summary.py" -
-else
-  ant -f "${CASSANDRA_DIR}/build.xml" check
-fi
+# append, as .build/docker/_docker_run.sh puts -Dbuild.dir=${DIST_DIR} in ANT_OPTS
+export ANT_OPTS="${ANT_OPTS:-} -Xmx2g -XX:+PrintClassHistogram -XX:OnOutOfMemoryError='kill -QUIT %p'"
+run_ant check
 exit $?

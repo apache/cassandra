@@ -43,15 +43,11 @@ done
 command -v ant >/dev/null 2>&1 || { echo >&2 "ant needs to be installed"; exit 1; }
 [ -d "${CASSANDRA_DIR}" ] || { echo >&2 "Directory ${CASSANDRA_DIR} must exist"; exit 1; }
 [ -f "${CASSANDRA_DIR}/build.xml" ] || { echo >&2 "${CASSANDRA_DIR}/build.xml must exist"; exit 1; }
+[ -f "${CASSANDRA_DIR}/.build/sh/_run-ant.sh" ] || { echo >&2 "${CASSANDRA_DIR}/.build/sh/_run-ant.sh must exist"; exit 1; }
 
-# run ant, summarizing failures when --summary (summary exit code mirrors the build)
-run_ant() {
-  if ${summary}; then
-    ant -f "${CASSANDRA_DIR}/build.xml" "$@" 2>&1 | "${CASSANDRA_DIR}/.build/sh/ant-log-summary.py" -
-  else
-    ant -f "${CASSANDRA_DIR}/build.xml" "$@"
-  fi
-}
+# defines run_ant(), which reads ${CASSANDRA_DIR} and ${summary}
+# shellcheck source=.build/sh/_run-ant.sh
+. "${CASSANDRA_DIR}/.build/sh/_run-ant.sh"
 
 # execute
 if ${clean}; then

@@ -47,19 +47,20 @@ command -v uuidgen >/dev/null 2>&1 || test -f /proc/sys/kernel/random/uuid || { 
 
 print_help() {
   echo "Usage: $0 [-a|-t|-c|-e|-i|-b|-s|-h]"
-  echo "   -a Test target type: ${TARGET_TYPES}"
-  echo "   -t Test name regexp to run."
-  echo "   -c Chunk to run in the form X/Y: Run chunk X from a total of Y chunks."
-  echo "   -b Specify the base git branch for comparison when determining changed tests to"
-  echo "      repeat. Defaults to ${BASE_BRANCH}. Note that this option is not used when"
-  echo "      the '-a' option is specified."
-  echo "   -e <key=value> Environment variables to be used in the repeated runs:"
+  echo "   -a, --target <type>  Test target type: ${TARGET_TYPES}"
+  echo "   -t, --test <regexp>  Test name regexp to run."
+  echo "   -c, --chunk <X/Y>    Chunk to run in the form X/Y: Run chunk X from a total of Y chunks."
+  echo "   -b, --base <branch>  Specify the base git branch for comparison when determining changed tests to"
+  echo "                        repeat. Defaults to ${BASE_BRANCH}. Note that this option is not used when"
+  echo "                        the '-a' option is specified."
+  echo "   -e, --env <key=value> Environment variables to be used in the repeated runs:"
   echo "                   -e REPEATED_TESTS_STOP_ON_FAILURE=false"
   echo "                   -e REPEATED_TESTS_COUNT=500"
   echo "                  If you want to specify multiple environment variables simply add multiple -e options."
-  echo "   -i Ignore unknown environment variables"
-  echo "   -s Print a summary of failed tests instead of the full ant output"
-  echo "   -h Print help"
+  echo "   -i, --ignore-unknown-env  Ignore unknown environment variables"
+  echo "   -s, --summary        Print a summary of failed tests instead of the full ant output."
+  echo "                        The full output is kept in \${DIST_DIR}/run-tests.log"
+  echo "   -h, --help           Print help"
 }
 
 
@@ -84,40 +85,60 @@ has_env_vars=false
 check_env_vars=true
 summary=false
 
-while getopts "a:t:c:e:ib:shj:" opt; do
-  case $opt in
-    a ) test_target="$OPTARG"
+# getopts accepts single characters only, so parse by hand to offer long flags too
+_require_arg() {
+  [ -n "${2}" ] || error 1 "Option ${1} requires an argument"
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -a|--target)
+        _require_arg "$1" "${2:-}"
+        test_target="$2"
         [[ " ${TARGET_TYPES} " =~ " ${test_target/-repeat/} " ]] || error 1 "Invalid test target type '${test_target}'. Valid types: ${TARGET_TYPES}"
+        shift 2
         ;;
-    t ) test_name_regexp="$OPTARG"
+    -t|--test)
+        _require_arg "$1" "${2:-}"
+        test_name_regexp="$2"; shift 2
         ;;
-    c ) chunk="$OPTARG"
+    -c|--chunk)
+        _require_arg "$1" "${2:-}"
+        chunk="$2"; shift 2
         ;;
-    e ) if (! ($has_env_vars)); then
-          env_vars="$OPTARG"
+    -e|--env)
+        _require_arg "$1" "${2:-}"
+        if (! ($has_env_vars)); then
+          env_vars="$2"
         else
-          env_vars="$env_vars|$OPTARG"
+          env_vars="$env_vars|$2"
         fi
         has_env_vars=true
+        shift 2
         ;;
-    b ) BASE_BRANCH="$OPTARG"
+    -b|--base)
+        _require_arg "$1" "${2:-}"
+        BASE_BRANCH="$2"; shift 2
         ;;
-    i ) check_env_vars=false
+    -i|--ignore-unknown-env)
+        check_env_vars=false; shift
         ;;
-    s ) summary=true
+    -s|--summary)
+        summary=true; shift
         ;;
-    h ) print_help
+    -h|--help)
+        print_help
         exit 0
         ;;
-    j ) ;; # To avoid failing on java_version param from docker/run_tests.sh
-    \?) error 1 "Invalid option: -$OPTARG"
+    -j|--java)
+        # accepted and ignored, to avoid failing on the java_version param from docker/run-tests.sh
+        _require_arg "$1" "${2:-}"
+        shift 2
+        ;;
+    *)  error 1 "Invalid option: $1"
         ;;
   esac
 done
-shift $((OPTIND-1))
-if [ "$#" -ne 0 ]; then
-  error 1 "Unexpected arguments"
-fi
 
 # validate environment variables
 if $has_env_vars && $check_env_vars; then
@@ -201,7 +222,7 @@ _build_all_dtest_jars() {
 
     pushd ${TMP_DIR}/cassandra-dtest-jars >/dev/null
     for branch in cassandra-4.1 cassandra-5.0 cassandra-6.0 trunk ; do
-        git clean -qxdff && git reset --hard HEAD  || echo "failed to reset/clean ${TMP_DIR}/cassandra-dtest-jars… continuing…"
+        git clean -qxdff && git reset --hard HEAD  || echo "WARNING: could not reset/clean ${TMP_DIR}/cassandra-dtest-jars… continuing…"
         git checkout --quiet $branch
         dtest_jar_version=$(grep 'property\s*name=\"base.version\"' build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
         if [ -f "${DIST_DIR}/dtest-${dtest_jar_version}.jar" ] ; then
@@ -330,15 +351,16 @@ _run_microbench() {
     local -r arch="$(uname -m)"
     local -r output_dir="${DIST_DIR}/test/output/${_target}/jdk${java_version}/${arch}/${_split_chunk//\//_}"
 
-    # microbench produces JMH json, not JUnit xml, so generate-test-report has
-    # nothing to summarise. Emit a "failed ..." line (matched by
-    # test-log-summary.py) so a benchmark failure is not reported as a pass in
-    # -s mode, where errexit is disabled and the ant failure would be swallowed.
+    # microbench produces JMH json, not JUnit xml
     set +o errexit
     ant $_target ${ANT_TEST_OPTS} -Dbuild.test.output.dir=${output_dir} -Dbenchmark.name="${benchmark_pattern}" -Dmaven.test.failure.ignore=true
     local -r _ant_status=$?
     set -o errexit
-    [[ ${_ant_status} -ne 0 ]] && echo "failed ${_target} ${_split_chunk}"
+    if [[ ${_ant_status} -ne 0 ]]; then
+      echo "failed ${_target} ${_split_chunk}"
+    else
+      echo "${_target} completed successfully"
+    fi
 
     # Post-process jmh-result.json to add jdk and arch parameters
     local jmh_result="${output_dir}/jmh-result.json"
@@ -356,6 +378,9 @@ with open('${jmh_result}','w') as f:
     json.dump(data,f)
 "
     fi
+
+    # fail the run, as microbench has no JUnit xml for generate-test-report to judge
+    return ${_ant_status}
 }
 
 _main() {
@@ -409,11 +434,10 @@ _main() {
   export ANT_TEST_OPTS="-Dno-build-test=true -Dtmp.dir=${TMP_DIR} -Dbuild.test.output.dir=${DIST_DIR}/test/output/${target}"
 
   # fresh virtualenv and test logs results everytime.
-  # NB: braces are intentionally unquoted so brace-expansion produces the four
-  # paths; quoting them deletes a single literal '{html,output,logs,reports}'
-  # path (a no-op), leaving stale TEST-*.xml that generate-test-report would
-  # then merge into the summary.
-  [[ "/" == "${DIST_DIR}" ]] || rm -rf ${DIST_DIR}/test/{html,output,logs,reports}
+  # loop instead of a brace expansion, which needs ${DIST_DIR} unquoted and so word split
+  if [[ "/" != "${DIST_DIR}" ]] ; then
+    for d in html output logs reports ; do rm -rf "${DIST_DIR}/test/${d}" ; done
+  fi
 
   # cheap trick to ensure dependency libraries are in place. allows us to stash only project specific build artifacts.
   #  also recreate some of the non-build files we need
@@ -503,29 +527,45 @@ _main() {
       ;;
   esac
 
-  # merge all unit xml files into one, and print summary test numbers.
-  # Pin the output/report dirs to DIST_DIR; otherwise the report scans ant's
-  # default ${basedir}/build/test/output and, when DIST_DIR is overridden,
-  # finds no results and reports a false pass.
-  ant -quiet -silent generate-test-report \
-    -Dbuild.test.output.dir="${DIST_DIR}/test/output" \
-    -Dbuild.test.report.dir="${DIST_DIR}/test/reports"
+  # merge all unit xml files into one, and print summary test numbers
+  case ${target} in
+    # Skip targets that produce no JUnit xml
+    "microbench" | "microbench-test" | "build_dtest_jars")
+      ;;
+    *)
+      ant -quiet -silent generate-test-report \
+        -Dbuild.test.output.dir="${DIST_DIR}/test/output" \
+        -Dbuild.test.report.dir="${DIST_DIR}/test/reports"
+      ;;
+  esac
 
   popd  >/dev/null
 }
 
 if ${summary}; then
-  # Summarize the run: run-tests.sh keeps going past failing tests (ant still
-  # prints BUILD SUCCESSFUL), so the summary's exit code — derived from the
-  # test results — is what determines pass/fail here. stderr (where error()
-  # writes) is left untouched so setup failures stay visible.
-  # Disable errexit/pipefail so a non-zero _main doesn't pre-empt the summary.
-  set +o errexit +o pipefail
-  _main "$@" | "${CASSANDRA_DIR}/.build/sh/test-log-summary.py" -
-  main_status=${PIPESTATUS[0]}
-  summary_status=${PIPESTATUS[1]}
+  # Summarize the run: run-tests.sh keeps going past failing tests.
+  # Keep the full output, as the summary prints matched lines only.
+  # ${DIST_DIR}/test/ is not used, as _main removes it while the log is open.
+  log="${DIST_DIR}/run-tests.log"
+  echo "full output: ${log}"
+  # errexit is dynamically scoped, so the subshell is what keeps it inside _main
+  set +o errexit
+  ( set -o errexit -o pipefail ; _main "$@" ) > "${log}" 2>&1
+  main_status=$?
+  "${CASSANDRA_DIR}/.build/sh/test-log-summary.py" "${log}"
+  summary_status=$?
+  # jenkins archives test/logs/**, see .jenkins/Jenkinsfile
+  [[ -d "${DIST_DIR}/test/logs" ]] && cp "${log}" "${DIST_DIR}/test/logs/run-tests.log"
   # a setup failure inside _main (error() exits non-zero) takes precedence
-  [[ ${main_status} -ne 0 ]] && exit ${main_status}
+  if [[ ${main_status} -ne 0 ]]; then
+    # the summary matches test results only, so a setup failure leaves it silent.
+    # print the tail of the log, or the cause stays hidden in a file
+    if [[ ${summary_status} -eq 0 ]]; then
+      echo "run-tests.sh exited ${main_status}. The last 25 lines of ${log}:"
+      tail -n 25 "${log}"
+    fi
+    exit ${main_status}
+  fi
   exit ${summary_status}
 else
   _main "$@"

@@ -173,6 +173,19 @@ Debugging test scripts:
     DEBUG=true .build/docker/run-tests.sh -a test
 
 
+Testing the helper scripts
+--------------------------
+
+The tests of the helper scripts need no JDK build.  A stub `ant` and a stub `docker`
+replay canned output, so each suite runs in seconds.
+
+Run them:
+
+    python3 -m unittest discover -s .build/sh/test    # the log summarizers
+    .build/sh/test/stub-ant-cases.sh                  # .build/*.sh
+    .build/sh/test/stub-docker-cases.sh               # .build/docker/*.sh
+
+
 Running Sonar analysis (experimental)
 -------------------------------------
 
