@@ -31,20 +31,19 @@ set -o pipefail
 # target types
 TARGET_TYPES="build_dtest_jars stress-test fqltool-test sstableloader-test microbench microbench-test test-burn long-test cqlsh-test simulator-dtest test test-cdc test-compression test-oa test-system-keyspace-directory test-latest jvm-dtest jvm-dtest-upgrade jvm-dtest-novnode jvm-dtest-upgrade-novnode"
 
-# pre-conditions
+error() {
+  echo >&2 $2;
+  set -x
+  exit $1
+}
+
+# pre-conditions (error() must be defined above)
 command -v ant >/dev/null 2>&1 || { error 1 "ant needs to be installed"; }
 command -v git >/dev/null 2>&1 || { error 1 "git needs to be installed"; }
 command -v uuidgen >/dev/null 2>&1 || test -f /proc/sys/kernel/random/uuid || { error 1 "uuidgen needs to be installed"; }
 [ -d "${CASSANDRA_DIR}" ] || { error 1 "Directory ${CASSANDRA_DIR} must exist"; }
 [ -f "${CASSANDRA_DIR}/build.xml" ] || { error 1 "${CASSANDRA_DIR}/build.xml must exist"; }
 [ -d "${DIST_DIR}" ] || { mkdir -p "${DIST_DIR}" ; }
-
-
-error() {
-  echo >&2 $2;
-  set -x
-  exit $1
-}
 
 print_help() {
   echo "Usage: $0 [-a|-t|-c|-e|-i|-b|-s|-h]"
@@ -331,7 +330,15 @@ _run_microbench() {
     local -r arch="$(uname -m)"
     local -r output_dir="${DIST_DIR}/test/output/${_target}/jdk${java_version}/${arch}/${_split_chunk//\//_}"
 
+    # microbench produces JMH json, not JUnit xml, so generate-test-report has
+    # nothing to summarise. Emit a "failed ..." line (matched by
+    # test-log-summary.py) so a benchmark failure is not reported as a pass in
+    # -s mode, where errexit is disabled and the ant failure would be swallowed.
+    set +o errexit
     ant $_target ${ANT_TEST_OPTS} -Dbuild.test.output.dir=${output_dir} -Dbenchmark.name="${benchmark_pattern}" -Dmaven.test.failure.ignore=true
+    local -r _ant_status=$?
+    set -o errexit
+    [[ ${_ant_status} -ne 0 ]] && echo "failed ${_target} ${_split_chunk}"
 
     # Post-process jmh-result.json to add jdk and arch parameters
     local jmh_result="${output_dir}/jmh-result.json"
@@ -357,7 +364,7 @@ _main() {
   local -r split_chunk="${chunk:-1/1}" # Chunks formatted as "K/N" for the Kth chunk of N chunks
 
   # check split_chunk is compatible with target (if not a regexp)
-  if [[ "${_split_chunk}" =~ ^\d+/\d+$ ]] && [[ "1/1" != "${split_chunk}" ]] ; then
+  if [[ "${split_chunk}" =~ ^[0-9]+/[0-9]+$ ]] && [[ "1/1" != "${split_chunk}" ]] ; then
     case ${target} in
       "stress-test" | "fqltool-test" | "cqlsh-test" | "sstableloader-test")
           echo "Target ${target} does not support splits."
@@ -401,8 +408,12 @@ _main() {
   [ -d ${TMP_DIR} ] || mkdir -p "${TMP_DIR}"
   export ANT_TEST_OPTS="-Dno-build-test=true -Dtmp.dir=${TMP_DIR} -Dbuild.test.output.dir=${DIST_DIR}/test/output/${target}"
 
-  # fresh virtualenv and test logs results everytime
-  [[ "/" == "${DIST_DIR}" ]] || rm -rf "${DIST_DIR}/test/{html,output,logs,reports}"
+  # fresh virtualenv and test logs results everytime.
+  # NB: braces are intentionally unquoted so brace-expansion produces the four
+  # paths; quoting them deletes a single literal '{html,output,logs,reports}'
+  # path (a no-op), leaving stale TEST-*.xml that generate-test-report would
+  # then merge into the summary.
+  [[ "/" == "${DIST_DIR}" ]] || rm -rf ${DIST_DIR}/test/{html,output,logs,reports}
 
   # cheap trick to ensure dependency libraries are in place. allows us to stash only project specific build artifacts.
   #  also recreate some of the non-build files we need
@@ -492,8 +503,13 @@ _main() {
       ;;
   esac
 
-  # merge all unit xml files into one, and print summary test numbers
-  ant -quiet -silent generate-test-report
+  # merge all unit xml files into one, and print summary test numbers.
+  # Pin the output/report dirs to DIST_DIR; otherwise the report scans ant's
+  # default ${basedir}/build/test/output and, when DIST_DIR is overridden,
+  # finds no results and reports a false pass.
+  ant -quiet -silent generate-test-report \
+    -Dbuild.test.output.dir="${DIST_DIR}/test/output" \
+    -Dbuild.test.report.dir="${DIST_DIR}/test/reports"
 
   popd  >/dev/null
 }

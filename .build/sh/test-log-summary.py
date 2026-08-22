@@ -20,9 +20,10 @@
 # Summarize the output of .build/run-tests.sh.
 #
 # Unlike ant-log-summary.py (which keys off ant's BUILD FAILED/SUCCESSFUL),
-# run-tests.sh deliberately continues past failing tests, so ant still prints
-# BUILD SUCCESSFUL on a red run. Failure here is determined from the test
-# results instead:
+# run-tests.sh deliberately continues past failing tests, as ant still prints
+# BUILD SUCCESSFUL with test failures.
+#
+# Failures are identified from the test results instead:
 #   - the "[Test Summary] Run: N, Failed: N, Errors: N, Skipped: N" line
 #     emitted by ant's generate-test-report target,
 #   - run-tests.sh's own "failed <prefix> <target> ..." lines,
