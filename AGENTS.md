@@ -61,6 +61,10 @@ General style conventions:
 - Match existing code style in the file you are editing.
 - All new files must include the Apache License 2.0 header.
 - Concise English documentation is required for complex classes and methods; trivial ones may not require them.
+- Shorten (make succinct) comments. Comments are not needed for what can easily be read from the code.
+
+# Docker mode
+If commands fails due to host issues, and docker is available, use the `.build/docker/` command equivalents.
 
 ## Git Workflow
 - Do NOT commit unless explicitly asked.

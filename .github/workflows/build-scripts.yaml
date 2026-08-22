@@ -61,6 +61,13 @@ jobs:
               dash -n .build/sh/_run-ant.sh
           - name: Log summarizer unit tests
             run: python3 -m unittest discover -s .build/sh/test -v
+          - name: run-ci unit tests
+            # the module name holds hyphens, so `unittest discover` skips it. name it instead
+            working-directory: .build/run-ci.d
+            # the run-ci.d/requirements.txt cloud extras are large, and nothing here imports them
+            run: |
+              python3 -m pip install --quiet bs4 kubernetes python-jenkins requests
+              python3 -m unittest run-ci-test -v
           - name: Wrapper script cases
             run: .build/sh/test/stub-ant-cases.sh
           - name: Docker wrapper script cases
