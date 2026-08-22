@@ -416,12 +416,33 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             Guardrails.userTimestampsEnabled.ensureEnabled(state);
     }
 
+    public enum DiskUsageCheck
+    {
+        NONE,
+        KEYSPACE_WIDE,
+        REPLICA
+    }
+
+    public static DiskUsageCheck diskUsageCheck(ClientState state)
+    {
+        if (!DiskUsageBroadcaster.instance.hasStuffedOrFullNode())
+            return DiskUsageCheck.NONE;
+
+        if (Guardrails.instance.getDataDiskUsageKeyspaceWideProtectionEnabled()
+            && Guardrails.diskUsageKeyspaceWideProtection.enabled(state))
+            return DiskUsageCheck.KEYSPACE_WIDE;
+
+        return Guardrails.replicaDiskUsage.enabled(state) ? DiskUsageCheck.REPLICA : DiskUsageCheck.NONE;
+    }
+
     public void validateDiskUsage(QueryOptions options, ClientState state)
     {
+        validateDiskUsage(options, state, diskUsageCheck(state));
+    }
 
-        if (Guardrails.diskUsageKeyspaceWideProtection.enabled(state) &&
-            Guardrails.instance.getDataDiskUsageKeyspaceWideProtectionEnabled() &&
-            DiskUsageBroadcaster.instance.hasStuffedOrFullNode())
+    public void validateDiskUsage(QueryOptions options, ClientState state, DiskUsageCheck diskUsageCheck)
+    {
+        if (diskUsageCheck == DiskUsageCheck.KEYSPACE_WIDE)
         {
             Keyspace keyspace = Keyspace.open(keyspace());
             // If the keyspace is using NetworkTopologyStrategy then we can check each datacenter on which
@@ -442,7 +463,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                 }
             }
         }
-        else if (Guardrails.replicaDiskUsage.enabled(state) && DiskUsageBroadcaster.instance.hasStuffedOrFullNode())
+        else if (diskUsageCheck == DiskUsageCheck.REPLICA)
         {
             Keyspace keyspace = Keyspace.open(keyspace());
             for (ByteBuffer key : buildPartitionKeyNames(options, state))

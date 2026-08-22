@@ -52,6 +52,7 @@ import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.VariableSpecifications;
+import org.apache.cassandra.cql3.statements.ModificationStatement.DiskUsageCheck;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
@@ -502,8 +503,11 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
                                                                options.getSerialConsistency()),
                                                     clientState);
 
-        for (int i = 0; i < statements.size(); i++ )
-            statements.get(i).validateDiskUsage(options.forStatement(i), clientState);
+        // resolved once for the whole batch, the guardrail checks are not cheap enough to repeat per statement
+        DiskUsageCheck diskUsageCheck = ModificationStatement.diskUsageCheck(clientState);
+        if (diskUsageCheck != DiskUsageCheck.NONE)
+            for (int i = 0; i < statements.size(); i++)
+                statements.get(i).validateDiskUsage(options.forStatement(i), clientState, diskUsageCheck);
 
         if (hasConditions)
             return executeWithConditions(options, queryState, requestTime);

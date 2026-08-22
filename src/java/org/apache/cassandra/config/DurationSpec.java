@@ -236,6 +236,8 @@ public abstract class DurationSpec
      */
     public final static class LongNanosecondsBound extends DurationSpec
     {
+        private final long valueInNanoseconds;
+
         /**
          * Creates a {@code DurationSpec.LongNanosecondsBound} of the specified amount.
          * The bound is [0, Long.MAX_VALUE) in nanoseconds.
@@ -245,6 +247,7 @@ public abstract class DurationSpec
         public LongNanosecondsBound(String value)
         {
             super(value, NANOSECONDS, Long.MAX_VALUE);
+            valueInNanoseconds = unit().toNanos(quantity());
         }
 
         /**
@@ -257,6 +260,7 @@ public abstract class DurationSpec
         public LongNanosecondsBound(long quantity, TimeUnit unit)
         {
             super(quantity, unit, NANOSECONDS, Long.MAX_VALUE);
+            valueInNanoseconds = unit().toNanos(quantity());
         }
 
         /**
@@ -275,7 +279,7 @@ public abstract class DurationSpec
          */
         public long toNanoseconds()
         {
-            return unit().toNanos(quantity());
+            return valueInNanoseconds;
         }
     }
 
@@ -286,6 +290,8 @@ public abstract class DurationSpec
      */
     public final static class LongMicrosecondsBound extends DurationSpec
     {
+        private final long valueInMicroseconds;
+
         /**
          * Creates a {@code DurationSpec.LongMicrosecondsBound} of the specified amount.
          * The bound is [0, Long.MAX_VALUE) in microseconds.
@@ -295,6 +301,7 @@ public abstract class DurationSpec
         public LongMicrosecondsBound(String value)
         {
             super(value, MICROSECONDS, Long.MAX_VALUE);
+            valueInMicroseconds = unit().toMicros(quantity());
         }
 
         /**
@@ -307,6 +314,7 @@ public abstract class DurationSpec
         public LongMicrosecondsBound(long quantity, TimeUnit unit)
         {
             super(quantity, unit, MICROSECONDS, Long.MAX_VALUE);
+            valueInMicroseconds = unit().toMicros(quantity());
         }
 
         /**
@@ -325,7 +333,7 @@ public abstract class DurationSpec
          */
         public long toMicroseconds()
         {
-            return unit().toMicros(quantity());
+            return valueInMicroseconds;
         }
 
         /**
@@ -344,6 +352,8 @@ public abstract class DurationSpec
      */
     public final static class LongMillisecondsBound extends DurationSpec
     {
+        private final long valueInMilliseconds;
+
         /**
          * Creates a {@code DurationSpec.LongMillisecondsBound} of the specified amount.
          * The bound is [0, Long.MAX_VALUE) in milliseconds.
@@ -353,6 +363,7 @@ public abstract class DurationSpec
         public LongMillisecondsBound(String value)
         {
             super(value, MILLISECONDS, Long.MAX_VALUE);
+            valueInMilliseconds = unit().toMillis(quantity());
         }
 
         /**
@@ -365,6 +376,7 @@ public abstract class DurationSpec
         public LongMillisecondsBound(long quantity, TimeUnit unit)
         {
             super(quantity, unit, MILLISECONDS, Long.MAX_VALUE);
+            valueInMilliseconds = unit().toMillis(quantity());
         }
 
         /**
@@ -383,7 +395,7 @@ public abstract class DurationSpec
          */
         public long toMilliseconds()
         {
-            return unit().toMillis(quantity());
+            return valueInMilliseconds;
         }
     }
 
@@ -394,6 +406,8 @@ public abstract class DurationSpec
      */
     public final static class LongSecondsBound extends DurationSpec
     {
+        private final long valueInSeconds;
+
         /**
          * Creates a {@code DurationSpec.LongSecondsBound} of the specified amount.
          * The bound is [0, Long.MAX_VALUE) in seconds.
@@ -403,6 +417,7 @@ public abstract class DurationSpec
         public LongSecondsBound(String value)
         {
             super(value, SECONDS, Long.MAX_VALUE);
+            valueInSeconds = unit().toSeconds(quantity());
         }
 
         /**
@@ -415,6 +430,7 @@ public abstract class DurationSpec
         public LongSecondsBound(long quantity, TimeUnit unit)
         {
             super(quantity, unit, SECONDS, Long.MAX_VALUE);
+            valueInSeconds = unit().toSeconds(quantity());
         }
 
         /**
@@ -441,7 +457,7 @@ public abstract class DurationSpec
          */
         public long toSeconds()
         {
-            return unit().toSeconds(quantity());
+            return valueInSeconds;
         }
     }
 
@@ -452,6 +468,8 @@ public abstract class DurationSpec
      */
     public final static class IntMinutesBound extends DurationSpec
     {
+        private final int valueInMinutes;
+
         /**
          * Creates a {@code DurationSpec.IntMinutesBound} of the specified amount. The bound is [0, Integer.MAX_VALUE) in minutes.
          * The bound is [0, Integer.MAX_VALUE) in minutes.
@@ -461,6 +479,7 @@ public abstract class DurationSpec
         public IntMinutesBound(String value)
         {
             super(value, MINUTES, Integer.MAX_VALUE);
+            valueInMinutes = Ints.saturatedCast(unit().toMinutes(quantity()));
         }
 
         /**
@@ -473,6 +492,7 @@ public abstract class DurationSpec
         public IntMinutesBound(long quantity, TimeUnit unit)
         {
             super(quantity, unit, MINUTES, Integer.MAX_VALUE);
+            valueInMinutes = Ints.saturatedCast(unit().toMinutes(quantity()));
         }
 
         /**
@@ -513,7 +533,7 @@ public abstract class DurationSpec
          */
         public int toMinutes()
         {
-            return Ints.saturatedCast(unit().toMinutes(quantity()));
+            return valueInMinutes;
         }
     }
 
@@ -526,6 +546,8 @@ public abstract class DurationSpec
     {
         private static final Pattern VALUES_PATTERN = Pattern.compile(("\\d+"));
 
+        private final int valueInSeconds;
+
         /**
          * Creates a {@code DurationSpec.IntSecondsBound} of the specified amount. The bound is [0, Integer.MAX_VALUE) in seconds.
          * The bound is [0, Integer.MAX_VALUE) in seconds.
@@ -535,6 +557,7 @@ public abstract class DurationSpec
         public IntSecondsBound(String value)
         {
             super(value, SECONDS, Integer.MAX_VALUE);
+            valueInSeconds = Ints.saturatedCast(unit().toSeconds(quantity()));
         }
 
         /**
@@ -547,6 +570,7 @@ public abstract class DurationSpec
         public IntSecondsBound(long quantity, TimeUnit unit)
         {
             super(quantity, unit, SECONDS, Integer.MAX_VALUE);
+            valueInSeconds = Ints.saturatedCast(unit().toSeconds(quantity()));
         }
 
         /**
@@ -610,7 +634,7 @@ public abstract class DurationSpec
          */
         public int toSeconds()
         {
-            return Ints.saturatedCast(unit().toSeconds(quantity()));
+            return valueInSeconds;
         }
     }
 
@@ -621,6 +645,8 @@ public abstract class DurationSpec
      */
     public final static class IntMillisecondsBound extends DurationSpec
     {
+        private final int valueInMilliseconds;
+
         /**
          * Creates a {@code DurationSpec.IntMillisecondsBound} of the specified amount. The bound is [0, Integer.MAX_VALUE) in milliseconds.
          * The bound is [0, Integer.MAX_VALUE) in milliseconds.
@@ -630,6 +656,7 @@ public abstract class DurationSpec
         public IntMillisecondsBound(String value)
         {
             super(value, MILLISECONDS, Integer.MAX_VALUE);
+            valueInMilliseconds = Ints.saturatedCast(unit().toMillis(quantity()));
         }
 
         /**
@@ -642,6 +669,7 @@ public abstract class DurationSpec
         public IntMillisecondsBound(long quantity, TimeUnit unit)
         {
             super(quantity, unit, MILLISECONDS, Integer.MAX_VALUE);
+            valueInMilliseconds = Ints.saturatedCast(unit().toMillis(quantity()));
         }
 
         /**
@@ -665,6 +693,7 @@ public abstract class DurationSpec
         public IntMillisecondsBound(double quantity, TimeUnit unit)
         {
             super(quantity, unit, MILLISECONDS, Integer.MAX_VALUE);
+            valueInMilliseconds = Ints.saturatedCast(unit().toMillis(quantity()));
         }
 
         /**
@@ -674,7 +703,7 @@ public abstract class DurationSpec
          */
         public int toMilliseconds()
         {
-            return Ints.saturatedCast(unit().toMillis(quantity()));
+            return valueInMilliseconds;
         }
     }
 }

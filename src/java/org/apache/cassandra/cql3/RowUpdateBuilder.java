@@ -79,6 +79,8 @@ public abstract class RowUpdateBuilder implements FunctionContext
     // The builder currently in use. Will alias either staticBuilder or regularBuilder, which are themselves built lazily.
     private Row.Builder builder;
 
+    private final boolean areValueSizeGuardrailsEnabled;
+
     protected RowUpdateBuilder(TableMetadata metadata,
                             ClientState clientState,
                             QueryOptions options,
@@ -100,6 +102,11 @@ public abstract class RowUpdateBuilder implements FunctionContext
         // it to avoid potential confusion.
         if (timestamp == Long.MIN_VALUE)
             throw new InvalidRequestException(String.format("Out of bound timestamp, must be in [%d, %d]", Long.MIN_VALUE + 1, Long.MAX_VALUE));
+
+        areValueSizeGuardrailsEnabled = Guardrails.columnValueSize.enabled(clientState)
+                                        || Guardrails.columnBlobValueSize.enabled(clientState)
+                                        || Guardrails.columnAsciiValueSize.enabled(clientState)
+                                        || Guardrails.columnTextAndVarcharValueSize.enabled(clientState);
     }
 
     @Override
@@ -171,7 +178,7 @@ public abstract class RowUpdateBuilder implements FunctionContext
         // that enabling or raising this threshold can prevent users from deleting set/map elements that were written
         // when the guardrail was disabled or with a lower value. Deleting the entire column, row or partition is always
         // allowed, since the tombstones created for those operations don't contain the CQL column values.
-        if (path != null && column.type.isMultiCell())
+        if (areValueSizeGuardrailsEnabled && path != null && column.type.isMultiCell())
             Guardrails.columnValueSize.guard(path.dataSize(), column.name.toString(), false, clientState);
 
         builder.addCell(BufferCell.tombstone(column, timestamp, nowInSec, path));
@@ -211,6 +218,9 @@ public abstract class RowUpdateBuilder implements FunctionContext
 
     private void validateCell(ColumnMetadata column, CellPath path, int valueSize)
     {
+        if (!areValueSizeGuardrailsEnabled)
+            return;
+
         // General column value size
         Guardrails.columnValueSize.guard(valueSize, column.name.toString(), false, clientState);
 
