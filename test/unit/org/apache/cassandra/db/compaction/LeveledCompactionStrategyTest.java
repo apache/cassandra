@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
@@ -76,6 +77,8 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static java.util.Collections.singleton;
+import static org.apache.cassandra.db.compaction.LeveledManifest.getIntersectingSSTablesFromTreeSet;
+import static org.apache.cassandra.db.compaction.LeveledManifest.overlapping;
 import static org.apache.cassandra.schema.MockSchema.readerBounds;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -593,6 +596,93 @@ public class LeveledCompactionStrategyTest
         {
             CompactionManager.instance.setDisableSTCSInL0(false);
         }
+    }
+
+    @Test
+    public void testLinearScanTreeSetIntersectionEquivalence() throws IOException
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        List<SSTableReader> sstables = new ArrayList<>();
+
+        long seed = System.currentTimeMillis();
+        Random r = new Random(seed);
+
+        // Generates disjoint sorted SSTables that match what we see in L1
+        int i = 0;
+        int lower_bound = 10;
+        while (i < 10000)
+        {
+            int start = lower_bound + 1 + r.nextInt(30);
+            int end = start + 10 + r.nextInt(30);
+            lower_bound = end;
+            SSTableReader l1sstable = MockSchema.sstableWithLevel(i, start, end, 1, cfs);
+            sstables.add(l1sstable);
+            i++;
+        }
+
+        LeveledGenerations generations = new LeveledGenerations();
+        generations.addAll(sstables);
+
+        SSTableReader sstableinL1;
+        Token newStart;
+        Token newEnd;
+
+        int kind = r.nextInt(7);
+
+        switch (kind)
+        {
+            // No overlap
+            case 0:
+                sstableinL1 = sstables.get(r.nextInt(sstables.size()));
+                newStart = sstableinL1.getLast().getToken().increaseSlightly();
+                newEnd = newStart.getToken().increaseSlightly();
+                break;
+            // Overlaps on the left end
+            case 1:
+                sstableinL1 = sstables.get(r.nextInt(sstables.size()));
+                newStart = sstableinL1.getFirst().getToken().decreaseSlightly();
+                newEnd = sstableinL1.getFirst().getToken().increaseSlightly();
+                break;
+            // Overlaps on the right end
+            case 2:
+                sstableinL1 = sstables.get(r.nextInt(sstables.size()));
+                newStart = sstableinL1.getLast().getToken().decreaseSlightly();
+                newEnd = sstableinL1.getLast().getToken().increaseSlightly();
+                break;
+            // Subset of entire SSTable
+            case 3:
+                sstableinL1 = sstables.get(r.nextInt(sstables.size()));
+                newStart = sstableinL1.getFirst().getToken().increaseSlightly();
+                newEnd = sstableinL1.getLast().getToken().decreaseSlightly();
+                break;
+            // Superset of entire SSTable
+            case 4:
+                sstableinL1 = sstables.get(0);
+                newStart = sstableinL1.getFirst().getToken().decreaseSlightly();
+                newEnd = sstableinL1.getLast().getToken().increaseSlightly();
+                break;
+            // Exact SSTable match
+            case 5:
+                sstableinL1 = sstables.get(0);
+                newStart = sstableinL1.getFirst().getToken();
+                newEnd = sstableinL1.getLast().getToken();
+                break;
+            // Spans the whole L1
+            case 6:
+                newStart = sstables.get(0).getFirst().getToken();
+                newEnd = sstables.get(sstables.size() - 1).getLast().getToken();
+                break;
+            default:
+                throw new IllegalStateException("Unhandled kind " + kind);
+        }
+
+        SSTableReader sstable = MockSchema.sstableWithLevel(i, newStart.getLongValue(), newEnd.getLongValue(), 0, cfs);
+        Collection<SSTableReader> treeSetIntersectingSSTables = getIntersectingSSTablesFromTreeSet(sstable, (TreeSet<SSTableReader>) generations.get(1));
+        Collection<SSTableReader> linearScanIntersectionSSTables = overlapping(sstable.getFirst().getToken(), sstable.getLast().getToken(), generations.get(1));
+        linearScanIntersectionSSTables.add(sstable);
+
+        // The results should be equivalent to doing a linear scan
+        assertTrue(treeSetIntersectingSSTables.containsAll(linearScanIntersectionSSTables) && linearScanIntersectionSSTables.containsAll(treeSetIntersectingSSTables));
     }
 
     private int getTaskLevel(ColumnFamilyStore cfs)
