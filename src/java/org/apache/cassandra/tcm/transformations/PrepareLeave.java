@@ -121,7 +121,7 @@ public class PrepareLeave implements Transformation
 
         StartLeave start = new StartLeave(leaving, startDelta, unlockKey);
         MidLeave mid = new MidLeave(leaving, midDelta, unlockKey);
-        FinishLeave leave = new FinishLeave(leaving, finishDelta, unlockKey);
+        FinishLeave leave = new FinishLeave(leaving, finishDelta, unlockKey, !UnlockSequence.isSupportedBy(prev));
 
         UnbootstrapAndLeave plan = UnbootstrapAndLeave.newSequence(prev.nextEpoch(),
                                                                    unlockKey,
@@ -294,7 +294,12 @@ public class PrepareLeave implements Transformation
 
         public FinishLeave(NodeId nodeId, PlacementDeltas delta, LockedRanges.Key lockKey)
         {
-            super(nodeId, delta, lockKey, true);
+            this(nodeId, delta, lockKey, true);
+        }
+
+        public FinishLeave(NodeId nodeId, PlacementDeltas delta, LockedRanges.Key lockKey, boolean unlock)
+        {
+            super(nodeId, delta, lockKey, unlock);
         }
 
         @Override
@@ -306,15 +311,48 @@ public class PrepareLeave implements Transformation
         @Override
         public ClusterMetadata.Transformer transform(ClusterMetadata prev, ClusterMetadata.Transformer transformer)
         {
-            return transformer.left(nodeId)
-                              .with(prev.inProgressSequences.without(nodeId));
+            ClusterMetadata.Transformer next = transformer.left(nodeId);
+            return unlock ? next.with(prev.inProgressSequences.without(nodeId))
+                          : next.with(prev.inProgressSequences.with(nodeId, (UnbootstrapAndLeave plan) -> plan.advance(prev.nextEpoch())));
         }
 
         public static class Serializer extends SerializerBase<FinishLeave>
         {
+            @Override
+            public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException
+            {
+                super.serialize(t, out, version);
+                // TODO (now): confirm that this is the Version to use
+                if (version.isAtLeast(Version.TBD_UNLOCK_STEP))
+                    out.writeBoolean(((FinishLeave) t).unlock);
+            }
+
+            @Override
+            public FinishLeave deserialize(DataInputPlus in, Version version) throws IOException
+            {
+                NodeId nodeId = NodeId.serializer.deserialize(in, version);
+                PlacementDeltas delta = PlacementDeltas.serializer.deserialize(in, version);
+                LockedRanges.Key lockKey = LockedRanges.Key.serializer.deserialize(in, version);
+                // UnlockSequence step which follows after FinishLeave was introduced in TBD_UNLOCK_STEP
+                // to support mutation tracking, and unlock now happens in that step.
+                // TODO (now): confirm the correct Version to use here.
+                boolean unlock = version.isBefore(Version.TBD_UNLOCK_STEP) || in.readBoolean();
+                return new FinishLeave(nodeId, delta, lockKey, unlock);
+            }
+
+            @Override
+            public long serializedSize(Transformation t, Version version)
+            {
+                long size = super.serializedSize(t, version);
+                // TODO (now): confirm the correct Version to use here.
+                if (version.isAtLeast(Version.TBD_UNLOCK_STEP))
+                    size += TypeSizes.sizeof(((FinishLeave)t).unlock);
+                return size;
+            }
+
             FinishLeave construct(NodeId nodeId, PlacementDeltas delta, LockedRanges.Key lockKey)
             {
-                return new FinishLeave(nodeId, delta, lockKey);
+                throw new IllegalStateException();
             }
         }
     }

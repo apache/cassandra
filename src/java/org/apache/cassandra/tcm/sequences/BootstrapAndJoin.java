@@ -70,6 +70,7 @@ import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
+import org.apache.cassandra.tcm.transformations.UnlockSequence;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -82,6 +83,7 @@ import static org.apache.cassandra.tcm.MultiStepOperation.Kind.JOIN;
 import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_JOIN;
 import static org.apache.cassandra.tcm.Transformation.Kind.MID_JOIN;
 import static org.apache.cassandra.tcm.Transformation.Kind.START_JOIN;
+import static org.apache.cassandra.tcm.Transformation.Kind.UNLOCK_SEQUENCE;
 import static org.apache.cassandra.tcm.sequences.SequenceState.continuable;
 import static org.apache.cassandra.tcm.sequences.SequenceState.error;
 import static org.apache.cassandra.tcm.sequences.SequenceState.halted;
@@ -186,7 +188,15 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
     @Override
     public Transformation.Result applyTo(ClusterMetadata metadata)
     {
-        return applyMultipleTransformations(metadata, next, of(startJoin, midJoin, finishJoin));
+        // FinishJoin unlocks the affected ranges and retires the sequence only in legacy (pre-UNLOCK_SEQUENCE) mode.
+        return finishJoin.unlocks()
+             ? applyMultipleTransformations(metadata, next, of(startJoin, midJoin, finishJoin))
+             : applyMultipleTransformations(metadata, next, of(startJoin, midJoin, finishJoin, unlockSequence()));
+    }
+
+    private UnlockSequence unlockSequence()
+    {
+        return new UnlockSequence(startJoin.nodeId(), lockKey);
     }
 
     @Override
@@ -303,8 +313,24 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
                 }
                 ClusterMetadataService.instance().ensureCMSPlacement(metadata);
 
-                if (MutationTrackingService.isEnabled())
-                    SealingCoordinator.sealShardsAtFinishJoin(metadata, finishJoin.delta());
+                break;
+            case UNLOCK_SEQUENCE:
+                try
+                {
+                    if (MutationTrackingService.isEnabled())
+                    {
+                        SealingCoordinator.sealShardsAtFinishJoin(ClusterMetadata.current(),
+                                                                  latestModification.getEpoch(),
+                                                                  finishJoin.delta());
+                    }
+                    ClusterMetadataService.instance().commit(unlockSequence());
+                }
+                catch (Throwable e)
+                {
+                    JVMStabilityInspector.inspectThrowable(e);
+                    logger.warn("Exception sealing obsoleted MT shards or committing unlockSequence", e);
+                    return continuable();
+                }
 
                 break;
             default:
@@ -333,11 +359,15 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
     @Override
     public ClusterMetadata.Transformer cancel(ClusterMetadata metadata)
     {
+        // TODO (expected): reason about shard sealing states at various stages
         DataPlacements placements = metadata.placements;
         switch (next)
         {
-            // need to undo MID_JOIN and START_JOIN, then merge the ranges split by PrepareJoin
+            case UNLOCK_SEQUENCE:
+                // FINISH_JOIN has already been enacted - it's too late to be reverting anything, so we just unlock.
+                return metadata.transformer().with(metadata.lockedRanges.unlock(lockKey));
             case FINISH_JOIN:
+                // need to undo MID_JOIN and START_JOIN, then merge the ranges split by PrepareJoin
                 placements = midJoin.inverseDelta().apply(metadata.nextEpoch(), placements);
             case MID_JOIN:
                 placements = startJoin.inverseDelta().apply(metadata.nextEpoch(), placements);
@@ -488,6 +518,8 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
                 return 1;
             case FINISH_JOIN:
                 return 2;
+            case UNLOCK_SEQUENCE:
+                return 3;
             default:
                 throw new IllegalStateException(String.format("Step %s is invalid for sequence %s ", next, JOIN));
         }
@@ -503,6 +535,8 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
                 return MID_JOIN;
             case 2:
                 return FINISH_JOIN;
+            case 3:
+                return UNLOCK_SEQUENCE;
             default:
                 throw new IllegalStateException(String.format("Step %s is invalid for sequence %s ", index, JOIN));
         }
@@ -587,7 +621,7 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
             size += LockedRanges.Key.serializer.serializedSize(plan.lockKey, version);
             size += PlacementDeltas.serializer.serializedSize(plan.toSplitRanges, version);
 
-            size += VIntCoding.computeVIntSize(plan.kind().ordinal());
+            size += VIntCoding.computeVIntSize(plan.next.ordinal());
 
             size += PrepareJoin.StartJoin.serializer.serializedSize(plan.startJoin, version);
             size += PrepareJoin.MidJoin.serializer.serializedSize(plan.midJoin, version);
