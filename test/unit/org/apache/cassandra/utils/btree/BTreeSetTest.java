@@ -27,9 +27,10 @@ import static org.junit.Assert.assertArrayEquals;
 public class BTreeSetTest
 {
     @Test
-    public void BTreeRangeRegressionTest()
+    public void toArrayRegressionTest()
     {
-        BTreeSet.of(Arrays.asList(1, 2, 3)).descendingSet().toArray();
+        BTreeSet<Integer> range = BTreeSet.of(Arrays.asList(1, 2, 3, 4)).subSet(2, true, 4, true);
+        assertArrayEquals(new Object[]{ 2, 3, 4 }, range.toArray());
     }
 
     @Test
