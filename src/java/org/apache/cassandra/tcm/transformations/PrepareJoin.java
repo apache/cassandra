@@ -160,7 +160,8 @@ public class PrepareJoin implements Transformation
         LockedRanges.Key lockKey = LockedRanges.keyFor(prev.nextEpoch());
         StartJoin startJoin = new StartJoin(nodeId, transitionPlan.addToWrites(), lockKey);
         MidJoin midJoin = new MidJoin(nodeId, transitionPlan.moveReads(), lockKey);
-        FinishJoin finishJoin = new FinishJoin(nodeId, tokens, transitionPlan.removeFromWrites(), lockKey);
+        FinishJoin finishJoin =
+            new FinishJoin(nodeId, tokens, transitionPlan.removeFromWrites(), lockKey, !UnlockSequence.isSupportedBy(prev));
 
         BootstrapAndJoin plan = BootstrapAndJoin.newSequence(prev.nextEpoch(),
                                                              lockKey,
@@ -308,7 +309,12 @@ public class PrepareJoin implements Transformation
 
         public FinishJoin(NodeId nodeId, Set<Token> tokens, PlacementDeltas delta, LockedRanges.Key unlockKey)
         {
-            super(nodeId, delta, unlockKey, true);
+            this(nodeId, tokens, delta, unlockKey, true);
+        }
+
+        public FinishJoin(NodeId nodeId, Set<Token> tokens, PlacementDeltas delta, LockedRanges.Key unlockKey, boolean unlock)
+        {
+            super(nodeId, delta, unlockKey, unlock);
             this.tokens = tokens;
         }
 
@@ -321,10 +327,12 @@ public class PrepareJoin implements Transformation
         @Override
         public ClusterMetadata.Transformer transform(ClusterMetadata prev, ClusterMetadata.Transformer transformer)
         {
-            return transformer.join(nodeId)
-                              .proposeToken(nodeId, tokens)
-                              .addToRackAndDC(nodeId)
-                              .with(prev.inProgressSequences.without(nodeId));
+            ClusterMetadata.Transformer next =
+                transformer.join(nodeId)
+                           .proposeToken(nodeId, tokens)
+                           .addToRackAndDC(nodeId);
+            return unlock ? next.with(prev.inProgressSequences.without(nodeId))
+                          : next.with(prev.inProgressSequences.with(nodeId, (BootstrapAndJoin plan) -> plan.advance(prev.nextEpoch())));
         }
 
         public static final class Serializer extends SerializerBase<FinishJoin>
@@ -337,6 +345,9 @@ public class PrepareJoin implements Transformation
                 out.writeUnsignedVInt32(tokens.size());
                 for (Token token : tokens)
                     Token.metadataSerializer.serialize(token, out, version);
+                // TODO (now): confirm that this is the Version to use
+                if (version.isAtLeast(Version.TBD_UNLOCK_STEP))
+                    out.writeBoolean(((FinishJoin) t).unlock);
             }
 
             @Override
@@ -350,7 +361,11 @@ public class PrepareJoin implements Transformation
                 IPartitioner partitioner = ClusterMetadata.current().partitioner;
                 for (int i = 0; i < numTokens; i++)
                     tokens.add(Token.metadataSerializer.deserialize(in, partitioner, version));
-                return new FinishJoin(nodeId, tokens, delta, lockKey);
+                // UnlockSequence step which follows after FinishJoin was introduced in TBD_UNLOCK_STEP
+                // to support mutation tracking, and unlock now happens in that step.
+                // TODO (now): confirm the correct Version to use here.
+                boolean unlock = version.isBefore(Version.TBD_UNLOCK_STEP) || in.readBoolean();
+                return new FinishJoin(nodeId, tokens, delta, lockKey, unlock);
             }
 
             @Override
@@ -361,6 +376,9 @@ public class PrepareJoin implements Transformation
                 size += TypeSizes.sizeofUnsignedVInt(tokens.size());
                 for (Token token : tokens)
                     size += Token.metadataSerializer.serializedSize(token, version);
+                // TODO (now): confirm the correct Version to use here.
+                if (version.isAtLeast(Version.TBD_UNLOCK_STEP))
+                    size += TypeSizes.sizeof(((FinishJoin)t).unlock);
                 return size;
             }
 

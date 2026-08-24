@@ -113,6 +113,13 @@ class OnClusterJoin extends OnClusterChangeTopology
                 assert bootstrapAndJoin.next.ordinal() == kind : String.format("Expected next step to be %s, but got %s", Transformation.Kind.values()[kind], bootstrapAndJoin.next);
                 boolean res = bootstrapAndJoin.executeNext().isContinuable();
                 assert res;
+
+                // On UNLOCK_SEQUENCE-supporting clusters FINISH_JOIN no longer unlocks/retires the sequence;
+                // drain the trailing UNLOCK_SEQUENCE step so the range lock is released.
+                ClusterMetadata after = ClusterMetadata.current();
+                MultiStepOperation<?> trailing = after.inProgressSequences.get(after.myNodeId());
+                if (trailing != null && trailing.nextStep() == Transformation.Kind.UNLOCK_SEQUENCE)
+                    assert trailing.executeNext().isContinuable();
             });
         }
     }
