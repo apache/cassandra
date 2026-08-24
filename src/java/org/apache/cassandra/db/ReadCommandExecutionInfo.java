@@ -16,6 +16,7 @@
 
 package org.apache.cassandra.db;
 
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.cassandra.db.monitoring.Monitorable;
@@ -44,6 +45,8 @@ class ReadCommandExecutionInfo implements Monitorable.ExecutionInfo
     private long rowsFetched = 0;
     private long rowsReturned = 0;
     private long rowTombstones = 0;
+    private long cellsFetched = 0;
+    private long cellsReturned = 0;
 
     /**
      * Counts the number of fetched partitions and rows in the specified iterator.
@@ -60,9 +63,20 @@ class ReadCommandExecutionInfo implements Monitorable.ExecutionInfo
             {
                 if (row.hasLiveData(nowInSec, false))
                     rowsFetched++;
+
+                cellsFetched += row.cellsCount();
+
+                return row;
+            }
+
+            @Override
+            protected Row applyToStatic(Row row)
+            {
+                cellsFetched += row.cellsCount();
                 return row;
             }
         };
+
         return Transformation.apply(partitions, new Transformation<>() {
             @Override
             protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
@@ -91,6 +105,16 @@ class ReadCommandExecutionInfo implements Monitorable.ExecutionInfo
                     rowsReturned++;
                 else
                     rowTombstones++;
+
+                cellsReturned += row.cellsCount();
+
+                return row;
+            }
+
+            @Override
+            protected Row applyToStatic(Row row)
+            {
+                cellsReturned += row.cellsCount();
                 return row;
             }
 
@@ -128,10 +152,14 @@ class ReadCommandExecutionInfo implements Monitorable.ExecutionInfo
                rowsFetched,
                rowsReturned,
                rowTombstones);
+        append(sb, "cells",
+               cellsFetched,
+               cellsReturned,
+               null);
         return sb.toString();
     }
 
-    private static void append(StringBuilder sb, String name, long fetched, long returned, long tombstones)
+    private static void append(StringBuilder sb, String name, long fetched, long returned, @Nullable Long tombstones)
     {
         sb.append('\n')
           .append(DOUBLE_INDENT)
@@ -140,7 +168,10 @@ class ReadCommandExecutionInfo implements Monitorable.ExecutionInfo
           .append(fetched)
           .append('/')
           .append(returned)
-          .append('/')
-          .append(tombstones);
+          .append('/');
+        if (tombstones == null)
+            sb.append('-');
+        else
+            sb.append(tombstones);
     }
 }

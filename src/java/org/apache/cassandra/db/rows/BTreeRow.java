@@ -336,6 +336,12 @@ public class BTreeRow extends AbstractRow
         return CellIterator::new;
     }
 
+    @Override
+    public int cellsCount()
+    {
+        return (int) accumulate((cd, count) -> count + (cd.column().isComplex() ? ((ComplexColumnData) cd).cellsCount() : 1), 0L);
+    }
+
     public BTreeSearchIterator<ColumnMetadata, ColumnData> searchIterator()
     {
         return BTree.slice(btree, ColumnMetadata.asymmetricColumnDataComparator, BTree.Dir.ASC);

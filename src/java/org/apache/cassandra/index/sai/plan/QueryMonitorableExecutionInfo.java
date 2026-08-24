@@ -77,6 +77,8 @@ public class QueryMonitorableExecutionInfo implements Monitorable.ExecutionInfo
         appendMetric(sb, "rowsFetched", metrics.rowsFetched);
         appendMetric(sb, "rowsReturned", metrics.rowsReturned);
         appendMetric(sb, "rowTombstonesFetched", metrics.rowTombstonesFetched);
+        appendMetric(sb, "cellsFetched", metrics.cellsFetched);
+        appendMetric(sb, "cellsReturned", metrics.cellsReturned);
         appendMetric(sb, "trieSegmentsHit", metrics.trieSegmentsHit);
         appendMetric(sb, "triePostingsSkips", metrics.triePostingsSkips);
         appendMetric(sb, "triePostingsDecodes", metrics.triePostingsDecodes);

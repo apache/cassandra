@@ -64,10 +64,21 @@ class CountFetchedTransformation extends Transformation<UnfilteredRowIterator>
     protected Row applyToRow(Row row)
     {
         queryContext.checkpoint();
+
         if (row.hasLiveData(nowInSec, false))
             queryContext.addRowsFetched(1);
         else
             queryContext.addRowTombstonesFetched(1);
+
+        queryContext.addCellsFetched(row.cellsCount());
+
+        return row;
+    }
+
+    @Override
+    protected Row applyToStatic(Row row)
+    {
+        queryContext.addCellsFetched(row.cellsCount());
         return row;
     }
 

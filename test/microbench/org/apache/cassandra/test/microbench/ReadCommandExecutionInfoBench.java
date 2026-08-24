@@ -18,6 +18,8 @@ package org.apache.cassandra.test.microbench;
 
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -64,7 +66,13 @@ import org.openjdk.jmh.annotations.Warmup;
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @Warmup(iterations = 5, time = 10, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 10, time = 10, timeUnit = TimeUnit.SECONDS)
-@Fork(value = 1)
+@Fork(value = 1, jvmArgsAppend = {
+"-Xmx512M",
+"-Dcassandra.disable_user_defined_functions=true",
+"--add-exports", "java.base/jdk.internal.ref=ALL-UNNAMED",
+"--add-exports", "java.base/sun.nio.ch=ALL-UNNAMED",
+"--add-opens", "java.base/jdk.internal.ref=ALL-UNNAMED"
+})
 @Threads(1)
 @State(Scope.Benchmark)
 public class ReadCommandExecutionInfoBench extends CQLTester
@@ -73,7 +81,7 @@ public class ReadCommandExecutionInfoBench extends CQLTester
     private static final Random RANDOM = new Random(1234);
     private static final String QUERY = "SELECT * FROM %%s WHERE k = %d AND v IN (%d, %<d) ALLOW FILTERING";
     private static final int NUM_PARTITIONS = 100;
-    private static final int NUM_CLUSTERINGS = 10_000;
+    private static final int NUM_CLUSTERINGS = 1000;
     private static final int NUM_VALUES = 10;
 
     /**
@@ -81,6 +89,12 @@ public class ReadCommandExecutionInfoBench extends CQLTester
      */
     @Param({ "false", "true" })
     public boolean enabled;
+
+    /**
+     * Size of the written collections, used to control the number of cells per row.
+     */
+    @Param({ "1", "100" })
+    public int collectionSize;
 
     private ReadCommand command;
 
@@ -93,7 +107,7 @@ public class ReadCommandExecutionInfoBench extends CQLTester
         beforeTest();
 
         // create the schema
-        createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c))");
+        createTable("CREATE TABLE %s (k int, c int, v int, l list<int>, PRIMARY KEY (k, c))");
 
         // insert some data
         for (int k = 0; k < NUM_PARTITIONS; k++)
@@ -101,7 +115,10 @@ public class ReadCommandExecutionInfoBench extends CQLTester
             for (int c = 0; c < NUM_CLUSTERINGS; c++)
             {
                 int v = RANDOM.nextInt(NUM_VALUES);
-                execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", k, c, v);
+                List<Integer> l = new ArrayList<>(collectionSize);
+                for (int i = 0; i < collectionSize; i++)
+                    l.add(RANDOM.nextInt());
+                execute("INSERT INTO %s (k, c, v, l) VALUES (?, ?, ?, ?)", k, c, v, l);
             }
         }
         flush();

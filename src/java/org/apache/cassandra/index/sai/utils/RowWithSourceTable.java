@@ -177,6 +177,12 @@ public class RowWithSourceTable implements Row
     }
 
     @Override
+    public int cellsCount()
+    {
+        return row.cellsCount();
+    }
+
+    @Override
     public Collection<ColumnData> columnData()
     {
         return Collections2.transform(row.columnData(), this::wrapColumnData);

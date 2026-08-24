@@ -37,11 +37,20 @@ class CountReturnedTransformation extends Transformation<UnfilteredRowIterator>
         this.queryContext = queryContext;
         this.onClose = onClose;
         rowCounter = new Transformation<>() {
+
             @Override
             protected Row applyToRow(Row row)
             {
                 queryContext.checkpoint();
                 queryContext.addRowsReturned(1);
+                queryContext.addCellsReturned(row.cellsCount());
+                return row;
+            }
+
+            @Override
+            protected Row applyToStatic(Row row)
+            {
+                queryContext.addCellsReturned(row.cellsCount());
                 return row;
             }
         };

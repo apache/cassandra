@@ -85,6 +85,12 @@ public class QueryContext
     /** Number of deleted individual rows or ranges of rows that have been fetched. */
     private long rowTombstonesFetched = 0;
 
+    /** Number of cells fetched from the storage engine, regardless of liveness, before post-filtering. */
+    private long cellsFetched = 0;
+
+    /** Number of cells returned to the coordinator, regardless of liveness, after post-filtering. */
+    private long cellsReturned = 0;
+
     /** Number of trie (literal or key) segments visited by the query. */
     private long trieSegmentsHit = 0;
 
@@ -185,6 +191,18 @@ public class QueryContext
     {
         checkThreadOwnership();
         rowTombstonesFetched += val;
+    }
+
+    public void addCellsFetched(long val)
+    {
+        checkThreadOwnership();
+        cellsFetched += val;
+    }
+
+    public void addCellsReturned(long val)
+    {
+        checkThreadOwnership();
+        cellsReturned += val;
     }
 
     public void addTrieSegmentsHit(long val)
@@ -313,6 +331,8 @@ public class QueryContext
         public final long rowsFetched;
         public final long rowsReturned;
         public final long rowTombstonesFetched;
+        public final long cellsFetched;
+        public final long cellsReturned;
         public final long trieSegmentsHit;
         public final long triePostingsSkips;
         public final long triePostingsDecodes;
@@ -343,6 +363,8 @@ public class QueryContext
             rowsFetched = context.rowsFetched;
             rowsReturned = context.rowsReturned;
             rowTombstonesFetched = context.rowTombstonesFetched;
+            cellsFetched = context.cellsFetched;
+            cellsReturned = context.cellsReturned;
             trieSegmentsHit = context.trieSegmentsHit;
             triePostingsSkips = context.triePostingsSkips;
             triePostingsDecodes = context.triePostingsDecodes;

@@ -18,6 +18,8 @@ package org.apache.cassandra.test.microbench.index.sai;
 
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -32,6 +34,8 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.monitoring.Monitorable;
 import org.apache.cassandra.db.monitoring.MonitoringTask;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.index.sai.SAITester;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -62,7 +66,13 @@ import org.openjdk.jmh.annotations.Warmup;
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @Warmup(iterations = 10, time = 10, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 10, time = 10, timeUnit = TimeUnit.SECONDS)
-@Fork(value = 1)
+@Fork(value = 1, jvmArgsAppend = {
+"-Xmx512M",
+"-Dcassandra.disable_user_defined_functions=true",
+"--add-exports", "java.base/jdk.internal.ref=ALL-UNNAMED",
+"--add-exports", "java.base/sun.nio.ch=ALL-UNNAMED",
+"--add-opens", "java.base/jdk.internal.ref=ALL-UNNAMED"
+})
 @Threads(1)
 @State(Scope.Benchmark)
 public class QueryMonitorableExecutionInfoBench extends SAITester
@@ -76,6 +86,12 @@ public class QueryMonitorableExecutionInfoBench extends SAITester
     @Param({ "false", "true" })
     public boolean enabled;
 
+    /**
+     * Size of the written collections, used to control the number of cells per row.
+     */
+    @Param({ "1", "100" })
+    public int collectionSize;
+
     private ReadCommand command;
 
     @Setup(Level.Trial)
@@ -87,11 +103,12 @@ public class QueryMonitorableExecutionInfoBench extends SAITester
         beforeTest();
 
         // create the schema
-        createTable("CREATE TABLE %s (k int, c int, n int, b bigint, s text, v vector<float, 2>, PRIMARY KEY (k, c))");
+        createTable("CREATE TABLE %s (k int, c int, n int, b bigint, s text, v vector<float, 2>, l list<int>, PRIMARY KEY (k, c))");
         createIndex("CREATE CUSTOM INDEX ON %s(n) USING 'StorageAttachedIndex'");
         createIndex("CREATE CUSTOM INDEX ON %s(b) USING 'StorageAttachedIndex'");
         createIndex("CREATE CUSTOM INDEX ON %s(s) USING 'StorageAttachedIndex'");
         createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(l) USING 'StorageAttachedIndex'");
 
         // insert some data
         for (int k = 0; k < 100; k++)
@@ -99,20 +116,39 @@ public class QueryMonitorableExecutionInfoBench extends SAITester
             for (int c = 0; c < 100; c++)
             {
                 int n = RANDOM.nextInt(100);
-                execute("INSERT INTO %s (k, c, n, b, s, v) VALUES (?, ?, ?, ?, ?, ?)",
-                        k, c, n, (long) n, "value_" + n, vector(1, n));
+                List<Integer> l = new ArrayList<>(collectionSize);
+                for (int i = 0; i < collectionSize; i++)
+                    l.add(RANDOM.nextInt());
+                execute("INSERT INTO %s (k, c, n, b, s, v, l) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        k, c, n, (long) n, "value_" + n, vector(1, n), l);
             }
         }
         flush();
     }
 
     @Setup(Level.Invocation)
-    public void generateCommand()
+    public void setupTest()
+    {
+        command = generateRunAndConsumeCommand();
+    }
+
+    private ReadCommand generateRunAndConsumeCommand()
     {
         int n = RANDOM.nextInt(100);
         String query = "SELECT * FROM %%s WHERE n = %d AND (b >= %<d OR s = 'value_%<d') ORDER BY v ANN OF [1, %<d] LIMIT 10";
-        command = parseReadCommand(String.format(query, n));
-        command.executeLocally(command.executionController(false));
+        ReadCommand command = parseReadCommand(String.format(query, n));
+        try (UnfilteredPartitionIterator partitions = command.executeLocally(command.executionController(false)))
+        {
+            while (partitions.hasNext())
+            {
+                try (UnfilteredRowIterator partition = partitions.next())
+                {
+                    while (partition.hasNext())
+                        partition.next();
+                }
+            }
+        }
+        return command;
     }
 
     @TearDown(Level.Trial)
@@ -163,5 +199,15 @@ public class QueryMonitorableExecutionInfoBench extends SAITester
         }
 
         return logSlowOperation();
+    }
+
+    /**
+     * Test the cost of running a query without logging it as slow, just to see the effect of counting things in case
+     * it is slow.
+     */
+    @Benchmark
+    public Object runFastOperation()
+    {
+        return generateRunAndConsumeCommand();
     }
 }
