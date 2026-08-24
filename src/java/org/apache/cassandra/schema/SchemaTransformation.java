@@ -157,7 +157,7 @@ public interface SchemaTransformation
             out.writeBoolean(hasKeyspace);
             if (hasKeyspace)
                 out.writeUTF(transformation.keyspace());
-            if (version.isAtLeast(Version.V10))
+            if (version.isAtLeast(Version.V9))
             {
                 byte [] cql = transformation.cql().getBytes(StandardCharsets.UTF_8);
                 out.writeUnsignedVInt32(cql.length);
@@ -176,7 +176,7 @@ public interface SchemaTransformation
             if (hasKeyspace)
                 keyspace = in.readUTF();
             String cql;
-            if (version.isAtLeast(Version.V10))
+            if (version.isAtLeast(Version.V9))
             {
                 int cqlLen = in.readUnsignedVInt32();
                 byte[] cqlBytes = new byte[cqlLen];
@@ -198,7 +198,7 @@ public interface SchemaTransformation
             long size = TypeSizes.sizeof(true);
             if (t.keyspace() != null)
                 size += TypeSizes.sizeof(t.keyspace());
-            if (version.isAtLeast(Version.V10))
+            if (version.isAtLeast(Version.V9))
             {
                 byte [] cqlBytes = t.cql().getBytes(StandardCharsets.UTF_8);
                 size += TypeSizes.sizeofUnsignedVInt(cqlBytes.length);
