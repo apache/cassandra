@@ -736,14 +736,15 @@ public class RangeStreamer
                     if (remaining.size() < available.full.size() + available.trans.size())
                     {
                         // If the operator hasn't specified what to do when we discover a previous partially successful bootstrap,
-                        // we error out and tell them to manually reconcile it. See CASSANDRA-17679.
+                        // we error out and spell out the true/false choice. See CASSANDRA-17679.
                         if (!RESET_BOOTSTRAP_PROGRESS.isPresent())
                         {
                             List<FetchReplica> skipped = fetchReplicas.stream().filter(isAvailable).collect(Collectors.toList());
-                            String msg = String.format("Discovered existing bootstrap data and %s " +
-                                                       "is not configured; aborting bootstrap. Please clean up local files manually " +
-                                                       "and try again or set cassandra.reset_bootstrap_progress=true to ignore. " +
-                                                       "Found: %s. Fully available: %s. Transiently available: %s",
+                            String msg = String.format("Discovered existing bootstrap data from a previous, partially successful bootstrap " +
+                                                       "and %1$s is unset; aborting. Set -D%1$s=true to discard that progress and re-stream " +
+                                                       "all ranges, after deleting the data files the previous attempt streamed, or " +
+                                                       "-D%1$s=false to stream only the ranges still missing. " +
+                                                       "See CASSANDRA-17679. Found: %2$s. Fully available: %3$s. Transiently available: %4$s",
                                                        RESET_BOOTSTRAP_PROGRESS.getKey(), skipped, available.full, available.trans);
                             logger.error(msg);
                             throw new IllegalStateException(msg);
