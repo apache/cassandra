@@ -198,7 +198,21 @@ public class IntegerInterval
                 rpos = (-1 - rpos) - 1;
             if (rpos == -1)
                 return false;
-            return upper(ranges[rpos]) >= end;
+
+            int covered = upper(ranges[rpos]);
+
+            // We need to walk through ranges as [0, 1] [2, 3] are non overlapping,
+            // however we still cover [0, 3]. Without this loop, covered
+            // would be equal to 1
+            for (int i = rpos + 1; i < ranges.length; i++)
+            {
+                if (covered >= end)
+                    break;
+                if (lower(ranges[i]) == covered + 1)
+                    covered = upper(ranges[i]);
+            }
+
+            return covered >= end;
         }
 
         /**
