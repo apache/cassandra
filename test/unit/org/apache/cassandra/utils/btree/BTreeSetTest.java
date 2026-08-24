@@ -34,7 +34,7 @@ public class BTreeSetTest
     }
 
     @Test
-    public void toArrayWithOffsetUnderAllocates()
+    public void toArrayWithOffsetUnderAllocatesRegressionTest()
     {
         BTreeSet<Integer> set = BTreeSet.of(1);
         Object[] out = set.toArray(new Object[0], 1);
