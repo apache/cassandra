@@ -108,7 +108,8 @@ public class PrepareReplace implements Transformation
 
         StartReplace start = new StartReplace(replaced, replacement, transitionPlan.addToWrites(), unlockKey);
         MidReplace mid = new MidReplace(replaced, replacement, transitionPlan.moveReads(), unlockKey);
-        FinishReplace finish = new FinishReplace(replaced, replacement, transitionPlan.removeFromWrites(), unlockKey);
+        FinishReplace finish =
+            new FinishReplace(replaced, replacement, transitionPlan.removeFromWrites(), unlockKey, !UnlockSequence.isSupportedBy(prev));
         transitionPlan.assertPreExistingWriteReplica(prev.placements);
 
         Set<Token> tokens = new HashSet<>(prev.tokenMap.tokens(replaced));
@@ -327,7 +328,16 @@ public class PrepareReplace implements Transformation
                              PlacementDeltas delta,
                              LockedRanges.Key unlockKey)
         {
-            super(replaced, replacement, delta, unlockKey, true);
+            this(replaced, replacement, delta, unlockKey, true);
+        }
+
+        public FinishReplace(NodeId replaced,
+                             NodeId replacement,
+                             PlacementDeltas delta,
+                             LockedRanges.Key unlockKey,
+                             boolean unlock)
+        {
+            super(replaced, replacement, delta, unlockKey, unlock);
         }
 
         @Override
@@ -339,8 +349,9 @@ public class PrepareReplace implements Transformation
         @Override
         public ClusterMetadata.Transformer transform(ClusterMetadata prev, ClusterMetadata.Transformer transformer)
         {
-            return transformer.replaced(replaced, replacement())
-                              .with(prev.inProgressSequences.without(nodeId));
+            ClusterMetadata.Transformer next = transformer.replaced(replaced, replacement());
+            return unlock ? next.with(prev.inProgressSequences.without(nodeId))
+                          : next.with(prev.inProgressSequences.with(nodeId, (BootstrapAndReplace plan) -> plan.advance(prev.nextEpoch())));
         }
 
         @Override
@@ -357,9 +368,42 @@ public class PrepareReplace implements Transformation
         public static final class Serializer extends PrepareReplace.SerializerBase<FinishReplace>
         {
             @Override
+            public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException
+            {
+                super.serialize(t, out, version);
+                // TODO (now): confirm that this is the Version to use
+                if (version.isAtLeast(Version.TBD_UNLOCK_STEP))
+                    out.writeBoolean(((FinishReplace) t).unlock);
+            }
+
+            @Override
+            public FinishReplace deserialize(DataInputPlus in, Version version) throws IOException
+            {
+                NodeId replaced = NodeId.serializer.deserialize(in, version);
+                NodeId replacement = NodeId.serializer.deserialize(in, version);
+                PlacementDeltas delta = PlacementDeltas.serializer.deserialize(in, version);
+                LockedRanges.Key lockKey = LockedRanges.Key.serializer.deserialize(in, version);
+                // UnlockSequence step which follows after FinishReplace was introduced in TBD_UNLOCK_STEP
+                // to support mutation tracking, and unlock now happens in that step.
+                // TODO (now): confirm the correct Version to use here.
+                boolean unlock = version.isBefore(Version.TBD_UNLOCK_STEP) || in.readBoolean();
+                return new FinishReplace(replaced, replacement, delta, lockKey, unlock);
+            }
+
+            @Override
+            public long serializedSize(Transformation t, Version version)
+            {
+                long size = super.serializedSize(t, version);
+                // TODO (now): confirm the correct Version to use here.
+                if (version.isAtLeast(Version.TBD_UNLOCK_STEP))
+                    size += TypeSizes.sizeof(((FinishReplace)t).unlock);
+                return size;
+            }
+
+            @Override
             FinishReplace construct(NodeId replaced, NodeId replacement, PlacementDeltas delta, LockedRanges.Key lockKey)
             {
-                return new FinishReplace(replaced, replacement, delta, lockKey);
+                throw new IllegalStateException();
             }
         }
     }

@@ -63,6 +63,11 @@ public abstract class ApplyPlacementDeltas implements Transformation
         return delta;
     }
 
+    public boolean unlocks()
+    {
+        return unlock;
+    }
+
     public Set<InetAddressAndPort> affectedEndpoints()
     {
         Set<InetAddressAndPort> affectedEndpoints = new HashSet<>();

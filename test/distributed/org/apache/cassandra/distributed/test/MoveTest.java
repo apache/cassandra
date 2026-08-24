@@ -50,7 +50,7 @@ public class MoveTest extends TestBaseImpl
     private void move(boolean forwards) throws Throwable
     {
         try (Cluster cluster = Cluster.build(4)
-                                      .withConfig(config -> config.set("paxos_variant", "v2_without_linearizable_reads").with(NETWORK).with(GOSSIP))
+                                      .withConfig(config -> config.set("paxos_variant", "v2_without_linearizable_reads").set("mutation_tracking.enabled", false).with(NETWORK).with(GOSSIP))
                                       .withoutVNodes()
                                       .start())
         {

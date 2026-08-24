@@ -471,8 +471,9 @@ public class Shard
 
     void markSealing()
     {
+        // TODO (expected): consider what can possibly go wrong with the no-op on SEALED
         if (state == State.SEALED)
-            throw new IllegalStateException(format("%s cannot transition to SEALING from %s", this, state));
+            return;
 
         if (state != State.SEALING)
         {

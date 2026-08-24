@@ -145,15 +145,29 @@ public final class SealingCoordinator
      * 5. FINISH_JOIN at e4:
      *
      *      (10,20] | {n20,n30,n40}     | e0 | SEALED
-     *    S (10,20] | {n20,n30,n35,n40} | e2 | SEALED
+     *      (10,20] | {n20,n30,n35,n40} | e2 | ACTIVE
      *    + (10,20] | {n20,n30,n35}     | e4 | ACTIVE
      *      (20,30] | {n30,n40,n50}     | e0 | SEALED
-     *    S (20,30] | {n30,n35,n40,n50} | e2 | SEALED
+     *      (20,30] | {n30,n35,n40,n50} | e2 | ACTIVE
      *    + (20,30] | {n30,n35,n40}     | e4 | ACTIVE
      *      (30,40] | {n40,n50,n60}     | e0 | SEALED
      *      (30,35] | {n40,n50,n60}     | e1 | SEALED
-     *    S (30,35] | {n35,n40,n50,n60} | e2 | SEALED
+     *      (30,35] | {n35,n40,n50,n60} | e2 | ACTIVE
      *    + (30,35] | {n35,n40,n50}     | e4 | ACTIVE
+     *      (35,40] | {n40,n50,n60}     | e1 | ACTIVE
+     *
+     * 6. UNLOCK_SEQUENCE:
+     *
+     *      (10,20] | {n20,n30,n40}     | e0 | SEALED
+     *    S (10,20] | {n20,n30,n35,n40} | e2 | SEALED
+     *      (10,20] | {n20,n30,n35}     | e4 | ACTIVE
+     *      (20,30] | {n30,n40,n50}     | e0 | SEALED
+     *    S (20,30] | {n30,n35,n40,n50} | e2 | SEALED
+     *      (20,30] | {n30,n35,n40}     | e4 | ACTIVE
+     *      (30,40] | {n40,n50,n60}     | e0 | SEALED
+     *      (30,35] | {n40,n50,n60}     | e1 | SEALED
+     *    S (30,35] | {n35,n40,n50,n60} | e2 | SEALED
+     *      (30,35] | {n35,n40,n50}     | e4 | ACTIVE
      *      (35,40] | {n40,n50,n60}     | e1 | ACTIVE
      *
      * [*] At this stage, after sealing the shards, we stream the sstables.
@@ -172,16 +186,11 @@ public final class SealingCoordinator
     }
 
     /**
-     * Seal the intermediate shards that were created during START_JOIN.
-     * TODO (required): this MUST eventually run while the affected ranges are still locked - between the
-     *      removeFromWrites placement change and the range unlock. FinishJoin/FinishReplace currently apply
-     *      removeFromWrites and the unlock atomically in a single transformation, so there is no committed
-     *      dropped-but-locked epoch to hook. Until then, this runs just after FINISH_JOIN/FINISH_REPLACE,
-     *      when the ranges are already unlocked. Left to implement for the unhappy path (AY).
+     * Seal the intermediate, over-replicated shards created during START_JOIN and obsoleted by FINISH_JOIN.
      */
-    public static void sealShardsAtFinishJoin(ClusterMetadata metadata, PlacementDeltas finishDelta)
+    public static void sealShardsAtFinishJoin(ClusterMetadata metadata, long finishEpoch, PlacementDeltas finishDelta)
     {
-        seal(discoverShardsAtFinishJoinOrReplace(metadata, finishDelta, null));
+        seal(discoverShardsAtFinishJoinOrReplace(metadata, finishEpoch, finishDelta, null));
     }
 
     /*
@@ -219,14 +228,26 @@ public final class SealingCoordinator
      * 4. FINISH_REPLACE at e3:
      *
      *      (10,20] | {n20,n30,n40}     | e0 | SEALED
-     *    S (10,20] | {n20,n30,n40,$n40}| e1 | SEALED
+     *      (10,20] | {n20,n30,n40,$n40}| e1 | ACTIVE
      *    + (10,20] | {n20,n30,$n40}    | e3 | ACTIVE
      *      (20,30] | {n30,n40,n50}     | e0 | SEALED
-     *    S (20,30] | {n30,n40,$n40,n50}| e1 | SEALED
+     *      (20,30] | {n30,n40,$n40,n50}| e1 | ACTIVE
      *    + (20,30] | {n30,$n40,n50}    | e3 | ACTIVE
      *      (30,40] | {n40,n50,n60}     | e0 | SEALED
-     *    S (30,40] | {n40,$n40,n50,n60}| e1 | SEALED
+     *      (30,40] | {n40,$n40,n50,n60}| e1 | ACTIVE
      *    + (30,40] | {$n40,n50,n60}    | e3 | ACTIVE
+     *
+     * 5. UNLOCK_SEQUENCE:
+     *
+     *      (10,20] | {n20,n30,n40}     | e0 | SEALED
+     *    S (10,20] | {n20,n30,n40,$n40}| e1 | SEALED
+     *      (10,20] | {n20,n30,$n40}    | e3 | ACTIVE
+     *      (20,30] | {n30,n40,n50}     | e0 | SEALED
+     *    S (20,30] | {n30,n40,$n40,n50}| e1 | SEALED
+     *      (20,30] | {n30,$n40,n50}    | e3 | ACTIVE
+     *      (30,40] | {n40,n50,n60}     | e0 | SEALED
+     *    S (30,40] | {n40,$n40,n50,n60}| e1 | SEALED
+     *      (30,40] | {$n40,n50,n60}    | e3 | ACTIVE
      *
      * [*] At this stage, after sealing the shards, we stream the sstables.
      * Non-repaired (not fully reconciled) SSTables must be split into
@@ -247,9 +268,13 @@ public final class SealingCoordinator
         seal(discoverShardsAtMidJoinOrReplace(metadata, movements), deadNode);
     }
 
-    public static void sealShardsAtFinishReplace(ClusterMetadata metadata, PlacementDeltas finishDelta, @Nonnull NodeId deadNode)
+    /**
+     * Seal the intermediate, over-replicated shards created during START_REPLACE and obsoleted by FINISH_REPLACE.
+     * The {@code deadNode} node cannot participate in the sealing.
+     */
+    public static void sealShardsAtFinishReplace(ClusterMetadata metadata, long finishEpoch, PlacementDeltas finishDelta, @Nonnull NodeId deadNode)
     {
-        seal(discoverShardsAtFinishJoinOrReplace(metadata, finishDelta, deadNode), deadNode);
+        seal(discoverShardsAtFinishJoinOrReplace(metadata, finishEpoch, finishDelta, deadNode), deadNode);
     }
 
     /**
@@ -297,9 +322,9 @@ public final class SealingCoordinator
     /**
      * Discover all shards that need to be sealed at FINISH_JOIN or FINISH_REPLACE.
      */
-    private static Set<ShardMetadata> discoverShardsAtFinishJoinOrReplace(ClusterMetadata metadata, PlacementDeltas finishDelta, @Nullable NodeId deadNode)
+    private static Set<ShardMetadata> discoverShardsAtFinishJoinOrReplace(
+        ClusterMetadata metadata, long finishEpoch, PlacementDeltas finishDelta, @Nullable NodeId deadNode)
     {
-        long finishEpoch = metadata.epoch.getEpoch();
         Set<ShardMetadata> shards = new HashSet<>();
         for (KeyspaceMetadata ksm : metadata.schema.getKeyspaces())
         {
@@ -364,15 +389,28 @@ public final class SealingCoordinator
      * 4. FINISH_LEAVE at e3:
      *
      *      (10,20] | {n20,n30,n40}     | e0 | SEALED
-     *    S (10,20] | {n20,n30,n40,n50} | e1 | SEALED
+     *      (10,20] | {n20,n30,n40,n50} | e1 | ACTIVE
      *    + (10,20] | {n20,n30,n50}     | e3 | ACTIVE
      *      (20,30] | {n30,n40,n50}     | e0 | SEALED
-     *    S (20,30] | {n30,n40,n50,n60} | e1 | SEALED
+     *      (20,30] | {n30,n40,n50,n60} | e1 | ACTIVE
      *    + (20,30] | {n30,n50,n60}     | e3 | ACTIVE
+     *      (30,40] | {n40,n50,n60}     | e0 | SEALED
+     *      (30,40] | {n40,n50,n60,n70} | e1 | ACTIVE
+     *      (40,50] | {n50,n60,n70}     | e0 | ACTIVE
+     *    + (30,50] | {n50,n60,n70}     | e3 | ACTIVE
+     *
+     * 5. UNLOCK_SEQUENCE:
+     *
+     *      (10,20] | {n20,n30,n40}     | e0 | SEALED
+     *    S (10,20] | {n20,n30,n40,n50} | e1 | SEALED
+     *      (10,20] | {n20,n30,n50}     | e3 | ACTIVE
+     *      (20,30] | {n30,n40,n50}     | e0 | SEALED
+     *    S (20,30] | {n30,n40,n50,n60} | e1 | SEALED
+     *      (20,30] | {n30,n50,n60}     | e3 | ACTIVE
      *      (30,40] | {n40,n50,n60}     | e0 | SEALED
      *    S (30,40] | {n40,n50,n60,n70} | e1 | SEALED
      *    S (40,50] | {n50,n60,n70}     | e0 | SEALED
-     *    + (30,50] | {n50,n60,n70}     | e3 | ACTIVE
+     *      (30,50] | {n50,n60,n70}     | e3 | ACTIVE
      *
      * [*] At this stage, after sealing the shards, we stream the sstables.
      * Non-repaired (not fully reconciled) SSTables must be split into
@@ -424,20 +462,20 @@ public final class SealingCoordinator
     }
 
     /**
-     * Seal the shards that need to be sealed at LEAVE_FINISH for both UNBOOTSTRAP and REMOVENODE.
+     * Seal the shards obsoleted by FINISH_LEAVE, for both UNBOOTSTRAP and REMOVENODE: the departed node's
+     * over-replicated generations created during START_LEAVE, plus the merge-half folded into its range.
      */
-    public static void sealShardsAtFinishLeave(ClusterMetadata postFinish, PlacementDeltas finishDelta, NodeId leavingOrDeparted, LeaveStreams.Kind kind)
+    public static void sealShardsAtFinishLeave(ClusterMetadata metadata, long finishEpoch, PlacementDeltas finishDelta, NodeId leavingOrDeparted, LeaveStreams.Kind kind)
     {
-        long finishEpoch = postFinish.epoch.getEpoch();
-        InetAddressAndPort leavingOrDepartedEndpoint = postFinish.directory.endpoint(leavingOrDeparted);
+        InetAddressAndPort leavingOrDepartedEndpoint = metadata.directory.endpoint(leavingOrDeparted);
 
         List<Future<Set<ShardMetadata>>> futures = new ArrayList<>();
-        for (KeyspaceMetadata ksm : postFinish.schema.getKeyspaces())
+        for (KeyspaceMetadata ksm : metadata.schema.getKeyspaces())
         {
             if (!ksm.params.replicationType.isTracked())
                 continue;
 
-            DataPlacement placement = postFinish.placements.get(ksm.params.replication);
+            DataPlacement placement = metadata.placements.get(ksm.params.replication);
             RangesAtEndpoint removals = finishDelta.get(ksm.params.replication).writes.removals.get(leavingOrDepartedEndpoint);
             for (Replica removedReplica : removals)
             {
@@ -507,7 +545,7 @@ public final class SealingCoordinator
      *   it no longer allocates new ids on it). The ProgressBarrier gating bootstrap()/MID_JOIN only waits for
      *   EACH_QUORUM of the affected replicas, NOT all live replicas, so a live-but-lagging participant could still
      *   be on the old shard. Bringing each participant up to the seal epoch must be done per-replica (not
-     *   per-shard) and will be added separately. TLDR - add a step to guaranteed up-to-speed rest of replicas epochs.
+     *   per-shard) and will be added later.
      */
     private static AsyncPromise<Void> initiate(ShardMetadata shard, @Nullable NodeId withoutNode)
     {

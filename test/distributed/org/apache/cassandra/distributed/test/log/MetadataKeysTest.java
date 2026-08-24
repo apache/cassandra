@@ -40,6 +40,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.MetadataKey;
 import org.apache.cassandra.tcm.MetadataKeys;
+import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
@@ -48,6 +49,7 @@ import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
+import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.sequences.LeaveStreams;
 import org.apache.cassandra.tcm.sequences.Move;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
@@ -56,6 +58,7 @@ import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
 import org.apache.cassandra.tcm.transformations.Register;
+import org.apache.cassandra.tcm.transformations.UnlockSequence;
 
 public class MetadataKeysTest extends CMSTestBase
 {
@@ -97,6 +100,7 @@ public class MetadataKeysTest extends CMSTestBase
 
                 checkDiff(sut.service, bootstrapAndJoin.finishJoin);
                 sut.service.commit(bootstrapAndJoin.finishJoin);
+                maybeCommitUnlock(sut.service, prepareJoin.nodeId(), bootstrapAndJoin.lockKey);
             }
 
             {
@@ -113,6 +117,7 @@ public class MetadataKeysTest extends CMSTestBase
 
                 checkDiff(sut.service, bootstrapAndMove.finishMove);
                 sut.service.commit(bootstrapAndMove.finishMove);
+                maybeCommitUnlock(sut.service, prepareMove.nodeId(), bootstrapAndMove.lockKey);
             }
 
             {
@@ -129,6 +134,7 @@ public class MetadataKeysTest extends CMSTestBase
 
                 checkDiff(sut.service, bootstrapAndLeave.finishLeave);
                 sut.service.commit(bootstrapAndLeave.finishLeave);
+                maybeCommitUnlock(sut.service, prepareLeave.nodeId(), bootstrapAndLeave.lockKey);
             }
         }
     }
@@ -150,6 +156,17 @@ public class MetadataKeysTest extends CMSTestBase
             transformation = CustomTransformation.ClearInt.instance;
             checkDiff(sut.service, transformation, Collections.singleton(CustomTransformation.PokeInt.METADATA_KEY));
             sut.service.commit(transformation);
+        }
+    }
+
+    private static void maybeCommitUnlock(ClusterMetadataService cms, NodeId nodeId, LockedRanges.Key lockKey)
+    {
+        MultiStepOperation<?> seq = cms.metadata().inProgressSequences.get(nodeId);
+        if (seq != null && seq.nextStep() == Transformation.Kind.UNLOCK_SEQUENCE)
+        {
+            UnlockSequence unlock = new UnlockSequence(nodeId, lockKey);
+            checkDiff(cms, unlock);
+            cms.commit(unlock);
         }
     }
 
