@@ -60,6 +60,7 @@ import org.apache.cassandra.tcm.transformations.ReconfigureAccordFastPath;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.tcm.transformations.TriggerSnapshot;
+import org.apache.cassandra.tcm.transformations.UnlockSequence;
 import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.tcm.transformations.cms.AdvanceCMSReconfiguration;
@@ -275,6 +276,14 @@ public interface Transformation
         FINISH_DROP_ACCORD_TABLE(42, Version.MIN_ACCORD_VERSION, () -> FinishDropAccordTable.serializer),
         ACCORD_MARK_HARD_REMOVED(43, Version.MIN_ACCORD_VERSION, () -> AccordMarkHardRemoved.serializer),
         ADVANCE_MUTATION_TRACKING_MIGRATION(44, Version.MIN_MUTATION_TRACKING_VERSION, () -> AdvanceMutationTrackingMigration.serializer),
+
+        /*
+         * Additional final step for JOIN/MOVE/LEAVE/REPLACE sequences that seal the
+         * intermediate mutation tracking shards before unlocking the affected ranges.
+         * See o.a.c.replication.SealingCoordinator comments for additional context.
+         * TODO (now): what should be the correct introducedIn version for these?
+         */
+        UNLOCK_SEQUENCE(45, Version.TBD_UNLOCK_STEP, () -> UnlockSequence.serializer),
         ;
 
         /**

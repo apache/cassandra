@@ -108,7 +108,8 @@ public class PrepareMove implements Transformation
         LockedRanges.Key lockKey = LockedRanges.keyFor(prev.nextEpoch());
         StartMove startMove = new StartMove(nodeId, transitionPlan.addToWrites(), lockKey);
         MidMove midMove = new MidMove(nodeId, transitionPlan.moveReads(), lockKey);
-        FinishMove finishMove = new FinishMove(nodeId, tokens, transitionPlan.removeFromWrites(), lockKey);
+        FinishMove finishMove =
+            new FinishMove(nodeId, tokens, transitionPlan.removeFromWrites(), lockKey, !UnlockSequence.isSupportedBy(prev));
         transitionPlan.assertPreExistingWriteReplica(prev.placements);
 
         Move sequence = Move.newSequence(prev.nextEpoch(),
@@ -244,7 +245,12 @@ public class PrepareMove implements Transformation
         @VisibleForTesting
         public FinishMove(NodeId nodeId, Collection<Token> newTokens, PlacementDeltas delta, LockedRanges.Key lockKey)
         {
-            super(nodeId, delta, lockKey, true);
+            this(nodeId, newTokens, delta, lockKey, true);
+        }
+
+        public FinishMove(NodeId nodeId, Collection<Token> newTokens, PlacementDeltas delta, LockedRanges.Key lockKey, boolean unlock)
+        {
+            super(nodeId, delta, lockKey, unlock);
             this.newTokens = newTokens;
         }
 
@@ -257,9 +263,11 @@ public class PrepareMove implements Transformation
         @Override
         public ClusterMetadata.Transformer transform(ClusterMetadata prev, ClusterMetadata.Transformer transformer)
         {
-            return transformer.moveTokens(nodeId, newTokens)
-                              .join(nodeId)
-                              .with(prev.inProgressSequences.without(nodeId));
+            ClusterMetadata.Transformer next =
+                transformer.moveTokens(nodeId, newTokens)
+                           .join(nodeId);
+            return unlock ? next.with(prev.inProgressSequences.without(nodeId))
+                          : next.with(prev.inProgressSequences.with(nodeId, (Move plan) -> plan.advance(prev.nextEpoch())));
         }
 
         public static final class Serializer extends SerializerBase<PrepareMove.FinishMove>
@@ -272,6 +280,9 @@ public class PrepareMove implements Transformation
                 out.writeUnsignedVInt32(tokens.size());
                 for (Token token : tokens)
                     Token.metadataSerializer.serialize(token, out, version);
+                // TODO (now): confirm that this is the Version to use
+                if (version.isAtLeast(Version.TBD_UNLOCK_STEP))
+                    out.writeBoolean(((FinishMove) t).unlock);
             }
 
             public FinishMove deserialize(DataInputPlus in, Version version) throws IOException
@@ -285,7 +296,11 @@ public class PrepareMove implements Transformation
                 for (int i = 0; i < numTokens; i++)
                     tokens.add(Token.metadataSerializer.deserialize(in, partitioner, version));
 
-                return new FinishMove(nodeId, tokens, delta, lockKey);
+                // UnlockSequence step which follows after FinishMove was introduced in TBD_UNLOCK_STEP
+                // to support mutation tracking, and unlock now happens in that step.
+                // TODO (now): confirm the correct Version to use here.
+                boolean unlock = version.isBefore(Version.TBD_UNLOCK_STEP) || in.readBoolean();
+                return new FinishMove(nodeId, tokens, delta, lockKey, unlock);
             }
 
             public long serializedSize(Transformation t, Version version)
@@ -295,6 +310,9 @@ public class PrepareMove implements Transformation
                 size += TypeSizes.sizeofUnsignedVInt(tokens.size());
                 for (Token token : tokens)
                     size += Token.metadataSerializer.serializedSize(token, version);
+                // TODO (now): confirm the correct Version to use here.
+                if (version.isAtLeast(Version.TBD_UNLOCK_STEP))
+                    size += TypeSizes.sizeof(((FinishMove)t).unlock);
                 return size;
             }
 

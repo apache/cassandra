@@ -116,6 +116,13 @@ class OnClusterLeave extends OnClusterChangeTopology
                 assert unbootstrapAndLeave.next.ordinal() == kind : String.format("Expected next step to be %s, but got %s", Transformation.Kind.values()[kind], unbootstrapAndLeave.next);
                 boolean res = unbootstrapAndLeave.executeNext().isContinuable();
                 assert res;
+
+                // On UNLOCK_SEQUENCE-supporting clusters FINISH_LEAVE no longer unlocks/retires the sequence;
+                // drain the trailing UNLOCK_SEQUENCE step so the range lock is released.
+                ClusterMetadata after = ClusterMetadata.current();
+                MultiStepOperation<?> trailing = after.inProgressSequences.get(metadata.myNodeId());
+                if (trailing != null && trailing.nextStep() == Transformation.Kind.UNLOCK_SEQUENCE)
+                    assert trailing.executeNext().isContinuable();
             });
         }
     }
