@@ -127,7 +127,7 @@ java_versions_supported=(11 17 21)
 java_version_string=$(IFS=" "; echo "${java_versions_supported[*]}")
 
 # Determine the sort of JVM we'll be running on.
-JAVA_VERSION=$(java -version 2>&1 | grep '[openjdk|java] version' | cut -d '"' -f2 | cut -d '.' -f1)
+JAVA_VERSION=$($JAVA -version 2>&1 | grep '[openjdk|java] version' | cut -d '"' -f2 | cut -d '.' -f1)
 
 supported=0
 for version in "${java_versions_supported[@]}"; do
