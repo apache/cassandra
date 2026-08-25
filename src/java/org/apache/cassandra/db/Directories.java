@@ -741,14 +741,52 @@ public class Directories
         return result;
     }
 
-    public HashMap<File, TimeUUID> getAccordBulkTransferPlanIds()
+    // Each TimeUUID can have multiple files spanning across different data directories
+    public Map<TimeUUID, List<File>> getAccordBulkTransferPlanIds()
     {
-        HashMap<File, TimeUUID> result = new HashMap<>();
+        Map<TimeUUID, List<File>> result = new HashMap<>();
+        Set<File> pendingLocations = getPendingLocations();
+        for (File pendingDir : pendingLocations)
+        {
+            // Each planID directory can contain multiple SSTables within it
+            for (File planID : pendingDir.listUnchecked())
+            {
+                TimeUUID timeUUID;
+                try
+                {
+                    timeUUID = TimeUUID.fromString(planID.name());
+                    if (!result.containsKey(timeUUID))
+                        result.put(timeUUID, new ArrayList<>());
+                    result.get(timeUUID).add(planID);
+                }
+                catch (IllegalArgumentException e)
+                {
+                    logger.warn("Unexpected: Invalid planID " + planID.name());
+                }
+            }
+        }
+
+        return result;
+    }
+
+    public List<File> getAccordBulkTransferSSTableDirectories()
+    {
+        List<File> result = new ArrayList<>();
         Set<File> pendingLocations = getPendingLocations();
         for (File pendingDir : pendingLocations)
         {
             for (File planID : pendingDir.listUnchecked())
-                result.put(planID, TimeUUID.fromString(planID.name()));
+            {
+                try
+                {
+                    TimeUUID.fromString(planID.name());
+                    result.add(planID);
+                }
+                catch (IllegalArgumentException e)
+                {
+                    logger.warn("Unexpected: Invalid planID " + planID.name());
+                }
+            }
         }
 
         return result;

@@ -350,13 +350,14 @@ public class Descriptor
         if (!sstableDirMatcher.find(0))
         {
             List<String> dirPath = new ArrayList<>();
-            for (Path element : file.toPath()) {
+            for (Path element : file.toPath())
+            {
                 dirPath.add(element.toString());
             }
 
             // Remove the second and third to last element, this removes /pending/uuid/ and gives us a file structure
             // that can be parsed by the original regexes
-            if (dirPath.size() >= 2)
+            if (dirPath.size() >= 3)
             {
                 dirPath.remove(dirPath.size() - 2);
                 dirPath.remove(dirPath.size() - 2);

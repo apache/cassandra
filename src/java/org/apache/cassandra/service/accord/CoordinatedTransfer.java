@@ -99,6 +99,23 @@ import static accord.primitives.Txn.Kind.Read;
  *       read txn's may see inconsistent results. However, there is no data inconsistency, as read txn's are properly
  *       ordered against write txn's.
  *   </li>
+ *   <li>
+ *       <b>Garbage Collection of SSTables</b>
+ *       Garbage collection of SSTables happens in a couple of different ways. We need to garbage collect any pending SSTables
+ *       and also in memory state for LocalTransfers.
+ *
+ *       In the case where we are unable to complete the streaming phase, the coordinator coordinates garbage collection for all the replicas
+ *       and sends out a TransferFailed message. If a node dies prior to receiving the garbage collection message from the
+ *       coordinator, if streaming failed it will be cleaned up by removeUnfinishedLeftovers on startup. Otherwise, in the case where the full
+ *       stream succeeded or the node is partitioned and did not get the TransferFailed message we rely on nodetool clean up to clean up the
+ *       files in the pending directory.
+ *
+ *       In the case that the ImportTxn succeeds, we schedule the cleanup of any pending SSTables after we activate them, and then we remove
+ *       the metadata from LocalTransfers.
+ *
+ *       If the ImportTxn fails, we do not know whether it has succeeded globally, so we rely on nodetool clean up to clean up the
+ *       files in the pending directory after the fact.
+ *   </li>
  * </ol>
  */
 public class CoordinatedTransfer
@@ -250,6 +267,7 @@ public class CoordinatedTransfer
         {
             notifyFailure();
             LocalTransfers.instance().schedulePendingLocalTransferCleanup(streamResult.planId());
+            LocalTransfers.instance().scheduleCoordinatedTransferCleanup(this);
         }
         catch (Throwable t)
         {

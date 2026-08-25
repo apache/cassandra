@@ -448,10 +448,10 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     {
         private final UUID importID;
         private final TimeUUID planId;
-        private final Long streamingEpoch;
+        private final long streamingEpoch;
         private final boolean copyData;
 
-        public ImportMetadata(UUID importID, TimeUUID planId, Long streamingEpoch, boolean copyData)
+        public ImportMetadata(UUID importID, TimeUUID planId, long streamingEpoch, boolean copyData)
         {
             this.importID = importID;
             this.planId = planId;
@@ -523,7 +523,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
             {
                 UUID importID = UUIDSerializer.serializer.deserialize(in);
                 TimeUUID planId = TimeUUID.Serializer.instance.deserialize(in);
-                Long streamingEpoch = in.readLong();
+                long streamingEpoch = in.readLong();
                 boolean copyData = in.readBoolean();
                 return new ImportMetadata(importID, planId, streamingEpoch, copyData);
             }

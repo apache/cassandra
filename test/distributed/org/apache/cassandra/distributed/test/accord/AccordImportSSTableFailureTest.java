@@ -394,12 +394,101 @@ public class AccordImportSSTableFailureTest extends AccordImportSSTableTestBase
                 cfs.importNewSSTables(Set.of(file), true, true, true, true, true, true, true);
             });
 
-            // Wait for Propogate message to be sent to catch up node 3
+            // Wait for Propagate message to be sent to catch up node 3
             Uninterruptibles.sleepUninterruptibly(5, TimeUnit.SECONDS);
 
             assertLocalSelect(cluster, rows -> assertRows(rows, row(1, 1), row(2, 1), row(3, 1)));
             assertSSTableCount(cluster, 1);
             cluster.filters().reset();
+        }
+    }
+
+    @Test
+    public void testEmptyPendingPlanId() throws Throwable
+    {
+        try (Cluster cluster = init(builder().withNodes(3)
+                                             .withoutVNodes()
+                                             .withDataDirCount(1)
+                                             .withConfig(config -> config.with(Feature.NETWORK, Feature.GOSSIP))
+                                             .start()))
+        {
+            createSchema(cluster);
+
+            // It is possible to have a pending/<planId> directory with no SSTables, in the case where the node
+            // fails during the creation of the directory and before any SSTables were actually streamed. We
+            // simulate this by creating a directory with a TimeUUID
+            cluster.get(1).runOnInstance(() -> {
+                File pendingDir = getOnlyElement(ColumnFamilyStore.getIfExists(KEYSPACE, TABLE).getDirectories().getPendingLocations());
+                Assertions.assertThat(new File(pendingDir, "00000000-0000-1000-8080-808080808080").tryCreateDirectory()).isTrue();
+            });
+
+            // An empty directory must be skipped instead of becoming a PendingLocalTransfer, otherwise the
+            // ColumnFamilyStore constructor throws
+            cluster.get(1).shutdown().get();
+            cluster.get(1).startup();
+
+            assertLocalTransferIsCleanedUp(cluster);
+            assertLocalSelect(cluster, rows -> assertRows(rows, EMPTY_ROWS));
+        }
+    }
+
+    @Test
+    public void testNodeDiesDuringStreaming() throws Throwable
+    {
+        String file = writeSSTables(new int[] { 1, 2, 3 });
+
+        int FAILED_STREAM = 3;
+        try (Cluster cluster = init(builder().withNodes(3)
+                                             .withoutVNodes()
+                                             .withDataDirCount(1)
+                                             .withInstanceInitializer(ByteBuddyInjections.FailIncomingStream.install(FAILED_STREAM))
+                                             .withConfig(config -> config.with(Feature.NETWORK, Feature.GOSSIP))
+                                             .start()))
+        {
+            createSchema(cluster);
+
+            cluster.get(1).runOnInstance(() -> {
+                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
+                Assertions.assertThatThrownBy(() -> cfs.importNewSSTables(Set.of(file), true, true, true, true, true, true, true));
+            });
+
+            // The failed node is left with the streamed files in pending/<planId>, without it's streaming transaction log committed
+            Iterable<IInvokableInstance> failed = Set.of(cluster.get(FAILED_STREAM));
+            assertPendingDirs(failed, (File pendingUuidDir) -> Assertions.assertThat(pendingUuidDir.listUnchecked(File::isFile)).isNotEmpty());
+
+            // removeUnfinishedLeftovers runs on startup and must delete them
+            cluster.get(FAILED_STREAM).shutdown().get();
+            cluster.get(FAILED_STREAM).startup();
+
+            assertPendingDirs(failed, (File pendingUuidDir) -> Assertions.assertThat(pendingUuidDir.listUnchecked(File::isFile)).isEmpty());
+        }
+    }
+
+    @Test
+    public void testNonUUIDDirectoryInPending() throws Throwable
+    {
+        try (Cluster cluster = init(builder().withNodes(3)
+                                             .withoutVNodes()
+                                             .withDataDirCount(1)
+                                             .withConfig(config -> config.with(Feature.NETWORK, Feature.GOSSIP))
+                                             .start()))
+        {
+            createSchema(cluster);
+
+            // listUnchecked returns files as well as directories, so anything the filesystem or an operator
+            // leaves in pending/ shows up alongside the planId directories
+            cluster.get(1).runOnInstance(() -> {
+                File pendingDir = getOnlyElement(ColumnFamilyStore.getIfExists(KEYSPACE, TABLE).getDirectories().getPendingLocations());
+                Assertions.assertThat(new File(pendingDir, "a.txt").tryCreateDirectory()).isTrue();
+                Assertions.assertThat(new File(pendingDir, "b.txt").createFileIfNotExists()).isTrue();
+            });
+
+            // Neither name is a TimeUUID and both must be ignored, otherwise TimeUUID.fromString throws out of
+            // the ColumnFamilyStore constructor
+            cluster.get(1).shutdown().get();
+            cluster.get(1).startup();
+
+            assertLocalSelect(cluster, rows -> assertRows(rows, EMPTY_ROWS));
         }
     }
 }

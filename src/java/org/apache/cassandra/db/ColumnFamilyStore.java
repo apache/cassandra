@@ -548,12 +548,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
 
         // Restores any pending SSTables from Accord bulk data transfer
-        HashMap<File, TimeUUID> filePlanIDs = directories.getAccordBulkTransferPlanIds();
-        for (Map.Entry<File, TimeUUID> entry: filePlanIDs.entrySet())
+        Map<TimeUUID, List<File>> filePlanIDs = directories.getAccordBulkTransferPlanIds();
+        for (Map.Entry<TimeUUID, List<File>> entry: filePlanIDs.entrySet())
         {
-            Directories.SSTableLister sstableLister = directories.sstableLister(entry.getKey(), Directories.OnTxnErr.IGNORE).skipTemporary(true);
-            Collection<SSTableReader> pendingSSTables = SSTableReader.openAll(this, sstableLister.list(true).entrySet(), metadata);
-            PendingLocalTransfer pendingLocalTransfer = new PendingLocalTransfer(getTableId(), entry.getValue(), pendingSSTables);
+            Set<SSTableReader> pendingSSTables = new HashSet<>();
+            for (File file : entry.getValue())
+            {
+                Directories.SSTableLister sstableLister = directories.sstableLister(file, Directories.OnTxnErr.IGNORE).skipTemporary(true);
+                pendingSSTables.addAll(SSTableReader.openAll(this, sstableLister.list(true).entrySet(), metadata));
+            }
+            if (pendingSSTables.isEmpty())
+            {
+                logger.info("SSTable import for TimeUUID {} is empty; removing the directory and skipping", entry.getValue());
+                continue;
+            }
+            PendingLocalTransfer pendingLocalTransfer = new PendingLocalTransfer(getTableId(), entry.getKey(), pendingSSTables);
             LocalTransfers.instance.received(pendingLocalTransfer);
         }
 

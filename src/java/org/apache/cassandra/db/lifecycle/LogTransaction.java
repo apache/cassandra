@@ -512,7 +512,10 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
      */
     static boolean removeUnfinishedLeftovers(TableMetadata metadata)
     {
-        return removeUnfinishedLeftovers(new Directories(metadata).getCFDirectories());
+        Directories directories = new Directories(metadata);
+        List<File> files = directories.getCFDirectories();
+        files.addAll(directories.getAccordBulkTransferSSTableDirectories());
+        return removeUnfinishedLeftovers(files);
     }
 
     @VisibleForTesting
@@ -526,7 +529,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
     private static final class LogFilesByName
     {
         // This maps a transaction log file name to a list of physical files. Each sstable
-        // can have multiple directories and a transaction is trakced by identical transaction log
+        // can have multiple directories and a transaction is tracked by identical transaction log
         // files, one per directory. So for each transaction file name we can have multiple
         // physical files.
         Map<String, List<File>> files = new HashMap<>();

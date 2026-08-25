@@ -122,7 +122,7 @@ public class AccordImportSSTableTestBase extends TestBaseImpl
         });
     }
 
-    static void assertLocalTransferIsCleanup(Iterable<IInvokableInstance> validate)
+    static void assertLocalTransferIsCleanedUp(Iterable<IInvokableInstance> validate)
     {
         for (IInvokableInstance instance : validate)
         {

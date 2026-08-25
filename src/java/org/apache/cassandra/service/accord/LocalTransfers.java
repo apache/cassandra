@@ -102,7 +102,7 @@ public class LocalTransfers
             PendingLocalTransfer transfer = local.get(timeUUID);
             if (transfer == null)
             {
-                logger.warn("Cannot purge unknown local pending transfer {}", transfer);
+                logger.warn("Cannot purge unknown local pending transfer {}", timeUUID);
                 return;
             }
 
