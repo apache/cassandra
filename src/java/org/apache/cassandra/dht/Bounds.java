@@ -17,14 +17,13 @@
  */
 package org.apache.cassandra.dht;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
 import com.google.common.collect.PeekingIterator;
 import com.google.common.collect.Sets;
 
@@ -162,15 +161,7 @@ public class Bounds<T extends RingPosition<T>> extends AbstractBounds<T>
      */
     public static <T extends RingPosition<T>> Set<Bounds<T>> getNonOverlappingBounds(Iterable<Bounds<T>> bounds)
     {
-        ArrayList<Bounds<T>> sortedBounds = Lists.newArrayList(bounds);
-        Collections.sort(sortedBounds, new Comparator<Bounds<T>>()
-        {
-            public int compare(Bounds<T> o1, Bounds<T> o2)
-            {
-                return o1.left.compareTo(o2.left);
-            }
-        });
-
+        List<Bounds<T>> sortedBounds = ImmutableList.sortedCopyOf(Comparator.comparing(o -> o.left), bounds);
         Set<Bounds<T>> nonOverlappingBounds = Sets.newHashSet();
 
         PeekingIterator<Bounds<T>> it = Iterators.peekingIterator(sortedBounds.iterator());
