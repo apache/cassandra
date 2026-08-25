@@ -218,6 +218,16 @@ public class CompressionMetadata extends WrappedSharedCloseable
         }
     }
 
+    /**
+     * Returns the dictionary used by the chunks described by this metadata, if any.
+     * Copied chunks must retain the same dictionary to remain readable.
+     */
+    @Nullable
+    public CompressionDictionary compressionDictionary()
+    {
+        return compressionDictionary;
+    }
+
     static ICompressor resolveCompressor(ICompressor compressor, CompressionDictionary dictionary)
     {
         if (dictionary == null)

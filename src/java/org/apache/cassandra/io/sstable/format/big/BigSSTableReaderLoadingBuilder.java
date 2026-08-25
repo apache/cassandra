@@ -121,8 +121,14 @@ public class BigSSTableReaderLoadingBuilder extends SortedTableReaderLoadingBuil
 
                     if (summaryComponent != null)
                     {
-                        builder.setFirst(summaryComponent.first);
-                        builder.setLast(summaryComponent.last);
+                        if (builder.getStatsMetadata() == null
+                            || builder.getStatsMetadata().firstPartitionPosition == 0
+                            || builder.getFirst() == null
+                            || builder.getLast() == null)
+                        {
+                            builder.setFirst(summaryComponent.first);
+                            builder.setLast(summaryComponent.last);
+                        }
                         builder.setIndexSummary(summaryComponent.indexSummary);
 
                         if (online)

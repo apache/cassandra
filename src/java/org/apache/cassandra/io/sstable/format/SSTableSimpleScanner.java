@@ -135,7 +135,12 @@ implements ISSTableScanner
     public boolean isFullRange()
     {
         // hasNext will init start and end
-        return hasNext() && currentStartPosition == 0 && currentEndPosition == sstable.uncompressedLength();
+        if (!hasNext())
+            return false;
+
+        PartitionPositionBounds fullRange = sstable.getPositionsForFullRange();
+        return fullRange != null && currentStartPosition == fullRange.lowerPosition &&
+               currentEndPosition == fullRange.upperPosition;
     }
 
     public TableMetadata metadata()

@@ -29,6 +29,7 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -67,6 +68,22 @@ public class Upgrader
         long estimatedTotalKeys = Math.max(cfs.metadata().params.minIndexInterval, SSTableReader.getApproximateKeyCount(Collections.singletonList(this.sstable)));
         long estimatedSSTables = Math.max(1, SSTableReader.getTotalBytes(Collections.singletonList(this.sstable)) / strategyManager.getMaxSSTableBytes());
         this.estimatedRows = (long) Math.ceil((double) estimatedTotalKeys / estimatedSSTables);
+    }
+
+    /**
+     * Whether an SSTable uses a version considered current by its format.
+     */
+    public static boolean isCurrentVersion(Descriptor descriptor)
+    {
+        return descriptor.version.isLatestVersion();
+    }
+
+    /**
+     * Whether an SSTable uses a current version of the selected output format.
+     */
+    public static boolean isCurrentVersion(Descriptor descriptor, SSTableFormat<?, ?> selectedFormat)
+    {
+        return descriptor.getFormat().name().equals(selectedFormat.name()) && isCurrentVersion(descriptor);
     }
 
     private SSTableWriter createCompactionWriter(StatsMetadata metadata)
@@ -130,4 +147,3 @@ public class Upgrader
         }
     }
 }
-

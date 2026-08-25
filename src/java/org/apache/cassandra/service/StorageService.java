@@ -220,6 +220,7 @@ import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.transport.ClientResourceLimits;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -4570,6 +4571,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             public TableMetadataRef getTableMetadata(String tableName)
             {
                 return Schema.instance.getTableMetadataRef(keyspace, tableName);
+            }
+
+            public CassandraVersion getEndpointVersion(InetAddressAndPort endpoint)
+            {
+                Directory directory = ClusterMetadata.current().directory;
+                NodeId peerId = directory.peerId(endpoint);
+                return peerId == null || directory.version(peerId) == null
+                       ? null
+                       : directory.version(peerId).cassandraVersion;
             }
         };
 
