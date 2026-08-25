@@ -57,6 +57,7 @@ public class SSTableAbstractBench extends CQLTester
     @Param("50000")
     int rowCount = 50000;
     private String table;
+    protected String writeStatement;
 
     // TODO: elaborate data setup with multiple schemas
     @Setup(Level.Trial)
@@ -84,7 +85,7 @@ public class SSTableAbstractBench extends CQLTester
 
     protected void setupData()
     {
-        String writeStatement = "INSERT INTO " + table + "(userid,picid1,picid2,commentid)VALUES(?,?,?,?)";
+        writeStatement = "INSERT INTO " + table + "(userid,picid1,picid2,commentid)VALUES(?,?,?,?)";
         for (long i = 0; i < rowCount; i++)
             insertForIndex(writeStatement, i);
 
