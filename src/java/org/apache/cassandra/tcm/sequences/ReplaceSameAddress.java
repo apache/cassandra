@@ -33,7 +33,7 @@ import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.MovementMap;
@@ -42,10 +42,10 @@ public class ReplaceSameAddress
 {
     private static final Logger logger = LoggerFactory.getLogger(ReplaceSameAddress.class);
 
-    public static MovementMap movementMap(NodeId nodeId, DataPlacements placements, Directory directory)
+    public static MovementMap movementMap(NodeId nodeId, DataPlacements placements, EndpointLookup endpointLookup)
     {
         MovementMap.Builder builder = MovementMap.builder();
-        InetAddressAndPort addr = directory.endpoint(nodeId);
+        InetAddressAndPort addr = endpointLookup.endpoint(nodeId);
         placements.forEach((params, placement) -> {
             EndpointsByReplica.Builder sources = new EndpointsByReplica.Builder();
             placement.reads.byEndpoint().get(addr).forEach(destination -> {

@@ -71,6 +71,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
@@ -456,15 +457,15 @@ public class Move extends MultiStepOperation<Epoch>
      *
      * there can be multiple sources for each destination
      */
-    private static MovementMap movementMap(IFailureDetector fd, DataPlacements placements, Directory directory, PlacementDeltas toSplitRanges, PlacementDeltas toStart, PlacementDeltas midDeltas, boolean strictConsistency)
+    private static MovementMap movementMap(IFailureDetector fd, DataPlacements placements, EndpointLookup endpointLookup, PlacementDeltas toSplitRanges, PlacementDeltas toStart, PlacementDeltas midDeltas, boolean strictConsistency)
     {
         MovementMap.Builder allMovements = MovementMap.builder();
         toStart.forEach((params, delta) -> {
-            RangesByEndpoint targets = delta.writes.additions(directory);
+            RangesByEndpoint targets = delta.writes.additions(endpointLookup);
             ReplicaGroups oldOwners = placements.get(params).reads;
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
-            Iterable<Replica> replicaRemovals = midDeltas.get(params).reads.removals(directory).flattenValues();
-            RangesByEndpoint writeAdditions = toSplitRanges.get(params).writes.additions(directory);
+            Iterable<Replica> replicaRemovals = midDeltas.get(params).reads.removals(endpointLookup).flattenValues();
+            RangesByEndpoint writeAdditions = toSplitRanges.get(params).writes.additions(endpointLookup);
             targets.flattenValues().forEach(destination -> {
                 SourceHolder sources = new SourceHolder(fd, destination, writeAdditions, strictConsistency);
                 AtomicBoolean needsRelaxedSources = new AtomicBoolean();

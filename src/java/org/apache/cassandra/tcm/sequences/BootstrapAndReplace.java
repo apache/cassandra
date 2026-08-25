@@ -54,6 +54,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
@@ -352,14 +353,14 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
      *
      * keys in the map are the ranges the replacement node needs to stream, values are the potential endpoints.
      */
-    private static MovementMap movementMap(NodeId beingReplaced, PlacementDeltas startDelta, DataPlacements placements, Directory directory)
+    private static MovementMap movementMap(NodeId beingReplaced, PlacementDeltas startDelta, DataPlacements placements, EndpointLookup endpointLookup)
     {
         MovementMap.Builder movementMapBuilder = MovementMap.builder();
-        InetAddressAndPort beingReplacedEndpoint = directory.endpoint(beingReplaced);
+        InetAddressAndPort beingReplacedEndpoint = endpointLookup.endpoint(beingReplaced);
         startDelta.forEach((params, delta) -> {
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
             DataPlacement originalPlacements = placements.get(params);
-            delta.writes.additions(directory).flattenValues().forEach((destination) -> {
+            delta.writes.additions(endpointLookup).flattenValues().forEach((destination) -> {
                 originalPlacements.reads.forRange(destination.range())
                                         .get().stream()
                                         .filter(r -> !r.endpoint().equals(beingReplacedEndpoint))

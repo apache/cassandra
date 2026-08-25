@@ -36,7 +36,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.streaming.DataMovement;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.MovementMap;
@@ -110,9 +110,9 @@ public class RemoveNodeStreams implements LeaveStreams
      * create a map where the key is the destination, and the values are possible sources
      * @return
      */
-    private static MovementMap movementMap(DataPlacements placements, Directory directory, NodeId leavingNode, PlacementDeltas startDelta)
+    private static MovementMap movementMap(DataPlacements placements, EndpointLookup endpointLookup, NodeId leavingNode, PlacementDeltas startDelta)
     {
-        InetAddressAndPort leaving = directory.endpoint(leavingNode);
+        InetAddressAndPort leaving = endpointLookup.endpoint(leavingNode);
         MovementMap.Builder allMovements = MovementMap.builder();
         // map of dest->src* movements, keyed by replication settings. During unbootstrap, this will be used to construct
         // a stream plan for each keyspace, based on their replication params.
@@ -122,8 +122,8 @@ public class RemoveNodeStreams implements LeaveStreams
                 return;
 
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
-            RangesByEndpoint startWriteAdditions = startDelta.get(params).writes.additions(directory);
-            RangesByEndpoint startWriteRemovals = startDelta.get(params).writes.removals(directory);
+            RangesByEndpoint startWriteAdditions = startDelta.get(params).writes.additions(endpointLookup);
+            RangesByEndpoint startWriteRemovals = startDelta.get(params).writes.removals(endpointLookup);
             // find current placements from the metadata, we need to stream from replicas that are not changed and are therefore not in the deltas
             ReplicaGroups currentPlacements = placements.get(params).reads;
             startWriteAdditions.flattenValues()
