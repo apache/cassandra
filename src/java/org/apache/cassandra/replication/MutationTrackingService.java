@@ -462,7 +462,12 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         shardLock.readLock().lock();
         try
         {
-            getOrCreateShards(keyspace).updateReplicatedOffsets(range, offsets, durable, onHost);
+            KeyspaceShards shards = getOrCreateShards(keyspace);
+            // The keyspace may have been dropped locally while this broadcast was in flight; ignore it.
+            if (shards == null)
+                logger.debug("Ignoring replicated offsets broadcast from {} for unknown (likely dropped) keyspace {}", onHost, keyspace);
+            else
+                shards.updateReplicatedOffsets(range, offsets, durable, onHost);
         }
         finally
         {
@@ -830,6 +835,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         return getOrCreateShards(Schema.instance.getTableMetadata(tableId).keyspace);
     }
 
+    @Nullable
     private KeyspaceShards getOrCreateShards(String keyspace)
     {
         KeyspaceShards ks = keyspaceShards.get(keyspace);
@@ -837,7 +843,11 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             return ks;
 
         ClusterMetadata csm = ClusterMetadata.current();
-        KeyspaceMetadata ksm = csm.schema.getKeyspaceMetadata(keyspace);
+        // The keyspace may have been dropped locally while messages referencing it (e.g. offset broadcasts
+        // from peers) are still in flight. Return null so inbound handlers can ignore them gracefully.
+        KeyspaceMetadata ksm = csm.schema.maybeGetKeyspaceMetadata(keyspace).orElse(null);
+        if (ksm == null)
+            return null;
         return keyspaceShards.computeIfAbsent(keyspace, ignore -> KeyspaceShards.make(ksm, csm, this::nextLogId, this::onNewLog));
     }
 

@@ -76,7 +76,7 @@ public class ShortMutationId implements Serializable
 
     public ShortMutationId(MutationId mutationId)
     {
-        this(mutationId.hostLogId(), mutationId.hostId(), mutationId.offset());
+        this(mutationId.hostId(), mutationId.hostLogId(), mutationId.offset());
     }
 
     public int hostId()

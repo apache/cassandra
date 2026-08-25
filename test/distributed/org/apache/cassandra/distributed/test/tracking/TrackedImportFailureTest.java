@@ -79,7 +79,7 @@ public class TrackedImportFailureTest extends TrackedTransferTestBase
     public void importMissedActivation(ActivationRequest.Phase phase) throws Throwable
     {
         int MISSED_ACTIVATION = 2;
-        try (Cluster cluster = cluster(TrackedTransferTestBase.ByteBuddyInjections.SkipActivation.install(MISSED_ACTIVATION)))
+        try (Cluster cluster = disableBackgroundReconciler(cluster(TrackedTransferTestBase.ByteBuddyInjections.SkipActivation.install(MISSED_ACTIVATION))))
         {
             TrackedTransferTestBase.ByteBuddyInjections.SkipActivation.setup(cluster, phase);
             createSchema(cluster);
