@@ -135,7 +135,7 @@ public class UniformRangePlacement implements PlacementProvider
                                             .applyDelta(metadata.directory, metadata.nextEpoch(), plan.moveReads())
                                             .applyDelta(metadata.directory, metadata.nextEpoch(), plan.removeFromWrites());
         assertDiff(afterExecution, finalPlacements, metadata);
-        if (metadata.directory.commonSerializationVersion.isBefore(Version.V9))
+        if (metadata.directory.commonSerializationVersion.isBefore(Version.V10))
             return plan.withEndpointDeltas(metadata.directory);
         return plan;
     }
@@ -189,7 +189,7 @@ public class UniformRangePlacement implements PlacementProvider
         });
 
         PlacementTransitionPlan plan = new PlacementTransitionPlan(split.build(), toMaximal.build(), toFinal.build(), merge.build());
-        if (metadata.directory.commonSerializationVersion.isBefore(Version.V9))
+        if (metadata.directory.commonSerializationVersion.isBefore(Version.V10))
             return plan.withEndpointDeltas(metadata.directory);
         return plan;
     }
@@ -231,7 +231,7 @@ public class UniformRangePlacement implements PlacementProvider
             merge.put(params, finalDelta);
         });
         PlacementTransitionPlan plan = new PlacementTransitionPlan(PlacementDeltas.empty(), toMaximal.build(), toFinal.build(), merge.build());
-        if (metadata.directory.commonSerializationVersion.isBefore(Version.V9))
+        if (metadata.directory.commonSerializationVersion.isBefore(Version.V10))
             return plan.withEndpointDeltas(metadata.directory);
         return plan;
     }
@@ -259,7 +259,7 @@ public class UniformRangePlacement implements PlacementProvider
             toFinal.put(params, max.difference(metadata, finalPlacements.get(params)));
         });
         PlacementTransitionPlan plan = new PlacementTransitionPlan(PlacementDeltas.empty(), toMaximal.build(), toFinal.build(), PlacementDeltas.empty());
-        if (metadata.directory.commonSerializationVersion.isBefore(Version.V9))
+        if (metadata.directory.commonSerializationVersion.isBefore(Version.V10))
             return plan.withEndpointDeltas(metadata.directory);
         return plan;
     }

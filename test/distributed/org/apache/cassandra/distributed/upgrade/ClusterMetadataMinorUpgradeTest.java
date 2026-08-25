@@ -73,7 +73,7 @@ public class ClusterMetadataMinorUpgradeTest extends UpgradeTestBase
             cluster.get(2).nodetoolResult("abortmove").asserts().success();
             // no ongoing MSO, startup is fine
             cluster.get(3).startup();
-            assertTrue(((IInvokableInstance)cluster.get(1)).callOnInstance(() -> ClusterMetadata.current().directory.versions.values().stream().allMatch((v) -> v.serializationVersion >= Version.V9.asInt())));
+            assertTrue(((IInvokableInstance)cluster.get(1)).callOnInstance(() -> ClusterMetadata.current().directory.versions.values().stream().allMatch((v) -> v.serializationVersion >= Version.V10.asInt())));
         }).run();
     }
 }

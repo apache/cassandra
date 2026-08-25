@@ -62,16 +62,16 @@ public interface Delta
         @Override
         public void serialize(Delta t, DataOutputPlus out, Version version) throws IOException
         {
-            if (version.isBefore(Version.V9))
+            if (version.isBefore(Version.V10))
             {
                 if (!(t instanceof EndpointDelta))
-                    throw new IllegalStateException("Serialization version is before V9, can't serialize node id deltas");
+                    throw new IllegalStateException("Serialization version is before V10, can't serialize node id deltas");
                 EndpointDelta.serializer.serialize((EndpointDelta)t, out, version);
             }
             else
             {
-                // We might serialize EndpointDeltas even on V9 when we serve a catchup request and
-                // read back the log - if there are Deltas at V8 in the log, they are reserialized to V9 when
+                // We might serialize EndpointDeltas even on V10 when we serve a catchup request and
+                // read back the log - if there are Deltas at V9 in the log, they are reserialized to V10 when
                 // sending them to the requesting peer.
                 if (t instanceof NodeIdDelta)
                 {
@@ -89,7 +89,7 @@ public interface Delta
         @Override
         public Delta deserialize(DataInputPlus in, Version version) throws IOException
         {
-            if (version.isBefore(Version.V9))
+            if (version.isBefore(Version.V10))
                 return EndpointDelta.serializer.deserialize(in, version);
 
             if (in.readBoolean())
@@ -97,7 +97,7 @@ public interface Delta
             else
             {
                 EndpointDelta delta = EndpointDelta.serializer.deserialize(in, version);
-                logger.debug("Deserialized EndpointDelta at V8 or earlier on V9: {}", delta);
+                logger.debug("Deserialized EndpointDelta at V9 or earlier on V10: {}", delta);
                 return delta;
             }
         }
@@ -105,10 +105,10 @@ public interface Delta
         @Override
         public long serializedSize(Delta t, Version version)
         {
-            if (version.isBefore(Version.V9))
+            if (version.isBefore(Version.V10))
             {
                 if (!(t instanceof EndpointDelta))
-                    throw new IllegalStateException("Serialization version is before V9, can't serialize node id deltas");
+                    throw new IllegalStateException("Serialization version is before V10, can't serialize node id deltas");
                 return EndpointDelta.serializer.serializedSize((EndpointDelta)t, version);
             }
             else

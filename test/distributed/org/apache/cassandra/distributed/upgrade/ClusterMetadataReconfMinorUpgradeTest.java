@@ -49,7 +49,7 @@ public class ClusterMetadataReconfMinorUpgradeTest extends UpgradeTestBase
             cluster.get(4).flush("system");
             cluster.get(4).shutdown().get();
             cluster.get(4).startup();
-            cluster.get(4).logs().watchFor("Deserialized V8-serialized streamCandidates in V9");
+            cluster.get(4).logs().watchFor("Deserialized V9-serialized streamCandidates in V10");
         }).run();
     }
 }

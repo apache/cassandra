@@ -87,8 +87,8 @@ public abstract class AbstractLocalProcessor implements Processor
             if (result.isSuccess())
             {
                 Version newVersion = result.success().metadata.directory.commonSerializationVersion;
-                if (previousVersion.isEqualOrBefore(Version.V8) &&
-                         newVersion.isAtLeast(Version.V9) &&
+                if (previousVersion.isEqualOrBefore(Version.V9) &&
+                         newVersion.isAtLeast(Version.V10) &&
                          !result.success().metadata.inProgressSequences.isEmpty())
                 {
                     result = new Transformation.Rejected(INVALID, String.format("Committing %s would bump the serialization version from %s to %s," +

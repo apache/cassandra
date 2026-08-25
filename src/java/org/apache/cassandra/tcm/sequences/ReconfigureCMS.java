@@ -450,7 +450,7 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
             {
                 NodeId.serializer.serialize(activeTransition.nodeId, out, version);
                 assert activeTransition.streamCandidates == null ^ activeTransition.streamCandidateEndpoints == null;
-                if (version.isBefore(Version.V9))
+                if (version.isBefore(Version.V10))
                 {
                     assert activeTransition.streamCandidateEndpoints != null;
                     out.writeInt(activeTransition.streamCandidateEndpoints.size());
@@ -459,7 +459,7 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
                 }
                 else
                 {
-                    // we might reserialize a V8 ActiveTransition as V9 when a node is catching up, so we need to handle both cases here
+                    // we might reserialize a V9 ActiveTransition as V10 when a node is catching up, so we need to handle both cases here
                     if (activeTransition.streamCandidates != null)
                     {
                         out.writeBoolean(true);
@@ -481,7 +481,7 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
             public ActiveTransition deserialize(DataInputPlus in, Version version) throws IOException
             {
                 NodeId nodeId = NodeId.serializer.deserialize(in, version);
-                if (version.isBefore(Version.V9))
+                if (version.isBefore(Version.V10))
                 {
                     return deserializeOld(nodeId, in.readInt(), in, version);
                 }
@@ -498,7 +498,7 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
                     }
                     else
                     {
-                        logger.debug("Deserialized V8-serialized streamCandidates in V9");
+                        logger.debug("Deserialized V9-serialized streamCandidates in V10");
                         return deserializeOld(nodeId, streamCandidatesCount, in, version);
                     }
                 }
@@ -518,7 +518,7 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
                 assert activeTransition.streamCandidates == null ^ activeTransition.streamCandidateEndpoints == null;
                 long size = 0;
                 size += NodeId.serializer.serializedSize(activeTransition.nodeId, version);
-                if (version.isBefore(Version.V9))
+                if (version.isBefore(Version.V10))
                 {
                     assert activeTransition.streamCandidateEndpoints != null;
                     size += TypeSizes.INT_SIZE;

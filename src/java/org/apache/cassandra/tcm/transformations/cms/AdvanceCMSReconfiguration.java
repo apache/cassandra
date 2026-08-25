@@ -159,7 +159,7 @@ public class AdvanceCMSReconfiguration implements Transformation
         ClusterMetadata.Transformer transformer = prev.transformer().startJoiningCMS(addition);
 
         // Construct a set of sources for the new member to stream log tables from (essentially this is the existing members)
-        ReconfigureCMS.ActiveTransition activeTransition = prev.directory.commonSerializationVersion.isBefore(Version.V9) ?
+        ReconfigureCMS.ActiveTransition activeTransition = prev.directory.commonSerializationVersion.isBefore(Version.V10) ?
                                                            ReconfigureCMS.ActiveTransition.withEndpoints(addition, prev.fullCMSMembers()) :
                                                            ReconfigureCMS.ActiveTransition.withNodeIds(addition, prev.fullCMSMemberIds());
 

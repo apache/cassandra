@@ -85,8 +85,8 @@ public class Startup implements Transformation
         NodeAddresses oldAddresses = prev.directory.addresses.get(nodeId);
         if (!oldAddresses.equals(addresses))
         {
-            if (!prev.inProgressSequences.isEmpty() && prev.directory.commonSerializationVersion.isBefore(Version.V9))
-                return new Rejected(INVALID, "Cannot update address of the node while there are in-progress sequences until the whole cluster is running metadata serialization version V9");
+            if (!prev.inProgressSequences.isEmpty() && prev.directory.commonSerializationVersion.isBefore(Version.V10))
+                return new Rejected(INVALID, "Cannot update address of the node while there are in-progress sequences until the whole cluster is running metadata serialization version V10");
             for (Map.Entry<NodeId, NodeAddresses> entry : prev.directory.addresses.entrySet())
             {
                 NodeAddresses existingAddresses = entry.getValue();
