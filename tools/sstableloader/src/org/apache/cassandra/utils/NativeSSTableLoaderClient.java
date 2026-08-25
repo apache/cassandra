@@ -60,6 +60,7 @@ import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 public class NativeSSTableLoaderClient extends SSTableLoader.Client
 {
     protected final Map<String, TableMetadataRef> tables;
+    private final Map<InetAddressAndPort, CassandraVersion> endpointVersions;
     private final Collection<InetSocketAddress> hosts;
     private final int storagePort;
     private final AuthProvider authProvider;
@@ -74,6 +75,7 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
     {
         super();
         this.tables = new HashMap<>();
+        this.endpointVersions = new HashMap<>();
         this.hosts = hosts;
         this.authProvider = authProvider;
         this.sslOptions = sslOptions;
@@ -109,7 +111,10 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
                     int broadcastPort = endpoint.getBroadcastSocketAddress().getPort();
                     // use port from broadcast address if set.
                     int portToUse = broadcastPort != 0 ? broadcastPort : storagePort;
-                    addRangeForEndpoint(range, InetAddressAndPort.getByNameOverrideDefaults(endpoint.getAddress().getHostAddress(), portToUse));
+                    InetAddressAndPort address = InetAddressAndPort.getByNameOverrideDefaults(endpoint.getAddress().getHostAddress(), portToUse);
+                    addRangeForEndpoint(range, address);
+                    if (endpoint.getCassandraVersion() != null)
+                        endpointVersions.put(address, new CassandraVersion(endpoint.getCassandraVersion().toString()));
                 }
             }
 
@@ -128,6 +133,12 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
     public TableMetadataRef getTableMetadata(String tableName)
     {
         return tables.get(tableName);
+    }
+
+    @Override
+    public CassandraVersion getEndpointVersion(InetAddressAndPort endpoint)
+    {
+        return endpointVersions.get(endpoint);
     }
 
     @Override

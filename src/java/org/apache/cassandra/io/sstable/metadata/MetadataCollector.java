@@ -62,6 +62,9 @@ import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
 public class MetadataCollector implements PartitionStatisticsCollector
 {
     public static final double NO_COMPRESSION_RATIO = -1.0;
+    /** HyperLogLog++ normal precision used by writer-produced CompactionMetadata (CASSANDRA-5906). */
+    public static final int CARDINALITY_HLL_P = 13;
+    public static final int CARDINALITY_HLL_SP = 25;
 
     private long currentPartitionCells = 0;
 
@@ -155,7 +158,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
      * while lowering bytes required to hold information.
      * See CASSANDRA-5906 for detail.
      */
-    protected ICardinality cardinality = new HyperLogLogPlus(13, 25);
+    protected ICardinality cardinality = new HyperLogLogPlus(CARDINALITY_HLL_P, CARDINALITY_HLL_SP);
     private final ClusteringComparator comparator;
     private final long nowInSec = FBUtilities.nowInSeconds();
 

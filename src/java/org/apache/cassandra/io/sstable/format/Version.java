@@ -104,6 +104,20 @@ public abstract class Version
     public abstract boolean hasKeyRange();
 
     /**
+     * Whether Statistics.db can record the first indexed partition's logical Data.db position.
+     */
+    public boolean hasSplitPrefixMarker()
+    {
+        return false;
+    }
+
+    /** Whether this version's on-disk rows and compression metadata may be copied into a zero-copy split child. */
+    public boolean supportsZeroCopySplitInput()
+    {
+        return false;
+    }
+
+    /**
      * @param ver SSTable version
      * @return True if the given version string matches the format.
      * @see #version

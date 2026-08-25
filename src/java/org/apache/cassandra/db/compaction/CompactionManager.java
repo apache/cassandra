@@ -711,8 +711,8 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                                                     int jobs) throws InterruptedException, ExecutionException
     {
         return performSSTableRewrite(cfs, (sstable) -> {
-            // Skip if descriptor version matches current version
-            if (skipIfCurrentVersion && sstable.descriptor.version.equals(sstable.descriptor.getFormat().getLatestVersion()))
+            // Skip if the SSTable already uses a version considered current by its format
+            if (skipIfCurrentVersion && Upgrader.isCurrentVersion(sstable.descriptor))
                 return false;
 
             // Skip if SSTable creation time is past given timestamp

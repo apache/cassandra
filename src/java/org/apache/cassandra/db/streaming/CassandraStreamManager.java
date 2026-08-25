@@ -41,6 +41,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -51,6 +52,11 @@ import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.TableStreamManager;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.Refs;
@@ -141,6 +147,7 @@ public class CassandraStreamManager implements TableStreamManager
 
             List<Range<Token>> normalizedFullRanges = Range.normalize(replicas.onlyFull().ranges());
             List<Range<Token>> normalizedAllRanges = Range.normalize(replicas.ranges());
+            CassandraVersion peerVersion = peerVersion(session.peer);
             //Create outgoing file streams for ranges possibly skipping repaired ranges in sstables
             List<OutgoingStream> streams = new ArrayList<>(refs.size());
             for (SSTableReader sstable : refs)
@@ -155,7 +162,7 @@ public class CassandraStreamManager implements TableStreamManager
                     continue;
                 }
                 streams.add(new CassandraOutgoingFile(session.getStreamOperation(), ref, sections, ranges,
-                                                      sstable.estimatedKeysForRanges(ranges)));
+                                                      sstable.estimatedKeysForRanges(ranges), peerVersion));
             }
 
             return streams;
@@ -165,5 +172,17 @@ public class CassandraStreamManager implements TableStreamManager
             refs.release();
             throw t;
         }
+    }
+
+    private static CassandraVersion peerVersion(InetAddressAndPort peer)
+    {
+        ClusterMetadata metadata = ClusterMetadata.currentNullable();
+        if (metadata == null)
+            return null;
+
+        Directory directory = metadata.directory;
+        NodeId peerId = directory.peerId(peer);
+        NodeVersion version = peerId == null ? null : directory.version(peerId);
+        return version == null ? null : version.cassandraVersion;
     }
 }

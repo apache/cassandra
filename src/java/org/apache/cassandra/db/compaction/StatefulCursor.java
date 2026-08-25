@@ -77,6 +77,7 @@ class StatefulCursor extends SSTableCursorReader
     public StatefulCursor(SSTableReader reader, Collection<PartitionPositionBounds> bounds, DiskAccessMode diskAccessMode)
     {
         super(reader, bounds, diskAccessMode);
+        bytesReadPositionSnapshot = bytesRead();
         // A deletion-only complex column must reach the merge as a position of its own, so that
         // its column-level deletion reaches the output. pauseAtEmptyComplexColumns defaults to
         // true on SSTableCursorReader for exactly this reason; no override needed here.

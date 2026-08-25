@@ -24,6 +24,9 @@ sstablesplit <options> <filename>
 
 |-s, --size <size> |maximum size in MB for the output sstables (default:
 50)
+
+|--zero-copy |split a compressed BIG-format sstable without deserializing or
+recompressing rows
 |===
 
 This command should be run with Cassandra stopped. Note: the script does
@@ -94,3 +97,31 @@ sstablesplit --size 1 --no-snapshot /var/lib/cassandra/data/keyspace/eventlog-63
 
 Note: There is no output, but you can see the results in your file
 system.
+
+== Zero-copy Split
+
+Use `--zero-copy` to split a compressed BIG-format sstable by retaining its
+compression chunks and rebuilding its index and metadata. On Linux filesystems
+that support byte-range reflinks, the tool shares the data extents with the
+children. If reflinks are unavailable, it copies the compressed bytes instead;
+rows are still not deserialized or recompressed.
+
+Zero-copy splitting requires `storage_compatibility_mode: NONE` and a BIG
+`pa`-or-later parent. It refuses uncompressed sstables, SSTable-attached indexes,
+and components it cannot reproduce. Split children use the `pb` format version,
+so do not use this option while a rolling upgrade is in progress.
+
+The requested size remains a maximum unless one partition's compression-chunk
+span is itself larger than that size.
+
+A compression chunk crossed by a split boundary is retained by both adjacent
+children, although each child exposes only its own indexed partitions. Reflink
+filesystems share those blocks; the copy fallback duplicates the boundary
+chunk. A later normal compaction rewrites the children and reclaims the retained
+bytes.
+
+Example:
+
+....
+sstablesplit --zero-copy --size 1024 /var/lib/cassandra/data/keyspace/table/pa-1-big-Data.db
+....

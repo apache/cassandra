@@ -91,7 +91,8 @@ public class StandaloneUpgrader
                 try
                 {
                     SSTableReader sstable = SSTableReader.openNoValidation(entry.getKey(), components, cfs);
-                    if (sstable.descriptor.version.equals(DatabaseDescriptor.getSelectedSSTableFormat().getLatestVersion()))
+                    // Standalone upgrades also convert SSTables that are current for a different format.
+                    if (Upgrader.isCurrentVersion(sstable.descriptor, DatabaseDescriptor.getSelectedSSTableFormat()))
                     {
                         sstable.selfRef().release();
                         continue;
@@ -236,4 +237,3 @@ public class StandaloneUpgrader
         }
     }
 }
-
