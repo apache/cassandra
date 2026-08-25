@@ -1414,9 +1414,14 @@ indexName returns [QualifiedName name]
     : (ksName[name] '.')? idxName[name]
     ;
 
+indexNameOrWildcard returns [QualifiedName name]
+    : n=indexName    { $name = n; }
+    | '\*'           { $name = QualifiedName.WILDCARD; }
+    ;
+
 indexNames returns [Set<QualifiedName> names]
     @init { $names = new HashSet<QualifiedName>(); }
-    : '{' ( t1=indexName { names.add(t1); } ( ',' tn=indexName { names.add(tn); } )* )? '}'
+    : '{' ( t1=indexNameOrWildcard { names.add(t1); } ( ',' tn=indexNameOrWildcard { names.add(tn); } )* )? '}'
     ;
 
 columnFamilyName returns [QualifiedName name]

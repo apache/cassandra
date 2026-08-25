@@ -62,6 +62,28 @@ However, excluding indexes might make it necessary to add `ALLOW FILTERING` to t
 Indexes that are applicable to the query and that are not mentioned in these two sets of included and excluded indexes
 might or might not be used, depending on the index query planner.
 
+## Excluding all indexes with a wildcard
+
+Rather than enumerating every index by name, `excluded_indexes` accepts the `*` wildcard to exclude all the
+indexes currently applicable to the queried table:
+```
+SELECT * FROM users
+  WHERE birth_year = 1981 AND country = 'FR' ALLOW FILTERING
+  WITH excluded_indexes = {*};
+```
+This is equivalent to explicitly listing every index on the table (`birth_year_idx`, `country_idx` and
+`phone_idx` in the example schema above), and is resolved to that concrete list of indexes by the coordinator
+before the query is sent to the replicas.
+
+The wildcard is only supported in `excluded_indexes`. Using it in `included_indexes` (e.g.
+`included_indexes = {*}`) will be rejected, since there is no defined semantics for "include all indexes".
+
+The wildcard can be combined with explicit index names in the same `excluded_indexes` set (e.g.
+`excluded_indexes = {*, some_idx}`), which is redundant but not an error. However, if `included_indexes` names
+an index that also exists on the table, combining it with `excluded_indexes = {*}` will fail with the same
+"indexes cannot be both included and excluded" error as if that index had been explicitly excluded, since the
+wildcard is expanded before that check is performed.
+
 ## Disambiguating queries
 
 Index hints can also be used to disambiguate queries where a restricted column has multiple indexes that return 

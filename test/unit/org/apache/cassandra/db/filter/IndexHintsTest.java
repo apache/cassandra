@@ -58,6 +58,7 @@ import static java.lang.String.format;
 import static org.apache.cassandra.db.filter.IndexHints.CONFLICTING_INDEXES_ERROR;
 import static org.apache.cassandra.db.filter.IndexHints.MISSING_INDEX_ERROR;
 import static org.apache.cassandra.db.filter.IndexHints.TOO_MANY_INDEXES_ERROR;
+import static org.apache.cassandra.db.filter.IndexHints.WILDCARD_INCLUDED_INDEXES_ERROR;
 import static org.apache.cassandra.db.filter.IndexHints.WRONG_KEYSPACE_ERROR;
 
 /**
@@ -433,6 +434,11 @@ public class IndexHintsTest extends CQLTester
         testTransport(query + "WITH included_indexes={idx1,idx2}", IndexHints.create(indexes(idx1, idx2), indexes()));
         testTransport(query + "WITH excluded_indexes={idx1,idx2}", IndexHints.create(indexes(), indexes(idx1, idx2)));
         testTransport(query + "WITH included_indexes={idx1,idx2} AND excluded_indexes={idx3,idx4}", IndexHints.create(indexes(idx1, idx2), indexes(idx3, idx4)));
+
+        // the wildcard is expanded to all the indexes on the table before it's sent over the wire, so the wire
+        // format itself is unaffected by the wildcard
+        testTransport(query + "WITH excluded_indexes={*}", IndexHints.create(indexes(), indexes(idx1, idx2, idx3, idx4)));
+        testTransport(query + "WITH excluded_indexes={*, idx1}", IndexHints.create(indexes(), indexes(idx1, idx2, idx3, idx4)));
     }
 
     private void testTransport(String query, IndexHints expectedHints)
@@ -1319,6 +1325,44 @@ public class IndexHintsTest extends CQLTester
 
         assertConflictingHints("SELECT * FROM %s WHERE v1=0 WITH included_indexes={idx1} AND excluded_indexes={idx1}", "idx1");
         assertConflictingHints("SELECT * FROM %s WHERE v2=0 WITH included_indexes={idx2} AND excluded_indexes={idx2}", "idx2");
+    }
+
+    /**
+     * Tests the {@code *} wildcard in {@code excluded_indexes}, which should be equivalent to explicitly excluding
+     * every index applicable to the table.
+     */
+    @Test
+    public void testWildcardExcludedIndexes()
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v1 int, v2 int, v3 int)");
+        String idx1 = createIndex("CREATE INDEX idx1 ON %s(v1)");
+        String idx2 = createIndex("CREATE CUSTOM INDEX idx2 ON %s(v2) USING 'StorageAttachedIndex'");
+        Object[] row = row(0, 0, 0, 0);
+        execute("INSERT INTO %s (k, v1, v2, v3) VALUES (0, 0, 0, 0)");
+
+        // the wildcard excludes every applicable index, same as explicitly excluding all of them
+        assertNeedsAllowFiltering("SELECT * FROM %s WHERE v1=0 WITH excluded_indexes={*}");
+        assertNeedsAllowFiltering("SELECT * FROM %s WHERE v2=0 WITH excluded_indexes={*}");
+        assertNeedsAllowFiltering("SELECT * FROM %s WHERE v1=0 AND v2=0 WITH excluded_indexes={*}");
+        assertThatIndexQueryPlanFor("SELECT * FROM %s WHERE v1=0 ALLOW FILTERING WITH excluded_indexes={*}", row).selectsNone();
+        assertThatIndexQueryPlanFor("SELECT * FROM %s WHERE v2=0 ALLOW FILTERING WITH excluded_indexes={*}", row).selectsNone();
+        assertThatIndexQueryPlanFor("SELECT * FROM %s WHERE v1=0 AND v2=0 ALLOW FILTERING WITH excluded_indexes={*}", row).selectsNone();
+
+        // an unrestricted column (v3) has no index anyway, so the wildcard exclusion doesn't change anything for it
+        execute("SELECT * FROM %s WHERE v3=0 ALLOW FILTERING WITH excluded_indexes={*}");
+
+        // the wildcard combined with explicit names in the same set is redundant, but not an error
+        assertThatIndexQueryPlanFor("SELECT * FROM %s WHERE v1=0 ALLOW FILTERING WITH excluded_indexes={*, idx1}", row).selectsNone();
+        assertThatIndexQueryPlanFor("SELECT * FROM %s WHERE v1=0 ALLOW FILTERING WITH excluded_indexes={*, idx2}", row).selectsNone();
+
+        // the wildcard is not allowed in included_indexes
+        assertInvalidThrowMessage(IndexHints.WILDCARD_INCLUDED_INDEXES_ERROR,
+                                  InvalidRequestException.class,
+                                  "SELECT * FROM %s WHERE v1=0 ALLOW FILTERING WITH included_indexes={*}");
+
+        // a wildcard exclusion conflicts with an included index that exists on the table
+        assertConflictingHints("SELECT * FROM %s WHERE v1=0 WITH included_indexes={idx1} AND excluded_indexes={*}", "idx1");
+        assertConflictingHints("SELECT * FROM %s WHERE v2=0 WITH included_indexes={idx2} AND excluded_indexes={*}", "idx2");
     }
 
     /**

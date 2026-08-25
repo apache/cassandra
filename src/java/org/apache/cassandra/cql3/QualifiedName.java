@@ -26,6 +26,13 @@ import java.util.Objects;
 public class QualifiedName
 {
     /**
+     * A sentinel {@link QualifiedName} used to represent the {@code *} wildcard in index hints
+     * (e.g. {@code WITH excluded_indexes = {*}}). It's not a valid identifier, so it can never collide with
+     * an actual index name.
+     */
+    public static final QualifiedName WILDCARD = new QualifiedName(null, "*");
+
+    /**
      * The keyspace name as stored internally.
      */
     private String keyspace;
@@ -39,6 +46,14 @@ public class QualifiedName
     {
         this.keyspace = keyspace;
         this.name = name;
+    }
+
+    /**
+     * @return {@code true} if this name represents the {@code *} wildcard, {@code false} otherwise
+     */
+    public boolean isWildcard()
+    {
+        return !hasKeyspace() && "*".equals(name);
     }
 
     /**
