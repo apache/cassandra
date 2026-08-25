@@ -62,6 +62,7 @@ public class MTAdmin extends AbstractCommand
 
             out.println("background_reconciliation_enabled: " + probe.getMutationTrackingBackgroundReconciliationEnabled());
             out.println("background_reconciliation_interval_ms: " + probe.getMutationTrackingBackgroundReconciliationIntervalMilliseconds());
+            out.println("background_reconciliation_request_cooldown_ms: " + probe.getMutationTrackingBackgroundReconciliationRequestCooldownMilliseconds());
         }
     }
 
@@ -73,7 +74,7 @@ public class MTAdmin extends AbstractCommand
 
         @Parameters(index = "0", arity = "0..1", description = { "Mutation tracking param type.",
                                                               "Possible parameters: " +
-                                                              "[background_reconciliation_enabled|background_reconciliation_interval_ms]" })
+                                                              "[background_reconciliation_enabled|background_reconciliation_interval_ms|background_reconciliation_request_cooldown_ms]" })
         public String paramType;
 
         @Parameters(index = "1", description = "Mutation tracking param value", arity = "0..1")
@@ -103,6 +104,9 @@ public class MTAdmin extends AbstractCommand
                     break;
                 case "background_reconciliation_interval_ms":
                     probe.setMutationTrackingBackgroundReconciliationIntervalMilliseconds(Long.parseLong(value));
+                    break;
+                case "background_reconciliation_request_cooldown_ms":
+                    probe.setMutationTrackingBackgroundReconciliationRequestCooldownMilliseconds(Long.parseLong(value));
                     break;
                 default:
                     throw new IllegalArgumentException("Unknown parameter: " + type);

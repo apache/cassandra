@@ -45,6 +45,9 @@ public class MutationTrackingMetrics
 
     public final Counter broadcastOffsetsDiscovered; // Newly-witnessed offsets discovered via broadcast
     public final Counter writeTimeOffsetsDiscovered; // Newly-witnessed offsets discovered at write time
+    public final Counter backgroundPullRequestsSent; // PullMutationsRequest messages issued by background reconciliation
+    public final Counter backgroundPullRequestsSuppressed; // PullMutationsRequest sends skipped by the per-coordinator-log cooldown
+    public final Counter backgroundPullRequestsFailed; // PullMutationsRequest sends that failed before transmission (overload, serialization, closed connection)
     public final Histogram readSummarySize; // Read summary sizes
     public final Gauge<Long> unreconciledMutationCount; // Number of unreconciled mutations
     public final Gauge<Long> journalDiskSpaceUsed; // Size of MutationJournal on disk
@@ -55,6 +58,9 @@ public class MutationTrackingMetrics
     {
         broadcastOffsetsDiscovered = Metrics.counter(factory.createMetricName("BroadcastOffsetsDiscovered"));
         writeTimeOffsetsDiscovered = Metrics.counter(factory.createMetricName("WriteTimeOffsetsDiscovered"));
+        backgroundPullRequestsSent = Metrics.counter(factory.createMetricName("BackgroundPullRequestsSent"));
+        backgroundPullRequestsSuppressed = Metrics.counter(factory.createMetricName("BackgroundPullRequestsSuppressed"));
+        backgroundPullRequestsFailed = Metrics.counter(factory.createMetricName("BackgroundPullRequestsFailed"));
         readSummarySize = Metrics.histogram(factory.createMetricName("ReadSummarySize"), true);
         unreconciledMutationCount = Metrics.register(
                 factory.createMetricName("UnreconciledMutationCount"),

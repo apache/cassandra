@@ -2879,6 +2879,16 @@ public class NodeProbe implements AutoCloseable
     {
         mutationTrackingProxy.setMutationTrackingBackgroundReconciliationIntervalMilliseconds(intervalMilliseconds);
     }
+
+    public long getMutationTrackingBackgroundReconciliationRequestCooldownMilliseconds()
+    {
+        return mutationTrackingProxy.getMutationTrackingBackgroundReconciliationRequestCooldownMilliseconds();
+    }
+
+    public void setMutationTrackingBackgroundReconciliationRequestCooldownMilliseconds(long cooldownMilliseconds)
+    {
+        mutationTrackingProxy.setMutationTrackingBackgroundReconciliationRequestCooldownMilliseconds(cooldownMilliseconds);
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>

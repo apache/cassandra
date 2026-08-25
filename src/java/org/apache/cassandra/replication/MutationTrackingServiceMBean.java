@@ -46,4 +46,17 @@ public interface MutationTrackingServiceMBean
      * @return the interval, in milliseconds, in which the background reconciliation runs when enabled
      */
     long getMutationTrackingBackgroundReconciliationIntervalMilliseconds();
+
+    /**
+     * Sets the minimum delay (in milliseconds) between successive pull requests issued by
+     * background reconciliation for the same coordinator log.
+     *
+     * @param cooldownMilliseconds the cooldown value in milliseconds
+     */
+    void setMutationTrackingBackgroundReconciliationRequestCooldownMilliseconds(long cooldownMilliseconds);
+
+    /**
+     * @return the per-coordinator-log request cooldown, in milliseconds, used by background reconciliation
+     */
+    long getMutationTrackingBackgroundReconciliationRequestCooldownMilliseconds();
 }
