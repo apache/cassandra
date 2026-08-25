@@ -20,11 +20,35 @@ package org.apache.cassandra.io.sstable.format.big;
 
 import java.util.stream.Stream;
 
+import org.junit.Assume;
+import org.junit.Test;
+
 import org.apache.cassandra.io.sstable.format.AbstractTestVersionSupportedFeatures;
 import org.apache.cassandra.io.sstable.format.Version;
 
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 public class VersionSupportedFeaturesTest extends AbstractTestVersionSupportedFeatures
 {
+    @Test
+    public void testOrdinaryAndSplitterVersionsAreBothLatest()
+    {
+        Assume.assumeTrue(BigFormat.getInstance().getLatestVersion().version.equals("pa"));
+        assertTrue(getVersion("pa").isLatestVersion());
+        assertTrue(getVersion("pb").isLatestVersion());
+        assertFalse(getVersion("pc").isLatestVersion());
+    }
+
+    @Test
+    public void testZeroCopySplitInputSupportCrossesVersionFamilies()
+    {
+        assertFalse(getVersion("oa").supportsZeroCopySplitInput());
+        assertTrue(getVersion("pa").supportsZeroCopySplitInput());
+        assertTrue(getVersion("pb").supportsZeroCopySplitInput());
+        assertTrue(getVersion("qa").supportsZeroCopySplitInput());
+    }
+
     @Override
     protected Version getVersion(String v)
     {
@@ -59,6 +83,12 @@ public class VersionSupportedFeaturesTest extends AbstractTestVersionSupportedFe
     protected Stream<String> getKeyRangeSupportedVersions()
     {
         return range("oa", "zz");
+    }
+
+    @Override
+    protected Stream<String> getSplitPrefixMarkerSupportedVersions()
+    {
+        return range("pb", "zz");
     }
 
     @Override

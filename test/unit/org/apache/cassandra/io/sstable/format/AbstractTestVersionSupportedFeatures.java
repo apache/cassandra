@@ -49,6 +49,8 @@ public abstract class AbstractTestVersionSupportedFeatures
 
     protected abstract Stream<String> getKeyRangeSupportedVersions();
 
+    protected abstract Stream<String> getSplitPrefixMarkerSupportedVersions();
+
     protected abstract Stream<String> getOriginatingHostIdSupportedVersions();
 
     @BeforeClass
@@ -65,6 +67,7 @@ public abstract class AbstractTestVersionSupportedFeatures
         checkPredicateAgainstVersions(Version::hasLegacyMinMax, getLegacyMinMaxSupportedVersions());
         checkPredicateAgainstVersions(Version::hasPartitionLevelDeletionsPresenceMarker, getPartitionLevelDeletionPresenceMarkerSupportedVersions());
         checkPredicateAgainstVersions(Version::hasKeyRange, getKeyRangeSupportedVersions());
+        checkPredicateAgainstVersions(Version::hasSplitPrefixMarker, getSplitPrefixMarkerSupportedVersions());
         checkPredicateAgainstVersions(Version::hasOriginatingHostId, getOriginatingHostIdSupportedVersions());
     }
 

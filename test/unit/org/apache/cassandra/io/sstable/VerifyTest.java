@@ -21,6 +21,7 @@ package org.apache.cassandra.io.sstable;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -65,6 +66,9 @@ import org.apache.cassandra.io.sstable.format.SSTableReaderWithFilter;
 import org.apache.cassandra.io.sstable.format.SortedTableVerifier.RangeOwnHelper;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.format.big.BigFormat.Components;
+import org.apache.cassandra.io.sstable.format.big.BigTableReader;
+import org.apache.cassandra.io.sstable.format.big.BigTableVerifier;
+import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
@@ -86,6 +90,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 
 /**
  * Test for {@link IVerifier}.
@@ -500,6 +508,52 @@ public class VerifyTest
         assertFalse(sstable.isRepaired());
     }
 
+    @Test
+    public void testExtendedVerifyFirstCompressedBlockUsesFailureOptions() throws IOException
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+        CompactionManager.instance.disableAutoCompaction();
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF);
+        cfs.truncateBlockingWithoutSnapshot();
+        fillCF(cfs, 2);
+
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+        assertTrue(sstable.compression);
+        sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor,
+                                                                       System.currentTimeMillis(),
+                                                                       sstable.getPendingRepair(),
+                                                                       sstable.isTransient());
+        sstable.reloadSSTableMetadata();
+        assertTrue(sstable.isRepaired());
+
+        BigTableReader reader = spy((BigTableReader) sstable);
+        RandomAccessReader failingData = mock(RandomAccessReader.class);
+        doThrow(new CorruptSSTableException(new IOException("unreadable first compressed block"),
+                                            sstable.getFilename()))
+        .when(failingData).seek(0L);
+        doReturn(failingData).when(reader).openDataReader();
+
+        IVerifier.Options options = IVerifier.options()
+                                             .extendedVerification(true)
+                                             .mutateRepairStatus(true)
+                                             .invokeDiskFailurePolicy(false)
+                                             .build();
+        try (TestBigTableVerifier verifier = new TestBigTableVerifier(cfs, reader, options))
+        {
+            verifier.verifyData();
+            fail("Expected a RuntimeException to be thrown");
+        }
+        catch (CorruptSSTableException unexpected)
+        {
+            fail("invokeDiskFailurePolicy=false must not throw CorruptSSTableException");
+        }
+        catch (RuntimeException expected)
+        {
+        }
+        assertFalse("extended verify must clear repaired status for an unreadable first block",
+                    reader.isRepaired());
+    }
+
     @Test(expected = RuntimeException.class)
     public void testOutOfRangeTokens() throws IOException
     {
@@ -563,6 +617,49 @@ public class VerifyTest
             testBrokenComponentHelper(BtiFormat.Components.PARTITION_INDEX);
         else
             throw Util.testMustBeImplementedForSSTableFormat();
+    }
+
+    @Test
+    public void testVerifyEmptyPrimaryIndexForOrdinarySSTable() throws IOException
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+        CompactionManager.instance.disableAutoCompaction();
+
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CORRUPT_CF2);
+        cfs.truncateBlockingWithoutSnapshot();
+        fillCF(cfs, 2);
+
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+        assertFalse(sstable.hasSplitPrefix());
+        Descriptor descriptor = sstable.descriptor;
+        File index = descriptor.fileFor(Components.PRIMARY_INDEX);
+
+        cfs.clearUnsafe();
+        sstable.selfRef().release();
+
+        try (FileChannel channel = index.newReadWriteChannel())
+        {
+            channel.truncate(0);
+        }
+        if (ChunkCache.instance != null)
+            ChunkCache.instance.invalidateFile(index.toString());
+
+        SSTableReader reopened = SSTableReader.openNoValidation(cfs, descriptor, cfs.metadata);
+        try
+        {
+            try (IVerifier verifier = getVerifier(reopened,
+                                                  cfs,
+                                                  IVerifier.options()
+                                                           .extendedVerification(false)
+                                                           .invokeDiskFailurePolicy(true)))
+            {
+                verifier.verify();
+            }
+        }
+        finally
+        {
+            reopened.selfRef().release();
+        }
     }
 
     @Test
@@ -651,6 +748,77 @@ public class VerifyTest
         catch (CorruptSSTableException expected)
         {
         }
+    }
+
+    @Test
+    public void testQuickExtendedChecksPromotedIndexAgainstData() throws IOException
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+        CompactionManager.instance.disableAutoCompaction();
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CORRUPT_CF2);
+        cfs.truncateBlockingWithoutSnapshot();
+        fillCF(cfs, 2);
+
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+        try
+        {
+            corruptFirstPromotedIndexClustering(sstable);
+
+            IVerifier.Options.Builder options = IVerifier.options()
+                                                        .quick(true)
+                                                        .extendedVerification(true)
+                                                        .invokeDiskFailurePolicy(true);
+            try (IVerifier verifier = getVerifier(sstable, cfs, options))
+            {
+                verifier.verify();
+                fail("quick extended verification must cross-check promoted indexes against Data.db");
+            }
+            catch (CorruptSSTableException expected)
+            {
+            }
+        }
+        finally
+        {
+            cfs.truncateBlockingWithoutSnapshot();
+        }
+    }
+
+    private static void corruptFirstPromotedIndexClustering(SSTableReader sstable) throws IOException
+    {
+        File indexFile = sstable.descriptor.fileFor(Components.PRIMARY_INDEX);
+        long promotedStart;
+        byte[] promoted;
+        try (RandomAccessReader index = RandomAccessReader.open(indexFile))
+        {
+            ByteBufferUtil.readWithShortLength(index);
+            RowIndexEntry.Serializer.readPosition(index);
+            int promotedSize = index.readUnsignedVInt32();
+            assertTrue("fixture did not produce a promoted row index", promotedSize > 0);
+            promotedStart = index.getFilePointer();
+            promoted = new byte[promotedSize];
+            index.readFully(promoted);
+        }
+
+        int clustering = -1;
+        for (int i = 0; i + 1 < promoted.length; i++)
+        {
+            if (promoted[i] == 'c' && promoted[i + 1] == '1')
+            {
+                clustering = i;
+                break;
+            }
+        }
+        assertTrue("fixture's promoted index did not contain clustering c1", clustering >= 0);
+
+        // b1 remains a valid clustering and sorts before the unchanged lastName c1, but no row at the indexed data
+        // offset has that clustering. Only the promoted-index/Data.db cross-check should reject it.
+        try (FileChannel index = indexFile.newReadWriteChannel())
+        {
+            assertEquals(1, index.write(ByteBuffer.wrap(new byte[]{ 'b' }), promotedStart + clustering));
+            index.force(true);
+        }
+        if (ChunkCache.instance != null)
+            ChunkCache.instance.invalidateFile(indexFile.toString());
     }
 
     @Test
@@ -863,6 +1031,19 @@ public class VerifyTest
         finally
         {
             FileUtils.closeQuietly(out);
+        }
+    }
+
+    private static final class TestBigTableVerifier extends BigTableVerifier
+    {
+        private TestBigTableVerifier(ColumnFamilyStore cfs, BigTableReader sstable, IVerifier.Options options)
+        {
+            super(cfs, sstable, new OutputHandler.LogOutput(), true, options);
+        }
+
+        private void verifyData()
+        {
+            verifySSTable();
         }
     }
 }

@@ -63,6 +63,12 @@ public class VersionSupportedFeaturesTest extends AbstractTestVersionSupportedFe
     }
 
     @Override
+    protected Stream<String> getSplitPrefixMarkerSupportedVersions()
+    {
+        return Stream.empty();
+    }
+
+    @Override
     protected Stream<String> getOriginatingHostIdSupportedVersions()
     {
         return ALL_VERSIONS.stream();
