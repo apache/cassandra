@@ -81,9 +81,12 @@ public enum Version
     /**
      * - DataPlacements don't include MetaStrategy, replaced by ClusterMetadata.CMSMembership
      * - Size of DataPlacements is encoded as vint
-     * - SchemaTransformation CQL serialized as raw bytes to avoid utf string limit
      */
     V9(9),
+    /**
+     * - SchemaTransformation CQL serialized as raw bytes to avoid utf string limit
+     */
+    V10(10),
 
     UNKNOWN(Integer.MAX_VALUE);
 

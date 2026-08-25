@@ -50,10 +50,10 @@ public class SchemaTransformationTest
         try
         {
 
-            long size = SchemaTransformation.serializer.serializedSize(transformation, Version.V8);
+            long size = SchemaTransformation.serializer.serializedSize(transformation, Version.V9);
             try (DataOutputBuffer out = new DataOutputBuffer((int) size))
             {
-                SchemaTransformation.serializer.serialize(transformation, out, Version.V8);
+                SchemaTransformation.serializer.serialize(transformation, out, Version.V9);
             }
             throw new RuntimeException("serializing long cql string on V9 should fail");
         }
@@ -62,10 +62,10 @@ public class SchemaTransformationTest
             //ignored
         }
 
-        long size = SchemaTransformation.serializer.serializedSize(transformation, Version.V9);
+        long size = SchemaTransformation.serializer.serializedSize(transformation, Version.V10);
         try (DataOutputBuffer out = new DataOutputBuffer((int) size))
         {
-            SchemaTransformation.serializer.serialize(transformation, out, Version.V9);
+            SchemaTransformation.serializer.serialize(transformation, out, Version.V10);
             byte [] bytes = out.toByteArray();
             assertEquals(size, bytes.length);
             // can't deserialize the fake schema transformation as it doesn't parse.
