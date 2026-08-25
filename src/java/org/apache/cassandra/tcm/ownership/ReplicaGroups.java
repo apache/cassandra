@@ -90,7 +90,7 @@ public class ReplicaGroups
     public final ImmutableList<Range<Token>> ranges;
     public final ImmutableList<VersionedEndpoints.ForRange> endpoints;
 
-    public ReplicaGroups(Map<Range<Token>, VersionedEndpoints.ForRange> replicaGroups)
+    private ReplicaGroups(Map<Range<Token>, VersionedEndpoints.ForRange> replicaGroups)
     {
         ImmutableList.Builder<Range<Token>> rangesBuilder = ImmutableList.builderWithExpectedSize(replicaGroups.size());
         ImmutableList.Builder<VersionedEndpoints.ForRange> endpointsBuilder = ImmutableList.builderWithExpectedSize(replicaGroups.size());
@@ -107,15 +107,17 @@ public class ReplicaGroups
         this.endpoints = endpointsBuilder.build();
     }
 
-    public ReplicaGroups(ImmutableList<Range<Token>> ranges,
+    private ReplicaGroups(ImmutableList<Range<Token>> ranges,
                          ImmutableList<VersionedEndpoints.ForRange> endpoints)
     {
         this.ranges = ranges;
         this.endpoints = endpoints;
     }
 
-    @VisibleForTesting
-    public List<Range<Token>> ranges()
+    /**
+     * returns a copy of ranges sorted by the right token (`ranges` in this class is sorted by the left)
+     */
+    public List<Range<Token>> sortedRanges()
     {
         return ImmutableList.sortedCopyOf(Range::compareTo, ranges);
     }

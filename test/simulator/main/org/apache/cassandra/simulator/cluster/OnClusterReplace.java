@@ -79,7 +79,7 @@ class OnClusterReplace extends OnClusterChangeTopology
             (String keyspaceName) -> {
                 ClusterMetadata metadata = ClusterMetadata.current();
                 return metadata.placement(metadata.schema.getKeyspace(keyspaceName).getMetadata().params.replication)
-                       .writes.ranges()
+                       .writes.sortedRanges()
                               .stream()
                               .map(OnClusterReplace::toStringEntry)
                               .collect(Collectors.toList());

@@ -38,6 +38,10 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
+/**
+ * Having multiple implementations of the delta is a stop-gap measure to allow placements to still be
+ * endpoint-encoded. Once that is implemented this can go back to being a concrete class (NodeIdDelta)
+ */
 public interface Delta
 {
     Serializer serializer = new Serializer();
@@ -47,7 +51,7 @@ public interface Delta
     boolean isEmpty();
 
     /**
-     * Required since we still encode the placements with endpoints
+     * Required since we still encode the placements with endpoints, remove once that is changed.
      */
     EndpointDelta asEndpointDelta(EndpointLookup endpointLookup);
     RangesByEndpoint removals(EndpointLookup endpointLookup);

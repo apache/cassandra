@@ -766,8 +766,8 @@ public class MetadataChangeSimulationTest extends CMSTestBase
 
         DataPlacement actualPlacements = placements.get(rf.asKeyspaceParams().replication);
 
-        assertRanges(expectedRanges, actualPlacements.writes.ranges());
-        assertRanges(expectedRanges, actualPlacements.reads.ranges());
+        assertRanges(expectedRanges, actualPlacements.writes.sortedRanges());
+        assertRanges(expectedRanges, actualPlacements.reads.sortedRanges());
 
         validateTransientStatus(actualPlacements.reads, actualPlacements.writes);
 

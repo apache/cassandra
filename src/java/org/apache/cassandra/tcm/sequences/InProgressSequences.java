@@ -225,6 +225,7 @@ public class InProgressSequences implements MetadataValue<InProgressSequences>, 
         return state.values().iterator();
     }
 
+    @VisibleForTesting
     public ImmutableSet<MultiStepOperation.SequenceKey> keys()
     {
         return state.keySet();

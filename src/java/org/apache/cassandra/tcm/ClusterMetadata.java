@@ -641,8 +641,8 @@ public class ClusterMetadata
 
         // first, pending ranges as the result of range splitting or merging
         // i.e. new ranges being created through join/leave
-        List<Range<Token>> pending = new ArrayList<>(writes.ranges());
-        pending.removeAll(reads.ranges());
+        List<Range<Token>> pending = new ArrayList<>(writes.sortedRanges());
+        pending.removeAll(reads.sortedRanges());
         for (Range<Token> p : pending)
             map.put(p, placement(metadata.params.replication).writes.forRange(p));
 

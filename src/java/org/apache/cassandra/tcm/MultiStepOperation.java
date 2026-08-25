@@ -23,9 +23,6 @@ import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.sequences.AddToCMS;
@@ -63,8 +60,6 @@ import org.apache.cassandra.tcm.serialization.MetadataSerializer;
  */
 public abstract class MultiStepOperation<CONTEXT>
 {
-    private static final Logger logger = LoggerFactory.getLogger(MultiStepOperation.class);
-
     public enum Kind
     {
         @Deprecated(since = "CEP-21")
