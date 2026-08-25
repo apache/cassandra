@@ -60,7 +60,8 @@ public class StandaloneSplitterTest extends OfflineToolUtils
                       " -h,--help          display this help message\n" + 
                       "    --no-snapshot   don't snapshot the sstables before splitting\n" + 
                       " -s,--size <size>   maximum size in MB for the output sstables (default:\n" + 
-                      "                    50)\n";
+                      "                    50)\n" +
+                      "    --zero-copy     copy compressed chunks instead of rewriting partitions\n";
         Assertions.assertThat(tool.getStdout()).isEqualTo(help);
     }
 
