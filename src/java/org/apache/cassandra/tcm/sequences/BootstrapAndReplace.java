@@ -216,7 +216,7 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
 
                     if (streamData)
                     {
-                        MovementMap movements = movementMap(startReplace.replaced(), startReplace.delta(), metadata);
+                        MovementMap movements = movementMap(startReplace.replaced(), startReplace.delta(), metadata.placements(), metadata.directory);
                         boolean dataAvailable = bootstrap(bootstrapTokens,
                                                           StorageService.INDEFINITE,
                                                           metadata,
@@ -352,15 +352,14 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
      *
      * keys in the map are the ranges the replacement node needs to stream, values are the potential endpoints.
      */
-    private static MovementMap movementMap(NodeId beingReplaced, PlacementDeltas startDelta, ClusterMetadata metadata)
+    private static MovementMap movementMap(NodeId beingReplaced, PlacementDeltas startDelta, DataPlacements placements, Directory directory)
     {
         MovementMap.Builder movementMapBuilder = MovementMap.builder();
-        DataPlacements placements = ClusterMetadata.current().placements();
-        InetAddressAndPort beingReplacedEndpoint = metadata.directory.endpoint(beingReplaced);
+        InetAddressAndPort beingReplacedEndpoint = directory.endpoint(beingReplaced);
         startDelta.forEach((params, delta) -> {
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
             DataPlacement originalPlacements = placements.get(params);
-            delta.writes.additions(metadata.directory).flattenValues().forEach((destination) -> {
+            delta.writes.additions(directory).flattenValues().forEach((destination) -> {
                 originalPlacements.reads.forRange(destination.range())
                                         .get().stream()
                                         .filter(r -> !r.endpoint().equals(beingReplacedEndpoint))

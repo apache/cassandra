@@ -320,7 +320,8 @@ public class Move extends MultiStepOperation<Epoch>
                     StreamPlan streamPlan = new StreamPlan(StreamOperation.RELOCATION);
                     Keyspaces keyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
                     Map<ReplicationParams, EndpointsByReplica> movementMap = movementMap(FailureDetector.instance,
-                                                                                         metadata,
+                                                                                         metadata.placements(),
+                                                                                         metadata.directory,
                                                                                          toSplitRanges,
                                                                                          startMove.delta(),
                                                                                          midMove.delta(),
@@ -455,16 +456,15 @@ public class Move extends MultiStepOperation<Epoch>
      *
      * there can be multiple sources for each destination
      */
-    private static MovementMap movementMap(IFailureDetector fd, ClusterMetadata metadata, PlacementDeltas toSplitRanges, PlacementDeltas toStart, PlacementDeltas midDeltas, boolean strictConsistency)
+    private static MovementMap movementMap(IFailureDetector fd, DataPlacements placements, Directory directory, PlacementDeltas toSplitRanges, PlacementDeltas toStart, PlacementDeltas midDeltas, boolean strictConsistency)
     {
-        DataPlacements placements = metadata.placements();
         MovementMap.Builder allMovements = MovementMap.builder();
         toStart.forEach((params, delta) -> {
-            RangesByEndpoint targets = delta.writes.additions(metadata.directory);
+            RangesByEndpoint targets = delta.writes.additions(directory);
             ReplicaGroups oldOwners = placements.get(params).reads;
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
-            Iterable<Replica> replicaRemovals = midDeltas.get(params).reads.removals(metadata.directory).flattenValues();
-            RangesByEndpoint writeAdditions = toSplitRanges.get(params).writes.additions(metadata.directory);
+            Iterable<Replica> replicaRemovals = midDeltas.get(params).reads.removals(directory).flattenValues();
+            RangesByEndpoint writeAdditions = toSplitRanges.get(params).writes.additions(directory);
             targets.flattenValues().forEach(destination -> {
                 SourceHolder sources = new SourceHolder(fd, destination, writeAdditions, strictConsistency);
                 AtomicBoolean needsRelaxedSources = new AtomicBoolean();

@@ -36,7 +36,9 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.streaming.DataMovement;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
 import org.apache.cassandra.tcm.ownership.ReplicaGroups;
@@ -54,8 +56,9 @@ public class RemoveNodeStreams implements LeaveStreams
     public void execute(NodeId leaving, PlacementDeltas startLeave, PlacementDeltas midLeave, PlacementDeltas finishLeave) throws ExecutionException, InterruptedException
     {
         ClusterMetadata metadata = ClusterMetadata.current();
-        MovementMap movements = movementMap(metadata,
-                                            metadata.directory.endpoint(leaving),
+        MovementMap movements = movementMap(metadata.placements(),
+                                            metadata.directory,
+                                            leaving,
                                             startLeave);
         movements.forEach((params, eps) -> logger.info("Removenode movements: {}: {}", params, eps));
         String operationId = leaving.toUUID().toString();
@@ -107,8 +110,9 @@ public class RemoveNodeStreams implements LeaveStreams
      * create a map where the key is the destination, and the values are possible sources
      * @return
      */
-    private static MovementMap movementMap(ClusterMetadata metadata, InetAddressAndPort leaving, PlacementDeltas startDelta)
+    private static MovementMap movementMap(DataPlacements placements, Directory directory, NodeId leavingNode, PlacementDeltas startDelta)
     {
+        InetAddressAndPort leaving = directory.endpoint(leavingNode);
         MovementMap.Builder allMovements = MovementMap.builder();
         // map of dest->src* movements, keyed by replication settings. During unbootstrap, this will be used to construct
         // a stream plan for each keyspace, based on their replication params.
@@ -118,10 +122,10 @@ public class RemoveNodeStreams implements LeaveStreams
                 return;
 
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
-            RangesByEndpoint startWriteAdditions = startDelta.get(params).writes.additions(metadata.directory);
-            RangesByEndpoint startWriteRemovals = startDelta.get(params).writes.removals(metadata.directory);
+            RangesByEndpoint startWriteAdditions = startDelta.get(params).writes.additions(directory);
+            RangesByEndpoint startWriteRemovals = startDelta.get(params).writes.removals(directory);
             // find current placements from the metadata, we need to stream from replicas that are not changed and are therefore not in the deltas
-            ReplicaGroups currentPlacements = metadata.placement(params).reads;
+            ReplicaGroups currentPlacements = placements.get(params).reads;
             startWriteAdditions.flattenValues()
                                .forEach(newReplica -> {
                                    EndpointsForRange.Builder candidateBuilder = new EndpointsForRange.Builder(newReplica.range());
