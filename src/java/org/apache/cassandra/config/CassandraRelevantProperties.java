@@ -434,7 +434,7 @@ public enum CassandraRelevantProperties
      * This prevents unbounded memory growth when log messages contain dynamic content.
      * Defaults to MAX_VALUE as a default behavior since we rely on the cache time-based expiration.
      */
-    NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER("cassandra.nospam_logger.max_statements_per_logger", String.valueOf(Long.MAX_VALUE)),
+    NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER("cassandra.nospam_logger.max_statements_per_logger", String.valueOf(1024)),
     /** for specific tests */
     /** This property indicates whether disable_mbean_registration is true */
     ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION("org.apache.cassandra.disable_mbean_registration"),
