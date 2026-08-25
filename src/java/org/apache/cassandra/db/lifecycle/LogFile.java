@@ -368,9 +368,15 @@ final class LogFile implements AutoCloseable
 
         for (SSTableReader sstable : tables)
             maybeCreateReplica(sstable);
+        // one listing per directory for the whole batch, unlike the single sstable path below
         return LogRecord.make(type, tables);
     }
 
+    /**
+     * Create the ADD record for a new sstable. Called from the
+     * {@link org.apache.cassandra.io.sstable.format.SSTableWriter} constructor for every new sstable, so it must not
+     * list the sstable directory, @see LogRecord#makeAdd.
+     */
     private LogRecord makeAddRecord(SSTable table)
     {
         maybeCreateReplica(table);
@@ -418,6 +424,8 @@ final class LogFile implements AutoCloseable
         LogRecord record = makeAddRecord(table);
         assert records.contains(record) : String.format("[%s] is not tracked by %s", record, id);
         assert record.absolutePath.isPresent();
+        // unlike makeAddRecord this has to list the directory, as we need to find and delete whatever was actually
+        // written for this sstable before we stopped tracking it
         deleteRecordFiles(LogRecord.getExistingFiles(record.absolutePath.get()));
         records.remove(record);
     }

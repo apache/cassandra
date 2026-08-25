@@ -100,10 +100,22 @@ public class SSTableAbstractBench extends CQLTester
     @TearDown(Level.Trial)
     public void teardown() throws IOException, ExecutionException, InterruptedException
     {
+        if (shouldSkipCleanup())
+            return;
+
         CommitLog.instance.shutdownBlocking();
         ClusterMetadataService.instance().log().close();
         CQLTester.tearDownClass();
         CQLTester.cleanup();
+    }
+
+    /**
+     * Overridden by benchmarks whose setup is expensive to tear down - e.g. one that creates hundreds of thousands of
+     * files - and which would rather leave the temporary directories behind than pay for deleting them.
+     */
+    protected boolean shouldSkipCleanup()
+    {
+        return false;
     }
 
     public SSTableReader getReader() throws IOException
