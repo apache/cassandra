@@ -39,6 +39,7 @@ import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.FeatureNeedsIndexRebuildException;
@@ -169,13 +170,17 @@ public class InvertedIndexSearcher extends IndexSearcher
         var slices = Slices.with(indexContext.comparator(), Slice.make(primaryKey.clustering()));
         try (var rowIterator = sstable.iterator(dk, slices, columnFilter, false, SSTableReadsListener.NOOP_LISTENER))
         {
-            // primaryKey might not belong to this sstable, thus the iterator will be empty
-            if (rowIterator.isEmpty())
-                return null;
-            var unfiltered = rowIterator.next();
-            assert unfiltered.isRow() : unfiltered;
-            Row row = (Row) unfiltered;
-            return row.getCell(indexContext.getDefinition());
+            while (rowIterator.hasNext())
+            {
+                Unfiltered unfiltered = rowIterator.next();
+                // A range tombstone marker can precede the requested row, so skip non-row unfiltereds.
+                if (unfiltered.isRow())
+                {
+                    Row row = (Row) unfiltered;
+                    return row.getCell(indexContext.getDefinition());
+                }
+            }
+            return null;
         }
     }
 

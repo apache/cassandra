@@ -73,7 +73,9 @@ public abstract class PrimaryKeyWithSortKey implements PrimaryKey
             return true;
 
         var cell = row.getCell(column);
-        if (!cell.isLive(nowInSecs))
+        // The live row might not have the indexed column at all (e.g. the partition was deleted and re-inserted
+        // without it, while an older sstable still scored the previous value), in which case the index data is stale.
+        if (cell == null || !cell.isLive(nowInSecs))
             return false;
 
         assert cell instanceof CellWithSourceTable : "Expected CellWithSource, got " + cell.getClass();

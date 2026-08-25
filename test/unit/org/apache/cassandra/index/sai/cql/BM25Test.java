@@ -164,6 +164,81 @@ public class BM25Test extends SAITester
     }
 
     @Test
+    public void testSearchThenSortWithPartitionTombstoneInSeparateSSTable()
+    {
+        // A search-then-sort BM25 query reads each candidate row straight from every sstable. A partition that is
+        // present in an sstable only as a partition-level tombstone (deleted after the sstable holding its row was
+        // flushed) must be skipped, not fail the query with NoSuchElementException.
+        createTable("CREATE TABLE %s (k int, c int, query_lexical_value text, array_contains set<text>, PRIMARY KEY (k, c))");
+        createIndex("CREATE CUSTOM INDEX ON %s(array_contains) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex'");
+        createAnalyzedIndex("query_lexical_value");
+        execute("INSERT INTO %s (k, c, query_lexical_value, array_contains) VALUES (1, 1, 'apple', {'target'})");
+        execute("INSERT INTO %s (k, c, query_lexical_value, array_contains) VALUES (2, 1, 'apple juice', {'target'}) USING TIMESTAMP 1");
+        // Insert many unrelated rows so we do search-then-sort
+        for (int i = 3; i < 100; i++)
+            execute("INSERT INTO %s (k, c, query_lexical_value, array_contains) VALUES (?, 1, 'apple juice', {'other'})", i);
+        flush();
+
+        // The tombstone for k = 2 lands in a second sstable. Live rows on either side of c = 1 keep its lexical
+        // index segment spanning the deleted candidate, while the first sstable's collection index still emits (2, 1).
+        execute("DELETE FROM %s USING TIMESTAMP 2 WHERE k = 2");
+        execute("INSERT INTO %s (k, c, query_lexical_value, array_contains) VALUES (2, 0, 'pear', {'other'}) USING TIMESTAMP 3");
+        execute("INSERT INTO %s (k, c, query_lexical_value, array_contains) VALUES (2, 2, 'pear', {'other'}) USING TIMESTAMP 3");
+        flush();
+        String select = "SELECT k, c FROM %s WHERE array_contains CONTAINS ? " +
+                        "ORDER BY query_lexical_value BM25 OF ? LIMIT 3";
+        assertEmpty(execute(select, "target", "term-no-document-contains"));
+        assertRows(execute(select, "target", "apple"), row(1, 1));
+
+        // Re-inserting the deleted key in a third sstable must not fail either, and the row must come back exactly once
+        execute("INSERT INTO %s (k, c, query_lexical_value, array_contains) VALUES (2, 1, 'apple juice', {'target'}) USING TIMESTAMP 4");
+        flush();
+        assertRows(execute(select, "target", "apple"), row(1, 1), row(2, 1));
+        compact();
+        assertRows(execute(select, "target", "apple"), row(1, 1), row(2, 1));
+    }
+
+    @Test
+    public void testSearchThenSortWithRowReinsertedWithoutOrderedColumn() throws Throwable
+    {
+        // The live row has no value for the BM25 column (deleted and re-inserted without it) while an older sstable
+        // still holds and scores the previous value: the stale score must be discarded, not NPE during validation.
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v text, n int)");
+        createIndex("CREATE CUSTOM INDEX ON %s(n) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex'");
+        createAnalyzedIndex();
+        execute("INSERT INTO %s (k, v, n) VALUES (1, 'apple', 0)");
+        execute("INSERT INTO %s (k, v, n) VALUES (2, 'apple juice', 0)");
+        // Insert many unrelated rows so we do search-then-sort
+        for (int i = 3; i < 100; i++)
+            execute("INSERT INTO %s (k, v, n) VALUES (?, 'apple juice', 1)", i);
+        flush();
+
+        execute("DELETE FROM %s WHERE k = 2");
+        execute("INSERT INTO %s (k, n) VALUES (2, 0)");
+        String select = "SELECT k FROM %s WHERE n = 0 ORDER BY v BM25 OF 'apple' LIMIT 3";
+        beforeAndAfterFlush(() -> assertRows(execute(select), row(1)));
+    }
+
+    @Test
+    public void testSearchThenSortWithRangeTombstoneBeforeLiveRow()
+    {
+        createTable("CREATE TABLE %s (k int, c int, v text, n int, PRIMARY KEY (k, c))");
+        createIndex("CREATE CUSTOM INDEX ON %s(n) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex'");
+        createAnalyzedIndex();
+        execute("INSERT INTO %s (k, c, v, n) VALUES (1, 1, 'apple', 0)");
+        execute("INSERT INTO %s (k, c, v, n) VALUES (2, 1, 'apple juice', 0)");
+        for (int i = 3; i < 100; i++)
+            execute("INSERT INTO %s (k, c, v, n) VALUES (?, 1, 'apple juice', 1)", i);
+
+        // The range tombstone is older than the live row, so both are preserved in the sstable.
+        execute("DELETE FROM %s USING TIMESTAMP 1 WHERE k = 2 AND c >= 0 AND c <= 2");
+        flush();
+
+        String select = "SELECT k, c FROM %s WHERE n = 0 ORDER BY v BM25 OF 'apple' LIMIT 3";
+        assertRows(execute(select), row(1, 1), row(2, 1));
+    }
+
+    @Test
     public void testTwoIndexesAmbiguousPredicate() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v text)");
