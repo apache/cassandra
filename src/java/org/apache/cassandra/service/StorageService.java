@@ -225,7 +225,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MD5Digest;
-import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
@@ -4057,15 +4056,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             catch (Throwable t)
             {
                 logger.error("Failed to stop async profiler.", t);
-            }
-
-            try
-            {
-                NoSpamLogger.shutdown();
-            }
-            catch (Throwable t)
-            {
-                logger.warn("Unable to shutdown NoSpamLogger executor within 1 minute.", t);
             }
 
             try

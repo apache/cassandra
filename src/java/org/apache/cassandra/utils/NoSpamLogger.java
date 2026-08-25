@@ -18,9 +18,7 @@
 package org.apache.cassandra.utils;
 
 import java.time.Duration;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -33,7 +31,8 @@ import com.google.common.annotations.VisibleForTesting;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 
-import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import org.apache.cassandra.concurrent.ImmediateExecutor;
+
 import static org.apache.cassandra.config.CassandraRelevantProperties.NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER;
 import static org.apache.cassandra.utils.Clock.Global;
 
@@ -181,14 +180,6 @@ public class NoSpamLogger
 
     private static final NonBlockingHashMap<Logger, NoSpamLogger> wrappedLoggers = new NonBlockingHashMap<>();
 
-    /**
-     * Shuts down the shared cache maintenance executor. Should be called during node drain/shutdown.
-     */
-    public static void shutdown() throws InterruptedException, TimeoutException
-    {
-        ExecutorUtils.shutdownNowAndWait(1, TimeUnit.MINUTES, CACHE_MAINTENANCE_EXECUTOR);
-    }
-
     @VisibleForTesting
     static void clearWrappedLoggersForTest()
     {
@@ -274,12 +265,6 @@ public class NoSpamLogger
     private final long minIntervalNanos;
 
     /**
-     * Dedicated executor for Caffeine cache maintenance tasks (eviction, expiry) shared across all
-     * NoSpamLogger instances. Registered with JMX under "internal" path for observability.
-     */
-    private static final ExecutorService CACHE_MAINTENANCE_EXECUTOR = executorFactory().withJmxInternal().sequential("NoSpamLogger");
-
-    /**
      * Cache of NoSpamLogStatement instances per NoSpamLogger instance.
      * Bounded by size and time to prevent memory exhaustion from dynamic log messages.
      * Uses Caffeine with W-TinyLFU eviction policy.
@@ -289,7 +274,7 @@ public class NoSpamLogger
                                                                           .maximumSize(NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER.getLong())
                                                                           .expireAfter(Expiry.writing((String key, NoSpamLogStatement value) -> Duration.ofNanos(value.expiry())))
                                                                           .ticker(TICKER)
-                                                                          .executor(CACHE_MAINTENANCE_EXECUTOR)
+                                                                          .executor(ImmediateExecutor.INSTANCE)
                                                                           .recordStats()
                                                                           .build();
 
