@@ -78,6 +78,14 @@
 ;; A version of CQL to use (this should almost never be set)
 ; version = 3.2.1
 
+;; The consistency level to start cqlsh with - ONE by default.
+;; This setting can be overridden with the --consistency-level command line option.
+; consistency_level = LOCAL_QUORUM
+
+;; The serial consistency level to start cqlsh with - SERIAL by default.
+;; This setting can be overridden with the --serial-consistency-level command line option.
+; serial_consistency_level = LOCAL_SERIAL
+
 
 
 [connection]

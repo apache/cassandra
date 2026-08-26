@@ -116,6 +116,12 @@ Options:
 `--request-timeout=REQUEST_TIMEOUT`::
   Specify the default request timeout in seconds
   (default: 10 seconds).
+`--consistency-level=CONSISTENCY_LEVEL`::
+  Specify the initial consistency level (default: ONE).
+  A serial consistency level is not valid here.
+`--serial-consistency-level=SERIAL_CONSISTENCY_LEVEL`::
+  Specify the initial serial consistency level
+  (default: SERIAL). Only SERIAL and LOCAL_SERIAL are valid here.
 `-t, --tty`::
   Force tty mode (command prompt).
 `-v` `--v`::
