@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
@@ -683,11 +682,11 @@ public class LeveledCompactionStrategyTest
         }
 
         SSTableReader sstable = MockSchema.sstableWithLevel(i, newStart.getLongValue(), newEnd.getLongValue(), 0, cfs);
-        Collection<SSTableReader> treeSetIntersectingSSTables = getIntersectingSSTablesFromTreeSet(sstable, (TreeSet<SSTableReader>) generations.get(1));
-        Collection<SSTableReader> linearScanIntersectionSSTables = overlapping(sstable.getFirst().getToken(), sstable.getLast().getToken(), generations.get(1));
+        Collection<SSTableReader> treeSetIntersectingSSTables = getIntersectingSSTablesFromTreeSet(sstable, generations.getSortedLevel(1));
+        Collection<SSTableReader> linearScanIntersectionSSTables = overlapping(sstable.getFirst().getToken(), sstable.getLast().getToken(), generations.getSortedLevel(1));
 
         // The results should be equivalent to doing a linear scan
-        assertTrue("[seed = " + seed + " tree set and linear scan produce different results]", treeSetIntersectingSSTables.containsAll(linearScanIntersectionSSTables) && linearScanIntersectionSSTables.containsAll(treeSetIntersectingSSTables));
+        assertTrue("[seed = " + seed + " treeSet and linear scan produce different results]", treeSetIntersectingSSTables.containsAll(linearScanIntersectionSSTables) && linearScanIntersectionSSTables.containsAll(treeSetIntersectingSSTables));
     }
 
     private int getTaskLevel(ColumnFamilyStore cfs)
