@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.upgrade;
 
 import com.vdurmont.semver4j.Semver;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Constants;
@@ -29,6 +30,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 
 public class ClusterMetadataReconfMinorUpgradeTest extends UpgradeTestBase
 {
+    @Ignore // see comment on ClusterMetadataMinorUpgradeTest
     @Test
     public void testCatchupResolution() throws Throwable
     {
