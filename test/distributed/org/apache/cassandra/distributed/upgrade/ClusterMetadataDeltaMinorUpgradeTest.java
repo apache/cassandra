@@ -59,7 +59,7 @@ public class ClusterMetadataDeltaMinorUpgradeTest extends UpgradeTestBase
             long mark = cluster.get(4).logs().mark();
             cluster.get(1).nodetoolResult("move", "123455").asserts().success();
             cluster.get(4).logs().watchFor(mark, "Enacted FinishMove");
-            assertTrue(cluster.get(4).logs().grep(mark, "Deserialized EndpointDelta at V8 or earlier on 10").getResult().isEmpty());
+            assertTrue(cluster.get(4).logs().grep(mark, "Deserialized EndpointDelta at V9 or earlier on V10").getResult().isEmpty());
 
         }).run();
     }
