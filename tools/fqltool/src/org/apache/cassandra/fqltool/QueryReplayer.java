@@ -26,14 +26,23 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.security.KeyStore;
+import java.security.SecureRandom;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
+
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Timer;
+import com.datastax.driver.core.AuthProvider;
 import com.datastax.driver.core.Cluster;
+import com.datastax.driver.core.RemoteEndpointAwareJdkSSLOptions;
 import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.SSLOptions;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.Statement;
 import com.google.common.util.concurrent.FutureCallback;
@@ -74,6 +83,26 @@ public class QueryReplayer implements Closeable
                          String queryFilePathString)
     {
         this(queryIterator, targetHosts, resultPaths, filters, queryFilePathString, new DefaultSessionProvider(), null);
+    }
+
+    /**
+     * Constructor supporting SSL and custom auth provider options for the default session provider.
+     */
+    public QueryReplayer(Iterator<List<FQLQuery>> queryIterator,
+                         List<String> targetHosts,
+                         List<File> resultPaths,
+                         List<Predicate<FQLQuery>> filters,
+                         String queryFilePathString,
+                         boolean ssl,
+                         String truststorePath,
+                         String truststorePassword,
+                         String keystorePath,
+                         String keystorePassword,
+                         String authProviderClass)
+    {
+        this(queryIterator, targetHosts, resultPaths, filters, queryFilePathString,
+             new DefaultSessionProvider(ssl, truststorePath, truststorePassword, keystorePath, keystorePassword, authProviderClass),
+             null);
     }
 
     /**
@@ -241,6 +270,35 @@ public class QueryReplayer implements Closeable
     {
         private final static Map<String, Session> sessionCache = new HashMap<>();
 
+        private final boolean ssl;
+        private final String truststorePath;
+        private final String truststorePassword;
+        private final String keystorePath;
+        private final String keystorePassword;
+        private final String authProviderClass;
+        private final SSLOptions sslOptions;
+        private final AuthProvider authProvider;
+
+        DefaultSessionProvider()
+        {
+            this(false, null, null, null, null, null);
+        }
+
+        DefaultSessionProvider(boolean ssl, String truststorePath, String truststorePassword,
+                                String keystorePath, String keystorePassword, String authProviderClass)
+        {
+            this.ssl = ssl;
+            this.truststorePath = truststorePath;
+            this.truststorePassword = truststorePassword;
+            this.keystorePath = keystorePath;
+            this.keystorePassword = keystorePassword;
+            this.authProviderClass = authProviderClass;
+
+            // Eagerly validate and initialize SSL and AuthProvider to fail fast on invalid configuration
+            this.sslOptions = ssl ? buildSSLOptions() : null;
+            this.authProvider = authProviderClass != null ? instantiateAuthProvider() : null;
+        }
+
         public synchronized Session connect(String connectionString)
         {
             if (sessionCache.containsKey(connectionString))
@@ -249,11 +307,74 @@ public class QueryReplayer implements Closeable
             ParsedTargetHost pth = ParsedTargetHost.fromString(connectionString);
             builder.addContactPoint(pth.host);
             builder.withPort(pth.port);
-            if (pth.user != null)
+
+            if (sslOptions != null)
+                builder.withSSL(sslOptions);
+
+            if (authProvider != null)
+                builder.withAuthProvider(authProvider);
+            else if (pth.user != null)
                 builder.withCredentials(pth.user, pth.password);
+
             Cluster c = builder.build();
             sessionCache.put(connectionString, c.connect());
             return sessionCache.get(connectionString);
+        }
+
+        private SSLOptions buildSSLOptions()
+        {
+            try
+            {
+                TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+                if (truststorePath != null)
+                {
+                    KeyStore ts = KeyStore.getInstance("JKS");
+                    try (java.io.FileInputStream fis = new java.io.FileInputStream(truststorePath))
+                    {
+                        ts.load(fis, truststorePassword != null ? truststorePassword.toCharArray() : null);
+                    }
+                    tmf.init(ts);
+                }
+                else
+                {
+                    tmf.init((KeyStore) null);
+                }
+
+                KeyManagerFactory kmf = null;
+                if (keystorePath != null)
+                {
+                    kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+                    KeyStore ks = KeyStore.getInstance("JKS");
+                    try (java.io.FileInputStream fis = new java.io.FileInputStream(keystorePath))
+                    {
+                        ks.load(fis, keystorePassword != null ? keystorePassword.toCharArray() : null);
+                    }
+                    kmf.init(ks, keystorePassword != null ? keystorePassword.toCharArray() : null);
+                }
+
+                SSLContext sslContext = SSLContext.getInstance("TLS");
+                sslContext.init(kmf != null ? kmf.getKeyManagers() : null, tmf.getTrustManagers(), new SecureRandom());
+
+                return RemoteEndpointAwareJdkSSLOptions.builder()
+                                                        .withSSLContext(sslContext)
+                                                        .build();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException("Could not configure SSL for fqltool replay", e);
+            }
+        }
+
+        private AuthProvider instantiateAuthProvider()
+        {
+            try
+            {
+                return (AuthProvider) Class.forName(authProviderClass).getDeclaredConstructor().newInstance();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException("Could not instantiate auth provider: " + authProviderClass, e);
+            }
         }
 
         public void close()

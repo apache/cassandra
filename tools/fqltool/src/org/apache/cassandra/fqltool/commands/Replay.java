@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.fqltool.FQLQuery;
 import org.apache.cassandra.fqltool.FQLQueryIterator;
 import org.apache.cassandra.fqltool.QueryReplayer;
+import org.apache.cassandra.fqltool.ResultHandler;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.MergeIterator;
 
@@ -55,7 +56,7 @@ public class Replay implements Runnable
     @Parameters(paramLabel = "path", description = "Paths containing the full query logs to replay.", arity = "1..*")
     private List<String> arguments = new ArrayList<>();
 
-    @Option(paramLabel = "target", names = { "--target" }, description = "Hosts to replay the logs to, can be repeated to replay to more hosts.", required = true)
+    @Option(paramLabel = "target", names = { "--target" }, description = "Hosts to replay the logs to, can be repeated to replay to more hosts. Format: [username:password@]host[:port], for example 'cassandra:cassandra@127.0.0.1:9042'.", required = true)
     private List<String> targetHosts;
 
     @Option(paramLabel = "results", names = { "--results" }, description = "Where to store the results of the queries, this should be a directory. Leave this option out to avoid storing results.")
@@ -69,6 +70,24 @@ public class Replay implements Runnable
 
     @Option(paramLabel = "replay_ddl_statements", names = { "--replay-ddl-statements" }, description = "If specified, replays DDL statements as well, they are excluded from replaying by default.")
     private boolean replayDDLStatements;
+
+    @Option(paramLabel = "ssl", names = { "--ssl" }, description = "Use SSL for connecting to the target hosts.")
+    private boolean ssl;
+
+    @Option(paramLabel = "ssl_truststore", names = { "--ssl-truststore" }, description = "Path to the SSL truststore.")
+    private String truststorePath;
+
+    @Option(paramLabel = "ssl_truststore_password", names = { "--ssl-truststore-password" }, description = "Password for the SSL truststore.")
+    private String truststorePassword;
+
+    @Option(paramLabel = "ssl_keystore", names = { "--ssl-keystore" }, description = "Path to the SSL keystore, required for two-way SSL.")
+    private String keystorePath;
+
+    @Option(paramLabel = "ssl_keystore_password", names = { "--ssl-keystore-password" }, description = "Password for the SSL keystore.")
+    private String keystorePassword;
+
+    @Option(paramLabel = "auth_provider", names = { "--auth-provider" }, description = "Fully qualified class name of a custom com.datastax.driver.core.AuthProvider implementation (e.g. for Kerberos).")
+    private String authProviderClass;
 
     @Override
     public void run()
@@ -84,14 +103,15 @@ public class Replay implements Runnable
                     System.err.println("The results path (" + basePath + ") should be an existing directory");
                     throw new IllegalArgumentException("The results path (" + basePath + ") should be an existing directory");
                 }
-                resultPaths = targetHosts.stream().map(target -> new File(basePath, target)).collect(Collectors.toList());
+                resultPaths = targetHosts.stream().map(target -> new File(basePath, ResultHandler.maskPassword(target))).collect(Collectors.toList());
                 resultPaths.forEach(File::mkdir);
             }
             if (targetHosts.size() < 1)
             {
                 throw new IllegalArgumentException("You need to state at least one --target host to replay the query against");
             }
-            replay(keyspace, arguments, targetHosts, resultPaths, queryStorePath, replayDDLStatements);
+            replay(keyspace, arguments, targetHosts, resultPaths, queryStorePath, replayDDLStatements,
+                   ssl, truststorePath, truststorePassword, keystorePath, keystorePassword, authProviderClass);
         }
         catch (Exception e)
         {
@@ -99,7 +119,8 @@ public class Replay implements Runnable
         }
     }
 
-    public static void replay(String keyspace, List<String> arguments, List<String> targetHosts, List<File> resultPaths, String queryStorePath, boolean replayDDLStatements)
+    public static void replay(String keyspace, List<String> arguments, List<String> targetHosts, List<File> resultPaths, String queryStorePath, boolean replayDDLStatements,
+                               boolean ssl, String truststorePath, String truststorePassword, String keystorePath, String keystorePassword, String authProviderClass)
     {
         int readAhead = 200; // how many fql queries should we read in to memory to be able to sort them?
         List<ChronicleQueue> readQueues = null;
@@ -124,7 +145,8 @@ public class Replay implements Runnable
             readQueues = arguments.stream().map(s -> SingleChronicleQueueBuilder.single(s).readOnly(true).build()).collect(Collectors.toList());
             iterators = readQueues.stream().map(ChronicleQueue::createTailer).map(tailer -> new FQLQueryIterator(tailer, readAhead)).collect(Collectors.toList());
             try (MergeIterator<FQLQuery, List<FQLQuery>> iter = MergeIterator.get(iterators, FQLQuery::compareTo, new Reducer());
-                 QueryReplayer replayer = new QueryReplayer(iter, targetHosts, resultPaths, filters, queryStorePath))
+                 QueryReplayer replayer = new QueryReplayer(iter, targetHosts, resultPaths, filters, queryStorePath,
+                                                             ssl, truststorePath, truststorePassword, keystorePath, keystorePassword, authProviderClass))
             {
                 replayer.replay();
             }

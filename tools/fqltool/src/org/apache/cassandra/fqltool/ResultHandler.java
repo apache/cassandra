@@ -47,9 +47,27 @@ public class ResultHandler implements Closeable
 
     public ResultHandler(List<String> targetHosts, List<File> resultPaths, File queryFilePath, MismatchListener mismatchListener)
     {
-        this.targetHosts = targetHosts;
+        this.targetHosts = targetHosts.stream().map(ResultHandler::maskPassword).collect(Collectors.toList());
         resultStore = resultPaths != null ? new ResultStore(resultPaths, queryFilePath) : null;
         resultComparator = new ResultComparator(mismatchListener);
+    }
+
+    /**
+     * Masks the password portion of a target host string (format: [user:password@]host[:port])
+     * so it is never written to logs or result files.
+     * Uses lastIndexOf to correctly handle passwords containing @ symbols.
+     */
+    @VisibleForTesting
+    public static String maskPassword(String target)
+    {
+        int at = target.lastIndexOf('@');
+        if (at < 0)
+            return target;
+        String userInfo = target.substring(0, at);
+        int colon = userInfo.indexOf(':');
+        if (colon < 0)
+            return target;
+        return userInfo.substring(0, colon) + ":*****@" + target.substring(at + 1);
     }
 
     /**
