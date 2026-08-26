@@ -37,15 +37,21 @@ _target_test_types="$(grep '^TARGET_TYPES=' "${cassandra_dir}/.build/run-tests.s
 _target_dtest_types="$(cd ${cassandra_dir}; bash <(sed -n "/^TARGET_TYPES=/,/^done$/p" .build/run-python-dtests.sh; echo 'echo ${TARGET_TYPES}'))"
 TARGET_TYPES="${_target_test_types} ${_target_dtest_types}"
 
+java_version_default=`grep 'property\s*name="java.default"' ${cassandra_dir}/build.xml 2>/dev/null |sed -ne 's/.*value="\([^"]*\)".*/\1/p'`
+java_version_supported=`grep 'property\s*name="java.supported"' ${cassandra_dir}/build.xml 2>/dev/null |sed -ne 's/.*value="\([^"]*\)".*/\1/p'`
+regx_java_version="(${java_version_supported//,/|})"
+
 print_help() {
   echo ""
-  echo "Usage: $0 [-a|-t|-c|-j|-h] [extra arguments]"
-  echo "   -a Test target type: ${TARGET_TYPES}"
-  echo "   -t Test name regexp to run."
-  echo "   -c Chunk to run in the form X/Y: Run chunk X from a total of Y chunks."
-  echo "   -j Java version. Default java_version is what 'java.default' specifies in build.xml."
-  echo "   [extra arguments] will be passed to downstream scripts."
-  exit 1
+  echo "Usage: $0 [-a|-t|-c|-j|-s|-h] [extra arguments]"
+  echo "   -a, --target <type>   Test target type: ${TARGET_TYPES}"
+  echo "   -t, --test <regexp>   Test name regexp to run."
+  echo "   -c, --chunk <X/Y>     Chunk to run in the form X/Y: Run chunk X from a total of Y chunks."
+  echo "   -j, --java <version>  Java version. Default java_version is what 'java.default' specifies in build.xml."
+  echo "   -s, --summary         Print a summary of failed tests instead of the full ant output."
+  echo "   [extra arguments] are passed to the downstream script, for example -i and -b for"
+  echo "                     .build/run-tests.sh. Both downstream scripts reject an option"
+  echo "                     they do not recognise."
 }
 
 error() {
@@ -54,46 +60,78 @@ error() {
   exit $1
 }
 
-# legacy argument handling
+# legacy argument handling, for the form <target> [<test regexp|chunk>] [<java version>]
 if [[ " ${TARGET_TYPES} " =~ " ${1} " ]]; then
   test_type="-a ${1}"
+  java_version_arg=""
   if [[ -z ${2} ]]; then
     test_list=""
   elif [[ -n ${2} && "${2}" =~ ^[0-9]+/[0-9]+$ ]]; then
     test_list="-c ${2}";
+  elif [[ -z ${3} && "${2}" =~ ^${regx_java_version}$ ]]; then
+    # <target> <java version>, as the sibling docker scripts take it. not a test name regexp
+    test_list=""; java_version_arg="-j ${2}"
   else
     test_list="-t ${2}";
   fi
-  if [[ -n ${3} ]]; then java_version="-j ${3}"; else java_version=""; fi
-  echo "Using deprecated legacy arguments.  Please update to new parameter format: ${test_type} ${test_list} ${java_version}"
-  $0 ${test_type} ${test_list} ${java_version}
+  if [[ -n ${3} ]]; then java_version_arg="-j ${3}"; fi
+  echo "Using deprecated legacy arguments.  Please update to new parameter format: ${test_type} ${test_list} ${java_version_arg}"
+  $0 ${test_type} ${test_list} ${java_version_arg}
   exit $?
 fi
 
+# getopts accepts single characters only, so parse by hand to offer long flags too.
+# an argument this script does not know goes to the downstream script, which rejects
+# any option that it does not know either. see print_help
+_require_arg() {
+  [ -n "${2}" ] || error 1 "Option ${1} requires an argument"
+}
+
 env_vars=""
-while getopts ":a:t:c:e:hj:" opt; do
-  # shellcheck disable=SC2220
-  # Invalid flags check disabled as we'll pass them to other scripts
-  case $opt in
-    a ) test_target="$OPTARG"
+extra_args=""
+summary_arg=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -a|--target)
+        _require_arg "$1" "${2:-}"
+        test_target="$2"
         [[ " ${TARGET_TYPES} " =~ " ${test_target/-repeat/} " ]] || error 1 "Invalid test target type '${test_target}'. Valid types: ${TARGET_TYPES}"
+        shift 2
         ;;
-    t ) test_name_regexp="$OPTARG"
+    -t|--test)
+        _require_arg "$1" "${2:-}"
+        test_name_regexp="$2"; shift 2
         ;;
-    c ) chunk="$OPTARG"
+    -c|--chunk)
+        _require_arg "$1" "${2:-}"
+        chunk="$2"; shift 2
         ;;
-    j ) java_version="$OPTARG"
+    -j|--java)
+        _require_arg "$1" "${2:-}"
+        java_version="$2"; shift 2
         ;;
-    e ) env_vars="${env_vars} -e $OPTARG"
+    -e|--env)
+        _require_arg "$1" "${2:-}"
+        env_vars="${env_vars} -e $2"; shift 2
         ;;
-    h ) print_help
-        exit 0
+    -s|--summary)
+        summary_arg="-s"; shift
         ;;
-    e)  ;; # Repeat vars are just passed to downstream run-tests-enhaced.sh
-    \?) die "Invalid option: -$OPTARG"
+    -h|--help)
+        print_help; exit 0
+        ;;
+    *)  extra_args="${extra_args} $1"; shift
         ;;
   esac
 done
+
+# the dtest targets run .build/run-python-dtests.sh, which has no summary mode.
+# reject the flag here, before any docker work, instead of dropping it silently.
+# test_target can be unset, which would make the match read as an empty pattern
+if [ -n "${summary_arg}" ] && [ -n "${test_target:-}" ] \
+    && [[ " ${_target_dtest_types} " =~ " ${test_target/-repeat/} " ]] ; then
+  error 1 "--summary is not supported for '${test_target}', as run-python-dtests.sh has no summary mode"
+fi
 
 # pre-conditions
 command -v docker >/dev/null 2>&1 || { error 1 "docker needs to be installed"; }
@@ -110,15 +148,20 @@ test_name_regexp=${test_name_regexp}
 java_version=${java_version}
 
 test_script="run-tests.sh"
-java_version_default=`grep 'property\s*name="java.default"' ${cassandra_dir}/build.xml |sed -ne 's/.*value="\([^"]*\)".*/\1/p'`
-java_version_supported=`grep 'property\s*name="java.supported"' ${cassandra_dir}/build.xml |sed -ne 's/.*value="\([^"]*\)".*/\1/p'`
+
+# the docker scripts legacy argument handling take the java version positionally, this one takes -j
+# catch any unintended extra arguments that came through by mistake
+for extra_arg in ${extra_args} ; do
+    if [[ "${extra_arg}" =~ ^${regx_java_version}$ ]]; then
+        error 1 "Unrecognised argument '${extra_arg}'. Use '-j ${extra_arg}' to set the java version"
+    fi
+done
 
 if [ "x${java_version}" == "x" ] ; then
     echo "Defaulting to java ${java_version_default}"
     java_version="${java_version_default}"
 fi
 
-regx_java_version="(${java_version_supported//,/|})"
 if [[ ! "${java_version}" =~ $regx_java_version ]]; then
     error 1 "Error: Java version is not in ${java_version_supported}, it is set to ${java_version}"
 fi
@@ -290,7 +333,7 @@ logfile="${build_dir}/test/logs/docker_attach_${container_name}.log"
 [ -n "${test_name_regexp}" ] && test_name_regexp_arg="-t ${test_name_regexp}" || split_chunk_arg="-c ${split_chunk}"
 
 docker_command="source \${CASSANDRA_DIR}/.build/docker/_set_java.sh ${java_version} ; \
-            \${CASSANDRA_DIR}/.build/docker/_docker_init_tests.sh -a ${target} ${split_chunk_arg} ${test_name_regexp_arg} ${env_vars} ; exit \$?"
+            \${CASSANDRA_DIR}/.build/docker/_docker_init_tests.sh -a ${target} ${split_chunk_arg} ${test_name_regexp_arg} ${summary_arg} ${env_vars} ${extra_args} ; exit \$?"
 
 # start the container, timeout after 4 hours
 docker_id=$(docker run --name ${container_name} ${docker_flags} ${docker_envs} ${docker_mounts} ${docker_volume_opt} ${image_name} sleep ${docker_timeout_hours}h)

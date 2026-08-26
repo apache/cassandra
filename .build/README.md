@@ -4,6 +4,29 @@ Building and Testing with the helper sripts
 Information on building and testing beyond the use of ant.
 All scripts also print help if the first argument is `-h`.
 
+`build-jars.sh`, `check-code.sh` and `run-tests.sh` accept `-s` (`--summary`).
+That prints a summary of the failures in place of the full ant output, and keeps
+the full output in a log file under the build directory.  The scripts name that
+file when a run fails.
+
+Building JARs
+-------------
+
+Build in docker:
+
+    .build/docker/build-jars.sh
+
+
+Build without docker:
+
+    .build/build-jars.sh
+
+
+Remove the artifacts of a previous build first:
+
+    .build/build-jars.sh --clean
+
+
 Code Checks and Lints
 ---------------------
 
@@ -151,6 +174,19 @@ Other python dtest types without docker:
 Debugging test scripts:
 
     DEBUG=true .build/docker/run-tests.sh -a test
+
+
+Testing the helper scripts
+--------------------------
+
+The tests of the helper scripts need no JDK build.  A stub `ant` and a stub `docker`
+replay canned output, so each suite runs in seconds.
+
+Run them:
+
+    python3 -m unittest discover -s .build/sh/test    # the log summarizers
+    .build/sh/test/stub-ant-cases.sh                  # .build/*.sh
+    .build/sh/test/stub-docker-cases.sh               # .build/docker/*.sh
 
 
 Running Sonar analysis (experimental)

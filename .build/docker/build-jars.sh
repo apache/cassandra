@@ -17,6 +17,8 @@
 
 #
 # Build the jars
+#
+# Usage: build-jars.sh [<java version>] [<build-jars.sh arguments…>]
 
-$(dirname -- "$0")/_docker_run.sh bullseye-build.docker build-jars.sh $1
+$(dirname -- "$0")/_docker_run.sh bullseye-build.docker build-jars.sh "$@"
 exit $?

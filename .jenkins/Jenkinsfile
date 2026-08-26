@@ -690,7 +690,7 @@ def generateTestReports() {
 
       dir('build/') {
         archiveArtifacts artifacts: "ci_summary.html,results_details.tar.xz,${logfile}", fingerprint: true
-        copyToNightlies('ci_summary.html,results_details.tar.xz,${logfile}')
+        copyToNightlies("ci_summary.html,results_details.tar.xz,${logfile}")
       }
     }
     processJmhReports()

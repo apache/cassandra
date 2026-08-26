@@ -49,6 +49,7 @@ import time
 from contextlib import contextmanager
 from enum import Enum
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import urlretrieve
 from typing import Optional, Tuple
 
@@ -147,6 +148,13 @@ DEFAULT_DTEST_REPO_BRANCH = "trunk"
 DEFAULT_PROFILE = "skinny"
 DEFAULT_POD_NAME = "cassius-jenkins-0"
 DEFAULT_CONTAINER_NAME = "jenkins"
+# Jenkins API failures that are usually transient, and are retried while polling.
+# jenkins.NotFoundException extends jenkins.JenkinsException, so it needs no entry
+JENKINS_API_ERRORS = (jenkins.JenkinsException, requests.exceptions.ConnectionError)
+# number of consecutive failed polls before the script warns the user
+POLL_FAILURES_BEFORE_WARNING = 10
+# errors urlretrieve raises, including HTTPError (a subclass of OSError) on a missing artifact
+DOWNLOAD_URL_ERRORS = (requests.exceptions.RequestException, IOError)
 LOCAL_RESULTS_BASEDIR = CASSANDRA_DIR / "build/ci/"
 # AWS/GCloud specifics for node_cleaner function, needed for node_cleaner
 AWS_REGION = os.environ.get("AWS_REGION")
@@ -651,30 +659,89 @@ def trigger_jenkins_build(server: jenkins.Jenkins, job_name: str, **build_params
     return server.build_job(job_name, parameters=build_params)
 
 
+def get_build_info(server: jenkins.Jenkins, job_name: str, build_number: int) -> dict:
+    """Returns the Jenkins build info, or an empty dict if the API call failed."""
+    try:
+        return server.get_build_info(job_name, build_number)
+    except JENKINS_API_ERRORS as e:
+        debug(f"Failed get_build_info: {e}")
+        return {}
+
+
+def get_queue_item(server: jenkins.Jenkins, queue_item: int) -> dict:
+    """Returns the Jenkins queue item, or an empty dict if the API call failed."""
+    try:
+        return server.get_queue_item(queue_item)
+    except JENKINS_API_ERRORS as e:
+        debug(f"Failed get_queue_item: {e}")
+        return {}
+
+
+def warn_on_repeated_failures(state: dict, description: str):
+    """Prints a warning every POLL_FAILURES_BEFORE_WARNING consecutive Jenkins API failures."""
+    state["failures"] += 1
+    if 0 == state["failures"] % POLL_FAILURES_BEFORE_WARNING:
+        print(f"\r\033[KWarning: {state['failures']} consecutive Jenkins API failures for {description}."
+              " Still polling. Set DEBUG=1 for details.")
+
+
 def wait_for_build_number(server: jenkins.Jenkins, queue_item: int) -> int:
-    spin_while("Waiting for job build number… ", lambda: ('executable' in server.get_queue_item(queue_item)))
-    build_number = server.get_queue_item(queue_item)['executable']['number']
+    """Waits for Jenkins to start the queued item, and returns its build number."""
+    state = {"build_number": None, "failures": 0}
+
+    def is_started() -> bool:
+        item = get_queue_item(server, queue_item)
+        if not item:
+            warn_on_repeated_failures(state, f"queue item {queue_item}")
+            return False
+        state["failures"] = 0
+        # a queued item can carry "executable": null, so test the value and not the key
+        executable = item.get('executable')
+        if executable is None:
+            return False
+        state["build_number"] = executable['number']
+        return True
+
+    spin_while("Waiting for job build number… ", is_started)
+    build_number = state["build_number"]
     sys.stdout.write("\033[F\033[K")  # Move cursor up one line and clear i
     print(f"\rBuild number: {build_number}\n")
     return build_number
 
 
 def wait_for_build_complete(server: jenkins.Jenkins, job_name: str, build_number: int):
-    """Waits for Jenkins build completion by monitoring the build status."""
+    """
+    Waits for Jenkins build completion by monitoring the build status.
 
-    def get_build_info(server: jenkins.Jenkins, job_name: str, build_number: int) -> dict:
-        try:
-            return server.get_build_info(job_name, build_number)
-        except (jenkins.NotFoundException, jenkins.JenkinsException, requests.exceptions.ConnectionError) as e:
-            debug(f"Failed get_build_info: {e}")
-            return {}
+    A pipeline latches its result as soon as one stage reports a failed test, while the
+    other stages continue to run. Completion therefore needs `building` to be false, and
+    not only a non-null `result`.
+    """
+    start_time = time.time()
+    state = {"info": {}, "failures": 0, "latched": False}
 
-    elapsed_time = spin_while("Waiting for build to complete… ",
-                              lambda: get_build_info(server, job_name, build_number).get('result'))
+    def is_complete() -> bool:
+        info = get_build_info(server, job_name, build_number)
+        if not info:
+            warn_on_repeated_failures(state, f"{job_name} build {build_number}")
+            return False
+        state["failures"] = 0
+        state["info"] = info
+        result = info.get('result')
+        # default `building` to True: never read a missing field as finished
+        if info.get('building', True):
+            if result is not None and not state["latched"]:
+                state["latched"] = True
+                minutes, seconds = divmod(int(time.time() - start_time), 60)
+                print(f"\r\033[KBuild latched result {result} after {minutes:02}:{seconds:02}."
+                      " Stages are still running…")
+            return False
+        return result is not None
+
+    elapsed_time = spin_while("Waiting for build to complete… ", is_complete)
 
     minutes, seconds = divmod(elapsed_time, 60)
-    result = get_build_info(server, job_name, build_number)['result']
-    print(f"\r---\nBuild completed after {minutes:02}:{seconds:02} with status: {result}")
+    print(f"\r---\nBuild completed after {minutes:02}:{seconds:02} with status: {state['info'].get('result')}")
 
 
 def spin_while(message="", is_complete=lambda: False) -> int:
@@ -935,38 +1002,51 @@ def delete_remote_junit_files(k8s_client, pod_name: str, kube_ns: str, base_job_
     debug("Remote JUnit XML files cleaned.")
 
 
+def is_transient(error) -> bool:
+    """A 404 means the artifact was never archived, so retrying it only wastes time."""
+    return not (isinstance(error, HTTPError) and 404 == error.code)
+
+
+def retry_call(action, description: str, errors, max_retries: int = 5, delay: int = 5):
+    """
+    Calls action(), and retries it up to max_retries times on `errors`.
+    Raises the last error if every attempt failed.
+    """
+    attempts = max(1, max_retries)
+    last_error = None
+    for attempt in range(attempts):
+        try:
+            return action()
+        except errors as e:
+            last_error = e
+            if not is_transient(e):
+                break
+            if attempt < attempts - 1:
+                debug(f" Failed to {description}: {e}. Retrying ({attempt + 1}/{attempts})...")
+                time.sleep(delay)
+    debug(f"Failed to {description}: {last_error}")
+    raise last_error
+
+
 def download_results_and_print_summary(k8s_client, pod_name: str, kube_ns: str, build_number: int, ip: str, args):
 
     def download_console_log(pod_name: str, container_name: str,  kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, console_log_path: str, local_console_log: Path):
-        max_retries = 5
-        for attempt in range(max_retries):
-            try:
-                run_kubectl_command(kubeconfig, kubecontext, kube_ns,
-                                    ["cp", "-c", container_name, f"{kube_ns}/{pod_name}:{console_log_path}", str(local_console_log)])
-
-                print(f"Console log saved to {local_console_log}.gz\n")
-                break
-            except subprocess.CalledProcessError as e:
-                if attempt < max_retries:
-                    debug(f" Failed to download {pod_name}:{console_log_path}: {e}. Retrying ({attempt + 1}/{max_retries})...")
-                    time.sleep(5)  # Wait before retrying
-                else:
-                    raise
+        # this runs in a thread, so it must report its own failure. an escaping
+        # exception would print a traceback and leave the caller reading a missing file
+        try:
+            retry_call(lambda: run_kubectl_command(kubeconfig, kubecontext, kube_ns,
+                                                   ["cp", "-c", container_name, f"{kube_ns}/{pod_name}:{console_log_path}", str(local_console_log)]),
+                       f"download {pod_name}:{console_log_path}", subprocess.CalledProcessError)
+        except subprocess.CalledProcessError as e:
+            print(f"WARNING: could not download the console log {pod_name}:{console_log_path}: {e}")
+            return
+        print(f"Console log saved to {local_console_log}.gz\n")
 
     def download_archive_tarball(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, pod_name: str, container_name: str, remote_path: str, local_path, max_retries=5):
-        for attempt in range(max_retries):
-            try:
-                run_kubectl_command(kubeconfig, kubecontext, kube_ns,
-                                    ["cp", "-c", container_name, f"{kube_ns}/{pod_name}:{remote_path}", str(local_path)])
-
-                debug(f"Build Artifacts saved in {local_path}")
-                break
-            except subprocess.CalledProcessError as e:
-                if attempt < max_retries:
-                    debug(f" Failed to download {pod_name}:{remote_path}: {e}. Retrying ({attempt + 1}/{max_retries})...")
-                    time.sleep(5)  # Wait before retrying
-                else:
-                    raise
+        retry_call(lambda: run_kubectl_command(kubeconfig, kubecontext, kube_ns,
+                                               ["cp", "-c", container_name, f"{kube_ns}/{pod_name}:{remote_path}", str(local_path)]),
+                   f"download {pod_name}:{remote_path}", subprocess.CalledProcessError, max_retries)
+        debug(f"Build Artifacts saved in {local_path}")
 
     def extract_and_rename(archive_path: str, local_results_dir: str, ci_summary_file: str, ci_details_file: str):
         with tarfile.open(archive_path, "r:gz") as tar:
@@ -1024,17 +1104,8 @@ def download_results_and_print_summary(k8s_client, pod_name: str, kube_ns: str, 
             os.remove(local_console_log)
 
     def download_url(url, dest, max_retries=5):
-        for attempt in range(max_retries):
-            try:
-                urlretrieve(url, dest)
-                debug(f" saved {dest}")
-                break
-            except (requests.exceptions.RequestException, IOError) as e:
-                if attempt < max_retries:
-                    debug(f" Failed to download {url}: {e}. Retrying ({attempt + 1}/{max_retries})...")
-                    time.sleep(5)  # Wait before retrying
-                else:
-                    raise
+        retry_call(lambda: urlretrieve(url, dest), f"download {url}", DOWNLOAD_URL_ERRORS, max_retries)
+        debug(f" saved {dest}")
 
     local_results_dir = LOCAL_RESULTS_BASEDIR / ip.replace(".", "-") / str(build_number)
     local_results_dir.mkdir(parents=True, exist_ok=True)
@@ -1042,13 +1113,21 @@ def download_results_and_print_summary(k8s_client, pod_name: str, kube_ns: str, 
     ci_summary_file = local_results_dir / f"ci_summary_{repo_owner}_{args.branch.replace('/', '-')}_{build_number}.html"
     ci_details_file = local_results_dir / f"results_details_{repo_owner}_{args.branch.replace('/', '-')}_{build_number}.tar.xz"
     if args.url:
-        download_url(f"http://{ip}/job/{base_job_name(args)}/{build_number}/artifact/ci_summary.html", ci_summary_file)
-        download_url(f"http://{ip}/job/{base_job_name(args)}/{build_number}/artifact/results_details.tar.xz", ci_details_file)
+        artifact_url = f"http://{ip}/job/{base_job_name(args)}/{build_number}/artifact"
+        for url, dest in [(f"{artifact_url}/ci_summary.html", ci_summary_file),
+                          (f"{artifact_url}/results_details.tar.xz", ci_details_file)]:
+            try:
+                download_url(url, dest)
+            except DOWNLOAD_URL_ERRORS as e:
+                print(f" Could not download {url}: {e}")
+                print(" A build that was aborted or that failed skips the Summary stage,"
+                      " and archives no artifacts.")
         if (ci_summary_file).exists():
             print(f"CI summary saved as {ci_summary_file}")
         if (ci_details_file).exists():
             print(f"Details file saved as {ci_details_file}")
-        print(" (attach ci_summary….html and results_details….tar.xz to the JIRA ticket)")
+        if (ci_summary_file).exists() or (ci_details_file).exists():
+            print(" (attach ci_summary….html and results_details….tar.xz to the JIRA ticket)")
         print("--- Build Summary ---")
         print_results_summary_ci_summary(ci_summary_file)
     else:
@@ -1083,8 +1162,10 @@ def download_results_and_print_summary(k8s_client, pod_name: str, kube_ns: str, 
 
             console_log_thread.join()
             print_results_summary(local_console_log, ci_summary_file)
-        except client.exceptions.ApiException as e:
-            print(f"Failed to tarball artifacts at {archive_path_in_pod} in {pod_name}: {e}")
+        # CalledProcessError comes from the kubectl cp, TarError and OSError from the extract
+        except (client.exceptions.ApiException, subprocess.CalledProcessError, tarfile.TarError, OSError) as e:
+            print(f"Failed to collect the artifacts at {archive_path_in_pod} in {pod_name}: {e}")
+            console_log_thread.join()
 
 
 def cleanup_and_maybe_teardown(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, tear_down: bool):
