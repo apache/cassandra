@@ -859,8 +859,8 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
 
             private DeletionTime activeDeletion;
 
-            private final ComplexColumnData.Builder complexBuilder;
-            private final List<Iterator<Cell<?>>> complexCells;
+            private ComplexColumnData.Builder complexBuilder;
+            private List<Iterator<Cell<?>>> complexCells;
             private final CellReducer cellReducer;
 
             public ColumnDataReducer(int size, boolean hasComplex)
@@ -916,6 +916,11 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
                 }
                 else
                 {
+                    if (complexBuilder == null)
+                    {
+                        complexBuilder = ComplexColumnData.builder();
+                        complexCells = new ArrayList<>(versions.length);
+                    }
                     complexBuilder.newColumn(column);
                     complexCells.clear();
                     DeletionTime complexDeletion = DeletionTime.LIVE;

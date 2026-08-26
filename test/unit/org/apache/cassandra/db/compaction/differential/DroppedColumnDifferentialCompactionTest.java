@@ -24,6 +24,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -93,6 +94,26 @@ public class DroppedColumnDifferentialCompactionTest extends DifferentialCompact
         flush();
 
         assertCursorMatchesIterator(cfs);
+    }
+
+    @Test
+    public void complexCellsNewerThanDropRetained() throws Exception
+    {
+        createTable("CREATE TABLE %s (pk bigint PRIMARY KEY, m map<text, bigint>)");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        execute("UPDATE %s USING TIMESTAMP " + FUTURE_TS + " SET m['a'] = 1 WHERE pk = 0");
+        flush();
+        execute("UPDATE %s USING TIMESTAMP " + FUTURE_TS + " SET m['b'] = 2 WHERE pk = 0");
+        flush();
+
+        alterTable("ALTER TABLE %s DROP m");
+
+        commitCompaction(cfs, cfs.getLiveSSTables(), false, cfs.getDefaultGcBefore(FBUtilities.nowInSeconds()));
+
+        alterTable("ALTER TABLE %s ADD m map<text, bigint>");
+        assertRows(execute("SELECT m FROM %s WHERE pk = 0"), row(map("a", 1L, "b", 2L)));
     }
 
     /** DROP then ADD: pre-drop cells are filtered, post-re-add cells survive — the resurrection shape. */
