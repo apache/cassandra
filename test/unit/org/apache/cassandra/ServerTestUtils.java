@@ -155,9 +155,6 @@ public final class ServerTestUtils
     {
         daemonInitialization();
 
-        // Need to happen after daemonInitialization for config to be set, but before CFS initialization
-        MutationJournal.start();
-
         if (isServerPrepared)
             return;
 
@@ -173,6 +170,11 @@ public final class ServerTestUtils
             logger.error("Failed to cleanup and recreate directories.");
             throw new RuntimeException(e);
         }
+
+        // Need to happen after daemonInitialization for config to be set, but before CFS initialization;
+        // must also happen after cleanupAndLeaveDirs(), which wipes the journal directory and would otherwise
+        // delete the data file of the segment MutationJournal.start() just created out from under it
+        MutationJournal.start();
 
         try
         {
@@ -230,6 +232,7 @@ public final class ServerTestUtils
             cleanupDirectory(cdcDir);
         cleanupDirectory(DatabaseDescriptor.getHintsDirectory());
         cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
+        cleanupDirectory(DatabaseDescriptor.getMutationTrackingJournalDirectory());
         cleanupSavedCaches();
 
         // clean up data directory which are stored as data directory/keyspace/data files

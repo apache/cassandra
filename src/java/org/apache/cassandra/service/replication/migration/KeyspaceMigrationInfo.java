@@ -307,23 +307,26 @@ public class KeyspaceMigrationInfo
                                               @Nonnull Iterable<TableMetadata> tables)
     {
         for (TableMetadata table : tables)
-        {
-            NormalizedRanges<Token> pendingRanges = getPendingRangesForTable(table.id);
-            if (pendingRanges.isEmpty())
-                continue;
+            assertRangesNotMixedMigration(ranges, table.id, table.name);
+    }
 
-            NormalizedRanges<Token> overlap = pendingRanges.intersection(ranges);
-            if (overlap.isEmpty())
-                continue;
+    private void assertRangesNotMixedMigration(NormalizedRanges<Token> ranges, TableId tableId, String tableName)
+    {
+        NormalizedRanges<Token> pendingRanges = getPendingRangesForTable(tableId);
+        if (pendingRanges.isEmpty())
+            return;
 
-            // Some ranges overlap with pending — verify ALL ranges are pending for this table
-            NormalizedRanges<Token> outside = ranges.subtract(pendingRanges);
-            if (!outside.isEmpty())
-                throw new IllegalStateException(String.format(
-                    "Ranges for keyspace %s partially overlap with migration pending ranges for table %s. " +
-                    "Ranges must be entirely inside or entirely outside the pending set.",
-                    keyspace, table.name));
-        }
+        NormalizedRanges<Token> overlap = pendingRanges.intersection(ranges);
+        if (overlap.isEmpty())
+            return;
+
+        // Some ranges overlap with pending — verify ALL ranges are pending for this table
+        NormalizedRanges<Token> outside = ranges.subtract(pendingRanges);
+        if (!outside.isEmpty())
+            throw new IllegalStateException(String.format(
+                "Ranges for keyspace %s partially overlap with migration pending ranges for table %s. " +
+                "Ranges must be entirely inside or entirely outside the pending set.",
+                keyspace, tableName));
     }
 
     /**
@@ -366,20 +369,23 @@ public class KeyspaceMigrationInfo
      * - No migration is in progress for this keyspace, OR
      * - The ranges don't overlap with pending migration ranges for this table
      * <p>
-     * Returns false (use untracked) when:
-     * - A migration is in progress AND the ranges overlap with pending ranges
+     * Returns false (use untracked) when a migration is in progress AND the ranges overlap
+     * with pending ranges.
      *
      * @param metadata cluster metadata snapshot
      * @param keyspace keyspace name
      * @param tableId table to check
      * @param ranges the ranges being repaired or streamed
      * @return true if tracked transfers should be used
+     * @throws IllegalStateException if ranges partially overlap with pending ranges for this table
      */
     public static boolean shouldUseTrackedTransfers(@Nonnull ClusterMetadata metadata,
                                                     @Nonnull String keyspace,
                                                     @Nonnull TableId tableId,
                                                     @Nonnull Collection<Range<Token>> ranges)
     {
+        checkArgument(!ranges.isEmpty(), "Ranges must not be empty");
+
         KeyspaceMigrationInfo migrationInfo = metadata.mutationTrackingMigrationState.getKeyspaceInfo(keyspace);
         if (migrationInfo == null)
             return true;
@@ -389,8 +395,8 @@ public class KeyspaceMigrationInfo
             return true;
 
         NormalizedRanges<Token> normalizedRanges = NormalizedRanges.normalizedRanges(ranges);
-        NormalizedRanges<Token> overlap = pendingRanges.intersection(normalizedRanges);
-        return overlap.isEmpty();
+        migrationInfo.assertRangesNotMixedMigration(normalizedRanges, tableId, tableId.toString());
+        return pendingRanges.intersection(normalizedRanges).isEmpty();
     }
 
     @Override

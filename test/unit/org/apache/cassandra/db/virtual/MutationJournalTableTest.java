@@ -38,6 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class MutationJournalTableTest extends CQLTester
 {
     private static final String KS_NAME = "vts";
+    private static final String TRACKED_KS = "mutation_journal_table_test_ks";
 
     @BeforeClass
     public static void setUpClass()
@@ -50,7 +51,8 @@ public class MutationJournalTableTest extends CQLTester
     @Before
     public void setUp()
     {
-        schemaChange("CREATE TABLE " + KEYSPACE + ".tbl(pk int PRIMARY KEY, v int)");
+        schemaChange("CREATE KEYSPACE IF NOT EXISTS " + TRACKED_KS + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1} AND replication_type = 'tracked'");
+        schemaChange("CREATE TABLE " + TRACKED_KS + ".tbl(pk int PRIMARY KEY, v int)");
     }
 
     @Test
@@ -62,8 +64,10 @@ public class MutationJournalTableTest extends CQLTester
         // Write data to trigger journal writes
         for (int i = 0; i < 100; i++)
         {
-            execute("INSERT INTO " + KEYSPACE + ".tbl(pk, v) VALUES (?, ?)", i, i);
+            execute("INSERT INTO " + TRACKED_KS + ".tbl(pk, v) VALUES (?, ?)", i, i);
         }
+
+        MutationJournal.instance().closeCurrentSegmentForTestingIfNonEmpty();
 
         // Query the virtual table
         ResultSet result = executeNet("SELECT * FROM vts.mutation_journal");

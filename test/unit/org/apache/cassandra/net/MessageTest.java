@@ -198,6 +198,20 @@ public class MessageTest
     }
 
     @Test
+    public void testCycleEmbeddedNoPayloadResponse() throws Exception
+    {
+        Message<NoPayload> msg =
+        Message.builder(Verb.MT_TRANSFER_FAILED_RSP, noPayload)
+               .withEpoch(Epoch.EMPTY)
+               .withId(1)
+               .from(FBUtilities.getLocalAddressAndPort())
+               .withCreatedAt(approxTime.now())
+               .withExpiresAt(approxTime.now() + TimeUnit.SECONDS.toNanos(1))
+               .build();
+        testCycle(msg);
+    }
+
+    @Test
     public void testFailureResponse() throws Exception
     {
         long expiresAt = approxTime.now();

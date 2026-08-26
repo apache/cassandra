@@ -39,9 +39,11 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -398,6 +400,51 @@ public class KeyspaceMigrationInfoTest
         // reads are always untracked
         assertFalse(migrationInfo.shouldUseTrackedForReads(false, testTableId, tokenInPending));
         assertFalse(migrationInfo.shouldUseTrackedForReads(false, testTableId, tokenOutsidePending));
+    }
+
+    @Test
+    public void testShouldUseTrackedTransfersWithEmptyRangesThrows()
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+        assertThatThrownBy(() -> KeyspaceMigrationInfo.shouldUseTrackedTransfers(metadata, "test_ks", testTableId, Collections.emptyList()))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("Ranges must not be empty");
+    }
+
+    @Test
+    public void testShouldUseTrackedTransfersWhenNotMigrating()
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+        assertTrue(KeyspaceMigrationInfo.shouldUseTrackedTransfers(metadata, "non_migrating_ks", testTableId, createTestRanges()));
+    }
+
+    @Test
+    public void testShouldUseTrackedTransfersWhenMigrating()
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+        Token t1 = partitioner.getTokenFactory().fromString("100");
+        Token t2 = partitioner.getTokenFactory().fromString("200");
+        Range<Token> pendingRange = new Range<>(t1, t2);
+        NormalizedRanges<Token> pending = NormalizedRanges.normalizedRanges(Collections.singleton(pendingRange));
+
+        KeyspaceMigrationInfo info = new KeyspaceMigrationInfo("migrating_ks", Collections.singletonMap(testTableId, pending), Epoch.create(1));
+        MutationTrackingMigrationState state = new MutationTrackingMigrationState(Epoch.create(1), Collections.singletonMap("migrating_ks", info));
+        ClusterMetadata cm = metadata.transformer().with(state).build().metadata;
+
+        // Pending range should NOT use tracked transfers (returns false)
+        assertFalse(KeyspaceMigrationInfo.shouldUseTrackedTransfers(cm, "migrating_ks", testTableId, Collections.singletonList(pendingRange)));
+
+        // Range outside pending should use tracked transfers (returns true)
+        Token t3 = partitioner.getTokenFactory().fromString("300");
+        Token t4 = partitioner.getTokenFactory().fromString("400");
+        Range<Token> migratedRange = new Range<>(t3, t4);
+        assertTrue(KeyspaceMigrationInfo.shouldUseTrackedTransfers(cm, "migrating_ks", testTableId, Collections.singletonList(migratedRange)));
+
+        // Range straddling pending and outside should throw IllegalStateException
+        Range<Token> mixedRange = new Range<>(t1, t3);
+        assertThatThrownBy(() -> KeyspaceMigrationInfo.shouldUseTrackedTransfers(cm, "migrating_ks", testTableId, Collections.singletonList(mixedRange)))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("partially overlap with migration pending ranges");
     }
 
     private List<Range<Token>> createTestRanges()

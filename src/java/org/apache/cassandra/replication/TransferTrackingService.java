@@ -19,6 +19,8 @@
 package org.apache.cassandra.replication;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +32,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.FutureCallback;
 
@@ -37,7 +40,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
@@ -107,7 +111,7 @@ public class TransferTrackingService
         lock.writeLock().lock();
         try
         {
-            logger.debug("received: {}", transfer);
+            logger.debug("{} received: {}", transfer.logPrefix(), transfer);
             Preconditions.checkState(!transfer.sstables.isEmpty());
 
             PendingLocalTransfer existing = local.put(transfer.planId, transfer);
@@ -117,6 +121,60 @@ public class TransferTrackingService
         {
             lock.writeLock().unlock();
         }
+    }
+
+    /**
+     * Recovers pending transfers by scanning pending directories for every table in tracked
+     * keyspaces. This allows node restarts to not leave SSTables unreferenced on disk. 
+     */
+    public void recoverPendingTransfers()
+    {
+        lock.writeLock().lock();
+        try
+        {
+            for (Keyspace keyspace : Keyspace.all())
+            {
+                if (!keyspace.getMetadata().params.replicationType.isTracked())
+                    continue;
+
+                for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+                {
+                    for (Map.Entry<TimeUUID, Collection<File>> staged : stagedDirectoriesByPlanId(cfs).entrySet())
+                    {
+                        PendingLocalTransfer transfer = PendingLocalTransfer.load(cfs, staged.getKey(), staged.getValue());
+                        if (transfer == null)
+                            continue;
+
+                        PendingLocalTransfer existing = local.putIfAbsent(transfer.planId, transfer);
+                        if (existing != null)
+                        {
+                            logger.warn("{} Not recovering {}, a transfer is already tracked for plan",
+                                        transfer.logPrefix(), staged.getValue());
+                            purge(transfer);
+                        }
+                    }
+                }
+            }
+        }
+        finally
+        {
+            lock.writeLock().unlock();
+        }
+    }
+
+    private static Map<TimeUUID, Collection<File>> stagedDirectoriesByPlanId(ColumnFamilyStore cfs)
+    {
+        Map<TimeUUID, Collection<File>> byPlanId = new HashMap<>();
+        for (File pendingLocation : cfs.getDirectories().getPendingLocations())
+        {
+            for (File dir : pendingLocation.listUnchecked(File::isDirectory))
+            {
+                TimeUUID planId = PendingLocalTransfer.planIdFromDirectory(dir);
+                if (planId != null)
+                    byPlanId.computeIfAbsent(planId, ignore -> new ArrayList<>()).add(dir);
+            }
+        }
+        return byPlanId;
     }
 
     /**
@@ -256,7 +314,7 @@ public class TransferTrackingService
          */
         boolean test(CoordinatedTransfer transfer)
         {
-            logger.debug("Checking whether we can purge {}", transfer);
+            logger.debug("{} Checking whether we can purge", transfer.logPrefix());
             boolean failedBeforeActivation = false;
             boolean noneActivated = true;
             boolean allComplete = true;
@@ -307,7 +365,8 @@ public class TransferTrackingService
         }
     }
 
-    private void purge(TransferFailed failed)
+    @VisibleForTesting
+    void purge(TransferFailed failed)
     {
         lock.writeLock().lock();
         try
@@ -315,7 +374,8 @@ public class TransferTrackingService
             PendingLocalTransfer pending = local.get(failed.planId);
             if (pending == null)
             {
-                logger.warn("Cannot purge unknown local pending transfer {}", failed);
+                logger.info("No local pending transfer for {}, discarding any pending SSTables left on disk", failed);
+                deletePendingDirectories(failed.planId);
                 return;
             }
             purge(pending);
@@ -326,27 +386,27 @@ public class TransferTrackingService
         }
     }
 
-    private void purge(PendingLocalTransfer transfer)
+    @VisibleForTesting
+    void purge(PendingLocalTransfer transfer)
     {
-        logger.info("Cleaning up pending transfer {}", transfer);
+        logger.info("{} Cleaning up pending transfer", transfer.logPrefix());
 
         lock.writeLock().lock();
         try
         {
-            // Delete the entire pending transfer directory /pending/<planId>/
-            if (!transfer.sstables.isEmpty())
+            // Delete every /pending/<planId>/ directory the transfer was staged into
+            for (File pendingDir : transfer.directories())
             {
-                SSTableReader sstable = transfer.sstables.iterator().next();
-                File pendingDir = sstable.descriptor.directory;
+                if (!pendingDir.exists())
+                    continue;
 
-                if (pendingDir.exists())
-                {
-                    Preconditions.checkState(pendingDir.absolutePath().contains(transfer.planId.toString()));
-                    logger.debug("Deleting pending transfer directory: {}", pendingDir);
-                    pendingDir.deleteRecursive();
-                }
+                Preconditions.checkState(pendingDir.absolutePath().contains(transfer.planId.toString()));
+                logger.debug("{} Deleting pending transfer directory: {}", transfer.logPrefix(), pendingDir);
+                pendingDir.deleteRecursive();
             }
-            local.remove(transfer.planId);
+
+            transfer.sstables.forEach(sstable -> sstable.selfRef().release());
+            local.remove(transfer.planId, transfer);
         }
         finally
         {
@@ -356,13 +416,11 @@ public class TransferTrackingService
 
     private void purge(CoordinatedTransfer transfer)
     {
-        logger.info("Cleaning up completed coordinated transfer: {}", transfer);
+        logger.info("{} Cleaning up completed coordinated transfer", transfer.logPrefix());
 
         lock.writeLock().lock();
         try
         {
-            coordinating.remove(transfer.id());
-
             if (transfer.id() != null)
                 coordinating.remove(transfer.id());
             
@@ -423,6 +481,38 @@ public class TransferTrackingService
         {
             lock.readLock().unlock();
         }
+    }
+
+    private static void deletePendingDirectories(TimeUUID planId)
+    {
+        for (Keyspace keyspace : Keyspace.all())
+        {
+            if (!keyspace.getMetadata().params.replicationType.isTracked())
+                continue;
+
+            for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+            {
+                for (File pendingLocation : cfs.getDirectories().getPendingLocations())
+                {
+                    File pendingDir = new File(pendingLocation, planId.toString());
+                    if (!pendingDir.exists())
+                        continue;
+
+                    logger.info("Deleting orphaned pending transfer directory: {}", pendingDir);
+                    pendingDir.deleteRecursive();
+                }
+            }
+        }
+    }
+
+    static boolean hasPendingDirectories(String keyspaceName, TimeUUID planId)
+    {
+        Keyspace keyspace = Keyspace.open(keyspaceName);
+        for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+            for (File pendingLocation : cfs.getDirectories().getPendingLocations())
+                if (new File(pendingLocation, planId.toString()).exists())
+                    return true;
+        return false;
     }
 
     public static IVerbHandler<TransferFailed> verbHandler = message -> {

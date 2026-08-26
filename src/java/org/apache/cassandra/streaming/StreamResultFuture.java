@@ -29,6 +29,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.replication.ShortMutationId;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.TimeUUID;
@@ -83,7 +85,13 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
     @VisibleForTesting
     public StreamResultFuture(TimeUUID planId, StreamOperation streamOperation, TimeUUID pendingRepair, PreviewKind previewKind)
     {
-        this(planId, streamOperation, new StreamCoordinator(streamOperation, 0, streamingFactory(), true, false, pendingRepair, previewKind));
+        this(planId, streamOperation, pendingRepair, previewKind, null, Epoch.EMPTY);
+    }
+
+    public StreamResultFuture(TimeUUID planId, StreamOperation streamOperation, TimeUUID pendingRepair, PreviewKind previewKind,
+                              ShortMutationId transferId, Epoch decidedAt)
+    {
+        this(planId, streamOperation, new StreamCoordinator(streamOperation, 0, streamingFactory(), true, false, pendingRepair, previewKind, transferId, decidedAt));
     }
 
     public static StreamResultFuture createInitiator(TimeUUID planId, StreamOperation streamOperation, Collection<StreamEventHandler> listeners,
@@ -118,6 +126,20 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
                                                                  TimeUUID pendingRepair,
                                                                  PreviewKind previewKind)
     {
+        return createFollower(sessionIndex, planId, streamOperation, from, channel, messagingVersion, pendingRepair, previewKind, null, Epoch.EMPTY);
+    }
+
+    public static synchronized StreamResultFuture createFollower(int sessionIndex,
+                                                                 TimeUUID planId,
+                                                                 StreamOperation streamOperation,
+                                                                 InetAddressAndPort from,
+                                                                 StreamingChannel channel,
+                                                                 int messagingVersion,
+                                                                 TimeUUID pendingRepair,
+                                                                 PreviewKind previewKind,
+                                                                 ShortMutationId transferId,
+                                                                 Epoch decidedAt)
+    {
         StreamResultFuture future = StreamManager.instance.getReceivingStream(planId);
         if (future == null)
         {
@@ -125,7 +147,7 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
                         from, channel.description());
 
             // The main reason we create a StreamResultFuture on the receiving side is for JMX exposure.
-            future = new StreamResultFuture(planId, streamOperation, pendingRepair, previewKind);
+            future = new StreamResultFuture(planId, streamOperation, pendingRepair, previewKind, transferId, decidedAt);
             StreamManager.instance.registerFollower(future);
         }
         future.initInbound(from, channel, messagingVersion, sessionIndex);

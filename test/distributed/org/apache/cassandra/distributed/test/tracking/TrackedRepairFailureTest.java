@@ -50,6 +50,9 @@ import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.replication.ActivationRequest;
+import org.apache.cassandra.service.replication.migration.KeyspaceMigrationInfo;
+import org.apache.cassandra.streaming.StreamSession;
+import org.apache.cassandra.tcm.Epoch;
 
 import static net.bytebuddy.implementation.MethodDelegation.to;
 import static net.bytebuddy.matcher.ElementMatchers.named;
@@ -257,6 +260,109 @@ public class TrackedRepairFailureTest extends TrackedRepairTransferTestBase
     }
 
     @Test
+    public void testUntrackedTransferForTrackedNonMigratingRangesIsRejected() throws IOException
+    {
+        try (Cluster cluster = disableBackgroundReconciler(cluster(StaleMigrationViewHelper::installOnCoordinator)))
+        {
+            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3} AND replication_type='tracked';");
+            cluster.schemaChange("CREATE TABLE " + tableWithKeyspace(KEYSPACE) + " (pk BLOB PRIMARY KEY, v INT)");
+
+            IInvokableInstance coordinator = cluster.get(1);
+            IInvokableInstance receiver = cluster.get(2);
+
+            coordinator.executeInternal("INSERT INTO " + tableWithKeyspace(KEYSPACE) + " (pk, v) VALUES (?, 1)", KEY_100);
+            coordinator.flush(KEYSPACE);
+
+            for (int node = 2; node <= NODES; node++)
+                assertRows(cluster.get(node).executeInternal("SELECT * FROM " + tableWithKeyspace(KEYSPACE) + " WHERE pk = ?", KEY_100));
+
+            StaleMigrationViewHelper.enable(coordinator);
+
+            long mark = receiver.logs().mark();
+            coordinator.nodetoolResult("repair", "--full", KEYSPACE).asserts().failure();
+
+            assertThat(receiver.logs().grep(mark, "would be stranded in the unrepaired data silo").getResult()).isNotEmpty();
+
+            for (int node = 2; node <= NODES; node++)
+            {
+                Object[][] rows = cluster.get(node).executeInternal("SELECT * FROM " + tableWithKeyspace(KEYSPACE) + " WHERE pk = ?", KEY_100);
+                assertThat(rows).describedAs("node%d made a rejected transfer live", node).isEmpty();
+                assertThat(getPendingSSTablePaths(cluster.get(node))).describedAs("node%d staged a pending transfer", node).isEmpty();
+            }
+
+            assertRows(coordinator.executeInternal("SELECT * FROM " + tableWithKeyspace(KEYSPACE) + " WHERE pk = ?", KEY_100), row(KEY_100, 1));
+        }
+    }
+
+    @Test
+    public void testMigrationCompletingDuringRepairFailsAtTheCoordinator() throws IOException
+    {
+        try (Cluster cluster = cluster(MigrationCompletingDuringRepairHelper::installOnCoordinator))
+        {
+            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3} AND replication_type='tracked'");
+            cluster.schemaChange("CREATE TABLE " + tableWithKeyspace(KEYSPACE) + " (pk BLOB PRIMARY KEY, v INT)");
+
+            IInvokableInstance coordinator = cluster.get(1);
+            IInvokableInstance receiver = cluster.get(2);
+
+            coordinator.executeInternal("INSERT INTO " + tableWithKeyspace(KEYSPACE) + " (pk, v) VALUES (?, 1)", KEY_100);
+            coordinator.flush(KEYSPACE);
+
+            // The coordinator takes its decision from a stale migration state, and sees the real one before streaming
+            MigrationCompletingDuringRepairHelper.install(coordinator);
+
+            long coordinatorMark = coordinator.logs().mark();
+            long receiverMark = receiver.logs().mark();
+            coordinator.nodetoolResult("repair", "--full", KEYSPACE).asserts().failure();
+
+            assertThat(coordinator.logs().grep(coordinatorMark, "changed between the start of this repair").getResult())
+                      .describedAs("the coordinator did not re-check its tracked transfer decision before streaming")
+                      .isNotEmpty();
+
+            assertThat(receiver.logs().grep(receiverMark, "would be stranded in the unrepaired data silo").getResult()).isEmpty();
+        }
+    }
+
+    @Test
+    public void testUntrackedTransferRejectionReportsAMigrationThatCompletedDuringTheRepair() throws IOException
+    {
+        String keyspace = "migration_completed_test";
+        // Reconciliation would replicate the row independently of the repair, racing the assertions below
+        try (Cluster cluster = disableBackgroundReconciler(cluster((ClassLoader cl, Integer num) -> {
+            StaleMigrationViewHelper.installOnCoordinator(cl, num);
+            UnknownDecisionEpochHelper.installOnReplicas(cl, num);
+        })))
+        {
+            cluster.schemaChange("CREATE KEYSPACE " + keyspace + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3} AND replication_type='untracked'");
+            cluster.schemaChange("CREATE TABLE " + tableWithKeyspace(keyspace) + " (pk BLOB PRIMARY KEY, v INT)");
+            cluster.schemaChange("ALTER KEYSPACE " + keyspace + " WITH replication_type='tracked'");
+
+            IInvokableInstance coordinator = cluster.get(1);
+            IInvokableInstance receiver = cluster.get(2);
+
+            coordinator.nodetoolResult("repair", "--full", keyspace).asserts().success();
+
+            coordinator.executeInternal("INSERT INTO " + tableWithKeyspace(keyspace) + " (pk, v) VALUES (?, 1)", KEY_100);
+            coordinator.flush(keyspace);
+
+            StaleMigrationViewHelper.enable(coordinator);
+
+            long mark = receiver.logs().mark();
+            coordinator.nodetoolResult("repair", "--full", keyspace).asserts().failure();
+
+            assertThat(receiver.logs().grep(mark, "the migration of these ranges completed while the repair was running").getResult())
+                      .describedAs("the receiver did not report the rejection as a migration that completed mid-repair")
+                      .isNotEmpty();
+            assertThat(receiver.logs().grep(mark, "Cannot add SSTables to the live set").getResult())
+                      .describedAs("the stream was rejected by the live set instead of on arrival")
+                      .isEmpty();
+
+            for (int node = 2; node <= NODES; node++)
+                assertRows(cluster.get(node).executeInternal("SELECT * FROM " + tableWithKeyspace(keyspace) + " WHERE pk = ?", KEY_100));
+        }
+    }
+
+    @Test
     public void testRepairFailsOnMissedActivation() throws IOException
     {
         try (Cluster cluster = disableBackgroundReconciler(cluster(ByteBuddyInjections.SkipActivation.install(2, 3))))
@@ -344,6 +450,109 @@ public class TrackedRepairFailureTest extends TrackedRepairTransferTestBase
             }
             return pendingUuidDirs;
         });
+    }
+
+    /**
+     * Makes the receiving side see a stream whose tracked/untracked decision was taken at an unknown (oldest possible)
+     * epoch, standing in for a coordinator that decided before a migration state change these replicas already hold.
+     */
+    public static class UnknownDecisionEpochHelper
+    {
+        @SuppressWarnings("resource")
+        public static void installOnReplicas(ClassLoader classLoader, Integer instanceNum)
+        {
+            if (instanceNum == 1)
+                return;
+
+            new ByteBuddy().rebase(StreamSession.class)
+                           .method(named("decidedAt").and(takesNoArguments()))
+                           .intercept(to(UnknownDecisionEpochHelper.class))
+                           .make()
+                           .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
+        }
+
+        @SuppressWarnings("unused")
+        public static Epoch decidedAt()
+        {
+            return Epoch.EMPTY;
+        }
+    }
+
+    /**
+     * Simulates a migration that completes while a repair is running: the coordinator decides to stream untracked (the
+     * ranges look like they are still migrating), and by the time it gets to the sync tasks the migration state says
+     * they are migrated.
+     */
+    public static class MigrationCompletingDuringRepairHelper
+    {
+        private static final Logger logger = LoggerFactory.getLogger(MigrationCompletingDuringRepairHelper.class);
+
+        static final AtomicBoolean installed = new AtomicBoolean(false);
+
+        @SuppressWarnings("resource")
+        public static void installOnCoordinator(ClassLoader classLoader, Integer instanceNum)
+        {
+            if (instanceNum != 1)
+                return;
+
+            new ByteBuddy().rebase(KeyspaceMigrationInfo.class)
+                           .method(named("shouldUseTrackedTransfers"))
+                           .intercept(to(MigrationCompletingDuringRepairHelper.class))
+                           .make()
+                           .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
+        }
+
+        public static void install(IInvokableInstance instance)
+        {
+            instance.runOnInstance(() -> MigrationCompletingDuringRepairHelper.installed.set(true));
+        }
+
+        @SuppressWarnings("unused")
+        public static boolean shouldUseTrackedTransfers(@SuperCall Callable<Boolean> zuper) throws Exception
+        {
+            if (installed.compareAndSet(true, false))
+            {
+                logger.info("Test: answering the first migration state check with a stale view");
+                return false;
+            }
+            return zuper.call();
+        }
+    }
+
+    public static class StaleMigrationViewHelper
+    {
+        private static final Logger logger = LoggerFactory.getLogger(StaleMigrationViewHelper.class);
+
+        static final AtomicBoolean enabled = new AtomicBoolean(false);
+
+        @SuppressWarnings("resource")
+        public static void installOnCoordinator(ClassLoader classLoader, Integer instanceNum)
+        {
+            if (instanceNum != 1)
+                return;
+
+            new ByteBuddy().rebase(KeyspaceMigrationInfo.class)
+                           .method(named("shouldUseTrackedTransfers"))
+                           .intercept(to(StaleMigrationViewHelper.class))
+                           .make()
+                           .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
+        }
+
+        public static void enable(IInvokableInstance instance)
+        {
+            instance.runOnInstance(() -> StaleMigrationViewHelper.enabled.set(true));
+        }
+
+        @SuppressWarnings("unused")
+        public static boolean shouldUseTrackedTransfers(@SuperCall Callable<Boolean> zuper) throws Exception
+        {
+            if (enabled.get())
+            {
+                logger.info("Test: simulating tracked transfers should not be used");
+                return false;
+            }
+            return zuper.call();
+        }
     }
 
     public static class StreamReceiverFailureHelper

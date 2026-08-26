@@ -1,4 +1,5 @@
 cep-45-mutation-tracking
+ * CEP-45: Migration repair streams can write live SSTables into pending/<planId>/ and lose them silently on restart (CASSANDRA-21626)
  * CEP-45: Prevent dropping journal segments referenced by partially reconciled sstables (CASSANDRA-21406)
  * CEP-45: Fixes and improvements to mutation tracking migration (CASSANDSA-21653)
  * Add support for counters to mutation tracking (CASSANDRA-20959)

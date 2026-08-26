@@ -61,7 +61,7 @@ public class StreamReceiveTask extends StreamTask
     private int remoteStreamsReceived = 0;
     private long bytesReceived = 0;
 
-    private List<Range<Token>> ranges;
+    private final List<Range<Token>> ranges;
 
     public StreamReceiveTask(StreamSession session, TableId tableId, List<Range<Token>> ranges, int totalStreams, long totalSize)
     {
