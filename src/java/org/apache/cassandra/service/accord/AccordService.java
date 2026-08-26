@@ -1446,7 +1446,7 @@ public class AccordService implements IAccordService, Shutdownable
 
         Topology topology = topology().current();
 
-        Map<InetAddressAndPort, CoordinatedTransfer.NodeStreamingMetadata> nodeStreamingContext = getNodeStreamingContext(sstables, topology, endpointMapper);
+        Map<InetAddressAndPort, CoordinatedTransfer.NodeStreamingMetadata> nodeStreamingContext = getNodeStreamingContext(sstables, topology, endpointMapper, metadata);
 
         Preconditions.checkArgument(!nodeStreamingContext.isEmpty());
 

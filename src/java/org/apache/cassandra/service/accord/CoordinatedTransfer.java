@@ -71,6 +71,7 @@ import org.apache.cassandra.streaming.StreamException;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamResultFuture;
+import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
@@ -96,8 +97,8 @@ import static accord.primitives.Txn.Kind.Read;
  *       <b>ImportTxn</b>
  *       The coordinator creates an ImportTxn, whose semantics are equivalent to an Accord range read, but with special
  *       logic to perform the activation of the streamed SSTables. This means during the duration of the ImportTxn, concurrent
- *       read txn's may see inconsistent results. However, there is no data inconsistency, as read txn's are properly
- *       ordered against write txn's.
+ *       read transactions' may see inconsistent results. However, there is no data inconsistency, as read transactions' are properly
+ *       ordered against write transactions'.
  *   </li>
  *   <li>
  *       <b>Garbage Collection of SSTables</b>
@@ -115,6 +116,8 @@ import static accord.primitives.Txn.Kind.Read;
  *
  *       If the ImportTxn fails, we do not know whether it has succeeded globally, so we rely on nodetool clean up to clean up the
  *       files in the pending directory after the fact.
+ *
+ *       TODO: Finish nodetool clean up
  *   </li>
  * </ol>
  */
@@ -249,6 +252,7 @@ public class CoordinatedTransfer
         catch (InterruptedException | ExecutionException | TimeoutException e)
         {
             logger.error("Stream session failed with error", e);
+            plan.getCoordinator().getAllStreamSessions().forEach(StreamSession::abort);
             throw e;
         }
 
@@ -420,7 +424,7 @@ public class CoordinatedTransfer
         return new TokenRange(minTokenKey, maxTokenKey);
     }
 
-    public static Map<InetAddressAndPort, NodeStreamingMetadata> getNodeStreamingContext(Collection<SSTableReader> sstables, Topology topology, AccordEndpointMapper endpointMapper)
+    public static Map<InetAddressAndPort, NodeStreamingMetadata> getNodeStreamingContext(Collection<SSTableReader> sstables, Topology topology, AccordEndpointMapper endpointMapper, TableMetadata metadata)
     {
         Map<InetAddressAndPort, NodeStreamingMetadata> nodeStreamingContext = new HashMap<>();
 
@@ -431,7 +435,11 @@ public class CoordinatedTransfer
             Ranges rangesForNode = topology.rangesForNode(nodeId);
             List<Range<Token>> ranges = new ArrayList<>();
             for (accord.primitives.Range range : rangesForNode)
-                ranges.add(((TokenRange) range).toKeyspaceRange());
+            {
+                TokenRange tokenRange = (TokenRange) range;
+                if (tokenRange.table().equals(metadata.id))
+                    ranges.add(tokenRange.toKeyspaceRange());
+            }
 
             // Map from SSTables to the portion of the SSTable that the node owns
             Map<SSTableReader, List<SSTableReader.PartitionPositionBounds>> positionsForSSTables = new HashMap<>();

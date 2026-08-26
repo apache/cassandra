@@ -348,23 +348,7 @@ public class Descriptor
         // in a pending directory, followed by a directory named after the UUID representing the
         // planID of the streaming session
         if (!sstableDirMatcher.find(0))
-        {
-            List<String> dirPath = new ArrayList<>();
-            for (Path element : file.toPath())
-            {
-                dirPath.add(element.toString());
-            }
-
-            // Remove the second and third to last element, this removes /pending/uuid/ and gives us a file structure
-            // that can be parsed by the original regexes
-            if (dirPath.size() >= 3)
-            {
-                dirPath.remove(dirPath.size() - 2);
-                dirPath.remove(dirPath.size() - 2);
-            }
-
-            sstableDirMatcher = tryBothFormats(String.join("/", dirPath));
-        }
+            sstableDirMatcher = tryAccordPendingSSTableFormat(file);
 
         if (sstableDirMatcher.find(0))
         {
@@ -383,6 +367,23 @@ public class Descriptor
         }
 
         return Pair.create(new Descriptor(info.version, parentOf(name, file), keyspaceName, tableName, info.id), info.component);
+    }
+
+    public static Matcher tryAccordPendingSSTableFormat(File file)
+    {
+        List<String> dirPath = new ArrayList<>();
+        for (Path element : file.toPath())
+            dirPath.add(element.toString());
+
+        // Remove the second and third to last element, this removes /pending/uuid/ and gives us a file structure
+        // that can be parsed by the original regexes
+        if (dirPath.size() >= 3)
+        {
+            dirPath.remove(dirPath.size() - 2);
+            dirPath.remove(dirPath.size() - 2);
+        }
+
+        return tryBothFormats(String.join("/", dirPath));
     }
 
     public static Matcher tryBothFormats(String file)
