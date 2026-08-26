@@ -576,7 +576,7 @@ public class LeveledManifest
         }
 
         // We know that because we are in level L0+, this is a tree set with disjoint SSTables
-        TreeSet<SSTableReader> sstablesNextLevel = (TreeSet<SSTableReader>) generations.get(level + 1);
+        TreeSet<SSTableReader> sstablesNextLevel = generations.getSortedLevel(level + 1);
 
         // look for a non-suspect keyspace to compact with, starting with where we left off last time,
         // and wrapping back to the beginning of the generation if necessary
@@ -585,6 +585,7 @@ public class LeveledManifest
         {
             SSTableReader sstable = levelIterator.next();
             Set<SSTableReader> candidates = getIntersectingSSTablesFromTreeSet(sstable, sstablesNextLevel);
+            candidates.add(sstable);
 
             if (Iterables.any(candidates, SSTableReader::isMarkedSuspect))
                 continue;
@@ -596,10 +597,10 @@ public class LeveledManifest
         return Collections.emptyList();
     }
 
-    public static Set<SSTableReader> getIntersectingSSTablesFromTreeSet(SSTableReader sstable, TreeSet<SSTableReader> sstablesNextLevel)
+    @VisibleForTesting
+    protected static Set<SSTableReader> getIntersectingSSTablesFromTreeSet(SSTableReader sstable, TreeSet<SSTableReader> sstablesNextLevel)
     {
         Set<SSTableReader> candidates = new HashSet<>();
-        candidates.add(sstable);
 
         if (sstablesNextLevel.isEmpty())
             return candidates;
@@ -607,7 +608,8 @@ public class LeveledManifest
         SSTableReader start = sstablesNextLevel.floor(sstable);
         Iterator<SSTableReader> it = sstablesNextLevel.tailSet(start != null ? start : sstablesNextLevel.first(), true).iterator();
 
-        while (it.hasNext()) {
+        while (it.hasNext())
+        {
             SSTableReader s = it.next();
             if (s.getFirst().compareTo(sstable.getLast()) > 0) break;
             if (s.getLast().compareTo(sstable.getFirst()) >= 0) candidates.add(s);
