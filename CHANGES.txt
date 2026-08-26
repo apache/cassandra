@@ -9,6 +9,7 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Avoid "During operation execution,... at ONE the ring has changed from epoch1 to epoch2 error" with counter writes (CASSANDRA-21585)
  * Stabilize cursor-based compaction (CASSANDRA-21462)
  * Stop using Java streams in CIDRPermissions.SubsetPermissions#canAccessFrom hot method (CASSANDRA-21588)
  * Enable trickle fsync by default (CASSANDRA-21572)
