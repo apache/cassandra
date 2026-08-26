@@ -19,6 +19,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -89,6 +90,41 @@ public class SizeTieredCompactionStrategyTest
         options.put("bad_option", "1.0");
         unvalidated = validateOptions(options);
         assertTrue(unvalidated.containsKey("bad_option"));
+    }
+
+    @Test
+    public void testMinSSTableSizeUnits() throws ConfigurationException
+    {
+        Map<String, String> options = new HashMap<>();
+        options.put(SizeTieredCompactionStrategyOptions.BUCKET_LOW_KEY, "0.5");
+        options.put(SizeTieredCompactionStrategyOptions.BUCKET_HIGH_KEY, "1.5");
+
+        List<Pair<String, Long>> accepted = Arrays.asList(Pair.create("52428800", 50L * 1024 * 1024),
+                                                          Pair.create("50MiB", 50L * 1024 * 1024),
+                                                          Pair.create("50 MiB", 50L * 1024 * 1024),
+                                                          Pair.create("50MB", 50000000L),
+                                                          Pair.create("1GiB", 1024L * 1024 * 1024),
+                                                          Pair.create("0", 0L));
+        for (Pair<String, Long> option : accepted)
+        {
+            options.put(SizeTieredCompactionStrategyOptions.MIN_SSTABLE_SIZE_KEY, option.left);
+            assertTrue(validateOptions(options).isEmpty());
+            assertEquals((long) option.right, new SizeTieredCompactionStrategyOptions(options).minSSTableSize);
+        }
+
+        for (String rejected : Arrays.asList("50Mi", "MiB", "fifty", "-1B", "-1"))
+        {
+            options.put(SizeTieredCompactionStrategyOptions.MIN_SSTABLE_SIZE_KEY, rejected);
+            try
+            {
+                validateOptions(options);
+                fail(String.format("min_sstable_size '%s' should be rejected", rejected));
+            }
+            catch (ConfigurationException e)
+            {
+                // expected
+            }
+        }
     }
 
     @Test

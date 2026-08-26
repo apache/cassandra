@@ -153,7 +153,7 @@ compaction = {
      'class' : 'SizeTieredCompactionStrategy',
      'bucket_high' : <factor>,
      'bucket_low' : <factor>,
-     'min_sstable_size' : <int>,
+     'min_sstable_size' : <size>,
      'min_threshold' : <int>,
      'max_threshold' : <int> }
 ----
@@ -190,9 +190,10 @@ min_sstable_size::
 STCS groups SSTables into buckets.
 The bucketing process groups SSTables that differ in size by less than 50%.
 This bucketing process is too fine-grained for small SSTables.
-If your SSTables are small, use this option to define a size threshold in MB below which all SSTables belong to one unique bucket.
+If your SSTables are small, use this option to define a size threshold below which all SSTables belong to one unique bucket.
+Accepts either a plain byte count (`52428800`) or a size with a unit suffix (`50MiB`, `50MB`).
 +
-Default: `50` (MB)
+Default: `52428800` (50MiB)
 
 [NOTE]
 ==== 

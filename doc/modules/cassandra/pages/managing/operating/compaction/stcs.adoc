@@ -84,9 +84,10 @@ Default value: 1.5
 For example, if the SSTable size is 6 MB, and the bucket average size is 10 MB, then the SSTable will be added to that bucket and the new average size will be computed for that bucket.
 Default value: 0.5
 
-| min_sstable_size	
-| SSTables smaller than this value will be grouped into one bucket where the average size is less than this setting. 
-Default value: 50MB
+| min_sstable_size
+| SSTables smaller than this value will be grouped into one bucket where the average size is less than this setting.
+Accepts either a plain byte count (`52428800`) or a size with a unit suffix (`50MiB`, `50MB`).
+Default value: 50MiB (52428800)
 
 | only_purge_repaired_tombstones	
 | If set to `true`, allows purging tombstones only from repaired SSTables. 

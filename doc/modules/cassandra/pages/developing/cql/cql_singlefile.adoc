@@ -668,12 +668,13 @@ enables more aggressive tombstone compactions - single sstable tombstone
 compactions will run without checking how likely it is that they will be
 successful.
 
-|`min_sstable_size` |SizeTieredCompactionStrategy |50MB |The size tiered
+|`min_sstable_size` |SizeTieredCompactionStrategy |50MiB |The size tiered
 strategy groups SSTables to compact in buckets. A bucket groups SSTables
 that differs from less than 50% in size. However, for small sizes, this
 would result in a bucketing that is too fine grained. `min_sstable_size`
-defines a size threshold (in bytes) below which all SSTables belong to
-one unique bucket
+defines a size threshold below which all SSTables belong to one unique
+bucket. Accepts either a plain byte count (`52428800`) or a size with a
+unit suffix (`50MiB`, `50MB`)
 
 |`min_threshold` |SizeTieredCompactionStrategy |4 |Minimum number of
 SSTables needed to start a minor compaction.

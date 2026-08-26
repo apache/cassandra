@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 import java.util.Map;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.FBUtilities;
 
 public final class SizeTieredCompactionStrategyOptions
 {
@@ -37,7 +38,7 @@ public final class SizeTieredCompactionStrategyOptions
     public SizeTieredCompactionStrategyOptions(Map<String, String> options)
     {
         String optionValue = options.get(MIN_SSTABLE_SIZE_KEY);
-        minSSTableSize = optionValue == null ? DEFAULT_MIN_SSTABLE_SIZE : Long.parseLong(optionValue);
+        minSSTableSize = parseMinSSTableSize(optionValue);
         optionValue = options.get(BUCKET_LOW_KEY);
         bucketLow = optionValue == null ? DEFAULT_BUCKET_LOW : Double.parseDouble(optionValue);
         optionValue = options.get(BUCKET_HIGH_KEY);
@@ -49,6 +50,21 @@ public final class SizeTieredCompactionStrategyOptions
         minSSTableSize = DEFAULT_MIN_SSTABLE_SIZE;
         bucketLow = DEFAULT_BUCKET_LOW;
         bucketHigh = DEFAULT_BUCKET_HIGH;
+    }
+
+    /**
+     * Parses {@link #MIN_SSTABLE_SIZE_KEY}, which accepts either a plain byte count (e.g. {@code 52428800}) or a
+     * human-readable size that must be suffixed with the {@code B} unit (e.g. {@code 50MiB} or {@code 50MB}).
+     *
+     * @throws NumberFormatException if the value is neither of the two accepted forms.
+     */
+    private static long parseMinSSTableSize(String optionValue)
+    {
+        if (optionValue == null)
+            return DEFAULT_MIN_SSTABLE_SIZE;
+
+        return optionValue.endsWith("B") ? FBUtilities.parseHumanReadableBytes(optionValue)
+                                         : Long.parseLong(optionValue);
     }
 
     private static double parseDouble(Map<String, String> options, String key, double defaultValue) throws ConfigurationException
@@ -69,7 +85,7 @@ public final class SizeTieredCompactionStrategyOptions
         String optionValue = options.get(MIN_SSTABLE_SIZE_KEY);
         try
         {
-            long minSSTableSize = optionValue == null ? DEFAULT_MIN_SSTABLE_SIZE : Long.parseLong(optionValue);
+            long minSSTableSize = parseMinSSTableSize(optionValue);
             if (minSSTableSize < 0)
             {
                 throw new ConfigurationException(String.format("%s must be non negative: %d", MIN_SSTABLE_SIZE_KEY, minSSTableSize));
@@ -77,7 +93,7 @@ public final class SizeTieredCompactionStrategyOptions
         }
         catch (NumberFormatException e)
         {
-            throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s", optionValue, MIN_SSTABLE_SIZE_KEY), e);
+            throw new ConfigurationException(String.format("%s is not a valid size in bytes for %s", optionValue, MIN_SSTABLE_SIZE_KEY), e);
         }
 
         double bucketLow = parseDouble(options, BUCKET_LOW_KEY, DEFAULT_BUCKET_LOW);
