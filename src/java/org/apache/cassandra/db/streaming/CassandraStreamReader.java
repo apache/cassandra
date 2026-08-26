@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.UnmodifiableIterator;
 
 import org.slf4j.Logger;
@@ -64,7 +63,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamReceivedOutOfTokenRangeException;
-import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.compress.StreamCompressionInputStream;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
@@ -180,18 +178,18 @@ public class CassandraStreamReader implements IStreamReader
     {
         return header != null? header.toHeader(metadata) : null; //pre-3.0 sstable have no SerializationHeader
     }
+
     protected SSTableTxnSingleStreamWriter createWriter(ColumnFamilyStore cfs, long totalSize, long repairedAt, TimeUUID pendingRepair, ImmutableCoordinatorLogOffsets coordinatorLogOffsets, SSTableFormat<?, ?> format) throws IOException
     {
         Directories.DataDirectory localDir = cfs.getDirectories().getWriteableLocation(totalSize);
         if (localDir == null)
             throw new IOException(String.format("Insufficient disk space to store %s", FBUtilities.prettyPrintMemory(totalSize)));
 
-        StreamReceiver streamReceiver = session.getAggregator(tableId);
-        Preconditions.checkState(streamReceiver instanceof CassandraStreamReceiver);
+        CassandraStreamReceiver streamReceiver = CassandraStreamReceiver.fromReceiver(session.getAggregator(tableId));
         ILifecycleTransaction txn = createTxn();
 
         RangeAwareSSTableWriter writer;
-        if (cfs.metadata().replicationType().isTracked() && session.streamOperation().isTrackable())
+        if (streamReceiver.useTrackedTransferPath())
         {
             writer = new RangeAwarePendingSSTableWriter(cfs, estimatedKeys, repairedAt, pendingRepair, coordinatorLogOffsets, format, sstableLevel, totalSize, txn, getHeader(cfs.metadata()), session.planId());
         }
