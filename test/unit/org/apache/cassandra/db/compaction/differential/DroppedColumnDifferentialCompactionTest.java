@@ -99,11 +99,11 @@ public class DroppedColumnDifferentialCompactionTest extends DifferentialCompact
     @Test
     public void complexCellsNewerThanDropRetained() throws Exception
     {
-        createTable("CREATE TABLE %s (pk bigint PRIMARY KEY, m map<text, bigint>)");
+        createTable("CREATE TABLE %s (pk bigint PRIMARY KEY, v bigint, m map<text, bigint>)");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();
 
-        execute("UPDATE %s USING TIMESTAMP " + FUTURE_TS + " SET m['a'] = 1 WHERE pk = 0");
+        execute("UPDATE %s USING TIMESTAMP " + FUTURE_TS + " SET v = 7, m['a'] = 1 WHERE pk = 0");
         flush();
         execute("UPDATE %s USING TIMESTAMP " + FUTURE_TS + " SET m['b'] = 2 WHERE pk = 0");
         flush();
@@ -111,6 +111,7 @@ public class DroppedColumnDifferentialCompactionTest extends DifferentialCompact
         alterTable("ALTER TABLE %s DROP m");
 
         commitCompaction(cfs, cfs.getLiveSSTables(), false, cfs.getDefaultGcBefore(FBUtilities.nowInSeconds()));
+        assertRows(execute("SELECT * FROM %s"), row(0L, 7L));
 
         alterTable("ALTER TABLE %s ADD m map<text, bigint>");
         assertRows(execute("SELECT m FROM %s WHERE pk = 0"), row(map("a", 1L, "b", 2L)));
