@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 
 import org.junit.Test;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.quicktheories.QuickTheory.qt;
 import static org.quicktheories.generators.SourceDSL.longs;
 
@@ -76,6 +77,32 @@ public class Murmur3PartitionerTest extends PartitionerTestCase
                 ByteBuffer key = Murmur3Partitioner.LongToken.keyForToken(new Murmur3Partitioner.LongToken(token));
                 return Murmur3Partitioner.instance.getToken(key).token == token;
             });
+    }
+
+    @Test
+    public void testNextValidToken()
+    {
+        Token token = new Murmur3Partitioner.LongToken(1);
+        assertThat(token.nextValidToken()).isEqualTo(new Murmur3Partitioner.LongToken(2));
+
+        token = Murmur3Partitioner.instance.getMaximumToken();
+        assertThat(token.nextValidToken()).isEqualTo(Murmur3Partitioner.instance.getMinimumToken());
+
+        token = Murmur3Partitioner.instance.getMinimumToken();
+        assertThat(token.nextValidToken()).isEqualTo(new Murmur3Partitioner.LongToken(Long.MIN_VALUE + 1));
+    }
+
+    @Test
+    public void testPrevValidToken()
+    {
+        Token token = new Murmur3Partitioner.LongToken(1);
+        assertThat(token.prevValidToken()).isEqualTo(new Murmur3Partitioner.LongToken(0));
+
+        token = Murmur3Partitioner.instance.getMaximumToken();
+        assertThat(token.prevValidToken()).isEqualTo(new Murmur3Partitioner.LongToken(Long.MAX_VALUE - 1));
+
+        token = Murmur3Partitioner.instance.getMinimumToken();
+        assertThat(token.prevValidToken()).isEqualTo(Murmur3Partitioner.instance.getMaximumToken());
     }
 }
 

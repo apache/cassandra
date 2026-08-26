@@ -44,6 +44,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.mockito.Mockito;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -174,6 +175,38 @@ public class ShardManagerTest
 
         // correction over coverage, no recalculation
         assertEquals(1.0, shardManager.rangeSpanned(mockedTable(0.5, 0.8, 1e-50)), delta);
+    }
+
+    @Test
+    public void testRangeSpannedWithSingleToken()
+    {
+        weightedRanges.add(new Splitter.WeightedRange(1.0, new Range<>(minimumToken, minimumToken)));
+        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges);
+
+        Token singleToken = tokenAt(0.5);
+        double rangeSpannedForSingleToken = shardManager.rangeSpanned(singleToken.minKeyBound(), singleToken.minKeyBound());
+
+        assertThat(rangeSpannedForSingleToken).isGreaterThan(0);
+        assertThat(shardManager.rangeSpanned(minimumToken.minKeyBound(), minimumToken.minKeyBound())).isEqualTo(1);
+
+        assertThat(minimumToken.size(minimumToken)).isEqualTo(1);
+    }
+
+    @Test
+    public void testRangeCovering()
+    {
+        Token singleToken = tokenAt(0.5);
+        Range<Token> coveringRange = ShardManager.coveringRange(singleToken.minKeyBound(), singleToken.minKeyBound());
+        assertThat(coveringRange.contains(singleToken)).isTrue();
+
+        Token left = tokenAt(0.3);
+        Token right = tokenAt(0.5);
+        coveringRange = ShardManager.coveringRange(left.minKeyBound(), right.minKeyBound());
+        assertThat(coveringRange.contains(left)).isTrue();
+        assertThat(coveringRange.contains(right)).isTrue();
+
+        coveringRange = ShardManager.coveringRange(minimumToken.minKeyBound(), minimumToken.minKeyBound());
+        assertThat(coveringRange.contains(minimumToken)).isTrue();
     }
 
     Token tokenAt(double pos)

@@ -24,6 +24,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 public class OrderPreservingPartitionerTest extends PartitionerTestCase
 {
     @BeforeClass
@@ -54,5 +56,17 @@ public class OrderPreservingPartitionerTest extends PartitionerTestCase
         assert tok("a").compareTo(tok("z")) < 0;
         assert tok("asdf").compareTo(tok("asdf")) == 0;
         assert tok("asdz").compareTo(tok("asdf")) > 0;
+    }
+
+    @Test
+    public void testNextValidToken()
+    {
+        assertThatThrownBy(() -> tok("b").nextValidToken()).hasMessageContaining("not support token allocation");
+    }
+
+    @Test
+    public void testPrevValidToken()
+    {
+        assertThatThrownBy(() -> tok("b").prevValidToken()).hasMessageContaining("not support token allocation");
     }
 }

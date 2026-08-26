@@ -17,6 +17,10 @@
  */
 package org.apache.cassandra.dht;
 
+import org.junit.Test;
+
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 public class ByteOrderedPartitionerTest extends PartitionerTestCase
 {
     public void initPartitioner()
@@ -27,5 +31,17 @@ public class ByteOrderedPartitionerTest extends PartitionerTestCase
     protected boolean shouldStopRecursion(Token left, Token right)
     {
         return false;
+    }
+
+    @Test
+    public void testNextValidToken()
+    {
+        assertThatThrownBy(() -> tok("b").nextValidToken()).hasMessageContaining("not support token allocation");
+    }
+
+    @Test
+    public void testPrevValidToken()
+    {
+        assertThatThrownBy(() -> tok("b").prevValidToken()).hasMessageContaining("not support token allocation");
     }
 }

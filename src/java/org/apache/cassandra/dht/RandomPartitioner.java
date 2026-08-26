@@ -276,6 +276,31 @@ public class RandomPartitioner implements IPartitioner
             return new BigIntegerToken(token.add(BigInteger.ONE));
         }
 
+        @Override
+        public Token prevValidToken()
+        {
+            BigInteger prev;
+            if (token.compareTo(ZERO) == 0)
+            {
+                // For the ZERO token, return MINIMUM as the adjustment, for two reasons:
+                // 1. Range semantics: most range functions expect MINIMUM as an upper bound, not MAXIMUM as a
+                //    lower bound.
+                // 2. Wraparound risks: functions designed for non-wraparound ranges might not handle MAXIMUM on
+                //    the lower side correctly.
+                prev = MINIMUM.token;
+            }
+            else if (isMinimum())
+            {
+                // For MINIMUM, wrap around to MAXIMUM.
+                prev = MAXIMUM;
+            }
+            else
+            {
+                prev = token.subtract(BigInteger.ONE);
+            }
+            return new BigIntegerToken(prev);
+        }
+
         public double size(Token next)
         {
             BigIntegerToken n = (BigIntegerToken) next;

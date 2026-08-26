@@ -172,6 +172,22 @@ public abstract class Token implements RingPosition<Token>, Serializable
      */
     abstract public Token nextValidToken();
 
+    /**
+     * Returns the previous possible token in the token space, one that compares
+     * smaller than this and such that there is no other token that sits
+     * between this token and it in the token order.
+     *
+     * This is not possible for all token types, esp. for comparison-based
+     * tokens such as the LocalPartioner used for classic secondary indexes.
+     *
+     * Used to construct token ranges for sstables.
+     */
+    public Token prevValidToken()
+    {
+        throw new UnsupportedOperationException(String.format("Token type %s does not support token allocation.",
+                                                              getClass().getSimpleName()));
+    }
+
     public Token getToken()
     {
         return this;

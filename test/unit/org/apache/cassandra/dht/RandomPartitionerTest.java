@@ -22,6 +22,8 @@ import java.math.BigInteger;
 
 import org.junit.Test;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 public class RandomPartitionerTest extends PartitionerTestCase
 {
     public void initPartitioner()
@@ -54,5 +56,21 @@ public class RandomPartitionerTest extends PartitionerTestCase
         RandomPartitioner.BigIntegerToken left = new RandomPartitioner.BigIntegerToken(RandomPartitioner.MAXIMUM.subtract(BigInteger.valueOf(10)));
 
         assertSplit(left, tok("a"), 16);
+    }
+
+    @Test
+    public void testPrevValidToken()
+    {
+        Token token = new RandomPartitioner.BigIntegerToken(BigInteger.ONE);
+        assertThat(token.prevValidToken()).isEqualTo(new RandomPartitioner.BigIntegerToken(BigInteger.ZERO));
+
+        token = new RandomPartitioner.BigIntegerToken(BigInteger.ZERO);
+        assertThat(token.prevValidToken()).isEqualTo(RandomPartitioner.MINIMUM);
+
+        token = RandomPartitioner.instance.getMaximumToken();
+        assertThat(token.prevValidToken()).isEqualTo(new RandomPartitioner.BigIntegerToken(RandomPartitioner.MAXIMUM.subtract(BigInteger.ONE)));
+
+        token = RandomPartitioner.instance.getMinimumToken();
+        assertThat(token.prevValidToken()).isEqualTo(RandomPartitioner.instance.getMaximumToken());
     }
 }
