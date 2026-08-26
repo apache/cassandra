@@ -580,6 +580,61 @@ public class FQLReplayTest
         assertEquals("bbb", pth.password);
     }
 
+    @Test
+    public void testInvalidAuthProviderClassThrows()
+    {
+        try
+        {
+            new QueryReplayer(Collections.emptyIterator(),
+                              Lists.newArrayList("127.0.0.1:9999"),
+                              null,
+                              new ArrayList<>(),
+                              null,
+                              false, null, null, null, null,
+                              "com.not.a.real.AuthProviderClass");
+            throw new AssertionError("Expected RuntimeException to be thrown for invalid auth provider class");
+        }
+        catch (RuntimeException e)
+        {
+            assertTrue("Exception message should mention auth provider",
+                       e.getMessage().contains("auth provider") || e.getMessage().contains("AuthProvider"));
+            assertTrue("Exception message should mention the class name",
+                       e.getMessage().contains("com.not.a.real.AuthProviderClass"));
+        }
+    }
+
+    @Test
+    public void testMaskPassword()
+    {
+        assertEquals("aaa:*****@127.0.0.1:9042", ResultHandler.maskPassword("aaa:bbb@127.0.0.1:9042"));
+        assertEquals("127.0.0.1:9042", ResultHandler.maskPassword("127.0.0.1:9042"));
+        assertEquals("127.0.0.1", ResultHandler.maskPassword("127.0.0.1"));
+        assertEquals("user:*****@host:9042", ResultHandler.maskPassword("user:p@ssword@host:9042"));
+        assertEquals("cassandra:*****@127.0.0.1", ResultHandler.maskPassword("cassandra:p@ss@w@rd@127.0.0.1"));
+    }
+
+    @Test
+    public void testInvalidTruststorePathThrows()
+    {
+        try
+        {
+            new QueryReplayer(Collections.emptyIterator(),
+                              Lists.newArrayList("127.0.0.1:9999"),
+                              null,
+                              new ArrayList<>(),
+                              null,
+                              true, "/path/does/not/exist.jks", "password", null, null,
+                              null);
+            throw new AssertionError("Expected RuntimeException to be thrown for invalid truststore path");
+        }
+        catch (RuntimeException e)
+        {
+            assertTrue("Exception message should mention SSL or truststore",
+                       e.getMessage().contains("SSL") || e.getMessage().contains("ssl") ||
+                       e.getMessage().contains("truststore") || e.getMessage().contains("fqltool"));
+        }
+    }
+
     @Test(expected = RuntimeException.class)
     public void testNoPass()
     {
