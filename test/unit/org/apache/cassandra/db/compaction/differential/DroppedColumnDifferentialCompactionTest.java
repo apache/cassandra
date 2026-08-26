@@ -110,6 +110,7 @@ public class DroppedColumnDifferentialCompactionTest extends DifferentialCompact
 
         alterTable("ALTER TABLE %s DROP m");
 
+        assertRows(execute("SELECT * FROM %s"), row(0L, 7L));
         commitCompaction(cfs, cfs.getLiveSSTables(), false, cfs.getDefaultGcBefore(FBUtilities.nowInSeconds()));
         assertRows(execute("SELECT * FROM %s"), row(0L, 7L));
 
