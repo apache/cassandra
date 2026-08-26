@@ -448,6 +448,19 @@ public abstract class ReadCommand extends AbstractReadQuery
         // ends equal, and there are no dangling RT bound in any partition.
         iterator = RTBoundValidator.validate(iterator, Stage.PROCESSED, true);
 
+        if (!metadata().droppedColumns.isEmpty())
+        {
+            ColumnFilter selection = columnFilter();
+            iterator = Transformation.apply(iterator, new Transformation<UnfilteredRowIterator>()
+            {
+                @Override
+                protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
+                {
+                    return ReadCommand.this.clusteringIndexFilter(partition.partitionKey()).filterNotIndexed(selection, partition);
+                }
+            });
+        }
+
         return isDigestQuery()
                ? ReadResponse.createDigestResponse(iterator, this)
                : ReadResponse.createDataResponse(iterator, this, rdi);
