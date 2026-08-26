@@ -295,6 +295,15 @@ public class UpgradeTestBase extends DistributedTestBase
             return this;
         }
 
+        /** Will test this specific upgrade path **/
+        public TestCase strictSingleUpgradeToCurrent(Semver from)
+        {
+            TestVersions tests = new TestVersions(this.versions.get(from), Arrays.asList(this.versions.getLatest(CURRENT)));
+            logger.info("Adding upgrade of {}", tests);
+            this.upgrade.add(tests);
+            return this;
+        }
+
         public TestCase setup(RunOnCluster setup)
         {
             this.setup = setup;

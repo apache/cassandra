@@ -116,6 +116,7 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_FOREGROUND;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_PID_FILE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_AVOID_SYSTEM_EXIT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_CLASS_PATH;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_RMI_SERVER_RANDOM_ID;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
@@ -1010,7 +1011,7 @@ public class CassandraDaemon
 
     private void exitOrFail(int code, String message, Throwable cause)
     {
-        if (runManaged)
+        if (runManaged || DTEST_AVOID_SYSTEM_EXIT.getBoolean())
         {
             RuntimeException t = cause!=null ? new RuntimeException(message, cause) : new RuntimeException(message);
             throw t;

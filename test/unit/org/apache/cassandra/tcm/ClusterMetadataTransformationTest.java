@@ -52,6 +52,7 @@ import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
+import org.apache.cassandra.tcm.ownership.OwnershipUtils;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 
@@ -67,6 +68,7 @@ import static org.apache.cassandra.tcm.MetadataKeys.SCHEMA;
 import static org.apache.cassandra.tcm.MetadataKeys.TOKEN_MAP;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.randomPlacements;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.token;
+import static org.apache.cassandra.tcm.sequences.InProgressSequenceCancellationTest.directory;
 import static org.apache.cassandra.tcm.sequences.SequencesUtils.affectedRanges;
 import static org.apache.cassandra.tcm.sequences.SequencesUtils.epoch;
 import static org.junit.Assert.assertEquals;
@@ -200,12 +202,13 @@ public class ClusterMetadataTransformationTest
     @Test
     public void testModifyLockedRanges()
     {
-        ClusterMetadata metadata = new ClusterMetadata(Murmur3Partitioner.instance, Directory.EMPTY, DistributedSchema.empty());
+        Directory directory = directory(new NodeAddresses(InetAddressAndPort.getByNameUnchecked("127.0.0.1")), OwnershipUtils.replicationForRandomPlacements, random);
+        ClusterMetadata metadata = new ClusterMetadata(Murmur3Partitioner.instance, directory, DistributedSchema.empty());
         // Initial state has LockedRanges.EMPTY, so supplying the same value results in no change
         Transformed transformed = metadata.transformer().with(LockedRanges.EMPTY).build();
         assertModifications(transformed);
 
-        LockedRanges.AffectedRanges ranges = affectedRanges(randomPlacements(random), random);
+        LockedRanges.AffectedRanges ranges = affectedRanges(randomPlacements(directory, random), random);
         LockedRanges trivial = transformed.metadata.lockedRanges.lock(LockedRanges.keyFor(epoch(random)), ranges);
         transformed = transformed.metadata.transformer().with(trivial).build();
         assertModifications(transformed, LOCKED_RANGES);

@@ -27,6 +27,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import com.google.common.collect.Sets;
+
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -128,15 +130,16 @@ public class BootWithMetadataTest
             t = t.proposeToken(nodeId, perNodeTokens);
         };
 
-        DataPlacements placements = randomPlacements(random);
+        DataPlacements placements = randomPlacements(directory, random);
         t = t.with(placements);
         t = t.with(lockedRanges(placements, random));
 
         InProgressSequences seq = first.inProgressSequences;
-        seq = addSequence(seq, bootstrapAndJoin(partitioner, random, seq::contains));
-        seq = addSequence(seq, bootstrapAndReplace(partitioner, random, seq::contains));
-        seq = addSequence(seq, unbootstrapAndLeave(partitioner, random, seq::contains));
-        seq = addSequence(seq, move(partitioner, random, seq::contains));
+        ClusterMetadata withDir = first.transformer().with(directory).build().metadata;
+        seq = addSequence(seq, bootstrapAndJoin(withDir, partitioner, random, seq::contains));
+        seq = addSequence(seq, bootstrapAndReplace(withDir, partitioner, random, seq::contains));
+        seq = addSequence(seq, unbootstrapAndLeave(withDir, partitioner, random, seq::contains));
+        seq = addSequence(seq, move(withDir, partitioner, random, seq::contains));
         seq = addSequence(seq, addToCMS(random, seq::contains));
         t = t.with(seq);
         ClusterMetadata toWrite = t.build().metadata.forceEpoch(epoch);
@@ -162,10 +165,24 @@ public class BootWithMetadataTest
         assertEquals(toWrite.tokenMap, fromRead.tokenMap);
         assertEquals(toWrite.placements(), fromRead.placements());
         assertEquals(toWrite.lockedRanges, fromRead.lockedRanges);
-        assertEquals(toWrite.inProgressSequences, fromRead.inProgressSequences);
+        assertEquals(diff(toWrite.inProgressSequences, fromRead.inProgressSequences), toWrite.inProgressSequences, fromRead.inProgressSequences);
         assertEquals(toWrite.extensions, fromRead.extensions);
 
         return fromRead.epoch;
+    }
+    private static String diff(InProgressSequences toWrite, InProgressSequences fromRead)
+    {
+        StringBuilder sb = new StringBuilder();
+        if (!toWrite.keys().equals(fromRead.keys()))
+            sb.append(Sets.difference(toWrite.keys(), fromRead.keys()));
+        for (MultiStepOperation.SequenceKey k : toWrite.keys())
+        {
+            MultiStepOperation<?> wop = toWrite.get(k);
+            MultiStepOperation<?> rop = fromRead.get(k);
+            if (!wop.equals(rop))
+                sb.append(wop).append(" != ").append(rop).append("\n");
+        }
+        return sb.toString();
     }
 
     private InProgressSequences addSequence(InProgressSequences sequences, MultiStepOperation<?> seq)

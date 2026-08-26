@@ -109,7 +109,7 @@ public class PrepareMove implements Transformation
         StartMove startMove = new StartMove(nodeId, transitionPlan.addToWrites(), lockKey);
         MidMove midMove = new MidMove(nodeId, transitionPlan.moveReads(), lockKey);
         FinishMove finishMove = new FinishMove(nodeId, tokens, transitionPlan.removeFromWrites(), lockKey);
-        transitionPlan.assertPreExistingWriteReplica(prev.placements());
+        transitionPlan.assertPreExistingWriteReplica(prev);
 
         Move sequence = Move.newSequence(prev.nextEpoch(),
                                          lockKey,
@@ -123,7 +123,7 @@ public class PrepareMove implements Transformation
         return Transformation.success(prev.transformer()
                                           .withNodeState(nodeId, NodeState.MOVING)
                                           .with(prev.lockedRanges.lock(lockKey, rangesToLock))
-                                          .with(transitionPlan.toSplit.apply(prev.nextEpoch(), prev.placements()))
+                                          .with(transitionPlan.toSplit.apply(prev.directory, prev.nextEpoch(), prev.placements()))
                                           .with(prev.inProgressSequences.with(nodeId, sequence)),
                                       rangesToLock);
     }

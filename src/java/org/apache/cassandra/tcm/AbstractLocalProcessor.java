@@ -23,10 +23,12 @@ import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
@@ -81,6 +83,19 @@ public abstract class AbstractLocalProcessor implements Processor
             {
                 result = executeStrictly(previous, transform);
             }
+            Version previousVersion = previous.directory.commonSerializationVersion;
+            if (result.isSuccess())
+            {
+                Version newVersion = result.success().metadata.directory.commonSerializationVersion;
+                if (previousVersion.isEqualOrBefore(Version.V9) &&
+                         newVersion.isAtLeast(Version.V10) &&
+                         !result.success().metadata.inProgressSequences.isEmpty())
+                {
+                    result = new Transformation.Rejected(INVALID, String.format("Committing %s would bump the serialization version from %s to %s," +
+                                                                                " which is not allowed when having ongoing multi step operations (%s) - see CASSANDRA-XYZ",
+                                                                                transform, previousVersion, newVersion, result.success().metadata.inProgressSequences));
+                }
+            }
 
             // If we got a rejection, it could be that _we_ are not aware of the highest epoch.
             // Just try to catch up to the latest distributed state.
@@ -96,9 +111,11 @@ public abstract class AbstractLocalProcessor implements Processor
                 if (!replayed.epoch.isAfter(previous.epoch))
                 {
                     logger.info("No epoch change after fetched latest log entries, returning rejection response");
+                    ExceptionCode code = result.rejected().code;
+                    String reason = result.rejected().reason;
                     return maybeFailure(entryId,
                                         lastKnown,
-                                        () -> Commit.Result.rejected(result.rejected().code, result.rejected().reason, toLogState(lastKnown)));
+                                        () -> Commit.Result.rejected(code, reason, toLogState(lastKnown)));
                 }
 
                 logger.info("Fetched latest log entries after transformation rejection, re-entering " +

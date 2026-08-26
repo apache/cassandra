@@ -34,6 +34,7 @@ import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.NodeIdLookup;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
@@ -89,10 +90,10 @@ public class DataPlacement
                                               .build());
     }
 
-    public PlacementDeltas.PlacementDelta difference(DataPlacement next)
+    public PlacementDeltas.PlacementDelta difference(NodeIdLookup idLookup, DataPlacement next)
     {
-        return new PlacementDeltas.PlacementDelta(reads.difference(next.reads),
-                                                  writes.difference(next.writes));
+        return new PlacementDeltas.PlacementDelta(reads.difference(idLookup, next.reads),
+                                                  writes.difference(idLookup, next.writes));
     }
 
     public DataPlacement splitRangesForPlacement(List<Token> tokens)
@@ -121,6 +122,13 @@ public class DataPlacement
     {
         return new Builder(reads.unbuild(), writes.unbuild());
     }
+
+    public DataPlacement changeIp(InetAddressAndPort oldEndpoint, InetAddressAndPort newEndpoint)
+    {
+        return new DataPlacement(reads.changeIp(oldEndpoint, newEndpoint),
+                                 writes.changeIp(oldEndpoint, newEndpoint));
+    }
+
     public static class Builder
     {
         public final ReplicaGroups.Builder reads;

@@ -52,7 +52,6 @@ import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.EndpointsByReplica;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.RangesByEndpoint;
 import org.apache.cassandra.locator.Replica;
@@ -72,6 +71,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
@@ -250,11 +250,11 @@ public class Move extends MultiStepOperation<Epoch>
     @Override
     public Set<NodeId> affectedPeers(Directory directory)
     {
-        Set<InetAddressAndPort> affectedEndpoints = new HashSet<>();
-        affectedEndpoints.addAll(startMove.affectedEndpoints());
-        affectedEndpoints.addAll(midMove.affectedEndpoints());
-        affectedEndpoints.addAll(finishMove.affectedEndpoints());
-        return endpointsToIds(affectedEndpoints, directory);
+        Set<NodeId> affectedPeers = new HashSet<>();
+        affectedPeers.addAll(startMove.affectedPeers(directory::peerId));
+        affectedPeers.addAll(midMove.affectedPeers(directory::peerId));
+        affectedPeers.addAll(finishMove.affectedPeers(directory::peerId));
+        return affectedPeers;
     }
 
     @Override
@@ -322,6 +322,7 @@ public class Move extends MultiStepOperation<Epoch>
                     Keyspaces keyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
                     Map<ReplicationParams, EndpointsByReplica> movementMap = movementMap(FailureDetector.instance,
                                                                                          metadata.placements(),
+                                                                                         metadata.directory,
                                                                                          toSplitRanges,
                                                                                          startMove.delta(),
                                                                                          midMove.delta(),
@@ -431,15 +432,14 @@ public class Move extends MultiStepOperation<Epoch>
     public ClusterMetadata.Transformer cancel(ClusterMetadata metadata)
     {
         DataPlacements placements = metadata.placements();
-
         switch (next)
         {
             case FINISH_MOVE:
-                placements = midMove.inverseDelta().apply(metadata.nextEpoch(), placements);
+                placements = midMove.inverseDelta().apply(metadata.directory, metadata.nextEpoch(), placements);
             case MID_MOVE:
-                placements = startMove.inverseDelta().apply(metadata.nextEpoch(), placements);
+                placements = startMove.inverseDelta().apply(metadata.directory, metadata.nextEpoch(), placements);
             case START_MOVE:
-                placements = toSplitRanges.invert().apply(metadata.nextEpoch(), placements);
+                placements = toSplitRanges.invert().apply(metadata.directory, metadata.nextEpoch(), placements);
                 break;
             default:
                 throw new IllegalStateException("Can't revert move from " + next);
@@ -457,19 +457,21 @@ public class Move extends MultiStepOperation<Epoch>
      *
      * there can be multiple sources for each destination
      */
-    private static MovementMap movementMap(IFailureDetector fd, DataPlacements placements, PlacementDeltas toSplitRanges, PlacementDeltas toStart, PlacementDeltas midDeltas, boolean strictConsistency)
+    private static MovementMap movementMap(IFailureDetector fd, DataPlacements placements, EndpointLookup endpointLookup, PlacementDeltas toSplitRanges, PlacementDeltas toStart, PlacementDeltas midDeltas, boolean strictConsistency)
     {
         MovementMap.Builder allMovements = MovementMap.builder();
         toStart.forEach((params, delta) -> {
-            RangesByEndpoint targets = delta.writes.additions;
+            RangesByEndpoint targets = delta.writes.additions(endpointLookup);
             ReplicaGroups oldOwners = placements.get(params).reads;
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
+            Iterable<Replica> replicaRemovals = midDeltas.get(params).reads.removals(endpointLookup).flattenValues();
+            RangesByEndpoint writeAdditions = toSplitRanges.get(params).writes.additions(endpointLookup);
             targets.flattenValues().forEach(destination -> {
-                SourceHolder sources = new SourceHolder(fd, destination, toSplitRanges.get(params), strictConsistency);
+                SourceHolder sources = new SourceHolder(fd, destination, writeAdditions, strictConsistency);
                 AtomicBoolean needsRelaxedSources = new AtomicBoolean();
                 // first, try to find strict sources for the ranges we need to stream - these are the ranges that
                 // instances are losing.
-                midDeltas.get(params).reads.removals.flattenValues().forEach(strictSource -> {
+                replicaRemovals.forEach(strictSource -> {
                     if (strictSource.range().equals(destination.range()) && !strictSource.endpoint().equals(destination.endpoint()))
                         if (!sources.addSource(strictSource))
                         {
@@ -478,7 +480,6 @@ public class Move extends MultiStepOperation<Epoch>
                             needsRelaxedSources.set(true);
                         }
                 });
-
                 // if we are not running with strict consistency, try to find other sources for streaming
                 if (needsRelaxedSources.get())
                 {
@@ -508,18 +509,18 @@ public class Move extends MultiStepOperation<Epoch>
     private static class SourceHolder
     {
         private final IFailureDetector fd;
-        private final PlacementDeltas.PlacementDelta splitDelta;
         private final boolean strict;
         private Replica fullSource;
         private Replica transientSource;
         private final Replica destination;
+        private final RangesByEndpoint writeAdditions;
 
-        public SourceHolder(IFailureDetector fd, Replica destination, PlacementDeltas.PlacementDelta splitDelta, boolean strict)
+        public SourceHolder(IFailureDetector fd, Replica destination, RangesByEndpoint writeAdditions, boolean strict)
         {
             this.fd = fd;
-            this.splitDelta = splitDelta;
             this.strict = strict;
             this.destination = destination;
+            this.writeAdditions = writeAdditions;
         }
 
         private boolean addSource(Replica source)
@@ -538,7 +539,7 @@ public class Move extends MultiStepOperation<Epoch>
                     {
                         // a transient replica is being removed, now, to be able to safely skip streaming from this
                         // replica we need to make sure it remains a replica for the range after the move has finished:
-                        if (splitDelta.writes.additions.get(source.endpoint()).byRange().get(destination.range()) == null)
+                        if (writeAdditions.get(source.endpoint()).byRange().get(destination.range()) == null)
                         {
                             if (strict)
                                 throw new IllegalStateException(String.format("Source %s for %s is not remaining as a replica after the move, can't do a consistent range movement, retry with that disabled", source, destination));

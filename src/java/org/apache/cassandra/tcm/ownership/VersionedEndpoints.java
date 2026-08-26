@@ -111,6 +111,20 @@ public interface VersionedEndpoints<E extends Endpoints<E>> extends MetadataValu
             return new ForToken(lastModified, endpointsForRange.forToken(token));
         }
 
+        public ForRange changeIp(InetAddressAndPort oldAddress, InetAddressAndPort newAddress)
+        {
+            EndpointsForRange.Builder builder = endpointsForRange.newBuilder(endpointsForRange.size());
+            for (Replica replica : endpointsForRange)
+            {
+                if (replica.endpoint().equals(oldAddress))
+                    builder.add(new Replica(newAddress, replica.range(), replica.isFull()));
+                else
+                    builder.add(replica);
+            }
+            // todo: should we bump lastModified?
+            return new ForRange(lastModified, builder.build());
+        }
+
         public boolean equals(Object o)
         {
             if (this == o) return true;

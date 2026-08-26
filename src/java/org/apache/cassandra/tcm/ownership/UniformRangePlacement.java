@@ -38,7 +38,9 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.serialization.Version;
 
 /**
  * The defining feature of this placement stategy is that all layouts (i.e. replication params) use the same
@@ -88,6 +90,7 @@ public class UniformRangePlacement implements PlacementProvider
                                                Set<Token> tokens,
                                                Keyspaces keyspaces)
     {
+        Directory directory = metadata.directory;
         // There are no other nodes in the cluster, so the joining node will be taking ownership of the entire range.
         if (metadata.tokenMap.isEmpty())
         {
@@ -100,7 +103,7 @@ public class UniformRangePlacement implements PlacementProvider
                                                             keyspaces);
             PlacementDeltas.Builder toStart = PlacementDeltas.builder(placements.size());
             placements.withDistributed((params, placement) -> {
-                toStart.put(params, DataPlacement.empty().difference(placements.get(params)));
+                toStart.put(params, DataPlacement.empty().difference(directory, placements.get(params)));
             });
             return new PlacementTransitionPlan(toStart.build(),
                                                PlacementDeltas.empty(),
@@ -123,28 +126,28 @@ public class UniformRangePlacement implements PlacementProvider
         PlacementDeltas.Builder toFinal = PlacementDeltas.builder(base.size());
 
         start.withDistributed((params, startPlacement) -> {
-            toStart.put(params, base.get(params).difference(startPlacement));
-            toMaximal.put(params, startPlacement.difference(maximalPlacements.get(params)));
-            toFinal.put(params, maximalPlacements.get(params).difference(finalPlacements.get(params)));
+            toStart.put(params, base.get(params).difference(directory, startPlacement));
+            toMaximal.put(params, startPlacement.difference(directory, maximalPlacements.get(params)));
+            toFinal.put(params, maximalPlacements.get(params).difference(directory, finalPlacements.get(params)));
         });
         // double check that the deltas make sense
         PlacementTransitionPlan plan = new PlacementTransitionPlan(toStart.build(), toMaximal.build(), toFinal.build(), PlacementDeltas.empty());
-        DataPlacements afterExecution = base.applyDelta(metadata.nextEpoch(), plan.toSplit)
-                                            .applyDelta(metadata.nextEpoch(), plan.addToWrites())
-                                            .applyDelta(metadata.nextEpoch(), plan.moveReads())
-                                            .applyDelta(metadata.nextEpoch(), plan.removeFromWrites());
-        assertDiff(afterExecution, finalPlacements);
+        DataPlacements afterExecution = base.applyDelta(directory, metadata.nextEpoch(), plan.toSplit)
+                                            .applyDelta(directory, metadata.nextEpoch(), plan.addToWrites())
+                                            .applyDelta(directory, metadata.nextEpoch(), plan.moveReads())
+                                            .applyDelta(directory, metadata.nextEpoch(), plan.removeFromWrites());
+        assertDiff(afterExecution, finalPlacements, directory);
+        if (metadata.directory.commonSerializationVersion.isBefore(Version.V10))
+            return plan.withEndpointDeltas(directory);
         return plan;
     }
 
-    void assertDiff(DataPlacements calculated, DataPlacements applied)
+    void assertDiff(DataPlacements calculated, DataPlacements applied, Directory directory)
     {
         calculated.forEach((params, placement) -> {
-            PlacementDeltas.PlacementDelta delta = placement.difference(applied.get(params));
-            assert delta.writes.removals.isEmpty() : delta;
-            assert delta.writes.additions.isEmpty() : delta;
-            assert delta.reads.removals.isEmpty() : delta;
-            assert delta.reads.additions.isEmpty() : delta;
+            PlacementDeltas.PlacementDelta delta = placement.difference(directory, applied.get(params));
+            assert delta.writes.isEmpty() : delta;
+            assert delta.reads.isEmpty() : delta;
         });
     }
 
@@ -174,20 +177,24 @@ public class UniformRangePlacement implements PlacementProvider
         PlacementDeltas.Builder toFinal = PlacementDeltas.builder();
         PlacementDeltas.Builder merge = PlacementDeltas.builder();
 
+        Directory directory = metadata.directory;
         base.withDistributed((params, placement) -> {
-            split.put(params, placement.difference(start.get(params)));
+            split.put(params, placement.difference(directory, start.get(params)));
         });
 
         maximal.withDistributed((params, placement) -> {
-            toMaximal.put(params, start.get(params).difference(placement));
-            toFinal.put(params, placement.difference(end.get(params)));
+            toMaximal.put(params, start.get(params).difference(directory, placement));
+            toFinal.put(params, placement.difference(directory, end.get(params)));
         });
 
         end.withDistributed((params, placement) -> {
-            merge.put(params, placement.difference(afterMove.get(params)));
+            merge.put(params, placement.difference(directory, afterMove.get(params)));
         });
 
-        return new PlacementTransitionPlan(split.build(), toMaximal.build(), toFinal.build(), merge.build());
+        PlacementTransitionPlan plan = new PlacementTransitionPlan(split.build(), toMaximal.build(), toFinal.build(), merge.build());
+        if (metadata.directory.commonSerializationVersion.isBefore(Version.V10))
+            return plan.withEndpointDeltas(directory);
+        return plan;
     }
 
     @Override
@@ -215,19 +222,22 @@ public class UniformRangePlacement implements PlacementProvider
         PlacementDeltas.Builder toFinal = PlacementDeltas.builder(start.size());
         PlacementDeltas.Builder merge = PlacementDeltas.builder(start.size());
 
+        Directory directory = metadata.directory;
         maximal.withDistributed((params, maxPlacement) -> {
             // Add new nodes as replicas
-            PlacementDeltas.PlacementDelta maxDelta = start.get(params).difference(maxPlacement);
+            PlacementDeltas.PlacementDelta maxDelta = start.get(params).difference(directory, maxPlacement);
             toMaximal.put(params, maxDelta);
 
-            PlacementDeltas.PlacementDelta leftDelta = maxPlacement.difference(finalPlacement.get(params));
+            PlacementDeltas.PlacementDelta leftDelta = maxPlacement.difference(directory, finalPlacement.get(params));
             toFinal.put(params, leftDelta);
 
-            PlacementDeltas.PlacementDelta finalDelta = finalPlacement.get(params).difference(withoutLeaving.get(params));
+            PlacementDeltas.PlacementDelta finalDelta = finalPlacement.get(params).difference(directory, withoutLeaving.get(params));
             merge.put(params, finalDelta);
         });
-
-        return new PlacementTransitionPlan(PlacementDeltas.empty(), toMaximal.build(), toFinal.build(), merge.build());
+        PlacementTransitionPlan plan = new PlacementTransitionPlan(PlacementDeltas.empty(), toMaximal.build(), toFinal.build(), merge.build());
+        if (metadata.directory.commonSerializationVersion.isBefore(Version.V10))
+            return plan.withEndpointDeltas(directory);
+        return plan;
     }
 
     @Override
@@ -248,12 +258,15 @@ public class UniformRangePlacement implements PlacementProvider
         PlacementDeltas.Builder toMaximal = PlacementDeltas.builder(startPlacements.size());
         PlacementDeltas.Builder toFinal = PlacementDeltas.builder(startPlacements.size());
 
+        Directory directory = metadata.directory;
         maximalPlacements.withDistributed((params, max) -> {
-            toMaximal.put(params, startPlacements.get(params).difference(max));
-            toFinal.put(params, max.difference(finalPlacements.get(params)));
+            toMaximal.put(params, startPlacements.get(params).difference(directory, max));
+            toFinal.put(params, max.difference(directory, finalPlacements.get(params)));
         });
-
-        return new PlacementTransitionPlan(PlacementDeltas.empty(), toMaximal.build(), toFinal.build(), PlacementDeltas.empty());
+        PlacementTransitionPlan plan = new PlacementTransitionPlan(PlacementDeltas.empty(), toMaximal.build(), toFinal.build(), PlacementDeltas.empty());
+        if (metadata.directory.commonSerializationVersion.isBefore(Version.V10))
+            return plan.withEndpointDeltas(directory);
+        return plan;
     }
 
     public DataPlacements splitRanges(TokenMap current,

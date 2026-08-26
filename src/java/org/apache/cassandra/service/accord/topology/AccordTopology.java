@@ -192,7 +192,7 @@ public class AccordTopology
             ReplicationParams replication = keyspace.params.replication;
             DataPlacement placement = placements.get(replication);
 
-            List<Range<Token>> ranges = placement.reads.ranges();
+            List<Range<Token>> ranges = placement.reads.sortedRanges();
             List<KeyspaceShard> shards = new ArrayList<>(ranges.size());
             Map<Group, List<Range<Token>>> groupRanges = new LinkedHashMap<>();
             for (Range<Token> range : ranges)

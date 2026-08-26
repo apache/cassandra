@@ -48,6 +48,7 @@ import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
@@ -67,7 +68,9 @@ public class UnbootstrapStreams implements LeaveStreams
     @Override
     public void execute(NodeId leaving, PlacementDeltas startLeave, PlacementDeltas midLeave, PlacementDeltas finishLeave) throws ExecutionException, InterruptedException
     {
-        MovementMap movements = movementMap(ClusterMetadata.current().directory.endpoint(leaving),
+        ClusterMetadata metadata = ClusterMetadata.current();
+        MovementMap movements = movementMap(metadata.directory,
+                                            leaving,
                                             startLeave,
                                             finishLeave);
         movements.forEach((params, eps) -> logger.info("Unbootstrap movements: {}: {}", params, eps));
@@ -83,8 +86,9 @@ public class UnbootstrapStreams implements LeaveStreams
         }
     }
 
-    private static MovementMap movementMap(InetAddressAndPort leaving, PlacementDeltas startDelta, PlacementDeltas finishDelta)
+    private static MovementMap movementMap(EndpointLookup endpointLookup, NodeId leavingNode, PlacementDeltas startDelta, PlacementDeltas finishDelta)
     {
+        InetAddressAndPort leaving = endpointLookup.endpoint(leavingNode);
         MovementMap.Builder allMovements = MovementMap.builder();
         // map of src->dest movements, keyed by replication settings. During unbootstrap, this will be used to construct
         // a stream plan for each keyspace, based on their replication params.
@@ -94,15 +98,14 @@ public class UnbootstrapStreams implements LeaveStreams
                 return;
 
             // first identify ranges to be migrated off the leaving node
-            Map<Range<Token>, Replica> oldReplicas = delta.writes.removals.get(leaving).byRange();
-
+            Map<Range<Token>, Replica> oldReplicas = delta.writes.removals(endpointLookup).get(leaving).byRange();
             // next go through the additions to the write groups that will be applied during the
             // first step of the plan. These represent the ranges moving to new replicas so in
             // order to construct a streaming plan we can match these up with the corresponding
             // removals to produce a src->dest mapping.
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
-            RangesByEndpoint startWriteAdditions = startDelta.get(params).writes.additions;
-            RangesByEndpoint startWriteRemovals = startDelta.get(params).writes.removals;
+            RangesByEndpoint startWriteAdditions = startDelta.get(params).writes.additions(endpointLookup);
+            RangesByEndpoint startWriteRemovals = startDelta.get(params).writes.removals(endpointLookup);
             startWriteAdditions.flattenValues()
                                .forEach(newReplica -> {
                                    if (startWriteRemovals.get(newReplica.endpoint()).contains(newReplica.range(), false))

@@ -30,6 +30,7 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -38,11 +39,14 @@ import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.StubClusterMetadataService;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.log.Entry;
+import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.ownership.OwnershipUtils;
 import org.apache.cassandra.tcm.transformations.ForceSnapshot;
 import org.apache.cassandra.tcm.transformations.TriggerSnapshot;
 
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.minimalForTesting;
+import static org.apache.cassandra.tcm.sequences.InProgressSequenceCancellationTest.directory;
 import static org.apache.cassandra.tcm.sequences.SequencesUtils.epoch;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -125,10 +129,14 @@ public class MetadataSnapshotListenerTest
 
     private ClusterMetadata metadataForSnapshot()
     {
-        return minimalForTesting(epoch(r), partitioner)
-               .transformer()
-               .with(OwnershipUtils.randomPlacements(r)).build()
-               .metadata;
+        ClusterMetadata metadata = minimalForTesting(epoch(r), partitioner);
+        // randomPlacements has rf=1, 2, 3 => 6 nodes needed for the randomization
+        Directory dir = directory(new NodeAddresses(InetAddressAndPort.getByNameUnchecked("127.0.0.1")), OwnershipUtils.replicationForRandomPlacements, r);
+        metadata = metadata.transformer()
+                           .with(dir)
+                           .with(OwnershipUtils.randomPlacements(dir, r))
+                           .build().metadata;
+        return metadata;
     }
 
 }
