@@ -244,8 +244,9 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
     @Override
     public void authorize(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
+        ModificationStatement.TableAuthorizationState authorizationState = new ModificationStatement.TableAuthorizationState();
         for (ModificationStatement statement : statements)
-            statement.authorize(state);
+            statement.authorize(state, authorizationState);
     }
 
     // Validates a prepared batch statement without validating its nested statements.
