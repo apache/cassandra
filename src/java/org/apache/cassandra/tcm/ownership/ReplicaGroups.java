@@ -54,8 +54,8 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeIdLookup;
 import org.apache.cassandra.tcm.serialization.PartitionerAwareMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.AsymmetricOrdering;
@@ -167,14 +167,14 @@ public class ReplicaGroups
         return forRange(token).forToken(token);
     }
 
-    public Delta difference(Directory directory, ReplicaGroups next)
+    public Delta difference(NodeIdLookup idLookup, ReplicaGroups next)
     {
-        Multimap<NodeId, ReplicaNode> oldMap = this.byNodeId(directory);
-        Multimap<NodeId, ReplicaNode> newMap = next.byNodeId(directory);
+        Multimap<NodeId, ReplicaNode> oldMap = this.byNodeId(idLookup);
+        Multimap<NodeId, ReplicaNode> newMap = next.byNodeId(idLookup);
         return new NodeIdDelta(diff(oldMap, newMap), diff(newMap, oldMap));
     }
 
-    private Multimap<NodeId, ReplicaNode> byNodeId(Directory directory)
+    private Multimap<NodeId, ReplicaNode> byNodeId(NodeIdLookup idLookup)
     {
         ImmutableMultimap.Builder<NodeId, ReplicaNode> builder = ImmutableMultimap.builder();
         for (int i = 0; i < endpoints.size(); i++)
@@ -183,9 +183,9 @@ public class ReplicaGroups
             for (Map.Entry<InetAddressAndPort, Replica> entry : replica.entrySet())
             {
                 InetAddressAndPort endpoint = entry.getKey();
-                NodeId nodeId = directory.peerId(endpoint);
+                NodeId nodeId = idLookup.peerId(endpoint);
                 if (nodeId == null)
-                    throw new IllegalStateException(String.format("Unknown endpoint %s in %s at %s", endpoint, directory, directory.lastModified()));
+                    throw new IllegalStateException(String.format("Unknown endpoint %s in %s at %s", endpoint, idLookup, idLookup.lastModified()));
                 builder.put(nodeId, new ReplicaNode(nodeId, entry.getValue().range(), entry.getValue().isFull()));
             }
         }

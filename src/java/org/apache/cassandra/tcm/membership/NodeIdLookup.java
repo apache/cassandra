@@ -21,8 +21,8 @@ package org.apache.cassandra.tcm.membership;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.Epoch;
 
-public interface EndpointLookup
+public interface NodeIdLookup
 {
-    InetAddressAndPort endpoint(NodeId id);
+    NodeId peerId(InetAddressAndPort broadcastAddress);
     Epoch lastModified();
 }
