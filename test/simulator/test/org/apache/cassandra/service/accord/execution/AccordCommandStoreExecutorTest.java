@@ -440,7 +440,7 @@ public class AccordCommandStoreExecutorTest extends SimulationTestBase
     /**
      * One child of a {@link Batch}: a nested submission on its parent's own command store, declaring a subset of its
      * parent's keys and a prefix of its parent's txnIds, so that it inherits every reference it needs (and so is
-     * legal for {@link ExecutionSequence#ATOMIC_CONSEQUENCE}, which requires a txnId subset, and a key subset if it is
+     * legal for {@link ExecutionSequence#ATOMIC}, which requires a txnId subset, and a key subset if it is
      * not to fall back to running as soon as any one key is ready).
      */
     static class Child
@@ -470,7 +470,7 @@ public class AccordCommandStoreExecutorTest extends SimulationTestBase
 
         boolean isAtomic()
         {
-            return sequence == ExecutionSequence.ATOMIC_CONSEQUENCE;
+            return sequence == ExecutionSequence.ATOMIC;
         }
 
         /**
@@ -511,20 +511,28 @@ public class AccordCommandStoreExecutorTest extends SimulationTestBase
     }
 
     /** the only way to control the sequencing of a task, as {@link ExecutionContext#contextFor} does not */
-    static class SeqContext extends ExecutionContext.Wrapped
+    static class SeqContext implements ExecutionContext.Wrapped
     {
+        final ExecutionContext wrapped;
         final ExecutionSequence sequence;
         final ExecutionKind kind;
 
         SeqContext(ExecutionContext wrapped, ExecutionSequence sequence, ExecutionKind kind)
         {
-            super(wrapped);
+            this.wrapped = wrapped;
             this.sequence = sequence;
             this.kind = kind;
         }
 
+        @Override public ExecutionContext wrapped() { return wrapped; }
         @Override public ExecutionSequence executionSequence() { return sequence; }
         @Override public ExecutionKind executionKind() { return kind; }
+        /**
+         * {@code SafeTask.initNonSync} requires every INCR task to declare itself idempotent, as an INCR task may
+         * partially succeed and be retried. Our task bodies only verify state, so they are safe to re-run, and
+         * {@link ExecutionContext#contextFor} does not offer a way to say so.
+         */
+        @Override public boolean isIdempotent() { return loadKeys() == LoadKeys.INCR; }
     }
 
     static class Harness
@@ -815,7 +823,7 @@ public class AccordCommandStoreExecutorTest extends SimulationTestBase
             // UNSEQUENCED; ATOMIC is meaningful with no parent only for an INCR task, whose runs it holds together.
             ExecutionSequence sequence;
             if (runAs == LoadKeys.INCR)
-                sequence = rnd.nextBoolean() ? ExecutionSequence.BY_PRIORITY : ExecutionSequence.ATOMIC_CONSEQUENCE;
+                sequence = rnd.nextBoolean() ? ExecutionSequence.BY_PRIORITY : ExecutionSequence.ATOMIC;
             else
                 sequence = rnd.nextBoolean() ? ExecutionSequence.BY_PRIORITY : ExecutionSequence.UNSEQUENCED;
             sequenceOf.set(taskId, sequence.ordinal());
@@ -1112,7 +1120,7 @@ public class AccordCommandStoreExecutorTest extends SimulationTestBase
                 // BY_PRIORITY is permitted: the inversion that once forbade it cannot arise, as the fifo upgrade happens
                 // in the same pass that takes the lock.
                 ExecutionSequence sequence = runAs == LoadKeys.INCR && txnIdOrdinals.length > 0
-                                             ? (rnd.nextBoolean() ? ExecutionSequence.ATOMIC_CONSEQUENCE : ExecutionSequence.BY_PRIORITY)
+                                             ? (rnd.nextBoolean() ? ExecutionSequence.ATOMIC : ExecutionSequence.BY_PRIORITY)
                                              : SEQUENCES[rnd.nextInt(SEQUENCES.length)];
                 // a batched child may declare keys outside the parent's current batch; one that loads up front may not,
                 // as an atomic task that is not a subset of its parent's keys relies on its own batching to make
@@ -1409,12 +1417,12 @@ public class AccordCommandStoreExecutorTest extends SimulationTestBase
                     // ordered with respect to other tasks' priorities
                     Invariants.require(!task.isUnsequenced(), "%s is unsequenced", describe);
                     break;
-                case ATOMIC_CONSEQUENCE:
+                case ATOMIC:
                     // atomic from the point of view of other sequenced tasks, which requires a fifo position: a pre-set-up
                     // child inherits its parent's at setup, one with no parent to inherit from takes a fresh one on its
                     // first prepare. With the cache queues off there is nowhere to take a position, so the sequence is
                     // recorded but no fifo claim is made and no atomicity is provided
-                    Invariants.require(task.isSequencedByPriorityAtomic(), "%s is not sequenced by priority atomic", describe);
+                    Invariants.require(task.isAtomic(), "%s is not sequenced by priority atomic", describe);
                     Invariants.require(task.isCacheQueuedFifo() == AccordExecutor.CACHE_QUEUES_ENABLED,
                                        "%s is %squeued fifo", describe, task.isCacheQueuedFifo() ? "" : "not ");
                     break;

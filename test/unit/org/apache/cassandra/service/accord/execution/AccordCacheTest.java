@@ -23,7 +23,6 @@ import org.agrona.concurrent.NoOpLock;
 import org.junit.Assert;
 import org.junit.Test;
 
-import accord.local.ExecutionContext;
 import accord.local.SafeState;
 
 import org.apache.cassandra.cache.CacheSize;
@@ -34,7 +33,6 @@ import org.apache.cassandra.service.accord.execution.AccordCacheEntry.LockMode;
 import org.apache.cassandra.service.accord.execution.AccordCacheEntry.SaveExecutor;
 import org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status;
 
-import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.LockMode.RELEASE_QUEUE;
 import static org.apache.cassandra.service.accord.execution.AccordExecutionTestUtils.testLoad;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -511,7 +509,7 @@ public class AccordCacheTest
 
         // the durability path asks for a save the adapter refuses
         int[] saved = new int[] { 0 };
-        cache.saveWhenReadyExclusive(entry, () -> ++saved[0]);
+        cache.saveWhenReadyExclusive(entry, (success, fail) -> ++saved[0]);
         Assert.assertEquals(Status.WAITING_TO_SAVE, entry.status());
         Assert.assertEquals(0, saved[0]);
 
@@ -525,11 +523,111 @@ public class AccordCacheTest
         // the reason the adapter refused has cleared. The next durability pass (which iterates every modified entry,
         // not the eviction queue, so it still sees this one) must retry, resolve, and re-queue it
         canSave[0] = true;
-        cache.saveWhenReadyExclusive(entry, () -> ++saved[0]);
+        cache.saveWhenReadyExclusive(entry, (success, fail) -> ++saved[0]);
         Assert.assertEquals(Status.LOADED, entry.status());
         Assert.assertEquals(2, saved[0]);
         Assert.assertSame(entry, cache.head());
         Assert.assertFalse(entry.isUnqueued());
+    }
+
+    /**
+     * A failed save must not satisfy the durability wait.
+     *
+     * <p>{@code AccordCacheEntry.saved(identity, fail)} notifies {@code identity.onSuccess} as its <em>first</em>
+     * statement, before it looks at {@code fail}. That callback is exactly the latch
+     * {@code AccordCommandStore.ensureDurable} counts down before it reports {@code LOCALLY_DURABLE_TO_COMMAND_STORE}
+     * ({@code Ready.run()}, registered through {@link AccordCache#saveWhenReadyExclusive}), and {@code Ready}'s own
+     * failure channel is unreachable from here, because {@code UniqueSave.notify} only ever runs the success runnable.
+     * So a commands-for-key entry whose write threw is reported durable; the replay bound then covers the commands it
+     * derives from, so replay will not re-derive it; and commands for key are written straight into the memtable with
+     * no commitlog, so nothing else recovers it either.
+     *
+     * <p>Required behaviour: the waiters stay attached to the entry, this durability pass does not complete, and a
+     * later pass retries the write and reports only once it succeeds. {@code FAILED_TO_SAVE} is {@code isModified()},
+     * so the next {@code ensureDurable} scan does revisit the entry - but the retry needs {@code save()} to unwrap the
+     * failed state rather than hand the wrapper to the adapter.
+     */
+    @Test
+    public void failedSaveMustNotSatisfyDurabilityWait()
+    {
+        AccordCacheMetrics cacheMetrics = new AccordCacheMetrics(nextMetricId());
+        NoOpLock lock = new NoOpLock();
+        AccordCacheMetrics.Shard shard = cacheMetrics.newShard(lock);
+
+        ManualExecutor executor = new ManualExecutor();
+        // report the failure without rethrowing, so that ManualExecutor.runOne() does not propagate it to the caller
+        SaveExecutor saveExecutor = (saving, identity, save) -> {
+            executor.submit(() -> {
+                try { save.run(); saving.saved(identity, null); }
+                catch (Throwable t) { saving.saved(identity, t); }
+            });
+            return null;
+        };
+
+        AccordCache cache = new AccordCache(saveExecutor, nodeSize(1));
+        boolean[] failSave = new boolean[] { true };
+        AccordCache.Adapter<String, String, SafeString> adapter =
+            new AccordCache.FunctionalAdapter<String, String, SafeString>((s, k) -> k,
+                                                (s, k, v, o) -> () -> {
+                                                    if (failSave[0])
+                                                        throw new InjectedSaveFailure(k);
+                                                },
+                                                Function.identity(), (k, v) -> null, (s, k, o) -> null,
+                                                (s, k, v) -> true, String::length, o -> 0,
+                                                SafeString::new, AccordCacheEntry::createReadyToLoad);
+        AccordCache.Type<String, String, SafeString> type = cache.newType(String.class, adapter, shard);
+        AccordCache.Type<String, String, SafeString>.Instance instance = type.newInstance(null);
+
+        SafeString safeString = instance.acquire("0");
+        testLoad(executor, safeString, "0");
+        safeString.set("modified");
+        instance.release(safeString, AccordExecutionTestUtils.owner(safeString));
+        AccordCacheEntry<String, String, SafeString> entry = safeString.global();
+        Assert.assertEquals(Status.MODIFIED, entry.status());
+
+        // the durability path asks for the save and registers its latch
+        int[] reportedDurable = new int[] { 0 };
+        Throwable[] reportedFailure = new Throwable[1];
+        cache.saveWhenReadyExclusive(entry, (success, fail) -> { if (fail == null) ++reportedDurable[0]; else reportedFailure[0] = fail; });
+        Assert.assertEquals(Status.SAVING, entry.status());
+        Assert.assertEquals(0, reportedDurable[0]);
+
+        // ... and the write fails. The waiter is told, and told that it failed: what must not happen is that it counts
+        // as durable, because reporting the bound would advance the replay bound past state replay will not re-derive
+        executor.runOne();
+        Assert.assertEquals(Status.FAILED_TO_SAVE, entry.status());
+        Assert.assertEquals("a save that threw must not count towards the durability wait", 0, reportedDurable[0]);
+        Assert.assertTrue("the durability wait must be told why it will not be satisfied, so that it can refuse to "
+                          + "report rather than waiting for a save that has already failed",
+                          reportedFailure[0] instanceof InjectedSaveFailure);
+
+        // a later durability pass must retry the write, and report only when it succeeds
+        failSave[0] = false;
+        cache.saveWhenReadyExclusive(entry, (success, fail) -> { if (fail == null) ++reportedDurable[0]; });
+        Assert.assertEquals(Status.SAVING, entry.status());
+        Assert.assertEquals(0, reportedDurable[0]);
+        executor.runOne();
+        Assert.assertEquals(Status.LOADED, entry.status());
+        // only the pass that registered after the failure is told: UniqueSave.notify takes the register when it notifies,
+        // so the pass that was already told "failed" is not told again by the retry (it had already refused to report)
+        Assert.assertEquals("the retried write must report once it succeeds", 1, reportedDurable[0]);
+    }
+
+    static class InjectedSaveFailure extends RuntimeException
+    {
+        InjectedSaveFailure(Object key)
+        {
+            super("injected save failure for " + key);
+        }
+    }
+
+    private CacheSize mockCacheSize(long capacity, long size, int entries)
+    {
+        CacheSize cacheSize = mock(CacheSize.class);
+        when(cacheSize.capacity()).thenReturn(capacity);
+        when(cacheSize.weightedSize()).thenReturn(size);
+        when(cacheSize.size()).thenReturn(entries);
+        return cacheSize;
     }
 
     private static SaveExecutor saveExecutor(ExecutorPlus executor)

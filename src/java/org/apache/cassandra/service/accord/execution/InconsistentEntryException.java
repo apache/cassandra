@@ -18,28 +18,17 @@
 
 package org.apache.cassandra.service.accord.execution;
 
-import java.util.concurrent.Callable;
-import java.util.function.BiConsumer;
-
-import javax.annotation.Nullable;
-
-import accord.utils.Invariants;
-
-import org.apache.cassandra.concurrent.DebuggableTask;
-
-class PlainChainDebuggable<V> extends PlainChain<V> implements DebuggableTask
+/**
+ * An operation declared a key whose state an update failed to reach, and so may not act on it until the update is
+ * applied. A routine outcome, not an internal error: see {@code AccordAgent.expectedException}.
+ */
+public class InconsistentEntryException extends RuntimeException
 {
-    final Object describe;
+    public final Object key;
 
-    PlainChainDebuggable(AccordExecutor executor, Callable<? extends V> call, BiConsumer<? super V, Throwable> callback, @Nullable ExclusiveExecutor exclusiveExecutor, Object describe)
+    public InconsistentEntryException(Object key)
     {
-        super(executor, call, callback, exclusiveExecutor, ExclusiveGroup.OTHER);
-        this.describe = Invariants.nonNull(describe);
-    }
-
-    @Override
-    public String description()
-    {
-        return describe.toString();
+        super("an update is outstanding for " + key);
+        this.key = key;
     }
 }

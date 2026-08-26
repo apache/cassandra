@@ -22,12 +22,12 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.BiConsumer;
 
 import accord.api.ExclusiveAsyncExecutor;
 import accord.local.ExecutionContext;
 import accord.utils.IntrusiveHeapNode;
 import accord.utils.Invariants;
-import accord.utils.async.AsyncCallbacks;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.Cancellable;
@@ -35,6 +35,8 @@ import accord.utils.async.Cancellable;
 import org.apache.cassandra.service.accord.debug.DebugExecution;
 import org.apache.cassandra.service.accord.execution.Task.GroupKind;
 
+import static accord.utils.Functions.returningVoid;
+import static accord.utils.async.AsyncCallbacks.flatCallback;
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXECUTION;
 import static org.apache.cassandra.service.accord.execution.AccordExecutor.EXCLUSIVE_QUEUE_LIMITS;
 import static org.apache.cassandra.service.accord.execution.Task.ExecutorQueue.RUNNABLE;
@@ -69,10 +71,13 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
             Task task = queue.task;
             try
             {
-                task.prepareExclusiveMayThrow();
+                boolean run = task.prepareExclusiveMayThrow();
                 task.setStateExclusive(State.PREPARED);
                 setStateExclusive(State.PREPARED);
-                return true;
+                if (run)
+                    return true;
+                completeExclusiveMayThrow();
+                return false;
             }
             catch (Throwable t)
             {
@@ -182,6 +187,10 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
 
     private boolean reject(Task task)
     {
+        // continuations/in-progress incremental task represent work that has already started
+        if (task.isContinuation() || task.hasIncrementalStarted())
+            return false;
+
         if (!(task instanceof SafeTask<?>))
             return true;
 
@@ -339,28 +348,60 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
         else executor.submitTask(task);
     }
 
-    @Override
-    public Cancellable execute(AsyncCallbacks.RunOrFail runOrFail)
+    private Cancellable execute(PlainChain task)
     {
         Task inherit = executor.inherit();
-        PlainChain task = new PlainChain(executor, runOrFail, ExclusiveExecutor.this, Task.ExclusiveGroup.OTHER);
         if (inherit != null) inherit.addConsequence(task);
         else executor.submitTask(task);
         return task;
     }
 
-    @Override
-    public Cancellable executeContinuation(AsyncCallbacks.RunOrFail runOrFail)
+    private Cancellable executeContinuation(PlainChain task)
     {
         Task inherit = executor.inherit();
-        PlainChain task = new PlainChain(executor, runOrFail, ExclusiveExecutor.this, Task.ExclusiveGroup.OTHER);
         if (inherit == null) executor.submitTask(task);
         else
         {
-            task.setIsContinuation();
+            task.setContinuation();
             inherit.addConsequence(task);
         }
         return task;
+    }
+
+    @Override
+    public Cancellable execute(Runnable run, BiConsumer<? super Void, Throwable> callback)
+    {
+        return execute(new PlainChain<>(executor, returningVoid(run), callback, ExclusiveExecutor.this, Task.ExclusiveGroup.OTHER));
+    }
+
+    @Override
+    public <V> Cancellable execute(Callable<V> call, BiConsumer<? super V, Throwable> callback)
+    {
+        return execute(new PlainChain<>(executor, call, callback, ExclusiveExecutor.this, Task.ExclusiveGroup.OTHER));
+    }
+
+    @Override
+    public <V> Cancellable flatExecute(Callable<? extends AsyncChain<V>> call, BiConsumer<? super V, Throwable> callback)
+    {
+        return execute(new PlainChain<>(executor, call, flatCallback(callback), ExclusiveExecutor.this, Task.ExclusiveGroup.OTHER));
+    }
+
+    @Override
+    public Cancellable executeContinuation(Runnable run, BiConsumer<? super Void, Throwable> callback)
+    {
+        return executeContinuation(new PlainChain<>(executor, returningVoid(run), callback, ExclusiveExecutor.this, Task.ExclusiveGroup.OTHER));
+    }
+
+    @Override
+    public <V> Cancellable executeContinuation(Callable<V> call, BiConsumer<? super V, Throwable> callback)
+    {
+        return executeContinuation(new PlainChain<>(executor, call, callback, ExclusiveExecutor.this, Task.ExclusiveGroup.OTHER));
+    }
+
+    @Override
+    public <V> Cancellable flatExecuteContinuation(Callable<? extends AsyncChain<V>> call, BiConsumer<? super V, Throwable> callback)
+    {
+        return executeContinuation(new PlainChain<>(executor, call, flatCallback(callback), ExclusiveExecutor.this, Task.ExclusiveGroup.OTHER));
     }
 
     @Override

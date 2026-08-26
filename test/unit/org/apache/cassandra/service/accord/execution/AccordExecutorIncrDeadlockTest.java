@@ -36,7 +36,6 @@ import accord.api.ExclusiveAsyncExecutor;
 import accord.api.ProgressLog;
 import accord.api.Result;
 import accord.api.RoutingKey;
-import accord.api.Scheduler;
 import accord.coordinate.Coordinations;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultLocalListeners.NotifySink;
@@ -72,9 +71,10 @@ import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.concurrent.Condition;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
 import static org.apache.cassandra.service.accord.execution.AccordExecutor.Mode.RUN_WITHOUT_LOCK;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * This test has been authored entirely by Claude.
@@ -162,6 +162,10 @@ public class AccordExecutorIncrDeadlockTest
         assertEquals("outstanding is seeded with TASKS, so the submitters must submit exactly that many",
                      0, TASKS % THREADS);
         AtomicInteger outstanding = new AtomicInteger(TASKS);
+        // "completed" is not "ran": a task refused at setup completes too, so the counts below are what stops this
+        // workload from passing without ever taking the claims it exists to interleave
+        AtomicInteger ran = new AtomicInteger();
+        List<Throwable> failures = new java.util.concurrent.CopyOnWriteArrayList<>();
         Condition done = Condition.newOneTimeCondition();
         List<Thread> submitters = new ArrayList<>();
         try
@@ -181,9 +185,15 @@ public class AccordExecutorIncrDeadlockTest
                         int[] txnIdOrdinals = isBatched && !batchedDeclaresTxnIds ? new int[0] : distinct(rnd, TXN_IDS, rnd.nextInt(1 + MAX_TXN_IDS));
                         TxnId primary = txnIdOrdinals.length > 0 ? txnIds[txnIdOrdinals[0]] : null;
                         TxnId additional = txnIdOrdinals.length > 1 ? txnIds[txnIdOrdinals[1]] : null;
-                        ExecutionContext context = ExecutionContext.contextFor(primary, additional, RoutingKeys.of(declared), loadKeys, LoadKeysFor.READ_WRITE, "task");
-                        store.execute(context, (Consumer<? super SafeCommandStore>) safeStore -> {},
+                        // idempotent(): an INCR task that does not declare it is refused outright at setup, and a refused
+                        // task *completes* - so without this every INCR submission here failed before it took a single
+                        // claim, and the only test for the INCR/txnId deadlock passed while exercising none of it
+                        ExecutionContext context = AccordExecutionTestUtils.idempotent(
+                            ExecutionContext.contextFor(primary, additional, RoutingKeys.of(declared), loadKeys, LoadKeysFor.READ_WRITE, "task"));
+                        store.execute(context, (Consumer<? super SafeCommandStore>) safeStore -> ran.incrementAndGet(),
                                       (success, fail) -> {
+                                          if (fail != null)
+                                              failures.add(fail);
                                           if (outstanding.decrementAndGet() == 0)
                                               done.signal();
                                       });
@@ -198,6 +208,12 @@ public class AccordExecutorIncrDeadlockTest
             if (!done.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
                 fail(outstanding.get() + " of " + TASKS + " tasks did not complete within " + TIMEOUT_SECONDS + "s");
             assertEquals("every task must have completed", 0, outstanding.get());
+            assertTrue("no task may fail: a failure here means the workload was refused or errored rather than run, and "
+                       + "a refused task completes, so the count above would still pass. First: "
+                       + (failures.isEmpty() ? "none" : failures.get(0) + " (" + failures.size() + " of " + TASKS + ')'),
+                       failures.isEmpty());
+            assertTrue("every task must have run its body at least once, or nothing took a claim and the interleaving "
+                       + "this test exists for never happened: ran " + ran.get() + " of " + TASKS, ran.get() >= TASKS);
         }
         finally
         {

@@ -28,6 +28,8 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.ToLongFunction;
 
+import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -36,7 +38,6 @@ import accord.api.ExclusiveAsyncExecutor;
 import accord.api.ProgressLog;
 import accord.api.Result;
 import accord.api.RoutingKey;
-import accord.api.Scheduler;
 import accord.coordinate.Coordinations;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultLocalListeners.NotifySink;
@@ -75,10 +76,9 @@ import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.concurrent.Condition;
-import com.google.common.util.concurrent.Uninterruptibles;
 
-import static org.junit.Assert.assertTrue;
 import static org.apache.cassandra.service.accord.execution.AccordExecutor.Mode.RUN_WITHOUT_LOCK;
+import static org.junit.Assert.assertTrue;
 
 /**
  * This test has been authored entirely by Claude.
@@ -154,20 +154,26 @@ public class AccordExecutorLoadFailureTest
     @Test
     public void loadFailureWhileBatchedTaskHoldsEntryTest() throws InterruptedException
     {
-        test(LoadKeys.INCR, true);
+        // an INCR task that declares a txnId is upgraded to a fifo claim on its first run, so it has a claim it can keep
+        // on a key it failed to reach, and the update it is part-way through must be witnessed: it marks and retains
+        test(LoadKeys.INCR, true, true);
     }
 
     /**
-     * An ASYNC task processes one batch and drops the rest, so it needs nothing further from a key whose load fails: it
-     * completes successfully and simply releases the reference.
+     * An ASYNC task processes one batch and submits the rest as a follow-up. The failure is reported to its caller - it
+     * must not be told that every key it declared was processed - but nothing is marked and nothing retained: an ASYNC
+     * task is never upgraded to a fifo claim, so it holds nothing it could keep to block later work on the key with, and
+     * a mark it cannot block on only refuses arriving operations and stalls the durability bound for a key that whoever
+     * needs it next may simply re-load. Marking belongs to the fan-outs that can block: see
+     * {@code SafeTask.onFailingKeyExclusive}'s {@code isAtomic()} gate.
      */
     @Test
     public void loadFailureWhileAsyncTaskHoldsEntryTest() throws InterruptedException
     {
-        test(LoadKeys.ASYNC, false);
+        test(LoadKeys.ASYNC, true, false);
     }
 
-    private void test(LoadKeys loadKeys, boolean expectFailure) throws InterruptedException
+    private void test(LoadKeys loadKeys, boolean expectFailure, boolean expectMarked) throws InterruptedException
     {
         TableId tableId = TableId.fromUUID(new java.util.UUID(0, 1));
         IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
@@ -197,10 +203,13 @@ public class AccordExecutorLoadFailureTest
 
         AtomicReference<Throwable> failure = new AtomicReference<>();
         Condition done = Condition.newOneTimeCondition();
+        AtomicReference<Boolean> inconsistent = new AtomicReference<>(false);
+        AtomicReference<Integer> references = new AtomicReference<>(0);
         try
         {
-            ExecutionContext context = ExecutionContext.contextFor(TxnId.fromValues(1, 1, 0, new Id(1)), null, RoutingKeys.of(ready, failing),
-                                                                  loadKeys, LoadKeysFor.READ_WRITE, "batched");
+            ExecutionContext context = AccordExecutionTestUtils.idempotent(
+                ExecutionContext.contextFor(TxnId.fromValues(1, 1, 0, new Id(1)), null, RoutingKeys.of(ready, failing),
+                                            loadKeys, LoadKeysFor.READ_WRITE, "batched"));
             store.execute(context, (Consumer<? super SafeCommandStore>) safeStore -> {
                 running.signal();
                 // hold the reference to the failing key until its load has failed
@@ -220,17 +229,49 @@ public class AccordExecutorLoadFailureTest
                 assertTrue("the agent was told " + t + " (" + stack(t) + ')', isInjected(t));
             assertTrue("the task failed with " + failure.get(), failure.get() == null || isInjected(failure.get()));
             if (expectFailure)
-                assertTrue("the task should have been failed by the load failure", isInjected(failure.get()));
+                assertTrue("the load failure must be reported to the caller, but was " + failure.get(), isInjected(failure.get()));
             else
                 assertTrue("the task should not have been failed: it needed nothing more from the entry", failure.get() == null);
             assertTrue("the task was never notified: it is still waiting for a key whose load failed",
                        done.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+
+            // The retention half of the contract, which the report does not establish: the entry is marked and the
+            // reference is *kept*, which is what stops the entry - and with it the record that an update is outstanding
+            // - being evicted, and what lets a follow-up or continuation find the key and report in turn.
+            //
+            // This must be read after the task has released, and neither the callback nor a poll establishes that: the
+            // report is made while the task is still running and still holding every reference, so "marked and
+            // referenced" is trivially true at that moment whatever happens at release. The fence is another task: an
+            // ExclusiveExecutor serves one task per command store at a time and polls the next only in completeTask(),
+            // after the previous one has released, so a later task completing means the fan-out has finished releasing.
+            Condition fenceDone = Condition.newOneTimeCondition();
+            store.execute(ExecutionContext.contextFor(TxnId.fromValues(1, 2, 0, new Id(1)), null, RoutingKeys.of(ready),
+                                                      LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "fence"),
+                          (Consumer<? super SafeCommandStore>) ignore -> {}, (success, fail) -> fenceDone.signal());
+            assertTrue("the fence task never completed, so the fan-out may not have released yet",
+                       fenceDone.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            executor.executeDirectlyWithLock(() -> {
+                AccordCacheEntry<?, ?, ?> entry = store.cachesUnsafe().commandsForKeys().getUnsafe(failing);
+                inconsistent.set(entry != null && entry.isInconsistent());
+                references.set(entry == null ? 0 : entry.references());
+            });
         }
         finally
         {
             release.signal();
             executor.shutdown();
             executor.awaitTermination(10, TimeUnit.SECONDS);
+        }
+
+        if (expectMarked)
+        {
+            assertTrue("the key an update failed to reach must be marked", inconsistent.get());
+            assertTrue("and retained, or its entry can be evicted and the mark lost with it", references.get() > 0);
+        }
+        else
+        {
+            assertTrue("an update that cannot block on the key it failed to reach must not mark it", !inconsistent.get());
+            assertTrue("and must retain nothing: " + references.get() + " references", references.get() == 0);
         }
     }
 
@@ -353,9 +394,9 @@ public class AccordExecutorLoadFailureTest
             AtomicReference<String> stillHeld = new AtomicReference<>();
             executor.executeDirectlyWithLock(() -> {
                 AccordCacheEntry<?, ?, ?> entry = store.cachesUnsafe().commandsForKeys().getUnsafe(kept);
-                if (entry != null && (entry.contains(failed.get()) || !entry.isUnclaimed()))
+                if (entry != null && (entry.contains(failed.get()) || !entry.hasNoTasks()))
                     stillHeld.set(entry + " (contains the failed task: " + entry.contains(failed.get())
-                                  + ", unclaimed: " + entry.isUnclaimed() + ')');
+                                  + ", unclaimed: " + entry.hasNoTasks() + ')');
             });
 
             Condition afterDone = Condition.newOneTimeCondition();

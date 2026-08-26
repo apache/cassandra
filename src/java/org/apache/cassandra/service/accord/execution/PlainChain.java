@@ -18,28 +18,31 @@
 
 package org.apache.cassandra.service.accord.execution;
 
-import javax.annotation.Nullable;
+import java.util.concurrent.Callable;
+import java.util.function.BiConsumer;
 
-import accord.utils.async.AsyncCallbacks;
+import javax.annotation.Nullable;
 
 import static org.apache.cassandra.service.accord.execution.Task.RunState.RUN_FAILED;
 
-class PlainChain extends Plain
+class PlainChain<V> extends Plain
 {
-    final AsyncCallbacks.RunOrFail runOrFail;
+    final Callable<? extends V> call;
     final @Nullable ExclusiveExecutor exclusiveExecutor;
+    volatile BiConsumer<? super V, Throwable> callback;
 
-    PlainChain(AccordExecutor executor, AsyncCallbacks.RunOrFail runOrFail, ExclusiveExecutor exclusiveExecutor, ExclusiveGroup group)
+    PlainChain(AccordExecutor executor, Callable<? extends V> call, BiConsumer<? super V, Throwable> callback, ExclusiveExecutor exclusiveExecutor, ExclusiveGroup group)
     {
         super(executor, group);
-        this.runOrFail = runOrFail;
+        this.call = call;
+        this.callback = callback;
         this.exclusiveExecutor = exclusiveExecutor;
     }
 
     @Override
     public String description()
     {
-        return runOrFail.toString();
+        return call.toString();
     }
 
     @Override
@@ -51,32 +54,34 @@ class PlainChain extends Plain
     @Override
     boolean runMayThrow()
     {
-        boolean success;
+        V result;
         try
         {
-            success = runOrFail.runMayThrow();
+            result = call.call();
         }
-        catch (Throwable t)
+        catch (Throwable fail)
         {
-            // RunOrFail throws only callback exceptions, so just report them
-            try { executor.agent.onException(t); }
-            catch (Throwable t2) { /* nothing more to be safely done */ }
-            return true;
+            try { callback.accept(null, fail); }
+            catch (Throwable t)
+            {
+                try { fail.addSuppressed(t); }
+                catch (Throwable t2) { /* nothing more to be safely done */ }
+                unhandledException(fail);
+            }
+            setRunState(RUN_FAILED);
+            return false;
         }
 
-        if (success)
-            return true;
-
-        // If runOrFail internally failed, we should record this as RUN_FAILED,
-        // in particular to ensure continuation cancellation is performed
-        setRunState(RUN_FAILED);
-        return false;
+        // a callback failure does not affect the execution being treated as a success
+        try { callback.accept(result, null); }
+        catch (Throwable t) { unhandledException(t); }
+        return true;
     }
 
     @Override
     void reportFailureMayThrow(Throwable fail)
     {
-        runOrFail.fail(fail);
+        callback.accept(null, fail);
     }
 
     @Override

@@ -1,3 +1,19 @@
+(* Licensed to the Apache Software Foundation (ASF) under one
+(* or more contributor license agreements.  See the NOTICE file
+(* distributed with this work for additional information
+(* regarding copyright ownership.  The ASF licenses this file
+(* to you under the Apache License, Version 2.0 (the
+(* "License"); you may not use this file except in compliance
+(* with the License.  You may obtain a copy of the License at
+(*
+(*     http://www.apache.org/licenses/LICENSE-2.0
+(*
+(* Unless required by applicable law or agreed to in writing, software
+(* distributed under the License is distributed on an "AS IS" BASIS,
+(* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+(* See the License for the specific language governing permissions and
+(* limitations under the License.
+
 ------------------------------- MODULE AccordNotify -------------------------------
 (***************************************************************************)
 (* The notification layer, modelled separately so AccordExec may assume its *)
@@ -17,15 +33,19 @@
 (*                     keys the task has a position on                     *)
 (*   G4 termination    the re-entrant cascade drains                       *)
 (*                                                                         *)
-(* G1 splits, and the split is forced by the implementation.  A SYNC task's *)
-(* prepareExclusiveMayThrow locks every reference with RELEASE_QUEUE, whose  *)
-(* REQUIRE_RUNNABLE asserts the locker leads, so for SYNC believed-runnable  *)
-(* MUST imply leads-everything.  A non-sync task's                          *)
-(* NonSyncState.prepareExclusive re-checks each captured key and skips any   *)
-(* it no longer leads, so only the positions are guaranteed there.  With the *)
-(* revocation removed G1_Strong nevertheless HOLDS at quiescence in every    *)
-(* configuration checked, and is retained as a regression check rather than  *)
-(* as a known-failing property - see README, "The G1_Strong status".         *)
+(* G1 NO LONGER SPLITS BY SYNC-NESS, and that is a change in the            *)
+(* implementation, not a simplification here.  Every lock a run takes on a  *)
+(* key is RELEASE_QUEUE, whose REQUIRE_RUNNABLE asserts the locker leads:    *)
+(* a SYNC task's prepareExclusiveMayThrow locks every reference it holds,    *)
+(* and NonSyncState.prepareExclusive now locks EVERY key it captured -       *)
+(* the per-key `statusIfPresent(owner) == NOT_RUNNABLE -> continue` re-check *)
+(* was removed when the deferred revocation was, since a handler that takes  *)
+(* no position (L3) cannot revoke a captured key mid-pass.  So              *)
+(* believed-runnable MUST imply leads-what-it-locks for both, a violation is *)
+(* an assertion failure rather than a stall, and G1_BatchLed - the batch     *)
+(* sets hold only keys the task still leads - is the model-side statement of *)
+(* that require().  G1_Strong follows from it and is required too; it is     *)
+(* checked separately only so a failure names the weaker or stronger claim.  *)
 (*                                                                         *)
 (* Notifications are generated as the delta in runnable status, which is the *)
 (* specification the scattered call sites implement.  What is modelled       *)
@@ -44,6 +64,16 @@
 (* DeferredChangeOfRunnableStatus, postponing the handler that dropped every *)
 (* key position until the current loop finished - was removed with           *)
 (* QUEUE_ON_KEYS_AT_ONCE and is gone.  Re-entrancy remains, so G4 does too.  *)
+(*                                                                         *)
+(* Not modelled: NONSYNC_BLOCKED_LIMIT, the escape that lets a non-sync task *)
+(* run below its batch threshold when enough of the keys it leads are        *)
+(* contended (AccordExec models it as BlockedLimit).  Both readiness         *)
+(* predicates here - TrulyReady and the believed one - omit it, so G1/G2     *)
+(* remain each other's converse; adding it would only make more states       *)
+(* runnable.  Nor is partial failure: a key dropped by onFailingKeyExclusive *)
+(* lowers the threshold (keys - (processed + failed)) and a failed ATOMIC    *)
+(* round retains its claims, which is a deliberate stall - see AccordExec's  *)
+(* ASSUMES and README, "Deliberately not modelled".                         *)
 (*                                                                         *)
 (* Not modelled: the array representation.  "A re-entrant notification must  *)
 (* not reorder the range being iterated" is a property of a sorted array     *)
@@ -72,6 +102,11 @@ CONSTANTS
                      \* Deliver is guarded one level ABOVE it, so G4_Bounded is violated
                      \* (and reported) before the guard truncates the search.
     PDrainNotifies,  \* load completion re-notifies everyone (negative control: FALSE)
+    \* whether losing the prefix is delivered at all (negative control: FALSE).  With the
+    \* per-key re-check gone, an undelivered revocation leaves a stale key in the batch sets
+    \* that prepareExclusive would lock: this is what makes G1_BatchLed falsifiable, rather
+    \* than a row that is green because nothing in the model can break it.
+    PRevokeNotifies,
     PModelLoading
 
 Tasks   == 1..NumTasks
@@ -153,7 +188,8 @@ SeqOf(S) == [i \in 1..Cardinality(S) |->
 DeltaOn(h0, rg0, h1, rg1, e, self) ==
     LET p0 == PrefixOf(h0, rg0, e)
         p1 == PrefixOf(h1, rg1, e)
-        lost == {t \in (p0 \ p1) \ {self} : e \in h1[t]}  \* still queued, no longer leading
+        lost == IF ~PRevokeNotifies THEN {}
+                ELSE {t \in (p0 \ p1) \ {self} : e \in h1[t]}  \* still queued, no longer leading
         gained == (p1 \ p0) \ {self}
         more == Cardinality(OccupantsOf(h1,e)) > Cardinality(p1)
         gs == IF more THEN "NEWLY_BLOCKING_RUNNABLE" ELSE "NEWLY_RUNNABLE"
@@ -265,13 +301,20 @@ HandleKey(t, e, st) ==
                         ELSE IF w = 0 THEN "Runnable" ELSE "WaitKey",
               wtxn |-> wtxn[t], wkey |-> w,
               blk |-> blocking[t], nblk |-> notBlk[t], holds |-> holds ]
-    ELSE LET nb == CASE st = "NOT_RUNNABLE" -> notBlk[t] \ {e}
+    ELSE \* onNotHead / onNewHead / onNewBlockingHead / onStillHeadNewBlocking, as production
+         \* writes them: onNewHead and onNewBlockingHead ADD to one set and only ASSERT
+         \* (Invariants.paranoid) that the other does not already contain the key - they do not
+         \* move it - so a double file is reported by G3_Disjoint here rather than repaired
+         \* silently by the model.  Only onNotHead and onStillHeadNewBlocking remove.
+         LET nb == CASE st = "NOT_RUNNABLE" -> notBlk[t] \ {e}
                      [] st = "NEWLY_RUNNABLE" -> notBlk[t] \cup {e}
-                     [] st = "NEWLY_BLOCKING_RUNNABLE" -> notBlk[t] \ {e}
+                     [] st = "NEWLY_BLOCKING_RUNNABLE" -> notBlk[t]
                      [] st = "STILL_RUNNABLE_NEWLY_BLOCKING" -> notBlk[t] \ {e}
                      [] OTHER -> notBlk[t]
-             bl == CASE st = "NOT_RUNNABLE" -> blocking[t] \ {e}
-                     [] st = "NEWLY_RUNNABLE" -> blocking[t] \ {e}
+             bl == CASE st = "NOT_RUNNABLE" ->
+                            \* it removes from ONE set: notBlocking if it is there, else blocking
+                            IF e \in notBlk[t] THEN blocking[t] ELSE blocking[t] \ {e}
+                     [] st = "NEWLY_RUNNABLE" -> blocking[t]
                      [] st = "NEWLY_BLOCKING_RUNNABLE" -> blocking[t] \cup {e}
                      [] st = "STILL_RUNNABLE_NEWLY_BLOCKING" ->
                             IF e \in notBlk[t] THEN blocking[t] \cup {e} ELSE blocking[t]
@@ -352,25 +395,25 @@ Setup(t) ==
                                               NotifiableEntries, t))
     /\ UNCHANGED << loading, region >>
 
-\* prepareExclusive: capture the batch (which DRAINS blocking/notBlocking), then
-\* re-check each key and lock only those we still lead, keeping our position on the
-\* rest for a later batch.  A SYNC task does not re-check - it locks everything with
-\* RELEASE_QUEUE, whose REQUIRE_RUNNABLE asserts it leads - which is why the strong
-\* soundness guarantee is required for SYNC and only the weak one for non-sync.
+\* prepareExclusive: capture the batch (which DRAINS blocking/notBlocking) and lock every
+\* key in it with RELEASE_QUEUE, whose REQUIRE_RUNNABLE asserts we still lead each one.
+\* There is no per-key re-check any more - the `statusIfPresent(owner) == NOT_RUNNABLE ->
+\* continue` skip was removed with the deferred revocation, because a handler that takes no
+\* position (L3) cannot revoke a key captured earlier in the same pass.  So the model locks
+\* the whole captured set unconditionally and states the precondition as G1_BatchLed: if that
+\* invariant ever fails, the model has produced the state in which the implementation throws.
 Run(t) ==
     /\ Quiescent
     /\ state[t] = "Runnable"
     /\ LET captured == IF TaskSync[t] THEN HeldKeys(t) ELSE blocking[t] \cup notBlk[t]
-           locked   == IF TaskSync[t] THEN captured
-                                      ELSE {e \in captured : Leads(t, e)}
-           rest     == HeldKeys(t) \ locked
+           rest     == HeldKeys(t) \ captured
            done     == rest = {} \/ TaskSync[t]
-           h1       == [holds EXCEPT ![t] = IF done THEN {} ELSE @ \ locked]
+           h1       == [holds EXCEPT ![t] = IF done THEN {} ELSE @ \ captured]
        IN /\ holds' = h1
           /\ state' = [state EXCEPT ![t] = IF done THEN "Done" ELSE "WaitKey"]
           /\ wtxn' = [wtxn EXCEPT ![t] = 0]
           /\ wkey' = [wkey EXCEPT ![t] = 0]
-          \* populate() drains both sets whether or not the key survives the re-check
+          \* populate() drains both sets into the batch
           /\ blocking' = [blocking EXCEPT ![t] = {}]
           /\ notBlk' = [notBlk EXCEPT ![t] = {}]
           /\ frames' = PushOn(frames, NotesFor(holds, region, h1, region,
@@ -501,16 +544,15 @@ TypeOK ==
     /\ \A t \in Tasks : blocking[t] \subseteq KeyEntries /\ notBlk[t] \subseteq KeyEntries
 
 (*-------------------------------------------------------------------------*)
-(* G1 SPLITS BY SYNC-NESS, and the split is forced by the implementation.    *)
-(*                                                                           *)
-(* A SYNC task's prepareExclusiveMayThrow locks every reference it holds with*)
-(* RELEASE_QUEUE, and lockExclusive passes REQUIRE_RUNNABLE, which asserts   *)
-(* the locker is the head.  So for SYNC tasks "believed runnable" MUST imply *)
-(* "leads everything" - a violation is an assertion failure, not a stall.    *)
-(*                                                                           *)
-(* A non-sync task's NonSyncState.prepareExclusive instead RE-CHECKS each    *)
-(* captured key and skips any it no longer leads.  So the strong property is *)
-(* deliberately NOT maintained there; only the positions are guaranteed.     *)
+(* G1 IS ONE GUARANTEE NOW, and that is the implementation's doing.  Every   *)
+(* key lock a run takes is RELEASE_QUEUE, and lockExclusive passes            *)
+(* REQUIRE_RUNNABLE, which asserts the locker is the head.  A SYNC task's     *)
+(* prepareExclusiveMayThrow locks every reference it holds; a non-sync task's *)
+(* NonSyncState.prepareExclusive locks every key it CAPTURED, with no per-key *)
+(* re-check - that skip was removed with the deferred revocation, since a     *)
+(* handler that takes no position (L3) cannot revoke a captured key mid-pass. *)
+(* So for both, "believed runnable" must imply "leads what it will lock", and *)
+(* a violation is an assertion failure, not a stall.                         *)
 (*-------------------------------------------------------------------------*)
 
 \* required: a SYNC task that believes it can run really does lead everything
@@ -523,9 +565,19 @@ G1_SyncSound ==
 G1_PositionsHeld ==
     \A t \in Tasks : (blocking[t] \cup notBlk[t]) \subseteq HeldKeys(t)
 
-\* Holds in every configuration checked, despite the non-sync re-check making it
-\* unnecessary; checked separately from Guarantees so that a failure names it, since it
-\* would mean a wakeup was lost or double counted rather than that the re-check is working.
+\* required, and the model-side statement of RELEASE_QUEUE's REQUIRE_RUNNABLE for a
+\* non-sync task's keys: everything in the batch sets is a key we still LEAD, so
+\* prepareExclusive - which no longer re-checks - may lock all of it.  Stated at
+\* quiescence, because mid-cascade the bookkeeping is legitimately behind the queues
+\* (Probe_StaleBatch reaches that transient) and no task can prepare there: Run requires
+\* Quiescent, as the exclusive turn that prepares does.
+G1_BatchLed ==
+    Quiescent => \A t \in Tasks : \A e \in blocking[t] \cup notBlk[t] : Leads(t, e)
+
+\* required, and implied by G1_BatchLed together with the believed-ready test: checked
+\* separately so a failure names the weaker or the stronger claim.  It used not to be
+\* required - the non-sync re-check existed because it need not hold - which is why
+\* notify.py carries it as its own column.
 G1_Strong == Quiescent => \A t \in Tasks : state[t] = "Runnable" => TrulyReady(t)
 
 \* G2: completeness.  If we can run, we know it.  This is the lost-wakeup check.
@@ -539,7 +591,10 @@ G2_NoLostWakeup ==
                    => state[t] = "Runnable"
 
 \* G3: the batch sets are disjoint (a key counted twice inflates readyCount and
-\* would let a task run below its threshold)
+\* would let a task run below its threshold).  onNewHead/onNewBlockingHead only assert
+\* this (paranoid) rather than moving the key between the sets, and the model follows
+\* them, so this is what reports a double file - from the delivered handler as well as
+\* from onKeyMovedToFifo's inline fold (Probe_UpgradeWouldDoubleFile).
 G3_Disjoint == \A t \in Tasks : blocking[t] \cap notBlk[t] = {}
 
 \* G4: the cascade drains.  G4_Bounded is the strict bound - Deliver is guarded one level
@@ -563,7 +618,7 @@ Termination == <>[](\A t \in Tasks : state[t] = "Done")
 
 Guarantees ==
     /\ TypeOK /\ G4_Bounded
-    /\ G1_SyncSound /\ G1_PositionsHeld /\ G3_Disjoint
+    /\ G1_SyncSound /\ G1_PositionsHeld /\ G1_BatchLed /\ G1_Strong /\ G3_Disjoint
     /\ G2_NoLostWakeup
 
 (***************************************************************************)
@@ -586,12 +641,20 @@ Probe_KeyNoteWhileWaitTxn ==
     ~(\E i \in 1..Len(frames) : \E j \in 1..Len(frames[i]) :
         /\ frames[i][j].entry \in KeyEntries
         /\ state[frames[i][j].task] = "WaitTxn")
-\* the re-check actually discards a captured key: the race prepareExclusive guards
+\* the bookkeeping is transiently behind the queues: a captured key the task no longer leads.
+\* Reachable MID-CASCADE only - G1_BatchLed forbids it surviving to quiescence, which is what
+\* prepareExclusive relies on now that it locks the whole batch without re-checking - so this
+\* probe is the evidence that the invariant is checked over a state space where it has to
+\* refute something, not over one that never builds the situation
 Probe_StaleBatch == ~(\E t \in Tasks :
                         /\ ~TaskSync[t]
                         /\ \E e \in blocking[t] \cup notBlk[t] : ~Leads(t, e))
-\* ...and discards ALL of them, so the round locks nothing (the empty batch: processed
-\* does not advance, so L2's per-round progress does not hold for that round)
+\* ...and the extreme of the same transient, where EVERY captured key is stale.  This used to
+\* be the empty round - the re-check discarding a whole batch, so the round locked nothing and
+\* processed did not advance, which is why L2's progress is per lock rather than per round.
+\* With the re-check gone a round locks everything it captured, so an empty batch now arises
+\* only from keys dropped by a partial failure, which is not modelled; what is left here is a
+\* coverage probe on the transient.
 Probe_EmptyBatch == ~(\E t \in Tasks :
                         /\ ~TaskSync[t] /\ state[t] = "Runnable"
                         /\ blocking[t] \cup notBlk[t] # {}

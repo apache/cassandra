@@ -213,7 +213,10 @@ public class AccordGenerators
                                                                             RandomSource::nextInt).next(rs);
             Ranges slice = AccordTestUtils.fullRange(txn);
             PartialTxn partialTxn = txn.slice(slice, true); //TODO (correctness): find the case where includeQuery=false and replicate
-            PartialDeps partialDeps = deps.intersecting(slice);
+            // A command's deps must cover, and be covered by, the participants it declares (see Command.Accepted.validateDeps),
+            // and CommandBuilder derives its participants from this route - so slice the deps to the route, not to the
+            // whole token range the txn's keys belong to.
+            PartialDeps partialDeps = deps.intersecting(routeFor(txn));
             Ballot promised;
             Ballot accepted;
             switch (recover.next(rs))
@@ -270,7 +273,7 @@ public class AccordGenerators
             this.promised = promised;
             this.accepted = accepted;
             this.waitingOn = waitingOn;
-            this.route = txn.keys().toRoute(txn.keys().get(0).someIntersectingRoutingKey(null));
+            this.route = routeFor(txn);
             this.keysOrRanges = txn.keys();
         }
 
@@ -301,6 +304,12 @@ public class AccordGenerators
             }
             return builder.build(saveStatus);
         }
+    }
+
+    /** the route {@link CommandBuilder} declares its participants over */
+    private static FullRoute<?> routeFor(Txn txn)
+    {
+        return txn.keys().toRoute(txn.keys().get(0).someIntersectingRoutingKey(null));
     }
 
     public static Gen<PartitionKey> keys()

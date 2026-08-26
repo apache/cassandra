@@ -54,7 +54,8 @@ abstract class Plain extends Task implements Cancellable
     @Override
     final void tryCancelExclusive()
     {
-        tryFailAndCompleteUnexecutedExclusive(new CancellationException(), CANCELLED);
+        if (!isContinuation())
+            tryFailAndCompleteUnexecutedExclusive(new CancellationException(), CANCELLED);
     }
 
     @Override

@@ -61,6 +61,7 @@ import accord.local.StoreParticipants;
 import accord.local.TimeService;
 import accord.local.durability.DurabilityService;
 import accord.primitives.Ballot;
+import accord.primitives.Deps;
 import accord.primitives.FullKeyRoute;
 import accord.primitives.FullRoute;
 import accord.primitives.Keys;
@@ -144,14 +145,18 @@ public class AccordTestUtils
 
         public static Command committed(TxnId txnId, PartialTxn txn, Timestamp executeAt)
         {
-            return Command.Committed.committed(txnId, SaveStatus.Committed, NotDurable, StoreParticipants.all(route(txn)),
-                                               Ballot.ZERO, executeAt, txn, PartialDeps.NONE, Ballot.ZERO, null);
+            FullRoute<?> route = route(txn);
+            // deps must cover, and be covered by, the participants they are stored against; see Command.Accepted.validateDeps
+            return Command.Committed.committed(txnId, SaveStatus.Committed, NotDurable, StoreParticipants.all(route),
+                                               Ballot.ZERO, executeAt, txn, Deps.NONE.intersecting(route), Ballot.ZERO, null);
         }
 
         public static Command stable(TxnId txnId, PartialTxn txn, Timestamp executeAt)
         {
-            return Command.Committed.committed(txnId, SaveStatus.Stable, NotDurable, StoreParticipants.all(route(txn)),
-                                               Ballot.ZERO, executeAt, txn, PartialDeps.NONE, Ballot.ZERO, Command.WaitingOn.empty(txnId.domain()));
+            FullRoute<?> route = route(txn);
+            PartialDeps deps = Deps.NONE.intersecting(route);
+            return Command.Committed.committed(txnId, SaveStatus.Stable, NotDurable, StoreParticipants.all(route),
+                                               Ballot.ZERO, executeAt, txn, deps, Ballot.ZERO, Command.WaitingOn.none(txnId.domain(), deps));
         }
 
         private static FullRoute<?> route(PartialTxn txn)

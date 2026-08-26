@@ -28,7 +28,6 @@ import accord.api.Key;
 import accord.api.RoutingKey;
 import accord.local.Command;
 import accord.local.ExecutionContext;
-import accord.local.LoadKeys;
 import accord.local.Node;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
@@ -58,7 +57,6 @@ import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static accord.api.ProtocolModifiers.filterDuplicateDependenciesFromAcceptReply;
-import static accord.local.LoadKeysFor.READ_WRITE;
 import static accord.messages.Accept.Kind.SLOW;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordService.getBlocking;

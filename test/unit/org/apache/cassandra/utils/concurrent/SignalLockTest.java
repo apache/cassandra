@@ -35,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>a permit is signalled to us while we wait - the permit is transferred to us, and must not be consumed twice;</li>
  *   <li>work requiring the lock is signalled - we must acquire the lock;</li>
  * </ul>
- * plus {@link SignalLock#unlockAll}, which must release a reentrant hold in full.
+ * plus {@link SignalLock#ensureNotOwner}, which must release a reentrant hold in full.
  */
 public class SignalLockTest
 {
@@ -115,12 +115,12 @@ public class SignalLockTest
 
     /** unlockAll must release however many times we have acquired the lock, so that another thread may take it. */
     @Test
-    public void unlockAllReleasesReentrantHold() throws Throwable
+    public void ensureNotOwnerReleasesReentrantHold() throws Throwable
     {
         SignalLock lock = new SignalLock(2);
         lock.lock();
         lock.lock();
-        assertThat(lock.unlockAll(1)).describedAs("wrong number of acquisitions released").isEqualTo(2);
+        assertThat(lock.ensureNotOwner()).describedAs("wrong number of acquisitions released").isEqualTo(2);
         assertThat(lock.hasOwner()).describedAs("lock was not released").isFalse();
 
         AtomicReference<Throwable> failure = new AtomicReference<>();

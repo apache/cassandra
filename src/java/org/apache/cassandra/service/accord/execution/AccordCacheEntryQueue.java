@@ -86,6 +86,38 @@ class AccordCacheEntryQueue
         fifoHead = fifoTail = capacity - 1;
     }
 
+    void onInconsistent(AccordCacheEntry<?, ?, ?> owner)
+    {
+        // When notified, a task may only remove itself, so we can repair our iteration instead of taking a defensive copy
+        {
+            int fifoHead = this.fifoHead;
+            for (int i = fifoHead - 1 ; i > fifoTail ;)
+            {
+                SafeTask<?> task = tasks[i];
+                task.onInconsistentKeyExclusive(owner);
+                if (tasks[i] == task) --i;
+                else if (fifoHead != this.fifoHead)
+                {
+                    --i;
+                    fifoHead = this.fifoHead;
+                }
+            }
+        }
+
+        int priorityHead = this.priorityHead;
+        for (int i = priorityHead; i < priorityTail + unsequencedSize ;)
+        {
+            SafeTask<?> task = tasks[i];
+            task.onInconsistentKeyExclusive(owner);
+            if (tasks[i] == task) ++i;
+            else if (priorityHead != this.priorityHead)
+            {
+                ++i;
+                priorityHead = this.priorityHead;
+            }
+        }
+    }
+
     private void onChangeRunnableStatus(int start, int end, AccordCacheEntry<?, ?, ?> owner, RunnableStatus status)
     {
         if (start + 1 >= end)
@@ -221,7 +253,7 @@ class AccordCacheEntryQueue
         while (position < fifoHead)
         {
             SafeTask<?> next = tasks[position + 1];
-            if (next.fifoAt < task.fifoAt || (next.fifoAt == task.fifoAt && next.createdAt < task.createdAt))
+            if (compareFifo(next, task) < 0)
                 break;
             ++position;
         }
@@ -468,11 +500,11 @@ class AccordCacheEntryQueue
         // A failed or cancelled task will never run, so anyone behind it would wait forever; unlike isWaitingOnCaches
         // this applies to the head, and to a non-sync task on a commands-for-key entry
         for (int i = priorityHead; i < priorityTail + unsequencedSize; ++i)
-            requireNotTerminal(owner, tasks[i], i < priorityTail ? "ordered" : "unsequenced", i);
+            requireNotFailed(owner, tasks[i], i < priorityTail ? "ordered" : "unsequenced", i);
         for (int i = fifoTail + 1; i <= fifoHead; ++i)
-            requireNotTerminal(owner, tasks[i], "fifo", i);
+            requireNotFailed(owner, tasks[i], "fifo", i);
         if (tasks[LOCKED_INDEX] != null)
-            requireNotTerminal(owner, tasks[LOCKED_INDEX], "lock", LOCKED_INDEX);
+            requireNotFailed(owner, tasks[LOCKED_INDEX], "lock", LOCKED_INDEX);
 
         // The lock is recorded both in the entry's status bits and in our LOCKED_INDEX slot; readers trust one or the
         // other, so a drift between them invents (or hides) a wait edge. Only meaningful while we are still the entry's
@@ -563,9 +595,14 @@ class AccordCacheEntryQueue
         return out.append("] lock=").append(tasks[LOCKED_INDEX]).toString();
     }
 
-    private void requireNotTerminal(AccordCacheEntry<?, ?, ?> owner, SafeTask<?> task, String region, int index)
+    private void requireNotFailed(AccordCacheEntry<?, ?, ?> owner, SafeTask<?> task, String region, int index)
     {
-        if (!task.isTerminalFailure())
+        if (!task.isFailed())
+            return;
+
+        // if we're inconsistent we permit a failed in-progress task to be queued against us
+        // but NOT any tasks that can be failed
+        if (owner != null && owner.isInconsistent() && (task.isContinuation() || task.hasIncrementalStarted()))
             return;
 
         throw Invariants.illegalState(String.format("%s is %s but still holds the %s position at %d of %s, waits=%d/%d",
@@ -611,18 +648,6 @@ class AccordCacheEntryQueue
     SafeTask<?> peekFifo()
     {
         return hasFifo() ? tasks[fifoHead] : null;
-    }
-
-    // second task
-    SafeTask<?> peekBehind()
-    {
-        int fifoSize = fifoSize();
-        if (fifoSize > 1)
-            return tasks[fifoHead - 1];
-        int priorityIndex = priorityHead + (1 - fifoSize);
-        if (priorityIndex < priorityTail)
-            return tasks[priorityIndex];
-        return null;
     }
 
     boolean hasFifo()
@@ -897,12 +922,12 @@ class AccordCacheEntryQueue
 
     static int compareForNotify(SafeTask<?> a, SafeTask<?> b)
     {
-        if (a.isCacheQueuedFifo() != b.isCacheQueuedFifo())
-            return a.isCacheQueuedFifo() ? -1 : 1;
-        int c = Long.compare(a.fifoAt, b.fifoAt);
-        if (c == 0)
-            c = compare(a, b);
-        return c;
+        boolean isCacheQueuedFifo = a.isCacheQueuedFifo();
+        if (isCacheQueuedFifo != b.isCacheQueuedFifo())
+            return isCacheQueuedFifo ? -1 : 1;
+        if (isCacheQueuedFifo)
+            return compareFifo(a, b);
+        return compare(a, b);
     }
 
     static int compare(SafeTask<?> a, SafeTask<?> b)
@@ -911,6 +936,14 @@ class AccordCacheEntryQueue
         int c = Long.compare(a.position, b.position);
         if (c == 0)
             c = a.executionContext().executionKind().compareTo(b.executionContext().executionKind());
+        if (c == 0)
+            c = Long.compare(a.createdAt, b.createdAt);
+        return c;
+    }
+
+    static int compareFifo(SafeTask<?> a, SafeTask<?> b)
+    {
+        int c = Long.compare(a.fifoAt, b.fifoAt);
         if (c == 0)
             c = Long.compare(a.createdAt, b.createdAt);
         return c;

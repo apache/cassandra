@@ -25,7 +25,8 @@ invariant - which is why they need a driver rather than a line in Notify.cfg.
 The probe expectations are part of the contract, in both directions.  Probe_Nested is
 expected UNREACHABLE (no handler mutates a queue position any more, so delivery is depth
 1 - L3_HandlerTakesNoPosition is the property form of the same claim), and so is
-Probe_UpgradeWouldDoubleFile, which is a documented GAP rather than a design property; every
+Probe_UpgradeWouldDoubleFile under the production profiles - it is a documented GAP rather than
+a design property, and is reached only under ctl-no-revoke-notify (DOUBLE_FILE_REACHED); every
 other probe must be reached in every shape that can build its situation (see
 expected_unreached), or the guarantee it underwrites was checked over a state space that never
 built the situation.  main() exits non-zero on any deviation.
@@ -47,14 +48,16 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 SPEC = os.path.join(HERE, "AccordNotify.tla")
 
-# G1_Strong is not in Guarantees: it is not required (the non-sync re-check exists because
-# it need not hold) but it does hold in every configuration checked, so it is carried as a
-# regression check whose failure would mean a lost or double-counted wakeup.
+# G1_BatchLed is the model-side statement of RELEASE_QUEUE's REQUIRE_RUNNABLE for a non-sync
+# task's keys: NonSyncState.prepareExclusive no longer re-checks the batch, so everything it
+# captured must still be led at prepare time.  G1_Strong follows from it and is required too;
+# both are checked as their own columns so a failure names the weaker or the stronger claim.
 INVARIANTS = [
     "TypeOK",
     "G4_Bounded",
     "G1_SyncSound",
     "G1_PositionsHeld",
+    "G1_BatchLed",
     "G1_Strong",
     "G3_Disjoint",
     "G2_NoLostWakeup",
@@ -83,7 +86,8 @@ EXPECT_UNREACHED = {"Probe_Nested", "Probe_UpgradeWouldDoubleFile"}
 
 SHORT = {
     "TypeOK": "Typ", "G4_Bounded": "G4b", "G1_SyncSound": "G1s",
-    "G1_PositionsHeld": "G1p", "G1_Strong": "G1S", "G3_Disjoint": "G3",
+    "G1_PositionsHeld": "G1p", "G1_BatchLed": "G1b", "G1_Strong": "G1S",
+    "G3_Disjoint": "G3",
     "G2_NoLostWakeup": "G2", "G4_Drains": "G4d", "Termination": "Trm",
     "L3_HandlerTakesNoPosition": "L3",
 }
@@ -140,24 +144,35 @@ SHAPES = {
 PROFILES = {
     # MinBatch 1 and an inert threshold are the two real regimes, as in matrix.py
     "baseline":        dict(MinBatch=1, MaxDepth=4, PDrainNotifies=True,
-                           PModelLoading=False),
+                           PRevokeNotifies=True, PModelLoading=False),
     "inert-threshold": dict(MinBatch=9, MaxDepth=4, PDrainNotifies=True,
-                            PModelLoading=False),
+                            PRevokeNotifies=True, PModelLoading=False),
     "loading":         dict(MinBatch=1, MaxDepth=4, PDrainNotifies=True,
-                            PModelLoading=True),
+                            PRevokeNotifies=True, PModelLoading=True),
     # negative control: the drain must make up the whole delta for a loading entry, since
     # nothing on one was ever notified.  MUST break G2.
     "ctl-no-drain-notify": dict(MinBatch=1, MaxDepth=4, PDrainNotifies=False,
-                                PModelLoading=True),
+                                PRevokeNotifies=True, PModelLoading=True),
+    # negative control for G1: losing the prefix is no longer delivered, so a key stays in
+    # the batch sets after the task stops leading it - and prepareExclusive, which no longer
+    # re-checks, would lock it and trip RELEASE_QUEUE's REQUIRE_RUNNABLE.  MUST break
+    # G1_BatchLed; without it that invariant could not fail in any profile.
+    "ctl-no-revoke-notify": dict(MinBatch=1, MaxDepth=4, PDrainNotifies=True,
+                                 PRevokeNotifies=False, PModelLoading=False),
 }
 
-CONTROLS = {"ctl-no-drain-notify"}
+CONTROLS = {"ctl-no-drain-notify", "ctl-no-revoke-notify"}
 
 # Shapes containing at least one non-sync task.  A SYNC task awaits every load it needs
 # (MustAwaitLoad covers its keys as well as its txnIds) and re-claims in OnLoaded, so it
 # never depends on the drain's notification; only a non-sync task takes key positions
 # while the key entry is still loading, and so only it can lose that wakeup.
 NONSYNC_SHAPES = {s for s, v in SHAPES.items() if not all(v["sync"])}
+
+# ...and shapes containing at least one SYNC task, whose readiness is carried by the wkey
+# counter rather than by the batch sets: only there can an undelivered revocation leave a
+# SYNC task believing it is runnable (G1_SyncSound).
+SYNC_SHAPES = {s for s, v in SHAPES.items() if any(v["sync"])}
 
 # {profile: {invariant/property: {witness shapes}}}; a profile with no entry must be green.
 # A lost wakeup both breaks G2 and strands the task, so Termination goes too.
@@ -166,7 +181,27 @@ EXPECT_FAIL = {
         "G2_NoLostWakeup": NONSYNC_SHAPES,
         "Termination": NONSYNC_SHAPES,
     },
+    # An undelivered revocation is not a lost wakeup - nothing is stranded, so G2 and
+    # Termination survive - it is a stale BELIEF, which is what the removed re-check used to
+    # absorb.  It breaks soundness three ways: the batch sets keep a key the task no longer
+    # leads (G1_BatchLed) and so the task believes it can run (G1_Strong); a SYNC task's wkey
+    # counter is never incremented back (G1_SyncSound); and a later NEWLY_BLOCKING_RUNNABLE
+    # files a key into blocking that is still in notBlocking, since onNewBlockingHead only
+    # asserts the other set is clear rather than moving the key (G3_Disjoint).
+    "ctl-no-revoke-notify": {
+        "G1_BatchLed": NONSYNC_SHAPES,
+        "G1_Strong": set(SHAPES),
+        "G1_SyncSound": SYNC_SHAPES,
+        "G3_Disjoint": NONSYNC_SHAPES,
+    },
 }
+
+# (profile, shape) cells in which Probe_UpgradeWouldDoubleFile IS reachable.  It is a
+# documented gap rather than a design property (see AccordNotify.tla), and under
+# ctl-no-revoke-notify the stale batch it needs survives to quiescence, so the fold's
+# dangerous case is built - which is where G3_Disjoint reports it.
+DOUBLE_FILE_REACHED = {("ctl-no-revoke-notify", "mixed"),
+                       ("ctl-no-revoke-notify", "all-nonsync")}
 
 
 def expected_failures(prof_name, shape_name):
@@ -174,13 +209,15 @@ def expected_failures(prof_name, shape_name):
     return {c for c, shapes in exp.items() if shape_name in shapes}
 
 
-def expected_unreached(shape_name):
+def expected_unreached(shape_name, prof_name):
     """Probe_Nested is unreachable by design - no handler mutates a queue position, so a
     notification cannot generate another (L3_HandlerTakesNoPosition is the property form of
-    the same claim).  The two re-check probes both test ~TaskSync[t], so they cannot fire in
-    an all-SYNC shape, and the two upgrade probes need a non-sync ORD task, since only such
+    the same claim).  The two batch-transient probes both test ~TaskSync[t], so they cannot fire
+    in an all-SYNC shape, and the two upgrade probes need a non-sync ORD task, since only such
     a task can moveToFifo; derived rather than tabulated so the two cannot drift apart."""
     out = set(EXPECT_UNREACHED)
+    if (prof_name, shape_name) in DOUBLE_FILE_REACHED:
+        out.discard("Probe_UpgradeWouldDoubleFile")
     if all(SHAPES[shape_name]["sync"]):
         out |= {"Probe_StaleBatch", "Probe_EmptyBatch"}
     if not any(r == "ORD" and not s
@@ -379,7 +416,7 @@ def main():
                 if got:
                     broke = True
                 # probe expectations, both directions
-                unreachable = expected_unreached(s)
+                unreachable = expected_unreached(s, p)
                 for x in PROBES:
                     st = probes.get(x)
                     if st == "unknown":
@@ -404,7 +441,7 @@ def main():
         for d in deviations:
             print("  ! " + d)
     else:
-        print("all guarantees hold, all probes as expected, controls break G2.")
+        print("all guarantees hold, all probes as expected, every control broke its property.")
     return worst
 
 

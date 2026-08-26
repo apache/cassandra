@@ -76,6 +76,7 @@ import org.apache.cassandra.metrics.AccordSystemMetrics;
 import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.debug.AccordTracing;
+import org.apache.cassandra.service.accord.execution.InconsistentEntryException;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
@@ -229,7 +230,8 @@ public class AccordAgent implements Agent, OwnershipEventListener
     {
         if (t instanceof CancellationException)
             return t.getCause() == null;
-        return t instanceof TimeoutException || t instanceof LogUnavailableException || t instanceof CoordinationFailed;
+        return t instanceof TimeoutException || t instanceof LogUnavailableException || t instanceof CoordinationFailed
+               || t instanceof InconsistentEntryException;
     }
 
     @Override

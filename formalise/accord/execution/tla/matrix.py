@@ -219,7 +219,7 @@ PROFILES = {
     "ctl-no-upgrade":      prof(PUpgradeOnStart=False),
     "ctl-defer-submit":    prof(PSubmitBeforeRelease=False),
     "ctl-unseq-incr-txn":  prof(PAllowUnseqIncrWithTxn=True),
-    # O5: relaxing adoptCachedKeyExclusive's !isCacheQueuedFifo guard is sound on
+    # O5: relaxing addCachedKeyExclusive's !isCacheQueuedFifo guard is sound on
     # ordering grounds - a claim taken outside the acquisition pass is placed by its
     # key, not by arrival - but it breaks isolation, which is what the guard protects.
     "ctl-fifo-adopt":      prof(PAllowAdoption=True, PAllowFifoAdoption=True),
@@ -231,9 +231,10 @@ PROFILES = {
     # construction, no second task can reach the lock, so the guard's precondition is
     # unreachable until the upgrade is gone too.  See EXPECT_FAIL.
     "ctl-double-lock":     prof(PUpgradeOnStart=False, PAllowDoubleLock=True),
-    # Not a control: this is the INTENDED semantics of UNSEQUENCED - a bagged task free
-    # to interleave - and it must break RankOK and NoCycle, which is why the
-    # implementation is stricter than the semantics.  See README.
+    # Not a control: it admits an interleaving bag - the reading in which an UNSEQUENCED task
+    # may run inside an ATOMIC unit - and it must break RankOK and NoCycle, which is why
+    # nothing in the implementation permits it (nor does the ATOMIC javadoc ask for it: it
+    # promises atomicity "with respect to other tasks").  See README.
     "probe-bag-interleaves": prof(PBagInterleaves=True),
 }
 

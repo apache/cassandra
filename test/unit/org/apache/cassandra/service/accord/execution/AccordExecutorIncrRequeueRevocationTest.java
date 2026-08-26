@@ -197,8 +197,8 @@ public class AccordExecutorIncrRequeueRevocationTest
                         // arrival that sorts ahead of it therefore displaces it as head of the entry - which is the
                         // revocation this test needs. Consequences inherit their parent's position, so the sort is
                         // decided by execution kind: we take the last, and give the nested task below the first.
-                        ExecutionContext context = kind(ExecutionContext.contextFor(null, null, declaredKeys,
-                                                                                   LoadKeys.INCR, LoadKeysFor.READ_WRITE, "incr"),
+                        ExecutionContext context = kind(AccordExecutionTestUtils.idempotent(ExecutionContext.contextFor(null, null, declaredKeys,
+                                                                                   LoadKeys.INCR, LoadKeysFor.READ_WRITE, "incr")),
                                                        ExecutionSequence.BY_PRIORITY, ExecutionKind.OTHER);
                         AtomicInteger runs = new AtomicInteger();
                         submit(store, context, outstanding, failures, done, safeStore -> {
@@ -261,10 +261,11 @@ public class AccordExecutorIncrRequeueRevocationTest
     /** the only way to control a task's sequencing and kind, as {@link ExecutionContext#contextFor} does not */
     private static ExecutionContext kind(ExecutionContext wrap, ExecutionSequence sequence, ExecutionKind kind)
     {
-        return new ExecutionContext.Wrapped(wrap)
+        return new ExecutionContext.Wrapped()
         {
             @Override public ExecutionSequence executionSequence() { return sequence; }
             @Override public ExecutionKind executionKind() { return kind; }
+            @Override public ExecutionContext wrapped() { return wrap; }
         };
     }
 

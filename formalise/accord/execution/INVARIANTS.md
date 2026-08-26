@@ -1,3 +1,23 @@
+<!--
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+-->
+
 # Invariants of the Accord execution queues
 
 Reference for `tla/AccordExec.tla`. Each invariant names the code that establishes it and the code
@@ -58,7 +78,7 @@ Deadlock ⟺ a cycle in `W`. Three assumptions, each discharged separately:
 | **R3** | the sorted region is sorted by `compare` (Q1) |
 | **R4** | every bag member sorts after every sorted member (Q2), maintained by `extendPriorityRegion`/`ensureSorted`; this is what makes an O(1) bag insertion sound |
 | **R5** | `isLocked() ⟺ the lock holder is recorded`, and `isLockedHoldingQueue() ⇒ hasFifo() ∧ tasks[fifoHead] = lock(e)` |
-| **R6** | no task in `TERMINAL_FAILURE` holds a position (`requireNotTerminal`) |
+| **R6** | no *failed* task holds a position (`requireNotFailed`) — with one exception, added with partial failure: on an entry that is `isInconsistent()`, a failed task that is a continuation or has started incrementally may keep its position, because it is the task that poisoned the entry and nothing is meant to run there again |
 | **R7** | every non-prefix member is in a state meaning "waiting on caches" (`isWaitingOnCaches`) |
 | **R8** | `queue` is `null \| SafeTask \| AccordCacheEntryMiniQueue \| AccordCacheEntryQueue`; `ensureQueue`/`maybeUnwrap` preserve the abstract queue, with `isLiveQueue` guarding re-entrant replacement. The mini queue is the two-claim case and exists only while locked (`miniQueue()` requires `isLocked()`); its head is the holder if `HOLD_QUEUE`, else the other claim |
 
@@ -72,14 +92,18 @@ shares*. Stated in the `AccordCacheEntryQueue` javadoc: *"the order imposed on a
 function of the pair alone … this is what makes the scheme deadlock free"*.
 
 **O2 region stratification.** `FIFO ≺ ORDERED ≺ BAG`, and bag members never wait for one another
-(Q3/Q4). Note that this is *stronger than the semantics asks for*: `UNSEQUENCED` was intended to
-interleave freely, including into the middle of an ATOMIC unit, which the promise permits because it
-is made only "from the point of view of other SEQUENCED tasks". Q4 does not allow it — the bag runs
-only once nothing sequenced is queued — and no weaker formulation is known that stays acyclic: BAG is
-the top layer of the rank, so a bag member in the runnable prefix gives every sequenced task behind it
-an edge that cannot decrease `⟨layer, key⟩`, while `Wlock` still gives the bag member an outgoing edge
-to any `HOLD_QUEUE` holder of an entry it declared. `AccordExec.tla`'s `PBagInterleaves` demonstrates
-both, and which topologies close a real cycle; see README, "UNSEQUENCED was meant to interleave".
+(Q3/Q4). So an `UNSEQUENCED` task cannot run while anything sequenced is queued on an entry it
+declared — including into the middle of an ATOMIC unit. That is *at least* what the semantics asks
+for: `ExecutionSequence.ATOMIC` promises to appear atomic "with respect to other tasks", full stop
+(earlier revisions of these documents quoted a narrower promise, "from the point of view of other
+SEQUENCED tasks" — no such text exists in the tree, and `UNSEQUENCED`'s own javadoc claims only
+freedom from ordering, not freedom to interleave into someone else's unit). It is nevertheless
+stronger than an unsequenced task's *own* declared requirement, and no weaker formulation is known
+that stays acyclic: BAG is the top layer of the rank, so a bag member in the runnable prefix gives
+every sequenced task behind it an edge that cannot decrease `⟨layer, key⟩`, while `Wlock` still gives
+the bag member an outgoing edge to any `HOLD_QUEUE` holder of an entry it declared.
+`AccordExec.tla`'s `PBagInterleaves` demonstrates both, and which topologies close a real cycle; see
+README, "What an interleaving bag would cost".
 
 **O3 uniform region.** A task's region is a function of the task alone. Established by
 `setSequencedExclusive(context.executionSequence())`, now applied to top-level tasks as well as to
@@ -103,13 +127,12 @@ re-place when the txnId comes back. There is no state in which a task holds txnI
 removed with `QUEUE_ON_KEYS_AT_ONCE`; nothing models them.)
 
 **O5 indivisible setup.** An ATOMIC task takes its fifo position on every entry it declares in one
-uninterrupted setup pass; enforced negatively by `adoptCachedKeyExclusive`'s
+uninterrupted setup pass; enforced negatively by `addCachedKeyExclusive`'s
 `require(!isCacheQueuedFifo())`. That guard protects *isolation*, not acyclicity: a fifo claim that
 adopts an entry after its setup pass is placed by its stamp, so an older-stamped task that adopts late
 is entitled to run before a younger unit's consequence, and lands between that consequence and its
 submitter. `ctl-fifo-adopt` is the witness — every ordering property stays green and `Inv_Isolation`
 breaks — which settles the "likely" in the code comment there.
-
 **O6 → Q5 fifo order.** The fifo region is ordered by `fifoAt`, stamped when a task first becomes a
 fifo claim, ties broken by `createdAt`. `fifoAt` is inherited by an ATOMIC consequence, so ties are
 real; the tie-break is pair-determined, and orders a consequence after its submitter because the
@@ -118,7 +141,8 @@ independent of when the claim arrives.
 
 **O7 upgrade-on-start.** In `prepareExclusiveMayThrow`, an INCR task that will hold a lock across
 runs — or that is ATOMIC and so owes an isolation guarantee — is stamped and moved to fifo on every
-entry it holds, **then** takes `HOLD_QUEUE`, **then** sets the started bit. So any task that can
+entry it holds, **then** takes `HOLD_QUEUE`, **then** sets the started bit
+(`isIncremental() && (holdsLocksBetweenRuns() || isAtomic()) && !isCacheQueuedFifo()`). So any task that can
 retain a lock is a fifo claim everywhere. Load-bearing twice: it also licenses the O11 relaxation.
 An ATOMIC consequence is already a fifo claim from setup, so the upgrade reaches only a task that is
 not one: an INCR lock holder, or a top-level ATOMIC INCR task. The notification side of the move is
@@ -137,7 +161,13 @@ issued out of order and the rank certificate no longer applies. It is expected t
 (the holder is the least-stamped fifo claim on its entry, not merely the pinned one).
 
 **O9 cross-run locks are CMD-only.** `holdsLocksBetweenRuns() = isIncremental() && primaryTxnId != null`,
-applied only in `prepareTxnsExclusive`. Keys are always `RELEASE_QUEUE`.
+applied only in `prepareTxnsExclusive`. Keys are always `RELEASE_QUEUE` — *except on the failure
+path*: `NonSyncState.postRunExclusive` on a failed ATOMIC round calls `AccordCacheEntry.reclaimFifoHead`
+for each key it locked, which sets `LOCKED_HOLDING_QUEUE` on that **key** entry and keeps the fifo
+claim. Nothing releases it (`OptionalState.retry` is populated and never consumed), so the entry is
+deliberately stalled for the life of the process. The model does not cover that path at all — see
+`AccordExec.tla`'s ASSUMES — so O9 as modelled (`HoldsLock` only on `CmdEntries`) is the failure-free
+statement.
 
 **O10 ATOMIC subset restriction.** An ATOMIC consequence declares a subset of its submitter's
 txnIds — asserted in the sharper form *its submitter holds the lock on each txnId it declares*, so
@@ -178,7 +208,8 @@ parent's `completeExclusiveMayThrow` is the obvious strengthening.
 
 **O14 the atomic unit.** The unit boundary is set by which consequences **inherit the stamp**, not
 by when they are submitted (submission is unconditional — O13). `SafeTask.preSetup`'s
-`isSequencedByPriorityAtomic()` branch is the test: only there does a consequence take
+`isAtomic()` branch is the test (it read `isSequencedByPriorityAtomic()` when these specs were
+written; the predicate was renamed, not changed): only there does a consequence take
 `parent.fifoAt` (or a fresh stamp if the submitter has none) and call
 `setCacheQueuedFifoExclusive()`, so the isolation guarantee travels along a submission link exactly
 when the child is ATOMIC. The unit it protects is therefore the chain of ATOMIC submissions, not
@@ -188,12 +219,16 @@ arrival-independent, and an UNSEQUENCED one is bagged, so both may be preceded o
 a foreign task and neither is inside the unit.
 `AccordExec.tla`'s `UnitOf` is that closure and `Inv_Isolation` is stated over it; the `deep-chain`
 topology is the witness that the wider reading — every descendant of an ATOMIC task — is false of the
-implementation. The `ExecutionSequence` javadoc is ambiguous here: *"if the task is submitted by some
-other task … the combined unit of work must also have this property"* describes the link towards the
-submitter, which is this rule, while *"May only be submitted in follow-up to a SYNC or ASYNC task that
-is itself Sequenced"* is stale now that `submitExclusiveMayThrow` applies the sequence to top-level
-tasks. Conversely the unit is protected from *more* than the promise names: an UNSEQUENCED task cannot
-interleave into it either, for the reason given in O2.
+implementation. The `ExecutionSequence.ATOMIC` javadoc is consistent with this rule and with a
+top-level ATOMIC task — *"Appears to be processed 'atomically' both itself and with the task that
+submits it, with respect to other tasks. Meaningful only when submitted by an already running task,
+**or against an incremental task**"* — the second clause being the top-level INCR case that
+`prepareExclusiveMayThrow` stamps on first run. (Earlier revisions of this document quoted two other
+phrases from that javadoc, *"the combined unit of work must also have this property"* and *"May only
+be submitted in follow-up to a SYNC or ASYNC task that is itself Sequenced"*; neither exists in the
+tree — cf. §7's note on `submitConsequenceBeforeParentCompletes`.) The javadoc's third clause,
+*"if the execution partially succeeds, any failing keys are blocked from further work to avoid
+witnessing a partial update"*, is the failure path R6/O9 describe, and is not modelled.
 
 ## 5. The theorem
 
@@ -242,28 +277,42 @@ Acyclicity is necessary but not sufficient — a lost wakeup hangs an acyclic gr
 
 - **C1** `waitingFor` packs two counters: `waitingForTxnCount()`, the txnIds the task does not lead,
   and `waitingForKeyCount()`, which counts keys only for a SYNC task — for a non-sync task key
-  readiness is `blocking ∪ notBlocking` against the batch threshold. Both survive a lost txnId
+  readiness is `blocking ∪ notBlocking` against the batch threshold
+  (`min(keys - (processed + failed), alwaysReady ? 1 : MIN_BATCH)`, or
+  `blocking.size() >= NONSYNC_BLOCKED_LIMIT`). Both survive a lost txnId
   (O4), so nothing has to be recounted when it returns
-- **C2** `blocking` and `notBlocking` are disjoint and contain only keys the task holds. They may
-  contain keys it no longer *leads*: `NonSyncState.prepareExclusive` re-checks at lock time, because
-  taking one lock notifies a new head and that can revoke a key captured earlier in the same pass. A
-  SYNC task has no such re-check, so for SYNC "believed runnable" must imply "leads everything" or
-  `REQUIRE_RUNNABLE` trips
+- **C2** `blocking` and `notBlocking` are disjoint and contain only keys the task holds, and
+  — at quiescence — only keys it still *leads*. That last part is new and load-bearing:
+  `NonSyncState.prepareExclusive` no longer re-checks the captured batch (the
+  `statusIfPresent(owner) == NOT_RUNNABLE ? continue` skip went with the deferred revocation,
+  since a handler that takes no position — L3 — cannot revoke a key captured earlier in the
+  same pass), so it locks *everything* it captured with `RELEASE_QUEUE` and
+  `REQUIRE_RUNNABLE` asserts it leads each one. The sets may still be transiently wrong
+  *inside* a notification cascade, which is why `AccordNotify` states it as `G1_BatchLed` at
+  quiescence and reaches the transient with `Probe_StaleBatch`. Disjointness is likewise
+  only asserted, not maintained: `onNewHead`/`onNewBlockingHead` add to one set and
+  `Invariants.paranoid` that the other does not hold the key, so `G3_Disjoint` is what
+  reports a double file
 - **C3** `WAITING_TO_RUN ⇒ both counters 0`, asserted directly and unconditionally
   (`Invariants.require(waitingFor == 0)` in `waitToRunExclusive`). The stronger reading —
   *and therefore leads every held entry* — is checked under paranoia in the same method, but
   per entry and only where it is required: for every reference it asserts the *position*
   (`Invariants.require(entry.contains(this))`), and it asserts the runnable status
   (`NEWLY_RUNNABLE` / `NEWLY_BLOCKING_RUNNABLE`) only `if (isSync() ||
-  !entry.isCommandsForKey())`. So for a non-sync task's *key* entries leading is not merely
-  unasserted, it is false by design — C2 above says the captured keys may no longer be led —
-  which is why `AccordNotify` keeps `G1_Strong` as a regression check rather than as a
-  requirement
+  !entry.isCommandsForKey())`. So a non-sync task's *key* entries are exempt here — it need
+  not lead a key it is not batching, and it holds positions on keys left for later rounds —
+  but by C2 it must lead every key it has *captured*, and `prepareExclusive` asserts that at
+  the lock. `AccordNotify`'s `G1_BatchLed` is the precise statement, and `G1_Strong` (which
+  used to be a mere regression check, back when the re-check absorbed a stale capture)
+  follows from it
 - **L1** whenever a task enters `prefix(e)` it is eventually notified
-- **L2** a started INCR task releases `HOLD_QUEUE` in finitely many rounds. Each round processes the
-  keys it locked, and `processed` advances by that many — but a round whose every captured key was
-  revoked by C2's re-check locks nothing and advances `processed` by 0, so progress is per *lock*
-  taken, not per round (`AccordNotify`'s `Probe_EmptyBatch` reaches that round)
+- **L2** a started INCR task releases `HOLD_QUEUE` in finitely many rounds. Each round locks every
+  key it captured and `processed` advances by that many, so — unlike before the re-check was
+  removed — progress is per round again, with one exception on the failure path: a round whose
+  captured set is *empty* can only arise from keys dropped by `onFailingKeyExclusive`, and
+  `prepareExclusive` ends the task there (`PARTIALLY_FAILED`) rather than looping.
+  `AccordNotify`'s `Probe_EmptyBatch` still reaches the mid-cascade state in which every
+  captured key is stale, but that state can no longer survive to a prepare (C2)
 - **L3** notification handlers no longer mutate queue positions, so delivery does not cascade: the
   depth bound G4 is met at depth 1, and is retained as the check that this remains true.
   `AccordNotify` states the rule itself as an action property,
@@ -284,11 +333,13 @@ The claims above cite:
 - `SafeTask`: `submitExclusiveMayThrow`, `preSetup`, `waitOnTxnsExclusive`, `queueOnKeysExclusive`,
   `isUnsequenced`, `requireSequencedIfHoldsLocksBetweenRuns`, `prepareExclusiveMayThrow`,
   `prepareTxnsExclusive`, `NonSyncState.prepareExclusive`, `incrementWaitingTxns`,
-  `adoptCachedKeyExclusive`, `waitToRunExclusive`
+  `addCachedKeyExclusive` (was `adoptCachedKeyExclusive`), `waitToRunExclusive`,
+  `onFailingKeyExclusive`
 - `AccordCacheEntry`: `add`, `remove`, `lockExclusive`, `moveToFifo`, `drainWaitingToLoad`,
-  `ensureQueue`, `isLiveQueue`
+  `ensureQueue`, `isLiveQueue`, `setInconsistent`, `reclaimFifoHead`
 - `AccordCacheEntryQueue`: `addFifo` (Q5 and the pin), `addPrioritised`, `addUnsequenced`,
-  `runnablePrefix`, `validate`, `validateMembership`, `compare`, `compareForNotify`
+  `runnablePrefix`, `validate`, `validateMembership`, `requireNotFailed`, `onInconsistent`,
+  `compare`, `compareFifo`, `compareForNotify`
 - `Task`: `completeExclusiveNoExcept`, `prepareConsequencesExclusive`,
   `submitConsequencesExclusive`, `inherit`
 - `ExclusiveExecutor`: `runTask`, `completeTask` (A3)
@@ -297,4 +348,24 @@ One correction worth recording, since the citation had propagated: earlier revis
 document (and of `README.md` and `AccordExec.tla`) cited a
 `Task.submitConsequenceBeforeParentCompletes()` predicate for O13/O14. No such method exists
 anywhere in the tree. The submission is unconditional (O13) and the ATOMIC test that actually
-bounds the unit is `preSetup`'s `isSequencedByPriorityAtomic()` branch (O14).
+bounds the unit is `preSetup`'s `isAtomic()` branch (O14).
+
+Three more of the same kind, found re-checking these documents against the tree at the
+partial-failure commit, and fixed above rather than left to propagate:
+
+- `adoptCachedKeyExclusive` is now `SafeTask.addCachedKeyExclusive`, and
+  `isSequencedByPriorityAtomic()` is now `Task.isAtomic()` — renames, no behaviour change.
+- `requireNotTerminal` is now `AccordCacheEntryQueue.requireNotFailed`, and it no longer says
+  what R6 said: a failed continuation or started-incremental task may keep a position on an
+  `isInconsistent()` entry.
+- the two `ExecutionSequence` javadoc phrases these documents quoted — atomicity "from the point
+  of view of other SEQUENCED tasks", and "May only be submitted in follow-up to a SYNC or ASYNC
+  task that is itself Sequenced" — do not appear anywhere in the tree. The enum reads
+  "with respect to other tasks" and "Meaningful only when submitted by an already running task,
+  or against an incremental task". The first of those is why README's bag-interleaving section
+  no longer claims the implementation is stronger than the declared semantics (O2), and the
+  second is what licenses a top-level ATOMIC task (O14).
+
+And one substantive divergence rather than a citation: `NonSyncState.prepareExclusive`'s per-key
+re-check is gone, so C2/C3/L2 above and `AccordNotify`'s `Run` had to change with it — the batch
+is now locked whole, under `REQUIRE_RUNNABLE`, which is what `G1_BatchLed` states.

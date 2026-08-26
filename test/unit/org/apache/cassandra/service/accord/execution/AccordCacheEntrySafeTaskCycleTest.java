@@ -47,10 +47,11 @@ import accord.utils.Invariants;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.AccordCommandStore;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.execution.AccordCacheEntry.RunnableStatus;
 import org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status;
+import org.apache.cassandra.service.accord.execution.SafeTask.NonSyncState;
 import org.apache.cassandra.service.accord.execution.Task.State;
 
 import static org.junit.Assert.fail;
@@ -179,7 +180,7 @@ public class AccordCacheEntrySafeTaskCycleTest
 
         try
         {
-            atomic.adoptCachedKeyExclusive(adoptable, new SaferCommandsForKey((AccordCacheEntry) adoptable));
+            atomic.addCachedKeyExclusive(adoptable, new SaferCommandsForKey((AccordCacheEntry) adoptable));
             fail("a fifo task adopted a key from a cache listener: the claim has no ordering guarantee against the "
                  + "claims it already holds");
         }
@@ -676,7 +677,7 @@ public class AccordCacheEntrySafeTaskCycleTest
             SafeTask<Object> task = new SafeTask<>(store, context, function, uniqueCreatedAt);
             if (!sync)
             {
-                set(task, "nonSync", new SafeTask.NonSyncState(context));
+                set(task, "optional", new NonSyncState<>(task, context));
                 task.setNonSyncExclusive();
                 if (incremental)
                 {
@@ -704,7 +705,7 @@ public class AccordCacheEntrySafeTaskCycleTest
 
             if (kind == Kind.FIFO)
             {
-                task.setSequencedExclusive(ExecutionContext.ExecutionSequence.ATOMIC_CONSEQUENCE);
+                task.setSequencedExclusive(ExecutionContext.ExecutionSequence.ATOMIC);
                 // the fifo region is ordered by fifoAt, stamped at setup for an ATOMIC task; an incremental task is
                 // stamped later, by prepareExclusiveMayThrow, so it sorts behind everything already fifo
                 task.setCacheQueuedFifoExclusive();
@@ -781,24 +782,23 @@ public class AccordCacheEntrySafeTaskCycleTest
                     set(task, "waitingFor", task.waitingFor + 1);
                 return;
             }
-            // completeSetupOfLoaded takes an ATOMIC task's fifo position but does *not* do the batch bookkeeping, so
-            // blocking/notBlocking stay empty until waitOnKeysExclusive claims the keys, which requires them clear
-            boolean claimsKeysNow = true;
+            // completeSetupOfLoaded takes an ATOMIC task's fifo position, and counts the key as loaded, but does not do
+            // the batch bookkeeping; queueOnKeysExclusive supplies that afterwards, and for a fifo claim its
+            // ensureCacheQueued is a *query* (statusOfPresent) precisely because the position is already held. Both
+            // halves must run here, or the task reaches its first prepare leading every key and knowing none of them.
             if (task.isCacheQueuedFifo() && !entry.contains(task))
             {
                 ensureFifoAt(task);
-                status = entry.addFifo(task);
-                // ...but it does count the key as loaded, which feeds isLoaded(owner)/readiness
+                entry.addFifo(task);
                 if (!task.isSync())
                     task.nonSync().addLoaded();
-                claimsKeysNow = false;
+                status = task.ensureCacheQueued(entry);
             }
             else
             {
                 status = task.ensureCacheQueued(entry);
             }
-            if (claimsKeysNow)
-                recordHead(task, entry, status);
+            recordHead(task, entry, status);
             settle(task, entry, status);
             maybeReadyToRun(task);
         }
@@ -982,7 +982,7 @@ public class AccordCacheEntrySafeTaskCycleTest
 
             declared.get(task).add(entry);
             adoptedIn.add(task.state());
-            task.adoptCachedKeyExclusive(entry, new SaferCommandsForKey((AccordCacheEntry) entry));
+            task.addCachedKeyExclusive(entry, new SaferCommandsForKey((AccordCacheEntry) entry));
             ++adoptions;
         }
 

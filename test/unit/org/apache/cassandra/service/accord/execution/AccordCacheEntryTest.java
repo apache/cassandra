@@ -24,9 +24,11 @@ import java.util.List;
 import org.junit.Assert;
 import org.junit.Test;
 
+import accord.local.Command;
 import accord.local.ExecutionContext;
 import accord.local.ExecutionContext.ExecutionKind;
 import accord.local.SafeState;
+import accord.primitives.TxnId;
 
 import org.apache.cassandra.service.accord.execution.AccordCache.Type;
 import org.apache.cassandra.service.accord.execution.AccordCacheEntry.LockMode;
@@ -38,7 +40,9 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class AccordCacheEntryTest
@@ -153,6 +157,44 @@ public class AccordCacheEntryTest
     // asserting membership, the runnable prefix, the fifo count and statusIfPresent at each rung.
     // ---------------------------------------------------------------------------------------------------------------
 
+    /**
+     * What a failed run owes the command it holds: discard the mutations the run made, keep the ones already handed to the
+     * journal. An incremental fan-out journals per round, so those two sets are both non-empty from its second round on -
+     * abandoning the reference would drop what the log already has and leave the cache behind it, and releasing as-is would
+     * publish a half-applied command from the run that threw.
+     */
+    @Test
+    public void unjournalledUpdatesAreDiscardedAndJournalledOnesKept()
+    {
+        TxnId txnId = TxnId.fromValues(1, 1, 0, new accord.local.Node.Id(1));
+        Command loaded = mock(Command.class), journalled = mock(Command.class), failed = mock(Command.class);
+        AccordCacheEntry<TxnId, Command, SaferCommand> entry = AccordExecutionTestUtils.loaded(txnId, loaded);
+        SaferCommand safeCommand = new SaferCommand(entry);
+        AccordExecutionTestUtils.preExecute(safeCommand);
+
+        assertFalse("nothing has changed, so there is nothing to journal", safeCommand.hasUpdate());
+
+        // round one mutates and journals
+        safeCommand.set(journalled);
+        assertTrue(safeCommand.hasUpdate());
+        safeCommand.saveUpdate();
+        assertFalse("what we handed over is no longer outstanding", safeCommand.hasUpdate());
+        assertSame(journalled, safeCommand.current());
+
+        // round two mutates and throws
+        safeCommand.set(failed);
+        assertTrue(safeCommand.hasUpdate());
+        safeCommand.discardUpdate();
+
+        assertSame("the failed run's mutation must be discarded", journalled, safeCommand.current());
+        assertTrue("but the journalled state is still owed to the entry, or the cache falls behind the log",
+                   safeCommand.isModified());
+        assertFalse(safeCommand.hasUpdate());
+        // and the diff we would write now is empty, so a later round journals nothing
+        assertSame(journalled, safeCommand.update().before);
+        assertSame(journalled, safeCommand.update().after);
+    }
+
     private static CacheEntry loadedEntry()
     {
         CacheEntry entry = new CacheEntry("K");
@@ -187,7 +229,7 @@ public class AccordCacheEntryTest
 
     private static void assertUnclaimed(AccordCacheEntry<?, ?, ?> entry)
     {
-        assertTrue("R8: no claims and no lock is the null representation", entry.isUnclaimed());
+        assertTrue("R8: no claims and no lock is the null representation", entry.hasNoTasks());
         assertSame(null, entry.unsafeGetQueue());
         assertEquals(Collections.emptyList(), entry.unsafeQueuedTasks());
         assertEquals(0, entry.unsafeRunnablePrefix());
@@ -208,8 +250,8 @@ public class AccordCacheEntryTest
         assertEquals(!expected.isEmpty(), entry.hasFifo());
         for (int i = 0 ; i < queued.size() ; ++i)
         {
-            if (i == 0) assertNotSame("the head must be runnable", RunnableStatus.NOT_RUNNABLE, entry.statusIfPresent(queued.get(i)));
-            else assertSame("only the head may run", RunnableStatus.NOT_RUNNABLE, entry.statusIfPresent(queued.get(i)));
+            if (i == 0) assertNotSame("the head must be runnable", RunnableStatus.NOT_RUNNABLE, entry.statusOfPresent(queued.get(i)));
+            else assertSame("only the head may run", RunnableStatus.NOT_RUNNABLE, entry.statusOfPresent(queued.get(i)));
             assertTrue("R8: a member must be contained", entry.contains(queued.get(i)));
         }
     }
@@ -287,7 +329,7 @@ public class AccordCacheEntryTest
         assertFalse(entry.isLockedHoldingQueue());
         assertSame(t0, entry.unsafeGetQueue());
         assertMembers(entry, Collections.emptyList());
-        assertFalse("the entry is still claimed: the holder must be released before it can be evicted", entry.isUnclaimed());
+        assertFalse("the entry is still claimed: the holder must be released before it can be evicted", entry.hasNoTasks());
         assertTrue(entry.hasFifoOrLocked());
         // NB entry.contains(t0) is true here (the bare branch tests queue == task) while the mini and full
         // representations both report false for a holder that is not HOLD_QUEUE. Not asserted either way: the
@@ -344,5 +386,114 @@ public class AccordCacheEntryTest
         // A1: nothing on a loading entry may run, whatever the representation says about positions
         assertTrue(entry.isLoading());
         assertFalse(entry.isLoaded());
+    }
+
+    /**
+     * What a failed round retains, at the level of the entry: a RELEASE_QUEUE lock is turned back into a fifo claim
+     * plus a HOLD_QUEUE lock, in all three representations. The point of it is the pair of notifications - the head we
+     * promoted when we locked is demoted again, and re-promoted if and when the claim is released - because the task
+     * behind us must <em>block</em>, and a task that has been told it may run will be scheduled and then fail
+     * {@code require(!isLocked())} in {@link AccordCacheEntry#lockExclusive}.
+     */
+    @Test
+    public void retainedClaimBlocksAcrossTheUnion()
+    {
+        // bare: nothing behind us, so only the lock mode changes
+        CacheEntry bare = loadedEntry();
+        SafeTask<?> b0 = fifoClaim("b0", 1);
+        bare.addFifo(b0);
+        bare.lockExclusive(b0, LockMode.RELEASE_QUEUE);
+        assertMembers(bare, Collections.emptyList());
+        bare.setInconsistent();
+        bare.reclaimFifoHead(b0);
+        assertTrue("the retained claim is a HOLD_QUEUE lock", bare.isLockedHoldingQueue());
+        assertMembers(bare, Arrays.asList(b0));
+        bare.remove(b0, true, null);
+        assertUnclaimed(bare);
+
+        // mini: one claim behind us, which was told it could run when we locked
+        CacheEntry mini = loadedEntry();
+        SafeTask<?> m0 = fifoClaim("m0", 1), m1 = fifoClaim("m1", 2);
+        mini.addFifo(m0);
+        mini.lockExclusive(m0, LockMode.RELEASE_QUEUE);
+        assertSame(RunnableStatus.NEWLY_RUNNABLE, mini.addFifo(m1));
+        assertMembers(mini, Arrays.asList(m1));
+        mini.setInconsistent();
+        mini.reclaimFifoHead(m0);
+        verify(m1).onChangeRunnableStatus(mini, RunnableStatus.NOT_RUNNABLE);
+        assertTrue(mini.isLockedHoldingQueue());
+        assertMembers(mini, Arrays.asList(m0, m1));
+        mini.remove(m0, true, null);
+        verify(m1).onChangeRunnableStatus(mini, RunnableStatus.NEWLY_RUNNABLE);
+        assertMembers(mini, Arrays.asList(m1));
+
+        // full: two claims behind us, so we go back into the fifo region proper, at its head - which we must be, since
+        // our stamp was issued before theirs and we could not have locked otherwise
+        CacheEntry full = loadedEntry();
+        SafeTask<?> f0 = fifoClaim("f0", 1), f1 = fifoClaim("f1", 2), f2 = fifoClaim("f2", 3);
+        full.addFifo(f0);
+        full.lockExclusive(f0, LockMode.RELEASE_QUEUE);
+        assertSame(RunnableStatus.NEWLY_RUNNABLE, full.addFifo(f1));
+        assertSame(RunnableStatus.NOT_RUNNABLE, full.addFifo(f2));
+        assertMembers(full, Arrays.asList(f1, f2));
+        full.setInconsistent();
+        full.reclaimFifoHead(f0);
+        verify(f1).onChangeRunnableStatus(full, RunnableStatus.NOT_RUNNABLE);
+        assertTrue(full.isLockedHoldingQueue());
+        assertMembers(full, Arrays.asList(f0, f1, f2));
+        // REQUIRE_PRESENT explicitly: production passes null and derives it, but the derivation reads
+        // AccordExecutor.CACHE_QUEUES_ENABLED, and this test deliberately initialises no DatabaseDescriptor
+        full.remove(f0, true, AccordCacheEntryQueue.RemoveMode.REQUIRE_PRESENT);
+        verify(f1).onChangeRunnableStatus(full, RunnableStatus.NEWLY_BLOCKING_RUNNABLE);
+        assertMembers(full, Arrays.asList(f1, f2));
+    }
+
+    /**
+     * The claim a non-fifo task cannot retain, and the entry refuses to fake one. A task with no fifo stamp has nothing
+     * to hold - a fresh stamp would sort behind everything that queued after it, and so would block nothing - so
+     * {@code reclaimFifoHead} requires the stamp rather than degrading to a claim that blocks nobody.
+     *
+     * <p>Production never asks: {@code NonSyncState.postRunExclusive} retains only for {@code isAtomic()}, which is
+     * exactly the set of non-sync tasks that hold a fifo claim (ATOMIC, or INCR with a txnId, which
+     * {@code prepareExclusiveMayThrow} upgrades on its first run). A failed round of any other fan-out releases
+     * everything instead, which is
+     * {@code AccordFailedKeyTest#bodyFailureThatNeedNotBeWitnessedReleasesEverything}.
+     */
+    @Test
+    public void aNonFifoClaimCannotBeRetained()
+    {
+        CacheEntry entry = loadedEntry();
+        SafeTask<?> t0 = priorityClaim("t0", 1), t1 = priorityClaim("t1", 2);
+        entry.addPrioritised(t0);
+        entry.lockExclusive(t0, LockMode.RELEASE_QUEUE);
+        assertSame(RunnableStatus.NEWLY_RUNNABLE, entry.addPrioritised(t1));
+        entry.setInconsistent();
+        try
+        {
+            entry.reclaimFifoHead(t0);
+            fail("a task with no fifo stamp must not be given a retained claim: it would block nobody");
+        }
+        catch (IllegalStateException e)
+        {
+            // expected: the release path is the only one open to it
+        }
+        assertTrue("and the lock it took for the round is untouched, for its release to give up", entry.isLocked());
+        assertNotSame(RunnableStatus.NOT_RUNNABLE, entry.statusOfPresent(t1));
+    }
+
+    /** as {@link #fifoClaim}, but prioritised: no fifo stamp, so it cannot retain a claim */
+    private static SafeTask<?> priorityClaim(String name, long position)
+    {
+        SafeTask<?> task = mock(SafeTask.class);
+        ExecutionContext context = mock(ExecutionContext.class);
+        when(context.executionKind()).thenReturn(ExecutionKind.OTHER);
+        when(task.executionContext()).thenReturn(context);
+        when(task.toString()).thenReturn(name);
+        when(task.isNonSync()).thenReturn(true);
+        when(task.is(Task.State.WAITING_TO_RUN)).thenReturn(true);
+        when(task.isCacheQueuedFifo()).thenReturn(false);
+        task.refs = new org.agrona.collections.Object2ObjectHashMap<>();
+        task.position = position;
+        return task;
     }
 }

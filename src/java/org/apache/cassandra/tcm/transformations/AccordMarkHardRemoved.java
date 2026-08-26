@@ -107,7 +107,7 @@ public class AccordMarkHardRemoved implements Transformation
     @Override
     public String toString()
     {
-        return "AccordMarkStale{ids=" + ids + '}';
+        return "AccordMarkHardRemoved{ids=" + ids + '}';
     }
 
     @Override

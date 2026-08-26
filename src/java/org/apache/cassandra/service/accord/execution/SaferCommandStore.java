@@ -99,10 +99,12 @@ public final class SaferCommandStore extends AbstractSafeCommandStore<SaferComma
 
     protected SaferCommand add(SaferCommand safeCommand, ExclusiveCaches caches)
     {
-        Object check = task.refs.putIfAbsent(safeCommand.txnId(), safeCommand);
+        TxnId txnId = safeCommand.txnId;
+        Object check = task.refs.putIfAbsent(txnId, safeCommand);
         if (check == null)
         {
             Invariants.require(!task.isIncremental()); // if isIncremental we'll have to supply holdQueue==true, but for now we forbid it
+            task.ensureOptional().ensureExtraTxnId().add(txnId);
             safeCommand.preExecute(task, UNQUEUED);
             return safeCommand;
         }

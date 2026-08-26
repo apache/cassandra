@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.BiConsumer;
@@ -95,6 +96,8 @@ import static accord.local.LoadKeysFor.RECOVERY;
 import static accord.local.LoadKeysFor.WRITE;
 import static accord.primitives.Routable.Domain.Key;
 import static accord.primitives.Txn.Kind.EphemeralRead;
+import static accord.utils.Functions.returningVoid;
+import static accord.utils.Invariants.Paranoia.QUADRATIC;
 import static accord.utils.Invariants.Paranoia.SUPERLINEAR;
 import static accord.utils.Invariants.ParanoiaCostFactor.LOW;
 import static accord.utils.Invariants.isParanoid;
@@ -117,13 +120,14 @@ import static org.apache.cassandra.service.accord.execution.SaferState.postExecu
 import static org.apache.cassandra.service.accord.execution.SaferState.preExecute;
 import static org.apache.cassandra.service.accord.execution.Task.GlobalGroup.LOAD;
 import static org.apache.cassandra.service.accord.execution.Task.GlobalGroup.RANGE_LOAD;
-import static org.apache.cassandra.service.accord.execution.Task.RunState.NOT_YET_RUN;
+import static org.apache.cassandra.service.accord.execution.Task.RunState.PARTIALLY_FAILED;
 import static org.apache.cassandra.service.accord.execution.Task.RunState.RUNNING;
 import static org.apache.cassandra.service.accord.execution.Task.RunState.RUN_FAILED;
 import static org.apache.cassandra.service.accord.execution.Task.RunState.RUN_INCOMPLETE;
 import static org.apache.cassandra.service.accord.execution.Task.RunState.RUN_PERSISTING;
 import static org.apache.cassandra.service.accord.execution.Task.State.CANCELLED;
 import static org.apache.cassandra.service.accord.execution.Task.State.CANCELLED_UNREGISTERED;
+import static org.apache.cassandra.service.accord.execution.Task.State.EXECUTED;
 import static org.apache.cassandra.service.accord.execution.Task.State.FAILED;
 import static org.apache.cassandra.service.accord.execution.Task.State.INCOMPLETE;
 import static org.apache.cassandra.service.accord.execution.Task.State.LOADING_OPTIONAL;
@@ -132,7 +136,6 @@ import static org.apache.cassandra.service.accord.execution.Task.State.LOADING_R
 import static org.apache.cassandra.service.accord.execution.Task.State.PREPARED;
 import static org.apache.cassandra.service.accord.execution.Task.State.PREPARING;
 import static org.apache.cassandra.service.accord.execution.Task.State.REGISTERED;
-import static org.apache.cassandra.service.accord.execution.Task.State.RUNNING_WHILE_FAILED;
 import static org.apache.cassandra.service.accord.execution.Task.State.SCANNING_RANGES;
 import static org.apache.cassandra.service.accord.execution.Task.State.UNREGISTERED;
 import static org.apache.cassandra.service.accord.execution.Task.State.WAITING;
@@ -151,10 +154,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
     public static SafeTask<Void> create(CommandStore commandStore, ExecutionContext context, Consumer<? super SafeCommandStore> consumer)
     {
-        return new SafeTask<>((AccordCommandStore) commandStore, context, safeStore -> {
-            consumer.accept(safeStore);
-            return null;
-        });
+        return new SafeTask<>((AccordCommandStore) commandStore, context, returningVoid(consumer));
     }
 
     public static <R> SafeTask<R> create(CommandStore commandStore, ExecutionContext context, Function<? super SafeCommandStore, R> function)
@@ -162,23 +162,63 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         return new SafeTask<>((AccordCommandStore) commandStore, context, function);
     }
 
-    static class NonSyncState extends ExecutionContext.Wrapped
+    public static SafeTask<Void> createContinuation(CommandStore commandStore, ExecutionContext context, Consumer<? super SafeCommandStore> consumer)
     {
+        SafeTask<Void> result = create(commandStore, context, consumer);
+        result.setContinuation();
+        return result;
+    }
+
+    public static <R> SafeTask<R> createContinuation(CommandStore commandStore, ExecutionContext context, Function<? super SafeCommandStore, R> function)
+    {
+        SafeTask<R> result = create(commandStore, context, function);
+        result.setContinuation();
+        return result;
+    }
+
+    static class OptionalState
+    {
+        ArrayList<TxnId> extraTxnId;
+        ArrayList<SafeState<?>> retry; // note for future implementor: may contain duplicates if fallback to releaseSlow
+        int failed;
+
+        final List<SafeState<?>> ensureRetry()
+        {
+            if (retry == null)
+                retry = new ArrayList<>(2);
+            return retry;
+        }
+
+        final List<TxnId> ensureExtraTxnId()
+        {
+            if (extraTxnId == null)
+                extraTxnId = new ArrayList<>(2);
+            return extraTxnId;
+        }
+    }
+
+    static class NonSyncState<R> extends OptionalState implements ExecutionContext.Wrapped, Runnable
+    {
+        final SafeTask<R> owner;
+        final ExecutionContext context;
         RoutingKeys active;
         ObjectHashSet<RoutingKey> blocking, notBlocking;
         int loaded, processed;
         boolean alwaysReady;
+        R pendingResult;
+        private volatile int pendingJournalWrites;
 
-        public NonSyncState(ExecutionContext context)
+        private static final AtomicIntegerFieldUpdater<NonSyncState> pendingJournalWritesUpdater = AtomicIntegerFieldUpdater.newUpdater(NonSyncState.class, "pendingJournalWrites");
+
+        NonSyncState(SafeTask<R> owner, ExecutionContext context)
         {
-            super(context);
+            this.owner = owner;
+            this.context = context;
         }
 
-        @Override
-        public final Unseekables<?> keys()
-        {
-            return active;
-        }
+
+        @Override public final Unseekables<?> keys() { return active; }
+        @Override public ExecutionContext wrapped() { return context; }
 
         final void addLoaded()
         {
@@ -232,47 +272,51 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
         final boolean isLoaded(SafeTask<?> owner)
         {
-            return loaded >= Math.min(owner.keys, alwaysReady ? 1 : NONSYNC_MIN_BATCH_SIZE);
+            return loaded >= Math.min(owner.keys - failed, alwaysReady ? 1 : NONSYNC_MIN_BATCH_SIZE);
         }
 
         final boolean isWaitReady(SafeTask<?> owner)
         {
-            if (readyCount() >= Math.min(owner.keys - processed, alwaysReady ? 1 : NONSYNC_MIN_BATCH_SIZE))
+            if (readyCount() >= Math.min(owner.keys - (processed + failed), alwaysReady ? 1 : NONSYNC_MIN_BATCH_SIZE))
                 return true;
 
             return blocking != null && blocking.size() >= NONSYNC_BLOCKED_LIMIT;
         }
 
-        void prepareExclusive(SafeTask<?> owner)
+        boolean prepareExclusive(SafeTask<?> owner)
         {
-            try (BufferList<RoutingKey> keys = new BufferList<>();
-                 BufferList<RoutingKey> locked = new BufferList<>())
+            try (BufferList<RoutingKey> keys = new BufferList<>())
             {
                 if ((blocking == null || !populate(keys, blocking)) && notBlocking != null)
                     populate(keys, notBlocking);
 
+                if (keys.isEmpty() && failed > 0)
+                {
+                    Invariants.require(owner.callback == null);
+                    owner.setRunState(PARTIALLY_FAILED);
+                    return false;
+                }
+
                 // the previous batch's locks must have been released before we take the next
                 Invariants.require(active == null);
-                // Taking a lock notifies the entry's new head, and that notification can re-enter the queues and revoke
-                // a key we captured above but have not locked yet (e.g. a started task hoisted ahead of us to break a
-                // lock cycle). The revocation cannot reach us via blocking/notBlocking as populate has drained them, so
-                // we re-check each key and leave any we no longer lead for a later batch, keeping our position on it.
+
+                keys.sort(RoutingKey::compareTo);
+                // our permission to run on one key is not affected by preExecute removing us from another, so all keys should be safely acquired
                 for (RoutingKey key : keys)
                 {
                     SafeState<?> safeState = owner.refs.get(key);
-                    if (global(safeState).statusIfPresent(owner) == NOT_RUNNABLE)
-                        continue;
-
+                    Invariants.require(safeState.isUninitialised());
                     preExecute(safeState, owner, RELEASE_QUEUE);
-                    locked.add(key);
                 }
-                locked.sort(RoutingKey::compareTo);
-                active = RoutingKeys.of(locked);
-                Invariants.require(active.size() == locked.size());
+
+                active = RoutingKeys.ofSortedUnique(keys);
             }
             processed += active.size();
-            if (processed == owner.keys && owner.isIncremental())
+            // failed counts the keys we could not load, which never enter a batch; a batch that ran and failed is
+            // counted in processed, since we did reach those keys and will not try them again
+            if (processed + failed == owner.keys && owner.isIncremental())
                 owner.setIncrementalFinishingExclusive();
+            return true;
         }
 
         private boolean populate(List<RoutingKey> keys, ObjectHashSet<RoutingKey> from)
@@ -298,22 +342,58 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             return false;
         }
 
-        void postRunExclusive(SafeTask<?> owner)
+        void postRunExclusive(SafeTask<?> owner, boolean failed)
         {
             if (active != null)
             {
-                for (RoutingKey key : active)
+                // if we partially failed, we must mark every failed key as inconsistent so no further work may touch them
+                if (failed && owner.isAtomic())
                 {
-                    SafeState<?> safeState = owner.refs.remove(key);
-                    Invariants.require(safeState != null);
-                    Invariants.require(!safeState.isReleased());
-                    AccordCacheEntry<?, ?, ?> entry = global(safeState);
-                    postExecute(safeState, owner);
-                    Invariants.require(!owner.refs.containsKey(key));
-                    Invariants.require(!entry.isLockedBy(owner));
+                    if (retry == null)
+                        retry = new ArrayList<>(active.size());
+
+                    for (RoutingKey key : active)
+                    {
+                        SafeState<?> safeState = owner.refs.remove(key);
+                        Invariants.require(safeState != null);
+                        AccordCacheEntry<?, ?, ?> entry = global(safeState);
+                        entry.setInconsistent();
+                        entry.reclaimFifoHead(owner);
+                        retry.add(safeState);
+                    }
+                }
+                else
+                {
+                    for (RoutingKey key : active)
+                    {
+                        SafeState<?> safeState = owner.refs.remove(key);
+                        Invariants.require(safeState != null);
+                        Invariants.require(!safeState.isReleased());
+                        AccordCacheEntry<?, ?, ?> entry = global(safeState);
+                        postExecute(safeState, owner);
+                        Invariants.require(!owner.refs.containsKey(key));
+                        Invariants.require(!entry.isLockedBy(owner));
+                    }
                 }
                 active = null;
             }
+        }
+
+        void incrementPendingJournalWrites()
+        {
+            pendingJournalWritesUpdater.incrementAndGet(this);
+        }
+
+        void initialisePendingJournalWrites()
+        {
+            pendingJournalWritesUpdater.lazySet(this, 1);
+        }
+
+        @Override
+        public void run()
+        {
+            if (0 == pendingJournalWritesUpdater.decrementAndGet(this))
+                owner.finish(pendingResult);
         }
     }
 
@@ -338,12 +418,12 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     int waitingFor;
 
     /**
-     * Only set when isNonSync()
+     * Only set when isNonSync() or isContinuation() and has failed tasks
      * <p>
      * if is(LOADING), this is the cache entries that have finished loading
      * otherwise it's the cache entries for which we're at the head of the queue and are ready to run with
      */
-    @Nullable NonSyncState nonSync;
+    @Nullable OptionalState optional;
 
     int keys; // TODO (expected): not counting keys we add during execution
 
@@ -351,7 +431,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
     @Nullable Object ranges;
     long waitingAt;
-    long fifoAt; // TODO (expected): should not consume memory for this for all tasks (make NonSyncState OptionalState
+    long fifoAt; // TODO (expected): should not consume memory for this for all tasks (can stash in OptionalState)
 
     private volatile BiConsumer<? super R, Throwable> callback;
     private static final AtomicReferenceFieldUpdater<SafeTask, BiConsumer> callbackUpdater = AtomicReferenceFieldUpdater.newUpdater(SafeTask.class, BiConsumer.class, "callback");
@@ -407,11 +487,6 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         return summarise(map.values(), transform);
     }
 
-    private static <V> String summarise(Collection<V> collection)
-    {
-        return summarise(collection, Function.identity());
-    }
-
     private static <V> String summarise(Collection<V> collection, Function<? super V, Object> transform)
     {
         if (collection == null)
@@ -452,6 +527,13 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         };
     }
 
+    public Cancellable submit(BiConsumer<? super R, Throwable> callback)
+    {
+        if (!preSetup(callback))
+            executor().submitTask(SafeTask.this);
+        return SafeTask.this;
+    }
+
     private boolean preSetup(BiConsumer<? super R, Throwable> callback)
     {
         Invariants.require(this.callback == null);
@@ -460,7 +542,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         if (inherit == null)
             return false;
 
-        if (!Invariants.expect(inherit.is(PREPARED) || inherit.is(RUNNING_WHILE_FAILED), "%s %s task attempted preSetup of consequence", state(), briefDescription()))
+        if (!Invariants.expect(inherit.is(PREPARED), "%s %s task attempted preSetup of consequence", state(), briefDescription()))
             return false;
 
         if (!inherit.is(RUNNING))
@@ -499,17 +581,9 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             }
 
             if (loadKeys != SYNC)
-            {
-                nonSync = new NonSyncState(context);
-                setNonSyncExclusive();
-                if (loadKeys == INCR)
-                {
-                    setIncrementalExclusive();
-                    requireSequencedIfHoldsLocksBetweenRuns();
-                }
-            }
+                initNonSync(loadKeys);
 
-            if (isSequencedByPriorityAtomic() && !isKeySubset)
+            if (isAtomic() && !isKeySubset)
             {
                 Invariants.require(keysOrRanges.domain() == Key, "ATOMIC tasks over ranges must declare a subset of their parent's task keys() to avoid a range scan across which we would not impose sequencing");
                 // TODO (expected): explain the scenario in which priority inversion deadlocks could occur
@@ -551,7 +625,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             }
         }
 
-        if (isSequencedByPriorityAtomic())
+        if (isAtomic())
         {
             TxnId primaryTxnId = context.primaryTxnId();
             if (primaryTxnId != null)
@@ -578,6 +652,19 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             preSetup(txnId, parent.refs, commandStore.cachesUnsafe().commands());
     }
 
+    private void initNonSync(LoadKeys loadKeys)
+    {
+        setNonSyncExclusive();
+        optional = new NonSyncState<>(this, context);
+        if (loadKeys == INCR)
+        {
+            Invariants.require(context.isIdempotent(), "Incremental tasks must be idempotent");
+            setIncrementalExclusive();
+            requireSequencedIfHoldsLocksBetweenRuns();
+            nonSync().initialisePendingJournalWrites();
+        }
+    }
+
     @Override
     void submitExclusiveMayThrow()
     {
@@ -595,15 +682,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         if (loadKeys != NONE)
         {
             if (loadKeys != SYNC && !hasPreSetup)
-            {
-                nonSync = new NonSyncState(context);
-                setNonSyncExclusive();
-                if (loadKeys == INCR)
-                {
-                    setIncrementalExclusive();
-                    requireSequencedIfHoldsLocksBetweenRuns();
-                }
-            }
+                initNonSync(loadKeys);
 
             if (isParanoid() && isCacheQueuedFifo())
             {
@@ -685,6 +764,8 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             return;
 
         AccordCacheEntry<K, V, S> node = ref.global();
+        // we ignore poison bit here else we might process range transactions incorrectly since we are not guaranteed to call setupExclusive
+
         int refs = node.increment();
         Invariants.require(refs > 1);
         S safeState = cache.parent().adapter().safeRef(node);
@@ -707,6 +788,17 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     private <K, V, S extends SafeState<V> & SaferState<K, V, S>> void completePresetupExclusive(S preacquired, int waitForIncrement)
     {
         AccordCacheEntry<K, V, S> entry = preacquired.global();
+        if (entry.isInconsistent())
+        {
+            InconsistentEntryException fail = new InconsistentEntryException(entry.key());
+            if (isContinuation()) reportFailureNoExcept(fail);
+            else throw fail;
+            preacquired.setAbandoned(); // TODO (expected): need a special inconsistent mode that is abandoned-adjacent to support retries
+            if (entry.isCommandsForKey())
+                ensureOptional().failed++;
+            return;
+        }
+
         if (entry.isLoaded()) completeSetupOfLoaded(entry);
         else
         {
@@ -722,6 +814,30 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     {
         S safeRef = cache.acquire(k);
         AccordCacheEntry<K, V, ?> entry = safeRef.global();
+        if (entry.isInconsistent())
+        {
+            safeRef.setAbandoned();
+            InconsistentEntryException fail = new InconsistentEntryException(k);
+            if (isContinuation()) reportFailureNoExcept(fail);
+            else
+            {
+                cache.release(safeRef, this);
+                throw fail;
+            }
+
+            if (refs.putIfAbsent(k, safeRef) != null)
+            {
+                cache.release(safeRef, this);
+            }
+            else if (entry.isCommandsForKey())
+            {
+                // must update our accounting even if we cannot use the key
+                keys++;
+                ensureOptional().failed++;
+            }
+            return;
+        }
+
         boolean submitLoad = false;
         boolean isLoaded;
         try
@@ -750,7 +866,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         catch (Throwable t)
         {
             safeRef.setAbandoned();
-            safeRef.global().owner.release(safeRef, this);
+            cache.release(safeRef, this);
             throw t;
         }
 
@@ -778,6 +894,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
     private void completeSetupOfLoaded(AccordCacheEntry<?, ?, ?> entry)
     {
+        Invariants.expect(!entry.isInconsistent());
         if (isOptional(entry))
         {
             nonSync().addLoaded();
@@ -807,7 +924,10 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         // both branches place us: a fifo claim takes its position, everyone else is bagged until the drain
         if (isCacheQueuedFifo()) entry.addFifo(this);
         else entry.addWaitingToLoad(this);
-        Invariants.paranoid(entry.waitingCount() == entry.references());
+        // every position implies a reference, but not the converse: a consequence takes its references at preSetup and its
+        // positions only when it is submitted, which is the end of its submitter's round, and a key we could not load is
+        // dropped from our accounting while we still hold its reference
+        Invariants.paranoid(entry.waitingCount() <= entry.references());
     }
 
     private void onSetupOrScannedExclusive(Caches caches)
@@ -949,6 +1069,10 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             if (testParanoia(SUPERLINEAR, Paranoia.NONE, LOW))
             {
                 refs.forEach((k, v) -> {
+                    // an abandoned ref is a key we have given up on, so it holds no position to check (as waitToRunExclusive)
+                    if (v.isAbandoned())
+                        return;
+
                     if (v instanceof SaferCommandsForKey)
                     {
                         SaferCommandsForKey safeCfk = (SaferCommandsForKey) v;
@@ -969,7 +1093,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     private void queueOnKeysExclusive()
     {
         Invariants.require(CACHE_QUEUES_ENABLED);
-        Invariants.require(nonSync == null || (nonSync.blocking == null && nonSync.notBlocking == null));
+        Invariants.require(nonSync() == null || (nonSync().blocking == null && nonSync().notBlocking == null));
 
         this.refs.forEach((key, safeState) -> {
             if (safeState instanceof SaferCommandsForKey)
@@ -1009,7 +1133,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     RunnableStatus ensureCacheQueued(AccordCacheEntry<?, ?, ?> loaded)
     {
         if (isCacheQueuedFifo())
-            return loaded.statusIfPresent(this);
+            return loaded.statusOfPresent(this);
         else if (isUnsequenced(loaded))
             return loaded.addUnsequenced(this);
         else
@@ -1026,23 +1150,16 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             return loaded.addPrioritised(this);
     }
 
-    public static final int ADOPT_CACHED_KEY_ADD_TO_QUEUE_STATES = WAITING;
-
-    void adoptCachedKeyExclusive(AccordCacheEntry<?, ?, ?> entry, SafeState<?> safeRef)
+    void addCachedKeyExclusive(AccordCacheEntry<?, ?, ?> entry, SafeState<?> safeRef)
     {
         Invariants.require(entry.isLoaded());
-        // !isCacheQueuedFifo was originally included to ensure fifo acquisition occurred in one go (to ensure acyclicity),
-        //  which it is not needed for: the fifo region is ordered by fifoAt, so a claim taken outside the acquisition pass
-        //  is placed by its stamp rather than by arrival, and the ordering argument is unaffected. It is needed for the
-        //  ATOMIC atomicity guarantee, which is why it stays: adopting late lets a task with an OLDER stamp insert itself
-        //  ahead of a younger unit's consequence, i.e. between that consequence and its submitter. Modelled as
-        //  ctl-fifo-adopt in spec/accord-execution, where relaxing it breaks Inv_Isolation and nothing else.
-        Invariants.require(!isCacheQueuedFifo());
+        Invariants.require(!entry.isInconsistent(), "%s was adopted despite being poisoned", entry);
+        Invariants.require(!isCacheQueuedFifo()); // to guarantee atomicity
 
         refs.put(entry.key(), safeRef);
         ++keys;
 
-        boolean addToQueue = CACHE_QUEUES_ENABLED && isState(ADOPT_CACHED_KEY_ADD_TO_QUEUE_STATES);
+        boolean addToQueue = CACHE_QUEUES_ENABLED && isState(WAITING);
         if (addToQueue)
         {
             RunnableStatus status = addCacheQueued(entry);
@@ -1060,7 +1177,12 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
     void onLoadOneExclusive(AccordCacheEntry<?, ?, ?> loaded)
     {
-        if (isOptional(loaded))
+        if (loaded.isInconsistent())
+        {
+            if (!isFailed())
+                onFailedToLoadExclusive(loaded, new InconsistentEntryException(loaded.key()));
+        }
+        else if (isOptional(loaded))
         {
             // if we're incremental/async we don't block on keys loading, so we don't need to decrement anything
             // however, if we're in fifo mode this loaded key might be ready for us to run with
@@ -1071,7 +1193,6 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
                 case WAITING_ON_KEY:
                 case WAITING_TO_RUN:
                 case PREPARED:
-                case RUNNING_WHILE_FAILED:
                 case WAITING_ON_TXN:
                     Invariants.require(CACHE_QUEUES_ENABLED);
                     RunnableStatus status = ensureCacheQueued(loaded);
@@ -1215,6 +1336,9 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         }
     }
 
+    // the task has either become or stopped being the head of the queue (or is head and has a new queue forming behind it)
+    // this may change its runnable status - either revoking or permitting it, depending on the direction,
+    // but it should not result in any change to queued status on any cache entries
     void onChangeKeyRunnableStatus(AccordCacheEntry<?, ?, ?> entry, RunnableStatus newStatus)
     {
         if (compareTo(WAITING_ON_TXN) < 0)
@@ -1280,16 +1404,16 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
     void waitToRunExclusive()
     {
-        // a revocation must have moved us out of WAITING_TO_RUN, so reaching here we must lead every entry we hold.
-        // O(refs x queue), and nothing to check with the cache queues off: waitOnTxnsExclusive takes no position.
-        if (CACHE_QUEUES_ENABLED && testParanoia(SUPERLINEAR, Paranoia.NONE, LOW))
+        if (CACHE_QUEUES_ENABLED && testParanoia(QUADRATIC, Paranoia.NONE, LOW))
         {
             refs.forEach((k, v) -> {
                 AccordCacheEntry<?, ?, ?> entry = SaferState.global(v);
+                if (v.isAbandoned())
+                    return;
                 Invariants.require(entry.contains(this));
                 if (isSync() || !entry.isCommandsForKey())
                 {
-                    RunnableStatus status = entry.statusIfPresent(this);
+                    RunnableStatus status = entry.statusOfPresent(this);
                     Invariants.require(status == NEWLY_RUNNABLE || status == NEWLY_BLOCKING_RUNNABLE);
                 }
             });
@@ -1305,10 +1429,9 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     }
 
     @Override
-    protected void prepareExclusiveMayThrow()
+    protected boolean prepareExclusiveMayThrow()
     {
-        if (keys > 0)
-            setStateExclusive(PREPARING);
+        setStateExclusive(PREPARING);
 
         try
         {
@@ -1326,34 +1449,32 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             }
             else
             {
-                if (hasIncrementalStarted()) nonSync().prepareExclusive(this);
-                else
+                if (hasIncrementalStarted())
+                    return nonSync().prepareExclusive(this);
+
+                // Upgrade on start: a task that holds txnId locks across runs takes a fifo position to prevent dependency cycles;
+                // a task that is declared ATOMIC does so to provide the requested isolation guarantees
+                if (isIncremental() && (holdsLocksBetweenRuns() || isAtomic()) && !isCacheQueuedFifo())
                 {
-                    // Upgrade on start: a task that holds txnId locks across runs takes a fifo position to prevent dependency cycles;
-                    // a task that is declared ATOMIC does so to provide the requested isolation guarantees
-                    if (isIncremental() && (holdsLocksBetweenRuns() || isSequencedByPriorityAtomic()) && !isCacheQueuedFifo())
-                    {
-                        fifoAt = executor().uniqueCreatedAt.incrementAndGet();
-                        setCacheQueuedFifoExclusive();
-                        refs.forEach((key, safeState) -> {
-                            AccordCacheEntry<?, ?, ?> entry = global(safeState);
-                            RunnableStatus status = entry.moveToFifo(this);
-                            if (entry.isLoaded() && entry.isCommandsForKey())
-                                onKeyMovedToFifo(entry, status);
-                        });
-                    }
-
-                    nonSync().prepareExclusive(this);
-                    prepareTxnsExclusive();
-
-                    if (isIncremental())
-                        setIncrementalStartedExclusive();
+                    fifoAt = executor().uniqueCreatedAt.incrementAndGet();
+                    setCacheQueuedFifoExclusive();
+                    refs.forEach((key, safeState) -> {
+                        AccordCacheEntry<?, ?, ?> entry = global(safeState);
+                        RunnableStatus status = entry.moveToFifo(this);
+                        if (entry.isLoaded() && entry.isCommandsForKey())
+                            onKeyMovedToFifo(entry, status);
+                    });
                 }
+
+                if (!nonSync().prepareExclusive(this))
+                    return false;
+                prepareTxnsExclusive();
             }
+            return true;
         }
         catch (Throwable t)
         {
-            refs.forEach((k, v) -> { v.setAbandoned(); });
+            discardUpdatesExclusive();
             throw t;
         }
     }
@@ -1403,47 +1524,43 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
                 R result = function.apply(safeStore);
 
-                boolean finished = !isIncremental() || isIncrementalFinishing();
-                if (!finished)
+                boolean finished = true;
+                List<Journal.CommandUpdate> updates = txnIdUpdates();
+                if (updates != null || safeStore.fieldUpdates() != null)
                 {
-                    setRunState(RUN_INCOMPLETE);
-                    // TODO (required): consider safety semantics here carefully
-                    safeStore.persistFieldUpdatesInternal(null);
+                    finished = false;
+                    Runnable run;
+                    if (isIncremental())
+                    {
+                        NonSyncState nonSync = nonSync();
+                        nonSync.incrementPendingJournalWrites();
+                        run = nonSync;
+                    }
+                    else
+                    {
+                        run = () -> finish(result);
+                        setRunState(RUN_PERSISTING);
+                    }
+
+                    safeStore.persistFieldUpdatesInternal(updates == null ? run : null);
+                    if (updates != null)
+                        save(updates, run);
                 }
-                else
+
+                if (isIncremental())
                 {
-                    List<Journal.CommandUpdate> changes = new ArrayList<>();
-                    // TODO (expected): save any TxnId we add so that we don't need to iterate all of refs
-                    refs.forEach((key, value) -> {
-                        if (value instanceof SaferCommand)
-                        {
-                            SaferCommand safeCommand = (SaferCommand) value;
-                            if (safeCommand.txnId().is(EphemeralRead))
-                                return;
-
-                            Journal.CommandUpdate diff = safeCommand.update();
-                            if (diff != null)
-                            {
-                                changes.add(diff);
-                                maybeSanityCheck(safeCommand);
-                            }
-                        }
-                    });
-
-                    boolean flush = !changes.isEmpty() || safeStore.fieldUpdates() != null;
-                    if (flush)
+                    finished = false;
+                    if (isIncrementalFinishing())
                     {
                         setRunState(RUN_PERSISTING);
-                        Runnable onFlush = () -> finish(result);
-                        safeStore.persistFieldUpdatesInternal(changes.isEmpty() ? onFlush : null);
-                        if (!changes.isEmpty())
-                            save(changes, onFlush);
-                        finished = false;
+                        NonSyncState nonSync = nonSync();
+                        nonSync.pendingResult = result;
+                        nonSync.run();
                     }
+                    else setRunState(RUN_INCOMPLETE);
                 }
 
-                safeStore.postExecute();
-                // TODO (required): do not notify callback until cfk are updated; must mark continuation tasks
+                safeStore.postExecute(); // TODO (desired): do not notify callback until cfk are updated; must mark continuation tasks
                 if (finished)
                     finish(result);
                 return finished;
@@ -1455,9 +1572,77 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         }
         catch (Throwable t)
         {
-            refs.forEach((k, v) -> v.setAbandoned());
+            discardUpdatesExclusive();
             throw t;
         }
+    }
+
+    private List<Journal.CommandUpdate> txnIdUpdates()
+    {
+        TxnId primaryTxnId = context.primaryTxnId(), additionalTxnId;
+        int size;
+        if (primaryTxnId == null)
+        {
+            size = 0;
+            additionalTxnId = null;
+        }
+        else
+        {
+            additionalTxnId = context.additionalTxnId();
+            size = additionalTxnId == null ? 1 : 2;
+        }
+
+        List<Journal.CommandUpdate> updates;
+        if (optional == null || optional.extraTxnId == null)
+        {
+            if (size == 0)
+                return null;
+            updates = new ArrayList<>(size);
+        }
+        else
+        {
+            List<TxnId> extra = optional.extraTxnId;
+            int extraSize = extra.size();
+            size += extraSize;
+            updates = new ArrayList<>(size);
+            for (int i = 0 ; i < extraSize ; ++i)
+                addUpdate(extra.get(i), updates);
+
+            if (primaryTxnId == null)
+                return updates.isEmpty() ? null : updates;
+        }
+
+        addUpdate(primaryTxnId, updates);
+        if (additionalTxnId != null)
+            addUpdate(additionalTxnId, updates);
+
+        if (updates.isEmpty())
+            return null;
+
+        return updates;
+    }
+
+    private void addUpdate(TxnId txnId, List<Journal.CommandUpdate> updates)
+    {
+        if (txnId.is(EphemeralRead))
+            return;
+
+        SaferCommand safeCommand = (SaferCommand) refs.get(txnId);
+        if (safeCommand.hasUpdate())
+        {
+            updates.add(safeCommand.update());
+            maybeSanityCheck(safeCommand);
+        }
+    }
+
+    private void discardUpdatesExclusive()
+    {
+        refs.forEach((k, v) -> {
+            if (!v.isSafe())
+                return;
+            if (v.getClass() == SaferCommandsForKey.class) v.setAbandoned();
+            else ((SaferCommand) v).discardUpdate();
+        });
     }
 
     private void save(List<Journal.CommandUpdate> diffs, Runnable onFlush)
@@ -1477,6 +1662,9 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         {
             this.commandStore.appendCommands(diffs, onFlush);
         }
+
+        for (int i = 0 ; i < diffs.size() ; ++i)
+            ((SaferCommand) refs.get(diffs.get(i).txnId)).saveUpdate();
     }
 
     private void maybeSanityCheck(SaferCommand safeCommand)
@@ -1506,13 +1694,19 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     {
         AccordExecutor executor = executor();
         long now = Math.max(runningAt, nanoTime());
-        if (isNonSync() && !isEither(NOT_YET_RUN, RUN_FAILED))
+        if (isNonSync() && compareTo(RUNNING) >= 0)
         {
             if (is(PREPARED))
             {
-                nonSync().postRunExclusive(this);
+                // if we fail an incremental task that is still running, we still continue processing the remainder of the batch
+                nonSync().postRunExclusive(this, is(RUN_FAILED));
                 if (isIncremental() && !isIncrementalFinishing())
                 {
+                    setRunState(RUN_INCOMPLETE);
+                    if (!hasIncrementalStarted())
+                        setIncrementalStartedExclusive();
+
+                    Invariants.require(runningAt >= waitingAt);
                     executor.elapsedWaitingToRun.increment(runningAt - waitingAt, runningAt);
                     executor.elapsedRunning.increment(now - runningAt, now);
                     flushHistogramBuffer(runningAt);
@@ -1524,10 +1718,17 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             }
             else
             {
-                Invariants.expect(isIncremental());
+                // prepare failed - treat as unrecoverable bug, just do damage limitation
+                // in this unexpected case we do not notify tasks queued behind us, which will simply dangle
+                Invariants.expect(isFailed(), "unexpected state %s completing a failed non-sync task", currentState());
                 setRunState(RUN_FAILED);
-                if (is(RUNNING_WHILE_FAILED)) refs.forEach((k, v) -> v.setAbandoned());
-                else Invariants.require(is(FAILED), "unexpected state %s completing a failed non-sync task", currentState());
+                if (refs != null)
+                {
+                    if (hasIncrementalStarted() && isAtomic())
+                        refs.forEach((key, safeState) -> global(safeState).setInconsistent());
+
+                    logger.error("{} was abandoned by a failed prepare, orphaning {}", this, refs.keySet());
+                }
             }
         }
 
@@ -1562,12 +1763,15 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     @Override
     public void cancel()
     {
-        if (!state().hasStarted())
+        if (!state().hasStarted() && !isContinuation())
             executor().submit(Task::tryCancelExclusive, CancelTask::new, this);
     }
 
     void tryCancelExclusive()
     {
+        if (isContinuation())
+            return;
+
         try
         {
             if (is(UNREGISTERED))
@@ -1586,27 +1790,74 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         }
     }
 
-    /**
-     * A cache entry we hold failed to load. If we have not run we simply fail; if our run is in flight we can only be
-     * failed if we will come back for that entry, i.e. if we are incremental (the entry cannot have been processed, as
-     * processing it requires loading it). Otherwise we need nothing further from it and just release our reference.
-     */
-    void onFailedToLoadExclusive(Throwable fail)
+    // fail != null -> failed to load
+    void onFailingKeyExclusive(AccordCacheEntry<?, ?, ?> entry, @Nullable Throwable fail, boolean isInconsistent)
     {
-        // we may be told more than once, as each of our failing keys drains us, and may already have completed or been
-        // failed while running - a run in flight keeps its positions, so it is still drained by a second failing entry
-        if (hasAlreadyFailed())
+        Invariants.require((fail == null) == isInconsistent);
+        // in exceptional cases (when prepare fails) we may be notified when already done, by a load that had not completed when we failed
+        if (isDone() || refs == null)
             return;
 
-        if (is(State.UNREGISTERED) || compareTo(WAITING_TO_RUN) <= 0)
-            tryFailAndCompleteUnexecutedExclusive(fail, FAILED);
-        else if (isIncremental() && !isIncrementalFinishing())
-            failWhileRunningExclusive(fail);
+        if (isContinuation() || hasIncrementalStarted() || compareTo(WAITING_TO_RUN) > 0)
+        {
+            // we're already running, so must continue and complete as many non-failing keys as possible
+            // this work is kept idempotent, even though it should not be invoked twice (if load fails, the head fifo entry should not propagate again)
+            SafeState<?> safeState = refs.get(entry.key());
+            if (safeState == null || safeState.isAbandoned())
+                return;
+
+            // tasks that are committed to execute mark the key as failed and continue
+            // (only an async/incr task can be prepared and enter onFailingKeyExclusive)
+            if (fail != null || callback != null)
+                reportFailureNoExcept(fail != null ? fail : new InconsistentEntryException(entry.key()));
+
+            // fine to mark immediately inconsistent even if we're not head, since all preceding tasks would do the same
+            // notifications are already handled by our caller, either the load failure or the current owner of the entry lock
+            if (isAtomic() && !isInconsistent)
+                entry.setInconsistent();
+
+            safeState.setAbandoned();
+
+            OptionalState optional = ensureOptional();
+            if (optional.failed == 0 && !isOptional(entry) && fail != null && !hasStartedRunning() && !hasIncrementalStarted())
+                executor().unregisterBlockedExclusive(this); // may be invoked redundantly, as we only count keys in failed
+
+            if (entry.isCommandsForKey())
+            {
+                optional.failed++;
+                if (isNonSync())
+                {
+                    NonSyncState nonSync = nonSync();
+                    Invariants.expect(nonSync.blocking == null || !nonSync.blocking.contains(entry.key()));
+                    Invariants.expect(nonSync.notBlocking == null || !nonSync.notBlocking.contains(entry.key()));
+                    if (is(LOADING_OPTIONAL) && nonSync.isLoaded(this))
+                    {
+                        unqueue(executor().loading);
+                        waitOnTxnsExclusive();
+                    }
+                    else if (is(WAITING_ON_KEY) && nonSync.isWaitReady(this))
+                    {
+                        unqueue(executor().waiting);
+                        waitToRunExclusive();
+                    }
+                }
+            }
+        }
         else
         {
-            // our run is in flight and will not come back for this entry, so simply release our reference
-            Invariants.require(hasStartedRunning());
+            Invariants.require(compareTo(WAITING_TO_RUN) <= 0 && !is(CANCELLED_UNREGISTERED));
+            tryFailAndCompleteUnexecutedExclusive(fail != null ? fail : new InconsistentEntryException(entry.key()), FAILED);
         }
+    }
+
+    void onInconsistentKeyExclusive(AccordCacheEntry<?, ?, ?> entry)
+    {
+        onFailingKeyExclusive(entry, null, true);
+    }
+
+    void onFailedToLoadExclusive(AccordCacheEntry<?, ?, ?> entry, Throwable fail)
+    {
+        onFailingKeyExclusive(entry, fail, false);
     }
 
     void cancelExclusive()
@@ -1667,7 +1918,10 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             ranges = null;
 
             refs.forEach((key, safeState) -> {
-                SaferState.postExecute(safeState, this);
+                if (optional != null && SaferState.global(safeState).isInconsistent())
+                    optional.ensureRetry().add(safeState);
+                else
+                    SaferState.postExecute(safeState, this);
             });
             if (DEBUG_EXECUTION) DebugTask.get(this).onReleasedState();
         }
@@ -1692,7 +1946,13 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             refs.forEach((k, safeState) -> {
                 if (!safeState.isReleased())
                 {
-                    try { SaferState.postExecute(safeState, this); }
+                    try
+                    {
+                        if (optional != null && SaferState.global(safeState).isInconsistent())
+                            optional.ensureRetry().add(safeState);
+                        else
+                            SaferState.postExecute(safeState, this);
+                    }
                     catch (Throwable t) { suppressedBy.addSuppressed(t); }
                 }
             });
@@ -1745,6 +2005,14 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
         private void reference(AccordCacheEntry<RoutingKey, CommandsForKey, SaferCommandsForKey> entry)
         {
+            if (entry.isInconsistent() && !cancelled)
+            {
+                cancelled = true;
+                failAndCompleteExclusive(new InconsistentEntryException(entry.key()), CANCELLED);
+                cleanup(commandStore.cachesExclusive());
+                return;
+            }
+
             switch (entry.status())
             {
                 default: throw new AssertionError("Unhandled Status: " + entry.status());
@@ -1776,7 +2044,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
                             return;
                     }
 
-                    SafeTask.this.adoptCachedKeyExclusive(entry, commandsForKeyCache.acquire(entry));
+                    SafeTask.this.addCachedKeyExclusive(entry, commandsForKeyCache.acquire(entry));
             }
         }
 
@@ -1925,6 +2193,11 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         return is(UNREGISTERED);
     }
 
+    boolean isDone()
+    {
+        return compareTo(EXECUTED) >= 0;
+    }
+
     public @Nullable SafeTask<?>.RangeTxnScanner rangeScanner()
     {
         if (ranges instanceof SafeTask<?>.RangeTxnScanner)
@@ -1941,7 +2214,16 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
     NonSyncState nonSync()
     {
-        return nonSync;
+        if (optional instanceof NonSyncState)
+            return (NonSyncState) optional;
+        return null;
+    }
+
+    OptionalState ensureOptional()
+    {
+        if (optional == null)
+            optional = new OptionalState();
+        return optional;
     }
 
     /**

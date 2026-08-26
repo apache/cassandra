@@ -614,7 +614,7 @@ public class AccordCacheEntryReentrancyTest
                 {
                     // a fifo claim is *reported* by the drain but not removed by it, so it must not be re-added:
                     // ensureCacheQueued's fifo branch only queries status(), as the position is still held
-                    case FIFO:   loadingEntry.statusIfPresent(t.safeTask); break;
+                    case FIFO:   loadingEntry.statusOfPresent(t.safeTask); break;
                     case SORTED: loadingEntry.addPrioritised(t.safeTask); break;
                     case BAG:    loadingEntry.addUnsequenced(t.safeTask); break;
                 }

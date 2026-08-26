@@ -377,9 +377,10 @@ public class AccordExecutorLoopFailureTest
         }
 
         @Override
-        void prepareExclusiveMayThrow()
+        boolean prepareExclusiveMayThrow()
         {
             maybeLeakOrFail(Phase.PREPARE);
+            return true;
         }
 
         @Override

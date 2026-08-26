@@ -23,19 +23,45 @@ import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
+import javax.annotation.Nullable;
+
 import org.junit.Assert;
 
+import accord.api.RoutingKey;
+import accord.local.CommandStore;
 import accord.local.ExecutionContext;
 import accord.local.SafeState;
+import accord.local.cfk.CommandsForKey;
+import accord.primitives.Ranges;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.ManualExecutor;
+import org.apache.cassandra.service.accord.AccordCommandStore;
 
 import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.LockMode.UNQUEUED;
 
 
 public class AccordExecutionTestUtils
 {
+    /**
+     * A key with an outstanding update that a durability report over {@code ranges} would cover, or null;
+     * {@code ranges == null} means every range this store owns. Test-only: production does not need to ask, because
+     * {@code ensureDurable}'s own scan throws when it meets such a key, and so makes no report.
+     *
+     * <p>The bound must not pass such a key: {@code AbstractReplayer.minReplay} is derived from
+     * LOCALLY_DURABLE_TO_COMMAND_STORE, so a bound that passes an update replay would have re-applied loses it for
+     * good. Not advancing the bound is what makes the (in-memory) record of the failure recoverable.
+     */
+    public static @Nullable RoutingKey anyInconsistentIntersecting(CommandStore commandStore, @Nullable Ranges ranges)
+    {
+        for (AccordCacheEntry<RoutingKey, CommandsForKey, ?> e : ((AccordCommandStore)commandStore).cachesUnsafe().commandsForKeys())
+        {
+            if (e.isInconsistent() && (ranges == null || ranges.contains(e.key())))
+                return e.key();
+        }
+        return null;
+    }
+
     public static <K, V, S extends SafeState<V> & SaferState<K, V, S>> AccordCacheEntry<K, V, S> loaded(K key, V value)
     {
         AccordCacheEntry<K, V, S> global = new AccordCacheEntry<>(key, null);
@@ -62,6 +88,31 @@ public class AccordExecutionTestUtils
                 });
                 return null;
             }
+        };
+    }
+
+    /**
+     * Declare a context idempotent, which every INCR context must be: a failed round is retried and replay re-issues
+     * the whole operation, so {@code SafeTask} refuses an incremental task that does not promise it.
+     */
+    /** test-only: mark an entry as holding state an update failed to reach, as a failed task's key would be */
+    public static void setInconsistent(AccordCacheEntry<?, ?, ?> entry)
+    {
+        entry.setInconsistent();
+    }
+
+    /** test-only: the update has been applied, so the entry is usable again */
+    public static void unsetInconsistent(AccordCacheEntry<?, ?, ?> entry)
+    {
+        entry.unsetInconsistent();
+    }
+
+    public static accord.local.ExecutionContext idempotent(accord.local.ExecutionContext context)
+    {
+        return new ExecutionContext.Wrapped()
+        {
+            @Override public ExecutionContext wrapped() { return context; }
+            @Override public boolean isIdempotent() { return true; }
         };
     }
 
