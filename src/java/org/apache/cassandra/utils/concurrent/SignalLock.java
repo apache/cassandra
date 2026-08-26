@@ -338,21 +338,15 @@ public final class SignalLock implements Lock
         return unlock(burstSignal, true);
     }
 
-    /**
-     * Release the lock entirely, however many times the calling thread has (re)acquired it, returning the number of
-     * acquisitions released (i.e. {@code 0} if we did not hold the lock).
-     *
-     * For loops that must not leak the lock when unwinding a failure: a plain {@link #unlock()} pops only one level of a
-     * reentrant hold, so a nested acquisition that failed to unlock would silently leave the lock held.
-     */
-    public int unlockAll(int burstSignal)
+    // if we're the owner, release the lock and return the depth to which we had acquired the lock
+    public int ensureNotOwner()
     {
         if (owner != Thread.currentThread())
             return 0;
 
         int released = depth;
         depth = 1;
-        unlock(burstSignal, false);
+        unlock(1, false);
         return released;
     }
 

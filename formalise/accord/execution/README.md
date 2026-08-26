@@ -21,7 +21,7 @@ cd tla
 ./matrix.py --profiles baseline --topologies hold-vs-consequence
 ./matrix.py                                  # the full matrix; ~55 min
 ./matrix.py --liveness --profiles baseline    # adds Termination (temporal)
-./notify.py                                  # the notification layer; ~2 minutes
+./notify.py                                  # the notification layer; ~3 minutes
 ```
 
 Both drivers **exit non-zero** on any deviation from the expected matrix, so they can be
@@ -49,7 +49,7 @@ about 55 minutes at `--jobs 5` on 5 cores. The one outlier is
 `baseline-full/non-leading-waiter`, ~13 minutes on a dedicated core. Because a timeout is
 now an error rather than a shrug, the default `--timeout` is deliberately generous; if you
 oversubscribe (TLC runs 2 workers per cell, so `--jobs` above the core count does) raise it
-rather than lowering it. `notify.py` is about two minutes for everything.
+rather than lowering it. `notify.py` is about three minutes for everything (5 profiles x 4 shapes).
 
 ## Structure
 
@@ -58,7 +58,7 @@ Two layers and a lemma, each assuming only the one below it:
 | layer | module | assumes | establishes |
 |---|---|---|---|
 | ordering | `AccordExec.tla` | readiness is signalled correctly (G1/G2) | the certificate and the scheduling rules hold in every reachable state |
-| notification | `AccordNotify.tla` | `AccordExec`'s region assignment and queue order (it has no lock, and orders regions by task index) | G1 soundness, G2 no lost wakeup, G3 set discipline, G4 bounded delivery, L3 handlers take no position |
+| notification | `AccordNotify.tla` | `AccordExec`'s region assignment and queue order (it has no lock, and orders regions by task index) | G1 soundness (including `G1_BatchLed`, the precondition `prepareExclusive` now relies on), G2 no lost wakeup, G3 set discipline, G4 bounded delivery, L3 handlers take no position |
 | lemma | `AccordAcyclic.lean` | the rank certificate, plus six scheduling rules for isolation | acyclicity, **no stuck set** and **isolation**, at any size |
 
 ### "the certificate holds in every reachable state"
@@ -134,7 +134,7 @@ across the upgrade rather than only over static-region shapes.
 | `NoStuck` | **the real property.** No set of live tasks can be mutually blocked. A least fixpoint of "can eventually run", so it accounts for execution thresholds: a task needing only `min(remaining, MIN_BATCH)` keys is not blocked by failing to lead one of them. Also proved size-independently in Lean (`exists_runnable`): the rank-minimal live task has no outgoing wait edge, so it leads every entry it holds and can run. TLC's job here is only to cross-check the fixpoint against the rank at small scale. |
 | `NoCycle` | the wait relation is acyclic. Sufficient but not necessary — with thresholds a cycle can be survivable. Checked independently of `RankOK` so a wrong ranking is distinguishable from a real stall. |
 | `RankOK` | every wait edge strictly decreases `⟨layer, key⟩`, layer `FIFO 0 < ORDERED 1 < BAG 2`. This is the **size-independent** certificate: `AccordAcyclic.lean` derives acyclicity from it for any number of tasks and entries, and `waitEdges_iff_rankOK` there proves this single invariant is exactly that file's four hypotheses, so TLC discharges all of them at once. |
-| `Inv_Isolation` | `BY_PRIORITY_ATOMIC` promises a task and the consequences it submits *atomically* appear atomic, so on the processing order of any entry nothing outside that unit appears between two of its members. The unit is the chain of ATOMIC submissions (O14), not every descendant. Checked against the processing history, not the queue arrangement — a task that has already run cannot be reordered. Also proved size-independently in Lean (`isolated`), but from six scheduling rules that TLC does **not** check — see "Structure" above. |
+| `Inv_Isolation` | `ExecutionSequence.ATOMIC` promises a task and the consequences it submits *atomically* appear atomic, so on the processing order of any entry nothing outside that unit appears between two of its members. The unit is the chain of ATOMIC submissions (O14), not every descendant. Checked against the processing history, not the queue arrangement — a task that has already run cannot be reordered. Also proved size-independently in Lean (`isolated`), but from six scheduling rules that TLC does **not** check — see "Structure" above. |
 
 Plus `Inv_LockerIsFifo` (O7), `Inv_LockLeads` (O8), `Inv_OneProspectiveLocker` (O11) and
 `Inv_AtMostOneLock`, so a failure names the invariant that broke rather than only
@@ -166,18 +166,27 @@ queue position, so delivery cannot nest), `Probe_StaleBatch`/`Probe_EmptyBatch`,
 test `~TaskSync[t]` and so cannot fire in an all-SYNC shape, `Probe_Upgraded`/
 `Probe_UpgradeDisplaces`, which need a non-sync sorted-region task to upgrade at all, and
 `Probe_UpgradeWouldDoubleFile`, which is a documented **gap** rather than a design property
+under the production profiles — it *is* reached under `ctl-no-revoke-notify`, where the stale
+capture survives to quiescence, and that is the cell in which `G3_Disjoint` reports the fold
 (see "Scale and abstraction boundaries"). The driver asserts all of that
-in both directions and fails if a probe changes status.
+in both directions, per (profile, shape), and fails if a probe changes status.
 
 It also checks `L3_HandlerTakesNoPosition`, `[][Deliver => UNCHANGED <<holds, region>>]_vars`:
 a notification handler never inserts into, removes from, or moves within a queue. It is an
 *action* property, which is why no invariant states it, and it is the model-side statement of
-the runtime re-entrancy guard. It **holds** in all 16 cells — but by construction, since no
+the runtime re-entrancy guard. It **holds** in all 20 cells — but by construction, since no
 handler in the module mutates `holds` or `region`, so it is a regression check on the model
 rather than independent evidence about the code: if a handler is ever given a mutation it fails,
 and `Probe_Nested` starts being reached.
 
 ## Controls
+
+`AccordNotify` has two, both negative controls over notification delivery, and both required to
+break something: `ctl-no-drain-notify` (`PDrainNotifies = FALSE`) drops the load-completion drain's
+notifications, which is a lost wakeup and so breaks G2 and `Termination`; `ctl-no-revoke-notify`
+(`PRevokeNotifies = FALSE`) drops the `NOT_RUNNABLE` notification, which is a stale belief and breaks
+`G1_BatchLed`, `G1_Strong`, `G1_SyncSound` and `G3_Disjoint` — see "`G1_BatchLed`, and why `G1_Strong`
+is now required". The rest of this section is about `AccordExec`.
 
 The `P*` constants are two groups, and only one of them is a set of controls.
 `PAlwaysReady`, `PModelLoading`, `PAllowAdoption` and `PPartialRounds` are *modelling*
@@ -185,7 +194,7 @@ switches — they choose which production behaviour is in scope, and must **not*
 anything, which is why the `baseline-*` and `ar-*` profiles are required green. Each `ctl-*`
 profile disables one *rule* and must break a property: an assertion where the implementation
 has one — `PAllowUnseqIncrWithTxn` → `requireSequencedIfHoldsLocksBetweenRuns`,
-`PAllowFifoAdoption` → `adoptCachedKeyExclusive`'s `require(!isCacheQueuedFifo())`,
+`PAllowFifoAdoption` → `addCachedKeyExclusive`'s `require(!isCacheQueuedFifo())`,
 `PAllowDoubleLock` → `lockExclusive`'s `require(!isLocked())` — and otherwise the *code* that
 establishes it: `PUpgradeOnStart` removes `prepareExclusiveMayThrow`'s `moveToFifo` block, and
 `PSubmitBeforeRelease` removes the submit-before-complete ordering of
@@ -199,7 +208,7 @@ it enables — so the witnesses are named:
 | `ctl-no-upgrade` | O7, `prepareExclusiveMayThrow`'s `moveToFifo` | `Inv_LockerIsFifo`, `Inv_LockLeads` on **all but `deep-chain`** (which declares no txnId, so `HoldsAcrossRuns` is false for every task and both invariants have no instances); `RankOK`, `NoCycle`, `NoStuck` on the five below | `RankOK`/`NoCycle`/`NoStuck` witnesses: `two-lockers`, `hold-vs-consequence`, `non-leading-waiter`, `consequence-non-subset`, `two-txns`; O7/O8 additionally on `disjoint-txns` and `keys-only` |
 | `ctl-defer-submit` | O13, consequences claiming before their submitter releases | `Inv_Isolation` | `consequence-non-subset`, `deep-chain`, `two-txns` |
 | `ctl-unseq-incr-txn` | O11, `requireSequencedIfHoldsLocksBetweenRuns` | `Inv_OneProspectiveLocker` (two bagged prospective lockers both in the runnable prefix) | `two-lockers`, `non-leading-waiter`, `two-txns` |
-| `ctl-fifo-adopt` | O5, `adoptCachedKeyExclusive`'s `!isCacheQueuedFifo()` | `Inv_Isolation` | `consequence-non-subset` |
+| `ctl-fifo-adopt` | O5, `addCachedKeyExclusive`'s `!isCacheQueuedFifo()` | `Inv_Isolation` | `consequence-non-subset` |
 | `ctl-double-lock` | A3, `lockExclusive`'s `require(!isLocked())` — **and** O7 with it, see below | `Inv_AtMostOneLock`; plus everything `ctl-no-upgrade` breaks, on the same topologies | `Inv_AtMostOneLock`: `two-lockers`, `non-leading-waiter`, `consequence-non-subset`, `two-txns` |
 
 The same table is encoded in `matrix.py`'s `EXPECT_FAIL`, and the driver fails if a cell
@@ -224,7 +233,7 @@ task's acquisition pass is placed by its key rather than by arrival, so relaxing
 breaks isolation, which is what the guard is actually for: a fifo task with an *older* stamp that
 adopts a key late is entitled by the stamp order to go first, and so lands between an ATOMIC
 submitter and its consequence (`plog[k1] = <<1, 3, 2>>` on `consequence-non-subset`). The code comment
-at `adoptCachedKeyExclusive` guessed as much — *"it likely impacts the atomicity guarantee"* — and this
+at `addCachedKeyExclusive` guessed as much — *"it likely impacts the atomicity guarantee"* — and this
 is the witness.
 
 `two-lockers` exists for the `ctl-unseq-incr-txn` control: two *independent* tasks must share a txnId
@@ -273,19 +282,30 @@ Deliberately not modelled:
   each re-placement notifies; `AccordNotify` models the re-placement as a top-level step instead.
   Covered by `AccordCacheEntryCycleTest`'s `KEY_LOAD_COMPLETES` scenarios and
   `AccordCacheEntryReentrancyTest`.
-- **`refs` iteration and cache listener re-entrancy**. `adoptCachedKeyExclusive` is modelled as a
+- **`refs` iteration and cache listener re-entrancy**. `addCachedKeyExclusive` is modelled as a
   late claim, not as a mutation during the upgrade's iteration. Its state gate *is* faithful:
   it queues the adopted key only when the task `isState(WAITING)`, and because `Run` is one
   atomic step there is no mid-run phase in the model to exclude — `Started` means between
   rounds, which is `WAITING`.
 - **the window inside `NonSyncState.prepareExclusive`.** `Run` is one atomic step, so the model
-  cannot show a lock taken early in the pass revoking a key captured for the same batch. That window
-  is what the re-check exists for; `AccordNotify`'s `Probe_StaleBatch` and `Probe_EmptyBatch` show
-  the stale state and the empty round exist, but only mid-cascade.
+  cannot show a lock taken early in the pass notifying a new head that then revokes a key captured
+  for the same batch. That window is what the per-key re-check used to exist for; the re-check is
+  **gone** (a handler takes no position — L3 — so it cannot revoke anything mid-pass), which is why
+  `AccordNotify` now locks the whole captured batch and asserts `G1_BatchLed` instead. Its
+  `Probe_StaleBatch`/`Probe_EmptyBatch` show the stale capture still exists mid-cascade, and
+  `G1_BatchLed` is what says it cannot survive to a prepare.
+- **partial failure and poisoned entries.** A failed round of an ATOMIC task marks each key it
+  locked `isInconsistent()` and calls `reclaimFifoHead`, converting that `RELEASE_QUEUE` lock into a
+  `HOLD_QUEUE` claim on a **key** entry that nothing releases (`OptionalState.retry` is populated and
+  never consumed), and `requireNotFailed` then permits that failed task to keep positions there. So
+  on the failure path O9 (cross-run locks are CMD-only) and R6 are relaxed and the resulting stall is
+  deliberate — `NoStuck` is a failure-free statement. A dropped key also lowers the batch threshold
+  (`keys - (processed + failed)`), which only makes a task readier. Covered by
+  `AccordFailedKeyTest`/`AccordFailedKeyBatchTest`/`TaskLifecycleTest` rather than here.
 - **an open workload.** The model is closed, so starvation questions — whether a task can be
   repeatedly displaced under sustained arrivals — cannot be settled either way. Only unbounded delay
-  is at stake; a stuck state would appear as `NoStuck`. Note L2: a round whose captured keys were all
-  revoked locks nothing, so per-round progress is not guaranteed, only per-lock progress.
+  is at stake; a stuck state would appear as `NoStuck`. Note L2: per-round progress now holds
+  (a round locks everything it captured), so what is unsettled here is delay, not a lost round.
 - **the lock, in `AccordNotify`.** That module has no `HOLD_QUEUE` and no `lockExclusive`, and it
   orders both queue regions by task index rather than by `fifoAt`/`compare()`. So the "assumes:
   nothing" cell in the Structure table above is about the *bookkeeping*: the notification layer
@@ -293,12 +313,15 @@ Deliberately not modelled:
   established.
 - **the mover's own status fold, in the dangerous case.** `AccordNotify`'s `Upgrade` models
   `onKeyMovedToFifo` as production writes it: `onNewHead`/`onNewBlockingHead` *add* to one batch
-  set without removing from the other, unlike the delivered handler, which moves the key. A task
+  set without removing from the other — and so, now, does the delivered handler, since production
+  only `paranoid`s that the other set is clear rather than moving the key. A task
   that is Runnable with a stale `notBlocking` key and takes the prefix back by upgrading, with a
   competitor still queued there, would therefore hold that key in both sets — `G3_Disjoint` reports
   it. `Probe_UpgradeWouldDoubleFile` is exactly that precondition and is **unreached** at every
-  shape (the stale state itself *is* reached — `Probe_StaleBatch`), so `G3_Disjoint`'s green is not
-  evidence about that path. It is a probe, not a claim.
+  shape under the production profiles (the stale state itself *is* reached — `Probe_StaleBatch`), so
+  `G3_Disjoint`'s green there is not evidence about that path. It *is* reached under
+  `ctl-no-revoke-notify`, which is the one cell where `G3_Disjoint` does report the fold — and it
+  reports the delivered handler's add-only filing in the same run. It is a probe, not a claim.
 
 `Inv_Isolation` is a history property over the entries a task processes; the queue arrangement is
 only a proxy for it, so it is checked on the history.
@@ -319,7 +342,7 @@ Setup(2), Run(2), Run(3), Setup(1), Run(1), Setup(4), Run(4)
 Nothing here is out of order. Task 3 is ATOMIC, so it inherited task 2's `fifoAt` and claimed its
 position before task 2 released (O13), and ran immediately after it. Task 4 is `BY_PRIORITY`: it is
 submitted before task 3 completes, like every consequence (`Task.completeExclusiveNoExcept` submits
-unconditionally), but it inherits no stamp — only `preSetup`'s `isSequencedByPriorityAtomic()` branch
+unconditionally), but it inherits no stamp — only `preSetup`'s `isAtomic()` branch
 does that — so it joins the sorted region by `compare()`, behind task 1, which has a lower
 `position`. Placement there is arrival-independent, which is why submitting it earlier does not put
 it inside the unit. An UNSEQUENCED consequence would be weaker still: bagged, so it sorts after
@@ -344,19 +367,24 @@ Two things this deliberately does **not** claim:
 
 And one thing it claims *more* than the semantics intend — see below.
 
-### UNSEQUENCED was meant to interleave, and does not
+### What an interleaving bag would cost
 
-`BY_PRIORITY_ATOMIC` promises atomicity *"from the point of view of other SEQUENCED tasks"*, so an
-UNSEQUENCED task was intended to be free to run in the middle of a unit. The implementation does not
-permit that, and `Inv_Isolation` follows the implementation: Q4 makes the bag the *last* region, so
-while anything sequenced is queued the bag is not runnable at all, and O13 keeps a unit's successor
-claim in place before its predecessor releases, so the window never opens. Both acquisition paths
-agree, for different reasons: the optimistic `UNQUEUED` path (`acquireIfLoadedAndPermitted`) is
-refused while `hasFifoOrLocked()`, and a unit's members are fifo claims (O5/O7) — though note it *is*
-permitted past a merely `BY_PRIORITY` claim, since it skips queue accounting entirely.
+An `UNSEQUENCED` task cannot run while anything sequenced is queued on an entry it declared, so it
+cannot interleave into the middle of an ATOMIC unit. `Inv_Isolation` follows the implementation: Q4
+makes the bag the *last* region, and O13 keeps a unit's successor claim in place before its
+predecessor releases, so the window never opens. Both acquisition paths agree, for different reasons:
+the optimistic `UNQUEUED` path (`acquireIfLoadedAndPermitted`) is refused while `hasFifoOrLocked()`,
+and a unit's members are fifo claims (O5/O7) — though note it *is* permitted past a merely
+`BY_PRIORITY` claim, since it skips queue accounting entirely.
 
-The strengthening is deliberate, and `probe-bag-interleaves` (`PBagInterleaves = TRUE`: the bag is
-runnable behind a sequenced region, i.e. the intended semantics) measures what it buys:
+Earlier revisions of this file filed that as a deliberate *strengthening* over the declared semantics,
+on the strength of a javadoc phrase — atomicity "from the point of view of other SEQUENCED tasks" —
+that **does not exist in the tree**: `ExecutionSequence.ATOMIC` promises to appear atomic "with
+respect to other tasks", and `UNSEQUENCED` claims only freedom from ordering, not the right to
+interleave into another task's unit. So the implementation and the documented semantics agree, and
+what `probe-bag-interleaves` (`PBagInterleaves = TRUE`: the bag is runnable behind a sequenced region)
+measures is the cost of the *weaker* reading — i.e. what it would take to let unsequenced work
+interleave freely, if that were ever wanted:
 
 | topology | breaks |
 |---|---|
@@ -376,23 +404,41 @@ those two directions close a real cycle on `non-leading-waiter` and `consequence
 `NoStuck` survives at this scale, because thresholds and other tasks make those cycles escapable,
 which is precisely why the certificate rather than the fixpoint is the thing to preserve.
 
-So the open problem is a rank for an interleaving bag member: it must be pair-determined (O1) and it
-must sit *below* every sequenced task that may wait for it, while "unsequenced" is defined as having
-no place in that order. Until there is such a formulation, work that must interleave has to avoid
-being waited on at all — hold no position — which is what `UNQUEUED` referencing does, within the
-limit noted above.
+So the open problem — should the weaker reading ever be wanted — is a rank for an interleaving bag
+member: it must be pair-determined (O1) and it must sit *below* every sequenced task that may wait for
+it, while "unsequenced" is defined as having no place in that order. Until there is such a
+formulation, work that must interleave has to avoid being waited on at all — hold no position — which
+is what `UNQUEUED` referencing does, within the limit noted above.
 
-### The `G1_Strong` status
+### `G1_BatchLed`, and why `G1_Strong` is now required
 
-`AccordNotify` keeps `G1_Strong` ("every task believed runnable leads what it needs") because the
-non-sync re-check exists precisely because it need not hold. With the revocation removed it now
-*holds at quiescence* in every configuration checked, at every `MinBatch` and every shape: nothing
-takes a position away any more, so the bookkeeping is only transiently wrong, inside a notification
-loop (`Probe_StaleBatch`) or inside `prepareExclusive`'s own pass (not modelled — see the boundary
-above). It is retained as a regression check, not as a known-failing property; a failure at
-quiescence would mean a wakeup was lost or double counted, not that the re-check is doing its job.
-It is checked — by `notify.py` and by `examples/Notify.cfg` — separately from `Guarantees`, so that a
-failure names it.
+`G1_Strong` ("every task believed runnable leads what it needs") used to be carried as a regression
+check rather than a requirement, because `NonSyncState.prepareExclusive` re-checked each captured key
+and skipped any it no longer led. **That re-check is gone** — it went with the deferred revocation,
+since a handler that takes no position (L3) cannot revoke a key captured earlier in the same pass — so
+prepare now locks *everything* it captured with `RELEASE_QUEUE`, and `REQUIRE_RUNNABLE` asserts the
+locker leads each one. A stale capture is therefore an assertion failure, not something the code
+absorbs.
+
+`AccordNotify` follows: `Run` locks the whole captured batch, and
+
+```
+G1_BatchLed == Quiescent => \A t \in Tasks : \A e \in blocking[t] \cup notBlk[t] : Leads(t, e)
+```
+
+is the model-side statement of that `require`. It is stated at quiescence because mid-cascade the
+bookkeeping is legitimately behind the queues — `Probe_StaleBatch` reaches exactly that transient, and
+`Probe_EmptyBatch` the extreme of it — and because no task can prepare mid-cascade: `Run` requires
+quiescence, as the exclusive turn that prepares does. `G1_Strong` follows from `G1_BatchLed` plus the
+believed-ready test, and both are checked as their own columns (by `notify.py` and
+`examples/Notify.cfg`) so that a failure names the weaker or the stronger claim.
+
+`ctl-no-revoke-notify` is the negative control that keeps them honest: it drops the `NOT_RUNNABLE`
+notification, so a task keeps a batch key after losing the prefix. That is not a lost wakeup — nothing
+is stranded, G2 and `Termination` stay green — it is a stale *belief*, and it breaks `G1_BatchLed` and
+`G1_Strong` in every non-sync shape, `G1_SyncSound` wherever there is a SYNC task (its `wkey` counter
+is never put back), and `G3_Disjoint`, because a later `NEWLY_BLOCKING_RUNNABLE` then files a key into
+`blocking` that is still in `notBlocking`. Without it those rows could not fail in any profile.
 
 ### What `AccordNotify`'s G4 actually checks
 

@@ -31,13 +31,10 @@ import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Stream;
 
-import javax.annotation.Nullable;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
-import accord.api.AsyncExecutor;
 import accord.api.ExclusiveAsyncExecutor;
 import accord.api.RoutingKey;
 import accord.impl.AbstractAsyncExecutor;
@@ -47,9 +44,6 @@ import accord.primitives.TxnId;
 import accord.utils.ArrayBuffers;
 import accord.utils.Invariants;
 import accord.utils.UnhandledEnum;
-import accord.utils.async.AsyncCallbacks;
-import accord.utils.async.AsyncCallbacks.CallAndCallback;
-import accord.utils.async.AsyncCallbacks.RunOrFail;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.Cancellable;
@@ -515,29 +509,6 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         else submitTask(task);
     }
 
-    @Override
-    public Cancellable execute(RunOrFail runOrFail)
-    {
-        Task inherit = inherit();
-        PlainChain task = new PlainChain(this, runOrFail, null, ExclusiveGroup.OTHER);
-        if (inherit != null) inherit.addConsequence(task);
-        else submitTask(task);
-        return task;
-    }
-
-    public Cancellable executeContinuation(RunOrFail runOrFail)
-    {
-        Task inherit = inherit();
-        PlainChain task = new PlainChain(this, runOrFail, null, ExclusiveGroup.OTHER);
-        if (inherit == null) submitTask(task);
-        else
-        {
-            task.setIsContinuation();
-            inherit.addConsequence(task);
-        }
-        return task;
-    }
-
     public <T> AsyncChain<T> buildDebuggableContinuation(Callable<T> call, Object describe)
     {
         return new AsyncChains.Head<>()
@@ -546,11 +517,11 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
             protected Cancellable start(BiConsumer<? super T, Throwable> callback)
             {
                 Task inherit = inherit();
-                PlainChainDebuggable task = new PlainChainDebuggable(AccordExecutor.this, new CallAndCallback<>(call, callback), null, describe);
+                PlainChainDebuggable task = new PlainChainDebuggable(AccordExecutor.this, call, callback, null, describe);
                 if (inherit == null) submitTask(task);
                 else
                 {
-                    task.setIsContinuation();
+                    task.setContinuation();
                     inherit.addConsequence(task);
                 }
                 return task;
@@ -623,11 +594,21 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         maybeUnpauseLoading();
     }
 
+    // a blocked task that will never run should not prevent tranches from proceeding
+    final void unregisterBlockedExclusive(Task task)
+    {
+        unregisterExclusive(task);
+        maybeUnpauseLoading();
+    }
+
     final void unregisterExclusive(Task task)
     {
-        int tranch = task.tranche();
+        int tranche = task.takeTrancheExclusive();
+        if (tranche < 0)
+            return;
+
         --tasks;
-        tranches.complete(tranch);
+        tranches.complete(tranche);
     }
 
     void onScannedRangesExclusive(SafeTask<?> task, Throwable fail)
@@ -660,7 +641,9 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
                 // allowed to abandon the others in a queue they will never leave
                 for (SafeTask<?> task : tasks)
                 {
-                    try { task.onFailedToLoadExclusive(fail); }
+                    if (isDeparted(task))
+                        continue;
+                    try { task.onFailedToLoadExclusive(loaded, fail); }
                     catch (Throwable t) { task.unhandledException(t); }
                 }
                 cache.failedToLoad(loaded);
@@ -672,6 +655,8 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
                 tasks.sort(AccordCacheEntryQueue::compareForNotify);
                 for (SafeTask<?> task : tasks)
                 {
+                    if (isDeparted(task))
+                        continue;
                     try { task.onLoadOneExclusive(loaded); }
                     catch (Throwable t) { task.unhandledException(t); }
                 }
@@ -679,6 +664,19 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         }
 
         maybePauseLoading();
+    }
+
+    /**
+     * A task the drain reports that has already completed, and so has nothing left to update and a caller that has
+     * already been told. It is reported because a fan-out abandoned by a failed prepare marks the keys it never reached
+     * and keeps their claims (inline in {@code SafeTask.completeExclusiveMayThrow}), which for a key whose load had not
+     * landed means remaining a member of that entry's queue; and because a fifo claim is reported by the drain without
+     * being removed by it. Notifying it would report an internal error for a task that is doing exactly what it is meant
+     * to.
+     */
+    private static boolean isDeparted(SafeTask<?> task)
+    {
+        return task.isDone();
     }
 
     public void executeDirectlyWithLock(Runnable command)

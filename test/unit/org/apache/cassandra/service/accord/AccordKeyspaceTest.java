@@ -121,7 +121,9 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
         Command.WaitingOn waitingOn = null;
 
         Command.Committed committed = committed(id, SaveStatus.Committed, Status.Durability.NotDurable,
-                                                participants, Ballot.ZERO, id, partialTxn, deps.intersecting(scope),
+                                                // deps are stored against the participants, so must be sliced to the same
+                                                // route we declare, not to the whole table range; see Command.Accepted.validateDeps
+                                                participants, Ballot.ZERO, id, partialTxn, deps.intersecting(route),
                                                 Ballot.ZERO, waitingOn);
         SaferCommand safeCommand = new SaferCommand(loaded(id, null));
         // a state may only be mutated by the task that locked it

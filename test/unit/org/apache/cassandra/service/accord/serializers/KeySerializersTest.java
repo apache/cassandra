@@ -37,6 +37,7 @@ import accord.primitives.Range;
 import accord.primitives.RangeRoute;
 import accord.primitives.Ranges;
 import accord.primitives.Route;
+import accord.primitives.Routables;
 import accord.primitives.RoutingKeys;
 import accord.primitives.Unseekable;
 import accord.utils.Gen;
@@ -105,7 +106,10 @@ public class KeySerializersTest
         else route = (Route<?>)subset(rs, superset, false);
         Participants<?> hasTouched = subset(rs, superset, true);
         Participants<?> touches = subset(rs, hasTouched, true);
-        Participants<?> owns = subset(rs, touches, true);
+        // the route is the maximum known route, so anything we own must lie within it (StoreParticipants asserts this
+        // when paranoid); touches may extend beyond the route, owns may not
+        Participants<?> mayOwn = route == null ? touches : touches.intersecting(route, Routables.Slice.Minimal);
+        Participants<?> owns = subset(rs, mayOwn, true);
         Participants<?> executes = rs.nextBoolean() ? subset(rs, owns, true) : null;
         Participants<?> waitsOn = executes != null ? subset(rs, executes, true) : null;
         StoreParticipants participants = StoreParticipants.create(route, owns, executes, waitsOn, touches, hasTouched);

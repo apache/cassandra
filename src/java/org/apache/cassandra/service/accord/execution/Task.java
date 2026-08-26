@@ -43,8 +43,8 @@ import org.apache.cassandra.service.accord.execution.ExclusiveExecutor.Exclusive
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.WithResources;
 
+import static accord.local.ExecutionContext.ExecutionSequence.ATOMIC;
 import static accord.local.ExecutionContext.ExecutionSequence.BY_PRIORITY;
-import static accord.local.ExecutionContext.ExecutionSequence.ATOMIC_CONSEQUENCE;
 import static accord.primitives.Routable.Domain.Range;
 import static accord.utils.Invariants.illegalState;
 import static org.apache.cassandra.config.AccordConfig.QueuePriorityModel.ORIG_HLC_FIFO;
@@ -53,6 +53,7 @@ import static org.apache.cassandra.service.accord.execution.Task.ExclusiveGroup.
 import static org.apache.cassandra.service.accord.execution.Task.ExclusiveGroup.COMMIT;
 import static org.apache.cassandra.service.accord.execution.Task.ExclusiveGroup.STABLE;
 import static org.apache.cassandra.service.accord.execution.Task.RunState.NOT_YET_RUN;
+import static org.apache.cassandra.service.accord.execution.Task.RunState.REJECTED;
 import static org.apache.cassandra.service.accord.execution.Task.RunState.RUNNING;
 import static org.apache.cassandra.service.accord.execution.Task.RunState.RUN_FAILED;
 import static org.apache.cassandra.service.accord.execution.Task.RunState.RUN_INCOMPLETE;
@@ -61,10 +62,9 @@ import static org.apache.cassandra.service.accord.execution.Task.State.EXECUTED;
 import static org.apache.cassandra.service.accord.execution.Task.State.FAILED;
 import static org.apache.cassandra.service.accord.execution.Task.State.LOADING_OPTIONAL;
 import static org.apache.cassandra.service.accord.execution.Task.State.LOADING_REQUIRED;
+import static org.apache.cassandra.service.accord.execution.Task.State.MAY_SET_RUN_STATE;
 import static org.apache.cassandra.service.accord.execution.Task.State.PREPARED;
 import static org.apache.cassandra.service.accord.execution.Task.State.REGISTERED;
-import static org.apache.cassandra.service.accord.execution.Task.State.RUNNING_OR_EXECUTED;
-import static org.apache.cassandra.service.accord.execution.Task.State.RUNNING_WHILE_FAILED;
 import static org.apache.cassandra.service.accord.execution.Task.State.SCANNING_RANGES;
 import static org.apache.cassandra.service.accord.execution.Task.State.UNREGISTERED;
 import static org.apache.cassandra.service.accord.execution.Task.State.WAITING_ON_KEY;
@@ -92,28 +92,20 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
         PREPARING(WAITING_TO_RUN),
         PREPARED(WAITING_TO_RUN, PREPARING),
         INCOMPLETE(PREPARED),
-        /**
-         * We were failed while running - a cache entry we hold failed to load - and cannot be completed from outside,
-         * as our run is in flight. We finish the iteration, then abandon and release everything as we complete. Only a
-         * run that cannot be its task's last may enter this state, so it can never complete the callback.
-         */
-        RUNNING_WHILE_FAILED(PREPARED, INCOMPLETE),
         EXECUTED(PREPARED),
-        FAILED(UNREGISTERED, REGISTERED, SCANNING_RANGES, LOADING_REQUIRED, LOADING_OPTIONAL, WAITING_ON_TXN, WAITING_ON_KEY, WAITING_TO_RUN, PREPARING, PREPARED, INCOMPLETE, RUNNING_WHILE_FAILED),
+        FAILED(UNREGISTERED, REGISTERED, SCANNING_RANGES, LOADING_REQUIRED, LOADING_OPTIONAL, WAITING_ON_TXN, WAITING_ON_KEY, WAITING_TO_RUN, PREPARING, PREPARED, INCOMPLETE),
         CANCELLED(UNREGISTERED, REGISTERED, SCANNING_RANGES, LOADING_REQUIRED, LOADING_OPTIONAL, WAITING_ON_TXN, WAITING_ON_KEY, WAITING_TO_RUN, PREPARING),
         ;
 
         private final int permittedFrom;
         public static final int LOADING_OR_WAITING_REQUIRED = TinyEnumSet.encode(SCANNING_RANGES, LOADING_REQUIRED, WAITING_ON_TXN, WAITING_ON_KEY);
         public static final int WAITING = TinyEnumSet.encode(WAITING_ON_TXN, WAITING_ON_KEY, WAITING_TO_RUN);
-        public static final int WAITING_OR_RUNNING = WAITING | TinyEnumSet.encode(PREPARING, PREPARED, RUNNING_WHILE_FAILED);
-        /** the states in which a run is in flight, or has just finished, so may record its run state */
-        public static final int RUNNING_OR_EXECUTED = TinyEnumSet.encode(PREPARED, RUNNING_WHILE_FAILED, EXECUTED);
+        public static final int WAITING_OR_RUNNING = WAITING | TinyEnumSet.encode(PREPARING, PREPARED);
+        public static final int MAY_SET_RUN_STATE = TinyEnumSet.encode(PREPARING, PREPARED, EXECUTED); // includes no-op completion
         /** the states from which nothing further will run, so any position or reference we still hold is dead */
-        public static final int TERMINAL_FAILURE = TinyEnumSet.encode(CANCELLED_UNREGISTERED, CANCELLED, FAILED);
-        public static final int FAILURE = TERMINAL_FAILURE | TinyEnumSet.encode(RUNNING_WHILE_FAILED);
+        public static final int FAILURE = TinyEnumSet.encode(CANCELLED_UNREGISTERED, CANCELLED, FAILED);
         /** the states in which we have begun executing, so precede anything that has not, whatever compare says */
-        public static final int HAS_RUN = TinyEnumSet.encode(PREPARED, INCOMPLETE, RUNNING_WHILE_FAILED, EXECUTED);
+        public static final int HAS_RUN = TinyEnumSet.encode(PREPARED, INCOMPLETE, EXECUTED);
         static final State[] VALUES = values();
 
         static
@@ -166,7 +158,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
 
     enum RunState
     {
-        NOT_YET_RUN, RUNNING, RUN_INCOMPLETE, RUN_PERSISTING, RUN_SUCCESS, RUN_FAILED;
+        NOT_YET_RUN, REJECTED, PARTIALLY_FAILED, RUNNING, RUN_INCOMPLETE, RUN_PERSISTING, RUN_SUCCESS, RUN_FAILED;
 
         private static final RunState[] VALUES = values();
 
@@ -273,11 +265,12 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
 
     private static final int TRANCHE_SHIFT = 22;
     static final int MAX_TRANCHE = 0x3ff;
+    private static final int TRANCHE_MASK = MAX_TRANCHE << TRANCHE_SHIFT;
 
     static
     {
         Invariants.require(SEQUENCED_PRIORITY == BY_PRIORITY.ordinal() << SEQUENCED_SHIFT);
-        Invariants.require(SEQUENCED_ATOMIC == ATOMIC_CONSEQUENCE.ordinal() << SEQUENCED_SHIFT);
+        Invariants.require(SEQUENCED_ATOMIC == ATOMIC.ordinal() << SEQUENCED_SHIFT);
         Invariants.require(ExecutionContext.ExecutionSequence.values().length <= 3);
     }
 
@@ -463,9 +456,12 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
         {
             try
             {
-                prepareExclusiveMayThrow();
+                boolean run = prepareExclusiveMayThrow();
                 setStateExclusive(State.PREPARED);
-                return true;
+                if (run)
+                    return true;
+                completeExclusiveNoExcept();
+                return false;
             }
             catch (Throwable t)
             {
@@ -475,8 +471,9 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
         }
     }
 
-    void prepareExclusiveMayThrow()
+    boolean prepareExclusiveMayThrow()
     {
+        return true;
     }
 
     /**
@@ -514,7 +511,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
 
     final void rejectAtRuntime(Throwable reject)
     {
-        setRunState(RunState.RUN_FAILED);
+        setRunState(REJECTED);
         reportFailureNoExcept(reject);
     }
 
@@ -581,7 +578,9 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
                 success = false;
                 break;
 
+            case REJECTED:
             case RUN_FAILED:
+            case PARTIALLY_FAILED:
                 if (compareTo(EXECUTED) < 0)
                     setStateExclusive(State.FAILED);
                 success = false;
@@ -606,7 +605,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
                 releaseResourcesExclusiveNoExcept();
                 failExclusive(fail, CANCELLED_UNREGISTERED);
             }
-            else if (compareTo(REGISTERED) >= 0 && compareTo(WAITING_TO_RUN) <= 0)
+            else if (compareTo(REGISTERED) >= 0 && compareTo(WAITING_TO_RUN) <= 0 && !hasIncrementalStarted())
             {
                 failAndCompleteExclusive(fail, newState);
             }
@@ -617,18 +616,6 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
             catch (Throwable t2) { /* unsafe to do anything */ }
             unhandledException(t);
         }
-    }
-
-    /**
-     * Fail a task whose run is in flight, so cannot be completed from here: it will see that it is no longer PREPARED as
-     * it completes, and abandon and release everything then. Only legal for a run that cannot be its task's last, as we
-     * report the failure now and a final run would then complete the callback twice.
-     */
-    final void failWhileRunningExclusive(Throwable fail)
-    {
-        Invariants.require(is(PREPARED) || is(State.INCOMPLETE));
-        setStateExclusive(RUNNING_WHILE_FAILED);
-        reportFailureNoExcept(fail);
     }
 
     void releaseResourcesExclusiveNoExcept() {}
@@ -673,17 +660,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
         setRunState(RunState.RUN_SUCCESS);
     }
 
-    /** whether we have failed or been cancelled, so will never run again and must not keep a queue position */
-    boolean isTerminalFailure()
-    {
-        return isState(State.TERMINAL_FAILURE);
-    }
-
-    /**
-     * whether we have already been failed, so must not be failed again: {@link State#TERMINAL_FAILURE}, or
-     * {@code RUNNING_WHILE_FAILED} - which keeps its positions until its run completes, so is still notified
-     */
-    final boolean hasAlreadyFailed()
+    boolean isFailed()
     {
         return isState(State.FAILURE);
     }
@@ -775,7 +752,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
 
     final void setRunState(RunState state)
     {
-        Invariants.require(isState(RUNNING_OR_EXECUTED) || (state == RUN_FAILED && is(FAILED)));
+        Invariants.require(isState(MAY_SET_RUN_STATE) || (state == RUN_FAILED && is(FAILED)));
         setRunState(state.ordinal());
     }
 
@@ -842,9 +819,8 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
 
     final void setIncrementalStartedExclusive()
     {
-        Invariants.require(isIncremental());
-        if (!isIncrementalFinishing())
-            info = (info & ~INCREMENTAL_MASK) | INCREMENTAL_STARTED;
+        Invariants.require(isIncremental() && !isIncrementalFinishing());
+        info = (info & ~INCREMENTAL_MASK) | INCREMENTAL_STARTED;
     }
 
     final boolean isIncrementalFinishing()
@@ -883,7 +859,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
         return sequenced == sequence.ordinal() << SEQUENCED_SHIFT;
     }
 
-    final boolean isSequencedByPriorityAtomic()
+    final boolean isAtomic()
     {
         return (info & SEQUENCED_MASK) >= SEQUENCED_ATOMIC;
     }
@@ -927,7 +903,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
         // so this is reached by a task that was BY_PRIORITY until now: from that point it holds a fifo position on
         // every entry it claims and keeps it across its runs, putting it ahead of every sorted or bagged claim. An
         // incremental task that holds no lock between runs is not upgraded, and so never reaches this.
-        Invariants.require(isSequencedByPriorityAtomic() || isIncremental());
+        Invariants.require(isAtomic() || isIncremental());
         info |= SEQUENCED_ATOMIC_AND_QUEUED | VALIDATE_CACHE_QUEUED_BIT;
     }
 
@@ -974,9 +950,24 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
         return 0 != (info & IS_CONTINUATION);
     }
 
-    final void setIsContinuation()
+    final void setContinuation()
     {
         info |= IS_CONTINUATION;
+    }
+
+    final boolean hasTrancheToComplete()
+    {
+        return (info & HAS_SETUP_MASK) != 0;
+    }
+
+    final int takeTrancheExclusive()
+    {
+        if (!hasTrancheToComplete())
+            return -1;
+
+        int tranche = info >>> TRANCHE_SHIFT;
+        info &= ~(HAS_SETUP_MASK | TRANCHE_MASK);
+        return tranche;
     }
 
     final boolean hasPreSetup()

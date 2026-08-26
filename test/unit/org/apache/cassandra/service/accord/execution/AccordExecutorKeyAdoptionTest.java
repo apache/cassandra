@@ -287,6 +287,60 @@ public class AccordExecutorKeyAdoptionTest
      * slot. An {@code ExclusiveExecutor} serves one task per store at a time, so a task parked inside its body keeps
      * every other task on that store out of the runner, making these states holdable rather than transient.
      */
+    /**
+     * Adoption refuses a key an update failed to reach: {@code RangeTxnAndKeyScanner.reference} consults the
+     * INCONSISTENT bit and fails its own task rather than taking a reference on it.
+     *
+     * <p>This is the one path that reaches the bit without declaring the key: a range task does not know its keys when
+     * it is submitted, so it cannot be refused at {@code setupExclusive} the way a key-domain task is - it discovers
+     * them through the watcher, mid-flight, and must refuse them there instead. Without that check the task would run
+     * over a state an update never reached, and would do so with no report to anyone.
+     *
+     * <p>The arrangement is the reachable one: the entry is marked while it is still <em>loading</em>, with the scan
+     * live, so {@code Listener::onUpdate} fires from {@code loaded()} and reaches the watcher. Marking it before its
+     * loader was set up would simply refuse the loader, and there would be no notification at all.
+     */
+    @Test
+    public void adoptionRefusesAKeyAnUpdateFailedToReachTest() throws InterruptedException
+    {
+        try (Fixture f = new Fixture())
+        {
+            f.blockLoadOf(IN_FIRST);
+            f.startBlockedLoadOf(IN_FIRST);
+            f.awaitLoading(IN_FIRST);
+
+            // the scan must still be running when the notification arrives, or the watcher has been deregistered
+            f.blockScan();
+            f.submitRangeTask(LoadKeys.INCR);
+            assertTrue("the scan never started", f.scanStarted.await(ARRANGE_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            f.awaitState(Arrival.SCANNING_RANGES);
+
+            f.markInconsistent(IN_FIRST);
+            f.releaseLoad.signal();
+            // the notification is delivered inside loaded(), under the executor lock, so an entry observed LOADED from
+            // another thread (which must take that lock) has already notified: this is the fence for "the watcher has
+            // seen it", and without it releasing the scan below could race the notification
+            f.awaitLoaded(IN_FIRST);
+
+            // let the scan finish, so the task completes either way: if the bit were not consulted it would adopt the
+            // key and run with it, and this test must fail with that, not with a timeout
+            f.releaseScan.signal();
+            // NB a timeout here is itself a failure of the property: with the bit check removed the task adopts the key
+            // and then does not complete, so "never completed" means the refusal did not happen either
+            assertTrue("the range task never completed: it must be failed by the key it may not adopt, and instead took "
+                       + "it (adopted=" + f.holdsRef(IN_FIRST) + ')',
+                       f.done.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+
+            assertTrue("a range task that meets a key an update failed to reach must be failed with "
+                       + "InconsistentEntryException, and was told " + f.failure.get(),
+                       f.failure.get() instanceof InconsistentEntryException);
+            assertTrue("it must not have adopted the key it refused", !f.holdsRef(IN_FIRST));
+            assertTrue("and must not have run with it: " + IN_FIRST, !f.ranWith(IN_FIRST));
+            f.assertNoResidualPositions();
+            f.assertNoInternalFailures();
+        }
+    }
+
     private static boolean holdsRunSlot(Arrival arrival)
     {
         switch (arrival)
@@ -587,8 +641,8 @@ public class AccordExecutorKeyAdoptionTest
 
         void submitRangeTask(LoadKeys loadKeys)
         {
-            ExecutionContext context = ExecutionContext.contextFor(txnId, null, range(),
-                                                                   loadKeys, LoadKeysFor.RECOVERY, "adopting");
+            ExecutionContext context = AccordExecutionTestUtils.idempotent(
+                ExecutionContext.contextFor(txnId, null, range(), loadKeys, LoadKeysFor.RECOVERY, "adopting"));
             Object submitted = store.execute(context, (Consumer<? super SafeCommandStore>) safeStore -> {
                 SafeTask<?> self = ((SaferCommandStore) safeStore).task;
                 task = self;
@@ -633,8 +687,9 @@ public class AccordExecutorKeyAdoptionTest
         void submitTxnIdCompetitor(TxnId txnId, int keyOrdinal)
         {
             competitor = new Waiter();
-            ExecutionContext context = ExecutionContext.contextFor(txnId, null, RoutingKeys.of(key(keyOrdinal)),
-                                                                   LoadKeys.INCR, LoadKeysFor.READ_WRITE, "competitor");
+            ExecutionContext context = AccordExecutionTestUtils.idempotent(
+                ExecutionContext.contextFor(txnId, null, RoutingKeys.of(key(keyOrdinal)),
+                                            LoadKeys.INCR, LoadKeysFor.READ_WRITE, "competitor"));
             competitor.task = (SafeTask<?>) store.execute(context, (Consumer<? super SafeCommandStore>) ignore -> {},
                                                           (success, fail) -> competitor.done.signal());
             awaiting.add(competitor.done);
@@ -749,6 +804,66 @@ public class AccordExecutorKeyAdoptionTest
                 Thread.sleep(1);
             }
             throw new AssertionError("the task never reached " + expected + " (last saw " + last + ')');
+        }
+
+        /**
+         * Start a task that loads {@code ordinal} and return without waiting: the load blocks in the load function
+         * ({@link #blockLoadOf}) until {@link #releaseLoad} is signalled, which is what leaves the entry LOADING while
+         * the test arranges the rest.
+         */
+        void startBlockedLoadOf(int ordinal)
+        {
+            Condition ready = Condition.newOneTimeCondition();
+            awaiting.add(ready);
+            ExecutionContext context = ExecutionContext.contextFor(otherTxnId(), null, RoutingKeys.of(key(ordinal)),
+                                                                  LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "blockedLoad" + ordinal);
+            store.execute(context, (Consumer<? super SafeCommandStore>) ignore -> {}, (success, fail) -> ready.signal());
+        }
+
+        /** poll until {@code ordinal}'s entry exists and is loading, so that marking it cannot race with its creation */
+        void awaitLoading(int ordinal) throws InterruptedException
+        {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(ARRANGE_TIMEOUT_SECONDS);
+            while (System.nanoTime() < deadline)
+            {
+                AtomicReference<Boolean> loading = new AtomicReference<>(false);
+                executor.executeDirectlyWithLock(() -> {
+                    AccordCacheEntry<?, ?, ?> entry = store.cachesUnsafe().commandsForKeys().getUnsafe(key(ordinal));
+                    loading.set(entry != null && entry.isLoading());
+                });
+                if (loading.get())
+                    return;
+                Thread.sleep(1);
+            }
+            throw new AssertionError("key " + ordinal + " never started loading");
+        }
+
+        /** poll until {@code ordinal}'s entry is loaded; see the fence this provides in the adoption-refusal case */
+        void awaitLoaded(int ordinal) throws InterruptedException
+        {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS);
+            while (System.nanoTime() < deadline)
+            {
+                AtomicReference<Boolean> loaded = new AtomicReference<>(false);
+                executor.executeDirectlyWithLock(() -> {
+                    AccordCacheEntry<?, ?, ?> entry = store.cachesUnsafe().commandsForKeys().getUnsafe(key(ordinal));
+                    loaded.set(entry != null && entry.isLoaded());
+                });
+                if (loaded.get())
+                    return;
+                Thread.sleep(1);
+            }
+            throw new AssertionError("key " + ordinal + " never finished loading");
+        }
+
+        /** mark {@code ordinal} as holding state an update failed to reach, as a failed fan-out's key would be */
+        void markInconsistent(int ordinal)
+        {
+            executor.executeDirectlyWithLock(() -> {
+                AccordCacheEntry<?, ?, ?> entry = store.cachesUnsafe().commandsForKeys().getUnsafe(key(ordinal));
+                assertNotNull("key " + ordinal + " is not resident, so it cannot be marked", entry);
+                AccordExecutionTestUtils.setInconsistent(entry);
+            });
         }
 
         /** poll until the task under test has adopted {@code ordinal} */

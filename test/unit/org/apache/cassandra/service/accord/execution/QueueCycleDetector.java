@@ -273,7 +273,7 @@ public class QueueCycleDetector
             }
             sb.append(String.format("  %s [%s, waitingFor=%d/%d, %s, incr=%s, started=%s, fifo=%s, fifoAt=%s]%n      waits for %s%n      because of %s (%s)%n",
                                     describe(task), task.currentState(), task.waitingForKeyCount(), task.waitingForTxnCount(),
-                                    task.isUnsequenced() ? "UNSEQUENCED" : task.isSequencedByPriorityAtomic() ? "ATOMIC" : "BY_PRIORITY",
+                                    task.isUnsequenced() ? "UNSEQUENCED" : task.isAtomic() ? "ATOMIC" : "BY_PRIORITY",
                                     task.isIncremental(), task.hasIncrementalStarted(), task.isCacheQueuedFifo(), task.fifoAt, describe(next),
                                     edge == null ? "?" : String.valueOf(edge.entry.key()),
                                     edge == null ? "?" : edge.why));
@@ -348,7 +348,7 @@ public class QueueCycleDetector
                 ++cfkRefs;
         }
         sb.append(String.format("seq=%s incr=%s started=%s fifo=%s keys=%d cfkRefs=%d refs=%d waits=%d/%d",
-                                task.isUnsequenced() ? "UNSEQUENCED" : task.isSequencedByPriorityAtomic() ? "ATOMIC" : "BY_PRIORITY",
+                                task.isUnsequenced() ? "UNSEQUENCED" : task.isAtomic() ? "ATOMIC" : "BY_PRIORITY",
                                 task.isIncremental(), task.hasIncrementalStarted(), task.isCacheQueuedFifo(),
                                 task.keys, cfkRefs, task.refs.size(), task.waitingForKeyCount(), task.waitingForTxnCount()));
         SafeTask.NonSyncState nonSync = task.nonSync();

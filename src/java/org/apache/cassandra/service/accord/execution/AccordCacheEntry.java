@@ -61,6 +61,7 @@ import static org.apache.cassandra.service.accord.execution.AccordCacheEntryQueu
 import static org.apache.cassandra.service.accord.execution.AccordCacheEntryQueue.RemoveMode.IF_PRESENT;
 import static org.apache.cassandra.service.accord.execution.AccordCacheEntryQueue.RemoveMode.REQUIRE_PRESENT;
 import static org.apache.cassandra.service.accord.execution.AccordCacheEntryQueue.RemoveMode.REQUIRE_RUNNABLE;
+import static org.apache.cassandra.service.accord.execution.AccordCacheEntryQueue.compareFifo;
 import static org.apache.cassandra.service.accord.execution.AccordExecutor.CACHE_QUEUES_ENABLED;
 
 /**
@@ -97,7 +98,7 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
 
         /**
          * Attempted to save but failed. Shouldn't normally happen unless we have a bug in serialization,
-         * or commit log has been stopped.
+         * or joural has been stopped.
          */
         FAILED_TO_SAVE(true, true, SAVING),
 
@@ -112,9 +113,12 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
             MODIFIED.permittedFrom |= 1 << MODIFIED.ordinal();
             MODIFIED.permittedFrom |= 1 << SAVING.ordinal();
             MODIFIED.permittedFrom |= 1 << FAILED_TO_SAVE.ordinal();
+            SAVING.permittedFrom |= 1 << FAILED_TO_SAVE.ordinal();
+            WAITING_TO_SAVE.permittedFrom |= 1 << FAILED_TO_SAVE.ordinal();
             LOADED.permittedFrom |= 1 << SAVING.ordinal();
             LOADED.permittedFrom |= 1 << MODIFIED.ordinal();
             LOADED.permittedFrom |= 1 << WAITING_TO_SAVE.ordinal(); // if nothing to do when saving then we return to LOADED directly
+            LOADED.permittedFrom |= 1 << FAILED_TO_SAVE.ordinal(); // a retried save with nothing to do also returns to LOADED directly
             for (Status status : VALUES)
             {
                 if (status.name().startsWith("UNUSED")) continue;
@@ -159,7 +163,8 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
     static final int GENERATION_SHIFT = 9;
     static final int GENERATION_MASK = 0x7fff;
     static final int AGE_SHIFT = 24;
-    static final int AGE_MASK = 0xff;
+    static final int AGE_MASK = 0x7f;
+    static final int INCONSISTENT = 0x80000000;
 
     static final long EMPTY_SIZE = ObjectSizes.measure(new AccordCacheEntry<>(null, null));
 
@@ -225,6 +230,8 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
     // assumes already queued with priority
     final RunnableStatus moveToFifo(SafeTask<?> task)
     {
+        // the upgrade to a fifo claim happens at a task's first prepare, over every entry it holds - including one marked
+        // while it waited, and including keys it is not batching yet, so this is an arrival for our purposes
         if (queue == task)
             return STILL_RUNNABLE;
 
@@ -360,20 +367,17 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
         return getClass() == SaferCommandsForKey.CommandsForKeyCacheEntry.class;
     }
 
-    final RunnableStatus statusIfPresent(SafeTask<?> task)
+    final RunnableStatus statusOfPresent(SafeTask<?> task)
     {
         if (queue == task)
-        {
             return NEWLY_RUNNABLE;
-        }
 
         if (queue instanceof AccordCacheEntryMiniQueue)
             return miniQueue().head(this) == task ? NEWLY_RUNNABLE : NOT_RUNNABLE;
 
         Invariants.require(queue instanceof AccordCacheEntryQueue);
         AccordCacheEntryQueue q = (AccordCacheEntryQueue) queue;
-        Invariants.paranoid(q.contains(task));
-
+        Invariants.paranoidLinearCost(q.contains(task));
         return q.statusIfPresent(task);
     }
 
@@ -599,8 +603,7 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
         return isFree();
     }
 
-    /** whether no task holds a position here, nor our lock: nothing can be notified of this entry again */
-    final boolean isUnclaimed()
+    final boolean hasNoTasks()
     {
         return queue == null;
     }
@@ -672,7 +675,7 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
         return queue == q;
     }
 
-    /** either a lone SafeTask or an AccordCacheEntryQueue */
+    /** either a lone SafeTask, an AccordCacheEntryMiniQueue or an AccordCacheEntryQueue */
     @VisibleForTesting
     Object unsafeGetQueue()
     {
@@ -686,7 +689,7 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
         setStatusUnsafe(status);
     }
 
-    /** every task holding a position here, in wait order, runnable prefix first. Excludes the lock holder. */
+    /** every task holding a position here, in wait order, runnable prefix first. Excludes a lock (only) holder. */
     @VisibleForTesting
     List<SafeTask<?>> unsafeQueuedTasks()
     {
@@ -799,7 +802,53 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
     final int noEvictMaxAge()
     {
         Invariants.require(isNoEvict());
-        return status >>> AGE_SHIFT;
+        return (status >>> AGE_SHIFT) & AGE_MASK;
+    }
+
+    public final boolean isInconsistent()
+    {
+        return (status & INCONSISTENT) != 0;
+    }
+
+    final void setInconsistent()
+    {
+        status |= INCONSISTENT;
+    }
+
+    final void unsetInconsistent()
+    {
+        status &= ~INCONSISTENT;
+    }
+
+    // a partially failed ATOMIC execution must retain its queue position for any retry that may be scheduled
+    final void reclaimFifoHead(SafeTask<?> task)
+    {
+        Invariants.require(isInconsistent(), "%s may only retain a claim on an entry it has marked inconsistent", task);
+        Invariants.require(isLockedBy(task));
+        Invariants.require(!isLockedHoldingQueue());
+        Invariants.require(isLoaded());
+        Invariants.require(task.isCacheQueuedFifo());
+
+        status = (status & ~LOCKED_MASK) | LOCKED_HOLDING_QUEUE;
+        if (queue != task)
+        {
+            if (queue instanceof AccordCacheEntryMiniQueue)
+            {
+                SafeTask<?> next = miniQueue().next;
+                if (!next.isDone())
+                {
+                    next.onChangeRunnableStatus(this, NOT_RUNNABLE);
+                    next.onInconsistentKeyExclusive(this);
+                }
+            }
+            else
+            {
+                AccordCacheEntryQueue q = (AccordCacheEntryQueue) queue;
+                Invariants.require(!q.hasFifo() || compareFifo(task, q.peekFifo()) < 0);
+                q.addFifo(this, task);
+                q.onInconsistent(this);
+            }
+        }
     }
 
     final boolean isNoEvict()
@@ -889,27 +938,45 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
     // functions as both an identity object, and a register of listeners
     public static class UniqueSave
     {
-        @Nullable List<Runnable> onSuccess;
-        void onSuccess(Runnable onSuccess)
+        @Nullable List<BiConsumer<Void, Throwable>> notify;
+        void register(BiConsumer<Void, Throwable> register)
         {
-            if (this.onSuccess == null)
-                this.onSuccess = new ArrayList<>();
-            this.onSuccess.add(onSuccess);
+            if (notify == null)
+                notify = new ArrayList<>();
+            notify.add(register);
         }
 
-        static void notify(List<Runnable> onSuccess)
+        void unregister(BiConsumer<Void, Throwable> unregister)
         {
-            if (onSuccess != null)
-            {
-                onSuccess.forEach(run -> {
-                    try { run.run(); }
-                    catch (Throwable t)
-                    {
-                        Thread thread = Thread.currentThread();
-                        thread.getUncaughtExceptionHandler().uncaughtException(thread, t);
-                    }
-                });
-            }
+            if (notify != null && notify.remove(unregister) && notify.isEmpty())
+                notify = null;
+        }
+
+        static void notify(@Nullable UniqueSave identity)
+        {
+            notify(identity, null);
+        }
+
+        static void notify(@Nullable UniqueSave identity, @Nullable Throwable failure)
+        {
+            if (identity == null)
+                return;
+
+            // take the register before notifying: a listener must be told exactly once, and the identity outlives a
+            // failed save (FailedToSave retains it for the retry), so a list left in place is notified again on retry
+            List<BiConsumer<Void, Throwable>> onComplete = identity.notify;
+            if (onComplete == null)
+                return;
+
+            identity.notify = null;
+            onComplete.forEach(run -> {
+                try { run.accept(null, failure); }
+                catch (Throwable t)
+                {
+                    Thread thread = Thread.currentThread();
+                    thread.getUncaughtExceptionHandler().uncaughtException(thread, t);
+                }
+            });
         }
     }
 
@@ -1004,7 +1071,7 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
         }
         updateSize(owner.parent());
         // TODO (expected): do we want to cancel in-progress saving?
-        if (cancel != null && cancel.identity.onSuccess == null)
+        if (cancel != null && cancel.identity.notify == null)
             cancel.saving.cancel();
     }
 
@@ -1082,9 +1149,22 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
         if (canSave())
             return save();
 
+        UniqueSave identity;
+        Object state;
+        if (is(FAILED_TO_SAVE))
+        {
+            FailedToSave failedToSave = (FailedToSave)this.state;
+            identity = failedToSave.identity;
+            state = failedToSave.state;
+        }
+        else
+        {
+            identity = new UniqueSave();
+            state = maybeUnwrap();
+        }
+
         setStatus(WAITING_TO_SAVE);
-        UniqueSave identity = new UniqueSave();
-        state = new WaitingToSave<>(identity, state);
+        this.state = new WaitingToSave<>(identity, state);
         return true;
     }
 
@@ -1095,20 +1175,36 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
     @VisibleForTesting
     boolean save()
     {
-        WaitingToSave<K, V> waitingToSave = is(WAITING_TO_SAVE) ? (WaitingToSave<K, V>)state : null;
-        Object state = waitingToSave == null ? this.state : waitingToSave.state;
+        UniqueSave identity;
+        Object state;
+        if (is(WAITING_TO_SAVE))
+        {
+            WaitingToSave waitingToSave = (WaitingToSave)this.state;
+            identity = waitingToSave.identity;
+            state = waitingToSave.state;
+        }
+        else if (is(FAILED_TO_SAVE))
+        {
+            FailedToSave failedToSave = (FailedToSave)this.state;
+            identity = failedToSave.identity;
+            state = failedToSave.state;
+        }
+        else
+        {
+            identity = new UniqueSave();
+            state = this.state;
+        }
+
         V full = isShrunk() ? null : (V)state;
         Object shrunk = isShrunk() ? state : null;
         Runnable save = owner.parent().adapter().save(owner.commandStore, key, full, shrunk);
 
-        UniqueSave identity = waitingToSave == null ? new UniqueSave() : waitingToSave.identity;
         if (null == save) // null mutation -> null Runnable -> no change on disk
         {
             setStatus(LOADED);
-            if (waitingToSave != null)
-                this.state = state;
+            this.state = state;
             owner.parent().parent().enqueueIfEvictable(this);
-            UniqueSave.notify(identity.onSuccess);
+            UniqueSave.notify(identity);
             return false;
         }
         else
@@ -1123,7 +1219,7 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
     boolean saved(Object identity, Throwable fail)
     {
         if (identity instanceof UniqueSave)
-            UniqueSave.notify(((UniqueSave) identity).onSuccess);
+            UniqueSave.notify((UniqueSave) identity, fail);
 
         if (!is(SAVING))
             return false;
@@ -1135,7 +1231,7 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
         if (fail != null)
         {
             setStatus(FAILED_TO_SAVE);
-            state = new FailedToSave(fail, ((Saving)state).state);
+            state = new FailedToSave(fail, saving.identity, saving.state);
             return false;
         }
         else
@@ -1260,10 +1356,12 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
     static class FailedToSave extends Nested
     {
         final Throwable cause;
+        final UniqueSave identity;
 
-        FailedToSave(Throwable cause, Object state)
+        FailedToSave(Throwable cause, UniqueSave identity, Object state)
         {
             this.cause = cause;
+            this.identity = identity;
             this.state = state;
         }
 

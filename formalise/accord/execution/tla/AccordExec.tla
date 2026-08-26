@@ -1,3 +1,19 @@
+(* Licensed to the Apache Software Foundation (ASF) under one
+(* or more contributor license agreements.  See the NOTICE file
+(* distributed with this work for additional information
+(* regarding copyright ownership.  The ASF licenses this file
+(* to you under the Apache License, Version 2.0 (the
+(* "License"); you may not use this file except in compliance
+(* with the License.  You may obtain a copy of the License at
+(*
+(*     http://www.apache.org/licenses/LICENSE-2.0
+(*
+(* Unless required by applicable law or agreed to in writing, software
+(* distributed under the License is distributed on an "AS IS" BASIS,
+(* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+(* See the License for the specific language governing permissions and
+(* limitations under the License.
+
 --------------------------- MODULE AccordExec ---------------------------
 (***************************************************************************)
 (* The wait relation induced by the Accord per-CommandStore execution       *)
@@ -32,19 +48,43 @@
 (* and a consequence is queued on Task.next until its submitter completes.  *)
 (* Hence only HOLD_QUEUE yields a lock edge.                               *)
 (*                                                                         *)
+(* ASSUMES ALSO a FAILURE-FREE execution, which is a real restriction since *)
+(* partial failure landed.  A round that fails an ATOMIC task marks each of *)
+(* its keys inconsistent and calls AccordCacheEntry.reclaimFifoHead, which  *)
+(* converts that round's RELEASE_QUEUE lock into a HOLD_QUEUE claim on a KEY *)
+(* entry and never releases it (nothing consumes OptionalState.retry yet),  *)
+(* so on that path HoldsLock's CmdEntries restriction (O9) is false and the  *)
+(* stall is deliberate rather than a violation of NoStuck.  A key dropped by *)
+(* onFailingKeyExclusive also lowers the threshold - isWaitReady tests       *)
+(* keys - (processed + failed) - and AccordCacheEntryQueue.requireNotFailed  *)
+(* permits a failed in-progress task to keep a position on an inconsistent   *)
+(* entry (R6).  None of that is modelled here; see README, "Deliberately not *)
+(* modelled".                                                              *)
+(*                                                                         *)
 (* The P* constants fall into two groups, and only one of them is a set of   *)
 (* controls.  PAlwaysReady, PModelLoading, PAllowAdoption and PPartialRounds *)
 (* are MODELLING switches: they select which production behaviour is in      *)
 (* scope, and must NOT break anything (profiles baseline-*/ar-* are green).  *)
+(* PPartialRounds is the one over-approximation among them: a round locks    *)
+(* everything it captured, and captures every key it leads up to             *)
+(* NONSYNC_MAX_BATCH_SIZE, which no model instance reaches - so a round      *)
+(* locking a strict subset of what it leads is a behaviour production has    *)
+(* only at 64 keys, admitted here because it costs nothing to allow.         *)
 (* The ctl-* group each disables one RULE, and each must break a property    *)
 (* (see matrix.py's control profiles): an assertion where the implementation *)
 (* has one - PAllowUnseqIncrWithTxn (requireSequencedIfHoldsLocksBetweenRuns)*)
-(* , PAllowFifoAdoption (adoptCachedKeyExclusive's !isCacheQueuedFifo) and   *)
+(* , PAllowFifoAdoption (addCachedKeyExclusive's !isCacheQueuedFifo) and    *)
 (* PAllowDoubleLock (lockExclusive's require(!isLocked())) - and otherwise   *)
 (* the code that establishes it: PUpgradeOnStart removes                    *)
 (* prepareExclusiveMayThrow's moveToFifo block, and PSubmitBeforeRelease the *)
 (* submit-before-complete ordering of Task.completeExclusiveNoExcept, which  *)
 (* nothing in the implementation asserts (see INVARIANTS O13).              *)
+(*                                                                         *)
+(* Two names below are the implementation's older ones: the guard            *)
+(* PAllowFifoAdoption relaxes now lives in addCachedKeyExclusive (it was     *)
+(* adoptCachedKeyExclusive), and the ATOMIC-unit test in preSetup is now     *)
+(* Task.isAtomic() (it was isSequencedByPriorityAtomic()).  Both are renames,*)
+(* not behaviour changes, and are cited by their current names throughout.   *)
 (***************************************************************************)
 EXTENDS Integers, FiniteSets, Sequences
 
@@ -59,14 +99,14 @@ CONSTANTS
     BlockedLimit,            \* NONSYNC_BLOCKED_LIMIT; 0 disables the escape
     PAlwaysReady,            \* when NonSyncState.alwaysReady applies; see AlwaysReady
     PModelLoading,           \* entries may start LOADING and drain later
-    PAllowAdoption,          \* adoptCachedKeyExclusive
+    PAllowAdoption,          \* addCachedKeyExclusive
     PPartialRounds,          \* a round may lock fewer keys than it captured
 
     \* ---- controls: each disables one implementation assertion ------------
     PUpgradeOnStart,         \* O7, prepareExclusiveMayThrow's moveToFifo
     PSubmitBeforeRelease,    \* consequences claim before their submitter releases
     PAllowUnseqIncrWithTxn,  \* requireSequencedIfHoldsLocksBetweenRuns
-    PAllowFifoAdoption,      \* adoptCachedKeyExclusive's !isCacheQueuedFifo
+    PAllowFifoAdoption,      \* addCachedKeyExclusive's !isCacheQueuedFifo
     \* A3, lockExclusive's require(!isLocked()).  CanRun ASSUMES that guard rather than
     \* deriving it, so without this constant Inv_AtMostOneLock cannot fail in any profile
     \* and is a vacuous row; this control is what makes it falsifiable.
@@ -96,7 +136,7 @@ VARIABLES
     cfg,        \* [Tasks -> ConfigDomain], chosen in Init then constant
     phase,      \* [Tasks -> Phases]
     pending,    \* [Tasks -> SUBSET KeyEntries]  declared, unprocessed, position held
-    adopted,    \* [Tasks -> SUBSET KeyEntries]  taken via adoptCachedKeyExclusive
+    adopted,    \* [Tasks -> SUBSET KeyEntries]  taken via addCachedKeyExclusive
     fifoAt,     \* [Tasks -> Nat]  stamped when the task becomes a fifo claim, 0 = never
     plog,       \* [Entries -> Seq(Tasks)]  the order entries were actually processed in
     loading,    \* SUBSET Entries
@@ -155,7 +195,8 @@ HoldsPos(t, e) ==
             \/ (phase[t] = "Started" /\ HoldsAcrossRuns(t))
     ELSE e \in pending[t] /\ phase[t] \in {"Claimed", "Started"}
 
-\* HOLD_QUEUE, the only lock that survives a run
+\* HOLD_QUEUE, the only lock that survives a run (outside the failure path: see the header,
+\* where reclaimFifoHead retains one on a key entry)
 HoldsLock(t, e) ==
     e \in CmdEntries /\ e \in TaskTxns[t] /\ phase[t] = "Started" /\ HoldsAcrossRuns(t)
 
@@ -182,9 +223,11 @@ Prefix(e, X, A, L) ==
              \* Inv_LockLeads asserts this never differs from LeastStamped(f), which is
              \* what addFifo's Invariants.expect reports if it ever does.
              lk == {t \in f : HoldsLock(t, e)}
-             \* UNSEQUENCED was intended to interleave freely, which Q4 does not permit:
-             \* the bag runs only once nothing sequenced is queued.  Setting this shows
-             \* what the intended semantics would cost - see README.
+             \* Q4 makes the bag the last region, so an unsequenced task runs only once
+             \* nothing sequenced is queued - it cannot interleave into an ATOMIC unit.
+             \* Setting this admits the interleaving reading (which the ATOMIC javadoc does
+             \* NOT ask for: it promises atomicity "with respect to other tasks") and shows
+             \* what it would cost - see README, "What an interleaving bag would cost".
              extra == IF PBagInterleaves THEN bag ELSE {}
          IN IF lk # {} THEN {CHOOSE t \in lk : TRUE} \cup extra
             ELSE IF f # {} THEN {LeastStamped(f)} \cup extra
@@ -275,7 +318,7 @@ Setup(t) ==
     \* consequence before its submitter completes - Task.completeExclusiveNoExcept calls
     \* submitConsequencesExclusive(prepareConsequencesExclusive()) ahead of
     \* completeExclusiveMayThrow, unconditionally - but what puts a consequence inside its
-    \* submitter's unit is preSetup's isSequencedByPriorityAtomic() branch: only an ATOMIC
+    \* submitter's unit is preSetup's isAtomic() branch: only an ATOMIC
     \* consequence inherits parent.fifoAt and calls setCacheQueuedFifoExclusive, so only
     \* its claim is ordered by the submitter's stamp.  Run models that claim (newKids).  A
     \* BY_PRIORITY consequence joins the sorted region by compare(), whose placement is
@@ -297,7 +340,7 @@ Setup(t) ==
 Run(t) ==
     /\ CanRun(t)
     /\ LET firstRun == phase[t] # "Started"
-           \* O7: isIncremental() && (holdsLocksBetweenRuns() || isSequencedByPriorityAtomic())
+           \* O7: isIncremental() && (holdsLocksBetweenRuns() || isAtomic())
            \* && !isCacheQueuedFifo().  So an INCR task becomes a fifo claim on its first
            \* run if it will hold a lock across runs, or if it owes an ATOMIC guarantee
            \* and was not already stamped - which is only a top level ATOMIC task, since
@@ -348,14 +391,15 @@ LoadCompletes(e) ==
     /\ loading' = loading \ {e}
     /\ UNCHANGED << cfg, phase, pending, adopted, fifoAt, plog, clock >>
 
-\* adoptCachedKeyExclusive, the only way a reference set grows after setup.  It queues the
-\* adopted key only when the task isState(WAITING) (ADOPT_CACHED_KEY_ADD_TO_QUEUE_STATES);
-\* that is every phase in which a task can adopt here, because Run is atomic, so "Started"
-\* means between rounds - which is WAITING - and there is no mid-run phase to exclude.
+\* addCachedKeyExclusive, the only way a reference set grows after setup.  It queues the
+\* adopted key only when the task isState(WAITING); that is every phase in which a task can
+\* adopt here, because Run is atomic, so "Started" means between rounds - which is WAITING -
+\* and there is no mid-run phase to exclude.
 Adopt(t, e) ==
     /\ PAllowAdoption
     /\ e \in KeyEntries /\ e \notin TaskKeys[t] /\ e \notin adopted[t]
-    \* require(entry.isLoaded())
+    \* require(entry.isLoaded()), and require(!entry.isInconsistent()) - the latter vacuous
+    \* here, since failure is not modelled
     /\ ~(PModelLoading /\ e \in loading)
     /\ phase[t] \in {"Claimed", "Started"}
     /\ PAllowFifoAdoption \/ ~IsFifo(t)
@@ -511,14 +555,14 @@ Inv_AtMostOneLock ==
 (* ISOLATION.  Proved size-independently by AccordAcyclic.lean's `isolated`  *)
 (* from O5, O6, O13 and Q4; what is checked here is that those rules hold.   *)
 (*                                                                          *)
-(* BY_PRIORITY_ATOMIC promises that a task and the consequences              *)
+(* ExecutionSequence.ATOMIC promises that a task and the consequences        *)
 (* it submits ATOMICALLY appear to happen atomically, so on the processing   *)
 (* order of any entry nothing outside that unit may appear between two of    *)
 (* its members.                                                             *)
 (*                                                                          *)
 (* The unit is the chain of ATOMIC SUBMISSIONS, not every descendant, and the *)
 (* boundary is set by which consequences INHERIT THE STAMP, not by when they  *)
-(* are submitted: preSetup's isSequencedByPriorityAtomic() branch gives an     *)
+(* are submitted: preSetup's isAtomic() branch gives an                       *)
 (* ATOMIC consequence its submitter's fifoAt and calls                        *)
 (* setCacheQueuedFifoExclusive, so its claim is ordered by the submitter's     *)
 (* stamp, and O13 has it in place before the submitter releases.  Production  *)

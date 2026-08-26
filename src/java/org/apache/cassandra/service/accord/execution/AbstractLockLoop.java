@@ -171,6 +171,9 @@ abstract class AbstractLockLoop extends AbstractLoop
 
     final void pauseLoop()
     {
+        // paired with resumeLoop's onEnterLock: the loop releases the lock while it waits, so the hold periods either
+        // side of the wait must be reported separately, and the depth must return to where it started
+        if (DEBUG_EXECUTION) debug.onExitLock();
         if (--runningThreads == 0 && tasks == 0)
             notifyQuiescentExclusive();
     }
@@ -284,7 +287,6 @@ abstract class AbstractLockLoop extends AbstractLoop
                                     continue;
                                 }
 
-                                if (DEBUG_EXECUTION) debug.onExitLock();
                                 running = false;
                                 exitLockLoop();
                                 break;
@@ -292,7 +294,6 @@ abstract class AbstractLockLoop extends AbstractLoop
 
                             if (shutdown)
                             {
-                                if (DEBUG_EXECUTION) debug.onExitLock();
                                 running = false;
                                 exitLockLoop();
                                 notifyWorkExclusive();
@@ -301,9 +302,7 @@ abstract class AbstractLockLoop extends AbstractLoop
 
                             running = false;
                             pauseLoop();
-                            if (DEBUG_EXECUTION) debug.onExitLock();
                             awaitExclusive();
-                            if (DEBUG_EXECUTION) debug.onEnterLock();
                             resumeLoop();
                             running = true;
                         }
@@ -318,7 +317,6 @@ abstract class AbstractLockLoop extends AbstractLoop
                     }
                     finally
                     {
-                        if (DEBUG_EXECUTION) debug.onExitLock();
                         unlock(self);
                     }
 

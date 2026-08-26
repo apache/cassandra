@@ -82,6 +82,23 @@ public final class SaferCommand extends SafeCommand implements SaferState<TxnId,
         return new Journal.CommandUpdate(original, current());
     }
 
+    public boolean hasUpdate()
+    {
+        return isSafe() && current != original;
+    }
+
+    public void discardUpdate()
+    {
+        requireSafe();
+        current = original;
+    }
+
+    public void saveUpdate()
+    {
+        requireSafe();
+        original = current;
+    }
+
     public void preExecute(SafeTask<?> owner, LockMode lockMode)
     {
         requireUninitialised();

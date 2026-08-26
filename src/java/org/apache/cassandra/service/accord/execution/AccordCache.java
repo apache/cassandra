@@ -94,6 +94,7 @@ import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.Sta
 import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status.LOADED;
 import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status.MODIFIED;
 import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status.SAVING;
+import static org.apache.cassandra.service.accord.execution.AccordCacheEntry.Status.WAITING_TO_SAVE;
 
 /**
  * Cache for AccordCommand and AccordCommandsForKey, available memory is shared between the two object types.
@@ -310,6 +311,7 @@ public class AccordCache
                 node.save();
             case SAVING: // we can be in evict queue and already be saving if save was requested for durability rather than eviction
             case WAITING_TO_SAVE:
+            case FAILED_TO_SAVE:
                 boolean evict = node.status() == LOADED; // we can become LOADED by calling save()
                 node.unlink();
                 if (evict) evict(node, true);
@@ -317,12 +319,18 @@ public class AccordCache
         }
     }
 
-    public void saveWhenReadyExclusive(AccordCacheEntry<?, ?, ?> entry, Runnable onSuccess)
+    public void saveWhenReadyExclusive(AccordCacheEntry<?, ?, ?> entry, BiConsumer<Void, Throwable> notify)
     {
         if (!entry.is(SAVING) && !entry.saveWhenReady())
-            onSuccess.run();
+            notify.accept(null, null);
         else
-            entry.savingOrWaitingToSave().identity.onSuccess(onSuccess);
+            entry.savingOrWaitingToSave().identity.register(notify);
+    }
+
+    public void unregisterSaveCallback(AccordCacheEntry<?, ?, ?> entry, BiConsumer<Void, Throwable> unregister)
+    {
+        if (entry.is(SAVING) || entry.is(WAITING_TO_SAVE))
+            entry.savingOrWaitingToSave().identity.unregister(unregister);
     }
 
     void enqueueIfEvictable(AccordCacheEntry<?, ?, ?> node)
@@ -337,10 +345,7 @@ public class AccordCache
             logger.trace("Evicting {}", node);
 
         require(node.isUnqueued());
-        // pre-patch this asserted that nothing was waiting on the entry (the waiter list is now the claim queue): an
-        // entry evicted while a claim remained would never notify that task again, i.e. a permanent hang, and nothing
-        // else here looks at the queue. Implied by references() == 0, since every position implies a reference.
-        require(node.isUnclaimed(), "%s still has claims (%s) at eviction", node, node.unsafeGetQueue());
+        require(node.hasNoTasks());
 
         if (updateUnreferenced)
         {
@@ -579,6 +584,7 @@ public class AccordCache
                     V update = safeRef.current();
                     if (update != null)
                         update = adapter.quickShrink(update);
+                    // we must always set, even if the value hasn't appeared to change, since incremental tasks may update "original" on writing to journal
                     node.setExclusive(update);
                     if (update == null)
                     {

@@ -33,7 +33,6 @@ import accord.api.ExclusiveAsyncExecutor;
 import accord.api.ProgressLog;
 import accord.api.Result;
 import accord.api.RoutingKey;
-import accord.api.Scheduler;
 import accord.coordinate.Coordinations;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultLocalListeners.NotifySink;
@@ -69,10 +68,10 @@ import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.concurrent.Condition;
 
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.Mode.RUN_WITHOUT_LOCK;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.apache.cassandra.service.accord.execution.AccordExecutor.Mode.RUN_WITHOUT_LOCK;
 
 /**
  * This test has been authored entirely by Claude.

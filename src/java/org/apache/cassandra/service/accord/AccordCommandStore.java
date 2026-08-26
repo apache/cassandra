@@ -25,8 +25,10 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -79,7 +81,6 @@ import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.ReducingRangeMap;
 import accord.utils.UnhandledEnum;
-import accord.utils.async.AsyncCallbacks;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
@@ -103,6 +104,7 @@ import org.apache.cassandra.service.accord.execution.AccordCache;
 import org.apache.cassandra.service.accord.execution.AccordCacheEntry;
 import org.apache.cassandra.service.accord.execution.AccordExecutor;
 import org.apache.cassandra.service.accord.execution.ExclusiveExecutor;
+import org.apache.cassandra.service.accord.execution.InconsistentEntryException;
 import org.apache.cassandra.service.accord.execution.SafeTask;
 import org.apache.cassandra.service.accord.execution.SaferCommand;
 import org.apache.cassandra.service.accord.execution.SaferCommandStore;
@@ -112,6 +114,7 @@ import org.apache.cassandra.service.accord.execution.Unterminatable;
 import org.apache.cassandra.service.accord.journal.AccordJournal;
 import org.apache.cassandra.service.accord.journal.JournalRangeIndex;
 import org.apache.cassandra.service.accord.txn.TxnRead;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.Condition;
 
 import static accord.api.Journal.CommandUpdate;
@@ -140,6 +143,8 @@ import static org.apache.cassandra.service.accord.serializers.CommandStoreSerial
 public class AccordCommandStore extends CommandStore
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCommandStore.class);
+    /** a stalled durability report repeats on every attempt, so it must be loud but not unbounded */
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
 
     // TODO (required): track this via a PhantomReference, so that if we remove a CommandStore without clearing the caches we can be sure to release them
     public static class Caches
@@ -393,6 +398,30 @@ public class AccordCommandStore extends CommandStore
     }
 
     @Override
+    public <T> AsyncChain<T> continuationChain(ExecutionContext context, Function<? super SafeCommandStore, T> function)
+    {
+        return SafeTask.createContinuation(this, context, function).chain();
+    }
+
+    @Override
+    public <T> Cancellable executeContinuation(ExecutionContext context, Function<? super SafeCommandStore, T> function, BiConsumer<? super T, Throwable> callback)
+    {
+        return SafeTask.createContinuation(this, context, function).submit(callback);
+    }
+
+    @Override
+    public AsyncChain<Void> continuationChain(ExecutionContext context, Consumer<? super SafeCommandStore> consumer)
+    {
+        return SafeTask.createContinuation(this, context, consumer).chain();
+    }
+
+    @Override
+    public Cancellable executeContinuation(ExecutionContext context, Consumer<? super SafeCommandStore> consumer, BiConsumer<? super Void, Throwable> callback)
+    {
+        return SafeTask.createContinuation(this, context, consumer).submit(callback);
+    }
+
+    @Override
     public <T> AsyncChain<T> chain(Callable<T> call)
     {
         return exclusiveExecutor().chain(call);
@@ -411,15 +440,39 @@ public class AccordCommandStore extends CommandStore
     }
 
     @Override
-    public Cancellable execute(AsyncCallbacks.RunOrFail run)
+    public Cancellable execute(Runnable run, BiConsumer<? super Void, Throwable> callback)
     {
-        return exclusiveExecutor().execute(run);
+        return exclusiveExecutor().execute(run, callback);
     }
 
     @Override
-    public Cancellable executeContinuation(AsyncCallbacks.RunOrFail run)
+    public <V> Cancellable execute(Callable<V> call, BiConsumer<? super V, Throwable> callback)
     {
-        return exclusiveExecutor().executeContinuation(run);
+        return exclusiveExecutor().execute(call, callback);
+    }
+
+    @Override
+    public <V> Cancellable flatExecute(Callable<? extends AsyncChain<V>> call, BiConsumer<? super V, Throwable> callback)
+    {
+        return exclusiveExecutor().flatExecute(call, callback);
+    }
+
+    @Override
+    public Cancellable executeContinuation(Runnable run, BiConsumer<? super Void, Throwable> callback)
+    {
+        return exclusiveExecutor().executeContinuation(run, callback);
+    }
+
+    @Override
+    public <V> Cancellable executeContinuation(Callable<V> call, BiConsumer<? super V, Throwable> callback)
+    {
+        return exclusiveExecutor().executeContinuation(call, callback);
+    }
+
+    @Override
+    public <V> Cancellable flatExecuteContinuation(Callable<? extends AsyncChain<V>> call, BiConsumer<? super V, Throwable> callback)
+    {
+        return exclusiveExecutor().flatExecuteContinuation(call, callback);
     }
 
     @Override
@@ -634,13 +687,26 @@ public class AccordCommandStore extends CommandStore
         logger.debug("{} durability: ensuring for {} ({})", this, onCommandStoreDurable, reportId);
         executor().afterSubmittedAndConsequences(() -> {
             logger.debug("{} durability: saving intersecting keys ({})", this, reportId);
-            class Ready extends CountingResult implements Runnable
+            class Ready extends CountingResult implements BiConsumer<Void, Throwable>
             {
                 public Ready() { super(1); }
-                @Override public void run() { decrement(); }
+
+                @Override
+                public void accept(Void success, Throwable failure)
+                {
+                    if (failure == null) decrement();
+                    else tryFailure(failure);
+                }
 
                 void maybeFlush(ExclusiveCaches caches, AccordCacheEntry<RoutingKey, CommandsForKey, ?> e)
                 {
+                    if (e.isInconsistent())
+                    {
+                        noSpamLogger.warn("{} durability: refusing to report {} ({}): a failed update blocks progress for {}",
+                                          AccordCommandStore.this, onCommandStoreDurable, reportId, e.key());
+                        throw new InconsistentEntryException(e.key());
+                    }
+
                     if (e.isModified())
                     {
                         increment();
@@ -652,17 +718,55 @@ public class AccordCommandStore extends CommandStore
             Ready ready = new Ready();
             try (ExclusiveCaches caches = lockCaches())
             {
+                int count = 0;
                 if (ranges == null)
                 {
-                    for (AccordCacheEntry<RoutingKey, CommandsForKey, ?> e : caches.commandsForKeys())
-                        ready.maybeFlush(caches, e);
+                    try
+                    {
+                        for (AccordCacheEntry<RoutingKey, CommandsForKey, ?> e : caches.commandsForKeys())
+                        {
+                            ++count;
+                            ready.maybeFlush(caches, e);
+                        }
+                    }
+                    catch (Throwable t)
+                    {
+                        for (AccordCacheEntry<RoutingKey, CommandsForKey, ?> e : caches.commandsForKeys())
+                        {
+                            if (--count < 0)
+                                break;
+                            try { caches.global().unregisterSaveCallback(e, ready); }
+                            catch (Throwable t2) { t.addSuppressed(t2); }
+                        }
+                        throw t;
+                    }
                 }
                 else
                 {
-                    for (Range range : ranges)
+                    try
                     {
-                        for (RoutingKey k : caches.commandsForKeys().keysBetween(range.start(), range.startInclusive(), range.end(), range.endInclusive()))
-                            ready.maybeFlush(caches, caches.commandsForKeys().getUnsafe(k));
+                        for (Range range : ranges)
+                        {
+                            for (RoutingKey k : caches.commandsForKeys().keysBetween(range.start(), range.startInclusive(), range.end(), range.endInclusive()))
+                            {
+                                ++count;
+                                ready.maybeFlush(caches, caches.commandsForKeys().getUnsafe(k));
+                            }
+                        }
+                    }
+                    catch (Throwable t)
+                    {
+                        outer: for (Range range : ranges)
+                        {
+                            for (RoutingKey k : caches.commandsForKeys().keysBetween(range.start(), range.startInclusive(), range.end(), range.endInclusive()))
+                            {
+                                if (--count < 0)
+                                    break outer;
+                                try { caches.global().unregisterSaveCallback(caches.commandsForKeys().getUnsafe(k), ready); }
+                                catch (Throwable t2) { t.addSuppressed(t2); }
+                            }
+                        }
+                        throw t;
                     }
                 }
             }

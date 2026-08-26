@@ -448,7 +448,7 @@ public class AccordExecutorSignalLoop extends AbstractLoop
             if (self.accordLockedExecutor() != null || lock.isOwner())
             {
                 AccordExecutor locked = self.accordLockedExecutor();
-                int lockDepth = lock.unlockAll(1);
+                int lockDepth = lock.ensureNotOwner();
                 int runnerDepth = self.resetAccordLockedExecutor();
                 try
                 {
@@ -460,7 +460,6 @@ public class AccordExecutorSignalLoop extends AbstractLoop
                 catch (Throwable t2) {}
             }
         }
-
 
         private Task completeAndMaybeGetWork(TaskRunner self, @Nonnull Task complete)
         {

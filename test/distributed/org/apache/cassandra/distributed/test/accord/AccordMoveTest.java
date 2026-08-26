@@ -38,8 +38,8 @@ import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.execution.SaferCommandStore;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.execution.SaferCommandStore;
 
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;

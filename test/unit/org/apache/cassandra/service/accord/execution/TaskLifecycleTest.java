@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import com.google.common.collect.Sets;
+
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -378,7 +379,7 @@ public class TaskLifecycleTest
         AtomicReference<Throwable> failure = new AtomicReference<>();
         CountDownLatch done = CountDownLatch.newCountDownLatch(1);
 
-        env.store.execute(ExecutionContext.unsequencedIncrementalWrite(keys(0, 200), "incremental"),
+        env.store.execute(ExecutionContext.unsequencedIdempotentIncrementalWrite(keys(0, 200), "incremental"),
                           (Consumer<? super SafeCommandStore>) safe -> batches.incrementAndGet(),
                           (r, f) -> { failure.set(f); done.decrement(); });
 
@@ -390,21 +391,28 @@ public class TaskLifecycleTest
     }
 
     /**
-     * An incremental task can be failed while it is parked between batches - this is what a late failure of one of
-     * its (optional) key loads does, see {@link AccordExecutor#onLoadedExclusive}. It must release its cache
-     * references, exactly as it would if it were failed before it first ran.
+     * A started incremental task failed from outside a run - which is what {@code ExclusiveExecutorTask.prepareTask}'s
+     * catch does when {@code prepareExclusiveMayThrow} throws for a fan-out that has already run a round; nothing else
+     * reaches it, as {@code tryFailAndCompleteUnexecutedExclusive} excludes a started task - must still complete: tell
+     * its caller, release its cache references, and leave the executor's accounting empty. The run state it is parked
+     * with is RUN_INCOMPLETE, which {@code completeState} refuses, so a completion that does not record the failure first
+     * reports {@code UnhandledEnum: Invalid RunState} to the agent and masks the real failure.
+     *
+     * <p>This fan-out declares no txnId and is UNSEQUENCED, so it is not ATOMIC: its failure is not witnessed and every
+     * key is released. The ATOMIC counterpart, whose unreached keys are marked and keep their claim, is
+     * {@code AccordFailedKeyTest.startedFanOutFailedOutsideARoundMarksWhatItDidNotReach}.
      */
     @Test
-    public void incrementalTaskFailedBetweenBatchesReleasesResources() throws Throwable
+    public void startedIncrementalTaskFailedOutsideARoundReleasesResources() throws Throwable
     {
         Env env = new Env(RUN_WITHOUT_LOCK);
         AtomicInteger batches = new AtomicInteger();
         AtomicReference<Throwable> failure = new AtomicReference<>();
         CountDownLatch done = CountDownLatch.newCountDownLatch(1);
-        RuntimeException loadFailure = new RuntimeException("simulated load failure");
+        RuntimeException injected = new RuntimeException("simulated prepare failure");
 
         Cancellable submitted =
-            env.store.execute(ExecutionContext.unsequencedIncrementalWrite(keys(1000, 1200), "incremental"),
+            env.store.execute(ExecutionContext.unsequencedIdempotentIncrementalWrite(keys(1000, 1200), "incremental"),
                               (Consumer<? super SafeCommandStore>) safe -> {
                                   batches.incrementAndGet();
                                   try { Thread.sleep(5); } catch (InterruptedException e) { throw new RuntimeException(e); }
@@ -418,17 +426,17 @@ public class TaskLifecycleTest
         {
             env.executor.executeDirectlyWithLock(() -> {
                 Task.State state = task.state();
-                if (batches.get() > 0 && task.isState(Task.State.WAITING))
+                if (task.hasIncrementalStarted() && batches.get() > 0 && task.isState(Task.State.WAITING))
                 {
                     failedIn.set(state);
-                    task.tryFailAndCompleteUnexecutedExclusive(loadFailure, Task.State.FAILED);
+                    task.failAndCompleteExclusive(injected, Task.State.FAILED);
                 }
             });
         }
 
         assertThat(failedIn.get()).describedAs("did not observe the task parked between batches").isNotNull();
         await(done, "task was notified of the failure");
-        assertThat(failure.get()).isSameAs(loadFailure);
+        assertThat(failure.get()).isSameAs(injected);
         int stillHeld = task.refs == null ? 0 : task.refs.size();
         assertThat(stillHeld).describedAs("cache references were not released").isZero();
         env.assertNoAgentExceptions();
@@ -452,7 +460,7 @@ public class TaskLifecycleTest
         {
             AtomicReference<Throwable> failure = new AtomicReference<>();
             CountDownLatch done = CountDownLatch.newCountDownLatch(1);
-            env.store.execute(ExecutionContext.unsequencedIncrementalWrite(keys(2000 + i * 200, 2200 + i * 200), "zeroCapacity" + i),
+            env.store.execute(ExecutionContext.unsequencedIdempotentIncrementalWrite(keys(2000 + i * 200, 2200 + i * 200), "zeroCapacity" + i),
                               noop(), (r, f) -> { failure.set(f); done.decrement(); });
             await(done, "task completed with a zero capacity cache");
             assertThat(failure.get()).isNull();
@@ -496,10 +504,11 @@ public class TaskLifecycleTest
         }
 
         @Override
-        void prepareExclusiveMayThrow()
+        boolean prepareExclusiveMayThrow()
         {
             if (failPrepareWith != null)
                 throw failPrepareWith;
+            return true;
         }
 
         @Override

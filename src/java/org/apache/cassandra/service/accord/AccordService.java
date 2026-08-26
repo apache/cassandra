@@ -504,6 +504,8 @@ public class AccordService implements IAccordService, Shutdownable
             ProtocolModifiers.Configure.setPermitCoordinatorLocalExecution(config.permit_coordinator_local_execution);
         if (config.permit_local_delivery != null)
             ProtocolModifiers.Configure.setPermitLocalDelivery(config.permit_local_delivery);
+        if (config.permit_atomic_incremental_tasks != null)
+            ProtocolModifiers.Configure.setPermitAtomicIncrementalTasks(config.permit_atomic_incremental_tasks);
         if (config.permit_fast_path != null)
             ProtocolModifiers.Configure.setPermittedFastPaths(new FastPaths(Stream.of(FastPath.values()).filter(fp -> fp.compareTo(config.permit_fast_path) <= 0).toArray(FastPath[]::new)));
         if (config.permit_track_stable_medium_path != null)
@@ -1189,10 +1191,14 @@ public class AccordService implements IAccordService, Shutdownable
         return scheduler.isTerminated();
     }
 
-    static class FlushingCacheEntries extends AsyncResults.CountingResult implements Runnable
+    static class FlushingCacheEntries extends AsyncResults.CountingResult implements BiConsumer<Void, Throwable>
     {
         public FlushingCacheEntries() { super(1); }
-        @Override public void run() { decrement(); }
+        @Override public void accept(Void success, Throwable failure)
+        {
+            if (failure == null) decrement();
+            else tryFailure(failure);
+        }
     }
 
     public synchronized Future<Void> flushCaches()

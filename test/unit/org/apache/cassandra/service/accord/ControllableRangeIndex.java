@@ -28,6 +28,7 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
+import accord.api.RoutingKey;
 import accord.local.CommandSummaries.IsDep;
 import accord.local.CommandSummaries.Relevance;
 import accord.local.CommandSummaries.Summary;
@@ -37,7 +38,6 @@ import accord.local.LoadKeysFor;
 import accord.local.MaxDecidedRX;
 import accord.local.RedundantBefore;
 import accord.primitives.Status;
-import accord.api.RoutingKey;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn.Kind.Kinds;
 import accord.primitives.TxnId;

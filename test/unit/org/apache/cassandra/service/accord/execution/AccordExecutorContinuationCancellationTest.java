@@ -70,10 +70,10 @@ import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.concurrent.Condition;
 
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.Mode.RUN_WITHOUT_LOCK;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.apache.cassandra.service.accord.execution.AccordExecutor.Mode.RUN_WITHOUT_LOCK;
 
 /**
  * This test has been authored entirely by Claude.
@@ -183,6 +183,45 @@ public class AccordExecutorContinuationCancellationTest
         assertFalse("the continuation should not have run", innerRan.get());
         assertTrue("expected a CancellationException, found " + innerFailure.get(),
                    innerFailure.get() instanceof CancellationException);
+    }
+
+    /**
+     * Drain must not refuse a continuation. A continuation continues work that has already begun and cannot be
+     * abandoned - that is what distinguishes it from an ordinary submission, and why it is admitted where another task
+     * would be refused - so stopping the store between its submitter completing and the continuation running must not
+     * turn it into a {@code RejectedExecutionException}. Refusing it leaves the work its submitter started with nobody
+     * to finish it: for {@code Commands.applyChain}, the writes have been applied and the continuation is what records
+     * that they were.
+     *
+     * <p>{@code ExclusiveExecutor.reject} rejects every non-{@code SafeTask} outright, and a continuation submitted
+     * through {@code continuationChain}/{@code executeContinuation} is a {@code PlainChain}, so it is refused today.
+     */
+    @Test
+    public void continuationIsNotRefusedAtDrainTest() throws InterruptedException
+    {
+        AtomicBoolean ran = new AtomicBoolean();
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Condition parentDone = Condition.newOneTimeCondition();
+        Condition continuationDone = Condition.newOneTimeCondition();
+
+        withStore(store -> {
+            TxnId txnId = TxnId.fromValues(1, 1, 0, new Id(1));
+            RoutingKey key = new TokenKey(TABLE_ID, DatabaseDescriptor.getPartitioner().getToken(Int32Type.instance.decompose(0)));
+            ExecutionContext parentContext = ExecutionContext.contextFor(txnId, null, RoutingKeys.of(key), LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "parent");
+            store.execute(parentContext, (Consumer<? super SafeCommandStore>) safeStore -> {
+                store.continuationChain(() -> ran.set(true))
+                     .begin((success, fail) -> { failure.set(fail); continuationDone.signal(); });
+                // we hold the run slot, so the store is stopped between our completion and the continuation's run
+                store.exclusiveExecutor().stop();
+            }, (success, fail) -> parentDone.signal());
+
+            await(parentDone, "the parent was never notified");
+            await(continuationDone, "the continuation was never notified");
+        });
+
+        assertTrue("a continuation must be admitted at drain: it completes work that has already begun. It was told "
+                   + failure.get(), ran.get());
+        assertNull("and must not be failed, but was told " + failure.get(), failure.get());
     }
 
     private static class Outcome

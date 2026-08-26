@@ -22,17 +22,18 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
 
 import org.junit.Test;
 
 import accord.local.ExecutionContext;
 import accord.local.ExecutionContext.ExecutionKind;
+import accord.utils.Invariants;
 
 import org.apache.cassandra.service.accord.execution.AccordCacheEntry.RunnableStatus;
 import org.apache.cassandra.service.accord.execution.AccordCacheEntryQueue.RemoveMode;
@@ -486,7 +487,7 @@ public class AccordCacheEntryQueueTest
      * {@code Invariants}, which exposes no accessor; the value is latched at its class initialisation, so this is the
      * same answer as long as nobody rewrites the property mid-run.
      */
-    private static final boolean EXPECT_FAILS = Boolean.parseBoolean(System.getProperty("accord.testing", "false"));
+    private static final boolean EXPECT_FAILS = Invariants.THROW_ON_EXPECTS;
 
     /**
      * O8: the fifo region is ordered by {@code fifoAt}, and the lock holder is pinned at its head - everything behind it

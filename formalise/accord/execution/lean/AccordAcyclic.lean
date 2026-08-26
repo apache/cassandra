@@ -578,12 +578,12 @@ rows marked (argued) are exactly that.
 | `h_ord` | Q1/O1, the sorted region is in `compare()` order | `RankOK`; `validate()`'s Q1 check |
 | `h_no_bag` | Q3, bag members do not wait for one another | `RankOK` (bag members share key 0, so a bag-bag edge shows up as a violation) |
 | `h_blocked` | `CanRun`: a position outside a runnable prefix and a foreign `HOLD_QUEUE` lock are the *only* reasons a LIVE task cannot run (finished tasks are excluded, which is why `Runnable` need not be stretched to cover them) | `waitToRunExclusive`'s paranoid check; TLC against `CanRun` |
-| `h_closed` | R6, a finished or failed task holds no position | `requireNotTerminal`; `postRunExclusive` |
-| `runs_lead` | Q4 + the lock-time re-check: a task processes an entry only while leading it | (argued) `REQUIRE_RUNNABLE`; `probe-bag-interleaves` breaks `Inv_Isolation` |
+| `h_closed` | R6, a finished or failed task holds no position | `requireNotFailed`; `postRunExclusive`.  Relaxed on the failure path: a failed in-progress task may keep a position on an `isInconsistent()` entry, which is the poisoned-key stall and is out of scope here as in the model |
+| `runs_lead` | Q4: a task processes an entry only while leading it | (argued) `REQUIRE_RUNNABLE`, which since the removal of `prepareExclusive`'s per-key re-check applies to every key a round locks, not only to those it re-verified; `AccordNotify`'s `G1_BatchLed`; `probe-bag-interleaves` breaks `Inv_Isolation` |
 | `handover` | O13, a unit's next member claims before its predecessor releases | (argued, not expressible in the model) `ctl-defer-submit` breaks `Inv_Isolation` |
 | `later_is_fifo` | O5, an ATOMIC member is a fifo claim from setup, and the later runner in a unit is a descendant | (argued) `preSetup`'s `setCacheQueuedFifoExclusive` |
 | `unit_interval` | O6 + A3, a unit occupies a contiguous rank interval: members share an inherited stamp, and no foreign stamp can be drawn between two of theirs because only one task runs at a time | (argued) `submitExclusiveMayThrow`'s paranoid `fifoAt` check |
-| `fifo_claim_order` | O5, a fifo claim takes every position it will hold when it is stamped | (argued, not expressible in the model) `ctl-fifo-adopt` breaks `Inv_Isolation`; `adoptCachedKeyExclusive`'s `require` |
+| `fifo_claim_order` | O5, a fifo claim takes every position it will hold when it is stamped | (argued, not expressible in the model) `ctl-fifo-adopt` breaks `Inv_Isolation`; `addCachedKeyExclusive`'s `require` |
 | `fifo_rank_inj` | O1/O6, `createdAt` is unique per store, so distinct fifo claims have distinct ranks | (argued) `SafeTask`'s `createdAt` contract |
 
 That every bundle is *satisfiable*, and non-degenerately so, is §5 - without which
@@ -593,8 +593,8 @@ Two modelling assumptions are not hypotheses because they are built into the sha
 statements, and are worth stating explicitly:
 
 * **one run per task per entry** (`History.ranAt` is a function).  A key belongs to exactly
-  one batch of one round - `prepareExclusive` removes what it locks - so a task processes a
-  given entry once.  If that changed, `isolated` would need a per-run index.
+  one batch of one round - `prepareExclusive` removes what it locks, and asserts
+  `safeState.isUninitialised()` for each key it takes - so a task processes a given entry once.  If that changed, `isolated` would need a per-run index.
 * **the histories are per entry** (`isolated` is about one `History`).  That is not a
   restriction: `Inv_Isolation` is a per-entry property, and the argument never relates two
   entries.

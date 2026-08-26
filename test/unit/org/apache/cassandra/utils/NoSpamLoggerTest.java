@@ -20,7 +20,6 @@ package org.apache.cassandra.utils;
 
 import java.lang.reflect.Field;
 import java.util.ArrayDeque;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Queue;
@@ -594,19 +593,24 @@ public class NoSpamLoggerTest
     /**
      * Pins: {@code NoDuplicateSpamLogStatement}'s duplicate-suppression state is bounded.
      *
-     * Eviction is driven by the very event it is meant to bound: entries are pruned only from inside a call that
+     * Pruning is driven by the very event it is meant to bound: entries are pruned only from inside a call that
      * passes the gate (i.e. only while logging continues), only once per interval, and only if already expired.
      * A burst of distinct identities followed by quiescence therefore used to retain one entry per identity for the
      * lifetime of the process - the number of identities is not bounded by code paths (line numbers x cause chains
      * x suppressed sets), and this statement is fed by AccordAgent's uncaught-exception path, i.e. a storm.
      *
-     * The clock is held still for the whole test, so no entry can expire and the prune loop can remove nothing:
-     * the only thing that can shrink the map is a hard size cap. Two assertions, in order:
-     *  - behavioural (public API only): an identity logged before the cap was reached is loggable again, because a
-     *    bounded map must have forgotten it. Without a cap it stays suppressed for ever.
-     *  - state: the retained entry count does not grow with the number of distinct identities.
+     * The clock is held still for the burst, so no entry can expire and the prune loop can remove nothing: the only
+     * thing that can keep the map bounded is the hard size cap, and the cap is enforced by declining to log a
+     * never-before-seen identity (it is dropped from the map again) rather than by evicting an older one - the older
+     * entries are still inside their interval, so evicting them would defeat the suppression the map is for.
+     * Three assertions, in order:
+     *  - state: the retained entry count does not grow with the number of distinct identities;
+     *  - consistency: every identity that was logged is one the map retained, i.e. the cap declines rather than
+     *    forgets;
+     *  - behavioural (public API only): the cap is not a permanent gag - once the retained entries have expired, the
+     *    next call prunes them and a new identity is logged again.
      *
-     * If the cap is removed, both fail; the first with "still suppressed", the second with the actual map size.
+     * If the cap is removed the first fails with the actual map size (and the second with the number logged).
      */
     @Test
     public void testNoDuplicateSpamLoggerStateIsBounded() throws Exception
@@ -620,21 +624,27 @@ public class NoSpamLoggerTest
         assertLoggedSizes(0, 1, 0);
 
         // a burst of distinct identities, with the clock frozen: nothing expires, so nothing can be pruned
+        int logged = 1;
         for (long id = 1; id <= DISTINCT_IDS; ++id)
-            assertTrue("a never-before-seen identity must always be logged (id " + id + ')', nospam.warn(id, param));
-        assertLoggedSizes(0, 1 + DISTINCT_IDS, 0);
-
-        assertTrue("identity " + firstId + " is still suppressed after " + DISTINCT_IDS + " further distinct " +
-                   "identities were logged with the clock frozen: nothing evicted it, i.e. the suppression state has " +
-                   "no size cap and grows for the lifetime of the process (only expired entries are pruned, and only " +
-                   "on a call that logs)",
-                   nospam.warn(firstId, param));
+            if (nospam.warn(id, param)) ++logged;
 
         int retained = lastLoggedOf(nospam).size();
         assertTrue("lastLogged retained " + retained + " entries after " + (DISTINCT_IDS + 1) + " distinct " +
                    "identities with the clock frozen (expected at most " + RETAINED_BOUND + "): the duplicate-" +
                    "suppression map is unbounded",
                    retained <= RETAINED_BOUND);
+        assertEquals("every identity that was logged must be one the map still holds: the cap declines new " +
+                     "identities, it does not forget identities that are still inside their interval",
+                     logged, retained);
+        assertLoggedSizes(0, logged, 0);
+
+        // once the retained entries have expired the next call prunes them, so the cap does not silence the statement
+        // for the lifetime of the process
+        now += INTERVAL_NANOS;
+        assertTrue("a new identity must be logged again once the retained entries have expired: the cap is a bound on " +
+                   "the state, not a permanent gag",
+                   nospam.warn(DISTINCT_IDS + 1L, param));
+        assertTrue(lastLoggedOf(nospam).size() <= RETAINED_BOUND);
     }
 
     /**

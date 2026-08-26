@@ -577,7 +577,9 @@ public class CommandsForKeySerializerTest
             for (int i = 0; i < info.length; i++)
             {
                 InternalStatus status = rs.pick(statuses);
-                info[i] = TxnInfo.create(ids[i], status, true, ids[i], TxnId.NO_TXNIDS, Ballot.ZERO);
+                // mayExecute is not free to choose: CommandsForKey derives its indexes from it and then asserts them
+                // against mayExecute(bounds, txnId) (see checkIntegrity), so it must agree with the bounds we build with
+                info[i] = TxnInfo.create(ids[i], status, CommandsForKey.mayExecute(NO_BOUNDS_INFO, ids[i]), ids[i], TxnId.NO_TXNIDS, Ballot.ZERO);
             }
 
             Gen<Unmanaged.Pending> pendingGen = Gens.enums().allMixedDistribution(Unmanaged.Pending.class).next(rs);
@@ -596,7 +598,7 @@ public class CommandsForKeySerializerTest
                 {
                     int idx = Arrays.binarySearch(ids, u.txnId);
                     if (idx < 0)
-                        missing.add(TxnInfo.create(u.txnId, InternalStatus.TRANSITIVE, true, u.txnId, Ballot.ZERO));
+                        missing.add(TxnInfo.create(u.txnId, InternalStatus.TRANSITIVE, CommandsForKey.mayExecute(NO_BOUNDS_INFO, u.txnId), u.txnId, Ballot.ZERO));
                 }
                 if (!missing.isEmpty())
                 {
@@ -607,7 +609,9 @@ public class CommandsForKeySerializerTest
             else unmanaged = CommandsForKey.NO_PENDING_UNMANAGED;
 
             long maxUniqueHlc = rs.nextLong(0, Long.MAX_VALUE);
-            CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk, info, maxUniqueHlc, unmanaged, TxnId.NONE, NO_BOUNDS_INFO, true);
+            // expectUpToDate=false, as Serialize.fromBytes does: the generated unmanaged entries are arbitrary, so we
+            // cannot promise that every satisfied wait has already been notified (see CommandsForKey.checkIntegrity)
+            CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk, info, maxUniqueHlc, unmanaged, TxnId.NONE, NO_BOUNDS_INFO, false);
 
             ByteBuffer buffer = Serialize.toBytesWithoutKey(expected);
             CommandsForKey roundTrip = Serialize.fromBytes(pk, buffer);
@@ -648,6 +652,8 @@ public class CommandsForKeySerializerTest
         @Override public boolean inStore() { return true; }
         @Override public AsyncChain<Void> chain(ExecutionContext context, Consumer<? super SafeCommandStore> consumer) { throw new UnsupportedOperationException();}
         @Override public <T> AsyncChain<T> chain(ExecutionContext context, Function<? super SafeCommandStore, T> apply) { throw new UnsupportedOperationException(); }
+        @Override public AsyncChain<Void> continuationChain(ExecutionContext context, Consumer<? super SafeCommandStore> consumer) { throw new UnsupportedOperationException();}
+        @Override public <T> AsyncChain<T> continuationChain(ExecutionContext context, Function<? super SafeCommandStore, T> apply) { throw new UnsupportedOperationException(); }
 
         @Override public Journal.Replayer replayer(AbstractReplayer.Mode mode) { throw new UnsupportedOperationException(); }
 
