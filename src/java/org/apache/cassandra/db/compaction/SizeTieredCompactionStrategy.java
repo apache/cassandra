@@ -320,6 +320,11 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         return uncheckedOptions;
     }
 
+    public static Map<String, String> normalizeOptions(Map<String, String> options)
+    {
+        return SizeTieredCompactionStrategyOptions.normalizeOptions(options);
+    }
+
     @Override
     public synchronized void addSSTable(SSTableReader added)
     {

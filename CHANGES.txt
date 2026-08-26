@@ -1,4 +1,5 @@
 5.0.10
+ * Accept data storage units in the min_sstable_size compaction option of STCS, LCS and TWCS (CASSANDRA-21617)
  * Force repair should ignore min_repair_interval (CASSANDRA-21552)
  * Render SubnetGroups as JSON in system_views.settings (CASSANDRA-21579)
  * Avoid rebuilding per-SSTable SAI components unless missing or corrupted (CASSANDRA-21515)
