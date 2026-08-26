@@ -233,8 +233,9 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         if (returningSelect != null)
             returningSelect.select.authorize(state);
 
+        ModificationStatement.TableAuthorizationState authorizationState = new ModificationStatement.TableAuthorizationState();
         for (ModificationStatement update : updates)
-            update.authorize(state);
+            update.authorize(state, authorizationState);
     }
 
     @Override

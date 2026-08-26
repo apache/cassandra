@@ -114,6 +114,7 @@ import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.service.ClientState;
@@ -380,26 +381,58 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     @Override
     public void authorize(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
-        state.ensureTablePermission(metadata, Permission.MODIFY);
+        authorize(state, null);
+    }
+
+    void authorize(ClientState state, TableAuthorizationState tableAuthorizationState) throws InvalidRequestException, UnauthorizedException
+    {
+        boolean tableChanged = tableAuthorizationState == null || !metadata.id.equals(tableAuthorizationState.tableId);
+        if (tableChanged)
+        {
+            state.ensureTablePermission(metadata, Permission.MODIFY);
+
+            if (tableAuthorizationState != null)
+            {
+                tableAuthorizationState.tableId = metadata.id;
+                tableAuthorizationState.selectAuthorized = false;
+            }
+        }
 
         // CAS updates can be used to simulate a SELECT query, so should require Permission.SELECT as well.
         if (hasConditions())
-            state.ensureTablePermission(metadata, Permission.SELECT);
+            ensureSelectPermission(state, tableAuthorizationState);
 
-        // MV updates need to get the current state from the table, and might update the views
-        // Require Permission.SELECT on the base table, and Permission.MODIFY on the views
-        Iterator<ViewMetadata> views = View.findAll(keyspace(), table()).iterator();
-        if (views.hasNext())
+        if (tableChanged)
         {
-            state.ensureTablePermission(metadata, Permission.SELECT);
-            do
+            // MV updates need to get the current state from the table, and might update the views
+            // Require Permission.SELECT on the base table, and Permission.MODIFY on the views
+            Iterator<ViewMetadata> views = View.findAll(keyspace(), table()).iterator();
+            if (views.hasNext())
             {
-                state.ensureTablePermission(views.next().metadata, Permission.MODIFY);
-            } while (views.hasNext());
+                ensureSelectPermission(state, tableAuthorizationState);
+                do
+                {
+                    state.ensureTablePermission(views.next().metadata, Permission.MODIFY);
+                } while (views.hasNext());
+            }
         }
 
         for (Function function : getFunctions())
             state.ensurePermission(Permission.EXECUTE, function);
+    }
+
+    private void ensureSelectPermission(ClientState state, TableAuthorizationState tableAuthorizationState)
+    {
+        if (tableAuthorizationState == null || !tableAuthorizationState.selectAuthorized)
+            state.ensureTablePermission(metadata, Permission.SELECT);
+        if (tableAuthorizationState != null)
+            tableAuthorizationState.selectAuthorized = true;
+    }
+
+    static class TableAuthorizationState
+    {
+        private TableId tableId;
+        private boolean selectAuthorized;
     }
 
     public void validate(ClientState state) throws InvalidRequestException
