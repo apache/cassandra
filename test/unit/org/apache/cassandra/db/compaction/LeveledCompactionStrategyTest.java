@@ -612,8 +612,8 @@ public class LeveledCompactionStrategyTest
         int lowerBound = 10;
         while (i < 10000)
         {
-            int start = lowerBound + 1 + r.nextInt(30);
-            int end = start + 10 + r.nextInt(30);
+            int start = lowerBound + 1 + r.nextInt(15);
+            int end = start + r.nextInt(15);
             lowerBound = end;
             SSTableReader l1sstable = MockSchema.sstableWithLevel(i, start, end, 1, cfs);
             sstables.add(l1sstable);
@@ -627,7 +627,7 @@ public class LeveledCompactionStrategyTest
         Token newStart;
         Token newEnd;
 
-        int kind = r.nextInt(7);
+        int kind = r.nextInt(8);
 
         switch (kind)
         {
@@ -657,13 +657,13 @@ public class LeveledCompactionStrategyTest
                 break;
             // Superset of entire SSTable
             case 4:
-                sstableinL1 = sstables.get(0);
+                sstableinL1 = sstables.get(r.nextInt(sstables.size()));
                 newStart = sstableinL1.getFirst().getToken().decreaseSlightly();
                 newEnd = sstableinL1.getLast().getToken().increaseSlightly();
                 break;
             // Exact SSTable match
             case 5:
-                sstableinL1 = sstables.get(0);
+                sstableinL1 = sstables.get(r.nextInt(sstables.size()));
                 newStart = sstableinL1.getFirst().getToken();
                 newEnd = sstableinL1.getLast().getToken();
                 break;
@@ -671,6 +671,12 @@ public class LeveledCompactionStrategyTest
             case 6:
                 newStart = sstables.get(0).getFirst().getToken();
                 newEnd = sstables.get(sstables.size() - 1).getLast().getToken();
+                break;
+            // Single token SSTables
+            case 7:
+                sstableinL1 = sstables.get(r.nextInt(sstables.size()));
+                newStart = sstableinL1.getFirst().getToken();
+                newEnd = sstableinL1.getFirst().getToken();
                 break;
             default:
                 throw new IllegalStateException("Unhandled kind " + kind);
