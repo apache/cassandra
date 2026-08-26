@@ -33,8 +33,8 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.ReplicationParams;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
@@ -90,10 +90,10 @@ public class DataPlacement
                                               .build());
     }
 
-    public PlacementDeltas.PlacementDelta difference(ClusterMetadata metadata, DataPlacement next)
+    public PlacementDeltas.PlacementDelta difference(Directory directory, DataPlacement next)
     {
-        return new PlacementDeltas.PlacementDelta(reads.difference(metadata, next.reads),
-                                                  writes.difference(metadata, next.writes));
+        return new PlacementDeltas.PlacementDelta(reads.difference(directory, next.reads),
+                                                  writes.difference(directory, next.writes));
     }
 
     public DataPlacement splitRangesForPlacement(List<Token> tokens)

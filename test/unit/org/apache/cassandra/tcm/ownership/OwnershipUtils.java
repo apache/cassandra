@@ -66,7 +66,7 @@ public class OwnershipUtils
 
         PlacementDeltas.Builder deltas = PlacementDeltas.builder(first.size());
         first.asMap().forEach((params, placement) -> {
-            deltas.put(params, placement.difference(metadata, second.get(params)));
+            deltas.put(params, placement.difference(metadata.directory, second.get(params)));
         });
         return deltas.build();
     }

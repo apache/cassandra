@@ -318,7 +318,7 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
             if (!Objects.equals(lv, rv))
             {
                 logger.warn("Values for key {} differ: {} != {}", k, lv, rv);
-                logger.warn("Difference: {}", lv.difference(ClusterMetadata.current(), rv));
+                logger.warn("Difference: {}", lv.difference(ClusterMetadata.current().directory, rv));
             }
         }
         for (ReplicationParams k : Sets.difference(l.keySet(), r.keySet()))

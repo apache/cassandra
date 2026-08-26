@@ -54,6 +54,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.serialization.PartitionerAwareMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -166,14 +167,14 @@ public class ReplicaGroups
         return forRange(token).forToken(token);
     }
 
-    public Delta difference(ClusterMetadata metadata, ReplicaGroups next)
+    public Delta difference(Directory directory, ReplicaGroups next)
     {
-        Multimap<NodeId, ReplicaNode> oldMap = this.byNodeId(metadata);
-        Multimap<NodeId, ReplicaNode> newMap = next.byNodeId(metadata);
+        Multimap<NodeId, ReplicaNode> oldMap = this.byNodeId(directory);
+        Multimap<NodeId, ReplicaNode> newMap = next.byNodeId(directory);
         return new NodeIdDelta(diff(oldMap, newMap), diff(newMap, oldMap));
     }
 
-    private Multimap<NodeId, ReplicaNode> byNodeId(ClusterMetadata metadata)
+    private Multimap<NodeId, ReplicaNode> byNodeId(Directory directory)
     {
         ImmutableMultimap.Builder<NodeId, ReplicaNode> builder = ImmutableMultimap.builder();
         for (int i = 0; i < endpoints.size(); i++)
@@ -182,9 +183,9 @@ public class ReplicaGroups
             for (Map.Entry<InetAddressAndPort, Replica> entry : replica.entrySet())
             {
                 InetAddressAndPort endpoint = entry.getKey();
-                NodeId nodeId = metadata.directory.peerId(endpoint);
+                NodeId nodeId = directory.peerId(endpoint);
                 if (nodeId == null)
-                    throw new IllegalStateException(String.format("Unknown endpoint %s in %s at %s", endpoint, metadata.directory, metadata.epoch));
+                    throw new IllegalStateException(String.format("Unknown endpoint %s in %s at %s", endpoint, directory, directory.lastModified()));
                 builder.put(nodeId, new ReplicaNode(nodeId, entry.getValue().range(), entry.getValue().isFull()));
             }
         }
