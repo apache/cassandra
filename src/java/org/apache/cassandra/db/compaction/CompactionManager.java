@@ -2121,7 +2121,14 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             }
         };
 
-        return secondaryIndexExecutor.submitIfRunning(runnable, "index build");
+        Future<?> future = secondaryIndexExecutor.submitIfRunning(runnable, "index build");
+        if (future.isCancelled())
+        {
+            // Submission was rejected (e.g. the executor is shutting down), so build() will not run. Let the builder
+            // release any resources it reserved at construction time (e.g. the SAI rebuild status, CASSANDRA-21520).
+            builder.onNotExecuted();
+        }
+        return future;
     }
 
     /**
