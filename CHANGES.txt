@@ -15,6 +15,7 @@
  * Make cqlsh prompt to reset to no keyspace set by USE after dropping that keyspace (CASSANDRA-21548)
  * Implement CMS rediscovery and recovery protocol (CASSANDRA-20476)
 Merged from 5.0:
+ * Force repair should ignore min_repair_interval (CASSANDRA-21552)
  * Render SubnetGroups as JSON in system_views.settings (CASSANDRA-21579)
  * Avoid rebuilding per-SSTable SAI components unless missing or corrupted (CASSANDRA-21515)
  * Propagate trickle_fsync settings to compressed SSTable writers (CASSANDRA-21487)

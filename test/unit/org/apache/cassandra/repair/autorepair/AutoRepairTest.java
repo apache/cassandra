@@ -172,6 +172,143 @@ public class AutoRepairTest extends CQLTester
     }
 
     @Test
+    public void testForceRepairBypassesMinRepairInterval()
+    {
+        RepairType repairType = RepairType.FULL;
+        UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
+        long now = System.currentTimeMillis();
+
+        // Truncate history table to start fresh
+        QueryProcessor.executeInternal(String.format(
+            "TRUNCATE %s.%s",
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
+
+        // Seed auto_repair_history directly with a recently completed repair and force_repair=true
+        QueryProcessor.executeInternal(String.format(
+            "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, repair_finish_ts, force_repair) VALUES (?, ?, ?, ?, true)",
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY),
+            repairType.toString(), myId, new java.util.Date(now - 1000), new java.util.Date(now));
+
+        // Verify force repair is detected
+        assertTrue(AutoRepairUtils.isForceRepairSetForNode(repairType, myId));
+
+        AutoRepairConfig config = DatabaseDescriptor.getAutoRepairConfig();
+        AutoRepairState repairState = RepairType.getAutoRepairState(repairType, config);
+
+        // Even though min_repair_interval hasn't passed, shouldSkipRepairDueToInterval returns false
+        // because force repair is set
+        assertFalse(AutoRepair.instance.shouldSkipRepairDueToInterval(repairType, repairState, config, myId));
+    }
+
+    @Test
+    public void testShouldSkipRepairDueToIntervalWithoutForceRepair()
+    {
+        RepairType repairType = RepairType.FULL;
+        UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
+        long now = System.currentTimeMillis();
+
+        // Truncate history table to start fresh
+        QueryProcessor.executeInternal(String.format(
+            "TRUNCATE %s.%s",
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
+
+        // Seed auto_repair_history directly with a recently completed repair and force_repair=false
+        QueryProcessor.executeInternal(String.format(
+            "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, repair_finish_ts, force_repair) VALUES (?, ?, ?, ?, false)",
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY),
+            repairType.toString(), myId, new java.util.Date(now - 1000), new java.util.Date(now));
+
+        // Verify force repair is NOT set
+        assertFalse(AutoRepairUtils.isForceRepairSetForNode(repairType, myId));
+
+        AutoRepairConfig config = DatabaseDescriptor.getAutoRepairConfig();
+        AutoRepairState repairState = RepairType.getAutoRepairState(repairType, config);
+
+        // Without force repair, should skip because min_repair_interval hasn't passed
+        assertTrue(AutoRepair.instance.shouldSkipRepairDueToInterval(repairType, repairState, config, myId));
+    }
+
+    @Test
+    public void testIsForceRepairSetForNodeReturnsFalseWhenNotSet()
+    {
+        RepairType repairType = RepairType.FULL;
+        UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
+        long now = System.currentTimeMillis();
+
+        // Truncate history table to start fresh
+        QueryProcessor.executeInternal(String.format(
+            "TRUNCATE %s.%s",
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
+
+        // Seed auto_repair_history directly without setting force_repair
+        QueryProcessor.executeInternal(String.format(
+            "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, repair_finish_ts) VALUES (?, ?, ?, ?)",
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY),
+            repairType.toString(), myId, new java.util.Date(now - 1000), new java.util.Date(now));
+
+        // Verify force repair is not set
+        assertFalse(AutoRepairUtils.isForceRepairSetForNode(repairType, myId));
+    }
+
+    @Test
+    public void testIsForceRepairSetForNodeReturnsFalseWhenNoHistory()
+    {
+        RepairType repairType = RepairType.FULL;
+        UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
+
+        // Truncate history table to start fresh
+        QueryProcessor.executeInternal(String.format(
+            "TRUNCATE %s.%s",
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
+
+        // Verify force repair is not set when no history exists
+        assertFalse(AutoRepairUtils.isForceRepairSetForNode(repairType, myId));
+    }
+
+    @Test
+    public void testForceRepairBypassesMinRepairIntervalEndToEnd()
+    {
+        RepairType repairType = RepairType.FULL;
+        UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
+        long now = System.currentTimeMillis();
+
+        DurationSpec.LongSecondsBound repairTaskMinDuration = DatabaseDescriptor.getAutoRepairConfig().getRepairTaskMinDuration();
+        // Ensure repair tasks don't artificially sleep
+        DatabaseDescriptor.getAutoRepairConfig().setRepairTaskMinDuration("0s");
+
+        // Truncate history table to start fresh
+        QueryProcessor.executeInternal(String.format(
+            "TRUNCATE %s.%s",
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
+
+        // Insert a recently completed repair so tooSoonToRunRepair would normally block
+        QueryProcessor.executeInternal(String.format(
+            "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, repair_finish_ts, force_repair) VALUES (?, ?, ?, ?, true)",
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY),
+            repairType.toString(), myId, new java.util.Date(now - 1000), new java.util.Date(now));
+
+        AutoRepairConfig config = DatabaseDescriptor.getAutoRepairConfig();
+        AutoRepairState repairState = RepairType.getAutoRepairState(repairType, config);
+
+        // Record the finish time before repair runs
+        long finishTimeBefore = AutoRepairUtils.getLastRepairFinishTimeForNode(repairType, myId);
+        assertFalse(AutoRepair.instance.shouldSkipRepairDueToInterval(repairType, repairState, config, myId));
+
+        // Invoke the full repair path; with force repair set, the interval check is bypassed
+        AutoRepair.instance.repair(repairType);
+
+        // Verify that repair_finish_ts has advanced, proving repair actually ran
+        long finishTimeAfter = AutoRepairUtils.getLastRepairFinishTimeForNode(repairType, myId);
+        assertTrue("repair_finish_ts should advance after force repair runs, but was "
+                   + finishTimeBefore + " -> " + finishTimeAfter,
+                   finishTimeAfter > finishTimeBefore);
+        assertTrue(AutoRepair.instance.shouldSkipRepairDueToInterval(repairType, repairState, config, myId));
+
+        // Restore original value
+        DatabaseDescriptor.getAutoRepairConfig().setRepairTaskMinDuration(repairTaskMinDuration.toString());
+    }
+
+    @Test
     public void testTooSoonToRunRepairAllowsResumeOfInProgressRepair()
     {
         RepairType repairType = RepairType.FULL;
