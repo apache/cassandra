@@ -90,6 +90,9 @@ public class CassandraStreamManager implements TableStreamManager
     public Collection<OutgoingStream> createOutgoingStreams(StreamSession session, RangesAtEndpoint replicas, TimeUUID pendingRepair, PreviewKind previewKind)
     {
         Refs<SSTableReader> refs = new Refs<>();
+        // Declared outside the try so the catch can release the SSTable streaming status reserved by any
+        // stream already constructed before a failure.
+        List<OutgoingStream> streams = new ArrayList<>();
         try
         {
             final List<Range<PartitionPosition>> keyRanges = new ArrayList<>(replicas.size());
@@ -141,18 +144,17 @@ public class CassandraStreamManager implements TableStreamManager
             List<Range<Token>> normalizedFullRanges = Range.normalize(replicas.onlyFull().ranges());
             List<Range<Token>> normalizedAllRanges = Range.normalize(replicas.ranges());
             //Create outgoing file streams for ranges possibly skipping repaired ranges in sstables
-            List<OutgoingStream> streams = new ArrayList<>(refs.size());
-            for (SSTableReader sstable : refs)
+            for (SSTableReader sstable : new ArrayList<>(refs))
             {
                 List<Range<Token>> ranges = sstable.isRepaired() ? normalizedFullRanges : normalizedAllRanges;
                 List<SSTableReader.PartitionPositionBounds> sections = sstable.getPositionsForRanges(ranges);
 
-                Ref<SSTableReader> ref = refs.get(sstable);
                 if (sections.isEmpty())
                 {
-                    ref.release();
+                    refs.release(sstable);
                     continue;
                 }
+                Ref<SSTableReader> ref = refs.get(sstable);
                 streams.add(new CassandraOutgoingFile(session.getStreamOperation(), ref, sections, ranges,
                                                       sstable.estimatedKeysForRanges(ranges)));
             }
@@ -161,6 +163,9 @@ public class CassandraStreamManager implements TableStreamManager
         }
         catch (Throwable t)
         {
+            // Release the SSTable streaming status held by any already-constructed stream, so a planning failure cannot leak it.
+            for (OutgoingStream stream : streams)
+                stream.releaseStreamRebuildStatus();
             refs.release();
             throw t;
         }
