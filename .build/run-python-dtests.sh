@@ -196,7 +196,9 @@ fi
 SPLIT_TESTS="${SPLIT_TESTS//$'\n'/ }"
 
 pytest_results_file="${DIST_DIR}/test/output/nosetests.xml"
-pytest_opts="-vv --log-cli-level=DEBUG --junit-xml=${pytest_results_file} --junit-prefix=${DTEST_TARGET} -s"
+# INFO (not DEBUG): the driver's reconnect loop logs full tracebacks at DEBUG, which
+#  floods the Jenkins console (tens of MB per cell) and the controller's in-memory step log
+pytest_opts="-vv --log-cli-level=INFO --junit-xml=${pytest_results_file} --junit-prefix=${DTEST_TARGET} -s"
 
 echo ""
 echo "pytest ${pytest_opts} --cassandra-dir=${CASSANDRA_DIR} --keep-failed-test-dir ${DTEST_ARGS} ${SPLIT_TESTS}" 
