@@ -61,6 +61,7 @@ Merged from 6.0:
  * Avoid megamorphic calls when serializing and deserializing fixed-length values (CASSANDRA-21536)
  * Avoid megamorphic calls for Cell.timestamp/ttl/path/localDeletionTimeAsUnsignedInt methods (CASSANDRA-21526)
 Merged from 5.0:
+ * Isolate SAI index rebuilds from ZCS (CASSANDRA-21520)
  * Bound and chunk the BTI partition index preload (CASSANDRA-21632)
  * Fix compressed scan read-ahead buffer Block leak and chunk-cache pollution by scans (CASSANDRA-21671)
  * A read on a replica that does not know the index yet fails with a NullPointerException (CASSANDRA-21658)
