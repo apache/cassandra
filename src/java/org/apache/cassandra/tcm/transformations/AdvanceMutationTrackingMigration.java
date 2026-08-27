@@ -94,10 +94,7 @@ public class AdvanceMutationTrackingMigration implements Transformation
         KeyspaceMigrationInfo ksInfo = prev.mutationTrackingMigrationState.getKeyspaceInfo(keyspace);
 
         if (ksInfo == null)
-        {
-            logger.warn("Attempted to advance mutation tracking migration for keyspace {} table {} which is not migrating", keyspace, tableId);
             return new Rejected(INVALID, String.format("Keyspace %s is not migrating", keyspace));
-        }
 
         Transformer transformer = prev.transformer();
 
@@ -105,8 +102,11 @@ public class AdvanceMutationTrackingMigration implements Transformation
         MutationTrackingMigrationState newState = prev.mutationTrackingMigrationState
             .withRangesRepairedForTable(keyspace, tableId, repairedRanges, transformer.epoch());
 
-        logger.info("Advanced mutation tracking migration for keyspace {}, table {}: {} ranges repaired",
-                   keyspace, tableId, repairedRanges.size());
+        if (newState == prev.mutationTrackingMigrationState)
+        {
+            return new Rejected(INVALID, String.format("Keyspace %s table %s has no pending ranges intersecting %s",
+                                                       keyspace, tableId, repairedRanges));
+        }
 
         return Transformation.success(
             transformer.with(newState),
