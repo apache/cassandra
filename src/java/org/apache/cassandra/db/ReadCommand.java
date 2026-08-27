@@ -448,19 +448,6 @@ public abstract class ReadCommand extends AbstractReadQuery
         // ends equal, and there are no dangling RT bound in any partition.
         iterator = RTBoundValidator.validate(iterator, Stage.PROCESSED, true);
 
-        if (!metadata().droppedColumns.isEmpty())
-        {
-            ColumnFilter selection = columnFilter();
-            iterator = Transformation.apply(iterator, new Transformation<UnfilteredRowIterator>()
-            {
-                @Override
-                protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
-                {
-                    return ReadCommand.this.clusteringIndexFilter(partition.partitionKey()).filterNotIndexed(selection, partition);
-                }
-            });
-        }
-
         return isDigestQuery()
                ? ReadResponse.createDigestResponse(iterator, this)
                : ReadResponse.createDataResponse(iterator, this, rdi);
@@ -574,6 +561,19 @@ public abstract class ReadCommand extends AbstractReadQuery
                  * processing we do on it).
                  */
                 iterator = filter.filter(iterator, nowInSec());
+
+                if (!metadata().droppedColumns.isEmpty())
+                {
+                    ColumnFilter selection = columnFilter();
+                    iterator = Transformation.apply(iterator, new Transformation<UnfilteredRowIterator>()
+                    {
+                        @Override
+                        protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
+                        {
+                            return ReadCommand.this.clusteringIndexFilter(partition.partitionKey()).filterNotIndexed(selection, partition);
+                        }
+                    });
+                }
 
                 // apply the limits/row counter; this transformation is stopping and would close the iterator as soon
                 // as the count is observed; if that happens in the middle of an open RT, its end bound will not be included.

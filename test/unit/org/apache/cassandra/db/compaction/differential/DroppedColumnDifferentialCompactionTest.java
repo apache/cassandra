@@ -118,6 +118,23 @@ public class DroppedColumnDifferentialCompactionTest extends DifferentialCompact
         assertRows(execute("SELECT m FROM %s WHERE pk = 0"), row(map("a", 1L, "b", 2L)));
     }
 
+    @Test
+    public void droppedComplexCellsDoNotConsumeReadLimit() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk bigint, ck bigint, v bigint, m map<text, bigint>, PRIMARY KEY (pk, ck))");
+
+        execute("UPDATE %s USING TIMESTAMP " + FUTURE_TS + " SET m['a'] = 1 WHERE pk = 0 AND ck = 0");
+        execute("UPDATE %s USING TIMESTAMP " + FUTURE_TS + " SET m['a'] = 1 WHERE pk = 0 AND ck = 2");
+        execute("UPDATE %s SET v = 7 WHERE pk = 0 AND ck = 1");
+        flush();
+
+        alterTable("ALTER TABLE %s DROP m");
+
+        assertRowsNet(executeNet("SELECT * FROM %s WHERE pk = 0 LIMIT 1"), row(0L, 1L, 7L));
+        assertRowsNet(executeNet("SELECT * FROM %s WHERE pk = 0 ORDER BY ck DESC LIMIT 1"), row(0L, 1L, 7L));
+        assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE pk = 0", 1), row(0L, 1L, 7L));
+    }
+
     /** DROP then ADD: pre-drop cells are filtered, post-re-add cells survive — the resurrection shape. */
     @Test
     public void droppedColumnReAdded() throws Exception
