@@ -32,13 +32,17 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.helpers.SubstituteLogger;
 
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.utils.NoSpamLogger.Level;
 import org.apache.cassandra.utils.NoSpamLogger.NoSpamLogStatement;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 public class NoSpamLoggerTest
@@ -81,11 +85,13 @@ public class NoSpamLoggerTest
     static final String statement = "swizzle{}";
     static final String param = "";
     static long now;
+   static long tickerTime;
 
     @BeforeClass
     public static void setUpClass() throws Exception
     {
         NoSpamLogger.unsafeSetClock(() -> now);
+        NoSpamLogger.TICKER = () -> tickerTime;
     }
 
     @Before
@@ -278,9 +284,9 @@ public class NoSpamLoggerTest
 
         now = 45;
 
-        assertTrue(nospamStatement.error(param));
-        checkMock(Level.ERROR);
-    }
+       assertTrue(nospamStatement.error(param));
+       checkMock(Level.ERROR);
+   }
 
     @Test
     public void testSupplierLogging()
@@ -310,5 +316,249 @@ public class NoSpamLoggerTest
         loggedMsg = logged.get(Level.INFO).remove();
         assertEquals("TESTING {}", loggedMsg.left);
         assertArrayEquals(params, loggedMsg.right);
+    }
+
+    /**
+     * Test that the {@link NoSpamLogStatement} cache is bounded and doesn't grow beyond max_statements_per_logger.
+     * This prevents memory exhaustion from dynamic log messages (e.g., queries with unique strings).
+     */
+    @Test
+    public void testNoSpamLogStatementCacheBounded()
+    {
+        int maxStatementsPerLogger = 10;
+        try (WithProperties properties = new WithProperties().set(NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER,
+                                                                  String.valueOf(maxStatementsPerLogger)))
+        {
+            now = 5;
+            NoSpamLogger logger = NoSpamLogger.getLogger(mock, 5, TimeUnit.NANOSECONDS);
+
+            // Create more unique log statements than the cache can hold
+            int numberOfLogStatements = (int) (maxStatementsPerLogger * 1.5);
+            for (int i = 0; i < numberOfLogStatements; i++)
+            {
+                String uniqueStatement = "statement" + i + "{}";
+                assertTrue("First occurrence of statement " + i + " should succeed",
+                          logger.info(uniqueStatement, param));
+                now += 10; // Advance time so each statement can log
+            }
+
+            assertEquals(numberOfLogStatements, logged.get(Level.INFO).size());
+
+            // Force cache cleanup to ensure eviction has completed
+            logger.cleanUpStatementsForTest();
+
+            // Verify the cache size is bounded to the configured maximum
+            assertTrue("Cache size should be at most " + maxStatementsPerLogger, logger.getStatementsCount() <= maxStatementsPerLogger);
+        }
+        finally
+        {
+            NoSpamLogger.clearWrappedLoggersForTest();
+        }
+    }
+
+    /**
+     * Test that log statements expire after the configured inactivity period.
+     */
+    @Test
+    public void testNoSpamLogStatementsCacheTimeBasedEviction()
+    {
+        try
+        {
+            int minIntervalInseconds = 10;
+            NoSpamLogger.clearWrappedLoggersForTest();
+            now = 0;
+            tickerTime = 0;
+            NoSpamLogger logger = NoSpamLogger.getLogger(mock, minIntervalInseconds, TimeUnit.SECONDS);
+
+            assertTrue(logger.info("test{}", param));
+            assertEquals(1, logged.get(Level.INFO).size());
+            assertEquals("Cache should contain 1 statement", 1, logger.getStatementsCount());
+
+            // Try to log again immediately - should be rate-limited
+            assertFalse(logger.info("test{}", param));
+            assertEquals(1, logged.get(Level.INFO).size());
+            assertEquals("Cache should still contain 1 statement", 1, logger.getStatementsCount());
+
+            // Advance BOTH clocks by more than `minIntervalInseconds` seconds
+            // `now` is used for rate limiting (NoSpamLogger.CLOCK)
+            // `tickerTime` is used for cache expiration (Caffeine's Ticker)
+            long advanceTime = TimeUnit.SECONDS.toNanos(minIntervalInseconds + 1);
+            now += advanceTime;
+            tickerTime += advanceTime;
+
+            // Trigger cache cleanup to process expired entries
+            logger.cleanUpStatementsForTest();
+
+            // Verify the statement was evicted from cache
+            assertEquals("Cache should be empty after expiration", 0, logger.getStatementsCount());
+
+            // The statement should have expired from cache, so it should log again
+            assertTrue("Statement should have expired and can log again",
+                      logger.info("test{}", param));
+            assertEquals(2, logged.get(Level.INFO).size());
+            assertEquals("Cache should contain 1 statement again", 1, logger.getStatementsCount());
+        }
+        finally
+        {
+            NoSpamLogger.clearWrappedLoggersForTest();
+        }
+    }
+
+    /**
+     * Test that NoSpamLogger instances are cached and reused.
+     * This test verifies that getting the same logger returns the cached instance,
+     * and that clearing the cache creates new instances.
+     */
+    @Test
+    public void testNoSpamLoggerCaching()
+    {
+        NoSpamLogger.clearWrappedLoggersForTest();
+        now = 0;
+
+        // Create multiple unique logger instances
+        Logger logger1 = new SubstituteLogger("testLogger1", null, true)
+        {
+            @Override
+            public void info(String statement, Object... args)
+            {
+                logged.get(Level.INFO).offer(Pair.create(statement, args));
+            }
+
+            @Override
+            public int hashCode()
+            {
+                return System.identityHashCode(this);
+            }
+
+            @Override
+            public boolean equals(Object o)
+            {
+                return this == o;
+            }
+        };
+
+        Logger logger2 = new SubstituteLogger("testLogger2", null, true)
+        {
+            @Override
+            public void info(String statement, Object... args)
+            {
+                logged.get(Level.INFO).offer(Pair.create(statement, args));
+            }
+
+            @Override
+            public int hashCode()
+            {
+                return System.identityHashCode(this);
+            }
+
+            @Override
+            public boolean equals(Object o)
+            {
+                return this == o;
+            }
+        };
+
+        // Get NoSpamLogger instances - these should be cached
+        NoSpamLogger nsl1 = NoSpamLogger.getLogger(logger1, 5, TimeUnit.NANOSECONDS);
+        NoSpamLogger nsl2 = NoSpamLogger.getLogger(logger2, 5, TimeUnit.NANOSECONDS);
+
+        assertTrue(nsl1.info("test{}", param));
+        assertTrue(nsl2.info("test{}", param));
+        assertEquals(2, logged.get(Level.INFO).size());
+
+        // Verify that getting the same logger returns the cached instance
+        NoSpamLogger nsl1Again = NoSpamLogger.getLogger(logger1, 5, TimeUnit.NANOSECONDS);
+        assertSame("Should return cached instance", nsl1, nsl1Again);
+
+        // Forcefully clear all cached loggers
+        NoSpamLogger.clearWrappedLoggersForTest();
+
+        // Getting the logger again should create a new instance
+        NoSpamLogger nsl1New = NoSpamLogger.getLogger(logger1, 5, TimeUnit.NANOSECONDS);
+        assertNotSame("Should create new instance after cache clear", nsl1, nsl1New);
+
+        // Verify the new instance works correctly
+        assertTrue("New logger instance should log immediately", nsl1New.info("test{}", param));
+        assertEquals(3, logged.get(Level.INFO).size());
+    }
+
+    /**
+     * Test that the NoSpamLogStatement cache uses custom per-entry expiry based on each logger's minIntervalNanos.
+     * This test verifies that different NoSpamLogger instances with different intervals result in
+     * different expiry times for their cached statements.
+     */
+    @Test
+    public void testNoSpamLogStatementCacheCustomExpiry()
+    {
+        NoSpamLogger.clearWrappedLoggersForTest();
+        now = 0;
+        tickerTime = 0;
+
+        // Create three NoSpamLogger instances with different intervals
+        int[] intervals = { 2, 5, 10 };
+        NoSpamLogger[] loggers = new NoSpamLogger[intervals.length];
+        int logMessagesPerLogger = 3;
+        for (int i = 0; i < intervals.length; i++)
+        {
+            // Create a unique Logger instance for each interval to get separate NoSpamLogger instances
+            Logger testLogger = new SubstituteLogger("testLogger" + i, null, true)
+            {
+                @Override
+                public void info(String statement, Object... args)
+                {
+                    logged.get(Level.INFO).offer(Pair.create(statement, args));
+                }
+
+                @Override
+                public int hashCode()
+                {
+                    return System.identityHashCode(this);
+                }
+
+                @Override
+                public boolean equals(Object o)
+                {
+                    return this == o;
+                }
+            };
+
+            loggers[i] = NoSpamLogger.getLogger(testLogger, intervals[i], TimeUnit.SECONDS);
+
+            // Log 3 messages from each logger
+            for (int j = 1; j <= logMessagesPerLogger; j++)
+            {
+                assertTrue(loggers[i].info("message" + j));
+                now += intervals[i] * 1_000_000_000L + 1; // Advance past the interval to allow next log
+            }
+            assertEquals(logMessagesPerLogger, loggers[i].getStatementsCount());
+        }
+
+        assertEquals(logMessagesPerLogger * intervals.length, logged.get(Level.INFO).size());
+
+        // Test expiry at different time points
+        // Entries were created at tickerTime=0, so they expire at their interval time
+        int[] checkTimes = new int[intervals.length];
+        for (int i = 0; i < intervals.length; i++)
+        {
+            // Set check time to 1 second after expiry (entries expire at interval seconds)
+            checkTimes[i] = intervals[i] + 1;
+        }
+
+        for (int timeIdx = 0; timeIdx < checkTimes.length; timeIdx++)
+        {
+            tickerTime = TimeUnit.SECONDS.toNanos(checkTimes[timeIdx]);
+
+            for (int i = 0; i < loggers.length; i++)
+            {
+                loggers[i].cleanUpStatementsForTest();
+
+                // Entries expire at (creation_time + interval), created at time 0
+                // So they expire when tickerTime > interval
+                int expected = (intervals[i] < checkTimes[timeIdx]) ? 0 : logMessagesPerLogger;
+                assertEquals(String.format("After %ds, %d-second logger should have %d statements",
+                                           checkTimes[timeIdx], intervals[i], expected),
+                             expected, loggers[i].getStatementsCount());
+            }
+        }
     }
 }
