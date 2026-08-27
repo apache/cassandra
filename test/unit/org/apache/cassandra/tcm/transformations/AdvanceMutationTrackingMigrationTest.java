@@ -193,18 +193,9 @@ public class AdvanceMutationTrackingMigrationTest
 
         Transformation.Result result = transformation.execute(prev);
 
-        // confirm noop
-        assertTrue(result.isSuccess());
-        ClusterMetadata updated = result.success().metadata;
-
-        KeyspaceMigrationInfo expected = createExpectedInfo(
-            "test_ks",
-            testTableId,
-            Collections.singleton(fullRing()),
-            epoch1
-        );
-
-        assertEquals(expected, updated.mutationTrackingMigrationState.getKeyspaceInfo("test_ks"));
+        // confirm rejection
+        assertTrue(result.isRejected());
+        assertTrue(result.rejected().reason.contains("no pending ranges intersecting"));
     }
 
     @Test

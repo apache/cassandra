@@ -33,6 +33,12 @@ public class MutationTrackingMigrationRepairResult
         new MutationTrackingMigrationRepairResult(Epoch.EMPTY, false, "dead nodes were excluded from the repair");
     private static final MutationTrackingMigrationRepairResult PREVIEW =
         new MutationTrackingMigrationRepairResult(Epoch.EMPTY, false, "the repair was a preview");
+    private static final MutationTrackingMigrationRepairResult NO_DATA_REPAIR =
+        new MutationTrackingMigrationRepairResult(Epoch.EMPTY, false, "the repair did not repair data (paxos-only or accord-only repair)");
+    private static final MutationTrackingMigrationRepairResult NOT_ALL_REPLICAS =
+        new MutationTrackingMigrationRepairResult(Epoch.EMPTY, false, "the repair did not include all replicas (-local, -dc, or -hosts repair)");
+    private static final MutationTrackingMigrationRepairResult PULL_REPAIR =
+        new MutationTrackingMigrationRepairResult(Epoch.EMPTY, false, "the repair only streamed data one way (-pull repair)");
 
     public final Epoch minEpoch;
     public final boolean eligible;
@@ -48,10 +54,18 @@ public class MutationTrackingMigrationRepairResult
         this.ineligibleReason = ineligibleReason;
     }
 
-    public static MutationTrackingMigrationRepairResult fromRepair(Epoch minEpoch, boolean deadNodesExcluded, boolean isPreview)
+    public static MutationTrackingMigrationRepairResult fromRepair(Epoch minEpoch,
+                                                                   boolean dataRepaired,
+                                                                   boolean allReplicas,
+                                                                   boolean pullRepair,
+                                                                   boolean deadNodesExcluded,
+                                                                   boolean isPreview)
     {
         if (deadNodesExcluded) return DEAD_NODES_EXCLUDED;
         if (isPreview) return PREVIEW;
+        if (!dataRepaired) return NO_DATA_REPAIR;
+        if (!allReplicas) return NOT_ALL_REPLICAS;
+        if (pullRepair) return PULL_REPAIR;
         return new MutationTrackingMigrationRepairResult(minEpoch, true, null);
     }
 }

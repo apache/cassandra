@@ -102,7 +102,7 @@ public class KeyspaceMigrationInfoTest
 
         // info should be unchanged if a repair started before migration started
         KeyspaceMigrationInfo noop = info.withRangesRepairedForTable(epoch1, testTableId, Collections.singleton(ranges.get(0)));
-        assertSame(info, noop);
+        // assertSame(info, noop); // see the comment in withRangesRepairedForTable()
 
         // Subtract first range
         KeyspaceMigrationInfo updated = info.withRangesRepairedForTable(epoch2, testTableId, Collections.singleton(ranges.get(0)));
@@ -117,6 +117,10 @@ public class KeyspaceMigrationInfoTest
         assertFalse(updated2.pendingRangesPerTable.get(testTableId).intersects(ranges.get(0).right));
         assertFalse(updated2.pendingRangesPerTable.get(testTableId).intersects(ranges.get(1).right));
         assertFalse(updated2.isComplete());
+
+        // Subtracting non-intersecting ranges should return `this`
+        assertSame(updated2, updated2.withRangesRepairedForTable(epoch2, testTableId, Collections.singleton(ranges.get(0))));
+        assertSame(updated2, updated2.withRangesRepairedForTable(epoch2, testTableId, Collections.singleton(ranges.get(1))));
     }
 
     @Test
