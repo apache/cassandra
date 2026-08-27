@@ -206,11 +206,6 @@ public class MutationJournal
     // recording of needsReplay=false is deferred — we record the segment in pendingClearReplay and let the
     // LogStatePersister drain the queue after it has written witnessed offsets to system.coordinator_logs.
     //
-    // A null tracker means the segment holds no full-replica (memtable-backed) data — it is either empty or holds
-    // only witnessed-only mutations, which are never applied to a memtable and so never flushed. Such a segment
-    // has nothing to replay for local durability, so it is immediately eligible; any remaining retention is
-    // governed by reconciliation coverage in dropSegments, not by needsReplay.
-    //
     // See the comment in LogStatePersister or CASSANDRA-21443 for an explanation of why we do this
     private void maybeCleanupStaticSegment(Segment<ShortMutationId, Mutation> segment)
     {
@@ -472,22 +467,6 @@ public class MutationJournal
         }
     }
 
-    /**
-     * Drop every static segment that is safe to reclaim, i.e. one that:
-     * <ol>
-     *   <li>(F) does not need replay — every full-replica memtable holding its data has been flushed; and</li>
-     *   <li>(R) is not referenced by any unrepaired local sstable — otherwise the journal may still be needed to
-     *       rebuild that sstable with minority writes filtered out; and</li>
-     *   <li>(W) is fully covered by the given durably-reconciled offsets, so any witnessed-only mutations it
-     *       carries (which never produce an sstable) have been durably reconciled across peers (CASSANDRA-21406).</li>
-     * </ol>
-     * For a full replica (F)+(R) dominate ((W) is implied, since an sstable becomes repaired — and thus stops
-     * referencing the segment — only once reconciled); for a witness (R) is trivially satisfied (no sstables) and
-     * (W) is the real gate, restoring the pre-reference-tracking reconciliation-based drop condition.
-     *
-     * <p>Synchronized so the several event-driven callers cannot both select and then discard the same segment,
-     * which would over-release its reference.
-     */
     synchronized int dropSegments(Log2OffsetsMap<?> durablyReconciled)
     {
         return journal.dropStaticSegments(segment -> !segment.metadata().needsReplay()
@@ -497,7 +476,6 @@ public class MutationJournal
 
     /**
      * Listener tracking how many unrepaired sstables of tracked tables reference each static segment.
-     * Subscribed by {@link org.apache.cassandra.db.ColumnFamilyStore} on init for every tracked CFS.
      */
     public SegmentReferenceTracker segmentReferenceTracker()
     {
