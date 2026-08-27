@@ -18,19 +18,25 @@
 
 package org.apache.cassandra.cql3.transactions;
 
+import java.nio.ByteBuffer;
+
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.VariableSpecifications;
+import org.apache.cassandra.cql3.terms.Constants;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnReference;
 
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 
 public class ConditionStatement
 {
+    public static final String NULL_COMPARISON_MESSAGE = "Invalid comparison with null for operator; use IS NULL or IS NOT NULL instead";
+
     public enum Kind
     {
         IS_NOT_NULL(TxnCondition.Kind.IS_NOT_NULL, null),
@@ -124,6 +130,11 @@ public class ConditionStatement
                 throw new IllegalStateException("Either the left-hand or right-hand side must be a reference!");
             }
 
+            // If we are in the IS NULL/IS NOT NULL we would have returned already in the (rhs == null) branch,
+            // for all other cases we need to reject the transaction when the rhs is null.
+            // Bind markers are checked in createCondition() below.
+            checkTrue(value != Constants.NULL_VALUE, NULL_COMPARISON_MESSAGE);
+
             reference.collectMarkerSpecification(bindVariables, null);
             value.collectMarkerSpecification(bindVariables, null);
             return new ConditionStatement(reference, kind, value, reversed);
@@ -146,9 +157,10 @@ public class ConditionStatement
                 // TODO: Support for references on LHS and RHS
                 TxnReference ref = reference.toTxnReference(options);
                 checkTrue(ref.kind == TxnReference.Kind.COLUMN, "Condition %s requires COLUMN reference but given %s", kind, ref.kind);
+                ByteBuffer bytes = checkNotNull(value.bindAndGet(options), NULL_COMPARISON_MESSAGE);
                 return new TxnCondition.Value(ref.asColumn(),
                                               kind.toTxnKind(reversed),
-                                              value.bindAndGet(options),
+                                              bytes,
                                               options.getProtocolVersion());
             default:
                 throw new IllegalStateException();
