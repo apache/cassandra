@@ -78,8 +78,13 @@ public class ComponentContext implements AutoCloseable
         @SuppressWarnings("resource") // file channel will be closed by Caller
         FileChannel channel = toTransfer.newReadChannel();
 
-        assert size == channel.size() : String.format("Entire sstable streaming expects %s file size to be %s but got %s.",
-                                                      component, size, channel.size());
+        if (size != channel.size())
+        {
+            long actual = channel.size();
+            FileUtils.closeQuietly(channel);
+            throw new IOException(String.format("Entire sstable streaming expects %s file size to be %s but got %s.",
+                                                component, size, actual));
+        }
         return channel;
     }
 
