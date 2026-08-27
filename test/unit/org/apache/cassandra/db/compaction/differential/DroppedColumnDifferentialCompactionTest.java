@@ -23,7 +23,16 @@ import org.junit.Test;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.ReadCommandVerbHandler;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
@@ -102,6 +111,7 @@ public class DroppedColumnDifferentialCompactionTest extends DifferentialCompact
         createTable("CREATE TABLE %s (pk bigint PRIMARY KEY, m map<text, bigint>)");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();
+        TableMetadata metadataBeforeDrop = cfs.metadata();
 
         execute("UPDATE %s USING TIMESTAMP " + FUTURE_TS + " SET m['a'] = 1 WHERE pk = 0");
         flush();
@@ -110,6 +120,15 @@ public class DroppedColumnDifferentialCompactionTest extends DifferentialCompact
 
         alterTable("ALTER TABLE %s DROP m");
 
+        SinglePartitionReadCommand commandDeserializedBeforeDrop =
+            SinglePartitionReadCommand.create(metadataBeforeDrop,
+                                              FBUtilities.nowInSeconds(),
+                                              ColumnFilter.all(cfs.metadata()),
+                                              RowFilter.none(),
+                                              DataLimits.NONE,
+                                              metadataBeforeDrop.partitioner.decorateKey(ByteBufferUtil.bytes(0L)),
+                                              new ClusteringIndexSliceFilter(Slices.ALL, false));
+        ReadCommandVerbHandler.instance.doRead(commandDeserializedBeforeDrop, false);
         assertTrue(executeNet("SELECT * FROM %s").all().isEmpty());
         commitCompaction(cfs, cfs.getLiveSSTables(), false, cfs.getDefaultGcBefore(FBUtilities.nowInSeconds()));
         assertTrue(executeNet("SELECT * FROM %s").all().isEmpty());

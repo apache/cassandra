@@ -562,7 +562,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                  */
                 iterator = filter.filter(iterator, nowInSec());
 
-                if (!metadata().droppedColumns.isEmpty())
+                if (!cfs.metadata().droppedColumns.isEmpty())
                 {
                     ColumnFilter selection = columnFilter();
                     iterator = Transformation.apply(iterator, new Transformation<UnfilteredRowIterator>()
