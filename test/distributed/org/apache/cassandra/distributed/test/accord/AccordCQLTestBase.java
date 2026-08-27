@@ -67,6 +67,7 @@ import org.apache.cassandra.cql3.ast.Symbol;
 import org.apache.cassandra.cql3.ast.Txn;
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
+import org.apache.cassandra.cql3.transactions.ConditionStatement;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -298,6 +299,54 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                          "COMMIT TRANSACTION";
 
             cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
+        });
+    }
+
+    @Test
+    public void testRejectColumnComparisonWithNull() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            try
+            {
+                String txn = "BEGIN TRANSACTION\n" +
+                             "  LET row1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1);\n" +
+                             "  IF row1.v = null THEN\n" +
+                             "    UPDATE " + qualifiedAccordTableName + " SET v = 1 WHERE k = 1;\n" +
+                             "  END IF\n" +
+                             "COMMIT TRANSACTION";
+
+                cluster.coordinator(1).execute(txn, QUORUM);
+                fail("Expected exception");
+            }
+            catch (Throwable t)
+            {
+                assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
+                assertEquals(ConditionStatement.NULL_COMPARISON_MESSAGE, t.getMessage());
+            }
+        });
+    }
+
+    @Test
+    public void testRejectColumnComparisonWithNullBindMarker() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            try
+            {
+                String txn = "BEGIN TRANSACTION\n" +
+                             "  LET row1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1);\n" +
+                             "  IF row1.v = ? THEN\n" +
+                             "    UPDATE " + qualifiedAccordTableName + " SET v = 1 WHERE k = 1;\n" +
+                             "  END IF\n" +
+                             "COMMIT TRANSACTION";
+
+                cluster.coordinator(1).execute(txn, QUORUM, (Object) null);
+                fail("Expected exception");
+            }
+            catch (Throwable t)
+            {
+                assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
+                assertEquals(ConditionStatement.NULL_COMPARISON_MESSAGE, t.getMessage());
+            }
         });
     }
 
