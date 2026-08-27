@@ -23,9 +23,6 @@ import java.util.Collection;
 
 import javax.annotation.Nonnull;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -57,7 +54,6 @@ import static org.apache.cassandra.utils.CollectionSerializers.serializedCollect
  */
 public class AdvanceMutationTrackingMigration implements Transformation
 {
-    private static final Logger logger = LoggerFactory.getLogger(AdvanceMutationTrackingMigration.class);
     public static final Serializer serializer = new Serializer();
 
     @Nonnull
