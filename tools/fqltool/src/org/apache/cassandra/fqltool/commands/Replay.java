@@ -37,7 +37,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.fqltool.FQLQuery;
 import org.apache.cassandra.fqltool.FQLQueryIterator;
 import org.apache.cassandra.fqltool.QueryReplayer;
-import org.apache.cassandra.fqltool.ResultHandler;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.MergeIterator;
 
@@ -103,7 +102,7 @@ public class Replay implements Runnable
                     System.err.println("The results path (" + basePath + ") should be an existing directory");
                     throw new IllegalArgumentException("The results path (" + basePath + ") should be an existing directory");
                 }
-                resultPaths = targetHosts.stream().map(target -> new File(basePath, ResultHandler.maskPassword(target))).collect(Collectors.toList());
+                resultPaths = targetHosts.stream().map(target -> new File(basePath, QueryReplayer.ParsedTargetHost.maskPassword(target))).collect(Collectors.toList());
                 resultPaths.forEach(File::mkdir);
             }
             if (targetHosts.size() < 1)

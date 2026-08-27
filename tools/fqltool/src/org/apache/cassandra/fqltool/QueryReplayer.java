@@ -215,7 +215,7 @@ public class QueryReplayer implements Closeable
         resultHandler.close();
     }
 
-    static class ParsedTargetHost
+    public static class ParsedTargetHost
     {
         final int port;
         final String user;
@@ -228,6 +228,21 @@ public class QueryReplayer implements Closeable
             this.port = port;
             this.user = user;
             this.password = password;
+        }
+
+        /**
+         * Masks the password in a target host string so it's never logged or written to result paths.
+         */
+        public static String maskPassword(String target)
+        {
+            int at = target.lastIndexOf('@');
+            if (at < 0)
+                return target;
+            String userInfo = target.substring(0, at);
+            int colon = userInfo.indexOf(':');
+            if (colon < 0)
+                return target;
+            return userInfo.substring(0, colon) + ":*****@" + target.substring(at + 1);
         }
 
         static ParsedTargetHost fromString(String s)
@@ -277,7 +292,6 @@ public class QueryReplayer implements Closeable
         private final String keystorePassword;
         private final String authProviderClass;
         private final SSLOptions sslOptions;
-        private final AuthProvider authProvider;
 
         DefaultSessionProvider()
         {
@@ -294,9 +308,25 @@ public class QueryReplayer implements Closeable
             this.keystorePassword = keystorePassword;
             this.authProviderClass = authProviderClass;
 
-            // Eagerly validate and initialize SSL and AuthProvider to fail fast on invalid configuration
+            // Fail fast on bad SSL config or an unloadable auth provider class. The AuthProvider itself
+            // is built per-connection in connect(), using credentials parsed from the target host.
             this.sslOptions = ssl ? buildSSLOptions() : null;
-            this.authProvider = authProviderClass != null ? instantiateAuthProvider() : null;
+            if (authProviderClass != null)
+                validateAuthProviderClass();
+        }
+
+        private void validateAuthProviderClass()
+        {
+            try
+            {
+                Class<?> clazz = Class.forName(authProviderClass);
+                if (!AuthProvider.class.isAssignableFrom(clazz))
+                    throw new IllegalArgumentException(authProviderClass + " does not implement " + AuthProvider.class.getName());
+            }
+            catch (ClassNotFoundException e)
+            {
+                throw new RuntimeException("Could not find auth provider class: " + authProviderClass, e);
+            }
         }
 
         public synchronized Session connect(String connectionString)
@@ -311,8 +341,8 @@ public class QueryReplayer implements Closeable
             if (sslOptions != null)
                 builder.withSSL(sslOptions);
 
-            if (authProvider != null)
-                builder.withAuthProvider(authProvider);
+            if (authProviderClass != null)
+                builder.withAuthProvider(instantiateAuthProvider(pth.user, pth.password));
             else if (pth.user != null)
                 builder.withCredentials(pth.user, pth.password);
 
@@ -365,11 +395,24 @@ public class QueryReplayer implements Closeable
             }
         }
 
-        private AuthProvider instantiateAuthProvider()
+        /**
+         * Builds the configured AuthProvider: a (String,String) constructor when credentials are present otherwise a no-arg constructor.
+         */
+        @SuppressWarnings("unchecked")
+        private AuthProvider instantiateAuthProvider(String user, String password)
         {
             try
             {
-                return (AuthProvider) Class.forName(authProviderClass).getDeclaredConstructor().newInstance();
+                Class<? extends AuthProvider> clazz = (Class<? extends AuthProvider>) Class.forName(authProviderClass);
+
+                if (user != null && password != null)
+                    return clazz.getConstructor(String.class, String.class).newInstance(user, password);
+
+                return clazz.getDeclaredConstructor().newInstance();
+            }
+            catch (NoSuchMethodException e)
+            {
+                throw new RuntimeException("Auth provider " + authProviderClass + " does not support plain text credentials", e);
             }
             catch (Exception e)
             {

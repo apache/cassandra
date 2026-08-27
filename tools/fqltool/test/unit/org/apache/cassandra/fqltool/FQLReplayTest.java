@@ -606,11 +606,11 @@ public class FQLReplayTest
     @Test
     public void testMaskPassword()
     {
-        assertEquals("aaa:*****@127.0.0.1:9042", ResultHandler.maskPassword("aaa:bbb@127.0.0.1:9042"));
-        assertEquals("127.0.0.1:9042", ResultHandler.maskPassword("127.0.0.1:9042"));
-        assertEquals("127.0.0.1", ResultHandler.maskPassword("127.0.0.1"));
-        assertEquals("user:*****@host:9042", ResultHandler.maskPassword("user:p@ssword@host:9042"));
-        assertEquals("cassandra:*****@127.0.0.1", ResultHandler.maskPassword("cassandra:p@ss@w@rd@127.0.0.1"));
+        assertEquals("aaa:*****@127.0.0.1:9042", QueryReplayer.ParsedTargetHost.maskPassword("aaa:bbb@127.0.0.1:9042"));
+        assertEquals("127.0.0.1:9042", QueryReplayer.ParsedTargetHost.maskPassword("127.0.0.1:9042"));
+        assertEquals("127.0.0.1", QueryReplayer.ParsedTargetHost.maskPassword("127.0.0.1"));
+        assertEquals("user:*****@host:9042", QueryReplayer.ParsedTargetHost.maskPassword("user:p@ssword@host:9042"));
+        assertEquals("cassandra:*****@127.0.0.1", QueryReplayer.ParsedTargetHost.maskPassword("cassandra:p@ss@w@rd@127.0.0.1"));
     }
 
     @Test
@@ -632,6 +632,37 @@ public class FQLReplayTest
             assertTrue("Exception message should mention SSL or truststore",
                        e.getMessage().contains("SSL") || e.getMessage().contains("ssl") ||
                        e.getMessage().contains("truststore") || e.getMessage().contains("fqltool"));
+        }
+    }
+
+    public static class NoArgOnlyAuthProvider implements com.datastax.driver.core.AuthProvider
+    {
+        public NoArgOnlyAuthProvider() { }
+
+        public com.datastax.driver.core.Authenticator newAuthenticator(java.net.InetSocketAddress host, String authenticator)
+        {
+            throw new UnsupportedOperationException("not needed for this test");
+        }
+    }
+
+    @Test
+    public void testAuthProviderWithoutCredentialsConstructorThrows()
+    {
+        try
+        {
+            new QueryReplayer(Collections.emptyIterator(),
+                              Lists.newArrayList("aaa:bbb@127.0.0.1:9999"),
+                              null,
+                              new ArrayList<>(),
+                              null,
+                              false, null, null, null, null,
+                              NoArgOnlyAuthProvider.class.getName());
+            throw new AssertionError("Expected RuntimeException when auth provider lacks a (String,String) constructor");
+        }
+        catch (RuntimeException e)
+        {
+            assertTrue("Exception should mention plain text credentials",
+                       e.getMessage().contains("does not support plain text credentials"));
         }
     }
 
