@@ -498,6 +498,7 @@ public abstract class TxnCondition
         {
             super(kind);
             Invariants.requireArgument(KINDS.contains(kind), "Kind " + kind + " cannot be used with a value condition");
+            value = reference.column().type.sanitize(value);
             Invariants.requireArgument(value != null, "Value conditions require a non null comparison value");
             this.reference = reference;
             this.value = value;
