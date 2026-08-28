@@ -252,7 +252,10 @@ public class IndexStatusManager
     {
         try
         {
-            NodeId localNodeId = ClusterMetadata.current().myNodeId();
+            ClusterMetadata metadata = ClusterMetadata.currentNullable();
+            if (metadata == null)
+                return;
+            NodeId localNodeId = metadata.myNodeId();
             if (localNodeId == NodeId.UNREGISTERED)
                 return;
             Map<String, Index.Status> statusMap = peerIndexStatus.computeIfAbsent(localNodeId, k -> new HashMap<>());
@@ -416,6 +419,8 @@ public class IndexStatusManager
      */
     public synchronized void loadIndexStatusesFromTable()
     {
+        if (!shouldWriteToIndexTables(ClusterMetadata.current().directory.clusterMinVersion.cassandraVersion))
+            return;
         try
         {
             Map<NodeId, Map<String, Index.Status>> allStatuses = SystemDistributedKeyspace.allIndexStatuses();
@@ -471,6 +476,8 @@ public class IndexStatusManager
 
     private synchronized void pollIndexEvents()
     {
+        if (!shouldWriteToIndexTables(ClusterMetadata.current().directory.clusterMinVersion.cassandraVersion))
+            return;
         try
         {
             if (lastPollTimestampMillis == 0)
