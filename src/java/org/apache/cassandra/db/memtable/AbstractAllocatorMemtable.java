@@ -132,8 +132,13 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
     }
 
     /**
-     * The memory limit is enforced here, once per mutation and before any memtable-internal lock is taken;
-     * the allocations the mutation then makes only track usage.
+     * The memory limit is enforced here, once per PartitionUpdate and before any memtable-internal lock is
+     * taken; the allocations the update then makes only track usage. A mutation carries one update per table,
+     * so a mutation that writes to several tables is gated once for each of them.
+     * <p>
+     * The wait does not depend on how much the update will allocate, which is not known until it has been
+     * merged into the memtable. An update that adds little or nothing therefore waits as well: a deletion, or
+     * one that loses on timestamp against what the memtable already holds.
      */
     @Override
     public final long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
