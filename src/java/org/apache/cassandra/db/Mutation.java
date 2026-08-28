@@ -538,7 +538,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
                 // so we only cache serialized mutations when they are below the defined limit.
                 if (serializedSize < CACHEABLE_MUTATION_SIZE_LIMIT)
                 {
-                    int serializedSizeAsInt = (int) serializedSize;
+                    int serializedSizeAsInt = DataOutputBuffer.checkedArraySizeCast(serializedSize);
                     try (DataOutputBufferFixed dob = new DataOutputBufferFixed(serializedSizeAsInt))
                     {
                         serializeInternal(PartitionUpdate.serializer, mutation, dob, version);

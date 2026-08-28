@@ -38,10 +38,8 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -63,8 +61,6 @@ public class MutationSerializationCachingBench
     static
     {
         CQLTester.setUpClass();
-        if (DatabaseDescriptor.getPartitioner() == null)
-            DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
     }
 
     @Param({ "128", "16384", "262144", "786432" })
@@ -77,17 +73,17 @@ public class MutationSerializationCachingBench
     public void setup()
     {
         String keyspace = "mutation_cache_bench";
-        SchemaTestUtil.addOrUpdateKeyspace(KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1)), false);
+        SchemaTestUtil.addOrUpdateKeyspace(KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1)));
         KeyspaceMetadata keyspaceMetadata = Schema.instance.getKeyspaceMetadata(keyspace);
         TableMetadata metadata = CreateTableStatement.parse("CREATE TABLE mutation_cache (pk bigint PRIMARY KEY, value blob)", keyspace)
                                                      .build();
-        SchemaTestUtil.addOrUpdateKeyspace(keyspaceMetadata.withSwapped(keyspaceMetadata.tables.with(metadata)), false);
+        SchemaTestUtil.addOrUpdateKeyspace(keyspaceMetadata.withSwapped(keyspaceMetadata.tables.with(metadata)));
 
         mutation = (Mutation) UpdateBuilder.create(metadata, 1L)
                                             .newRow()
                                             .add("value", ByteBuffer.wrap(new byte[valueSize]))
                                             .makeMutation();
-        output = new DataOutputBufferFixed(Math.toIntExact(mutation.serializedSize(MessagingService.current_version)));
+        output = new DataOutputBufferFixed((int) mutation.serializedSize(MessagingService.current_version));
     }
 
     @Benchmark
