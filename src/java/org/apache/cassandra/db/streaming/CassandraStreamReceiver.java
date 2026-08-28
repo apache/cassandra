@@ -93,6 +93,7 @@ public class CassandraStreamReceiver implements StreamReceiver
 
     private final List<Range<Token>> ranges;
 
+    private final boolean useTrackedTransferPath;
 
     public CassandraStreamReceiver(ColumnFamilyStore cfs, StreamSession session, List<Range<Token>> ranges, int totalFiles)
     {
@@ -104,6 +105,11 @@ public class CassandraStreamReceiver implements StreamReceiver
         this.ranges = ranges;
         this.sstables = new ArrayList<>(totalFiles);
         this.requiresWritePath = requiresWritePath(cfs);
+
+        if (!cfs.metadata().replicationType().isTracked() || !session.streamOperation().isTrackable())
+            this.useTrackedTransferPath = false;
+        else
+            this.useTrackedTransferPath = KeyspaceMigrationInfo.shouldUseTrackedTransfers(ClusterMetadata.current(), cfs.getKeyspaceName(), cfs.metadata().id, ranges);
     }
 
     /**
@@ -111,12 +117,9 @@ public class CassandraStreamReceiver implements StreamReceiver
      * Returns false during mutation tracking migration for ranges that are still pending,
      * since migration repair uses the untracked streaming path for those ranges.
      */
-    private boolean useTrackedTransferPath()
+    boolean useTrackedTransferPath()
     {
-        if (!cfs.metadata().replicationType().isTracked() || !session.streamOperation().isTrackable())
-            return false;
-
-        return KeyspaceMigrationInfo.shouldUseTrackedTransfers(ClusterMetadata.current(), cfs.getKeyspaceName(), cfs.metadata().id, ranges);
+        return useTrackedTransferPath;
     }
 
     public static CassandraStreamReceiver fromReceiver(StreamReceiver receiver)
@@ -148,7 +151,7 @@ public class CassandraStreamReceiver implements StreamReceiver
         }
         txn.update(finished);
         sstables.addAll(finished);
-        receivedEntireSSTable = file.isEntireSSTable();
+        receivedEntireSSTable |= file.isEntireSSTable();
     }
 
     @Override
