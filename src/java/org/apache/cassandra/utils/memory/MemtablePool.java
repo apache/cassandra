@@ -103,7 +103,8 @@ public abstract class MemtablePool
     public class SubPool
     {
 
-        // total memory/resource permitted to allocate; 0 marks a pool that is not used, and not enforced
+        // total memory/resource permitted to allocate; 0 marks a sub-pool the configured allocation type
+        // does not allocate from, and is not enforced, see MemtableAllocator.SubAllocator.awaitRoom
         public final long limit;
 
         // ratio of used to spare (both excluding 'reclaiming') at which to trigger a clean

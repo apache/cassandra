@@ -188,11 +188,18 @@ public abstract class MemtableAllocator
          * memtable-internal lock is taken. Groups marked blocking by Barrier.markBlocking() skip or are
          * released from this wait, as they were from allocate(), so a flush can always drain the ops its
          * barrier awaits.
+         * <p>
+         * Both sub-pools share one hasRoom queue, so a release on the other sub-pool wakes waiters here; the
+         * loop re-tests belowLimit() and parks again.
          */
         public void awaitRoom(OpOrder.Group opGroup)
         {
-            // a zero-limit pool is never allocated from and never signalled, e.g. the off-heap pool under
-            // heap_buffers and unslabbed_heap_buffers, both created with an off-heap limit of 0
+            // A limit of 0 marks a sub-pool this allocation type does not use: heap_buffers,
+            // unslabbed_heap_buffers and unslabbed_heap_buffers_logged all build their off-heap sub-pool
+            // with a limit of 0, see AbstractAllocatorMemtable.createMemtableAllocatorPoolInternal. belowLimit() is
+            // false for such a pool even with nothing allocated, so without this every write would park on
+            // it. DatabaseDescriptor.applyMemtableSpace rejects a limit of 0 for the allocation types that
+            // do allocate from both sub-pools, so no enforced pool reaches this return.
             if (parent.limit == 0)
                 return;
 
