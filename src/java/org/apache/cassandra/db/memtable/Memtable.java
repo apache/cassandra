@@ -214,7 +214,7 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
      * started, so nested writes may overshoot it.
      * <p>
      * An implementation that blocks in {@link #put} MUST override this to skip that wait. Nesting is
-     * identified by {@link org.apache.cassandra.db.CassandraWriteContext#enterMemtableWrite()}.
+     * identified by enterMemtableWrite() on {@link org.apache.cassandra.db.CassandraWriteContext}.
      */
     default long putNested(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
     {

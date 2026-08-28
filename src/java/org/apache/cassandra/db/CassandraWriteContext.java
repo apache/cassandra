@@ -60,7 +60,7 @@ public class CassandraWriteContext implements WriteContext
      * @return true if this is the outermost memtable write on this context; false makes the caller a nested
      *         write, see {@link ColumnFamilyStore#apply}
      */
-    public boolean enterMemtableWrite()
+    boolean enterMemtableWrite()
     {
         if (applyingToMemtable)
             return false;
@@ -70,14 +70,14 @@ public class CassandraWriteContext implements WriteContext
     }
 
     /** Only to be called when {@link #enterMemtableWrite} returned true. */
-    public void exitMemtableWrite()
+    void exitMemtableWrite()
     {
         assert applyingToMemtable : "exitMemtableWrite without enterMemtableWrite";
         applyingToMemtable = false;
     }
 
     @VisibleForTesting
-    public boolean isApplyingToMemtable()
+    boolean isApplyingToMemtable()
     {
         return applyingToMemtable;
     }
