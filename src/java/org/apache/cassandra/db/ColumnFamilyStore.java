@@ -1523,9 +1523,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             Memtable mt = data.getMemtableFor(opGroup, commitLogPosition);
             UpdateTransaction indexer = newUpdateTransaction(update, context, updateIndexes, mt);
             long timeDelta;
-            // A write on a context already applying to a memtable is nested (legacy 2i, from the indexer
-            // callbacks, under the base memtable's locks) and must not wait for pool room (CASSANDRA-21019).
-            // updateIndexes does not identify it: index build and compaction cleanup also pass false.
+            // Nesting is tracked on the context; updateIndexes cannot identify it, as index build and compaction cleanup also pass false. See Memtable#putNested.
             if (context.enterMemtableWrite())
             {
                 try
