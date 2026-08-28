@@ -253,7 +253,7 @@ public class IndexStatusManager
         try
         {
             NodeId localNodeId = ClusterMetadata.current().myNodeId();
-            if (localNodeId == null)
+            if (localNodeId == NodeId.UNREGISTERED)
                 return;
             Map<String, Index.Status> statusMap = peerIndexStatus.computeIfAbsent(localNodeId, k -> new HashMap<>());
             String keyspaceIndex = identifier(keyspace, index);
@@ -439,10 +439,7 @@ public class IndexStatusManager
         try
         {
             Map<NodeId, Map<String, Index.Status>> allStatuses = SystemDistributedKeyspace.allIndexStatuses();
-            for (Map.Entry<NodeId, Map<String, Index.Status>> entry : allStatuses.entrySet())
-            {
-                peerIndexStatus.put(entry.getKey(), entry.getValue());
-            }
+            peerIndexStatus.putAll(allStatuses);
             logger.info("Refreshed index statuses from system table for {} peers", allStatuses.size());
         }
         catch (Exception e)
