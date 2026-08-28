@@ -132,9 +132,13 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
     }
 
     /**
-     * The memory limit is enforced once here, before a mutation starts
-     * and before any memtable-internal locks are taken; once started, a mutation runs to
-     * completion and individual allocations only track usage.
+     * The memory limit is enforced here, once per PartitionUpdate and before any memtable-internal lock is
+     * taken; the allocations the update then makes only track usage. A mutation carries one update per table,
+     * so a mutation that writes to several tables is gated once for each of them.
+     * <p>
+     * The wait does not depend on how much the update will allocate, which is not known until it has been
+     * merged into the memtable. An update that adds little or nothing therefore waits as well: a deletion, or
+     * one that loses on timestamp against what the memtable already holds.
      */
     @Override
     public final long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
@@ -144,9 +148,9 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
     }
 
     /**
-     * CASSANDRA-21019: nested writes skip the room gate -- the enclosing mutation was
-     * gated when it started, and waiting here would run under its memtable-internal
-     * locks, where Barrier.markBlocking() cannot release a queued pre-barrier writer.
+     * A nested write was gated when its enclosing mutation started, and must not park again. Parking holds the
+     * enclosing mutation's memtable-internal locks, which deadlocks a flush anywhere in the process, because
+     * Keyspace.writeOrder is one OpOrder shared by every table (CASSANDRA-21019).
      */
     @Override
     public final long putNested(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)

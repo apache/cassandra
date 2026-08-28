@@ -205,14 +205,16 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
     long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing);
 
     /**
-     * Put variant for writes performed inside an already-started mutation on the same
-     * thread, e.g. legacy 2i applying to its index table's memtable from
-     * indexer.onInserted(), which runs under the base table's memtable-internal locks.
-     * Such writes must not wait for memtable pool room: parking there would hold the
-     * enclosing locks and deadlock the flush writeBarrier (CASSANDRA-21019); the memory
-     * limit was already enforced when the enclosing mutation started.
-     * Implementations that apply write back-pressure in put() MUST override this to
-     * bypass it; only implementations without a room gate may keep this default.
+     * Put variant for a nested write, that is a write made from within an already-started mutation on the
+     * same write context, as legacy 2i does from {@code indexer.onInserted()} under the base table's
+     * memtable-internal locks. Such a write must not wait for memtable pool room: parking there holds those
+     * locks, and a writer queued behind them cannot be released by markBlocking(), so the write barrier of any
+     * concurrent flush in the process never completes (CASSANDRA-21019; Keyspace.writeOrder is shared by every
+     * table, so the flush need not be of this memtable). The limit was enforced when the enclosing mutation
+     * started, so nested writes may overshoot it.
+     * <p>
+     * An implementation that blocks in {@link #put} MUST override this to skip that wait. Nesting is
+     * identified by enterMemtableWrite() on {@link org.apache.cassandra.db.CassandraWriteContext}.
      */
     default long putNested(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
     {
@@ -304,21 +306,25 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
 
     /**
      * Adjust the used on-heap space by the given size (e.g. to reflect memory used by a non-table-based index).
-     * This operation may block until enough memory is available in the memory pool.
+     * This records the usage and returns; it does not wait for room, and so is safe to call from an indexer
+     * running under a memtable-internal lock. The recorded total drives cleaning; the memory limit is only enforced
+     * once per write, in {@link #put} (CASSANDRA-21019).
      *
      * @param additionalSpace the number of allocated bytes
-     * @param opGroup write operation group, used to permit the operation to complete if it is needed to complete a
-     *                flush to free space.
+     * @param opGroup write operation group. Unused since CASSANDRA-21019, as this call no longer waits; kept for
+     *                compatibility with memtable implementations built against this release series.
      */
     void markExtraOnHeapUsed(long additionalSpace, OpOrder.Group opGroup);
 
     /**
      * Adjust the used off-heap space by the given size (e.g. to reflect memory used by a non-table-based index).
-     * This operation may block until enough memory is available in the memory pool.
+     * This records the usage and returns; it does not wait for room, and so is safe to call from an indexer
+     * running under a memtable-internal lock. The recorded total drives cleaning; the memory limit is only enforced
+     * once per write, in {@link #put} (CASSANDRA-21019).
      *
      * @param additionalSpace the number of allocated bytes
-     * @param opGroup write operation group, used to permit the operation to complete if it is needed to complete a
-     *                flush to free space.
+     * @param opGroup write operation group. Unused since CASSANDRA-21019, as this call no longer waits; kept for
+     *                compatibility with memtable implementations built against this release series.
      */
     void markExtraOffHeapUsed(long additionalSpace, OpOrder.Group opGroup);
 

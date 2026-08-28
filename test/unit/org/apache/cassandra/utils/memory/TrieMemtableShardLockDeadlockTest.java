@@ -75,7 +75,11 @@ public class TrieMemtableShardLockDeadlockTest
         barrier.issue();
         barrier.markBlocking();                    // exactly what ColumnFamilyStore.Flush.run does
 
-        pool.onHeap.allocated(pool.onHeap.limit);  // synthetic exhaustion
+        // Exhaust the shared pool that every AbstractAllocatorMemtable allocates from; a memtable
+        // cannot be bound to a private pool. maybeClean() may fire and flush other memtables, but
+        // it cannot release this synthetic amount, so belowLimit() stays false and both writers
+        // stay gated for the duration of the test.
+        pool.onHeap.allocated(pool.onHeap.limit);
         pool.offHeap.allocated(pool.offHeap.limit);
         try
         {

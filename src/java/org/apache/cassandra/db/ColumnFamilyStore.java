@@ -1508,18 +1508,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     /**
      * Insert/Update the column family for this key.
      * Caller is responsible for acquiring Keyspace.switchLock
-     *
      * @param update to be applied
      * @param context write context for current update
-     * @param updateIndexes whether secondary indexes should be updated.
-     *                      When {@code false} this write is treated as a <em>nested</em> write: it skips the
-     *                      memtable pool's room-wait gate ({@link org.apache.cassandra.utils.memory.MemtableAllocator#awaitRoomToStart})
-     *                      and goes straight to {@link Memtable#putNested} instead of {@link Memtable#put}.
-     *                      Callers that pass {@code false} are already executing inside an enclosing mutation
-     *                      (e.g. a legacy 2i index write initiated from {@code indexer.onInserted()} under the
-     *                      base table's memtable-internal locks) and <strong>must not</strong> block for room,
-     *                      because doing so would deadlock the flush write-barrier (CASSANDRA-21019).
-     *                      As a consequence, a nested write may allocate slightly beyond the gated limit.
+     * @param updateIndexes whether secondary indexes should be updated
      */
     public void apply(PartitionUpdate update, CassandraWriteContext context, boolean updateIndexes)
 
@@ -1531,13 +1522,23 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         {
             Memtable mt = data.getMemtableFor(opGroup, commitLogPosition);
             UpdateTransaction indexer = newUpdateTransaction(update, context, updateIndexes, mt);
-            // updateIndexes == false identifies the nested index-table write performed
-            // from within an enclosing mutation (CassandraTableWriteHandler.write via
-            // CassandraIndex); it must not wait for memtable pool room (CASSANDRA-21019).
-            // If a future caller passes false for a top-level write, route it through
-            // put() instead -- putNested() skips write back-pressure.
-            long timeDelta = updateIndexes ? mt.put(update, indexer, opGroup)
-                                           : mt.putNested(update, indexer, opGroup);
+            long timeDelta;
+            // Nesting is tracked on the context; updateIndexes cannot identify it, as index build and compaction cleanup also pass false. See Memtable#putNested.
+            if (context.enterMemtableWrite())
+            {
+                try
+                {
+                    timeDelta = mt.put(update, indexer, opGroup);
+                }
+                finally
+                {
+                    context.exitMemtableWrite();
+                }
+            }
+            else
+            {
+                timeDelta = mt.putNested(update, indexer, opGroup);
+            }
             DecoratedKey key = update.partitionKey();
             invalidateCachedPartition(key);
             metric.topWritePartitionFrequency.addSample(key.getKey(), 1);

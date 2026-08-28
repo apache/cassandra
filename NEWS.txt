@@ -143,6 +143,9 @@ New features
 
 Upgrading
 ---------
+    - memtable_offheap_space: 0 is now rejected at startup when memtable_allocation_type is
+    offheap_buffers or offheap_objects. Set a positive memtable_offheap_space, or an allocation
+    type that does not allocate off-heap. See CASSANDRA-21019.
     [The following is a placeholder, to be revised asap]
     - Upgrading to 5.1 is currently only supported from 4.0, 4.1 or 5.0. Clusters running earlier releases must first
     upgrade to at least the latest 4.0 release. When a cluster is upgraded to 5.1 there is an additional step for
