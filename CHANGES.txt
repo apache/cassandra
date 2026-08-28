@@ -9,6 +9,7 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Add a guardrail to disallow reconfiguring CMS below a minimum size (CASSANDRA-19195)
  * Node can report DECOMMISSION_FAILED while actively leaving after a rejected decommission attempt (CASSANDRA-21583)
  * Make NoSpamLogger to use Caffeine cache instead of unbounded cache that could lead to memory exhaustion (CASSANDRA-21474)
  * Reduce overheads of isOrdinaryUser check performed by Guardrail.enabled (CASSANDRA-21589)

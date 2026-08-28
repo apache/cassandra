@@ -911,6 +911,17 @@ public interface GuardrailsMBean
     void setMinimumReplicationFactorThreshold (int warn, int fail);
 
     /**
+     * @return The threshold to fail when the CMS size (aggregate replication factor across DCs) is below the threshold.
+     */
+    int getMinimumCmsSizeFailThreshold();
+
+    /**
+     * @param fail The threshold to fail when the CMS size (aggregate replication factor across DCs) is below it.
+     *             -1 means disabled.
+     */
+    void setMinimumCmsSizeFailThreshold(int fail);
+
+    /**
      * @return The threshold to fail when replication factor is greater than threshold.
      */
     int getMaximumReplicationFactorWarnThreshold();

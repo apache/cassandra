@@ -2391,6 +2391,11 @@ drop_compact_storage_enabled: false
 # When enabled is true, rejects misprepared statements with an error.
 # prepared_statements_require_parameters_warned: true
 # prepared_statements_require_parameters_enabled: false
+#
+# Guardrail to fail an operator-requested CMS reconfiguration (nodetool cms reconfigure / JMX) when the resulting
+# CMS size would be below this threshold. The CMS size is the aggregate replication factor across all datacenters.
+# The check is skipped when the cluster has fewer nodes than the threshold. Defaults to -1 to disable.
+# minimum_cms_size_fail_threshold: -1
 
 #role_name_policy:
 #  # Implementation class of a validator. When not in form of FQCN, the
