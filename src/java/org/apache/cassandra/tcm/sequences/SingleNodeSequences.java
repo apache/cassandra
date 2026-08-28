@@ -97,13 +97,13 @@ public interface SingleNodeSequences
         else if (InProgressSequences.isLeave(inProgress))
         {
             logger.info("Resuming decommission @ {} (current epoch = {}): {}", inProgress.latestModification, metadata.epoch, inProgress.status());
-            StorageService.instance.clearTransientMode();
         }
         else
         {
             throw new IllegalArgumentException("Can not decommission a node that has an in-progress sequence");
         }
 
+        StorageService.instance.clearTransientMode();
         InProgressSequences.finishInProgressSequences(self);
         Gossiper.instance.unsafeBroadcastLeftStatus(FBUtilities.getBroadcastAddressAndPort(),
                                                     tokens,
