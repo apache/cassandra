@@ -304,23 +304,23 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
 
     /**
      * Adjust the used on-heap space by the given size (e.g. to reflect memory used by a non-table-based index).
-     * This operation may block until enough memory is available in the memory pool.
+     * This records the usage and returns; it does not wait for room, and so is safe to call from an indexer
+     * running under a memtable-internal lock. The recorded total drives cleaning; the memory limit is only enforced
+     * once per write, in {@link #put} (CASSANDRA-21019).
      *
      * @param additionalSpace the number of allocated bytes
-     * @param opGroup write operation group, used to permit the operation to complete if it is needed to complete a
-     *                flush to free space.
      */
-    void markExtraOnHeapUsed(long additionalSpace, OpOrder.Group opGroup);
+    void markExtraOnHeapUsed(long additionalSpace);
 
     /**
      * Adjust the used off-heap space by the given size (e.g. to reflect memory used by a non-table-based index).
-     * This operation may block until enough memory is available in the memory pool.
+     * This records the usage and returns; it does not wait for room, and so is safe to call from an indexer
+     * running under a memtable-internal lock. The recorded total drives cleaning; the memory limit is only enforced
+     * once per write, in {@link #put} (CASSANDRA-21019).
      *
      * @param additionalSpace the number of allocated bytes
-     * @param opGroup write operation group, used to permit the operation to complete if it is needed to complete a
-     *                flush to free space.
      */
-    void markExtraOffHeapUsed(long additionalSpace, OpOrder.Group opGroup);
+    void markExtraOffHeapUsed(long additionalSpace);
 
 
     // Flushing

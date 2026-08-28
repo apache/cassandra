@@ -165,17 +165,17 @@ public abstract class MemtableAllocator
         /**
          * Like allocate, but permits allocations to be negative.
          */
-        public void adjust(long size, OpOrder.Group opGroup)
+        public void adjust(long size)
         {
             if (size <= 0)
                 released(-size);
             else
-                allocate(size, opGroup);
+                allocate(size);
         }
 
         // account memory in the tracker, and mark ourselves as owning it; this only tracks usage, which
-        // still drives cleaning, the limit is enforced in awaitRoom() (CASSANDRA-21019)
-        public void allocate(long size, OpOrder.Group opGroup)
+        // still drives cleaning, the limit is enforced in awaitRoom() (CASSANDRA-21019).
+        public void allocate(long size)
         {
             assert size >= 0;
 

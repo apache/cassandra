@@ -55,7 +55,6 @@ import org.apache.cassandra.cql3.restrictions.ClusteringElements;
 import org.apache.cassandra.cql3.restrictions.Restriction;
 import org.apache.cassandra.cql3.restrictions.SimpleRestriction;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
-import org.apache.cassandra.db.CassandraWriteContext;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReadCommand;
@@ -113,7 +112,6 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
-import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 
@@ -599,7 +597,7 @@ public class StorageAttachedIndex implements Index
     {
         if (transactionType == IndexTransaction.Type.UPDATE)
         {
-            return new UpdateIndexer(key, memtable, writeContext);
+            return new UpdateIndexer(key, memtable);
         }
 
         // we are only interested in the data from Memtable
@@ -1013,34 +1011,30 @@ public class StorageAttachedIndex implements Index
     {
         private final DecoratedKey key;
         private final Memtable memtable;
-        private final WriteContext writeContext;
 
-        UpdateIndexer(DecoratedKey key, Memtable memtable, WriteContext writeContext)
+        UpdateIndexer(DecoratedKey key, Memtable memtable)
         {
             this.key = key;
             this.memtable = memtable;
-            this.writeContext = writeContext;
         }
 
         @Override
         public void insertRow(Row row)
         {
-            adjustMemtableSize(memtableIndexManager.index(key, row, memtable),
-                               CassandraWriteContext.fromContext(writeContext).getGroup());
+            adjustMemtableSize(memtableIndexManager.index(key, row, memtable));
         }
 
         @Override
         public void updateRow(Row oldRow, Row newRow)
         {
-            adjustMemtableSize(memtableIndexManager.update(key, oldRow, newRow, memtable),
-                               CassandraWriteContext.fromContext(writeContext).getGroup());
+            adjustMemtableSize(memtableIndexManager.update(key, oldRow, newRow, memtable));
         }
 
-        void adjustMemtableSize(long additionalSpace, OpOrder.Group opGroup)
+        void adjustMemtableSize(long additionalSpace)
         {
             // The memtable will assert if we try and reduce its memory usage so, for now, just don't tell it.
             if (additionalSpace >= 0)
-                memtable.markExtraOnHeapUsed(additionalSpace, opGroup);
+                memtable.markExtraOnHeapUsed(additionalSpace);
         }
     }
 }

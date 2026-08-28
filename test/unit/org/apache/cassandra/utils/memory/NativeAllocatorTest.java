@@ -99,17 +99,17 @@ public class NativeAllocatorTest
             verifyUsedReclaiming(10, 0);
 
             // confirm adjustment works
-            allocator.offHeap().adjust(-10, group);
+            allocator.offHeap().adjust(-10);
             verifyUsedReclaiming(0, 0);
 
-            allocator.offHeap().adjust(10, group);
+            allocator.offHeap().adjust(10);
             verifyUsedReclaiming(10, 0);
 
             // confirm we cannot allocate negative
             boolean success = false;
             try
             {
-                allocator.offHeap().allocate(-10, group);
+                allocator.offHeap().allocate(-10);
             }
             catch (AssertionError e)
             {
