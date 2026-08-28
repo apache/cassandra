@@ -207,9 +207,11 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
     /**
      * Put variant for a nested write, that is a write made from within an already-started mutation on the
      * same write context, as legacy 2i does from {@code indexer.onInserted()} under the base table's
-     * memtable-internal locks. Such a write must not wait for memtable pool room: to park there holds those
-     * locks and deadlocks the flush writeBarrier (CASSANDRA-21019). The limit was enforced when the enclosing
-     * mutation started, so a nested write may overshoot it.
+     * memtable-internal locks. Such a write must not wait for memtable pool room: parking there holds those
+     * locks, and a writer queued behind them cannot be released by markBlocking(), so the write barrier of any
+     * concurrent flush in the process never completes (CASSANDRA-21019; Keyspace.writeOrder is shared by every
+     * table, so the flush need not be of this memtable). The limit was enforced when the enclosing mutation
+     * started, so nested writes may overshoot it.
      * <p>
      * An implementation that blocks in {@link #put} MUST override this to skip that wait. Nesting is
      * identified by {@link org.apache.cassandra.db.CassandraWriteContext#enterMemtableWrite()}.

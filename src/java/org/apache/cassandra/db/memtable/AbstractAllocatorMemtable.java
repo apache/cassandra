@@ -148,9 +148,9 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
     }
 
     /**
-     * A nested write was gated when its enclosing mutation started, and must not park while holding that
-     * mutation's memtable-internal locks, where markBlocking() cannot release a queued pre-barrier writer
-     * (CASSANDRA-21019).
+     * A nested write was gated when its enclosing mutation started, and must not park again. Parking holds the
+     * enclosing mutation's memtable-internal locks, which deadlocks a flush anywhere in the process, because
+     * Keyspace.writeOrder is one OpOrder shared by every table (CASSANDRA-21019).
      */
     @Override
     public final long putNested(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
