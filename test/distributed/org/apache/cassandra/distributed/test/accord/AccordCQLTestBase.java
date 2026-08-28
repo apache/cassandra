@@ -88,11 +88,6 @@ import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.OverloadedException;
-<<<<<<< HEAD
-=======
-import org.apache.cassandra.exceptions.RequestFailureException;
-import org.apache.cassandra.exceptions.RequestTimeoutException;
->>>>>>> 6d9234e582a (testFastModify)
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -3504,7 +3499,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                  {
                      int delta = ThreadLocalRandom.current().nextInt(1, 10);
                      int addRow = ThreadLocalRandom.current().nextInt(rows);
-                     int subRow = rows == 2 ? 2 - addRow : addRow;
+                     int subRow = rows == 2 ? 1 - addRow : addRow;
                      while (subRow == addRow)
                          subRow = ThreadLocalRandom.current().nextInt(rows);
 
@@ -3518,8 +3513,8 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                                     "  SELECT * FROM " + qualifiedAccordTableName + " WHERE pk = 1;\n" +
                                     "COMMIT TRANSACTION";
 
-                     writes.add(coordinator.asyncExecuteWithResult(update, ConsistencyLevel.ANY));
-                     reads.add(coordinator.asyncExecuteWithResult(check, ConsistencyLevel.ANY));
+                     writes.add(coordinator.asyncExecuteWithResult(update, ConsistencyLevel.SERIAL));
+                     reads.add(coordinator.asyncExecuteWithResult(check, ConsistencyLevel.SERIAL));
                      while (writes.size() + reads.size() > maxConcurrency)
                      {
                          try { writes.pollFirst().get(); }
@@ -3532,7 +3527,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                          catch (Throwable t) { continue; }
                          int sum = 0;
                          for (int i = 0 ; i < rows ; ++i)
-                             sum += (int) result[0][2];
+                             sum += (int) result[i][2];
                          assertEquals(rows * 100, sum);
                      }
                  }
