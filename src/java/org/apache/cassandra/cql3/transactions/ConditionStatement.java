@@ -130,8 +130,8 @@ public class ConditionStatement
                 throw new IllegalStateException("Either the left-hand or right-hand side must be a reference!");
             }
 
-            // If we are in the IS NULL/IS NOT NULL we would have returned already in the (rhs == null) branch,
-            // for all other cases we need to reject the transaction when the rhs is null.
+            // If we are in the IS NULL/IS NOT NULL we would have returned already in the (rhs == null) branch.
+            // For all other cases, null is parsed as Constants.NULL_VALUE, and we need to reject those transactions.
             // Bind markers are checked in createCondition() below.
             checkTrue(value != Constants.NULL_VALUE, NULL_COMPARISON_MESSAGE);
 
