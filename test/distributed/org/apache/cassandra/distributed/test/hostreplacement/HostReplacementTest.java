@@ -19,8 +19,10 @@
 package org.apache.cassandra.distributed.test.hostreplacement;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -32,10 +34,21 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
+import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.distributed.shared.AssertUtils;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.EndpointState;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.StorageService;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK;
@@ -44,9 +57,13 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.assertInRing;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.assertRingIs;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.awaitRingHealthy;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.awaitRingJoin;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.getDirectories;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.getTokenMetadataTokens;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.replaceHostAndStart;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
+import static org.apache.cassandra.gms.Gossiper.Props.DISABLE_THREAD_VALIDATION;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.junit.Assert.assertFalse;
 
 public class HostReplacementTest extends TestBaseImpl
 {
@@ -203,6 +220,91 @@ public class HostReplacementTest extends TestBaseImpl
             validateRows(seed.coordinator(), expectedState);
             validateRows(replacingNode.coordinator(), expectedState);
         }
+    }
+
+    /**
+     * Make sure that a node stuck in hibernate state due to failed replacement can retry the replacement procedure and succeed.
+     */
+    @Test
+    public void retryingFailedReplaceWithNodeInHibernateState() throws IOException
+    {
+        try (WithProperties properties = new WithProperties())
+        {
+            properties.setProperty(DISABLE_THREAD_VALIDATION, "true");
+
+            // given a two node cluster with one need
+            TokenSupplier even = TokenSupplier.evenlyDistributedTokens(2);
+            try (Cluster cluster = Cluster.build(2)
+                                          .withConfig(c -> c.with(Feature.GOSSIP, Feature.NATIVE_PROTOCOL)
+                                                            .set(Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN, true))
+                                          .withTokenSupplier(node -> even.token(node == 3 ? 2 : node))
+                                          .start() )
+            {
+                IInvokableInstance seed = cluster.get(1);
+                IInvokableInstance nodeToReplace = cluster.get(2);
+
+                setupCluster(cluster);
+                SimpleQueryResult expectedState = nodeToReplace.coordinator().executeWithResult("SELECT * FROM " + KEYSPACE + ".tbl", ConsistencyLevel.ALL);
+
+                // when
+                // stop the node to replace
+                stopUnchecked(nodeToReplace);
+                // wipe the node to replace
+                getDirectories(nodeToReplace).forEach(FileUtils::deleteRecursive);
+
+                String toReplaceAddress = nodeToReplace.config().broadcastAddress().getAddress().getHostAddress();
+                // set hibernate status for the node to replace on seed
+                seed.runOnInstance(putInHibernation(toReplaceAddress));
+
+                // we need to fake a new host id
+                ((InstanceConfig) nodeToReplace.config()).setHostId(UUID.randomUUID());
+                // enable autoboostrap
+                nodeToReplace.config().set("auto_bootstrap", true);
+
+                // first replacement will fail as the node was announced as hibernated and no-one can contact it as startup
+                assertThatExceptionOfType(IllegalStateException.class).isThrownBy(() -> {
+                    ClusterUtils.start(nodeToReplace, props -> {
+                        // set the replacement address
+                        props.setProperty("cassandra.replace_address", toReplaceAddress);
+                    });
+                }).withMessageContaining("Unable to contact any seeds");
+
+                // then
+                // retrying replacement will succeed as the node announced itself as shutdown before killing itself
+                ClusterUtils.start(nodeToReplace, props -> {
+                    // set the replacement address
+                    props.setProperty("cassandra.replace_address", toReplaceAddress);
+                });
+                assertFalse("replaces node should be up", nodeToReplace.isShutdown());
+
+                // the data after replacement should be consistent
+                awaitRingJoin(seed, nodeToReplace);
+                awaitRingJoin(nodeToReplace, seed);
+
+                validateRows(seed.coordinator(), expectedState);
+                validateRows(nodeToReplace.coordinator(), expectedState);
+            }
+        }
+    }
+
+    private static IIsolatedExecutor.SerializableRunnable putInHibernation(String address)
+    {
+        return () -> {
+            InetAddressAndPort endpoint;
+            try
+            {
+                endpoint = InetAddressAndPort.getByName(address);
+            }
+            catch (UnknownHostException e)
+            {
+                throw new RuntimeException(e);
+            }
+            EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
+            VersionedValue newStatus = StorageService.instance.valueFactory.hibernate(true);
+            epState.addApplicationState(ApplicationState.STATUS, newStatus);
+            epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, newStatus);
+            Gossiper.instance.handleMajorStateChange(endpoint, epState);
+        };
     }
 
     static void setupCluster(Cluster cluster)
