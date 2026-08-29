@@ -109,7 +109,7 @@ public class Server implements CassandraDaemon.Server
         Schema.instance.registerListener(notifier);
     }
 
-    public void stop()
+    public synchronized void stop()
     {
         if (isRunning.compareAndSet(true, false))
             close();
@@ -124,6 +124,10 @@ public class Server implements CassandraDaemon.Server
     {
         if(isRunning())
             return;
+
+        // Let the tracker accept connections again after a previous stop(). This has to happen before
+        // the socket is bound, since clients may be accepted before isRunning is set below.
+        connectionTracker.reopen();
 
         // Configure the server.
         ChannelFuture bindFuture = pipelineConfigurator.initializeChannel(workerGroup, socket, connectionFactory);
@@ -258,6 +262,14 @@ public class Server implements CassandraDaemon.Server
         private final EnumMap<Event.Type, ChannelGroup> groups = new EnumMap<>(Event.Type.class);
         private final ProtocolVersionTracker protocolVersionTracker = new ProtocolVersionTracker();
 
+        /**
+         * Set by {@link #closeAll()} so that connections registering after the server has been stopped are
+         * closed rather than left behind, and cleared by {@link #reopen()} when the server is started again.
+         * DefaultChannelGroup's own stayClosed flag cannot be used for this because it never resets, which
+         * would make the server unable to bind again after a disablebinary/enablebinary cycle.
+         */
+        private volatile boolean closed = false;
+
         public ConnectionTracker()
         {
             for (Event.Type type : Event.Type.values())
@@ -267,6 +279,15 @@ public class Server implements CassandraDaemon.Server
         public void addConnection(Channel ch, Connection connection)
         {
             allChannels.add(ch);
+
+            // Channels are registered here, when STARTUP is handled, rather than when they are accepted, so
+            // a channel accepted before closeAll() which completes its handshake afterwards would never be
+            // closed by it. Reading the flag after the channel has been added to allChannels guarantees that
+            // either this sees the shutdown, or closeAll() sees the channel.
+            if (closed)
+            {
+                ch.close();
+            }
 
             if (ch.remoteAddress() instanceof InetSocketAddress)
                 protocolVersionTracker.addConnection(((InetSocketAddress) ch.remoteAddress()).getAddress(), connection.getVersion());
@@ -293,7 +314,15 @@ public class Server implements CassandraDaemon.Server
 
         void closeAll()
         {
+            // Must be set before closing, so that a connection registering concurrently either observes the
+            // shutdown itself or is already in allChannels by the time it is iterated below.
+            closed = true;
             allChannels.close().awaitUninterruptibly();
+        }
+
+        void reopen()
+        {
+            closed = false;
         }
 
         int countConnectedClients()
