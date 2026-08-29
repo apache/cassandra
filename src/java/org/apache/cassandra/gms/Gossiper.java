@@ -870,30 +870,44 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public void assassinateEndpoint(String address) throws UnknownHostException
     {
         InetAddressAndPort endpoint = InetAddressAndPort.getByName(address);
-        runInGossipStageBlocking(() -> {
-            EndpointState epState = endpointStateMap.get(endpoint);
-            logger.warn("Assassinating {} via gossip", endpoint);
+        logger.warn("Assassinating {} via gossip", endpoint);
 
-            if (epState == null)
+        // Snapshot the target's heartbeat. These reads are safe off the GOSSIP stage:
+        // endpointStateMap is a ConcurrentHashMap and HeartBeatState is immutable.
+        EndpointState epState = endpointStateMap.get(endpoint);
+        final HeartBeatState prevHb = (epState != null)
+                                      ? epState.getHeartBeatState() : null;
+
+        // Sleep on the caller (JMX) thread, NOT on the GOSSIP stage. This keeps the
+        // GOSSIP stage free to process messages, so the target's heartbeat will be
+        // updated if it is alive.
+        logger.info("Sleeping for {}ms to ensure {} does not change",
+                    StorageService.RING_DELAY_MILLIS, endpoint);
+        Uninterruptibles.sleepUninterruptibly(StorageService.RING_DELAY_MILLIS,
+                                              TimeUnit.MILLISECONDS);
+
+        // Verify the heartbeat and perform the assassination on the GOSSIP stage.
+        runInGossipStageBlocking(() -> {
+            EndpointState currentState = endpointStateMap.get(endpoint);
+
+            if (currentState == null)
             {
-                epState = new EndpointState(new HeartBeatState((int) ((currentTimeMillis() + 60000) / 1000), 9999));
+                if (prevHb != null)
+                    throw new RuntimeException("Endpoint " + endpoint
+                                               + " disappeared from gossip while trying to assassinate it");
+                int newGen = (int) ((currentTimeMillis() + 60000) / 1000);
+                currentState = new EndpointState(new HeartBeatState(newGen, 9999));
             }
             else
             {
-                int generation = epState.getHeartBeatState().getGeneration();
-                int heartbeat = epState.getHeartBeatState().getHeartBeatVersion();
-                logger.info("Sleeping for {}ms to ensure {} does not change", StorageService.RING_DELAY_MILLIS, endpoint);
-                Uninterruptibles.sleepUninterruptibly(StorageService.RING_DELAY_MILLIS, TimeUnit.MILLISECONDS);
-                // make sure it did not change
-                EndpointState newState = endpointStateMap.get(endpoint);
-                if (newState == null)
-                    logger.warn("Endpoint {} disappeared while trying to assassinate, continuing anyway", endpoint);
-                else if (newState.getHeartBeatState().getGeneration() != generation)
-                    throw new RuntimeException("Endpoint still alive: " + endpoint + " generation changed while trying to assassinate it");
-                else if (newState.getHeartBeatState().getHeartBeatVersion() != heartbeat)
-                    throw new RuntimeException("Endpoint still alive: " + endpoint + " heartbeat changed while trying to assassinate it");
-                epState.updateTimestamp(); // make sure we don't evict it too soon
-                epState.forceNewerGenerationUnsafe();
+                HeartBeatState curHb = currentState.getHeartBeatState();
+                if (prevHb == null
+                    || curHb.getGeneration() != prevHb.getGeneration()
+                    || curHb.getHeartBeatVersion() != prevHb.getHeartBeatVersion())
+                    throw new RuntimeException("Endpoint still alive: " + endpoint
+                                               + " heartbeat changed while trying to assassinate it");
+                currentState.updateTimestamp(); // make sure we don't evict it too soon
+                currentState.forceNewerGenerationUnsafe();
             }
 
             Collection<Token> tokens = null;
@@ -907,17 +921,23 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             }
             if (tokens == null || tokens.isEmpty())
             {
-                logger.warn("Trying to assassinate an endpoint {} that does not have any tokens assigned. This should not have happened, trying to continue with a random token.", address);
-                tokens = Collections.singletonList(StorageService.instance.getTokenMetadata().partitioner.getRandomToken());
+                logger.warn("Trying to assassinate an endpoint {} that does not have any tokens assigned."
+                            + " This should not have happened, trying to continue with a random token.", address);
+                tokens = Collections.singletonList(
+                    StorageService.instance.getTokenMetadata().partitioner.getRandomToken());
             }
 
             long expireTime = computeExpireTime();
-            epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.left(tokens, expireTime));
-            epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.left(tokens, computeExpireTime()));
-            handleMajorStateChange(endpoint, epState);
-            Uninterruptibles.sleepUninterruptibly(intervalInMillis * 4, TimeUnit.MILLISECONDS);
-            logger.warn("Finished assassinating {}", endpoint);
+            currentState.addApplicationState(ApplicationState.STATUS_WITH_PORT,
+                                               StorageService.instance.valueFactory.left(tokens, expireTime));
+            currentState.addApplicationState(ApplicationState.STATUS,
+                                               StorageService.instance.valueFactory.left(tokens, expireTime));
+            handleMajorStateChange(endpoint, currentState);
         });
+
+        // Wait for gossip to propagate the assassination, on the caller thread.
+        Uninterruptibles.sleepUninterruptibly(intervalInMillis * 4, TimeUnit.MILLISECONDS);
+        logger.warn("Finished assassinating {}", endpoint);
     }
 
     public boolean isKnownEndpoint(InetAddressAndPort endpoint)
