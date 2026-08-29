@@ -130,7 +130,7 @@ public class RemoteJmxMBeanAccessor implements MBeanAccessor
     private volatile boolean connected = false;
 
     /**
-     * Creates a NodeProbe using the specified JMX host, port, username, and password.
+     * Creates an accessor for the specified JMX host and port, authenticating with the given credentials.
      *
      * @param host hostname or IP address of the JMX agent
      * @param port TCP port of the remote JMX agent
@@ -147,7 +147,7 @@ public class RemoteJmxMBeanAccessor implements MBeanAccessor
     }
 
     /**
-     * Creates a NodeProbe using the specified JMX host and port.
+     * Creates an accessor for the specified JMX host and port.
      *
      * @param host hostname or IP address of the JMX agent
      * @param port TCP port of the remote JMX agent
@@ -159,7 +159,7 @@ public class RemoteJmxMBeanAccessor implements MBeanAccessor
     }
 
     /**
-     * Creates a NodeProbe using the specified JMX host and default port.
+     * Creates an accessor for the specified JMX host on the default port.
      *
      * @param host hostname or IP address of the JMX agent
      */

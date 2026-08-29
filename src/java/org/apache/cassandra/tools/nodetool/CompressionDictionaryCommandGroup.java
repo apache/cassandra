@@ -348,7 +348,7 @@ public class CompressionDictionaryCommandGroup
             }
             catch (IllegalStateException | IllegalArgumentException ex)
             {
-                // These exceptions are threated as the command input was invalid, so we don't need to wrap them.
+                // These exceptions already mean the command input was invalid, so don't wrap them.
                 throw ex;
             }
             catch (ValueInstantiationException ex)

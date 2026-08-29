@@ -33,8 +33,8 @@ import java.util.List;
  *   <li>{@link org.apache.cassandra.management.CommandExecutionArgsSerde} to serialize/deserialize
  *       command arguments to and from JSON or CQL row maps.</li>
  *   <li>{@link org.apache.cassandra.management.CommandInvokerService} to look up and invoke
- *       commands over existing MBean interfaces (only intefaces and corresponding implementaions
- *       are used, JMX might be disabled).;</li>
+ *       commands over existing MBean interfaces (only the interfaces and their implementations are
+ *       used, so this works with JMX disabled).</li>
  *   <li>CQL syntax {@code COMMAND} to validate and convert user-supplied arguments.</li>
  * </ul>
  * <p>

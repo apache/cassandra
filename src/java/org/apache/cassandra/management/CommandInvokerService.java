@@ -61,14 +61,12 @@ import static org.apache.cassandra.management.ManagementUtils.findRegistryComman
 import static org.apache.cassandra.management.ManagementUtils.fullCommandName;
 
 /**
- * Service that manages the command registry lifecycle and execution.
+ * Owns the command registry and executes commands against it.
  * <p>
- * Similar to StorageService, SnapshotManager the service coordinates various aspects of command management:
- * - Manages lifecycle (initialization, shutdown)
- * - Coordinates MBean registration
- * - Provides command execution coordination
- * - Integrates with daemon startup
- * - Manages state (registry, MBean instances)
+ * Like StorageService and SnapshotManager, this is a daemon-lifetime singleton started from
+ * {@link org.apache.cassandra.service.CassandraDaemon}. It builds the registry at startup, registers one
+ * {@link CommandMBeanAdapter} per command, runs commands on behalf of the JMX and CQL transports, and
+ * unregisters everything on shutdown.
  */
 public class CommandInvokerService implements CommandInvokerServiceMBean
 {
@@ -138,9 +136,9 @@ public class CommandInvokerService implements CommandInvokerServiceMBean
     }
 
     /**
-     * @param fullCommandName Full command name, including command demimiter for subcommands.
+     * @param fullCommandName Full command name, including the command delimiter for subcommands.
      * @param argumentsSupplier Supplier of command execution arguments.
-     *                          This is used to defer argument construction until after all validation checks are passed.
+     *                          Defers argument construction until every validation check has passed.
      * @return captured output of the command execution.
      */
     public CommandResult invokeCommand(String fullCommandName, Supplier<CommandExecutionArgs> argumentsSupplier)
@@ -431,8 +429,8 @@ public class CommandInvokerService implements CommandInvokerServiceMBean
     }
 
     /**
-     * Record of a single command execution. Retained in {@link BoundedExecutionHistory} and is
-     * surfaced to operators as command execution history via virtual tables.
+     * Record of a single command execution. Retained in {@link BoundedExecutionHistory} and exposed to
+     * operators as command execution history through virtual tables.
      */
     static class ExecutionHistory
     {

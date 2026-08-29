@@ -72,12 +72,9 @@ public class NodeToolEnableDisableBinaryTest extends TestBaseImpl
     }
 
     /**
-     * This is an important corner case to verify that when binary protocol is disabled,
-     * we can still connect to the management port and query system tables. This case
-     * must be explicitly tested because the management port is used by ops and other
-     * monitoring tools to control the cluster.
-     *
-     * @throws Throwable If any exception occurs during the test.
+     * With the binary protocol disabled, the management port must still accept connections and serve
+     * queries against system tables. Operators and monitoring tools drive the cluster through that port,
+     * so disabling the client transport must not take it down with it.
      */
     @Test
     public void testSystemQueriesViaManagementPortWhenBinaryDisabled() throws Throwable

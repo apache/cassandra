@@ -35,7 +35,7 @@ package org.apache.cassandra.management.api;
  */
 public interface Command<R>
 {
-    /** Get command metadata - replaces argClass() from the cep-38 doc with richer information. */
+    /** Command metadata. Replaces argClass() from the CEP-38 doc, carrying more than just the argument type. */
     CommandMetadata metadata();
 
     /**

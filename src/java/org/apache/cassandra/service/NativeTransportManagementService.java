@@ -41,8 +41,8 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.START_NATI
 import static org.apache.cassandra.service.NativeTransportService.useEpoll;
 
 /**
- * Manages the native management transport server on port {@code 11211}.
- * This service is independent of NativeTransportService and can only be
+ * Manages the native management transport server, listening on {@code native_transport_management_port}
+ * ({@code 11211} by default). This service is independent of NativeTransportService and can only be
  * enabled/disabled via configuration or system property (not at runtime).
  */
 public class NativeTransportManagementService implements CassandraDaemon.Server

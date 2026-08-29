@@ -108,7 +108,7 @@ public class PicocliCommandMetadata implements CommandMetadata
     }
 
     /**
-     * Get the underlying CommandSpec for advanced usage.
+     * Returns the underlying CommandSpec.
      */
     public CommandSpec getCommandSpec()
     {
