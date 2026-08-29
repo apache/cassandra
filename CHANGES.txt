@@ -26,6 +26,7 @@ Merged from 5.0:
  * Fix ThreadLocalReadAheadBuffer#fill() to throw a CorruptBlockException if chunk metadata and file size are out of sync (CASSANDRA-21519)
  * Fix memtable on-heap accounting drift in BTree.update and BTreeRow.merge (CASSANDRA-21472)
 Merged from 4.0:
+ * During streaming Bounds.getNonOverlappingBounds produces incorrect bounds leading to row/counter cache not invalidate correctly (CASSANDRA-21594)
  * Validate authz before performing role check in LIST ROLES/PERMISSIONS (CASSANDRA-21560)
  * Add validation to uncompressed length during decompression (CASSANDRA-21567)
  * Fix regression in PasswordObfuscator for dollar-quoted passwords (CASSANDRA-21559)
