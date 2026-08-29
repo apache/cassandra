@@ -31,6 +31,7 @@ public class DataRateSpecTest
     @Test
     public void testConversions()
     {
+        assertEquals(0, new DataRateSpec.LongBytesPerSecondBound("0").toBytesPerSecond(), 0);
         assertEquals(10, new DataRateSpec.LongBytesPerSecondBound("10B/s").toBytesPerSecond(), 0);
         assertEquals(10240, new DataRateSpec.LongBytesPerSecondBound("10KiB/s").toBytesPerSecond(), 0);
         assertEquals(0, new DataRateSpec.LongBytesPerSecondBound("10KiB/s").toMebibytesPerSecond(), 0.1);
@@ -103,6 +104,8 @@ public class DataRateSpecTest
     @Test
     public void testInvalidInputs()
     {
+        assertThatThrownBy(() -> new DataRateSpec.LongBytesPerSecondBound("-0")).isInstanceOf(IllegalArgumentException.class)
+                                                                                .hasMessageContaining("Invalid data rate: -0");
         assertThatThrownBy(() -> new DataRateSpec.LongBytesPerSecondBound("10")).isInstanceOf(IllegalArgumentException.class)
                                                                                 .hasMessageContaining("Invalid data rate: 10");
         assertThatThrownBy(() -> new DataRateSpec.LongBytesPerSecondBound("-10b/s")).isInstanceOf(IllegalArgumentException.class)
@@ -153,6 +156,7 @@ public class DataRateSpecTest
     @Test
     public void testEquals()
     {
+        assertEquals(new DataRateSpec.LongBytesPerSecondBound("0"), new DataRateSpec.LongBytesPerSecondBound("0B/s"));
         assertEquals(new DataRateSpec.LongBytesPerSecondBound("10B/s"), new DataRateSpec.LongBytesPerSecondBound("10B/s"));
         assertEquals(new DataRateSpec.LongBytesPerSecondBound("10KiB/s"), new DataRateSpec.LongBytesPerSecondBound("10240B/s"));
         assertEquals(new DataRateSpec.LongBytesPerSecondBound("10240B/s"), new DataRateSpec.LongBytesPerSecondBound("10KiB/s"));
