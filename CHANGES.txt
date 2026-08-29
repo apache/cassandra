@@ -12,6 +12,7 @@ Merged from 4.0:
 
 
 4.1.12
+ * Fix NullPointerException in nodetool listpendinghints when a hint is pending for a host id no longer in the ring (CASSANDRA-21538)
  * Coordinator load-shedding returns OverloadedException without setting streamId, misrouting query responses (CASSANDRA-21508)
  * Add Paxos v2 option and informatin in cassandra.yaml (CASSANDRA-21316)
  * Harden data resurrection startup check with atomic heartbeat file write with fallback (CASSANDRA-21290)
