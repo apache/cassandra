@@ -1808,6 +1808,13 @@ drop_compact_storage_enabled: false
 # group_by_enabled: true
 # Guardrail to allow/disallow TRUNCATE and DROP TABLE statements
 # drop_truncate_table_enabled: true
+#
+# During node replacement, exclude the replacement pending replica from write blockFor calculation
+# Default: false (keeps current behavior where all pending replicas are included in blockFor)
+# When enabled: only consistency level of natural replicas is required for writes during node replacement
+# For normal bootstrap (non-replacement), pending replicas are still included
+# write_requests_not_wait_on_pending_replacements: false
+#
 # Guardrail to warn or fail when using a page size greater than threshold.
 # The two thresholds default to -1 to disable.
 # page_size_warn_threshold: -1
