@@ -52,12 +52,12 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
     @Test
     public void checkHeaderDoesNotFailWithValidHeader() throws Exception
     {
-        try (IndexOutputWriter writer = IndexFileUtils.instance.openOutput(file))
+        try (IndexOutputWriter writer = IndexFileUtils.instance().openOutput(file))
         {
             SAICodecUtils.writeHeader(writer);
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file))
+        try (IndexInput input = IndexFileUtils.instance().openBlockingInput(file))
         {
             SAICodecUtils.checkHeader(input);
         }
@@ -66,12 +66,12 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
     @Test
     public void checkHeaderFailsOnInvalidMagicValue() throws Exception
     {
-        try (IndexOutputWriter writer = IndexFileUtils.instance.openOutput(file))
+        try (IndexOutputWriter writer = IndexFileUtils.instance().openOutput(file))
         {
             writeBEInt(writer, 1234);
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file))
+        try (IndexInput input = IndexFileUtils.instance().openBlockingInput(file))
         {
             assertThatThrownBy(() -> SAICodecUtils.checkHeader(input))
             .isInstanceOf(CorruptIndexException.class)
@@ -82,13 +82,13 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
     @Test
     public void checkHeaderFailsOnInvalidVersion() throws Exception
     {
-        try (IndexOutputWriter writer = IndexFileUtils.instance.openOutput(file))
+        try (IndexOutputWriter writer = IndexFileUtils.instance().openOutput(file))
         {
             writeBEInt(writer, CODEC_MAGIC);
             writer.writeString("zz");
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file))
+        try (IndexInput input = IndexFileUtils.instance().openBlockingInput(file))
         {
             assertThatThrownBy(() -> SAICodecUtils.checkHeader(input))
             .isInstanceOf(IllegalArgumentException.class)
@@ -100,7 +100,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
     public void checkFooterDoesNotFailWithValidFooter() throws Exception
     {
         int numBytes = nextInt(1000, 10000);
-        try (IndexOutputWriter writer = IndexFileUtils.instance.openOutput(file))
+        try (IndexOutputWriter writer = IndexFileUtils.instance().openOutput(file))
         {
             SAICodecUtils.writeHeader(writer);
             for (int value = 0; value < numBytes; value++)
@@ -108,7 +108,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             SAICodecUtils.writeFooter(writer);
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
+        try (IndexInput input = IndexFileUtils.instance().openBlockingInput(file);
              ChecksumIndexInput checksumIndexInput = IndexFileUtils.getBufferedChecksumIndexInput(input))
         {
             SAICodecUtils.checkHeader(checksumIndexInput);
@@ -122,14 +122,14 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
     public void checkFooterFailsWithMissingFooter() throws Exception
     {
         int numBytes = nextInt(1000, 10000);
-        try (IndexOutputWriter writer = IndexFileUtils.instance.openOutput(file))
+        try (IndexOutputWriter writer = IndexFileUtils.instance().openOutput(file))
         {
             SAICodecUtils.writeHeader(writer);
             for (int value = 0; value < numBytes; value++)
                 writer.writeByte(getRandom().nextByte());
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
+        try (IndexInput input = IndexFileUtils.instance().openBlockingInput(file);
              ChecksumIndexInput checksumIndexInput = IndexFileUtils.getBufferedChecksumIndexInput(input))
         {
             SAICodecUtils.checkHeader(checksumIndexInput);
@@ -145,7 +145,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
     public void checkFooterFailsWithExtendedFooter() throws Exception
     {
         int numBytes = nextInt(1000, 10000);
-        try (IndexOutputWriter writer = IndexFileUtils.instance.openOutput(file))
+        try (IndexOutputWriter writer = IndexFileUtils.instance().openOutput(file))
         {
             SAICodecUtils.writeHeader(writer);
             for (int value = 0; value < numBytes; value++)
@@ -154,7 +154,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             writeBEInt(writer, 1234);
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
+        try (IndexInput input = IndexFileUtils.instance().openBlockingInput(file);
              ChecksumIndexInput checksumIndexInput = IndexFileUtils.getBufferedChecksumIndexInput(input))
         {
             SAICodecUtils.checkHeader(checksumIndexInput);
@@ -170,7 +170,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
     public void checkFooterFailsWithInvalidFooter() throws Exception
     {
         int numBytes = nextInt(1000, 10000);
-        try (IndexOutputWriter writer = IndexFileUtils.instance.openOutput(file))
+        try (IndexOutputWriter writer = IndexFileUtils.instance().openOutput(file))
         {
             SAICodecUtils.writeHeader(writer);
             for (int value = 0; value < numBytes; value++)
@@ -181,7 +181,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             writeBELong(writer, writer.getChecksum());
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
+        try (IndexInput input = IndexFileUtils.instance().openBlockingInput(file);
              ChecksumIndexInput checksumIndexInput = IndexFileUtils.getBufferedChecksumIndexInput(input))
         {
             SAICodecUtils.checkHeader(checksumIndexInput);
@@ -197,7 +197,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
     public void checkFooterFailsWithInvalidAlgorithmId() throws Exception
     {
         int numBytes = nextInt(1000, 10000);
-        try (IndexOutputWriter writer = IndexFileUtils.instance.openOutput(file))
+        try (IndexOutputWriter writer = IndexFileUtils.instance().openOutput(file))
         {
             SAICodecUtils.writeHeader(writer);
             for (int value = 0; value < numBytes; value++)
@@ -208,7 +208,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             writeBELong(writer, writer.getChecksum());
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
+        try (IndexInput input = IndexFileUtils.instance().openBlockingInput(file);
              ChecksumIndexInput checksumIndexInput = IndexFileUtils.getBufferedChecksumIndexInput(input))
         {
             SAICodecUtils.checkHeader(checksumIndexInput);
@@ -224,7 +224,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
     public void checkFooterFailsWithInvalidChecksum() throws Exception
     {
         int numBytes = nextInt(1000, 10000);
-        try (IndexOutputWriter writer = IndexFileUtils.instance.openOutput(file))
+        try (IndexOutputWriter writer = IndexFileUtils.instance().openOutput(file))
         {
             SAICodecUtils.writeHeader(writer);
             for (int value = 0; value < numBytes; value++)
@@ -235,7 +235,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             writeBELong(writer, 0);
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
+        try (IndexInput input = IndexFileUtils.instance().openBlockingInput(file);
              ChecksumIndexInput checksumIndexInput = IndexFileUtils.getBufferedChecksumIndexInput(input))
         {
             SAICodecUtils.checkHeader(checksumIndexInput);
@@ -251,7 +251,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
     public void checkFooterFailsWithIllegalChecksum() throws Exception
     {
         int numBytes = nextInt(1000, 10000);
-        try (IndexOutputWriter writer = IndexFileUtils.instance.openOutput(file))
+        try (IndexOutputWriter writer = IndexFileUtils.instance().openOutput(file))
         {
             SAICodecUtils.writeHeader(writer);
             for (int value = 0; value < numBytes; value++)
@@ -262,7 +262,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             writeBELong(writer, 0xFFFFFFFF00000000L);
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
+        try (IndexInput input = IndexFileUtils.instance().openBlockingInput(file);
              ChecksumIndexInput checksumIndexInput = IndexFileUtils.getBufferedChecksumIndexInput(input))
         {
             SAICodecUtils.checkHeader(checksumIndexInput);
@@ -277,12 +277,12 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
     @Test
     public void validateFooterAndResetPositionFailsWithShortFile() throws Exception
     {
-        try (IndexOutputWriter writer = IndexFileUtils.instance.openOutput(file))
+        try (IndexOutputWriter writer = IndexFileUtils.instance().openOutput(file))
         {
             SAICodecUtils.writeHeader(writer);
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file))
+        try (IndexInput input = IndexFileUtils.instance().openBlockingInput(file))
         {
             assertThatThrownBy(() -> SAICodecUtils.validateFooterAndResetPosition(input))
             .isInstanceOf(CorruptIndexException.class)
@@ -294,7 +294,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
     public void validateChecksumFailsWithInvalidChecksum() throws Exception
     {
         int numBytes = nextInt(1000, 10000);
-        try (IndexOutputWriter writer = IndexFileUtils.instance.openOutput(file))
+        try (IndexOutputWriter writer = IndexFileUtils.instance().openOutput(file))
         {
             SAICodecUtils.writeHeader(writer);
             for (int value = 0; value < numBytes; value++)
@@ -305,7 +305,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             writeBELong(writer, 0);
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file))
+        try (IndexInput input = IndexFileUtils.instance().openBlockingInput(file))
         {
             SAICodecUtils.checkHeader(input);
             for (int value = 0; value < numBytes; value++)
@@ -320,7 +320,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
     public void validateChecksumFailsWithIllegalChecksum() throws Exception
     {
         int numBytes = nextInt(1000, 10000);
-        try (IndexOutputWriter writer = IndexFileUtils.instance.openOutput(file))
+        try (IndexOutputWriter writer = IndexFileUtils.instance().openOutput(file))
         {
             SAICodecUtils.writeHeader(writer);
             for (int value = 0; value < numBytes; value++)
@@ -331,7 +331,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             writeBELong(writer, 0xFFFFFFFF00000000L);
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file))
+        try (IndexInput input = IndexFileUtils.instance().openBlockingInput(file))
         {
             SAICodecUtils.checkHeader(input);
             for (int value = 0; value < numBytes; value++)

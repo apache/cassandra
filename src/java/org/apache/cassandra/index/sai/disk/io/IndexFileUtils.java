@@ -46,10 +46,21 @@ public class IndexFileUtils
                                                                                              .finishOnClose(true)
                                                                                              .build();
 
-    public static final IndexFileUtils instance = new IndexFileUtils(DEFAULT_WRITER_OPTION);
+    private static final IndexFileUtils instance = new IndexFileUtils(DEFAULT_WRITER_OPTION);
+    private static IndexFileUtils overrideInstance = null;
     private static final Supplier<Checksum> CHECKSUM_FACTORY = CRC32C::new;
 
     private final SequentialWriterOption writerOption;
+
+    public static synchronized void setOverrideInstance(IndexFileUtils overrideInstance)
+    {
+        IndexFileUtils.overrideInstance = overrideInstance;
+    }
+
+    public static IndexFileUtils instance()
+    {
+        return overrideInstance == null ? instance : overrideInstance;
+    }
 
     @VisibleForTesting
     protected IndexFileUtils(SequentialWriterOption writerOption)
