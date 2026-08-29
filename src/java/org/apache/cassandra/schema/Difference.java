@@ -29,7 +29,7 @@ public enum Difference
 
     /**
      *
-     * Two schema objects are considered to differ DEEP-ly if their direct structure is altered.
+     * Two schema objects are considered to differ SHALLOW-ly if their direct structure is altered.
      *
      * For example, if a table T is altered to add a new column, a different compaction strategy, or a new description,
      * then it will differ SHALLOW-ly from the original.
