@@ -887,6 +887,12 @@ public class MutationJournal
         return journal.countStaticSegmentsForTesting();
     }
 
+    @VisibleForTesting
+    public void truncateForTesting()
+    {
+        journal.truncateForTesting();
+    }
+
     public long getDiskSpaceUsed()
     {
         return journal.getDiskSpaceUsed();
