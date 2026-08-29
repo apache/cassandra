@@ -96,14 +96,12 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
      * Executor for handling requests from management connections (part of CEP-38).
      *
      * <p>Management connections are identified via Connection's flag set by the management
-     * transport server at initial connection setup. Request then are routed to a dedicated
-     * executor instead of the standard {@link #requestExecutor}. This provides isolation and
-     * prioritization of management operations, ensuring they can proceed even under
-     * a high load of regular client requests.
+     * transport server at initial connection setup. Their requests are then routed to a dedicated
+     * executor instead of the standard {@link #requestExecutor}, so management operations keep
+     * making progress while the client pool is saturated.
      *
-     * <p>The executor is configured separately via
-     * {@link DatabaseDescriptor#getNativeTransportManagementMaxThreads()} to allow
-     * independent tuning of management operation throughput.
+     * <p>The executor is sized separately via
+     * {@link DatabaseDescriptor#getNativeTransportManagementMaxThreads()}.
      *
      * <p>Management connections are established through the management transport server
      * (see {@link org.apache.cassandra.service.NativeTransportManagementService}), which listens
@@ -179,9 +177,8 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
             return;
         }
 
-        // Use connection object to check for management connections, this could be faster than checking
-        // channel attributies directly every time. For management connections, we route requests to
-        // the management executor.
+        // Check the connection object rather than the channel attributes, which should be cheaper on every
+        // request. Management connections are routed to the management executor.
         Connection connection = request.connection();
         if (connection instanceof ServerConnection)
         {
@@ -189,8 +186,8 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
             if (serverConnection.isManagementConnection())
             {
                 // Intentionally skipping ClientMetrics calls here: that meter tracks regular client request
-                // dispatch, and management API requests are accounted for separately dedicated metrics rather
-                // than mixing them into the client requests rate.
+                // dispatch, and management API requests have their own metrics rather than being mixed
+                // into the client request rate.
                 managementExecutor.submit(new ManagementRequestProcessor<>(channel, request, forFlusher, param, backpressure));
                 return;
             }
@@ -431,7 +428,7 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
             startTimeNanos = MonotonicClock.Global.preciseTime.now();
             RequestTime requestTime = new RequestTime(request.createdAtNanos, startTimeNanos);
 
-            // Validate management request BEFORE executing
+            // Validate the management request before executing it
             Connection connection = request.connection();
             if (connection instanceof ServerConnection) {
                 ServerConnection serverConnection = (ServerConnection) connection;
@@ -452,8 +449,6 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
 
             IN_MANAGEMENT_TASK.set(Boolean.TRUE);
             try {
-                // If validation passes, call the normal processRequest to execute
-                // This calls the instance method processRequest() which does all the work
                 processRequest(channel, request, forFlusher, flusherParam, backpressure, requestTime);
             } finally {
                 IN_MANAGEMENT_TASK.set(Boolean.FALSE);
@@ -691,7 +686,7 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
     /**
      * @return true once the executor serving this dispatcher's server has drained: {@link #managementExecutor}
      * for the management transport, {@link #requestExecutor} otherwise. A management task running on the
-     * calling thread is excluded — it is the task that initiated the stop and cannot drain before it.
+     * calling thread is excluded, since it is the task that initiated the stop and cannot drain before it.
      */
     public boolean isDone()
     {

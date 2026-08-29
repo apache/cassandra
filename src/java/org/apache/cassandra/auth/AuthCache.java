@@ -495,7 +495,7 @@ public class AuthCache<K, V> implements AuthCacheMBean, UnweightedCacheSize, Shu
         default void visitNetwork(NetworkPermissionsCacheMBean cache) {}
         /** Visits a roles cache MBean. */
         default void visitRoles(RolesCacheMBean cache) {}
-        /** Visits a generic auth cache (fallback for caches that don't implement specific MBean interfaces).*/
+        /** Visits a generic auth cache (fallback for caches that don't implement specific MBean interfaces). */
         default void visit(AuthCacheMBean cache) {}
     }
 

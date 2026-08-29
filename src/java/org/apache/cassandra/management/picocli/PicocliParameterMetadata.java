@@ -113,7 +113,7 @@ public class PicocliParameterMetadata implements ParameterMetadata
     }
 
     /**
-     * Get the underlying PositionalParamSpec for advanced usage.
+     * Returns the underlying PositionalParamSpec.
      */
     public PositionalParamSpec getPositionalParamSpec()
     {

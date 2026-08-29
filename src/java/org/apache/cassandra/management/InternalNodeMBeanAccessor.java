@@ -113,27 +113,25 @@ import static org.apache.cassandra.service.CassandraDaemon.SKIP_GC_INSPECTOR;
  * Server-side implementation of {@link MBeanAccessor} for in-process execution.
  *
  * <p>
- * This implementation provides direct access to MBean instances without using JMX,
- * eliminating the need for remote connections or JMX proxies. It is designed for
- * server-side command execution as part of CEP-38 Management API, where commands run
- * in the same JVM as the Cassandra daemon.
+ * Returns MBean instances without going through JMX, for the CEP-38 management API, where commands
+ * run in the same JVM as the Cassandra daemon.
  *
  * <p>
  * Unlike {@link RemoteJmxMBeanAccessor}, this implementation:
  * <ul>
- *   <li>Directly accesses singleton instances (e.g., {@code StorageService.instance})</li>
- *   <li>Does not require network connections or JMX connectors</li>
- *   <li>Provides better performance by avoiding serialization/deserialization</li>
+ *   <li>Reads singleton instances directly (e.g., {@code StorageService.instance})</li>
+ *   <li>Needs no network connection or JMX connector</li>
+ *   <li>Serializes nothing: arguments and results stay as objects</li>
  *   <li>Has no connection state to manage</li>
  *   <li>Works directly with {@link Keyspace} and {@link ColumnFamilyStore} instances</li>
  * </ul>
  *
  * <p>
- * <b>Lazy Initialization</b>: MBean providers are initialized registered for known MBeans.
+ * Providers for the known MBeans are registered up front, but each one resolves its MBean only on
+ * first access.
  *
  * @see MBeanAccessor
  * @see RemoteJmxMBeanAccessor
- * @since 5.1
  */
 public class InternalNodeMBeanAccessor implements MBeanAccessor
 {
@@ -315,26 +313,20 @@ public class InternalNodeMBeanAccessor implements MBeanAccessor
     {
         try
         {
-            // Use the internal MBean server to look up MBean by ObjectName. This leverages existing
-            // JMX infrastructure and avoids the complexity of constructing metric names from Props.
+            // Look the MBean up in the internal MBean server by ObjectName, which reuses the names the
+            // metric factories already built at registration time.
             //
-            // Alternatively, we could use CassandraMetricsRegistry to look up metrics by metric name
-            // (e.g., "org.apache.cassandra.metrics.Keyspace.ReadLatency.mykeyspace"), but this requires
-            // constructing the full metric name from Props, which is problematic.
-            //
-            // The reconstructing the scope problem: Different MetricNameFactory implementations
-            // construct scopes differently:
+            // The alternative is CassandraMetricsRegistry, which looks metrics up by metric name
+            // (e.g., "org.apache.cassandra.metrics.Keyspace.ReadLatency.mykeyspace"). That means rebuilding
+            // the full metric name from Props, and every MetricNameFactory builds its scope differently:
             // - KeyspaceMetrics: scope = keyspace property
             // - TableMetrics: scope = keyspace + '.' + scope property
             // - DefaultNameFactory: scope = scope property
             // - SAI AbstractMetrics: scope = keyspace.table.index.scope (all combined)
             //
-            // To construct metric names from Props, we would need to duplicate scope construction logic
-            // from each factory or refactor to share it. Using ObjectName, in turn, avoids this. We query
-            // MBeanServer using the ObjectName pattern already constructed by factories during registration.
-            //
-            // However, it will be beneficial to revisit this down the line for performance optimizations and
-            // to avoid JMX entanglement, so we could switch it off for in-process access.
+            // So that path would duplicate scope construction from each factory, or require refactoring the
+            // factories to share it. Worth revisiting: it would make in-process lookups cheaper and let us
+            // drop the JMX dependency here.
 
             ObjectName objectName = buildObjectNameFromProps(props);
             return mbeanServer().isRegistered(objectName);

@@ -21,10 +21,10 @@ package org.apache.cassandra.management.api;
 import java.util.Collection;
 
 /**
- * Pluggable component that is responsible for providing a list of commands for management API.
+ * Pluggable source of the commands the management API exposes.
  */
 public interface CommandsProvider
 {
-    /** Gets all supported by these provider commands. */
+    /** Returns every command this provider supports. */
     Collection<Command<?>> commands();
 }

@@ -35,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class NodetoolConnectFailureTest extends CQLTester
 {
     private static final String CLOSED_HOST = "127.0.0.1";
-    // A port that is essentially always closed; connecting to it fails fast.
+    // A privileged port nothing listens on, so connecting to it fails fast.
     private static final String CLOSED_PORT = "2";
 
     @BeforeClass

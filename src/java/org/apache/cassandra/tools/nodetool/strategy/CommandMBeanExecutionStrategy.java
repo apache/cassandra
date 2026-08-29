@@ -106,8 +106,8 @@ public class CommandMBeanExecutionStrategy implements CommandExecutionStrategy
                 throw new RuntimeException("Invalid command result schema received from CommandMBeanAdapter: " + rawResult);
 
             probe.output().printInfo(output);
-            // The output needs to be consistent for the tests we already have and for thouse which heavily rely on
-            // asserting command output, so we use this property to control whether the execution id is printed or not.
+            // Existing tests assert on exact command output, so this property controls whether the
+            // execution id is printed.
             if (CASSANDRA_CLI_EXECUTION_SHOW_EXECUTION_ID.getBoolean() ||
                 CassandraRelevantEnv.CASSANDRA_CLI_EXECUTION_SHOW_EXECUTION_ID.getBoolean())
                 probe.output().printInfo("Command execution id: " + executionId);

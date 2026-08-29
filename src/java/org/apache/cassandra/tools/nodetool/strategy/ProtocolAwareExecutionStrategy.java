@@ -38,7 +38,8 @@ public class ProtocolAwareExecutionStrategy implements CommandExecutionStrategy
     }
 
     /**
-     * This method is called by picocli and used depending on the execution strategy.
+     * Picks the strategy named by {@link #getExecutionStrategyTypeFromEnvAndSys()}, finds its connection
+     * mixin on the top-level command and runs the parsed command through it.
      * @param parseResult The parsed command line.
      * @return The exit code.
      */

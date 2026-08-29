@@ -156,7 +156,7 @@ public class CqlCommandExecutionStrategy implements CommandExecutionStrategy
             }
             else if (cause instanceof InvalidRequestException)
             {
-                // CQL invalid request (e.g. validating params and/or param values) translates into picocli param exection.
+                // A CQL invalid request (e.g. bad param name or value) becomes a picocli ParameterException.
                 throw new CommandLine.ParameterException(parseResult.commandSpec().commandLine(),
                                                          "Invalid request: " + cause.getMessage());
             }
