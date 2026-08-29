@@ -41,7 +41,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.btree.BTreeSet;
@@ -203,7 +202,7 @@ public class CounterMutation implements IMutation
 
         List<PartitionUpdate.CounterMark> marks = changes.collectCounterMarks();
 
-        if (CacheService.instance.counterCache.getCapacity() != 0)
+        if (DatabaseDescriptor.getCounterCacheSizeInMB() > 0)
         {
             Tracing.trace("Fetching {} counter values from cache", marks.size());
             updateWithCurrentValuesFromCache(marks, cfs);
