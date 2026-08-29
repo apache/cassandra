@@ -71,5 +71,11 @@ public abstract class AuthenticationStatement extends CQLStatement.Raw implement
     {
         return query;
     }
+
+    @Override
+    public boolean isDCLStatement()
+    {
+        return true;
+    }
 }
 
