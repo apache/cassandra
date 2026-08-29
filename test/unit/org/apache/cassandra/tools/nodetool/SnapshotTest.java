@@ -45,7 +45,7 @@ public class SnapshotTest extends CQLNodetoolProtocolTester
     @After
     public void tearDown()
     {
-        // Clear all named snaphsots created by tests.
+        // Clear all named snapshots created by tests.
         for (String tag : List.of("custom_snapshot_name", "skip_flush", "ttl", "table", "kt_option"))
             invokeNodetool("clearsnapshot", "-t", tag);
     }

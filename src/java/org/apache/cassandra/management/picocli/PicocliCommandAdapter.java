@@ -63,13 +63,10 @@ public class PicocliCommandAdapter implements Command<Void>
 
         PicocliCommandArgsConverter.toCommand(arguments, userCommand);
 
-        // Alternatively, we can convert CommandExecutionArgs to String[] and let picocli handle
-        // the parsing and execution; however, Cassandra validates a lot of arguments inside the
-        // command's execution body (historically this was done because of Airline limitations).
-        //
-        // Double parsing and validation of arguments is not ideal, and it doesn't make sense
-        // to rely on picocli either. Verdict: it doesn't make sense to rely on picocli argument
-        // validation and error handling here.
+        // Alternatively, we could convert CommandExecutionArgs back to String[] and let picocli parse and
+        // execute; however, Cassandra validates a lot of arguments inside the command's execution body
+        // (historically because of Airline limitations), so that would parse and validate everything twice.
+        // Hence picocli's argument validation and error handling are not used here.
         if (userCommand instanceof Runnable)
         {
             ((Runnable) userCommand).run();
