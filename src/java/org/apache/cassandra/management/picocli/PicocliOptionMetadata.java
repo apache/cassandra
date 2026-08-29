@@ -122,7 +122,7 @@ public class PicocliOptionMetadata implements OptionMetadata
     }
 
     /**
-     * Get the underlying OptionSpec for advanced usage.
+     * Returns the underlying OptionSpec.
      */
     public OptionSpec getOptionSpec()
     {

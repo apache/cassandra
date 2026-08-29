@@ -116,16 +116,13 @@ import org.apache.cassandra.utils.NativeLibrary;
  * A client wrapper (or Receiver in the command pattern) for performing administrative
  * and monitoring operations on a Cassandra node.
  * <p>
- * NodeProbe provides a high-level interface to interact with a Cassandra node through JMX.
- * It abstracts the complexity of JMX connections and MBean lookups, providing convenient methods for common
- * administrative tasks such as compaction, repair, snapshots, and cluster management.
- * <p>
- * This class is primarily used by command-line tools like {@code nodetool} to execute administrative
- * commands against remote or local Cassandra nodes. It can work with both remote JMX connections (via
- * {@link RemoteJmxMBeanAccessor}) and local in-process accessors for server-side execution.
+ * NodeProbe looks up MBeans through an {@link MBeanAccessor} and wraps them in methods for compaction,
+ * repair, snapshots and cluster management. Command-line tools such as {@code nodetool} use it to run
+ * administrative commands against a remote or local node: remote nodes through
+ * {@link RemoteJmxMBeanAccessor}, the local node through an in-process accessor.
  *
- * <h3>Execution Modes</h3>
- * <h4>Client-Side Execution (up to 5.x)</h4>
+ * <h2>Execution modes</h2>
+ * <h3>Client-side execution (up to 5.x)</h3>
  * <p>
  * When used with {@link RemoteJmxMBeanAccessor}, NodeProbe connects to a remote Cassandra node via JMX:
  * <pre>{@code
@@ -135,30 +132,21 @@ import org.apache.cassandra.utils.NativeLibrary;
  * }
  * }</pre>
  *
- * <h4>Server-Side Execution (CEP-38)</h4>
+ * <h3>Server-side execution (CEP-38)</h3>
  * <p>
- * As part of <a href="https://cwiki.apache.org/confluence/display/CASSANDRA/CEP-38">CEP-38</a>, NodeProbe can be
- * used for server-side command execution through the management API. In this mode, NodeProbe operates in-process
- * using a local {@link MBeanAccessor} that directly accesses the platform MBean server, eliminating the need for
- * remote JMX connections.
+ * As part of <a href="https://cwiki.apache.org/confluence/display/CASSANDRA/CEP-38">CEP-38</a>, NodeProbe also
+ * runs in-process for server-side command execution through the management API. There it uses a local
+ * {@link MBeanAccessor} that reads the platform MBean server directly, so there is no JMX connection, no RMI
+ * hop and no serialization of arguments or results. The API is the same in both modes, so
+ * {@link CommandInvokerService} runs the same commands over JMX and over the native protocol.
  *
- * <p>Server-side execution provides several advantages:
- * <ul>
- *   <li><b>No Network Overhead:</b> Direct in-process access to MBeans without JMX/RMI overhead</li>
- *   <li><b>Better Performance:</b> No serialization/deserialization of JMX calls</li>
- *   <li><b>Unified API:</b> Same NodeProbe interface works for both client and server-side execution</li>
- *   <li><b>Management API Integration:</b> Commands can be executed via {@link CommandInvokerService} and exposed
- *       through various protocols (native protocol, REST, etc.)</li>
- * </ul>
- *
- * <h2>Thread Safety</h2>
+ * <h2>Thread safety</h2>
  * <p>NodeProbe instances are not thread-safe. Each thread should use its own instance, or external
  * synchronization must be provided when sharing instances across threads.
  *
- * <h2>Lazy Initialization</h2>
- * <p>MBean proxies are initialized lazily on first access to reduce overhead for operations that
- * don't require all MBeans. This is particularly beneficial for testing scenarios where only a
- * subset of functionality is needed.
+ * <h2>Lazy initialization</h2>
+ * <p>MBean proxies are initialized lazily on first access, so a caller that touches a few MBeans does not
+ * pay for creating the rest.
  *
  * @see MBeanAccessor
  * @see RemoteJmxMBeanAccessor

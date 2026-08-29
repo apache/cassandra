@@ -157,9 +157,9 @@ public class CommandExecutionArgsSerde
     }
 
     /**
-     * This method converts values from CommandExecutionArgs into JSON-serializable formats before
-     * they're put into a Map(String, Object) that will be serialized to JSON. Different implementations
-     * (e.g., Set, LinkedHashSet) should be normalized to List for consistent JSON output.
+     * Converts a value from CommandExecutionArgs into a JSON-serializable form before it goes into the
+     * Map(String, Object) that is serialized to JSON. Collection implementations (e.g. Set, LinkedHashSet)
+     * are normalized to List so the JSON output stays the same shape.
      * <p>
      * The conversion rules are:
      * - Converts primitive arrays (String[], int[], etc.) -> Object[] (JSON-serializable)

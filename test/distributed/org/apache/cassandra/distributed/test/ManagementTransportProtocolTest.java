@@ -42,7 +42,7 @@ import static org.junit.Assert.fail;
 /**
  * End-to-end tests for the management native transport protocol (CEP-38).
  *
- *  @see org.apache.cassandra.service.NativeTransportManagementService
+ * @see org.apache.cassandra.service.NativeTransportManagementService
  */
 public class ManagementTransportProtocolTest extends TestBaseImpl
 {
@@ -154,10 +154,9 @@ public class ManagementTransportProtocolTest extends TestBaseImpl
     }
 
     /**
-     * This is also a corner case for the driver's behavior on the management port.
-     * When connecting, the driver sends a USE statement for the keyspace provided in connect().
-     * If that keyspace is a system keyspace, the USE msut succeeds, and subsequent queries without
-     * keyspace qualification are allowed. If that keyspace is a user keyspace, the USE should fail.
+     * A corner case of the driver's behaviour on the management port: on connect it sends a USE statement
+     * for the keyspace passed to connect(). For a system keyspace the USE must succeed, and later queries
+     * may then omit the keyspace qualifier. For a user keyspace the USE must fail.
      */
     @Test
     public void testConnectWithSystemKeyspaceAllowed()

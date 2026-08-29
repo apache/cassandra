@@ -36,8 +36,8 @@ public interface MBeanAccessor extends AutoCloseable
     /**
      * Finds statically known MBeans by MBean class name.
      * @param clazz the MBean class.
-     * @return MBean class or {@code null} if not found.
      * @param <T> the MBean type.
+     * @return the MBean instance, or {@code null} if not found.
      */
     @Nullable
     <T> T findMBean(Class<T> clazz);
