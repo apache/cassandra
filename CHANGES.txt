@@ -22,7 +22,7 @@ Merged from 4.0:
  * Fix PasswordObfuscator failing to obfuscate certain passwords (CASSANDRA-21113)
  * Fix negative memtable allocator ownership when an update is shadowed by an existing row deletion (CASSANDRA-21469)
  * Consider first token of SSTable when calculating SSTable intersection in LeveledScanner  (CASSANDRA-21369)
- * Remove inFlightEcho entry on ECHO_REQ failure (CASSANDRA-21428)
+ * Fix nodes being kept marked down even after detected as being up, by removing inFlightEcho entry on ECHO_REQ failure (CASSANDRA-21428)
  * Validate snapshot names (CASSANDRA-21389)
  * BTree.FastBuilder.reset() fails to clear savedBuffer and savedNextKey, causing ClassCastException and SSTable header corruption during schema disagreement (CASSANDRA-21216, CASSANDRA-21260)
  * Backport CASSANDRA-17810 fix and improve RTBoundValidator error messages (CASSANDRA-18282)
