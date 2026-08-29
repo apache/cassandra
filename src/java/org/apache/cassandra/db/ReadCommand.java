@@ -562,19 +562,6 @@ public abstract class ReadCommand extends AbstractReadQuery
                  */
                 iterator = filter.filter(iterator, nowInSec());
 
-                if (!cfs.metadata().droppedColumns.isEmpty())
-                {
-                    ColumnFilter selection = columnFilter();
-                    iterator = Transformation.apply(iterator, new Transformation<UnfilteredRowIterator>()
-                    {
-                        @Override
-                        protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
-                        {
-                            return ReadCommand.this.clusteringIndexFilter(partition.partitionKey()).filterNotIndexed(selection, partition);
-                        }
-                    });
-                }
-
                 // apply the limits/row counter; this transformation is stopping and would close the iterator as soon
                 // as the count is observed; if that happens in the middle of an open RT, its end bound will not be included.
                 // If tracking repaired data, the counter is needed for overreading repaired data, otherwise we can
