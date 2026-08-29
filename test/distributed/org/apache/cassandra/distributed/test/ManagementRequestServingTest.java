@@ -56,9 +56,9 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * This test verifyes that management requests are served even when native transport is under a heavy
- * load by driver's SELECT requests. We block these requests and verify that management requests are
- * still processed.
+ * Verifies that management requests are served while the native transport is saturated with SELECT
+ * requests from the driver. The test blocks those SELECTs and checks that management requests still
+ * get processed.
  */
 public class ManagementRequestServingTest extends TestBaseImpl
 {
