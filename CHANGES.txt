@@ -1,5 +1,6 @@
 4.1.13
 Merged from 4.0:
+ * During streaming Bounds.getNonOverlappingBounds produces incorrect bounds leading to row/counter cache not invalidate correctly (CASSANDRA-21594)
  * Make runWithCompactionsDisabled return non-null on success (CASSANDRA-21527)
  * Validate authz before performing role check in LIST ROLES/PERMISSIONS (CASSANDRA-21560)
  * Ensure transferred_ranges reset on decommision re-attempt when pending ranges cannot be proven continous (CASSANDRA-16290)
