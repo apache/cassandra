@@ -62,11 +62,12 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
     // auditLogger can write anywhere, as it's pluggable (logback, BinLog, DiagnosticEvents, etc ...)
     private volatile IAuditLogger auditLogger;
 
+    private volatile AuditLogOptions auditLogOptions;
     private volatile AuditLogFilter filter;
 
     private AuditLogManager()
     {
-        final AuditLogOptions auditLogOptions = DatabaseDescriptor.getAuditLoggingOptions();
+        auditLogOptions = DatabaseDescriptor.getAuditLoggingOptions();
 
         if (auditLogOptions.enabled)
         {
@@ -107,6 +108,11 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
     public boolean isEnabled()
     {
         return auditLogger.isEnabled();
+    }
+
+    public AuditLogOptions getAuditLogOptions()
+    {
+        return auditLogger.isEnabled() ? auditLogOptions : DatabaseDescriptor.getAuditLoggingOptions();
     }
 
     /**
@@ -166,6 +172,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
      */
     public synchronized void enable(AuditLogOptions auditLogOptions) throws ConfigurationException
     {
+        this.auditLogOptions = auditLogOptions;
         // always reload the filters
         filter = AuditLogFilter.create(auditLogOptions);
 
