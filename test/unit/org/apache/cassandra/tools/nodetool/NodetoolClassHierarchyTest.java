@@ -224,15 +224,13 @@ public class NodetoolClassHierarchyTest extends CQLTester
     }
 
     /**
-     * Previously, in the Airline implementation of nodetool, the defaul values for command
-     * parameters were declared as values in the java field of the command class. We left this
-     * as-is, but with picocli we have to make sure that this is consistend with annotations
-     * such as {@code @Option(defaultValue = "...")}.
+     * In the Airline implementation of nodetool, default values for command parameters were declared as
+     * Java field initializers on the command class. We left them there, so under picocli they have to
+     * stay consistent with annotations such as {@code @Option(defaultValue = "...")}.
      * <p>
-     * When {@code @Option(defaultValue = "...")} is declared on a field, the Java field
-     * initializer must produce the same value. This is required because picocli only applies
-     * {@code defaultValue} during {@code parseArgs()}, any code that reads the field before
-     * parsing sees only the Java initializer, not the annotations default.
+     * When {@code @Option(defaultValue = "...")} is declared on a field, the Java field initializer must
+     * produce the same value. Picocli applies {@code defaultValue} only during {@code parseArgs()}, so any
+     * code that reads the field before parsing sees the Java initializer, not the annotation's default.
      */
     @Test
     public void testOptionAnnotationDefaultMatchesJavaInitializer()
