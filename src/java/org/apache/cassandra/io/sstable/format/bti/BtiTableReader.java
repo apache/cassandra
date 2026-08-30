@@ -55,6 +55,7 @@ import org.apache.cassandra.io.sstable.SSTableReadsListener.SkippingReason;
 import org.apache.cassandra.io.sstable.format.SSTableReaderWithFilter;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.IFilter;
@@ -232,20 +233,58 @@ public class BtiTableReader extends SSTableReaderWithFilter
         }
     }
 
+    /**
+     * The result of an exact-position lookup: the index entry, and optionally the data file reader that was used to
+     * verify the partition key.
+     *
+     * When a partition is small enough to have no entry in the row index, the trie payload holds its data file
+     * position and the key is checked by reading the data file there - which is the same place where the row
+     * iterator has to start. {@link #dataInput} lets that reader be reused instead of closed, so the iterator does
+     * not have to open the same position again; on a compressed table that would decompress and checksum the same
+     * chunk twice. It is null whenever there is nothing to reuse, and when it is not null the caller owns it and
+     * must close it.
+     */
+    static final class ExactPosition
+    {
+        static final ExactPosition NOT_FOUND = new ExactPosition(null, null);
+
+        final TrieIndexEntry entry;
+        final FileDataInput dataInput;
+
+        private ExactPosition(TrieIndexEntry entry, FileDataInput dataInput)
+        {
+            this.entry = entry;
+            this.dataInput = dataInput;
+        }
+    }
+
     TrieIndexEntry getExactPosition(DecoratedKey dk,
                                     SSTableReadsListener listener,
                                     boolean updateStats)
     {
+        return getExactPosition(dk, listener, updateStats, false).entry;
+    }
+
+    /**
+     * @param retainDataInput when true, and the key was verified by reading the data file, the reader used for that
+     *                        verification is returned still open in {@link ExactPosition#dataInput} and ownership
+     *                        passes to the caller. Otherwise every reader opened here is closed before returning.
+     */
+    ExactPosition getExactPosition(DecoratedKey dk,
+                                   SSTableReadsListener listener,
+                                   boolean updateStats,
+                                   boolean retainDataInput)
+    {
         if ((filterFirst() && getFirst().compareTo(dk) > 0) || (filterLast() && getLast().compareTo(dk) < 0))
         {
             notifySkipped(SkippingReason.MIN_MAX_KEYS, listener, EQ, updateStats);
-            return null;
+            return ExactPosition.NOT_FOUND;
         }
 
         if (!isPresentInFilter(dk))
         {
             notifySkipped(SkippingReason.BLOOM_FILTER, listener, EQ, updateStats);
-            return null;
+            return ExactPosition.NOT_FOUND;
         }
 
         try (PartitionIndex.Reader reader = partitionIndex.openReader())
@@ -254,36 +293,35 @@ public class BtiTableReader extends SSTableReaderWithFilter
             if (indexPos == PartitionIndex.NOT_FOUND)
             {
                 notifySkipped(SkippingReason.PARTITION_INDEX_LOOKUP, listener, EQ, updateStats);
-                return null;
+                return ExactPosition.NOT_FOUND;
             }
 
-            FileHandle fh;
-            long seekPosition;
-            if (indexPos >= 0)
-            {
-                fh = rowIndexFile;
-                seekPosition = indexPos;
-            }
-            else
-            {
-                fh = dfile;
-                seekPosition = ~indexPos;
-            }
+            boolean fromDataFile = indexPos < 0;
+            FileHandle fh = fromDataFile ? dfile : rowIndexFile;
+            long seekPosition = fromDataFile ? ~indexPos : indexPos;
 
-            try (FileDataInput in = fh.createReader(seekPosition))
+            boolean retain = retainDataInput && fromDataFile;
+
+            FileDataInput in = fh.createReader(seekPosition);
+            boolean handedOver = false;
+            try
             {
-                if (ByteBufferUtil.equalsWithShortLength(in, dk.getKey()))
-                {
-                    TrieIndexEntry rie = indexPos >= 0 ? TrieIndexEntry.deserialize(in, in.getFilePointer(), descriptor.version)
-                                                       : new TrieIndexEntry(~indexPos);
-                    notifySelected(SelectionReason.INDEX_ENTRY_FOUND, listener, EQ, updateStats, rie);
-                    return rie;
-                }
-                else
+                if (!ByteBufferUtil.equalsWithShortLength(in, dk.getKey()))
                 {
                     notifySkipped(SkippingReason.INDEX_ENTRY_NOT_FOUND, listener, EQ, updateStats);
-                    return null;
+                    return ExactPosition.NOT_FOUND;
                 }
+
+                TrieIndexEntry rie = fromDataFile ? new TrieIndexEntry(~indexPos)
+                                                  : TrieIndexEntry.deserialize(in, in.getFilePointer(), descriptor.version);
+                notifySelected(SelectionReason.INDEX_ENTRY_FOUND, listener, EQ, updateStats, rie);
+                handedOver = retain;
+                return new ExactPosition(rie, retain ? in : null);
+            }
+            finally
+            {
+                if (!handedOver)
+                    in.close();
             }
         }
         catch (IOException | IllegalArgumentException | ArrayIndexOutOfBoundsException | AssertionError e)
@@ -373,7 +411,10 @@ public class BtiTableReader extends SSTableReaderWithFilter
                                              boolean reversed,
                                              SSTableReadsListener listener)
     {
-        return rowIterator(null, key, getExactPosition(key, listener, true), slices, selectedColumns, reversed);
+        // retain the reader that verified the key: for a partition with no row index entry it is already on the
+        // data file at the position the iterator has to start from
+        ExactPosition pos = getExactPosition(key, listener, true, true);
+        return rowIterator(pos.dataInput, pos.dataInput != null, key, pos.entry, slices, selectedColumns, reversed);
     }
 
     public UnfilteredRowIterator rowIterator(FileDataInput dataFileInput,
@@ -383,13 +424,31 @@ public class BtiTableReader extends SSTableReaderWithFilter
                                              ColumnFilter selectedColumns,
                                              boolean reversed)
     {
-        if (indexEntry == null)
-            return UnfilteredRowIterators.noRowsIterator(metadata(), key, Rows.EMPTY_STATIC_ROW, DeletionTime.LIVE, reversed);
+        // callers of this overload - scanners walking many partitions with one reader - keep ownership of it
+        return rowIterator(dataFileInput, false, key, indexEntry, slices, selectedColumns, reversed);
+    }
 
+    UnfilteredRowIterator rowIterator(FileDataInput dataFileInput,
+                                      boolean ownsDataFileInput,
+                                      DecoratedKey key,
+                                      TrieIndexEntry indexEntry,
+                                      Slices slices,
+                                      ColumnFilter selectedColumns,
+                                      boolean reversed)
+    {
+        if (indexEntry == null)
+        {
+            if (ownsDataFileInput)
+                FileUtils.closeQuietly(dataFileInput);
+            return UnfilteredRowIterators.noRowsIterator(metadata(), key, Rows.EMPTY_STATIC_ROW, DeletionTime.LIVE, reversed);
+        }
+
+        // the iterator owns the reader either because we handed ours over, or because it has to open its own
+        boolean shouldCloseFile = ownsDataFileInput || dataFileInput == null;
         if (reversed)
-            return new SSTableReversedIterator(this, dataFileInput, key, indexEntry, slices, selectedColumns, rowIndexFile);
+            return new SSTableReversedIterator(this, dataFileInput, shouldCloseFile, key, indexEntry, slices, selectedColumns, rowIndexFile);
         else
-            return new SSTableIterator(this, dataFileInput, key, indexEntry, slices, selectedColumns, rowIndexFile);
+            return new SSTableIterator(this, dataFileInput, shouldCloseFile, key, indexEntry, slices, selectedColumns, rowIndexFile);
     }
 
     @VisibleForTesting

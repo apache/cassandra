@@ -46,6 +46,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -72,9 +73,20 @@ public abstract class AbstractSSTableIterator<RIE extends AbstractRowIndexEntry>
 
     protected final Slices slices;
 
-                                  // file on every path where we created it.
     protected AbstractSSTableIterator(SSTableReader sstable,
                                       FileDataInput file,
+                                      DecoratedKey key,
+                                      RIE indexEntry,
+                                      Slices slices,
+                                      ColumnFilter columnFilter,
+                                      FileHandle ifile)
+    {
+        this(sstable, file, file == null, key, indexEntry, slices, columnFilter, ifile);
+    }
+
+    protected AbstractSSTableIterator(SSTableReader sstable,
+                                      FileDataInput file,
+                                      boolean shouldCloseFile,
                                       DecoratedKey key,
                                       RIE indexEntry,
                                       Slices slices,
@@ -91,6 +103,8 @@ public abstract class AbstractSSTableIterator<RIE extends AbstractRowIndexEntry>
 
         if (indexEntry == null)
         {
+            if (shouldCloseFile)
+                FileUtils.closeQuietly(file);
             this.partitionLevelDeletion = DeletionTime.LIVE;
             this.reader = null;
             this.staticRow = Rows.EMPTY_STATIC_ROW;
@@ -98,7 +112,6 @@ public abstract class AbstractSSTableIterator<RIE extends AbstractRowIndexEntry>
         else
         {
             Reader reader = null;
-            boolean shouldCloseFile = file == null;
             try
             {
                 // We seek to the beginning to the partition if either:
