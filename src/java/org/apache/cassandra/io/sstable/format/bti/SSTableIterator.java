@@ -42,13 +42,14 @@ class SSTableIterator extends AbstractSSTableIterator<AbstractRowIndexEntry>
 
     public SSTableIterator(BtiTableReader sstable,
                            FileDataInput file,
+                           boolean shouldCloseFile,
                            DecoratedKey key,
                            AbstractRowIndexEntry indexEntry,
                            Slices slices,
                            ColumnFilter columns,
                            FileHandle ifile)
     {
-        super(sstable, file, key, indexEntry, slices, columns, ifile);
+        super(sstable, file, shouldCloseFile, key, indexEntry, slices, columns, ifile);
     }
 
     protected Reader createReaderInternal(AbstractRowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile, Version version)
