@@ -1,4 +1,5 @@
 7.0
+ * Allow nodetool cms reconfigure to ignore nodes via --ignore, excluding them from the new CMS (CASSANDRA-21627)
  * Reject LIKE patterns with a wildcard (%) anywhere other than the start or end (CASSANDRA-21068)
  * Support pluggable default role initialization (CASSANDRA-21546)
  * Add prepared statement cache stats to nodetool info (CASSANDRA-14366)

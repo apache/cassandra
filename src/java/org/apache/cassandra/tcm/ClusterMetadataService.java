@@ -19,6 +19,7 @@
 package org.apache.cassandra.tcm;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -498,18 +499,82 @@ public class ClusterMetadataService
 
     public void reconfigureCMS(ReplicationParams replicationParams)
     {
+        reconfigureCMS(replicationParams, Collections.emptyList());
+    }
+
+    /**
+     * Reconfigure the CMS so that its membership satisfies the supplied replication params.
+     *
+     * Nodes named in {@code ignoredEndpoints}, along with any node currently considered down, are not eligible for
+     * membership of the new CMS. Excluding nodes that are about to be decommissioned lets an operator shrink a cluster
+     * with a single reconfiguration up front, rather than one per departing CMS member. The ignore list applies only to
+     * this call; it is not remembered, and does not change whether the CMS is later reported as needing reconfiguration.
+     *
+     * Note that a subsequent bootstrap, replace or move recomputes placement without any ignore list and may therefore
+     * reintroduce an ignored node to the CMS.
+     */
+    public void reconfigureCMS(ReplicationParams replicationParams, List<String> ignoredEndpoints)
+    {
         ClusterMetadata metadata = ClusterMetadata.current();
-        Set<NodeId> downNodes = new HashSet<>();
+        Set<NodeId> excludedNodes = new HashSet<>(resolveIgnoredEndpoints(metadata, ignoredEndpoints));
+        Set<NodeId> allJoinedNodes = Sets.newHashSetWithExpectedSize(metadata.directory.allJoinedEndpoints().size());
         for (InetAddressAndPort ep : metadata.directory.allJoinedEndpoints())
+        {
+            NodeId id = metadata.directory.peerId(ep);
+            allJoinedNodes.add(id);
             if (!FailureDetector.instance.isAlive(ep))
-                downNodes.add(metadata.directory.peerId(ep));
-        PrepareCMSReconfiguration.Complex transformation = new PrepareCMSReconfiguration.Complex(replicationParams, downNodes);
+                excludedNodes.add(id);
+        }
+
+        // Placement needs at least one candidate to work with; leaving none is rejected here because the strategy
+        // itself would fail on an assertion rather than reporting anything useful.
+        if (!excludedNodes.isEmpty() && excludedNodes.size() >= allJoinedNodes.size() && excludedNodes.containsAll(allJoinedNodes))
+            throw new IllegalStateException("Cannot reconfigure CMS as all joined nodes are DOWN or ignored");
+
+        PrepareCMSReconfiguration.Complex transformation = new PrepareCMSReconfiguration.Complex(replicationParams, excludedNodes);
         transformation.verify(metadata);
 
         ClusterMetadataService.instance()
                               .commit(transformation);
 
         InProgressSequences.finishInProgressSequences(ReconfigureCMS.SequenceKey.instance);
+    }
+
+    /**
+     * Resolve operator supplied hosts to the NodeIds they identify, rejecting any host which does not exist in the
+     * cluster.
+     */
+    private static Set<NodeId> resolveIgnoredEndpoints(ClusterMetadata metadata, List<String> ignoredEndpoints)
+    {
+        if (ignoredEndpoints.isEmpty())
+            return Collections.emptySet();
+
+        Set<InetAddressAndPort> ignored = new HashSet<>(ignoredEndpoints.size());
+        for (String host : ignoredEndpoints)
+        {
+            try
+            {
+                ignored.add(InetAddressAndPort.getByName(host));
+            }
+            catch (UnknownHostException e)
+            {
+                throw new IllegalArgumentException("Unknown host in ignore list: " + host, e);
+            }
+        }
+
+        // Unlike CMS initialization, the local node may legitimately be ignored here. Reconfiguring the CMS away from
+        // the node running the command is valid, and is expected when that node is itself due to be decommissioned.
+        Set<InetAddressAndPort> unknown = Sets.difference(ignored, metadata.directory.allAddresses());
+        if (!unknown.isEmpty())
+        {
+            String msg = "Ignored host(s) " + unknown + " don't exist in the cluster";
+            logger.error(msg);
+            throw new IllegalStateException(msg);
+        }
+
+        Set<NodeId> ignoredIds = metadata.directory.toNodeIds(ignored);
+        logger.info("Excluding operator specified hosts from CMS reconfiguration: {}", ignoredIds);
+        return ignoredIds;
     }
 
     public void ensureCMSPlacement(ClusterMetadata metadata)
