@@ -1,0 +1,547 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# https://github.com/jenkinsci/helm-charts/tree/main/charts/jenkins
+# this yaml is primarily used by .build/run-ci
+#
+
+# fixed deployments will want to set the controller.ingress.hostName
+persistence:
+  enabled: true
+  size: "500Gi"
+  # keep the claim (jobs, credentials, build history) when the release is uninstalled.
+  # deleting it then takes a deliberate `kubectl delete pvc cassius-jenkins`
+  annotations:
+    helm.sh/resource-policy: keep
+  # aws needs gp2, gke can be left commented (add it to your override yaml)
+  #storageClass: "gp2"
+controller:
+  # To get URL run `kubectl describe svc cassius-jenkins | grep 'LoadBalancer Ingress'`
+  serviceType: LoadBalancer
+  servicePort: 80
+  targetPort: 8080
+  ingress:
+    enabled: "true"
+    # if you have a "ci-cassandra" dns entry for the jenkins controller add the following value to your override yaml
+    #hostName: ci-cassandra.<your-domain>
+  customJenkinsLabels:
+    - controller
+  resources:
+    # increase cpu/memory as agent pool sizes get bigger (pre-ci.c.a.o uses 8 and 20g)
+    requests:
+      cpu: 4
+      memory: 16G
+    limits:
+      cpu: 8
+      memory: 20G
+  javaOpts: -server -XX:+AlwaysPreTouch -XX:+UseG1GC -XX:+ExplicitGCInvokesConcurrent -XX:+ParallelRefProcEnabled -XX:+UseStringDeduplication -XX:+UnlockExperimentalVMOptions -XX:G1NewSizePercent=40 -Xms8G -Xmx8G -Xlog:gc*,safepoint:file=/var/jenkins_home/gc.log:time,uptime,level,tags:filecount=5,filesize=50M
+  # A stalling controller must not be killed mid-flight.  The restart abandons every running build and
+  #  strands their agent pods, which nothing then deletes: see agent.garbageCollection below.
+  # Liveness now tolerates ~100s of unresponsiveness before a kill.
+  # Readiness is loosened for a second reason: an unready controller is dropped from the cassius-jenkins-agent Service,
+  #  so agents cannot complete their JNLP handshake and then sit in "initialising" until waitForPodSec expires.
+  probes:
+    startupProbe:
+      # a 500Gi jenkins_home with this much build history can exceed the chart's default 120s budget
+      failureThreshold: 30
+      timeoutSeconds: 10
+    livenessProbe:
+      failureThreshold: 10
+      timeoutSeconds: 10
+    readinessProbe:
+      failureThreshold: 6
+      timeoutSeconds: 10
+  installPlugins:
+    - job-dsl
+    - configuration-as-code
+    - kubernetes
+    - git
+    - workflow-job
+    - workflow-cps
+    - junit
+    - workflow-aggregator
+    - pipeline-graph-view
+    - ws-cleanup
+    - pipeline-build-step
+    - pipeline-rest-api
+    - test-stability
+    - copyartifact
+    - jmh-report
+  node-selector:
+    cassandra.jenkins.controller: true
+  scriptApproval:
+    - "staticMethod java.lang.System setProperty java.lang.String java.lang.String"
+    - "staticMethod org.codehaus.groovy.runtime.DefaultGroovyMethods combinations java.util.Collection"
+    - "staticMethod org.codehaus.groovy.runtime.DefaultGroovyMethods getAt java.lang.Object java.lang.String"
+    - "staticMethod org.codehaus.groovy.runtime.DefaultGroovyMethods inspect java.lang.Object"
+    - "staticMethod org.codehaus.groovy.runtime.DefaultGroovyMethods max java.util.Collection"
+    - "staticMethod org.codehaus.groovy.runtime.DefaultGroovyMethods putAt java.util.List java.util.List java.lang.Object"
+    - "field hudson.plugins.git.GitSCMBackwardCompatibility branch"
+    - "method org.jenkinsci.plugins.workflow.steps.FlowInterruptedException getCauses"
+  JCasC:
+    configScripts:
+      welcome-message: |
+        jenkins:
+          systemMessage: Welcome to Apache Cassandra
+      # Separate jobs are needed because Jenkinsfiles differ, and are read before parameters are applied.
+      #  if a dev branch alters the Jenkinsfile, it will not be picked up by the job – you need to edit the job configuration
+      #  see the CAUTION warning in .jenkins/Jenkinsfile
+      # TODO: add new version each release branching
+      test-job: |
+        jobs:
+          - script: >
+              pipelineJob('cassandra') {
+                definition {
+                  cpsScm {
+                    scm {
+                      git {
+                        remote {
+                          url('https://github.com/apache/cassandra')
+                        }
+                        branch('trunk')
+                        scriptPath('.jenkins/Jenkinsfile')
+                      }
+                    }
+                    lightweight()
+                  }
+                }
+              }
+          - script: >
+              pipelineJob('cassandra-6.0') {
+                definition {
+                  cpsScm {
+                    scm {
+                      git {
+                        remote {
+                          url('https://github.com/apache/cassandra')
+                        }
+                        branch('cassandra-6.0')
+                        scriptPath('.jenkins/Jenkinsfile')
+                      }
+                    }
+                    lightweight()
+                  }
+                }
+              }
+          - script: >
+              pipelineJob('cassandra-4.1') {
+                definition {
+                  cpsScm {
+                    scm {
+                      git {
+                        remote {
+                          url('https://github.com/apache/cassandra')
+                        }
+                        branch('cassandra-4.1')
+                        scriptPath('.jenkins/Jenkinsfile')
+                      }
+                    }
+                    lightweight()
+                  }
+                }
+              }
+          - script: >
+              pipelineJob('cassandra-5.0') {
+                definition {
+                  cpsScm {
+                    scm {
+                      git {
+                        remote {
+                          url('https://github.com/apache/cassandra')
+                        }
+                        branch('cassandra-5.0')
+                        scriptPath('.jenkins/Jenkinsfile')
+                      }
+                    }
+                    lightweight()
+                  }
+                }
+              }
+    globalDefaultFlowDurabilityLevel:
+      durabilityHint: "PERFORMANCE_OPTIMIZED"
+    securityRealm: |-
+      local:
+        allowsSignup: false
+        enableCaptcha: false
+        users:
+        - id: "admin"
+          name: "Jenkins Admin"
+          password: "${chart-admin-password}"
+    authorizationStrategy: |-
+      loggedInUsersCanDoAnything:
+        allowAnonymousRead: true
+    googlePodMonitor:
+        enabled: true
+agent:
+  disableDefaultAgent: true
+  maxRequestsPerHostStr: "3200"
+  containerCap: 300
+  node-selector:
+    cassandra.jenkins.agent: true
+  waitForPodSec: "180"
+  # Reap agent pods the controller no longer tracks.  A restart of the controller JVM clears its in-memory 
+  # agent registry, and because agent pods are bare pods with no ownerReference nothing else deletes them.
+  # Preferred over a pod activeDeadlineSeconds, which cannot distinguish an orphan from a long (6h) build.
+  garbageCollection:
+    enabled: true
+    # seconds
+    timeout: 900
+  #
+  # Each template below is an opaque string to the helm chart, parsed only by the kubernetes plugin,
+  # so the chart (nor .jenkins/k8s/jenkins-test.sh) can validate it.
+  #
+  # Two traps then to pay attention to:
+  #  - a volume declared under `volumes:` is generated as `volume-N`, and the generated copy wins any
+  #    merge with a raw `yaml:` entry of the same name, so a field set only there is silently dropped.
+  #    Volumes wanting a field the plugin lacks, a sizeLimit for instance, are declared in `yaml:` alone.
+  #  - ephemeral-storage is charged to the pod: every emptyDir, the workspace included, along with the
+  #    containers' writable layers and logs, all against the containers' limits summed.  Declare no
+  #    request and the pod is BestEffort for storage, which the scheduler ignores and the node evicts
+  #    first, reporting only `request is 0`.  Each template below budgets 80Gi (of the ~89Gi that a
+  #    100GiB node allocates) leaving the rest to the node's own image cache and daemonsets.
+  #
+  # After any deploy, validate changes like:
+  #   kubectl get pod -l jenkins/cassius-jenkins-agent -o json | jq '.items[0].spec | {volumes, containers: [.containers[] | {name, resources, volumeMounts}]}'
+  #
+  podTemplates:
+    agent-dind-small: |
+      - name: agent-dind-small
+        label: agent-dind cassandra-small cassandra-amd64-small
+        nodeSelector: 'cassandra.jenkins.agent.small=true'
+        # 0 = no pod lifetime cap: idleMinutes reuse means a pod's age is unrelated to any one build's timeout.  Orphans are reaped by agent.garbageCollection instead.
+        activeDeadlineSeconds: '0'
+        idleMinutes: 1
+        # should match the small pool's 50 nodes (README's --max-nodes), i.e. one agent per node. must not be higher than max nodes possible.
+        instanceCap: 50
+        instanceCapStr: "50"
+        nodeUsageMode: "NORMAL"
+        showRawYaml: 'true'
+        slaveConnectTimeout: '30'
+        yamlMergeStrategy: override
+        containers:
+          - name: jnlp
+            # https://github.com/jenkinsci/kubernetes-plugin#pipeline-support
+            alwaysPullImage: true
+            envVars:
+              - envVar:
+                  key: DOCKER_TLS_CERTDIR
+                  value: /certs/client/
+              - envVar:
+                  key: DOCKER_CERT_PATH
+                  value: /certs/client/
+              - envVar:
+                  key: DOCKER_TLS_VERIFY
+                  value: 'true'
+              - envVar:
+                  key: DOCKER_HOST
+                  value: tcp://localhost:2376
+              - envVar:
+                  key: JENKINS_JAVA_OPTS
+                  value: '-Dorg.jenkinsci.plugins.durabletask.BourneShellScript.USE_BINARY_WRAPPER=true -Xlog:gc+heap+exit -XX:+HeapDumpOnOutOfMemoryError'
+            image: apache.jfrog.io/cassan-docker/apache/cassandra-jenkins-k8s
+            livenessProbe:
+              failureThreshold: '0'
+              initialDelaySeconds: '0'
+              periodSeconds: '0'
+              successThreshold: '0'
+              timeoutSeconds: '0'
+            privileged: 'true'
+            resourceRequestCpu: 1
+            resourceLimitCpu: 2
+            resourceRequestMemory: 1G
+            resourceLimitMemory: 1G
+            # the workspace emptyDir
+            resourceRequestEphemeralStorage: 10Gi
+            resourceLimitEphemeralStorage: 20Gi
+            ttyEnabled: 'true'
+            workingDir: /home/jenkins/agent
+          - name: dind
+            alwaysPullImage: 'false'
+            envVars:
+            - envVar:
+                key: DOCKER_TLS_CERTDIR
+                value: /certs
+            - envVar:
+                key: "DOCKER_IPTABLES_LEGACY"
+                value: "1"
+            image: docker:dind
+            args: "--default-address-pool base=192.168.96.0/20,size=24"  # overwrite docker subnet in case of overlapping
+            livenessProbe:
+              failureThreshold: '0'
+              initialDelaySeconds: '0'
+              periodSeconds: '0'
+              successThreshold: '0'
+              timeoutSeconds: '0'
+            privileged: 'true'
+            resourceRequestCpu: 2
+            resourceLimitCpu: 4
+            resourceRequestMemory: 1G
+            resourceLimitMemory: 2400M
+            # docker's images and containers, in the docker-storage emptyDir
+            resourceRequestEphemeralStorage: 40Gi
+            resourceLimitEphemeralStorage: 60Gi
+            ttyEnabled: 'true'
+            workingDir: /home/jenkins/agent
+        volumes:
+          # /var/lib/docker is not here but in `yaml:` below, the only place it can carry a sizeLimit
+          - emptyDirVolume:
+              memory: 'false'
+              mountPath: /certs
+        # limit one agent pod per node for simpler operations (like orphan cleanup)
+        yaml: |
+          spec:
+            affinity:
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  - labelSelector:
+                      matchExpressions:
+                        - key: jenkins/cassius-jenkins-agent
+                          operator: In
+                          values:
+                            - "true"
+                    topologyKey: kubernetes.io/hostname
+            # docker's storage, named and mounted here so that the sizeLimit survives the plugin's merge.
+            # 60Gi bounds the images and their containers alone, of the pod's 80Gi
+            # fetchDockerImages in Jenkinsfile warns as the node fills as our image sizes grow.
+            volumes:
+              - name: docker-storage
+                emptyDir:
+                  sizeLimit: 60Gi
+            containers:
+              - name: dind
+                volumeMounts:
+                  - name: docker-storage
+                    mountPath: /var/lib/docker
+    agent-dind-medium: |
+      - name: agent-dind-medium
+        label: agent-dind cassandra-medium cassandra-amd64-medium
+        nodeSelector: 'cassandra.jenkins.agent.medium=true'
+        # 0 = no pod lifetime cap: idleMinutes reuse means a pod's age is unrelated to any one build's timeout.  Orphans are reaped by agent.garbageCollection instead.
+        activeDeadlineSeconds: '0'
+        idleMinutes: 1
+        # should match the medium pools 100 nodes (README's --max-nodes), i.e. one agent per node. must not be higher than max nodes possible.
+        instanceCap: 100
+        instanceCapStr: "100"
+        nodeUsageMode: "NORMAL"
+        showRawYaml: 'true'
+        slaveConnectTimeout: '30'
+        yamlMergeStrategy: override
+        containers:
+          - name: jnlp
+            # https://github.com/jenkinsci/kubernetes-plugin#pipeline-support
+            alwaysPullImage: true
+            envVars:
+              - envVar:
+                  key: DOCKER_TLS_CERTDIR
+                  value: /certs/client/
+              - envVar:
+                  key: DOCKER_CERT_PATH
+                  value: /certs/client/
+              - envVar:
+                  key: DOCKER_TLS_VERIFY
+                  value: 'true'
+              - envVar:
+                  key: DOCKER_HOST
+                  value: tcp://localhost:2376
+              - envVar:
+                  key: JENKINS_JAVA_OPTS
+                  value: '-Dorg.jenkinsci.plugins.durabletask.BourneShellScript.USE_BINARY_WRAPPER=true'
+            image: apache.jfrog.io/cassan-docker/apache/cassandra-jenkins-k8s
+            livenessProbe:
+              failureThreshold: '0'
+              initialDelaySeconds: '0'
+              periodSeconds: '0'
+              successThreshold: '0'
+              timeoutSeconds: '0'
+            privileged: 'true'
+            resourceRequestCpu: 1
+            resourceLimitCpu: 3
+            resourceRequestMemory: 1G
+            resourceLimitMemory: 2400M
+            # the workspace emptyDir
+            resourceRequestEphemeralStorage: 10Gi
+            resourceLimitEphemeralStorage: 20Gi
+            ttyEnabled: 'true'
+            workingDir: /home/jenkins/agent
+          - name: dind
+            alwaysPullImage: 'false'
+            envVars:
+            - envVar:
+                key: DOCKER_TLS_CERTDIR
+                value: /certs
+            - envVar:
+                key: "DOCKER_IPTABLES_LEGACY"
+                value: "1"
+            image: docker:dind
+            args: "--default-address-pool base=192.168.96.0/20,size=24"  # overwrite docker subnet in case of overlapping
+            livenessProbe:
+              failureThreshold: '0'
+              initialDelaySeconds: '0'
+              periodSeconds: '0'
+              successThreshold: '0'
+              timeoutSeconds: '0'
+            privileged: 'true'
+            resourceRequestCpu: 2
+            resourceLimitCpu: 4
+            resourceRequestMemory: 3400M
+            resourceLimitMemory: 5G
+            # docker's images and containers, in the docker-storage emptyDir
+            resourceRequestEphemeralStorage: 40Gi
+            resourceLimitEphemeralStorage: 60Gi
+            ttyEnabled: 'true'
+            workingDir: /home/jenkins/agent
+        volumes:
+          # /var/lib/docker is not here but in `yaml:` below, the only place it can carry a sizeLimit
+          - emptyDirVolume:
+              memory: 'false'
+              mountPath: /certs
+        # limit one agent pod per node for simpler operations (like orphan cleanup)
+        yaml: |
+          spec:
+            affinity:
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  - labelSelector:
+                      matchExpressions:
+                        - key: jenkins/cassius-jenkins-agent
+                          operator: In
+                          values:
+                            - "true"
+                    topologyKey: kubernetes.io/hostname
+            # docker's storage, named and mounted here so that the sizeLimit survives the plugin's merge.
+            # 60Gi bounds the images and their containers alone, of the pod's 80Gi
+            # fetchDockerImages in Jenkinsfile warns as the node fills as our image sizes grow.
+            volumes:
+              - name: docker-storage
+                emptyDir:
+                  sizeLimit: 60Gi
+            containers:
+              - name: dind
+                volumeMounts:
+                  - name: docker-storage
+                    mountPath: /var/lib/docker
+    agent-dind-large: |
+      - name: agent-dind-large
+        label: agent-dind cassandra-large cassandra-amd64-large cassandra-amd64-large-dedicated
+        nodeSelector: 'cassandra.jenkins.agent.large=true'
+        # 0 = no pod lifetime cap.  A microbench cell runs up to 6h (timeout_hours in the Jenkinsfile)
+        # and idleMinutes reuse extends a pod's age past any one build, so age cannot stand in for
+        # health here.  Orphans are reaped by agent.garbageCollection instead.
+        activeDeadlineSeconds: '0'
+        idleMinutes: 1
+        # should match the large pools 160 nodes (README's --max-nodes), i.e. one agent per node. must not be higher than max nodes possible.
+        instanceCap: 160
+        instanceCapStr: "160"
+        nodeUsageMode: "NORMAL"
+        showRawYaml: 'true'
+        slaveConnectTimeout: '30'
+        yamlMergeStrategy: override
+        containers:
+          - name: jnlp
+            # https://github.com/jenkinsci/kubernetes-plugin#pipeline-support
+            alwaysPullImage: true
+            envVars:
+              - envVar:
+                  key: DOCKER_TLS_CERTDIR
+                  value: /certs/client/
+              - envVar:
+                  key: DOCKER_CERT_PATH
+                  value: /certs/client/
+              - envVar:
+                  key: DOCKER_TLS_VERIFY
+                  value: 'true'
+              - envVar:
+                  key: DOCKER_HOST
+                  value: tcp://localhost:2376
+              - envVar:
+                  key: JENKINS_JAVA_OPTS
+                  value: '-Dorg.jenkinsci.plugins.durabletask.BourneShellScript.USE_BINARY_WRAPPER=true'
+            image: apache.jfrog.io/cassan-docker/apache/cassandra-jenkins-k8s
+            livenessProbe:
+              failureThreshold: '0'
+              initialDelaySeconds: '0'
+              periodSeconds: '0'
+              successThreshold: '0'
+              timeoutSeconds: '0'
+            privileged: 'true'
+            resourceRequestCpu: 1
+            resourceLimitCpu: 3
+            resourceRequestMemory: 1G
+            resourceLimitMemory: 2G
+            # the workspace emptyDir
+            resourceRequestEphemeralStorage: 10Gi
+            resourceLimitEphemeralStorage: 20Gi
+            ttyEnabled: 'true'
+            workingDir: /home/jenkins/agent
+          - name: dind
+            alwaysPullImage: 'false'
+            envVars:
+            - envVar:
+                key: DOCKER_TLS_CERTDIR
+                value: /certs
+            - envVar:
+                key: "DOCKER_IPTABLES_LEGACY"
+                value: "1"
+            image: docker:dind
+            args: "--default-address-pool base=192.168.96.0/20,size=24"  # overwrite docker subnet in case of overlapping
+            livenessProbe:
+              failureThreshold: '0'
+              initialDelaySeconds: '0'
+              periodSeconds: '0'
+              successThreshold: '0'
+              timeoutSeconds: '0'
+            privileged: 'true'
+            resourceRequestCpu: 6
+            resourceLimitCpu: 7
+            resourceRequestMemory: 16G
+            resourceLimitMemory: 30G
+            # docker's images and containers, in the docker-storage emptyDir
+            resourceRequestEphemeralStorage: 40Gi
+            resourceLimitEphemeralStorage: 60Gi
+            ttyEnabled: 'true'
+            workingDir: /home/jenkins/agent
+        volumes:
+          # /var/lib/docker is not here but in `yaml:` below, the only place it can carry a sizeLimit
+          - emptyDirVolume:
+              memory: 'false'
+              mountPath: /certs
+        # limit one agent pod per node for simpler operations (like orphan cleanup)
+        yaml: |
+          spec:
+            affinity:
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  - labelSelector:
+                      matchExpressions:
+                        - key: jenkins/cassius-jenkins-agent
+                          operator: In
+                          values:
+                            - "true"
+                    topologyKey: kubernetes.io/hostname
+            # docker's storage, named and mounted here so that the sizeLimit survives the plugin's merge.
+            # 60Gi bounds the images and their containers alone, of the pod's 80Gi
+            # fetchDockerImages in Jenkinsfile warns as the node fills as our image sizes grow.
+            volumes:
+              - name: docker-storage
+                emptyDir:
+                  sizeLimit: 60Gi
+            containers:
+              - name: dind
+                volumeMounts:
+                  - name: docker-storage
+                    mountPath: /var/lib/docker
+
+
