@@ -607,12 +607,17 @@ public class LeveledCompactionStrategyTest
 
             // Generates disjoint sorted SSTables that match what we see in L1
             int i = 0;
-            int lowerBound = 10;
-            while (i < 10000)
+            int start;
+            int end = 10;
+            while (i < 1000)
             {
-                int start = lowerBound + 1 + rs.nextInt(15);
-                int end = start + rs.nextInt(15);
-                lowerBound = end;
+                // Start with at least offset 1 to ensure that SSTables are disjoint
+                start = end + rs.nextInt(1, 15);
+
+                // Include space in between SSTables, so we don't hit the case where when
+                // going through Overlap.SUBSET we generate a SSTable that has start > end
+                end = start + rs.nextInt(5, 20);
+
                 sstables.add(MockSchema.sstableWithLevel(i++, start, end, 1, cfs));
             }
 
@@ -673,6 +678,19 @@ public class LeveledCompactionStrategyTest
                            treeSetIntersectingSSTables.containsAll(linearScanIntersectionSSTables) && linearScanIntersectionSSTables.containsAll(treeSetIntersectingSSTables));
             }
         });
+    }
+
+    @Test
+    public void testTreeSetIntersectionForEmptyNextLevelIsEmpty()
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        LeveledGenerations generations = new LeveledGenerations();
+
+        SSTableReader sstable = MockSchema.sstableWithLevel(0, 1, 10, 0, cfs);
+        Collection<SSTableReader> treeSetIntersectingSSTables = getIntersectingSSTablesFromTreeSet(sstable, generations.getSortedLevel(1));
+
+        assertTrue("treeSet and linear scan produce different results",
+                   treeSetIntersectingSSTables.isEmpty());
     }
 
     /**
