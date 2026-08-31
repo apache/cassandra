@@ -107,10 +107,11 @@ public class CassandraOutgoingFileTest
         List<SSTableReader.PartitionPositionBounds> sections = sstable.getPositionsForRanges(requestedRanges);
         CassandraOutgoingFile cof = new CassandraOutgoingFile(StreamOperation.BOOTSTRAP, sstable.ref(),
                                                               sections,
-                                                              requestedRanges, sstable.estimatedKeys());
+                                                              requestedRanges, sstable.estimatedKeys(),
+                                                              new CassandraVersion("7.0"));
 
         assertTrue(cof.contained(sections, sstable));
-        assertTrue("ordinary pa SSTables do not require the split-prefix capability",
+        assertTrue("a 7.0 peer understands the qa first-partition position",
                    cof.computeShouldStreamEntireSSTables());
     }
 

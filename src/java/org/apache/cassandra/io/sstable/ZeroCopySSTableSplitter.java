@@ -159,11 +159,12 @@ import org.apache.cassandra.utils.Throwables;
  * the {@link #UNCOMPRESSED_UNSUPPORTED_MESSAGE} refusal spells out what a misaligned CRC.db would cost.
  *
  * <h2>Older SSTable versions</h2>
- * Parents before BIG {@code pa} are refused because relabelling their copied row and CompressionInfo bytes as a newer
- * format has not been shown safe. A child is stamped BIG {@code pb}, whose Statistics.db records where a full scan
- * must begin after a retained prefix. Ordinary writers remain on {@code pa}; both versions count as latest, so adding
- * the tool does not schedule every existing SSTable for automatic upgrade. Splitting is also disabled unless storage
- * compatibility mode is {@code NONE}, keeping {@code pb} children out of a rolling upgrade with older nodes.
+ * Parents outside the explicit BIG versions this implementation has proved safe are refused: relabelling copied row
+ * and CompressionInfo bytes from an unknown version can silently change their meaning. A child is stamped BIG
+ * {@code qa}, whose Statistics.db records where a full scan must begin after a retained prefix. The new major is
+ * deliberate: a pre-7.0 binary rejects the descriptor instead of accepting an unknown minor and scanning the retained
+ * prefix from position zero. Splitting is also disabled unless storage compatibility mode is {@code NONE}, keeping
+ * {@code qa} children out of a rolling upgrade with older nodes.
  * <p>
  * A reader opened {@code MOVED_START} ({@code cloneWithNewStart}, i.e. an early-open reader of a running compaction)
  * is refused for an unrelated reason: its {@code getFirst()} has moved but its Data.db and index have not, so the
@@ -228,8 +229,8 @@ public final class ZeroCopySSTableSplitter
 {
     private static final Logger logger = LoggerFactory.getLogger(ZeroCopySSTableSplitter.class);
 
-    /** BIG minor version reserved for children whose Statistics.db can carry the first partition position. */
-    private static final String SPLIT_VERSION = "pb";
+    /** First BIG major version whose Statistics.db can carry the first partition position. */
+    private static final String SPLIT_VERSION = "qa";
 
     /** Prefix of the refusal message for an uncompressed parent, so tests need not match the whole sentence. */
     private static final String UNCOMPRESSED_UNSUPPORTED_MESSAGE =
@@ -237,7 +238,7 @@ public final class ZeroCopySSTableSplitter
 
     /** Prefix of the refusal message when a safe split-version child cannot be produced. */
     private static final String SPLIT_PREFIX_VERSION_UNSUPPORTED_MESSAGE =
-        "ZeroCopySSTableSplitter requires a BIG pa-or-later parent and storage compatibility mode NONE";
+        "ZeroCopySSTableSplitter requires a supported BIG pa, pb, or qa parent and storage compatibility mode NONE";
 
     /** One {@code transferTo} slice, small because it is also the granularity of throttling and stop checks. */
     private static final int TRANSFER_SLICE = 4 << 20;
@@ -282,6 +283,20 @@ public final class ZeroCopySSTableSplitter
      */
     @VisibleForTesting
     static volatile boolean forceAlignedLayoutForTesting = false;
+
+    /**
+     * Deterministic seam for the successful clone path. A test implementation must materialise exactly the requested
+     * destination range before returning true; production always calls {@link Reflink#tryCloneRange} directly.
+     */
+    @VisibleForTesting
+    static volatile RangeCloner rangeClonerForTesting = null;
+
+    @FunctionalInterface
+    interface RangeCloner
+    {
+        boolean clone(FileChannel src, long srcOffset, FileChannel dst, long dstOffset, long length, File directory)
+        throws IOException;
+    }
 
     /**
      * Test hook, called with the number of children already built after the next child is registered in the lifecycle
@@ -643,7 +658,7 @@ public final class ZeroCopySSTableSplitter
     /** One produced child sstable. */
     public static final class Child
     {
-        /** Descriptor of the child, in the parent's directory and stamped as BIG {@code pb}. */
+        /** Descriptor of the child, in the parent's directory and stamped as BIG {@code qa}. */
         public final Descriptor descriptor;
         /** The child's first partition key (minimal copy). */
         public final DecoratedKey first;
@@ -873,7 +888,11 @@ public final class ZeroCopySSTableSplitter
         Preconditions.checkNotNull(txn, "txn");
 
         long start = Clock.Global.nanoTime();
-        Runs runs = selectByCompressedSize(parent, targetSize, null);
+        // Selection must account for the physical head pad that makes an otherwise unaligned chunk run cloneable.
+        // Reflink capability is optimistic until the first ioctl; reserving the pad on an unsupported filesystem only
+        // makes the first split slightly finer, while omitting it makes almost every near-cap run discard its clone.
+        boolean reflinkPossible = Reflink.isPossibleIn(parent.descriptor.directory);
+        Runs runs = selectByCompressedSize(parent, targetSize, null, reflinkPossible);
         authenticateParentIndex(parent, runs);
         requireFileDescriptorBudget(parent, runs);
         SplitEstimate estimate = requireDiskSpace(parent, runs, targetSize);
@@ -885,8 +904,8 @@ public final class ZeroCopySSTableSplitter
     }
 
     /**
-     * @return true iff this is a normally-opened, compressed BIG {@code pa}-or-later SSTable from which a marker-
-     *         capable {@code pb} child may be produced, with no compression dictionary
+     * @return true iff this is a normally-opened, compressed BIG SSTable of an explicitly supported input version
+     *         from which a marker-capable {@code qa} child may be produced, with no compression dictionary
      */
     public static boolean isSupported(SSTableReader parent)
     {
@@ -1175,11 +1194,13 @@ public final class ZeroCopySSTableSplitter
     }
 
     /**
-     * Greedily packs complete partitions while the exact compression-chunk span copied into Data.db fits the target.
+     * Greedily packs complete partitions while the exact compression-chunk span copied into Data.db, including any
+     * head pad needed for extent sharing, fits the target.
      * The one-record look-behind lets an oversized candidate be cut before its last partition without retaining an
      * offset per partition. The only child allowed over the target is therefore a single indivisible partition.
      */
-    private static Runs selectByCompressedSize(SSTableReader parent, long targetSize, Runnable stopCheck)
+    private static Runs selectByCompressedSize(SSTableReader parent, long targetSize, Runnable stopCheck,
+                                               boolean reflinkPossible)
     {
         CompressionMetadata metadata = parent.getCompressionMetadata();
         int chunkLength = metadata.chunkLength();
@@ -1212,7 +1233,8 @@ public final class ZeroCopySSTableSplitter
 
                 int candidatePartitions = index - runStart[0];
                 if (candidatePartitions > 1
-                    && compressedBytes(metadata, runPosition[0], position, chunkLength) > targetSize)
+                    && plannedDataFileBytes(metadata, runPosition[0], position, chunkLength,
+                                            reflinkPossible) > targetSize)
                 {
                     // The candidate without its last partition was checked at the preceding record. Start the next
                     // child at that last partition; if it alone is oversized it will be isolated on the next offer.
@@ -1226,7 +1248,8 @@ public final class ZeroCopySSTableSplitter
         }, stopCheck);
 
         if (partitionCount - runStart[0] > 1
-            && compressedBytes(metadata, runPosition[0], metadata.dataLength, chunkLength) > targetSize)
+            && plannedDataFileBytes(metadata, runPosition[0], metadata.dataLength, chunkLength,
+                                    reflinkPossible) > targetSize)
         {
             // EOF is the exclusive end of the final partition. The same one-record look-behind isolates it.
             runStart[0] = partitionCount - 1;
@@ -1395,11 +1418,15 @@ public final class ZeroCopySSTableSplitter
         }
     }
 
-    private static long compressedBytes(CompressionMetadata metadata, long lo, long hi, int chunkLength)
+    /** Exact physical child length selection should plan when this filesystem may share the run. */
+    private static long plannedDataFileBytes(CompressionMetadata metadata, long lo, long hi, int chunkLength,
+                                             boolean reflinkPossible)
     {
         ChunkRange range = chunkRange(lo, hi, chunkLength);
-        return chunkEnd(metadata, range.lastChunk, chunkLength)
-               - chunkStart(metadata, range.firstChunk, chunkLength);
+        long copyFrom = chunkStart(metadata, range.firstChunk, chunkLength);
+        long physicalBytes = chunkEnd(metadata, range.lastChunk, chunkLength) - copyFrom;
+        boolean align = forceAlignedLayoutForTesting || (reflinkPossible && physicalBytes >= MIN_CLONE_BYTES);
+        return copyPlan(copyFrom, physicalBytes, align, false).childLength;
     }
 
     /**
@@ -1432,7 +1459,9 @@ public final class ZeroCopySSTableSplitter
             long copyFrom = chunkStart(metadata, range.firstChunk, chunkLength);
             long physicalBytes = chunkEnd(metadata, range.lastChunk, chunkLength) - copyFrom;
             CopyPlan padded = copyPlan(copyFrom, physicalBytes, true, false);
-            long childBytes = padded.headPadBytes > 0 && padded.childLength > maxDataFileSize
+            long childBytes = padded.headPadBytes > 0
+                              && physicalBytes <= maxDataFileSize
+                              && padded.childLength > maxDataFileSize
                               ? physicalBytes
                               : padded.childLength;
             dataBytes = saturatedAdd(dataBytes, childBytes);
@@ -1888,13 +1917,18 @@ public final class ZeroCopySSTableSplitter
         // ---------- Data.db: verbatim compressed chunk run, shared with the parent where possible ----------
         // An unpadded run cannot be shared at all -- O(i) is aligned to nothing -- so the padding decision has to
         // be made before the copy, not after it fails; hence the filesystem is asked up front.
-        boolean canShare = Reflink.isPossibleIn(child.directory);
+        boolean canShare = rangeClonerForTesting != null || Reflink.isPossibleIn(child.directory);
         boolean align = forceAlignedLayoutForTesting || (canShare && physicalBytes >= MIN_CLONE_BYTES);
         CopyPlan plan = copyPlan(copyFrom, physicalBytes, align, align && canShare);
-        if (maxDataFileSize > 0 && plan.childLength > maxDataFileSize && plan.headPadBytes > 0)
+        if (maxDataFileSize > 0
+            && physicalBytes <= maxDataFileSize
+            && plan.childLength > maxDataFileSize
+            && plan.headPadBytes > 0)
         {
-            // The padding only enables extent sharing; it is not an indivisible part of any partition and therefore
-            // cannot be allowed to turn the user-visible maximum into a suggestion.
+            // Selection reserves this pad, so this is only a safety net for a test-time support-cache reset or another
+            // unexpected capability change between selection and build. An indivisible partition whose physical run
+            // already exceeds the maximum keeps its pad: the documented exception already applies, and sharing that
+            // large run is especially valuable.
             plan = copyPlan(copyFrom, physicalBytes, false, false);
         }
         long cloned = copyData(parent.descriptor.fileFor(Components.DATA), child.fileFor(Components.DATA),
@@ -2001,7 +2035,13 @@ public final class ZeroCopySSTableSplitter
             if (plan.cloneLength > 0)
             {
                 interrupt.run();
-                if (Reflink.tryCloneRange(in, plan.srcStart, outChannel, 0, plan.cloneLength, directory))
+                RangeCloner testCloner = rangeClonerForTesting;
+                boolean shared = testCloner == null
+                                 ? Reflink.tryCloneRange(in, plan.srcStart, outChannel, 0,
+                                                        plan.cloneLength, directory)
+                                 : testCloner.clone(in, plan.srcStart, outChannel, 0,
+                                                    plan.cloneLength, directory);
+                if (shared)
                 {
                     cloned = plan.cloneLength;
                     if (progress != null)
@@ -2443,9 +2483,8 @@ public final class ZeroCopySSTableSplitter
     }
 
     /**
-     * Fresh BIG {@code pb} descriptors in the parent's directory. Prefers the live ColumnFamilyStore's id generator
-     * so we cannot collide with a concurrent flush or compaction; the fallback is for offline use. Normal writers
-     * deliberately remain on {@code pa}; only the splitter needs the appended Stats marker.
+     * Fresh BIG {@code qa} descriptors in the parent's directory. Prefers the live ColumnFamilyStore's id generator
+     * so we cannot collide with a concurrent flush or compaction; the fallback is for offline use.
      */
     static Supplier<Descriptor> descriptorAllocator(SSTableReader parent)
     {

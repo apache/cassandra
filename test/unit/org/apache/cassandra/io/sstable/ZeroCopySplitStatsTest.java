@@ -56,8 +56,8 @@ public class ZeroCopySplitStatsTest extends CQLTester
         Assume.assumeTrue(BigFormat.isSelected());
 
         SSTableReader parent = compressedSSTable(80, 5, 480);
-        assertEquals("pa", parent.descriptor.version.version);
-        assertFalse(parent.descriptor.version.hasSplitPrefixMarker());
+        assertEquals("qa", parent.descriptor.version.version);
+        assertTrue(parent.descriptor.version.hasSplitPrefixMarker());
 
         parent.mutateRepairedAndReload(REPAIRED_AT, null, false);
         List<AbstractType<?>> clusteringTypes = parent.metadata().comparator.subtypes();
@@ -166,7 +166,7 @@ public class ZeroCopySplitStatsTest extends CQLTester
                                          SSTableReader reader,
                                          StatsMetadata childStats)
     {
-        assertEquals("pb", child.descriptor.version.version);
+        assertEquals("qa", child.descriptor.version.version);
         assertTrue(child.descriptor.version.hasSplitPrefixMarker());
         assertEquals("the position is a per-sstable fact, not a version-wide default",
                      child.deadPrefixBytes, childStats.firstPartitionPosition);

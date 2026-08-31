@@ -384,7 +384,7 @@ public class ScrubTest
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         assertTrue(sstable.compression);
         assertTrue(sstable.descriptor.version.hasKeyRange());
-        assertFalse(sstable.descriptor.version.hasSplitPrefixMarker());
+        assertTrue(sstable.descriptor.version.hasSplitPrefixMarker());
         assertFalse(sstable.hasSplitPrefix());
 
         sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor,

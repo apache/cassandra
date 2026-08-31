@@ -201,9 +201,8 @@ public class CassandraOutgoingFile implements OutgoingStream
     @VisibleForTesting
     public boolean computeShouldStreamEntireSSTables()
     {
-        // A pre-7.0 reader accepts an unknown p* minor version but does not understand the split-prefix marker. It
-        // would preserve the pb descriptor while rewriting Statistics.db without its marker, then scan retained prefix
-        // rows as live data. Fall back to partition streaming unless the peer release advertises marker support.
+        // A pre-7.0 reader does not understand the split-prefix position or the qa descriptor that protects it. Fall
+        // back to partition streaming, which rewrites rows in the peer's format, unless the peer advertises support.
         if (!DatabaseDescriptor.streamEntireSSTables() ||
             ref.get().getSSTableMetadata().hasLegacyCounterShards ||
             ref.get().descriptor.version.hasOldBfFormat() ||

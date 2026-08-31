@@ -36,6 +36,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.StatsComponent;
 import org.apache.cassandra.io.sstable.format.TOCComponent;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
@@ -81,19 +82,29 @@ public class ZeroCopySSTableSplitterCompatibilityTest extends CQLTester
     }
 
     @Test
-    public void bigPrePaSSTableIsRejected() throws Throwable
+    public void bigInputVersionMustBeExplicitlySupported() throws Throwable
     {
         SSTableReader current = compressedSSTable(BigFormat.NAME);
         assertTrue(BigFormat.is(current.descriptor.getFormat()));
-        assertEquals("pa", current.descriptor.version.version);
-        assertFalse(current.descriptor.version.hasSplitPrefixMarker());
+        assertEquals("qa", current.descriptor.version.version);
+        assertTrue(current.descriptor.version.hasSplitPrefixMarker());
         assertEquals("ordinary writer SSTables must retain the zero-position fast path",
                      0, current.getSSTableMetadata().firstPartitionPosition);
-        assertTrue("the splitter must be able to upgrade a pa parent into marker-capable pb children",
+        assertTrue("the splitter must accept the current qa version",
                    ZeroCopySSTableSplitter.isSupported(current));
 
         Set<Component> components = new LinkedHashSet<>(current.descriptor.discoverComponents());
-        Descriptor olderDescriptor = new Descriptor("oa",
+        assertRelabelledVersionRejected(current, components, "oa");
+        assertRelabelledVersionRejected(current, components, "pc");
+        assertRelabelledVersionRejected(current, components, "qb");
+    }
+
+    @Test
+    public void paParentProducesQaChildren() throws Throwable
+    {
+        SSTableReader current = compressedSSTable(BigFormat.NAME);
+        Set<Component> components = new LinkedHashSet<>(current.descriptor.discoverComponents());
+        Descriptor paDescriptor = new Descriptor("pa",
                                                  current.descriptor.directory,
                                                  current.descriptor.ksname,
                                                  current.descriptor.cfname,
@@ -104,37 +115,98 @@ public class ZeroCopySSTableSplitterCompatibilityTest extends CQLTester
         {
             for (Component component : components)
             {
-                Files.copy(current.descriptor.fileFor(component).toPath(),
-                           olderDescriptor.fileFor(component).toPath());
+                if (!component.equals(SSTableFormat.Components.STATS))
+                {
+                    Files.copy(current.descriptor.fileFor(component).toPath(),
+                               paDescriptor.fileFor(component).toPath());
+                }
             }
+            new StatsComponent(StatsComponent.load(current.descriptor).metadata).save(paDescriptor);
 
-            SSTableReader olderReader = SSTableReader.open(getCurrentColumnFamilyStore(),
-                                                           olderDescriptor,
-                                                           components,
-                                                           getCurrentColumnFamilyStore().metadata);
+            SSTableReader paReader = SSTableReader.open(getCurrentColumnFamilyStore(),
+                                                        paDescriptor,
+                                                        components,
+                                                        getCurrentColumnFamilyStore().metadata);
             try
             {
-                assertFalse(olderReader.descriptor.version.hasSplitPrefixMarker());
-                assertTrue(olderReader.compression);
-                assertNull(olderReader.getCompressionMetadata().compressionDictionary());
-                assertFalse(ZeroCopySSTableSplitter.isSupported(olderReader));
+                assertEquals("pa", paReader.descriptor.version.version);
+                assertFalse(paReader.descriptor.version.hasSplitPrefixMarker());
+                assertTrue(ZeroCopySSTableSplitter.isSupported(paReader));
 
-                Set<String> before = fileNames(olderDescriptor.directory);
-                assertThatThrownBy(() -> ZeroCopySSTableSplitter.splitBySize(olderReader, 1024, null))
-                    .isInstanceOf(UnsupportedOperationException.class)
-                    .hasMessageContaining("oa")
-                    .hasMessageContaining("pa-or-later");
-                assertEquals("a refused split must not create components", before, fileNames(olderDescriptor.directory));
+                ZeroCopySSTableSplitter.Result result = ZeroCopySSTableSplitter.splitForTesting(paReader, 2);
+                try
+                {
+                    assertEquals(2, result.children.size());
+                    for (ZeroCopySSTableSplitter.Child child : result.children)
+                        assertEquals("qa", child.descriptor.version.version);
+                }
+                finally
+                {
+                    for (ZeroCopySSTableSplitter.Child child : result.children)
+                    {
+                        child.reader.selfRef().release();
+                        for (Component component : child.components)
+                            child.descriptor.fileFor(component).deleteIfExists();
+                    }
+                }
             }
             finally
             {
-                olderReader.selfRef().release();
+                paReader.selfRef().release();
             }
         }
         finally
         {
             for (Component component : components)
-                olderDescriptor.fileFor(component).deleteIfExists();
+                paDescriptor.fileFor(component).deleteIfExists();
+        }
+    }
+
+    private void assertRelabelledVersionRejected(SSTableReader current,
+                                                  Set<Component> components,
+                                                  String version) throws IOException
+    {
+        Descriptor descriptor = new Descriptor(version,
+                                               current.descriptor.directory,
+                                               current.descriptor.ksname,
+                                               current.descriptor.cfname,
+                                               SSTableIdFactory.instance.defaultBuilder()
+                                                                        .generator(Stream.empty()).get(),
+                                               BigFormat.getInstance());
+        try
+        {
+            for (Component component : components)
+            {
+                Files.copy(current.descriptor.fileFor(component).toPath(),
+                           descriptor.fileFor(component).toPath());
+            }
+
+            SSTableReader reader = SSTableReader.open(getCurrentColumnFamilyStore(),
+                                                      descriptor,
+                                                      components,
+                                                      getCurrentColumnFamilyStore().metadata);
+            try
+            {
+                assertTrue(reader.compression);
+                assertNull(reader.getCompressionMetadata().compressionDictionary());
+                assertFalse(ZeroCopySSTableSplitter.isSupported(reader));
+
+                Set<String> before = fileNames(descriptor.directory);
+                assertThatThrownBy(() -> ZeroCopySSTableSplitter.splitBySize(reader, 1024, null))
+                    .isInstanceOf(UnsupportedOperationException.class)
+                    .hasMessageContaining(version)
+                    .hasMessageContaining("supported BIG pa, pb, or qa");
+                assertEquals("a refused split must not create components", before, fileNames(descriptor.directory));
+            }
+            finally
+            {
+                reader.selfRef().release();
+            }
+        }
+        finally
+        {
+            for (Component component : components)
+                descriptor.fileFor(component).deleteIfExists();
         }
     }
 

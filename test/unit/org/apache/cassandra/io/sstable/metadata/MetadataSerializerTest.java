@@ -140,31 +140,22 @@ public class MetadataSerializerTest
         metadata.put(MetadataType.STATS, marked);
 
         MetadataSerializer serializer = new MetadataSerializer();
-        Version pb = BigFormat.getInstance().getVersion("pb");
-        File pbFile = serialize(metadata, serializer, pb);
-        Descriptor pbDescriptor = new Descriptor(pb, pbFile.parent(), "", "", new SequenceBasedSSTableId(0));
-        try (RandomAccessReader in = RandomAccessReader.open(pbFile))
+        Version qa = BigFormat.getInstance().getVersion("qa");
+        File qaFile = serialize(metadata, serializer, qa);
+        Descriptor qaDescriptor = new Descriptor(qa, qaFile.parent(), "", "", new SequenceBasedSSTableId(0));
+        try (RandomAccessReader in = RandomAccessReader.open(qaFile))
         {
-            StatsMetadata deserialized = (StatsMetadata) serializer.deserialize(pbDescriptor,
+            StatsMetadata deserialized = (StatsMetadata) serializer.deserialize(qaDescriptor,
                                                                                 in,
                                                                                 EnumSet.of(MetadataType.STATS))
                                                                     .get(MetadataType.STATS);
             assertEquals(123, deserialized.firstPartitionPosition);
         }
 
-        // Minor versions are forward compatible: an older reader ignores the appended, bounded component field.
+        // qa is a new major so older pa readers reject the descriptor before attempting to deserialize it.
         Version pa = BigFormat.getInstance().getVersion("pa");
-        Descriptor paDescriptor = new Descriptor(pa, pbFile.parent(), "", "", new SequenceBasedSSTableId(0));
-        try (RandomAccessReader in = RandomAccessReader.open(pbFile))
-        {
-            StatsMetadata deserialized = (StatsMetadata) serializer.deserialize(paDescriptor,
-                                                                                in,
-                                                                                EnumSet.of(MetadataType.STATS))
-                                                                    .get(MetadataType.STATS);
-            assertEquals(0, deserialized.firstPartitionPosition);
-        }
-
         File paFile = serialize(metadata, serializer, pa);
+        Descriptor paDescriptor = new Descriptor(pa, paFile.parent(), "", "", new SequenceBasedSSTableId(0));
         try (RandomAccessReader in = RandomAccessReader.open(paFile))
         {
             StatsMetadata deserialized = (StatsMetadata) serializer.deserialize(paDescriptor,
