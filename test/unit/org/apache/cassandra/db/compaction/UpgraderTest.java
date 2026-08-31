@@ -44,10 +44,11 @@ public class UpgraderTest
     public void testLatestVersionsAreCurrent()
     {
         SSTableFormat<?, ?> big = BigFormat.getInstance();
-        Assume.assumeTrue(big.getLatestVersion().version.equals("pa"));
+        Assume.assumeTrue(big.getLatestVersion().version.equals("qa"));
 
-        assertThat(Upgrader.isCurrentVersion(descriptor(big.getVersion("pa")))).isTrue();
-        assertThat(Upgrader.isCurrentVersion(descriptor(big.getVersion("pb")))).isTrue();
+        assertThat(Upgrader.isCurrentVersion(descriptor(big.getVersion("qa")))).isTrue();
+        assertThat(Upgrader.isCurrentVersion(descriptor(big.getVersion("pa")))).isFalse();
+        assertThat(Upgrader.isCurrentVersion(descriptor(big.getVersion("pb")))).isFalse();
     }
 
     @Test
@@ -55,13 +56,13 @@ public class UpgraderTest
     {
         SSTableFormat<?, ?> big = BigFormat.getInstance();
         SSTableFormat<?, ?> bti = DatabaseDescriptor.getSSTableFormats().get(BtiFormat.NAME);
-        Assume.assumeTrue(big.getLatestVersion().version.equals("pa"));
+        Assume.assumeTrue(big.getLatestVersion().version.equals("qa"));
 
-        Descriptor pb = descriptor(big.getVersion("pb"));
+        Descriptor qa = descriptor(big.getVersion("qa"));
         Descriptor latestBti = descriptor(bti.getLatestVersion());
 
-        assertThat(Upgrader.isCurrentVersion(pb)).isTrue();
-        assertThat(Upgrader.isCurrentVersion(pb, bti)).isFalse();
+        assertThat(Upgrader.isCurrentVersion(qa)).isTrue();
+        assertThat(Upgrader.isCurrentVersion(qa, bti)).isFalse();
         assertThat(Upgrader.isCurrentVersion(latestBti)).isTrue();
         assertThat(Upgrader.isCurrentVersion(latestBti, big)).isFalse();
     }

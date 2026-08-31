@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.GnuParser;
@@ -41,6 +42,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.SSTableSplitter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
@@ -57,6 +59,9 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 public class StandaloneSplitter
 {
     public static final int DEFAULT_SSTABLE_SIZE = 50;
+
+    @VisibleForTesting
+    private static volatile boolean failSnapshotForTesting;
 
     private static final String TOOL_NAME = "sstablessplit";
     private static final String DEBUG_OPTION = "debug";
@@ -127,33 +132,61 @@ public class StandaloneSplitter
             String snapshotName = "pre-split-" + currentTimeMillis();
 
             List<SSTableReader> sstables = new ArrayList<>();
+            int snapshotted = 0;
             boolean failed = false;
             for (Map.Entry<Descriptor, Set<Component>> fn : parsedFilenames.entrySet())
             {
+                SSTableReader sstable = null;
                 try
                 {
-                    SSTableReader sstable = SSTableReader.openNoValidation(fn.getKey(), fn.getValue(), cfs);
+                    sstable = SSTableReader.openNoValidation(fn.getKey(), fn.getValue(), cfs);
                     if (!isSSTableLargerEnough(sstable, options.sizeInMB)) {
                         System.out.printf("Skipping %s: it's size (%.3f MB) is less than the split size (%d MB)%n",
                                           sstable.getFilename(), ((sstable.onDiskLength() * 1.0d) / 1024L) / 1024L, options.sizeInMB);
                         sstable.selfRef().ensureReleased();
+                        sstable = null;
                         continue;
                     }
-                    sstables.add(sstable);
 
                     if (options.snapshot) {
-                        File snapshotDirectory = Directories.getSnapshotDirectory(sstable.descriptor, snapshotName);
-                        sstable.createLinks(snapshotDirectory.path());
+                        File snapshotDirectory = null;
+                        List<File> snapshotLinks = new ArrayList<>();
+                        try
+                        {
+                            snapshotDirectory = Directories.getSnapshotDirectory(sstable.descriptor, snapshotName);
+                            createSnapshotLinks(sstable, snapshotDirectory, snapshotLinks);
+                            if (failSnapshotForTesting)
+                                throw new RuntimeException("Snapshot failure injected for testing");
+                            snapshotted++;
+                        }
+                        catch (Exception | FSError e)
+                        {
+                            if (snapshotDirectory != null)
+                                removeIncompleteSnapshotLinks(snapshotLinks, snapshotDirectory);
+                            failed = true;
+                            JVMStabilityInspector.inspectThrowable(e);
+                            System.err.printf("Error Snapshotting %s: %s%n", fn.getKey(), e.getMessage());
+                            if (options.debug)
+                                e.printStackTrace(System.err);
+                            sstable.selfRef().ensureReleased();
+                            sstable = null;
+                            continue;
+                        }
                     }
 
+                    // Do not split an sstable without a complete snapshot. In particular, createLinks may have
+                    // created some links before a later component failed, but those links are not a usable rollback.
+                    sstables.add(sstable);
                 }
-                catch (Exception e)
+                catch (Exception | FSError e)
                 {
                     failed = true;
                     JVMStabilityInspector.inspectThrowable(e);
                     System.err.printf("Error Loading %s: %s%n", fn.getKey(), e.getMessage());
                     if (options.debug)
                         e.printStackTrace(System.err);
+                    if (sstable != null)
+                        sstable.selfRef().ensureReleased();
                 }
             }
             if (sstables.isEmpty()) {
@@ -161,14 +194,21 @@ public class StandaloneSplitter
                 System.exit(failed ? 1 : 0);
             }
             if (options.snapshot)
-                System.out.printf("Pre-split sstables snapshotted into snapshot %s%n", snapshotName);
+                System.out.printf("Pre-split %d sstable(s) snapshotted into snapshot %s%n", snapshotted, snapshotName);
 
             for (SSTableReader sstable : sstables)
             {
                 try (LifecycleTransaction transaction = LifecycleTransaction.offline(OperationType.UNKNOWN, sstable))
                 {
                     if (options.zeroCopy)
-                        zeroCopySplit(sstable, transaction, options.sizeInMB);
+                    {
+                        ZeroCopySSTableSplitter.Result result = zeroCopySplit(sstable, transaction, options.sizeInMB);
+                        long bytesWritten = result.totalBytesWritten();
+                        System.out.printf("Zero-copy split committed: children=%d, bytes cloned=%d, bytes written=%d, " +
+                                          "reflink used=%s%n",
+                                          result.children.size(), result.totalBytesCloned, bytesWritten,
+                                          result.totalBytesCloned > 0 ? "yes" : "no");
+                    }
                     else
                         new SSTableSplitter(cfs, transaction, options.sizeInMB).split();
                 }
@@ -206,7 +246,9 @@ public class StandaloneSplitter
         return sstable.onDiskLength() > sizeInMB * 1024L * 1024L;
     }
 
-    private static void zeroCopySplit(SSTableReader sstable, LifecycleTransaction transaction, int sizeInMB)
+    private static ZeroCopySSTableSplitter.Result zeroCopySplit(SSTableReader sstable,
+                                                                LifecycleTransaction transaction,
+                                                                int sizeInMB)
     {
         long targetSize = sizeInMB * 1024L * 1024L;
         ZeroCopySSTableSplitter.Result result = ZeroCopySSTableSplitter.splitBySize(sstable,
@@ -224,6 +266,7 @@ public class StandaloneSplitter
             transaction.obsoleteOriginals();
             transaction.prepareToCommit();
             transaction.commit();
+            return result;
         }
         catch (RuntimeException | Error t)
         {
@@ -232,6 +275,49 @@ public class StandaloneSplitter
                 result.children.get(i).reader.selfRef().release();
             throw t;
         }
+    }
+
+    private static void createSnapshotLinks(SSTableReader sstable, File snapshotDirectory, List<File> createdLinks)
+    {
+        for (Component component : sstable.getComponents())
+        {
+            File source = sstable.descriptor.fileFor(component);
+            if (!source.exists())
+                continue;
+
+            SSTableReader.createLinks(sstable.descriptor,
+                                      Collections.singleton(component),
+                                      snapshotDirectory.path());
+            createdLinks.add(new File(snapshotDirectory, source.name()));
+        }
+    }
+
+    private static void removeIncompleteSnapshotLinks(List<File> createdLinks, File snapshotDirectory)
+    {
+        for (File link : createdLinks)
+        {
+            try
+            {
+                link.deleteIfExists();
+            }
+            catch (RuntimeException | FSError e)
+            {
+                JVMStabilityInspector.inspectThrowable(e);
+                System.err.printf("Error cleaning incomplete snapshot link %s: %s%n", link, e.getMessage());
+            }
+        }
+        File snapshotParent = snapshotDirectory.parent();
+        if (snapshotDirectory.tryList().length == 0 && snapshotDirectory.tryDelete()
+            && snapshotParent.tryList().length == 0)
+        {
+            snapshotParent.tryDelete();
+        }
+    }
+
+    @VisibleForTesting
+    static void setFailSnapshotForTesting(boolean fail)
+    {
+        failSnapshotForTesting = fail;
     }
 
     private static class Options

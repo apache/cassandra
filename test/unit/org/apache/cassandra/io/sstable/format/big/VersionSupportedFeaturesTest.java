@@ -32,11 +32,12 @@ import static org.junit.Assert.assertTrue;
 public class VersionSupportedFeaturesTest extends AbstractTestVersionSupportedFeatures
 {
     @Test
-    public void testOrdinaryAndSplitterVersionsAreBothLatest()
+    public void testOnlyCurrentVersionIsLatest()
     {
-        Assume.assumeTrue(BigFormat.getInstance().getLatestVersion().version.equals("pa"));
-        assertTrue(getVersion("pa").isLatestVersion());
-        assertTrue(getVersion("pb").isLatestVersion());
+        Assume.assumeTrue(BigFormat.getInstance().getLatestVersion().version.equals("qa"));
+        assertTrue(getVersion("qa").isLatestVersion());
+        assertFalse(getVersion("pa").isLatestVersion());
+        assertFalse(getVersion("pb").isLatestVersion());
         assertFalse(getVersion("pc").isLatestVersion());
     }
 
@@ -47,6 +48,8 @@ public class VersionSupportedFeaturesTest extends AbstractTestVersionSupportedFe
         assertTrue(getVersion("pa").supportsZeroCopySplitInput());
         assertTrue(getVersion("pb").supportsZeroCopySplitInput());
         assertTrue(getVersion("qa").supportsZeroCopySplitInput());
+        assertFalse(getVersion("qb").supportsZeroCopySplitInput());
+        assertFalse(getVersion("pc").supportsZeroCopySplitInput());
     }
 
     @Override
@@ -88,7 +91,7 @@ public class VersionSupportedFeaturesTest extends AbstractTestVersionSupportedFe
     @Override
     protected Stream<String> getSplitPrefixMarkerSupportedVersions()
     {
-        return range("pb", "zz");
+        return Stream.concat(Stream.of("pb"), range("qa", "zz"));
     }
 
     @Override

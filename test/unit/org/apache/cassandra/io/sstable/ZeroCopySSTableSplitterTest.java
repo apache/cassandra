@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.io.sstable;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -43,6 +44,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -92,6 +94,7 @@ public class ZeroCopySSTableSplitterTest extends CQLTester
     public void resetHooks()
     {
         ZeroCopySSTableSplitter.forceAlignedLayoutForTesting = false;
+        ZeroCopySSTableSplitter.rangeClonerForTesting = null;
         ZeroCopySSTableSplitter.failBeforeChildForTesting = null;
         ZeroCopySSTableSplitter.failAfterChildOpenForTesting = null;
         ZeroCopySSTableSplitter.availableFileDescriptorsForTesting = null;
@@ -330,7 +333,7 @@ public class ZeroCopySSTableSplitterTest extends CQLTester
 
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         SSTableReader parent = onlySSTable(cfs);
-        assertEquals("pa", parent.descriptor.version.version);
+        assertEquals("qa", parent.descriptor.version.version);
         assertEquals(0, parent.getSSTableMetadata().firstPartitionPosition);
         assertTrue(((BigTableReader) parent).getKeyCache().isEnabled());
 
@@ -347,7 +350,7 @@ public class ZeroCopySSTableSplitterTest extends CQLTester
             int partitions = 0;
             for (Child child : result.children)
             {
-                assertEquals("pb", child.descriptor.version.version);
+                assertEquals("qa", child.descriptor.version.version);
                 assertEquals(child.deadPrefixBytes, child.reader.getSSTableMetadata().firstPartitionPosition);
                 assertFalse("split children must be opened through the offline reader path",
                             ((BigTableReader) child.reader).getKeyCache().isEnabled());
@@ -550,7 +553,7 @@ public class ZeroCopySSTableSplitterTest extends CQLTester
             }
 
             SSTableReader received = onlySSTable(cfs);
-            assertEquals("pb", received.descriptor.version.version);
+            assertEquals("qa", received.descriptor.version.version);
             assertTrue(received.hasSplitPrefix());
             assertEquals(source.partitionCount, scan(received));
         }
@@ -562,7 +565,7 @@ public class ZeroCopySSTableSplitterTest extends CQLTester
     }
 
     @Test
-    public void sizeBasedSplitUsesCompressedChunkSpansAsAMaximum() throws Throwable
+    public void sizeBasedSplitKeepsAlignedChildrenWithinMaximum() throws Throwable
     {
         Assume.assumeTrue(BigFormat.isSelected());
 
@@ -594,6 +597,7 @@ public class ZeroCopySSTableSplitterTest extends CQLTester
             Result result;
             List<Long> diskReservations = new ArrayList<>();
             ZeroCopySSTableSplitter.forceAlignedLayoutForTesting = true;
+            ZeroCopySSTableSplitter.rangeClonerForTesting = ZeroCopySSTableSplitterTest::materializeCloneForTesting;
             ZeroCopySSTableSplitter.failBeforeChildForTesting = built -> {
                 long reserved = CompactionManager.instance.active.estimatedRemainingWriteToDiskBytes()
                                                           .values()
@@ -609,6 +613,7 @@ public class ZeroCopySSTableSplitterTest extends CQLTester
             finally
             {
                 ZeroCopySSTableSplitter.forceAlignedLayoutForTesting = false;
+                ZeroCopySSTableSplitter.rangeClonerForTesting = null;
                 ZeroCopySSTableSplitter.failBeforeChildForTesting = null;
             }
             try
@@ -635,11 +640,113 @@ public class ZeroCopySSTableSplitterTest extends CQLTester
                                " bytes, below the " + remainingBytes + " bytes still written",
                                diskReservations.get(i) >= remainingBytes);
                 }
+
+                assertTrue("size-based planning stripped every alignment pad",
+                           result.totalHeadPadBytes > 0);
+                assertTrue("size-based split never exercised the successful clone path",
+                           result.totalBytesCloned > 0);
             }
             finally
             {
                 release(result);
             }
+        }
+    }
+
+    @Test
+    public void compactionProducedParentWithTrailingEmptyChunkSplits() throws Throwable
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+
+        createCompressedTable();
+        disableCompaction();
+        insertPartitions(48, 4, 480, new Random(13));
+        flush();
+        insertPartitions(48, 4, 480, new Random(14));
+        flush();
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.forceMajorCompaction();
+        SSTableReader parent = onlySSTable(cfs);
+        long dataLength = parent.getCompressionMetadata().dataLength;
+        int chunkLength = parent.getCompressionMetadata().chunkLength();
+        long neededChunks = (dataLength + chunkLength - 1) / chunkLength;
+        assertTrue("compaction fixture did not retain its trailing empty chunk",
+                   parent.getCompressionMetadata().offHeapSize() / 8 > neededChunks);
+
+        Result result = ZeroCopySSTableSplitter.splitForTesting(parent, 3);
+        try
+        {
+            assertEquals(3, result.children.size());
+            assertContentEquals(parent, result);
+            for (Child child : result.children)
+                assertEquals(child.partitionCount, scan(child.reader));
+        }
+        finally
+        {
+            release(result);
+        }
+    }
+
+    @Test
+    public void onlineChildPointReadsQueryPersistedBloomFilter() throws Throwable
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
+
+        createCompressedTable();
+        disableCompaction();
+        insertPartitions(120, 3, 480, new Random(15));
+        flush();
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        SSTableReader parent = onlySSTable(cfs);
+        Result result = ZeroCopySSTableSplitter.splitForTesting(parent, 3);
+        try
+        {
+            Child child = result.children.get(1);
+            SSTableReader reopened = SSTableReader.open(cfs, child.descriptor, child.components, cfs.metadata);
+            try
+            {
+                BigTableReader reader = (BigTableReader) reopened;
+                long trueNegatives = reader.getFilterTracker().getTrueNegativeCount();
+                try (UnfilteredRowIterator rows = reader.rowIterator(child.first,
+                                                                       Slices.ALL,
+                                                                       ColumnFilter.all(cfs.metadata()),
+                                                                       false,
+                                                                       NOOP_LISTENER))
+                {
+                    assertTrue("present point read returned no partition", rows.hasNext());
+                }
+
+                DecoratedKey absent = null;
+                for (int i = 0; i < 10000 && absent == null; i++)
+                {
+                    DecoratedKey candidate = cfs.getPartitioner().decorateKey(ByteBufferUtil.bytes("missing-" + i));
+                    if (candidate.compareTo(child.first) <= 0 || candidate.compareTo(child.last) >= 0)
+                        continue;
+
+                    try (UnfilteredRowIterator rows = reader.rowIterator(candidate,
+                                                                           Slices.ALL,
+                                                                           ColumnFilter.all(cfs.metadata()),
+                                                                           false,
+                                                                           NOOP_LISTENER))
+                    {
+                        assertFalse("absent point read returned a partition", rows.hasNext());
+                    }
+                    if (reader.getFilterTracker().getTrueNegativeCount() > trueNegatives)
+                        absent = candidate;
+                }
+
+                assertNotNull("could not find an in-range key rejected by the persisted Bloom filter", absent);
+            }
+            finally
+            {
+                reopened.selfRef().release();
+            }
+        }
+        finally
+        {
+            release(result);
         }
     }
 
@@ -701,7 +808,7 @@ public class ZeroCopySSTableSplitterTest extends CQLTester
             assertEquals(60, scanLive(cfs));
             for (SSTableReader compacted : cfs.getLiveSSTables())
             {
-                assertEquals("pa", compacted.descriptor.version.version);
+                assertEquals("qa", compacted.descriptor.version.version);
                 assertFalse("a rewrite must reclaim the retained prefix", compacted.hasSplitPrefix());
                 assertEquals(0, compacted.getPositionsForFullRange().lowerPosition);
             }
@@ -915,6 +1022,25 @@ public class ZeroCopySSTableSplitterTest extends CQLTester
         char[] chars = new char[length];
         Arrays.fill(chars, 'v');
         return new String(chars);
+    }
+
+    /** Materialise the range conventionally while making the splitter exercise its successful-clone branch. */
+    private static boolean materializeCloneForTesting(FileChannel src, long srcOffset,
+                                                      FileChannel dst, long dstOffset,
+                                                      long length, File directory) throws IOException
+    {
+        dst.position(dstOffset);
+        long position = srcOffset;
+        long remaining = length;
+        while (remaining > 0)
+        {
+            long copied = src.transferTo(position, remaining, dst);
+            if (copied <= 0)
+                throw new IOException("short test clone at " + position + " with " + remaining + " bytes left");
+            position += copied;
+            remaining -= copied;
+        }
+        return true;
     }
 
     private static SSTableReader onlySSTable(ColumnFamilyStore cfs)

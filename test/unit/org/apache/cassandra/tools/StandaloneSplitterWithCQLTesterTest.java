@@ -52,7 +52,6 @@ import org.apache.cassandra.tools.ToolRunner.ToolResult;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class StandaloneSplitterWithCQLTesterTest extends CQLTester
@@ -105,9 +104,33 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
                            f.length() <= 1024 * 1024 * 1.2); //give a 20% margin on size check
         });
         assertTrue(origSstables.size() < splitFiles.size());
-        Assertions.assertThat(tool.getStdout()).contains("sstables snapshotted into");
+        Assertions.assertThat(tool.getStdout()).contains("snapshotted into snapshot");
         assertTrue(tool.getCleanedStderr(), tool.getCleanedStderr().isEmpty());
         assertEquals(0, tool.getExitCode());
+    }
+
+    @Test
+    public void testSnapshotFailureDoesNotSplitSSTable() throws Throwable
+    {
+        Set<String> originalFiles = Arrays.stream(sstablesDir.tryList())
+                                          .map(File::name)
+                                          .collect(Collectors.toSet());
+        StandaloneSplitter.setFailSnapshotForTesting(true);
+        try
+        {
+            ToolResult tool = ToolRunner.invokeClass(StandaloneSplitter.class, "-s", "1", sstableFileName);
+            assertEquals(1, tool.getExitCode());
+            Assertions.assertThat(tool.getCleanedStderr()).contains("Error Snapshotting");
+            Assertions.assertThat(tool.getStdout()).doesNotContain("snapshotted into");
+            assertEquals(originalFiles,
+                         Arrays.stream(sstablesDir.tryList())
+                               .map(File::name)
+                               .collect(Collectors.toSet()));
+        }
+        finally
+        {
+            StandaloneSplitter.setFailSnapshotForTesting(false);
+        }
     }
 
     @Test
@@ -115,8 +138,8 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
     {
         Assume.assumeTrue(BigFormat.isSelected());
         Descriptor source = SSTable.tryDescriptorFromFile(new File(sstableFileName));
-        assertEquals("pa", source.version.version);
-        assertFalse(source.version.hasSplitPrefixMarker());
+        assertEquals("qa", source.version.version);
+        assertTrue(source.version.hasSplitPrefixMarker());
         assertEquals("an ordinary writer must start at position zero",
                      0, StatsComponent.load(source).statsMetadata().firstPartitionPosition);
 
@@ -124,6 +147,8 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
                                                  "-s", "1", "--zero-copy", sstableFileName);
         assertTrue(tool.getCleanedStderr(), tool.getCleanedStderr().isEmpty());
         assertEquals(0, tool.getExitCode());
+        Assertions.assertThat(tool.getStdout())
+                  .contains("Zero-copy split committed", "bytes cloned=", "bytes written=", "reflink used=");
 
         long partitions = 0;
         boolean sawDeadPrefix = false;
@@ -135,7 +160,7 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
 
             Descriptor descriptor = SSTable.tryDescriptorFromFile(file);
             assertTrue(BigFormat.is(descriptor.getFormat()));
-            assertEquals("pb", descriptor.version.version);
+            assertEquals("qa", descriptor.version.version);
             assertTrue(descriptor.version.hasSplitPrefixMarker());
             assertTrue(file.name() + " exceeds the requested 1 MiB maximum: " + file.length(),
                        file.length() <= 1024 * 1024);
