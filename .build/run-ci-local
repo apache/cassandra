@@ -17,23 +17,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Local CI runner – a stand-in for the `.build/run-ci` Jenkins pipeline that runs on this machine
+Local CI runner – a stand-in for the cassandra-5.0 `.build/run-ci` that runs on this machine
 instead of Jenkins.
 
-The 5.0 CI is a set of CI-agnostic, dockerised scripts (`.build/docker/*.sh`) that run inside
+The 5.0+ CI is a set of CI-agnostic, dockerised scripts (`.build/docker/*.sh`) that run inside
 docker images (apache/cassandra-ubuntu-test, apache/cassandra-bullseye-build,
-apache/cassandra-almalinux-build, tagged by the md5 of their dockerfile).  This script:
+apache/cassandra-almalinux-build, tagged by the md5 of their dockerfile).  Those scripts are
+vendored into this tree under `.build/` (copied from the cassandra-5.0 branch), the same docker
+images are used, and are expected to work on this 4.x tree as well.  This script:
 
-  1. builds the same task matrix as the Jenkinsfile (profile -> steps -> jdk/python/split cells),
-  2. runs every cell locally in docker with the same images, each in its own copy-on-write
-     workspace under build/ci-local/<run>/cells/ (cleaned up afterwards unless --keep-workspace),
+  1. builds the same task matrix as the 5.0 Jenkinsfile (profile -> steps -> jdk/python/split cells),
+  2. runs every cell locally in docker with the same images, each in its own hardlinked workspace
+     under build/ci-local/<run>/cells/ (cleaned up afterwards unless --keep-workspace),
   3. organises the test results and generates the same artefacts as CI:
      ci_summary.html and results_details.tar.xz under build/ci-local/<run>/.
 
 Notes:
-  - The task matrix mirrored here comes from the Jenkinsfile; run `.build/run-ci-local-test.py`
-    to check the two are in sync (it fails on any drift).
-  - Requires: docker (running), rsync, bc, xz, git.  Python 3.8+.
+  - 4.x-specific adaptations: `lint` (no `ant check` target), `test-latest` and
+    `test-oa` are omitted (no such targets in this build.xml). Build and test cells both
+    run on JDK 8 and 11; the shared images carry only 11/17, so JDK 8 is
+    fetched into the shared Maven cache on first use (`.build/docker/_ensure_jdk8.sh`).
+  - Requires: docker (running), rsync, bc, xz.  Python 3.8+.
   - Generating ci_summary.html additionally needs the .build/ci python requirements
     (`pip install -r .build/ci/requirements.txt`); without them the run still completes and the
     raw JUnit xmls are kept in build/ci-local/<run>/test-results/.
@@ -42,7 +46,7 @@ Examples:
   .build/run-ci-local                          # skinny profile, all supported JDKs, native arch
   .build/run-ci-local -j 11 -n 2               # only jdk 11, two cells in parallel
   .build/run-ci-local -p custom -e 'cqlsh-test'   # custom profile: only cqlsh-test
-  .build/run-ci-local -p custom -e '^dtest$' -j 11 -c 64/64  # one matrix cell
+  .build/run-ci-local -p custom -e '^dtest$' -j 8 -c 64/64  # one matrix cell
   .build/run-ci-local -p post-commit -k trunk     # python dtests from cassandra-dtest trunk
   .build/run-ci-local --dry-run                # print the cell plan and exit
 """
@@ -72,23 +76,21 @@ DEFAULT_DTEST_REPO = "https://github.com/apache/cassandra-dtest.git"
 DEFAULT_DTEST_BRANCH = "trunk"
 ALPINE_IMAGE = "alpine:3.19.1"
 
-# the Jenkinsfile pipelineProfiles()
+# the 5.0 Jenkinsfile pipelineProfiles(), without 'lint' (no `ant check` target on this branch)
 PIPELINE_PROFILES = {
-    "packaging": ["artifacts", "lint", "debian", "redhat"],
-    "skinny": ["lint", "cqlsh-test", "test", "jvm-dtest", "simulator-dtest", "dtest"],
-    "pre-commit": ["artifacts", "lint", "debian", "redhat", "fqltool-test", "cqlsh-test", "test",
-                   "test-latest", "stress-test", "test-burn", "jvm-dtest", "simulator-dtest",
-                   "dtest", "dtest-latest", "microbench-test"],
-    "pre-commit w/ upgrades": ["artifacts", "lint", "debian", "redhat", "fqltool-test",
-                               "cqlsh-test", "test", "test-latest", "stress-test", "test-burn",
-                               "jvm-dtest", "jvm-dtest-upgrade", "simulator-dtest",
-                               "dtest", "dtest-novnode", "dtest-latest", "dtest-upgrade",
-                               "microbench-test"],
-    "post-commit": ["artifacts", "lint", "debian", "redhat", "fqltool-test", "cqlsh-test",
-                    "test-cdc", "test", "test-latest", "test-compression", "stress-test",
-                    "test-burn", "long-test", "test-oa", "test-system-keyspace-directory",
-                    "jvm-dtest", "jvm-dtest-upgrade", "simulator-dtest",
-                    "dtest", "dtest-novnode", "dtest-latest", "dtest-large",
+    "packaging": ["artifacts", "debian", "redhat"],
+    "skinny": ["cqlsh-test", "test", "jvm-dtest", "simulator-dtest", "dtest"],
+    "pre-commit": ["artifacts", "debian", "redhat", "fqltool-test", "cqlsh-test", "test",
+                   "stress-test", "test-burn", "jvm-dtest", "simulator-dtest", "dtest",
+                   "dtest-latest", "microbench-test"],
+    "pre-commit w/ upgrades": ["artifacts", "debian", "redhat", "fqltool-test", "cqlsh-test",
+                               "test", "stress-test", "test-burn", "jvm-dtest",
+                               "jvm-dtest-upgrade", "simulator-dtest", "dtest", "dtest-novnode",
+                               "dtest-latest", "dtest-upgrade", "microbench-test"],
+    "post-commit": ["artifacts", "debian", "redhat", "fqltool-test", "cqlsh-test", "test-cdc",
+                    "test", "test-compression", "stress-test", "test-burn", "long-test",
+                    "test-system-keyspace-directory", "jvm-dtest", "jvm-dtest-upgrade",
+                    "simulator-dtest", "dtest", "dtest-novnode", "dtest-latest", "dtest-large",
                     "dtest-large-novnode", "dtest-large-latest", "dtest-upgrade",
                     "dtest-upgrade-novnode", "dtest-upgrade-large", "dtest-upgrade-large-novnode",
                     "microbench-test"],
@@ -96,26 +98,24 @@ PIPELINE_PROFILES = {
     "custom": [],
 }
 
-# the Jenkinsfile buildSteps() (minus 'jar', which gets its own stage)
+# the 5.0 Jenkinsfile buildSteps(), without 'lint' (no `ant check` target on this branch)
 BUILD_STEPS = {
     "artifacts": {"script": "build-artifacts.sh", "extra": []},
-    "lint": {"script": "check-code.sh", "extra": []},
     "debian": {"script": "build-debian.sh", "extra": []},
     "redhat": {"script": "build-redhat.sh", "extra": ["rpm"]},
 }
 
-# the Jenkinsfile testSteps() (split counts)
+# the 5.0 Jenkinsfile testSteps() (split counts), without the 5.0-only steps this build.xml
+# has no targets for: test-latest / test-oa (no `testclasslist-latest` / `testclasslist-oa` targets)
 TEST_STEPS = {
     "cqlsh-test": 1,
     "fqltool-test": 1,
     "test-cdc": 8,
     "test": 16,
-    "test-latest": 16,
     "test-compression": 16,
     "stress-test": 1,
     "test-burn": 2,
     "long-test": 4,
-    "test-oa": 16,
     "test-system-keyspace-directory": 16,
     "jvm-dtest": 12,
     "jvm-dtest-upgrade": 6,
@@ -137,8 +137,7 @@ TEST_STEPS = {
 # per-step container timeout in hours (Jenkinsfile timeout_hours)
 STEP_TIMEOUT_HOURS = {"microbench-test": 2, "microbench": 6}
 
-# cqlsh-test runs the python matrix (Jenkinsfile pythonsSupported; cython disabled for 3.12+,
-# CASSANDRA-21482)
+# cqlsh-test runs the python matrix (Jenkinsfile: cython for 3.8/3.11 only)
 CQLSH_PYTHON_MATRIX = [("3.8", ["yes", "no"]), ("3.11", ["yes", "no"]), ("3.12", ["no"]), ("3.13", ["no"])]
 
 # steps that only run on the default jdk (Jenkinsfile matrix filter)
@@ -198,7 +197,7 @@ def image_name_for(dockerfile_name):
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
-        description="Run the (5.0, dockerised) CI against this branch on the local machine.",
+        description="Run the (5.0-style, dockerised) CI against this branch on the local machine.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         epilog=__doc__.split("Examples:")[-1] if "Examples:" in __doc__ else None)
     parser.add_argument("-p", "--profile", choices=sorted(PIPELINE_PROFILES), default="skinny",
@@ -393,7 +392,7 @@ def clone_dtest_repo(run_dir, repo, branch):
     subprocess.run(["git", "clone", "--depth", "1", "--no-tags", "-b", branch, repo, str(dtest_dir)], check=True)
     if not (dtest_dir / "dtest.py").is_file():
         fail(f"{dtest_dir}/dtest.py not found – invalid cassandra-dtest repository/branch "
-             f"(does {branch} even support cassandra 5.x?)")
+             f"(does {branch} even support cassandra 4.1?)")
     return dtest_dir
 
 
@@ -418,22 +417,16 @@ def make_cell_workspace(cell_dir, jar_cell_dir):
 
 
 def create_jar_cell(cell_dir):
-    """Per-jdk base workspace: an isolated copy of the tree that looks like a clean CI
-    checkout plus local modifications – no gitignored build output or python bytecode, which
-    a fresh checkout would not have (e.g. bin/__pycache__ breaks the redhat spec's `cp bin/*`)."""
+    """Per-jdk base workspace: an isolated copy of the tree without local build output."""
     if cell_dir.exists():
         shutil.rmtree(cell_dir, ignore_errors=True)
     cell_dir.parent.mkdir(parents=True, exist_ok=True)
     # A regular copy is intentional: build/package scripts may edit tracked files in place.
     subprocess.run(
         ["rsync", "-a",
-         # local build output (not in a fresh checkout)
+         # Local output and ignored development files must not leak into package inputs.
          "--exclude=/build/", "--exclude=/logs/",
-         # gitignored python bytecode (.gitignore: **/__pycache__, *.pyc); exclude the
-         # directories themselves so no empty shells are left behind
-         "--exclude=__pycache__/", "--exclude=*.pyc",
-         # local development venv (untracked, never used by the CI containers)
-         "--exclude=/.venv/",
+         "--exclude=__pycache__/", "--exclude=*.pyc", "--exclude=/.venv/",
          f"{TREE}/", str(cell_dir) + "/"],
         check=True)
 
@@ -465,6 +458,10 @@ def cell_env(cell_dir, cell, m2_dir, dtest_dir, args):
     if dtest_dir is not None and (cell.step.startswith("dtest") or cell.kind == "build_dtest_jars"):
         env["cassandra_dtest_dir"] = str(dtest_dir)
     env["docker_timeout_hours"] = str(int(cell.timeout_hours))
+    if cell.jdk == "11":
+        # this (4.x) build.xml's validate-build-conf requires CASSANDRA_USE_JDK11=true
+        # whenever ant runs under jdk 11 (docker_envs becomes the --env flags of docker run)
+        env["docker_envs"] = "CASSANDRA_USE_JDK11=true"
     if args.debug:
         env["DEBUG"] = "1"
     # never pick up jenkins-related settings from the environment
@@ -610,6 +607,9 @@ def generate_summary(run_dir, results_dir, args, summary_cell_dir, branch):
         env["CASSANDRA_DOCKER_ANT_OPTS"] = (
             f"-Dbuild.test.output.dir=build/test/output/{target} "
             f"-Dbuild.test.report.dir=build/test/reports/{target}")
+        if args._default_jdk == "11":
+            # same CASSANDRA_USE_JDK11 requirement as the cells (see cell_env)
+            env["docker_envs"] = "CASSANDRA_USE_JDK11=true"
         for key in ("JENKINS_URL", "NODE_NAME"):
             env.pop(key, None)
         rc = subprocess.run(
@@ -634,17 +634,15 @@ def generate_summary(run_dir, results_dir, args, summary_cell_dir, branch):
         "PROFILE": args.profile,
         "PROFILE_CUSTOM_REGEXP": args.profile_custom_regexp or "",
         "ARCHITECTURE": subprocess.run(["arch"], capture_output=True, text=True).stdout.strip(),
-        "JDK": args.jdk or "all-supported",
+        "JDK": args.jdk or "all supported",
         "DTEST_REPOSITORY": args.dtest_repository or "",
         "DTEST_BRANCH": args.dtest_branch or "",
     }
     env = dict(os.environ)
     env["cassandra_dir"] = str(summary_cell_dir)
     env["m2_dir"] = str(args.m2_dir)
-    # space-separated --env flags: this (5.0) _docker_run.sh word-splits $docker_envs directly
-    # into the docker run command line, so values must not contain whitespace
-    spaceless = re.compile(r"\s+")
-    env["docker_envs"] = " ".join(f"--env {k}={spaceless.sub('-', v)}" for k, v in summary_env.items())
+    # newline-separated: _docker_run.sh parses these into properly quoted --env flags
+    env["docker_envs"] = "\n".join(f"{k}={v}" for k, v in summary_env.items())
     for key in ("JENKINS_URL", "NODE_NAME"):
         env.pop(key, None)
     rc = subprocess.run(
@@ -701,12 +699,12 @@ def main():
     if not BUILD_XML.is_file():
         fail(f"{BUILD_XML} not found – is this a cassandra checkout?")
 
-    # the dockerised CI scripts live in this tree
+    # the dockerised CI scripts are vendored into this tree (copied from the cassandra-5.0 branch)
     if not (TREE / ".build" / "docker" / "run-tests.sh").is_file():
-        fail(f"{TREE / '.build' / 'docker' / 'run-tests.sh'} not found – this is not a cassandra 5.x tree")
+        fail(f"{TREE / '.build' / 'docker' / 'run-tests.sh'} not found – the vendored CI scripts are missing")
 
     # java versions (build.xml defines java.default / java.supported)
-    supported_jdks = (read_build_xml_property("java.supported") or "11,17").split(",")
+    supported_jdks = (read_build_xml_property("java.supported") or "8,11").split(",")
     default_jdk = read_build_xml_property("java.default") or supported_jdks[0]
     args._default_jdk = default_jdk
 

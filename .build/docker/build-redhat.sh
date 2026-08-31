@@ -36,5 +36,9 @@ echo
 #
 # Creates the redhat package
 
-$(dirname -- "$0")/_docker_run.sh almalinux-build.docker docker/_build-redhat.sh "${java_version}" ${rpm_dist}
+# rpmbuild extracts the source tarball and its spec expects Ant output under that
+# source tree's build/. Do not globally redirect every nested Ant invocation to /dist;
+# _build-redhat.sh redirects only the initial artifacts build explicitly.
+CASSANDRA_DOCKER_USE_DEFAULT_BUILD_DIR=true \
+    $(dirname -- "$0")/_docker_run.sh almalinux-build.docker docker/_build-redhat.sh "${java_version}" "${rpm_dist}"
 exit $?

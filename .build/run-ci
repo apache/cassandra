@@ -84,7 +84,9 @@ def base_job_name(args) -> str:
             if 'property' in line and 'name="base.version"' in line:
                 version = line.split('value="')[1].split('"')[0]
                 # TODO: add new version each release branching
-                if version.startswith("5.0."):
+                if version.startswith("4.1."):
+                    base_job_name._cached_result = "cassandra-4.1"
+                elif version.startswith("5.0."):
                     base_job_name._cached_result = "cassandra-5.0"
                 else:
                     base_job_name._cached_result = "cassandra"

@@ -53,6 +53,7 @@ java_version=$3
 
 # pre-conditions
 command -v docker >/dev/null 2>&1 || { echo >&2 "docker needs to be installed"; exit 1; }
+command -v timeout >/dev/null 2>&1 || { echo >&2 "timeout needs to be installed"; exit 1; }
 (docker info >/dev/null 2>&1) || { echo >&2 "docker needs to running"; exit 1; }
 [ -f "${cassandra_dir}/build.xml" ] || { echo >&2 "${cassandra_dir}/build.xml must exist"; exit 1; }
 [ -f "${cassandra_dir}/.build/docker/${dockerfile}" ] || { echo >&2 "${cassandra_dir}/.build/docker/${dockerfile} must exist"; exit 1; }
@@ -117,13 +118,25 @@ random_string="$(LC_ALL=C tr -dc A-Za-z0-9 </dev/urandom | head -c 6 ; echo '')"
 run_script_name=$(echo ${run_script} | sed  's/.sh//' | sed 's/_//')
 container_name="cassandra_${dockerfile/.docker/}_${un_script_name}_jdk${java_version}__${random_string}"
 
-[ $DEBUG ] && docker_envs="${docker_envs} --env DEBUG=1"
+# docker_envs: newline-separated environment entries, each "KEY=value"; values may contain spaces
+docker_env_args=()
+if [ "x${docker_envs}" != "x" ]; then
+    while IFS= read -r env_entry; do
+        [ "x${env_entry}" == "x" ] && continue
+        docker_env_args+=("--env" "${env_entry}")
+    done <<< "${docker_envs}"
+fi
+[ "${java_version}" = "11" ] && docker_env_args+=("--env" "CASSANDRA_USE_JDK11=true")
+[ $DEBUG ] && docker_env_args+=("--env" "DEBUG=1")
 
 # Docker commands:
-#  change ant's build directory to $DIST_DIR
+#  change ant's build directory to $DIST_DIR (except packaging scripts whose clean
+#  target must remove build/ and therefore cannot use the bind-mount root)
 #  set java to java_version
 #  execute the run_script
-docker_command="export ANT_OPTS=\"-Dbuild.dir=\${DIST_DIR} ${CASSANDRA_DOCKER_ANT_OPTS}\" ; \
+ant_build_dir="-Dbuild.dir=\${DIST_DIR}"
+[ "${CASSANDRA_DOCKER_USE_DEFAULT_BUILD_DIR}" = "true" ] && ant_build_dir=""
+docker_command="export ANT_OPTS=\"${ant_build_dir} ${CASSANDRA_DOCKER_ANT_OPTS}\" ; \
                 source \${CASSANDRA_DIR}/.build/docker/_set_java.sh ${java_version} ; \
                 \${CASSANDRA_DIR}/.build/${run_script} ${@:4} ; exit \$? "
 
@@ -131,7 +144,7 @@ docker_command="export ANT_OPTS=\"-Dbuild.dir=\${DIST_DIR} ${CASSANDRA_DOCKER_AN
 # re-use the host's maven repository
 container_id=$(docker run --name ${container_name} -d --security-opt seccomp=unconfined --rm \
     -v "${cassandra_dir}":/home/build/cassandra -v ${m2_dir}:/home/build/.m2/repository/ -v "${build_dir}":/dist \
-    ${docker_envs} ${docker_volume_opt} \
+    "${docker_env_args[@]}" ${docker_volume_opt} \
     ${image_name} sleep 1h)
 
 echo "Running container ${container_name} ${container_id} using image ${image_name}"

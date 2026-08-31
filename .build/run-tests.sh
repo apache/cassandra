@@ -403,7 +403,8 @@ _main() {
 
   # cheap trick to ensure dependency libraries are in place. allows us to stash only project specific build artifacts.
   #  also recreate some of the non-build files we need
-  ant -quiet -silent resolver-dist-lib _createVersionPropFile
+  # createVersionPropFile is 4.x's name for 5.x's _createVersionPropFile
+  ant -quiet -silent resolver-dist-lib createVersionPropFile
 
   case ${target} in
     "stress-test")
@@ -478,6 +479,10 @@ _main() {
       ;;
     "cqlsh-test")
       ./pylib/cassandra-cqlsh-tests.sh $(pwd)
+      # 4.x's cqlsh script leaves the results at the repo root: move them where
+      # generate-test-report (which needs the dir to exist) and the CI summary find them
+      mkdir -p "${DIST_DIR}/test/output"
+      if [ -f cqlshlib.xml ] ; then mv cqlshlib.xml "${DIST_DIR}/test/output/" ; fi
       ;;
     *)
       error 1 "unconfigured build command for test type \"${target}\""

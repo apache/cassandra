@@ -55,11 +55,21 @@ fi
 #
 ################################
 
-if grep "^ID=" /etc/os-release | grep -q 'debian\|ubuntu' ; then
+if [ "${java_version}" = "8" ] && [ -x /opt/java/openjdk8/bin/javac ]; then
+    # Also accept a site-provided JDK without downloading another copy.
+    export JAVA_HOME=/opt/java/openjdk8
+    export PATH="${JAVA_HOME}/bin:${PATH}"
+elif [ "${java_version}" = "8" ] && ! compgen -G '/usr/lib/jvm/java-8-openjdk-*/bin/javac' >/dev/null; then
+    # The shared build images do not carry JDK 8. Fetch it after container startup into
+    # the Maven-backed cache, which is reused by every matrix cell on this workspace.
+    export JAVA_HOME="$("${CASSANDRA_DIR}/.build/docker/_ensure_jdk8.sh" "${HOME}/.m2/repository/.ci-jdks")"
+    export PATH="${JAVA_HOME}/bin:${PATH}"
+elif grep "^ID=" /etc/os-release | grep -q 'debian\|ubuntu' ; then
     sudo update-java-alternatives --set java-1.${java_version}.0-openjdk-$(dpkg --print-architecture)
+    export JAVA_HOME=$(readlink -f /usr/bin/javac | sed "s:/bin/javac::")
 else
     sudo alternatives --set java $(alternatives --display java | grep "family java-${java_version}-openjdk" | cut -d' ' -f1)
     sudo alternatives --set javac $(alternatives --display javac | grep "family java-${java_version}-openjdk" | cut -d' ' -f1)
+    export JAVA_HOME=$(readlink -f /usr/bin/javac | sed "s:/bin/javac::")
 fi
-export JAVA_HOME=$(readlink -f /usr/bin/javac | sed "s:/bin/javac::")
-echo "Using Java ${java_version}"
+echo "Using Java ${java_version} from ${JAVA_HOME}"
