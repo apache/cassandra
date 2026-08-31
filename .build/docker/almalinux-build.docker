@@ -1,0 +1,68 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+FROM almalinux:8
+LABEL org.opencontainers.image.authors="Apache Cassandra <dev@cassandra.apache.org>"
+
+# CONTEXT is expected to be cassandra/.build
+
+ENV BUILD_HOME=/home/build
+ENV RPM_BUILD_DIR=$BUILD_HOME/rpmbuild
+ENV DIST_DIR=/dist
+ENV CASSANDRA_DIR=$BUILD_HOME/cassandra
+ARG UID_ARG=1000
+ARG GID_ARG=1000
+
+LABEL org.cassandra.buildenv=almalinux_build
+
+RUN echo "Building with arguments:" \
+    && echo " - DIST_DIR=${DIST_DIR}" \
+    && echo " - BUILD_HOME=${BUILD_HOME}" \
+    && echo " - RPM_BUILD_DIR=${RPM_BUILD_DIR}" \
+    && echo " - CASSANDRA_DIR=${CASSANDRA_DIR}" \
+    && echo " - UID_ARG=${UID_ARG}" \
+    && echo " - GID_ARG=${GID_ARG}"
+
+# install deps
+RUN yum -y install \
+   ant \
+   git \
+   java-11-openjdk-devel \
+   java-17-openjdk-devel \
+   make \
+   rpm-build \
+   sudo \
+   python3-pip \
+   procps \
+   rsync \
+   && yum clean all && rm -rf /var/cache/yum /var/cache/dnf
+
+# download, install and then remove the ant-junit rpm in a single layer so the downloaded package does not linger in the image
+RUN until curl -f -S -s --retry 9 --retry-connrefused --retry-delay 1 https://vault.centos.org/7.9.2009/os/x86_64/Packages/ant-junit-1.9.4-2.el7.noarch.rpm -o ant-junit-1.9.4-2.el7.noarch.rpm ; do echo "curl failed… trying again in 10s… " ; sleep 10 ; done \
+    && rpm -i --nodeps ant-junit-1.9.4-2.el7.noarch.rpm \
+    && rm -f ant-junit-1.9.4-2.el7.noarch.rpm
+
+# python3 is needed for the gen-doc target
+RUN pip3 install --upgrade pip
+
+# Prepopulate Maven repository with dependencies from all branches. see _create_user.sh
+COPY docker/_prepopulate_maven_deps.sh /tmp/_prepopulate_maven_deps.sh
+RUN alternatives --set java $(alternatives --display java | grep "family java-11-openjdk" | cut -d' ' -f1)
+RUN alternatives --set javac $(alternatives --display javac | grep "family java-11-openjdk" | cut -d' ' -f1)
+RUN mkdir -p /home/image-cache && chmod -R a+rwx /home/image-cache
+RUN JAVA_HOME=$(readlink -f /usr/bin/javac | sed "s:/bin/javac::") \
+    bash /tmp/_prepopulate_maven_deps.sh /home/image-cache/.m2/repository && rm /tmp/_prepopulate_maven_deps.sh
+RUN cp -a /root/.gradle /home/image-cache/.gradle
