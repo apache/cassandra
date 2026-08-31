@@ -270,7 +270,8 @@ _run_testlist() {
           done
 
           if [ "$(_get_env_var 'REPEATED_TESTS_STOP_ON_FAILURE')" == true ]; then
-            error 0 "fail fast, after ${i} successful runs"
+            # A distinct non-zero status lets Jenkins fail-fast cancel the other repeat workers.
+            error 2 "fail fast, after ${i} successful runs"
           fi
           let failures+=1
         fi
@@ -364,9 +365,10 @@ _main() {
     esac
   fi
 
-  # "-repeat" is a reserved suffix on target types
+  # "-repeat" is a reserved suffix on target types.
+  # Splits are allowed and multiply the number of machines: every split chunk runs the full set
+  # of REPEATED_TESTS_COUNT iterations itself (the chunk does not partition the iterations).
   if [[ ${test_target} == *"-repeat" ]] ; then
-    [[ "${split_chunk}" =~ ^[0-9]+/[0-9]+$ ]] && { error 1 "Repeated tests not valid with splits"; }
     if [[ -z "${test_name_regexp}" ]] ; then
       error 1 "Repeated tests requires use of -t option"
     fi

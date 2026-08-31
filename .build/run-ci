@@ -198,6 +198,10 @@ def argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("-p", "--profile", choices=['packaging','skinny','pre-commit','pre-commit w/ upgrades','post-commit','custom'], default=DEFAULT_PROFILE, help="CI pipeline profile. Defaults to skinny.")
     parser.add_argument("-e", "--profile-custom-regexp", help="Regexp for stages when using custom profile. See `testSteps` in Jenkinsfile for list of stages. Example: 'stress.*|jvm-dtest.'")
     parser.add_argument("-j", "--jdk", help="Specify JDK version. Defaults to all JDKs the current branch supports.")
+    parser.add_argument("-t", "--repeat-test-regex", help="Test name regexp (csv list) to run repeatedly via the *-repeat stages. Requires -p custom and -e selecting a *-repeat stage. Example: 'HostReplacementTest'")
+    parser.add_argument("-n", "--repeat-count", help="How many times to run the *-repeat stages. Example: 200")
+    parser.add_argument("--repeat-stop-on-failure", action="store_true", help="Stop all workers in a *-repeat stage when any worker reports a failed run (default: run all iterations and report the failure rate)")
+    parser.add_argument("-m", "--repeat-machines", default="1", help="Number of machines that each run the full set of repeated test iterations in parallel (default 1). Example: 4")
     parser.add_argument("-d", "--dtest-repository", default=DEFAULT_DTEST_REPO_URL, help="DTest repository URL.")
     parser.add_argument("-k", "--dtest-branch", default=DEFAULT_DTEST_REPO_BRANCH, help="DTest repository branch.")
     parser.add_argument("-s", "--setup", action="store_true", help="Set up Jenkins before the build.")
@@ -230,6 +234,15 @@ def parse_arguments() -> argparse.Namespace:
     assert not (args.setup and args.only_setup), "Both --setup or --only-setup cannot be specified."
     assert not (args.tear_down and args.only_tear_down), "Both --tear-down or --only-tear-down cannot be specified."
     assert not ("custom" == args.profile and not args.profile_custom_regexp), "Custom profile requires --profile-custom-regexp."
+    assert re.fullmatch(r"[1-9][0-9]*", args.repeat_machines or ""), "--repeat-machines must be a positive integer."
+    repeat_options_used = args.repeat_test_regex or args.repeat_count or args.repeat_stop_on_failure or args.repeat_machines != "1"
+    repeat_stages_selected = args.profile == "custom" and any(re.fullmatch(args.profile_custom_regexp, stage)
+                                                               for stage in ("test-repeat", "jvm-dtest-repeat"))
+    repeating_tests = repeat_options_used or repeat_stages_selected
+    assert not (repeating_tests and args.profile != "custom"), "Repeating tests requires --profile custom."
+    assert not (repeating_tests and not repeat_stages_selected), "Repeating tests requires --profile-custom-regexp selecting a *-repeat stage (see `repeatTestSteps()` in .jenkins/Jenkinsfile)."
+    assert not (repeating_tests and not (args.repeat_test_regex and args.repeat_count)), "Repeating tests requires both --repeat-test-regex and --repeat-count."
+    assert not args.repeat_count or re.fullmatch(r"[1-9][0-9]*", args.repeat_count), "--repeat-count must be a positive integer."
     assert not (args.values_override and not (args.setup or args.only_setup)), "--values-override requires --setup or --only-setup."
     assert not (args.values_override and not Path(args.values_override).is_file()), f"No such values override file: {args.values_override}"
 
@@ -1158,6 +1171,10 @@ def main():
         "profile": args.profile,
         "profile_custom_regexp": args.profile_custom_regexp or "",
         "jdk": args.jdk or "",
+        "repeat_test_regex": args.repeat_test_regex or "",
+        "repeated_tests_count": args.repeat_count or "",
+        "repeated_tests_stop_on_failure": "true" if args.repeat_stop_on_failure else "false",
+        "repeated_tests_machines": args.repeat_machines or "1",
         "dtest_repository": args.dtest_repository or "",
         "dtest_branch": args.dtest_branch or ""
     }
