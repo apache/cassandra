@@ -596,6 +596,7 @@ public class LeveledManifest
         return Collections.emptyList();
     }
 
+    // Precondition: sstables in sstablesNextLevel must be disjoint
     @VisibleForTesting
     protected static Set<SSTableReader> getIntersectingSSTablesFromTreeSet(SSTableReader sstable, TreeSet<SSTableReader> sstablesNextLevel)
     {
