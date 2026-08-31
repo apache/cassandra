@@ -170,11 +170,16 @@ controller:
         enabled: true
 agent:
   disableDefaultAgent: true
-  maxRequestsPerHostStr: "3200"
-  containerCap: 300
+  # Concurrent requests the plugin's client may hold to one host, the API server being its only host.  The
+  # plugin's default of 32 is for a cloud of a few agents.
+  maxRequestsPerHostStr: "5120"
+  # The cap across every podTemplate below, and equal to the sum of their four instanceCaps, so on a cluster
+  # whose pools can each reach their own cap this never binds.  Deliberately: a lower shared cap does not
+  # divide the shortfall evenly, it hands it to whichever pool holds its agents longest, which is large.
+  containerCap: 480
   node-selector:
     cassandra.jenkins.agent: true
-  waitForPodSec: "180"
+  waitForPodSec: "900"
   # Reap agent pods the controller no longer tracks.  A restart of the controller JVM clears its in-memory 
   # agent registry, and because agent pods are bare pods with no ownerReference nothing else deletes them.
   # Preferred over a pod activeDeadlineSeconds, which cannot distinguish an orphan from a long (6h) build.
@@ -206,13 +211,15 @@ agent:
         nodeSelector: 'cassandra.jenkins.agent.small=true'
         # 0 = no pod lifetime cap: idleMinutes reuse means a pod's age is unrelated to any one build's timeout.  Orphans are reaped by agent.garbageCollection instead.
         activeDeadlineSeconds: '0'
-        idleMinutes: 1
-        # should match the small pool's 50 nodes (README's --max-nodes), i.e. one agent per node. must not be higher than max nodes possible.
-        instanceCap: 50
-        instanceCapStr: "50"
+        idleMinutes: 5
+        # This pool's ceiling, not the cluster's; agent.containerCap above is that, and is the one to lower
+        # when the account cannot hold this many nodes.  Must not exceed the small pool's own maximum
+        # (README's --max-nodes), one agent per node.  No other template selects that pool.
+        instanceCap: 20
+        instanceCapStr: "20"
         nodeUsageMode: "NORMAL"
         showRawYaml: 'true'
-        slaveConnectTimeout: '30'
+        slaveConnectTimeout: '600'
         yamlMergeStrategy: override
         containers:
           - name: jnlp
@@ -308,19 +315,126 @@ agent:
                 volumeMounts:
                   - name: docker-storage
                     mountPath: /var/lib/docker
+    agent-dind-report: |
+      - name: agent-dind-report
+        label: agent-dind cassandra-report cassandra-amd64-report
+        nodeSelector: 'cassandra.jenkins.agent.report=true'
+        activeDeadlineSeconds: '0'
+        idleMinutes: 5
+        instanceCap: 4
+        instanceCapStr: "4"
+        nodeUsageMode: "NORMAL"
+        showRawYaml: 'true'
+        slaveConnectTimeout: '600'
+        yamlMergeStrategy: override
+        containers:
+          - name: jnlp
+            # https://github.com/jenkinsci/kubernetes-plugin#pipeline-support
+            alwaysPullImage: true
+            envVars:
+              - envVar:
+                  key: DOCKER_TLS_CERTDIR
+                  value: /certs/client/
+              - envVar:
+                  key: DOCKER_CERT_PATH
+                  value: /certs/client/
+              - envVar:
+                  key: DOCKER_TLS_VERIFY
+                  value: 'true'
+              - envVar:
+                  key: DOCKER_HOST
+                  value: tcp://localhost:2376
+              - envVar:
+                  key: JENKINS_JAVA_OPTS
+                  value: '-Dorg.jenkinsci.plugins.durabletask.BourneShellScript.USE_BINARY_WRAPPER=true'
+            image: apache.jfrog.io/cassan-docker/apache/cassandra-jenkins-k8s
+            livenessProbe:
+              failureThreshold: '0'
+              initialDelaySeconds: '0'
+              periodSeconds: '0'
+              successThreshold: '0'
+              timeoutSeconds: '0'
+            privileged: 'true'
+            resourceRequestCpu: 1
+            resourceLimitCpu: 2
+            resourceRequestMemory: 1G
+            resourceLimitMemory: 2400M
+            # the workspace emptyDir: the downloaded output.zip, the decompressed test xml, and the tar
+            resourceRequestEphemeralStorage: 10Gi
+            resourceLimitEphemeralStorage: 20Gi
+            ttyEnabled: 'true'
+            workingDir: /home/jenkins/agent
+          - name: dind
+            alwaysPullImage: 'false'
+            envVars:
+            - envVar:
+                key: DOCKER_TLS_CERTDIR
+                value: /certs
+            - envVar:
+                key: "DOCKER_IPTABLES_LEGACY"
+                value: "1"
+            image: docker:dind
+            args: "--default-address-pool base=192.168.96.0/20,size=24"  # overwrite docker subnet in case of overlapping
+            livenessProbe:
+              failureThreshold: '0'
+              initialDelaySeconds: '0'
+              periodSeconds: '0'
+              successThreshold: '0'
+              timeoutSeconds: '0'
+            privileged: 'true'
+            resourceRequestCpu: 2
+            resourceLimitCpu: 5
+            resourceRequestMemory: 3400M
+            # 9G against the medium template's 5G: generateTestReports now runs several ant junitreport
+            # jvms at once, each in a container this daemon holds.  Moves with the Jenkinsfile's
+            # report_jobs and -Xmx.
+            resourceLimitMemory: 9G
+            # docker's images and containers, in the docker-storage emptyDir
+            resourceRequestEphemeralStorage: 40Gi
+            resourceLimitEphemeralStorage: 60Gi
+            ttyEnabled: 'true'
+            workingDir: /home/jenkins/agent
+        volumes:
+          # /var/lib/docker is not here but in `yaml:` below, the only place it can carry a sizeLimit
+          - emptyDirVolume:
+              memory: 'false'
+              mountPath: /certs
+        # limit one agent pod per node for simpler operations (like orphan cleanup)
+        yaml: |
+          spec:
+            affinity:
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  - labelSelector:
+                      matchExpressions:
+                        - key: jenkins/cassius-jenkins-agent
+                          operator: In
+                          values:
+                            - "true"
+                    topologyKey: kubernetes.io/hostname
+            # docker's storage, named and mounted here so that the sizeLimit survives the plugin's merge.
+            # 60Gi bounds the images and their containers alone, of the pod's 80Gi
+            # fetchDockerImages in Jenkinsfile warns as the node fills as our image sizes grow.
+            volumes:
+              - name: docker-storage
+                emptyDir:
+                  sizeLimit: 60Gi
+            containers:
+              - name: dind
+                volumeMounts:
+                  - name: docker-storage
+                    mountPath: /var/lib/docker
     agent-dind-medium: |
       - name: agent-dind-medium
         label: agent-dind cassandra-medium cassandra-amd64-medium
         nodeSelector: 'cassandra.jenkins.agent.medium=true'
-        # 0 = no pod lifetime cap: idleMinutes reuse means a pod's age is unrelated to any one build's timeout.  Orphans are reaped by agent.garbageCollection instead.
         activeDeadlineSeconds: '0'
-        idleMinutes: 1
-        # should match the medium pools 100 nodes (README's --max-nodes), i.e. one agent per node. must not be higher than max nodes possible.
-        instanceCap: 100
-        instanceCapStr: "100"
+        idleMinutes: 5
+        instanceCap: 150
+        instanceCapStr: "150"
         nodeUsageMode: "NORMAL"
         showRawYaml: 'true'
-        slaveConnectTimeout: '30'
+        slaveConnectTimeout: '600'
         yamlMergeStrategy: override
         containers:
           - name: jnlp
@@ -420,17 +534,14 @@ agent:
       - name: agent-dind-large
         label: agent-dind cassandra-large cassandra-amd64-large cassandra-amd64-large-dedicated
         nodeSelector: 'cassandra.jenkins.agent.large=true'
-        # 0 = no pod lifetime cap.  A microbench cell runs up to 6h (timeout_hours in the Jenkinsfile)
-        # and idleMinutes reuse extends a pod's age past any one build, so age cannot stand in for
-        # health here.  Orphans are reaped by agent.garbageCollection instead.
         activeDeadlineSeconds: '0'
-        idleMinutes: 1
-        # should match the large pools 160 nodes (README's --max-nodes), i.e. one agent per node. must not be higher than max nodes possible.
-        instanceCap: 160
-        instanceCapStr: "160"
+        idleMinutes: 5
+        instanceCap: 306
+        instanceCapStr: "306"
         nodeUsageMode: "NORMAL"
         showRawYaml: 'true'
-        slaveConnectTimeout: '30'
+        # Raised from 30 seconds.  See the small template above.
+        slaveConnectTimeout: '600'
         yamlMergeStrategy: override
         containers:
           - name: jnlp

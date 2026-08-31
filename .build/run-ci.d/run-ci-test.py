@@ -296,8 +296,11 @@ class TestCIPipeline(unittest.TestCase):
         maxSize is the only in-cluster record of what a pool can hold, and a pool at zero nodes has no
         nodes to count, so the check reads it from here.
         """
+        # Two groups per size, each pair summing to that size's instanceCap in jenkins-deployment.yaml.  Raise
+        # these whenever a cap is raised, or the committed values stop passing their own check.
         groups = [(f"eks-amd64-{size}-ondemand-{n}-{n}cfd1c1", 0, maximum)
-                  for size, maximum in (("large", 80), ("medium", 65), ("small", 25)) for n in (2, 3)]
+                  for size, maximum in (("large", 153), ("medium", 75), ("small", 10), ("report", 2))
+                  for n in (2, 3)]
 
         groups.append(("eks-jenkins-controller-0-2acd8787", 1, 1))
         return yaml.safe_dump({"nodeGroups": [
@@ -341,9 +344,9 @@ class TestCIPipeline(unittest.TestCase):
         self.assertEqual(0, self.capacity_check(self.deployed_values(), nodes=self.LARGE_NODE))
 
     def test_check_agent_capacity_blocks_a_cap_above_the_pool(self):
-        # 200 against the 160 nodes two large groups can hold: 40 agents could never be scheduled, which is
+        # 400 against the 306 nodes two large groups can hold: 94 agents could never be scheduled, which is
         # not idle but a churn loop, and is what preceded the 2026-08-11 controller stall
-        over = self.deployed_values("large", instanceCap=200, instanceCapStr="200")
+        over = self.deployed_values("large", instanceCap=400, instanceCapStr="400")
         self.assertEqual(1, self.capacity_check(over))
         # a cluster whose ceilings cannot be read leaves it unchecked rather than blocking a valid deploy
         self.assertEqual(0, self.capacity_check(over, autoscaler=False))
@@ -352,14 +355,14 @@ class TestCIPipeline(unittest.TestCase):
         # the live cluster nests a group's maximum under its health condition, and the check also takes it
         # from the group.  Reading the wrong key costs nothing visible: the ceilings come out empty and
         # every cap passes unchecked, so the shapes are pinned here rather than in a deploy
-        over = self.deployed_values("large", instanceCap=200, instanceCapStr="200")
+        over = self.deployed_values("large", instanceCap=400, instanceCapStr="400")
         for nested in (True, False):
             self.assertEqual(1, self.capacity_check(over, nested=nested))
             self.assertEqual(0, self.capacity_check(self.deployed_values(), nested=nested))
 
     def test_check_agent_capacity_blocks_contradictory_config(self):
         # the plugin takes the cap from either key, so a disagreement resolves to whichever applies last
-        self.assertEqual(1, self.capacity_check(self.deployed_values("large", instanceCapStr="200")))
+        self.assertEqual(1, self.capacity_check(self.deployed_values("large", instanceCapStr="400")))
         # a nodeSelector the live nodes contradict strands every agent of that size
         typo = self.deployed_values("large", nodeSelector="cassandra.jenkins.agent.large=ture")
         self.assertEqual(1, self.capacity_check(typo, nodes=self.LARGE_NODE))

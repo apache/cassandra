@@ -35,6 +35,8 @@
 //  - cassandra-small + cassandra-${arch}-small       : 1 cpu, 1GB ram (alias for above but for any arch)
 //  - cassandra-medium + cassandra-${arch}-medium     : 3 cpu, 5GB ram
 //  - cassandra-large + cassandra-${arch}-large       : 7 cpu, 16GB ram
+//  - cassandra-report + cassandra-${arch}-report     : 2 cpu, 9GB ram
+//
 //
 // Performance targets required a `cassandra-${arch}-large-dedicated` labelled nodes.
 //
@@ -61,6 +63,28 @@ import groovy.transform.Field
 @Field List<String> archsSupported   = ["amd64", "arm64"]
 @Field List<String> pythonsSupported = ["3.8", "3.11", "3.12", "3.13"]
 @Field String       pythonDefault    = "3.8"
+
+// Shell defining cpus(), to prepend to any `sh` script fanning out with `xargs -P` or `xz -T`
+@Field String       cpusShell        = '''
+cpus() {
+  cpus_n=
+  # The v2 line of /proc/self/cgroup is "0::<path>", this cgroup relative to the host's root.
+  cpus_own="$(sed -n 's/^0:://p' /proc/self/cgroup 2>/dev/null | head -1)"
+  for cpus_file in "/sys/fs/cgroup${cpus_own}/cpu.max" /sys/fs/cgroup/cpu.max ; do
+    cpus_quota= cpus_period=
+    read -r cpus_quota cpus_period 2>/dev/null < "${cpus_file}" || continue
+    # "max <period>" is a cgroup with no cpu limit, where nproc is right.
+    case "${cpus_quota}${cpus_period}" in ""|*[!0-9]*) continue ;; esac
+    [ "${cpus_period:-0}" -gt 0 ] || continue
+    cpus_n=$(( cpus_quota / cpus_period ))
+    break
+  done
+  [ -n "${cpus_n}" ] || cpus_n="$(nproc 2>/dev/null || echo 1)"
+  [ "${cpus_n}" -ge 1 ] 2>/dev/null || cpus_n=1
+  echo "${cpus_n}"
+}
+'''
+
 /** CONSTANTS end **********************************/
 
 pipeline {
@@ -199,7 +223,7 @@ def tasks() {
     'test-latest': [splits: 20],
     'test-compression': [splits: 20],
     'stress-test': [splits: 1, size: 'small'],
-    'test-burn': [splits: 4],
+    'test-burn': [splits: 5],
     'long-test': [splits: 4],
     'test-oa': [splits: 20],
     'test-system-keyspace-directory': [splits: 20],
@@ -416,52 +440,44 @@ def test(command, cell) {
             fetchDockerImages(['ubuntu-test'])
             def cell_suffix = "_jdk${cell.jdk}_python_${cell.python}_${cell.cython}_${cell.arch}_${cell.split}_${splits}"
             def logfile = "stage-logs/${JOB_NAME}_${BUILD_NUMBER}_${cell.step}${cell_suffix}_attempt${attempt}.log.xz"
-            def script_vars = "#!/bin/bash \n set -o pipefail ; " // pipe to tee needs pipefail
-            script_vars = "${script_vars} python_version=\'${cell.python}\'"
-            script_vars = "${script_vars} m2_dir=\'${WORKSPACE}/build/m2\'"
-            if ("cqlsh-test" == cell.step) {
-              script_vars = "${script_vars} cython=\'${cell.cython}\'"
-            }
-            script_vars = fetchDTestsSource(command, script_vars)
-            timeout(time: command.timeout_hours, unit: 'HOURS') { // best throughput with each cell at ~10 minutes
-              def timer = System.currentTimeMillis()
-              try {
-                buildJVMDTestJars(cell, script_vars, logfile)
-                script_vars = "${script_vars} docker_timeout_hours=\"${command.timeout_hours}\""
-                def status = sh label: "RUNNING TESTS ${cell.step}...", script: "${script_vars} .build/docker/run-tests.sh -a ${cell.step} -c '${cell.split}/${splits}' -j ${cell.jdk} 2>&1 | tee >( xz -c > build/${logfile} )", returnStatus: true
-                dir("build") {
-                  archiveArtifacts artifacts: "${logfile}", fingerprint: true
-                }
-                if (0 != status) { error("Stage ${cell.step}${cell_suffix} failed with exit status ${status}") }
-              } catch (exc) {
-                if ("org.jenkinsci.plugins.workflow.steps.FlowInterruptedException" == exc.getClass().getName()) {
-                  def descriptions = []
-                  for (def cause in exc.getCauses()) {
-                    echo "CauseOfInterruption: ${cause.getClass().getName()} - ${cause.getShortDescription()}"
-                    if (cause.getClass().getName().contains('CauseOfInterruption$UserInterruption') || cause.getClass().getName().contains('ParallelStep$FailFastCause')) {
-                      throw exc // user abort or fail-fast — do not retry
-                    }
-                    descriptions.add(cause.getShortDescription())
+            def script_vars = testScriptVars(command, cell)
+            def timer = System.currentTimeMillis()
+            def outcome = "ok"
+            try {
+              timeout(time: command.timeout_hours, unit: 'HOURS') { // best throughput with each cell at ~10 minutes
+                try {
+                  buildJVMDTestJars(cell, script_vars, logfile)
+                  script_vars = "${script_vars} docker_timeout_hours=\"${command.timeout_hours}\""
+                  def status = sh label: "RUNNING TESTS ${cell.step}...", script: "${script_vars} .build/docker/run-tests.sh -a ${cell.step} -c '${cell.split}/${splits}' -j ${cell.jdk} 2>&1 | tee >( xz -c > build/${logfile} )", returnStatus: true
+                  dir("build") {
+                    archiveArtifacts artifacts: "${logfile}", fingerprint: true
                   }
-                  error("Retryable interruption: ${descriptions.join(', ')}")
+                  if (0 != status) { error("Stage ${cell.step}${cell_suffix} failed with exit status ${status}") }
+                } catch (exc) {
+                  outcome = "failed"
+                  if ("org.jenkinsci.plugins.workflow.steps.FlowInterruptedException" == exc.getClass().getName()) {
+                    def descriptions = []
+                    for (def cause in exc.getCauses()) {
+                      echo "CauseOfInterruption: ${cause.getClass().getName()} - ${cause.getShortDescription()}"
+                      if (cause.getClass().getName().contains('CauseOfInterruption$UserInterruption') || cause.getClass().getName().contains('ParallelStep$FailFastCause')) {
+                        throw exc // user abort or fail-fast — do not retry
+                      }
+                      if (cause.getClass().getName().contains('TimeoutStepExecution')) { outcome = "timeout" }
+                      descriptions.add(cause.getShortDescription())
+                    }
+                    error("Retryable interruption: ${descriptions.join(', ')}")
+                  }
+                  throw exc
+                } finally {
+                    def duration = System.currentTimeMillis() - timer
+                    def formattedTime = String.format("%tT.%tL", duration, duration)
+                    echo "Time ${cell.step}${cell_suffix}: ${formattedTime}"
                 }
-                throw exc
-              } finally {
-                  def duration = System.currentTimeMillis() - timer
-                  def formattedTime = String.format("%tT.%tL", duration, duration)
-                  echo "Time ${cell.step}${cell_suffix}: ${formattedTime}"
               }
+            } finally {
+              recordCellTime(cell, cell_suffix, splits, command.timeout_hours, System.currentTimeMillis() - timer, outcome)
             }
-            dir("build") {
-              organiseTestResultFiles(cell, cell_suffix)
-              if (!cell.step.startsWith("microbench")) {
-                junit testResults: "test/**/TEST-*.xml,test/**/cqlshlib*.xml,test/**/nosetests*.xml", testDataPublishers: [[$class: 'StabilityTestDataPublisher']]
-              }
-              debugOomKiller()
-              compressTestResultFiles()
-              archiveArtifacts artifacts: "test/logs/**,test/**/TEST-*.xml.xz,test/**/cqlshlib*.xml.xz,test/**/nosetests*.xml.xz,test/**/jmh-result.json", fingerprint: true
-              copyToNightlies("${logfile},test/logs/**,test/**/jmh-result.json", "${cell.step}/${cell.arch}/jdk${cell.jdk}/python${cell.python}/cython_${cell.cython}/" + "split_${cell.split}_${splits}".replace("/", "_"))
-            }
+            processResults(cell, cell_suffix, logfile, splits)
           } finally {
             cleanAgent(cell.step)
           }
@@ -488,6 +504,19 @@ def fetchDTestsSource(command, script_vars) {
     return "${script_vars} cassandra_dtest_dir='${WORKSPACE}/build/cassandra-dtest'"
   }
   return script_vars
+}
+
+// The prefix every test cell's `sh` script starts with: bash with pipefail, which the tee needs, and the
+// variables run-tests.sh reads.  fetchDTestsSource is here because it both checks out the python dtests and
+// names their directory in the prefix.
+def testScriptVars(command, cell) {
+  def script_vars = "#!/bin/bash \n set -o pipefail ; " // pipe to tee needs pipefail
+  script_vars = "${script_vars} python_version=\'${cell.python}\'"
+  script_vars = "${script_vars} m2_dir=\'${WORKSPACE}/build/m2\'"
+  if ("cqlsh-test" == cell.step) {
+    script_vars = "${script_vars} cython=\'${cell.cython}\'"
+  }
+  return fetchDTestsSource(command, script_vars)
 }
 
 def buildJVMDTestJars(cell, script_vars, logfile) {
@@ -616,6 +645,78 @@ def _stash(cell) {
   stash name: "${cell.arch}_${cell.jdk}"
 }
 
+// One line per cell, for the split balance table .build/ci/cell_balance.py puts in ci_summary.html.
+//
+// The duration is the cell's own, not the sum of its tests: the cell deadline covers the setup before the
+// first test too.
+//
+// outcome is ok, timeout, or failed.  A timed-out cell's duration is its deadline and so a lower bound, and a
+// failed cell's may be short because the failure ended it.
+def recordCellTime(cell, cell_suffix, splits, timeout_hours, duration_ms, outcome) {
+  try {
+    dir("build") {
+      writeCellTime(cell, cell_suffix, splits, timeout_hours, duration_ms, outcome)
+      archiveArtifacts artifacts: "test/cell-times/**", fingerprint: true
+    }
+  } catch (hudson.AbortException | IOException exc) {
+    echo "no cell time recorded for ${cell.step}${cell_suffix}: ${exc}"
+  }
+}
+
+def processResults(cell, cell_suffix, logfile, splits) {
+  dir("build") {
+    organiseTestResultFiles(cell, cell_suffix)
+    if (!cell.step.startsWith("microbench")) {
+      junit testResults: "test/**/TEST-*.xml,test/**/cqlshlib*.xml,test/**/nosetests*.xml"
+    }
+    debugOomKiller()
+    compressTestResultFiles()
+    archiveArtifacts artifacts: "test/logs/**,test/**/TEST-*.xml.xz,test/**/cqlshlib*.xml.xz,test/**/nosetests*.xml.xz,test/**/jmh-result.json", fingerprint: true
+    copyToNightlies("${logfile},test/logs/**,test/**/jmh-result.json", "${cell.step}/${cell.arch}/jdk${cell.jdk}/python${cell.python}/cython_${cell.cython}/" + "split_${cell.split}_${splits}".replace("/", "_"))
+  }
+}
+
+// The .tsv and the .suites of one cell, written in build/
+def writeCellTime(cell, cell_suffix, splits, timeout_hours, duration_ms, outcome) {
+  // Both files are written before organiseTestResultFiles: here test/output/ holds only this cell's results,
+  // and one step later they are merged with the split gone from every path, so no report can say which cell
+  // ran which test again.
+  //
+  // Aggregated by a testcase's classname. The cell's whole test time is recorded too, so
+  // cell_balance.py can subtract it from the duration and state the setup time spent exactly.
+  sh label: "recording cell time...", script: """
+      mkdir -p test/cell-times
+      suites='test/cell-times/${cell.step}${cell_suffix}.suites'
+
+      # <seconds>\\t<classname>, longest first, with the total on stderr.  grep -o rather than a line-oriented
+      # read, because pytest puts many testcase elements on one line.  A parser would be tidier; this runs
+      # once per cell, of which a build has over a thousand.
+      find test/output -type f -name '*.xml' -print0 2>/dev/null \\
+        | xargs -0 -r grep -ho '<testcase [^>]*>' 2>/dev/null \\
+        | awk '
+            {
+              cls = ""; secs = ""
+              # time=" is anchored on a space because name=" is a substring of classname=".  Anchoring both
+              # costs nothing and records the trap.
+              if (match(\$0, /classname="[^"]*"/)) { cls  = substr(\$0, RSTART + 11, RLENGTH - 12) }
+              if (match(\$0, /[ \\t]time="[^"]*"/)) { secs = substr(\$0, RSTART + 7,  RLENGTH - 8)  }
+              if (cls != "" && secs != "")          { total[cls] += secs; grand += secs }
+            }
+            END {
+              for (c in total) { printf "%.3f\\t%s\\n", total[c], c }
+              printf "%.3f\\n", grand > "/dev/stderr"
+            }' 2>test/cell-times/grand \\
+        | sort -rn | head -12 > "\${suites}" || true
+      test_seconds="\$(cat test/cell-times/grand 2>/dev/null || echo 0)"
+      rm -f test/cell-times/grand
+
+      printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' \\
+          '${cell.step}' '${cell.arch}' '${cell.jdk}' '${cell.split}' '${splits}' \\
+          '${timeout_hours}' '${duration_ms}' "\${test_seconds}" '${outcome}' \\
+          > 'test/cell-times/${cell.step}${cell_suffix}.tsv'
+    """
+}
+
 def organiseTestResultFiles(cell, cell_suffix) {
   sh label: "organise test result files...", script: """
       mkdir -p test/output/${cell.step}
@@ -634,9 +735,11 @@ def debugOomKiller() {
 }
 
 def compressTestResultFiles() {
-  sh label: "compress test result files...", script: """
+  sh label: "compress test result files...", script: """${cpusShell}
       { set +x; } 2>/dev/null
-      find test/output -type f -name "*.xml" -print0 | xargs -0 -r -n1 -P"\$(nproc)" xz -f
+      # -n64, not -n1: one xz per file is a fork and an exec for a few kilobytes, and 64 per process still
+      # leaves more batches than parallel slots. cpus(), not nproc: see cpusShell.
+      find test/output -type f -name "*.xml" -print0 | xargs -0 -r -n64 -P"\$(cpus)" xz -f
       echo "\$(find test/output -type f -name "*.xml.xz" | wc -l) test result files compressed"
     """
 }
@@ -646,7 +749,7 @@ def compressTestResultFiles() {
 /////////////////////////////////////////
 
 def generateTestReports() {
-  node("cassandra-medium") {
+  node("cassandra-report") {
     cleanAgent("generateTestReports")
     checkout changelog: false, scm: scmGit(branches: [[name: params.branch]], extensions: [cloneOption(depth: 1, noTags: true, reference: '', shallow: true)], userRemoteConfigs: [[url: params.repository]])
     def logfile = "stage-logs/${JOB_NAME}_${BUILD_NUMBER}_generateTestReports.log.xz"
@@ -657,35 +760,52 @@ def generateTestReports() {
       // copyArtifacts takes >4hrs, hack with manual download
       sh label: "manual download (instead of copyArtifacts)...", script: """${script_vars}
           ( mkdir -p build/test
-          wget -q ${BUILD_URL}/artifact/test/output/*zip*/output.zip
-          unzip -x -d build/test -q output.zip ) ${teeSuffix}
+            wget -q ${BUILD_URL}/artifact/test/output/*zip*/output.zip
+            unzip -x -d build/test -q output.zip
+            ( wget -q ${BUILD_URL}/artifact/test/cell-times/*zip*/cell-times.zip && unzip -x -d build/test -q cell-times.zip ) || echo "no cell-times artefact to download"
+          ) ${teeSuffix}
          """
     } else {
-      copyArtifacts filter: 'test/**/TEST-*.xml.xz,test/**/cqlshlib*.xml.xz,test/**/nosetests*.xml.xz,test/**/jmh-result.json', fingerprintArtifacts: true, projectName: env.JOB_NAME, selector: specific(env.BUILD_NUMBER), target: "build/", optional: true
+      copyArtifacts filter: 'test/cell-times/**,test/**/TEST-*.xml.xz,test/**/cqlshlib*.xml.xz,test/**/nosetests*.xml.xz,test/**/jmh-result.json', fingerprintArtifacts: true, projectName: env.JOB_NAME, selector: specific(env.BUILD_NUMBER), target: "build/", optional: true
     }
     // merge and summarise test reports
     if (fileExists('build/test/output') && sh(script: 'test -n "$(find build/test/output -type f -name "*.xml.xz" -print -quit)"', returnStatus: true) == 0) {
       // merge splits for each target's test report, other axes are kept separate
-      //   TODO parallelised for loop
       //   TODO results_details.tar.xz needs to include all logs for failed tests
-      sh label: "merging splits test reports...", script: """${script_vars} (
+      sh label: "merging splits test reports...", script: """${script_vars}${cpusShell} (
           echo "test result files to decompress"; find build/test/output -type f -name "*.xml.xz" | wc -l
-          find build/test/output -type f -name "*.xml.xz" -print0 | xargs -0 -r -n1 -P"\$(nproc)" xz -f --decompress
+          find build/test/output -type f -name "*.xml.xz" -print0 | xargs -0 -r -n64 -P"\$(cpus)" xz -f --decompress
 
-          for target in \$(ls build/test/output/) ; do
-            if test -d build/test/output/\${target} ; then
-              mkdir -p build/test/reports/\${target}
-              echo "Report for \${target} (\$(find build/test/output/\${target} -name '*.xml' | wc -l) test files)"
-              CASSANDRA_DOCKER_ANT_OPTS="-Dbuild.test.output.dir=build/test/output/\${target} -Dbuild.test.report.dir=build/test/reports/\${target}"
+          # One ant junitreport per test target, up to three at a time: cpus() is this jnlp container's limit, so the report template's 2 cpu runs two.
+          report_jobs=\$(cpus) ; [ "\${report_jobs}" -le 3 ] || report_jobs=3
+          report_target() {
+            target="\$1"
+            test -d "build/test/output/\${target}" || return 0
+            mkdir -p "build/test/reports/\${target}"
+            # Held and printed as one block per target: concurrent runs otherwise interleave line by line
+            report_log="\$(mktemp)"
+            {
+              echo "Report for \${target} (\$(find "build/test/output/\${target}" -name '*.xml' | wc -l) test files)"
+              # -Xmx2g per concurrent ant jvm; unset, each takes a quarter of dind's limit. Exported inside
+              # the function, which xargs runs as its own process, so targets cannot see each other's value.
+              CASSANDRA_DOCKER_ANT_OPTS="-Xmx2g -Dbuild.test.output.dir=build/test/output/\${target} -Dbuild.test.report.dir=build/test/reports/\${target}"
               export CASSANDRA_DOCKER_ANT_OPTS
               .build/docker/_docker_run.sh debian-build.docker ci/generate-test-report.sh
-            fi
-          done
+            } > "\${report_log}" 2>&1
+            report_status=\$?
+            cat "\${report_log}" ; rm -f "\${report_log}"
+            return \${report_status}
+          }
+          export -f report_target
+          ls build/test/output/ | xargs -r -n1 -P"\${report_jobs}" bash -xc 'report_target "\$0"'
 
           .build/docker/_docker_run.sh debian-build.docker ci/generate-ci-summary.sh || echo "failed generate-ci-summary.sh"
 
           tar -cf build/results_details.tar -C build/test/ reports
-          xz -8f build/results_details.tar ) ${teeSuffix}
+          # -T with a count: xz's own -T0 reads nproc and would thread for the node, not this container.
+          # --memlimit-compress caps the total: -8 takes ~700MB per thread, and against a limit xz drops
+          # threads (then the preset) instead of growing until the kernel's OOM killer takes it.
+          xz -8f -T"\$(cpus)" --memlimit-compress=2g build/results_details.tar ) ${teeSuffix}
           """
 
       dir('build/') {

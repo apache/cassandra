@@ -24,15 +24,21 @@ ZONE="us-central1-c"
 gcloud container clusters create ${CLUSTER_NAME} --machine-type e2-standard-8 --disk-type=pd-ssd --num-nodes 1 --node-labels=cassandra.jenkins.controller=true --autoscaling-profile optimize-utilization --zone ${ZONE}
 
 # small resource nodes
-gcloud container node-pools create agents-small --cluster ${CLUSTER_NAME} --machine-type e2-highcpu-8 --disk-type=pd-ssd --disk-size=107 --enable-autoscaling --spot --num-nodes=0 --min-nodes=0 --max-nodes=50 --node-labels=cassandra.jenkins.agent=true,cassandra.jenkins.agent.small=true --zone ${ZONE}
+gcloud container node-pools create agents-small --cluster ${CLUSTER_NAME} --machine-type e2-highcpu-8 --disk-type=pd-ssd --disk-size=107 --enable-autoscaling --spot --num-nodes=0 --min-nodes=0 --max-nodes=20 --node-labels=cassandra.jenkins.agent=true,cassandra.jenkins.agent.small=true --zone ${ZONE}
+
+# report resource nodes, for the generateTestReports stage (the agent-dind-report podTemplate)
+#  a standard machine, not highcpu: that template's dind container has a 9G memory limit
+gcloud container node-pools create agents-report --cluster ${CLUSTER_NAME} --machine-type n2-standard-8 --disk-type=pd-ssd --disk-size=107 --enable-autoscaling --spot --num-nodes=0 --min-nodes=0 --max-nodes=4 --node-labels=cassandra.jenkins.agent=true,cassandra.jenkins.agent.report=true --zone ${ZONE}
 
 # medium resource nodes
 #  preference (by cost): n2-highcpu-8, c3-highcpu-8, n4-highcpu-8, n1-highcpu-16
-gcloud container node-pools create agents-medium --cluster ${CLUSTER_NAME} --machine-type n2-highcpu-8 --disk-type=pd-ssd --disk-size=107 --enable-autoscaling --spot --num-nodes=0 --min-nodes=0 --max-nodes=100 --node-labels=cassandra.jenkins.agent=true,cassandra.jenkins.agent.medium=true --zone ${ZONE}
+gcloud container node-pools create agents-medium --cluster ${CLUSTER_NAME} --machine-type n2-highcpu-8 --disk-type=pd-ssd --disk-size=107 --enable-autoscaling --spot --num-nodes=0 --min-nodes=0 --max-nodes=150 --node-labels=cassandra.jenkins.agent=true,cassandra.jenkins.agent.medium=true --zone ${ZONE}
 
 # large resource nodes
-gcloud container node-pools create agents-large --cluster ${CLUSTER_NAME} --machine-type n2-standard-8 --disk-type=pd-ssd --disk-size=107 --enable-autoscaling --spot --num-nodes=0 --min-nodes=0 --max-nodes=160 --node-labels=cassandra.jenkins.agent=true,cassandra.jenkins.agent.large=true --zone ${ZONE}
+gcloud container node-pools create agents-large --cluster ${CLUSTER_NAME} --machine-type n2-standard-8 --disk-type=pd-ssd --disk-size=107 --enable-autoscaling --spot --num-nodes=0 --min-nodes=0 --max-nodes=306 --node-labels=cassandra.jenkins.agent=true,cassandra.jenkins.agent.large=true --zone ${ZONE}
 
+# Each --max-nodes above is that size's agent.podTemplates.*.instanceCap in jenkins-deployment.yaml, one agent per node.
+# Raise the pool first: `.build/run-ci --only-setup` blocks a deploy whose instanceCap exceeds the nodes its pool can hold.
 # For each sized resource nodes, pick any machine type that fits, those listed above should work and be the most cost-effective, but this can change region to region
 # See https://github.com/apache/cassandra/blob/cassandra-6.0/.jenkins/Jenkinsfile#L35-L38
 # and agent.podTemplates.*.resourceLimitCpu and agent.podTemplates.*.resourceLimitMemory (adding gke/eks requirements) in https://github.com/apache/cassandra/blob/cassandra-6.0/.jenkins/k8s/jenkins-deployment.yaml
