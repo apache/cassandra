@@ -185,4 +185,47 @@ run_case "${cassandra_dir}/.build/docker/run-tests.sh" -a test -t StorageService
 expect_rc "docker/run-tests.sh runs with an argument it does not know" 0
 expect_invocation "docker/run-tests.sh passes the unknown argument downstream" "\-b 4.1"
 
+# the sibling docker scripts take the java version positionally, so refuse that form here
+# rather than let the downstream script reject the token after the container is up
+java_supported="$(grep 'property\s*name="java.supported"' "${cassandra_dir}/build.xml" | sed -ne 's/.*value="\([^"]*\)".*/\1/p')"
+for _v in ${java_supported//,/ } ; do
+  reset_stub
+  run_case "${cassandra_dir}/.build/docker/run-tests.sh" -a test "${_v}"
+  expect_rc "docker/run-tests.sh rejects a positional java version ${_v}" 1
+  expect_out "docker/run-tests.sh names -j for the positional ${_v}" "Use '-j ${_v}'"
+  expect_no_invocation "docker/run-tests.sh starts no container for the positional ${_v}" "docker run"
+done
+
+# the guard reads whole arguments only, so a version inside a value must survive it
+reset_stub
+run_case "${cassandra_dir}/.build/docker/run-tests.sh" -a test -t StorageServiceServerTest -b cassandra-11
+expect_rc "docker/run-tests.sh keeps an argument that merely contains a java version" 0
+expect_invocation "docker/run-tests.sh passes that argument downstream" "\-b cassandra-11"
+
+################################
+#
+# Cases: docker/run-tests.sh, and the deprecated positional arguments
+#
+################################
+
+# the legacy form is <target> [<test regexp|chunk>] [<java version>]
+reset_stub
+run_case "${cassandra_dir}/.build/docker/run-tests.sh" test StorageServiceServerTest 17
+expect_rc "docker/run-tests.sh runs three legacy arguments" 0
+expect_out "docker/run-tests.sh shows the flags the legacy arguments became" "format: -a test -t StorageServiceServerTest -j 17"
+expect_invocation "docker/run-tests.sh sets java from the third legacy argument" "_set_java.sh 17"
+
+reset_stub
+run_case "${cassandra_dir}/.build/docker/run-tests.sh" test 1/8
+expect_rc "docker/run-tests.sh reads a legacy X/Y as a chunk" 0
+expect_invocation "docker/run-tests.sh turns the legacy chunk into -c" "_docker_init_tests.sh \-a test \-c 1/8"
+
+# with two legacy arguments the second reads as the java version, not as a test name regexp
+reset_stub
+run_case "${cassandra_dir}/.build/docker/run-tests.sh" test 17
+expect_rc "docker/run-tests.sh runs two legacy arguments" 0
+expect_out "docker/run-tests.sh shows the second legacy argument as -j" "format: -a test  -j 17"
+expect_invocation "docker/run-tests.sh sets java from the second legacy argument" "_set_java.sh 17"
+expect_no_invocation "docker/run-tests.sh reads no test name regexp from it" "\-t 17"
+
 report stub-docker

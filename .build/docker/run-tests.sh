@@ -37,6 +37,10 @@ _target_test_types="$(grep '^TARGET_TYPES=' "${cassandra_dir}/.build/run-tests.s
 _target_dtest_types="$(cd ${cassandra_dir}; bash <(sed -n "/^TARGET_TYPES=/,/^done$/p" .build/run-python-dtests.sh; echo 'echo ${TARGET_TYPES}'))"
 TARGET_TYPES="${_target_test_types} ${_target_dtest_types}"
 
+java_version_default=`grep 'property\s*name="java.default"' ${cassandra_dir}/build.xml 2>/dev/null |sed -ne 's/.*value="\([^"]*\)".*/\1/p'`
+java_version_supported=`grep 'property\s*name="java.supported"' ${cassandra_dir}/build.xml 2>/dev/null |sed -ne 's/.*value="\([^"]*\)".*/\1/p'`
+regx_java_version="(${java_version_supported//,/|})"
+
 print_help() {
   echo ""
   echo "Usage: $0 [-a|-t|-c|-j|-s|-h] [extra arguments]"
@@ -56,19 +60,23 @@ error() {
   exit $1
 }
 
-# legacy argument handling
+# legacy argument handling, for the form <target> [<test regexp|chunk>] [<java version>]
 if [[ " ${TARGET_TYPES} " =~ " ${1} " ]]; then
   test_type="-a ${1}"
+  java_version_arg=""
   if [[ -z ${2} ]]; then
     test_list=""
   elif [[ -n ${2} && "${2}" =~ ^[0-9]+/[0-9]+$ ]]; then
     test_list="-c ${2}";
+  elif [[ -z ${3} && "${2}" =~ ^${regx_java_version}$ ]]; then
+    # <target> <java version>, as the sibling docker scripts take it. not a test name regexp
+    test_list=""; java_version_arg="-j ${2}"
   else
     test_list="-t ${2}";
   fi
-  if [[ -n ${3} ]]; then java_version="-j ${3}"; else java_version=""; fi
-  echo "Using deprecated legacy arguments.  Please update to new parameter format: ${test_type} ${test_list} ${java_version}"
-  $0 ${test_type} ${test_list} ${java_version}
+  if [[ -n ${3} ]]; then java_version_arg="-j ${3}"; fi
+  echo "Using deprecated legacy arguments.  Please update to new parameter format: ${test_type} ${test_list} ${java_version_arg}"
+  $0 ${test_type} ${test_list} ${java_version_arg}
   exit $?
 fi
 
@@ -140,15 +148,20 @@ test_name_regexp=${test_name_regexp}
 java_version=${java_version}
 
 test_script="run-tests.sh"
-java_version_default=`grep 'property\s*name="java.default"' ${cassandra_dir}/build.xml |sed -ne 's/.*value="\([^"]*\)".*/\1/p'`
-java_version_supported=`grep 'property\s*name="java.supported"' ${cassandra_dir}/build.xml |sed -ne 's/.*value="\([^"]*\)".*/\1/p'`
+
+# the docker scripts legacy argument handling take the java version positionally, this one takes -j
+# catch any unintended extra arguments that came through by mistake
+for extra_arg in ${extra_args} ; do
+    if [[ "${extra_arg}" =~ ^${regx_java_version}$ ]]; then
+        error 1 "Unrecognised argument '${extra_arg}'. Use '-j ${extra_arg}' to set the java version"
+    fi
+done
 
 if [ "x${java_version}" == "x" ] ; then
     echo "Defaulting to java ${java_version_default}"
     java_version="${java_version_default}"
 fi
 
-regx_java_version="(${java_version_supported//,/|})"
 if [[ ! "${java_version}" =~ $regx_java_version ]]; then
     error 1 "Error: Java version is not in ${java_version_supported}, it is set to ${java_version}"
 fi

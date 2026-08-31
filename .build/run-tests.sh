@@ -64,13 +64,17 @@ print_help() {
 }
 
 
-# legacy argument handling
+# legacy argument handling, for the form <target> [<test regexp|chunk>]
 if [[ " ${TARGET_TYPES} " =~ " ${1} " ]]; then
   test_type="-a ${1}"
+  _java_supported=`grep 'property\s*name="java.supported"' ${CASSANDRA_DIR}/build.xml |sed -ne 's/.*value="\([^"]*\)".*/\1/p'`
   if [[ -z ${2} ]]; then
     test_list=""
   elif [[ -n ${2} && "${2}" =~ ^[0-9]+/[0-9]+$ ]]; then
     test_list="-c ${2}";
+  elif [[ "${2}" =~ ^(${_java_supported//,/|})$ ]]; then
+    # this script runs on the java already on the path, so it has no version to switch to
+    error 1 "This script cannot set the java version, it uses the java on the path. Use '.build/docker/run-tests.sh -a ${1} -j ${2}' instead"
   else
     test_list="-t ${2}";
   fi
