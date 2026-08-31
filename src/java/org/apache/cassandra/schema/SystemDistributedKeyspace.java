@@ -516,40 +516,6 @@ public final class SystemDistributedKeyspace
         return allStatuses;
     }
 
-    public static Map<String, Index.Status> allIndexStatusesForHost(NodeId nodeId)
-    {
-        String query = format("SELECT keyspace_name, index_name, status FROM %s.%s WHERE node_id = ?",
-                              SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, INDEX_BUILD_STATUS);
-        UntypedResultSet results;
-
-        try
-        {
-            try
-            {
-                results = QueryProcessor.execute(query, ConsistencyLevel.QUORUM, nodeId.id());
-            }
-            catch (Exception e)
-            {
-                logger.warn("Failed to load index statuses with QUORUM for host {}, retrying with ONE", nodeId);
-                results = QueryProcessor.execute(query, ConsistencyLevel.ONE, nodeId.id());
-            }
-        }
-        catch (Exception e)
-        {
-            logger.warn("Unable to load index statuses from system table for host {}: {}", nodeId, e.getMessage());
-            return Collections.emptyMap();
-        }
-
-        Map<String, Index.Status> statuses = new HashMap<>();
-        for (UntypedResultSet.Row row : results)
-        {
-            statuses.put(row.getString("keyspace_name") + '.' + row.getString("index_name"),
-                         Index.Status.valueOf(row.getString("status")));
-        }
-
-        return statuses;
-    }
-
     public static void recordIndexEvent(NodeId nodeId, String keyspace, String index, Index.Status status)
     {
         String query = format("INSERT INTO %s.%s (date, event_time, index_name, node_id, event) VALUES (?, to_timestamp(now()), ?, ?, ?)",
@@ -564,13 +530,13 @@ public final class SystemDistributedKeyspace
                               SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, INDEX_EVENTS);
         try
         {
-            return QueryProcessor.execute(query, ConsistencyLevel.QUORUM, date, new java.util.Date(sinceTimestampMillis));
+            return QueryProcessor.execute(query, ConsistencyLevel.QUORUM, date, sinceTimestampMillis);
         }
         catch (Exception e)
         {
             try
             {
-                return QueryProcessor.execute(query, ConsistencyLevel.ONE, date, new java.util.Date(sinceTimestampMillis));
+                return QueryProcessor.execute(query, ConsistencyLevel.ONE, date, sinceTimestampMillis);
             }
             catch (Exception ex)
             {

@@ -60,7 +60,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.CassandraVersion;
-import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JsonUtils;
@@ -314,7 +313,7 @@ public class IndexStatusManager
         }
         catch (Exception e)
         {
-            logger.warn("Unable to propagate index status: {}", e.getMessage());
+            logger.warn("Unable to propagate index status", e);
         }
     }
 
@@ -376,6 +375,10 @@ public class IndexStatusManager
         NodeId nodeId = ClusterMetadata.current().directory.peerId(peer);
         if (nodeId == null)
             return Index.Status.UNKNOWN;
+        Index.Status status = peerIndexStatus.getOrDefault(nodeId, Collections.emptyMap())
+                                             .getOrDefault(identifier(keyspace, index), Index.Status.UNKNOWN);
+        if (status == Index.Status.UNKNOWN)
+            pollIndexEvents();
         return peerIndexStatus.getOrDefault(nodeId, Collections.emptyMap())
                               .getOrDefault(identifier(keyspace, index), Index.Status.UNKNOWN);
     }
@@ -485,8 +488,7 @@ public class IndexStatusManager
                 refreshFromFullTable();
                 String today = LocalDate.now(ZoneOffset.UTC).toString();
                 UntypedResultSet todayResults = SystemDistributedKeyspace.queryIndexEvents(today, 0);
-                long newestEventTime = todayResults != null ? processEvents(todayResults) : 0;
-                lastPollTimestampMillis = newestEventTime != 0 ? newestEventTime : Clock.Global.currentTimeMillis();
+                lastPollTimestampMillis = todayResults != null ? processEvents(todayResults) : 0;
             }
             else
             {
