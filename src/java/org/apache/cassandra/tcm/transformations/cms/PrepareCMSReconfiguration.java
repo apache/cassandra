@@ -61,6 +61,12 @@ import static org.apache.cassandra.tcm.CMSOperations.REPLICATION_FACTOR;
 public abstract class PrepareCMSReconfiguration implements Transformation
 {
     private static final Logger logger = LoggerFactory.getLogger(PrepareCMSReconfiguration.class);
+
+    /**
+     * Nodes to exclude from the new CMS: those the failure detector considered down when the reconfiguration was
+     * initiated, plus any the operator excluded via {@code nodetool cms reconfigure --ignore}. Resolved by the
+     * initiating node and serialized so that every node executing or replaying this derives the same {@link Diff}.
+     */
     final Set<NodeId> downNodes;
 
     public PrepareCMSReconfiguration(Set<NodeId> downNodes)
@@ -118,7 +124,9 @@ public abstract class PrepareCMSReconfiguration implements Transformation
         int expectedSize = dcRf.values().stream().mapToInt(Integer::intValue).sum();
         Set<NodeId> newCms = prepareNewCMS(dcRf, prev);
         if (newCms.size() < (expectedSize / 2) + 1)
-            throw new IllegalStateException("Too many nodes are currently DOWN to safely perform the reconfiguration");
+            throw new IllegalStateException(String.format("Too many nodes are currently DOWN or ignored to safely perform " +
+                                                          "the reconfiguration (only %d of %d members could be placed)",
+                                                          newCms.size(), expectedSize));
     }
 
     private static void serializeDownNodes(PrepareCMSReconfiguration transformation, DataOutputPlus out, Version version) throws IOException

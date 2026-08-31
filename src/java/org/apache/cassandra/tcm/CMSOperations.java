@@ -164,17 +164,29 @@ public class CMSOperations implements CMSOperationsMBean
     @Override
     public void reconfigureCMS(int rf)
     {
+        reconfigureCMS(rf, Collections.emptyList());
+    }
+
+    @Override
+    public void reconfigureCMS(int rf, List<String> ignoredEndpoints)
+    {
         ReplicationParams params = ReplicationParams.simpleMeta(rf, ClusterMetadata.current().directory.knownDatacenters());
         guardMinimumCmsSize(params);
-        cms.reconfigureCMS(params);
+        cms.reconfigureCMS(params, ignoredEndpoints);
     }
 
     @Override
     public void reconfigureCMS(Map<String, Integer> rf)
     {
+        reconfigureCMS(rf, Collections.emptyList());
+    }
+
+    @Override
+    public void reconfigureCMS(Map<String, Integer> rf, List<String> ignoredEndpoints)
+    {
         ReplicationParams params = ReplicationParams.ntsMeta(rf);
         guardMinimumCmsSize(params);
-        cms.reconfigureCMS(params);
+        cms.reconfigureCMS(params, ignoredEndpoints);
     }
 
     /**

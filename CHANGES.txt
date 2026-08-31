@@ -1,4 +1,5 @@
 6.0-alpha3
+ * Allow nodetool cms reconfigure to ignore nodes via --ignore, excluding them from the new CMS (CASSANDRA-21627)
  * Accord: Compute Dependencies Incrementally (CASSANDRA-21682)
  * Avoid double chunk read for BTI small partitions during a select query execution (CASSANDRA-21637)
  * Report the number of rows replica filtering protection cached when it warns (CASSANDRA-21623)
