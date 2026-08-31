@@ -1,0 +1,1188 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""
+CI Pipeline Script
+
+This script can initialize a Jenkins operator in a Kubernetes cluster,
+start ci job builds, and retrieve results in the project standard format.
+Python dependencies are found in .build/run-ci.d/requirements.txt
+Custom environment variables can be set in .build/.run-ci.env
+
+lint with:
+ `pylint --disable=C0301,C0302,W0511,C0103,W0702,C0415,C0116,C0115,R0914,W0603,R0915,R0913,R0917,R0911,W0212,W0621 run-ci`
+
+test with:
+ `python run-ci.d/run-ci-test.py`
+"""
+
+import argparse
+import fcntl
+import getpass
+import gzip
+import itertools
+import json
+import os
+import re
+import shutil
+import socket
+import subprocess
+import sys
+import tarfile
+import threading
+import time
+from contextlib import contextmanager
+from enum import Enum
+from pathlib import Path
+from urllib.request import urlretrieve
+from typing import Optional, Tuple
+
+# External Libraries (`pip install -r .build/run-ci.d/requirements.txt`)
+import requests
+import yaml
+from bs4 import BeautifulSoup
+from kubernetes import client, config, stream
+
+try:
+    import jenkins
+except OSError as import_jenkins_error:
+    if 'lookup3.so' in str(import_jenkins_error):
+        print("Error: The required shared library 'lookup3.so' is missing.")
+        print("Please ensure it is installed and accessible in your environment.")
+        sys.exit(1)
+    else:
+        raise
+
+def base_job_name(args) -> str:
+    """
+    Determines the default Jenkins job name based on the Cassandra version.
+    Separate jobs are required because Jenkinsfiles are baked into the job configuration.
+    ref: .jenkins/k8s/jenkins-deployment.yaml JCasC.configScripts.test-job
+    """
+    if not hasattr(base_job_name, "_cached_result"):
+        raw_url = args.repository.replace("https://github.com/", "https://raw.githubusercontent.com/").removesuffix(".git") + f"/{args.branch}/build.xml"
+        if 200 != requests.head(raw_url, timeout=30).status_code:
+            raise ValueError(f"GitHub unavailable, or this branch has not been pushed yet: {args.repository} @ {args.branch} (or remote tracking not setup up: `git config --get branch.{args.branch}.remote` and `git config --get branch.{args.branch}.merge`)")
+        response = requests.get(raw_url, timeout=30)
+        response.raise_for_status()
+        for line in response.text.splitlines():
+            if 'property' in line and 'name="base.version"' in line:
+                version = line.split('value="')[1].split('"')[0]
+                # TODO: add new version each release branching
+                if version.startswith("4.0."):
+                    base_job_name._cached_result = "cassandra-4.0"
+                elif version.startswith("5.0."):
+                    base_job_name._cached_result = "cassandra-5.0"
+                else:
+                    base_job_name._cached_result = "cassandra"
+                break
+    return base_job_name._cached_result
+
+def get_current_branch() -> str:
+    """Returns the current branch."""
+    return subprocess.run(["git", "-C", str(CASSANDRA_DIR), "branch", "--show-current"],
+                          capture_output=True, text=True, check=True).stdout.strip()
+
+def require_tracking_remote(branch: str):
+    """ Exits when the branch tracks no remote, since nothing can then be inferred about what to build. """
+    if 0 == subprocess.run(["git", "-C", str(CASSANDRA_DIR), "rev-parse", "--abbrev-ref", f"{branch}@{{u}}"],
+                           capture_output=True, text=True, check=False).returncode:
+        return
+    print(f"Branch {branch} tracks no remote, so the fork and branch to build cannot be detected.")
+    print("\nEither set the tracking up, which git will do on the first push of every new branch:")
+    print("    git config --global push.autoSetupRemote true")
+    print(f"  or for this branch alone: `git push --set-upstream <remote> {branch}`")
+    print("\nOr name what to build explicitly, with -r/--repository and -b/--branch.")
+    sys.exit(1)
+
+def is_local_git_dirty(args) -> bool:
+    """Returns True if there are uncommitted/unpushed changes in the local git repository."""
+    # use base_job_name to verify the remote branch exists
+    base_job_name(args)
+    # check if the working directory is clean
+    clean = subprocess.run(["git", "-C", str(CASSANDRA_DIR), "diff-index", "--quiet", "HEAD", "--"], check=False).returncode
+    # `@{u}` resolves to nothing without tracking, which would read as nothing unpushed.  Callers reach here
+    # only past require_tracking_remote, but report dirty on failure rather than depend on that invariant
+    unpushed = subprocess.run(["git", "-C", str(CASSANDRA_DIR), "log", "@{u}..HEAD", "--name-only"],
+                              capture_output=True, text=True, check=False)
+    return 0 != clean or 0 != unpushed.returncode or bool(unpushed.stdout.strip())
+
+def get_tracking_remote_url() -> Optional[str]:
+    """ Returns the tracking remote URL of the current branch, or None when the branch tracks nothing. """
+    remote = subprocess.run(["git", "-C", str(CASSANDRA_DIR), "config", "--get", f"branch.{DEFAULT_REPO_BRANCH}.remote"],
+                            capture_output=True, text=True, check=False)
+
+    if 0 != remote.returncode:
+        return None
+
+    repo_url = subprocess.run(["git", "-C", str(CASSANDRA_DIR), "remote", "get-url", remote.stdout.strip()],
+                               capture_output=True, text=True, check=True).stdout.strip()
+    if repo_url.startswith("git@github.com:"):
+        repo_url = repo_url.replace("git@github.com:", "https://github.com/")
+
+    # and change gitbox to github
+    return repo_url.replace("https://gitbox.apache.org/repos/asf/cassandra.git", "https://github.com/apache/cassandra.git")
+
+# Constants
+DEFAULT_KUBE_NS = "default"
+CASSANDRA_DIR = Path(__file__).resolve().parent.parent
+DEPLOY_YAML = str(CASSANDRA_DIR / ".jenkins/k8s/jenkins-deployment.yaml")
+DEFAULT_REPO_BRANCH = get_current_branch()
+DEFAULT_REPO_URL = get_tracking_remote_url()
+DEFAULT_DTEST_REPO_URL = "https://github.com/apache/cassandra-dtest.git"
+DEFAULT_DTEST_REPO_BRANCH = "trunk"
+DEFAULT_PROFILE = "skinny"
+DEFAULT_POD_NAME = "cassius-jenkins-0"
+DEFAULT_CONTAINER_NAME = "jenkins"
+LOCAL_RESULTS_BASEDIR = CASSANDRA_DIR / "build/ci/"
+# AWS/GCloud specifics for node_cleaner function, needed for node_cleaner
+AWS_REGION = os.environ.get("AWS_REGION")
+GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
+GCP_ZONE = os.environ.get("GCP_ZONE")
+
+IS_RUNNING = True
+
+
+def debug(message: str):
+    """Helper function to print debug messages."""
+    if os.environ.get("DEBUG"):
+        print(message)
+
+
+def load_environment_file():
+    """ Load environment variables from a .build/.run-ci.env file. """
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(dotenv_path=CASSANDRA_DIR / ".build" / ".run-ci.env")
+    except:
+        print("Warning: .build/run-ci.env file not found, or dotenv module not installed.")
+
+def setup_environment(kubeconfig, kubecontext) -> client.CoreV1Api:
+    """Ensures necessary tools are installed and sets up Kubernetes configuration."""
+    # Check Python version
+    required_version = (3, 7)
+    if sys.version_info < required_version:
+        raise EnvironmentError(f"Python {required_version[0]}.{required_version[1]} or higher is required. "
+                               f"Current version is {sys.version_info.major}.{sys.version_info.minor}.")
+    # check command line dependencies
+    dependencies = ["helm", "kubectl"]
+    for cmd in dependencies:
+        if not shutil.which(cmd):
+            raise EnvironmentError(f"{cmd} must be installed and available in the PATH.")
+
+    # Initialize Kubernetes client and API instance
+    config.load_kube_config(config_file=kubeconfig if kubeconfig else None, context=kubecontext or None)
+    return client.CoreV1Api()
+
+def argument_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Run CI pipeline for Cassandra on K8s using Jenkins.")
+    parser.add_argument("-c", "--kubeconfig", help="Path to a different kubeconfig.")
+    parser.add_argument("-x", "--kubecontext", help="Use a different Kubernetes context.")
+    parser.add_argument("-i", "--url", help="Jenkins url. Suitable when kubectl access in not available. Can also be specified via the JENKINS_URL environment variable (and in .build/.run-ci.env)")
+    parser.add_argument("-u", "--user", help="Jenkins user. Can also be specified via the JENKINS_USER environment variable (and in .build/.run-ci.env)")
+    parser.add_argument("-r", "--repository", default=DEFAULT_REPO_URL, help="Repository URL. Defaults to current tracking remote.")
+    parser.add_argument("-b", "--branch", default=DEFAULT_REPO_BRANCH, help="Repository branch. Defaults to current branch.")
+    parser.add_argument("-p", "--profile", choices=['packaging','skinny','pre-commit','pre-commit w/ upgrades','post-commit','custom'], default=DEFAULT_PROFILE, help="CI pipeline profile. Defaults to skinny.")
+    parser.add_argument("-e", "--profile-custom-regexp", help="Regexp for stages when using custom profile. See `testSteps` in Jenkinsfile for list of stages. Example: 'stress.*|jvm-dtest.'")
+    parser.add_argument("-j", "--jdk", help="Specify JDK version. Defaults to all JDKs the current branch supports.")
+    parser.add_argument("-d", "--dtest-repository", default=DEFAULT_DTEST_REPO_URL, help="DTest repository URL.")
+    parser.add_argument("-k", "--dtest-branch", default=DEFAULT_DTEST_REPO_BRANCH, help="DTest repository branch.")
+    parser.add_argument("-s", "--setup", action="store_true", help="Set up Jenkins before the build.")
+    parser.add_argument("--only-setup", action="store_true", help="Only install Jenkins into the k8s cluster.")
+    parser.add_argument("-f", "--values-override", help="Path to an additional helm values file, applied over .jenkins/k8s/jenkins-deployment.yaml. Required when the target cluster carries site customisations, see .jenkins/k8s/README.md")
+    parser.add_argument("--tear-down", action="store_true", help="Tear down Jenkins after the build.")
+    parser.add_argument("--only-tear-down", action="store_true", help="Only tear down Jenkins.")
+    parser.add_argument("--only-node-cleaner", action="store_true", help="Only run the node cleaner. The node cleaner scans the k8s nodes, eagerly terminating those unused.")
+    parser.add_argument("-o", "--download-results", help="Just download the results for the specificed build number. Naming of local artefacts assumes current tracking remote and branch, use -r and -b otherwise.")
+    return parser
+
+def parse_arguments() -> argparse.Namespace:
+    """
+    Parses command-line arguments and sets environment variables based on inputs.
+    If you update this please also update `.build/run-ci.d/README.md`
+    """
+    args = argument_parser().parse_args()
+
+    # -r defaults to the branch's tracking remote, which is absent when the branch tracks nothing.  Only the
+    # flows that build, or that name artefacts after a build, need it: installing and tearing down do not,
+    # so an untracked branch can still deploy the cluster.
+    if not args.repository and not (args.only_setup or args.only_tear_down or args.only_node_cleaner):
+        require_tracking_remote(args.branch)
+
+    assert not args.repository or (args.repository.startswith("https://github.com/")
+                                   and args.repository.removesuffix(".git").endswith("cassandra")),\
+        f"Only github apache/cassandra (forked) repository supported, got: {args.repository}"
+    assert args.dtest_repository.startswith("https://github.com/") and args.dtest_repository.removesuffix(".git").endswith("cassandra-dtest"),\
+        f"Only github apache/cassandra-dtest (forked) repository supported, got: {args.dtest_repository}"
+    assert not (args.setup and args.only_setup), "Both --setup or --only-setup cannot be specified."
+    assert not (args.tear_down and args.only_tear_down), "Both --tear-down or --only-tear-down cannot be specified."
+    assert not ("custom" == args.profile and not args.profile_custom_regexp), "Custom profile requires --profile-custom-regexp."
+    assert not (args.values_override and not (args.setup or args.only_setup)), "--values-override requires --setup or --only-setup."
+    assert not (args.values_override and not Path(args.values_override).is_file()), f"No such values override file: {args.values_override}"
+
+    if not args.url and os.environ.get("JENKINS_URL"):
+        args.url = os.environ.get("JENKINS_URL")
+    if not args.user and os.environ.get("JENKINS_USER"):
+        args.user = os.environ.get("JENKINS_USER")
+
+    assert not (args.url and (args.kubeconfig or args.kubecontext or args.setup or args.only_setup or args.tear_down or args.only_tear_down or args.only_node_cleaner)),\
+        "Cannot specify both --url and any of --kubeconfig/--kubecontext/--setup/--only-setup/--tear-down/--only-tear-down/--only-node-cleaner. Setting the jenkins url implies no kubectl actions."
+    assert not (args.url and not args.user), "When specifying --url, --user is required."
+
+    return args
+
+
+def init_k8s_namespace(k8s_client, namespace: str):
+    """Ensures the specified namespace exists in the Kubernetes cluster."""
+    try:
+        k8s_client.read_namespace(namespace)
+        debug(f"Namespace '{namespace}' already exists.")
+    except client.exceptions.ApiException as e:
+        if e.status == 404:
+            debug(f"Creating namespace '{namespace}'...")
+            ns = client.V1Namespace(metadata=client.V1ObjectMeta(name=namespace))
+            k8s_client.create_namespace(ns)
+            print(f"Namespace '{namespace}' created.")
+        else:
+            raise
+
+def run_kubectl_command(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, command: list) -> str:
+    """
+    Runs a kubectl command with the specified kubeconfig and context.
+    Used when functionality is not available in k8s_client.
+    """
+    cmd = ["kubectl"]
+    if kubeconfig:
+        cmd += ["--kubeconfig", kubeconfig]
+    if kubecontext:
+        cmd += ["--context", kubecontext]
+    cmd += ["--namespace", kube_ns]
+    cmd += command
+    return subprocess.run(cmd, capture_output=True, text=True, check=True).stdout.strip()
+
+def run_helm_command(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, command: list,
+                     capture_output: bool = True, check: bool = True) -> subprocess.CompletedProcess:
+    """Runs a helm command with the specified kubeconfig, context and namespace."""
+    cmd = ["helm"]
+    if kubeconfig:
+        cmd += ["--kubeconfig", kubeconfig]
+    if kubecontext:
+        cmd += ["--kube-context", kubecontext]
+    cmd += ["--namespace", kube_ns]
+    cmd += command
+    return subprocess.run(cmd, capture_output=capture_output, text=True, check=check)
+
+def check_agent_capacity(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, values: dict):
+    """
+    Refuses to deploy podTemplates that ask for more agents than the cluster can ever schedule.
+
+    An instanceCap above the nodes its pool can hold does not merely idle: the podAntiAffinity in each
+    template puts one agent on a node, so the surplus pods can never be scheduled, they drive the
+    autoscaler to maxSize, expire after waitForPodSec and are requested again in a loop.  That churn is
+    what preceded the 2026-08-11 controller stall, both large node groups pinned at their maximum while
+    fifteen agents did the work.
+    Only what is established is enforced: a ceiling that could not be read is left unchecked, since
+    blocking a valid deploy on a check that cannot see the answer is worse than no check.
+    """
+
+    def agent_templates(values: dict) -> list:
+        """
+        The agent podTemplates as [{name, size, selector, instance_cap, instance_cap_str}].
+
+        The templates are opaque strings to the helm chart, parsed only by the kubernetes plugin, so they
+        are loaded here as the yaml they are.  `size` is the suffix of the `cassandra.jenkins.agent.<size>`
+        nodeSelector, which is what ties a template to a node pool.
+        """
+        templates = []
+        for name, raw in (values.get("agent", {}).get("podTemplates") or {}).items():
+            try:
+                template = yaml.safe_load(raw)[0]
+            except (yaml.YAMLError, IndexError, TypeError):
+                debug(f"Could not parse podTemplate {name}, skipping it")
+                continue
+            selector = dict(pair.split("=", 1) for pair in str(template.get("nodeSelector", "")).split(",")
+                            if "=" in pair)
+            size = next((key.rsplit(".", 1)[1] for key in selector if key.startswith("cassandra.jenkins.agent.")), None)
+            templates.append({"name": name, "size": size, "selector": selector,
+                              "instance_cap": template.get("instanceCap"),
+                              "instance_cap_str": template.get("instanceCapStr")})
+        return templates
+
+    def node_pool_sizes(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str) -> Tuple[dict, dict]:
+        """
+        What the live nodes reveal, as ({node pool name: size}, {label key: set of values seen}).
+
+        Live nodes are the authoritative way to tie a node pool to an agent size, and the only way to
+        confirm a nodeSelector is spelt the way the nodes actually are.  Pools scaled to zero contribute
+        nothing, which is the normal resting state, so neither result can be treated as exhaustive.
+        """
+        pool_label = ("eks.amazonaws.com/nodegroup", "cloud.google.com/gke-nodepool")
+        pools, seen = {}, {}
+        try:
+            nodes = json.loads(run_kubectl_command(kubeconfig, kubecontext, kube_ns, ["get", "nodes", "-o", "json"]))
+        except (subprocess.CalledProcessError, json.JSONDecodeError, TypeError) as e:
+            debug(f"Could not read nodes, agent sizes will not be attributed from them: {e}")
+            return pools, seen
+        for node in nodes.get("items", []):
+            labels = node.get("metadata", {}).get("labels", {})
+            for key, value in labels.items():
+                seen.setdefault(key, set()).add(value)
+            pool = next((labels[key] for key in pool_label if key in labels), None)
+            size = next((key.rsplit(".", 1)[1] for key, value in labels.items()
+                         if key.startswith("cassandra.jenkins.agent.") and value == "true"
+                         and key != "cassandra.jenkins.agent"), None)
+            if pool and size:
+                pools[pool] = size
+        return pools, seen
+
+    def pool_ceilings(kubeconfig: Optional[str], kubecontext: Optional[str], pools: dict, sizes: set) -> Tuple[dict, list]:
+        """
+        The most agents each size can ever run, as ({size: max nodes}, [(unattributed pool, maxSize)]).
+
+        kubectl cannot see a pool's maximum directly: a pool at zero nodes has no nodes to count, so the
+        only in-cluster record is the cluster-autoscaler's status configmap.  A managed autoscaler (GKE)
+        does not publish it, in which case nothing is established and the caller must not treat that as a
+        pass.  The autoscaler names a pool for its underlying group (`eks-<nodegroup>-<uuid>`), so a live
+        node's pool label is matched into it as a substring, falling back to the size word in the name for
+        pools that are scaled to zero.  Anything still unmatched is returned for reporting, never ignored.
+        """
+
+        def nodegroup_max_size(group: dict) -> Optional[int]:
+            """
+            A group's maximum, from its health condition where the autoscaler publishes it, or from the
+            group itself.
+            """
+            if not isinstance(group, dict):
+                return None
+            for value in ((group.get("health") or {}).get("maxSize"), group.get("maxSize")):
+                if isinstance(value, str) and value.strip().isdigit():
+                    return int(value)
+                if isinstance(value, int) and not isinstance(value, bool):
+                    return value
+            return None
+
+        try:
+            status = yaml.safe_load(run_kubectl_command(kubeconfig, kubecontext, "kube-system",
+                                                        ["get", "configmap", "cluster-autoscaler-status",
+                                                         "-o", "jsonpath={.data.status}"]))
+        except (subprocess.CalledProcessError, yaml.YAMLError) as e:
+            debug(f"Could not read the cluster-autoscaler status configmap: {e}")
+            return {}, []
+        ceilings, unattributed = {}, []
+        for group in (status or {}).get("nodeGroups", []) if isinstance(status, dict) else []:
+            maximum = nodegroup_max_size(group)
+            if maximum is None:
+                continue
+            name = group.get("name", "")
+            size = next((size for pool, size in pools.items() if pool and pool in name), None)
+            if not size:
+                words = [word for word in sizes if re.search(rf"(^|[-_]){re.escape(word)}([-_]|$)", name)]
+                size = words[0] if len(words) == 1 else None
+            if not size:
+                # the controller has its own pool, and runs no agents
+                if "jenkins-controller" not in name:
+                    unattributed.append((name, maximum))
+                continue
+            ceilings[size] = ceilings.get(size, 0) + maximum
+        return ceilings, unattributed
+
+    def check_template_capacity(template: dict, ceilings: dict, seen: dict) -> Tuple[list, list]:
+        """One podTemplate's (errors, warnings), errors being what could never be scheduled."""
+        name, size, cap = template["name"], template["size"], template["instance_cap"]
+        errors, warnings = [], []
+        # the plugin takes the cap from either key, so a disagreement resolves to whichever applies last
+        if str(template["instance_cap_str"]) != str(cap):
+            errors.append(f"{name}: instanceCap {cap} disagrees with instanceCapStr {template['instance_cap_str']}")
+        for key, value in template["selector"].items():
+            if key not in seen:
+                # the resting state is every pool at zero, so this is not worth a warning on each deploy
+                debug(f"{name}: nodeSelector {key}={value} unconfirmed, no node currently carries {key}")
+            elif value not in seen[key]:
+                errors.append(f"{name}: nodeSelector {key}={value} matches no node, though {key} is present with"
+                              f" {sorted(seen[key])}; agents would never be scheduled")
+        if size is None:
+            warnings.append(f"{name}: no cassandra.jenkins.agent.<size> nodeSelector, cap {cap} not checked")
+        elif size not in ceilings:
+            # a size unresolved while others resolved is a blind spot worth flagging.  Nothing resolving at all
+            # means the check could not run here, a fact about the cluster and not about these values
+            unchecked = f"{name}: instanceCap {cap} unchecked, no ceiling could be established for {size!r}"
+            if ceilings:
+                warnings.append(unchecked)
+            else:
+                debug(unchecked)
+        elif isinstance(cap, int) and cap > ceilings[size]:
+            errors.append(f"{name}: instanceCap {cap} exceeds the {ceilings[size]} nodes the {size} pool can hold,"
+                          f" so {cap - ceilings[size]} agents could never be scheduled")
+        else:
+            debug(f"{name}: instanceCap {cap} within the {size} pool's {ceilings[size]} nodes")
+        return errors, warnings
+
+    templates = agent_templates(values)
+    if not templates:
+        return
+    pools, seen = node_pool_sizes(kubeconfig, kubecontext, kube_ns)
+    ceilings, unattributed = pool_ceilings(kubeconfig, kubecontext, pools,
+                                           {template["size"] for template in templates if template["size"]})
+    errors, warnings = [], []
+    for template in templates:
+        template_errors, template_warnings = check_template_capacity(template, ceilings, seen)
+        errors += template_errors
+        warnings += template_warnings
+
+    container_cap = values.get("agent", {}).get("containerCap")
+    total = sum(template["instance_cap"] for template in templates if isinstance(template["instance_cap"], int))
+    if isinstance(container_cap, int) and total > container_cap:
+        # benign, and not a fault to warn about on every deploy: the cloud cap leaves builds queued rather
+        # than creating pods that cannot be scheduled, it only stops every pool reaching its cap at once
+        debug(f"instanceCaps sum to {total} against a containerCap of {container_cap}, so the cloud cap binds"
+              f" first and the pools cannot all reach their cap at once")
+    for name, maximum in unattributed:
+        warnings.append(f"node pool {name!r} (maxSize {maximum}) matched no agent size and was not counted")
+
+    for warning in warnings:
+        print(f"WARNING: {warning}")
+    if errors:
+        print("\nRefusing to deploy agent podTemplates that could never be scheduled:\n")
+        for error in errors:
+            print(f"  {error}")
+        print("\nFix the podTemplate in .jenkins/k8s/jenkins-deployment.yaml, or raise the node pool's maximum"
+              " first (see .jenkins/k8s/README.md).")
+        sys.exit(1)
+
+def install_jenkins(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str,
+                    values_override: Optional[str] = None):
+    """Installs Jenkins Operator using Helm in the specified K8s namespace."""
+
+    def confirm_helm_updates():
+        """Prompts before an upgrade drops any values the deployed jenkins currently has."""
+
+        def helm_values() -> dict:
+            """
+            The values a deployed jenkins was last installed with, or an empty dict when there is no release.
+            These are the user-supplied values, whatever files they came from, so they include any customisations
+            made to the site outside of `.jenkins/k8s/jenkins-deployment.yaml`.
+            """
+            result = run_helm_command(kubeconfig, kubecontext, kube_ns,
+                                      ["get", "values", "cassius", "-o", "yaml"], check=False)
+            if result.returncode != 0:
+                debug(f"No existing cassius release found in namespace {kube_ns}: {result.stderr.strip()}")
+                return {}
+            return yaml.safe_load(result.stdout) or {}
+
+        def merge_values(base: dict, override: dict) -> dict:
+            """Merges two helm values files the way helm does: maps key by key, everything else replaced."""
+            merged = dict(base)
+            for key, value in override.items():
+                if isinstance(value, dict) and isinstance(merged.get(key), dict):
+                    merged[key] = merge_values(merged[key], value)
+                else:
+                    merged[key] = value
+            return merged
+
+        def detect_lost_values(live: dict, proposed: dict) -> dict:
+            """
+            Values the deployed jenkins has that an upgrade would drop, as {dotted.key.path: live value}.
+
+            A key held live but absent from what is about to be applied is either a customisation made to this site,
+            or a key that `.jenkins/k8s/jenkins-deployment.yaml` has removed since the site was last deployed.
+            Note also what this cannot see: a key that exists in both but was given a different value locally, such
+            as an edited `agent.podTemplates` entry, is silently overwritten.
+            Read the diff of `helm template` before deploying an unfamiliar site.
+            """
+            def leaf_values(values, path: str = "") -> dict:
+                """Flattens a values map to {dotted.key.path: value}, lists are leaves (helm replaces them)."""
+                if not isinstance(values, dict):
+                    return {path: values}
+                leaves = {}
+                for key, value in values.items():
+                    leaves.update(leaf_values(value, f"{path}.{key}" if path else str(key)))
+                return leaves
+
+            live_leaves, proposed_leaves = leaf_values(live), leaf_values(proposed)
+            lost = {path: value for path, value in live_leaves.items() if path not in proposed_leaves}
+            # lists are replaced wholesale, so also report items dropped from a list that is otherwise still there
+            for path, value in live_leaves.items():
+                if isinstance(value, list) and isinstance(proposed_leaves.get(path), list):
+                    dropped = [item for item in value if item not in proposed_leaves[path]]
+                    if dropped:
+                        lost[f"{path}[]"] = dropped
+            return lost
+
+        with open(DEPLOY_YAML, encoding="utf-8") as deploy_yaml:
+            proposed = yaml.safe_load(deploy_yaml) or {}
+        if values_override:
+            with open(values_override, encoding="utf-8") as override_yaml:
+                proposed = merge_values(proposed, yaml.safe_load(override_yaml) or {})
+
+        lost = detect_lost_values(helm_values(), proposed)
+        if not lost:
+            return proposed
+
+        print(f"\nWARNING: {len(lost)} value(s) the deployed jenkins has are absent from what is about to be applied.")
+        print("Each is either a customisation of this site, or a key removed from jenkins-deployment.yaml since"
+              " the site was last deployed.  Upgrading drops them:\n")
+        for path in sorted(lost):
+            value = str(lost[path]).replace("\n", " ")
+            print(f"  {path}: {value[:100] + '…' if len(value) > 100 else value}")
+        print(f"\nTo keep any of them, add them to a values override file (see .jenkins/k8s/README.md) and pass"
+              f" `--values-override`{' (the file passed does not contain them)' if values_override else ''}.")
+
+        if not sys.stdin.isatty():
+            print("Refusing to drop them when running non-interactively.")
+            sys.exit(1)
+        if input("\nDrop these values and continue? [y/N] ").strip().lower() not in ("y", "yes"):
+            print("Aborted, nothing was deployed.")
+            sys.exit(1)
+        return proposed
+
+    # the values checked are the merged result, so a site override raising an instanceCap is checked too
+    check_agent_capacity(kubeconfig, kubecontext, kube_ns, confirm_helm_updates())
+
+    print("Adding Helm repository for Jenkins Operator...")
+    subprocess.run(["helm", "repo", "add", "jenkins", "https://charts.jenkins.io"], check=True)
+    subprocess.run(["helm", "repo", "update"], check=True)
+
+    # site customisations are applied last, helm merges each -f over the previous
+    values_files = ["-f", DEPLOY_YAML] + (["-f", values_override] if values_override else [])
+    # --timeout is longer than helm's 5m default, which `--wait` would otherwise spend waiting for a pod
+    # whose controller.probes.startupProbe already permits a 300s boot, then fail a deploy that was
+    # succeeding.  Keep it clear of that budget plus the readinessProbe's, see jenkins-deployment.yaml
+    result = run_helm_command(kubeconfig, kubecontext, kube_ns,
+                              ["upgrade", "--install"] + values_files
+                              + ["cassius", "jenkins/jenkins", "--wait", "--timeout", "10m"])
+
+    run_kubectl_command(kubeconfig, kubecontext, kube_ns,
+                        ["exec", DEFAULT_POD_NAME, "--",
+                        "curl", "-sS", "https://www.apache.org/logos/originals/cassandra-4.svg",
+                        "-o", "/var/jenkins_cache/war/images/svgs/logo.svg"])
+
+    if result.returncode != 0:
+        print("Failed to install Jenkins Operator using Helm. Check the configuration and/or `kubectl logs cassius-jenkins-0`.")
+        sys.exit(1)
+
+
+def wait_for_jenkins_http(ip: str):
+    host, port = (ip.rsplit(":", 1)[0], int(ip.rsplit(":", 1)[1])) if ":" in ip else (ip, 80)
+    spin_while(f"Waiting for Jenkins HTTP at {host}:{port}… ", lambda: _tcp_connect_ok(host, port))
+
+
+def _tcp_connect_ok(host: str, port: int) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=2):
+            return True
+    except OSError:
+        return False
+
+
+def get_jenkins(k8s_client: client.CoreV1Api, args, kube_ns: str) -> Tuple[str, jenkins.Jenkins]:
+    """Authenticates to Jenkins and returns the Jenkins ip and server objects."""
+
+    def get_jenkins_ip(k8s_client, kube_ns: str) -> str:
+        svc = k8s_client.read_namespaced_service("cassius-jenkins", kube_ns)
+        if svc.status.load_balancer.ingress:
+            # the best we can do is the public IP or hostname of the controller, which may not be the common public url
+            ingress = svc.status.load_balancer.ingress[0]
+            ip = ingress.ip if ingress.ip else ingress.hostname
+            if svc.spec.ports[0].port != 80:
+                ip += ":" + str(svc.spec.ports[0].port)
+            print(f"Jenkins: {ip}\n---")
+            return ip
+        raise ValueError("Unable to retrieve Jenkins IP address")
+
+    def prompt_for_password():
+        return getpass.getpass("Enter Jenkins password: ")
+
+    kubeconfig = args.kubeconfig
+    kubecontext = args.kubecontext
+    user = args.user if args.user else "admin"
+    ip = args.url if args.url else get_jenkins_ip(k8s_client, kube_ns)
+
+    password = prompt_for_password() if args.user \
+        else run_kubectl_command(kubeconfig, kubecontext, kube_ns, ["exec", DEFAULT_POD_NAME, "--", "cat", "/run/secrets/additional/chart-admin-password"])
+    # Initialize Jenkins API clien
+    server = jenkins.Jenkins(f"http://{ip}", username=user, password=password)
+    return ip, server
+
+
+def ensure_job_parameters_visible(server: jenkins.Jenkins, job_name: str):
+    """
+    If necessary, triggers a non-parameter build to make parameterised builds visible.
+    """
+    job_info = server.get_job_info(job_name)
+    if any(param.get("parameterDefinitions") for param in job_info.get("property", [])):
+        return
+
+    print(f"Parameters are not visible for job {job_name}; initiating non-parameter build.")
+    queue_item = server.build_job(job_name)
+    build_number = wait_for_build_number(server, queue_item)
+    time.sleep(6)
+    try:
+        server.stop_build(job_name, build_number)
+    except client.exceptions.ApiException as e:
+        print(f"Failed to stop non-parameter build {job_name} {build_number}: {e}")
+    print(f"Parameters should now be available for job {job_name}.")
+
+
+def ensure_cassandra_job_parameters_visible(server: jenkins.Jenkins):
+    """Ensures parameterised builds are visible for all cassandra* jobs."""
+    for job in server.get_jobs():
+        job_name = job.get("name", "")
+        if job_name.startswith("cassandra"):
+            ensure_job_parameters_visible(server, job_name)
+
+
+def trigger_jenkins_build(server: jenkins.Jenkins, job_name: str, **build_params) -> dict:
+    """Triggers a Jenkins build with specified parameters and returns the queue item."""
+    ensure_job_parameters_visible(server, job_name)
+    print("Triggering Jenkins build… ")
+    return server.build_job(job_name, parameters=build_params)
+
+
+def wait_for_build_number(server: jenkins.Jenkins, queue_item: int) -> int:
+    spin_while("Waiting for job build number… ", lambda: ('executable' in server.get_queue_item(queue_item)))
+    build_number = server.get_queue_item(queue_item)['executable']['number']
+    sys.stdout.write("\033[F\033[K")  # Move cursor up one line and clear i
+    print(f"\rBuild number: {build_number}\n")
+    return build_number
+
+
+def wait_for_build_complete(server: jenkins.Jenkins, job_name: str, build_number: int):
+    """Waits for Jenkins build completion by monitoring the build status."""
+
+    def get_build_info(server: jenkins.Jenkins, job_name: str, build_number: int) -> dict:
+        try:
+            return server.get_build_info(job_name, build_number)
+        except (jenkins.NotFoundException, jenkins.JenkinsException, requests.exceptions.ConnectionError) as e:
+            debug(f"Failed get_build_info: {e}")
+            return {}
+
+    elapsed_time = spin_while("Waiting for build to complete… ",
+                              lambda: get_build_info(server, job_name, build_number).get('result'))
+
+    minutes, seconds = divmod(elapsed_time, 60)
+    result = get_build_info(server, job_name, build_number)['result']
+    print(f"\r---\nBuild completed after {minutes:02}:{seconds:02} with status: {result}")
+
+
+def spin_while(message="", is_complete=lambda: False) -> int:
+    spinner = itertools.cycle(['|', '/', '-', '\\'])
+    start_time = time.time()
+    elapsed_time = 0
+    while not is_complete():
+        elapsed_time = int(time.time() - start_time)
+        minutes, seconds = divmod(elapsed_time, 60)
+        for _ in range(10):
+            sys.stdout.write(f"\r{message} {minutes:02}:{seconds:02}   {next(spinner)}\033[?25l")
+            sys.stdout.flush()
+            time.sleep(0.3)
+    sys.stdout.write("\r" + " " * len(message + "          \033[?25h"))
+    sys.stdout.flush()
+    return elapsed_time
+
+def node_cleaner(k8s_client: client.CoreV1Api, kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str):
+    """
+    Periodically checks for dangling nodes and deletes them (and the underlying cloud instances)
+    for either GKE (GCP) or EKS (AWS). Cloud is auto-detected via node.spec.providerID.
+
+    Env variables (per cloud provider): AWS_REGION, GCP_PROJECT_ID, GCP_ZONE
+    """
+    def keep_running() -> bool:
+        return bool(globals().get("IS_RUNNING", True))
+
+    def node_cleaner_debug(msg: str):
+        if os.environ.get("NODE_CLEANER_DEBUG"):
+            print(msg)
+
+    class CloudProvider(Enum):
+        AWS = "aws"
+        GCP = "gcp"
+        UNKNOWN = None
+
+    # Patterns that indicate the node is actively in use by a jenkins pod
+    ACTIVE_POD_NAMES = ["agent-dind", "cassius"]
+
+    def is_node_in_use(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, node_name: str) -> bool:
+        desc = run_kubectl_command(kubeconfig, kubecontext, kube_ns, ["describe", "node", node_name])
+        return any(p in desc for p in ACTIVE_POD_NAMES)
+
+    def cordon_node(node_name: str):
+        try:
+            k8s_client.patch_node(name=node_name, body={"spec": {"unschedulable": True}})
+            node_cleaner_debug(f"Node {node_name} cordoned.")
+        except client.exceptions.ApiException as e:
+            node_cleaner_debug(f"Failed to cordon node {node_name}: {e}")
+
+    def drain_node(node_name: str):
+        try:
+            pods = k8s_client.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={node_name}")
+            for pod in pods.items:
+                owner_refs = pod.metadata.owner_references or []
+                # Delete only non-DaemonSet pods
+                if not any(ref.kind == "DaemonSet" for ref in owner_refs):
+                    try:
+                        k8s_client.delete_namespaced_pod(name=pod.metadata.name, namespace=pod.metadata.namespace)
+                    except client.exceptions.ApiException as e:
+                        node_cleaner_debug(f"Failed to delete pod {pod.metadata.name} on {node_name}: {e}")
+            node_cleaner_debug(f"Node {node_name} drained (and all non-DaemonSet pods deleted).")
+        except client.exceptions.ApiException as e:
+            node_cleaner_debug(f"Failed to drain node {node_name}: {e}")
+
+    def delete_k8s_node(node_name: str):
+        try:
+            k8s_client.delete_node(node_name)
+            node_cleaner_debug(f"Node {node_name} deleted from Kubernetes API.")
+        except client.exceptions.ApiException as e:
+            node_cleaner_debug(f"Failed to delete node {node_name} from K8s API: {e}")
+
+    def get_first_node_provider_id() -> Optional[str]:
+        try:
+            items = k8s_client.list_node().items
+            if not items:
+                return None
+            for n in items:
+                if n.spec and n.spec.provider_id:
+                    return n.spec.provider_id
+            return None
+        except client.exceptions.ApiException:
+            return None
+
+    def detect_cloud_provider(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, node_name: str) -> Tuple[CloudProvider, str]:
+        """ Returns CloudProvider.AWS, CloudProvider.GCP, or CloudProvider.UNKNOWN. """
+        try:
+            node_obj = k8s_client.read_node(node_name)
+        except client.exceptions.ApiException as e:
+            node_cleaner_debug(f"Failed to read node {node_name}: {e}")
+            return CloudProvider.UNKNOWN, None
+
+        provider_id = getattr(node_obj.spec, "provider_id", None).lower()
+
+        if not provider_id:
+            provider_id = get_first_node_provider_id().lower()
+
+        if provider_id:
+            if provider_id.startswith("aws:"):
+                return CloudProvider.AWS, provider_id
+            if provider_id.startswith("gce:"):
+                return CloudProvider.GCP, provider_id
+            return CloudProvider.UNKNOWN, provider_id
+
+        # Fallback via current-context name
+        provider_id = ""
+        try:
+            ctx = run_kubectl_command(kubeconfig, kubecontext, kube_ns, ["config", "current-context"]).lower()
+            if "arn:aws:eks" in ctx or "eks" in ctx:
+                return CloudProvider.AWS, provider_id
+            if "gke_" in ctx or "gke" in ctx:
+                return CloudProvider.GCP, provider_id
+        except subprocess.CalledProcessError:
+            debug(f"failed to determine provider_id: {e}")
+        return CloudProvider.UNKNOWN, None
+
+    def parse_aws_provider_id(provider_id: str) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Returns (instance_id, region) derived from providerID.
+        Example providerID: "aws:///us-west-2a/i-0123456789abcdef0"
+        region = "us-west-2" (derived from AZ)
+        """
+        assert provider_id
+        parts = provider_id.split("/")
+        instance_id = parts[-1] if parts else None
+        az = parts[-2] if len(parts) >= 2 else None  # e.g., "us-west-2a"
+        region = None
+        if az and len(az) >= 2:
+            region = az[:-1]  # drop 'a' -> "us-west-2"
+        # Prefer explicit env if set
+        if AWS_REGION:
+            region = AWS_REGION
+        return (instance_id, region)
+
+    def parse_gce_provider_id(provider_id: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        """
+        Returns (project_id, zone, instance_name) from providerID.
+        Example: "gce://my-project/us-central1-b/gke-...-node-..."
+        """
+        assert provider_id
+        pid = provider_id.split("://", 1)[-1]
+        project, zone, instance = pid.split("/", 2)
+        # Prefer explicit env if set
+        project = GCP_PROJECT_ID or project
+        zone = GCP_ZONE or zone
+        return (project, zone, instance)
+
+    def terminate_instance_gcp(project_id: str, zone: str, instance_name: str):
+        assert project_id and zone and instance_name
+        try:
+            from google.cloud import compute_v1
+            from google.api_core.exceptions import GoogleAPICallError
+        except ImportError as e:
+            node_cleaner_debug(f"GCP client not available: {e}")
+            raise
+        try:
+            gcloud_compute_client = compute_v1.InstancesClient()
+            op = gcloud_compute_client.delete(project=project_id, zone=zone, instance=instance_name)
+            try:
+                op.result()
+            except GoogleAPICallError as e:
+                node_cleaner_debug(f"Failed to wait for GCE instance deletion operation: {e}")
+                return
+            node_cleaner_debug(f"GCE instance {instance_name} deleted (project={project_id}, zone={zone}).")
+        except GoogleAPICallError as e:
+            node_cleaner_debug(f"Failed to delete GCE instance {instance_name}: {e}")
+
+    def terminate_instance_aws(instance_id: str, region: Optional[str]):
+        assert instance_id
+        try:
+            import boto3
+        except ImportError as e:
+            node_cleaner_debug(f"AWS boto3 not available: {e}")
+            return
+
+        session = boto3.session.Session(region_name=region or AWS_REGION)
+        autoscaling = session.client("autoscaling")
+        ec2 = session.client("ec2")
+
+        # Prefer ASG termination (decrement desired capacity), fallback to EC2 terminate
+        try:
+            autoscaling.terminate_instance_in_auto_scaling_group(
+                InstanceId=instance_id,
+                ShouldDecrementDesiredCapacity=True
+            )
+            node_cleaner_debug(f"EC2 instance {instance_id} terminated via Auto Scaling (decremented desired capacity).")
+            return
+        except autoscaling.exceptions.ClientError as e:
+            node_cleaner_debug(f"ASG termination failed for {instance_id}: {e}. Falling back to EC2 terminate.")
+        try:
+            ec2.terminate_instances(InstanceIds=[instance_id])
+            node_cleaner_debug(f"EC2 instance {instance_id} terminated via EC2 API.")
+        except ec2.exceptions.ClientError as e:
+            node_cleaner_debug(f"Failed to terminate EC2 instance {instance_id}: {e}")
+
+    def check_and_cleanup_node(node_name: str):
+        """ Check if node is dangling; if so, drain, delete from K8s, and remove the cloud instance. """
+        # 1) If used by known patterns, skip (check for 1 minute)
+        for attempt in range(6):
+            if not keep_running():
+                return
+            try:
+                if is_node_in_use(kubeconfig, kubecontext, kube_ns, node_name):
+                    node_cleaner_debug(f"Node {node_name} in use [check {attempt}].")
+                    return
+            except (subprocess.CalledProcessError, client.exceptions.ApiException) as e:
+                node_cleaner_debug(f"Failed to inspect node {node_name} [check {attempt}]: {e}")
+                return  # Don't delete nodes we can't inspect safely
+            time.sleep(10)
+
+        # 2) Determine provider + IDs from providerID of this node
+        cloud, provider_id = detect_cloud_provider(kubeconfig, kubecontext, kube_ns, node_name)
+
+        # 3) Cordon & drain & delete K8s node (shared)
+        node_cleaner_debug(f"Deleting dangling node {node_name}…")
+        cordon_node(node_name)
+        drain_node(node_name)
+        delete_k8s_node(node_name)
+
+        # 4) Cloud-specific instance delete/terminate
+        if CloudProvider.AWS == cloud:
+            instance_id, region = parse_aws_provider_id(provider_id)
+            if not instance_id and node_name.startswith("ip-") and "." in node_name:
+                # Can't derive instance-id from hostname; skip cloud deletion
+                node_cleaner_debug(f"No providerID for {node_name}; cannot derive EC2 instance-id from hostname.")
+            terminate_instance_aws(instance_id, region)
+        elif CloudProvider.GCP == cloud:
+            project_id, zone, instance_name = parse_gce_provider_id(provider_id)
+            terminate_instance_gcp(project_id, zone, instance_name if instance_name else node_name)
+        else:
+            node_cleaner_debug(f"Unknown cloud for node {node_name}; cloud instance not deleted.")
+
+    # Main node_cleaner loop
+    while keep_running():
+        try:
+            nodes = k8s_client.list_node().items
+            node_cleaner_debug(f"  {len(nodes)} nodes")
+        except client.exceptions.ApiException as e:
+            node_cleaner_debug(f"Failed to list nodes: {e}")
+            time.sleep(10)
+            continue
+        active_threads = {t.name for t in threading.enumerate()}
+        for n in nodes:
+            node_name = n.metadata.name
+            # only act on nodes with "agent" in the name
+            node_cleaner_debug(f"Checking node {node_name}…")
+            if node_name not in active_threads:
+                t = threading.Thread(target=check_and_cleanup_node, args=(node_name,), name=node_name, daemon=True)
+                t.start()
+        time.sleep(10)
+
+
+def delete_remote_junit_files(k8s_client, pod_name: str, kube_ns: str, base_job_name: str, build_number: int):
+    debug("Cleaning remote individual JUnit XML files...")
+    exec_command = ['rm', '-rf', f'/var/jenkins_home/jobs/{base_job_name}/builds/{build_number}/archive/test/output']
+    stream.stream(k8s_client.connect_get_namespaced_pod_exec,
+        pod_name, kube_ns, container=DEFAULT_CONTAINER_NAME, command=exec_command, stderr=True, stdin=False, stdout=True, tty=False, _preload_content=False)
+    debug("Remote JUnit XML files cleaned.")
+
+
+def download_results_and_print_summary(k8s_client, pod_name: str, kube_ns: str, build_number: int, ip: str, args):
+
+    def download_console_log(pod_name: str, container_name: str,  kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, console_log_path: str, local_console_log: Path):
+        max_retries = 5
+        for attempt in range(max_retries):
+            try:
+                run_kubectl_command(kubeconfig, kubecontext, kube_ns,
+                                    ["cp", "-c", container_name, f"{kube_ns}/{pod_name}:{console_log_path}", str(local_console_log)])
+
+                print(f"Console log saved to {local_console_log}.gz\n")
+                break
+            except subprocess.CalledProcessError as e:
+                if attempt < max_retries:
+                    debug(f" Failed to download {pod_name}:{console_log_path}: {e}. Retrying ({attempt + 1}/{max_retries})...")
+                    time.sleep(5)  # Wait before retrying
+                else:
+                    raise
+
+    def download_archive_tarball(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, pod_name: str, container_name: str, remote_path: str, local_path, max_retries=5):
+        for attempt in range(max_retries):
+            try:
+                run_kubectl_command(kubeconfig, kubecontext, kube_ns,
+                                    ["cp", "-c", container_name, f"{kube_ns}/{pod_name}:{remote_path}", str(local_path)])
+
+                debug(f"Build Artifacts saved in {local_path}")
+                break
+            except subprocess.CalledProcessError as e:
+                if attempt < max_retries:
+                    debug(f" Failed to download {pod_name}:{remote_path}: {e}. Retrying ({attempt + 1}/{max_retries})...")
+                    time.sleep(5)  # Wait before retrying
+                else:
+                    raise
+
+    def extract_and_rename(archive_path: str, local_results_dir: str, ci_summary_file: str, ci_details_file: str):
+        with tarfile.open(archive_path, "r:gz") as tar:
+            tar.extractall(path=local_results_dir)
+            if (local_results_dir / "archive/ci_summary.html").exists():
+                (local_results_dir / "archive/ci_summary.html").rename(ci_summary_file)
+                print(f"CI summary saved as {ci_summary_file}")
+            if (local_results_dir / "archive/results_details.tar.xz").exists():
+                (local_results_dir / "archive/results_details.tar.xz").rename(ci_details_file)
+                print(f"Details file saved as {ci_details_file}")
+            print(" (attach ci_summary….html and results_details….tar.xz to the JIRA ticket)")
+        os.remove(archive_path)
+        print("---")
+        print(f"Logs in {local_results_dir / 'archive/stage-logs/'} and {local_results_dir / 'archive/test/logs/'}")
+
+    def print_results_summary_console(local_console_log):
+        if local_console_log.exists():
+            with open(local_console_log, 'r', encoding="utf-8") as log_file:
+                log_content = log_file.read()
+                if "BUILD FAILED" in log_content:
+                    print("---")
+                    failed_index = log_content.index("BUILD FAILED")
+                    # Print the 200 characters after "BUILD FAILED"
+                    print(log_content[failed_index:failed_index + 200])
+            with open(local_console_log, 'r', encoding="utf-8") as log_file:
+                for line in log_file:
+                    if "Finished: " in line:
+                        print(line.strip())
+                        break
+        else:
+            print("Missing console log.")
+
+    def print_results_summary_ci_summary(ci_summary_file):
+        if ci_summary_file.exists():
+            with open(ci_summary_file, 'r', encoding="utf-8") as log_file:
+                summary_parts = []
+                for line in log_file:
+                    if any(l in line for l in [">Passed<", ">Failed<", ">Skipped<", ">Total<"]):
+                        summary_parts.append(BeautifulSoup(line, 'html.parser').get_text().strip())
+                    if ">Total<" in line:
+                        break
+                if summary_parts:
+                    print(" – ".join(summary_parts))
+        else:
+            print("No tests were run (or missing summary file).")
+
+    def print_results_summary(local_console_log, ci_summary_file):
+        print("--- Build Summary ---")
+        print_results_summary_console(local_console_log)
+        print_results_summary_ci_summary(ci_summary_file)
+        # leave console_log.txt gzipped
+        if local_console_log.exists():
+            with open(local_console_log, 'rb') as f_in, gzip.open(f"{local_console_log}.gz", 'wb') as f_out:
+                f_out.writelines(f_in)
+            os.remove(local_console_log)
+
+    def download_url(url, dest, max_retries=5):
+        for attempt in range(max_retries):
+            try:
+                urlretrieve(url, dest)
+                debug(f" saved {dest}")
+                break
+            except (requests.exceptions.RequestException, IOError) as e:
+                if attempt < max_retries:
+                    debug(f" Failed to download {url}: {e}. Retrying ({attempt + 1}/{max_retries})...")
+                    time.sleep(5)  # Wait before retrying
+                else:
+                    raise
+
+    local_results_dir = LOCAL_RESULTS_BASEDIR / ip.replace(".", "-") / str(build_number)
+    local_results_dir.mkdir(parents=True, exist_ok=True)
+    repo_owner = args.repository.split('/')[3] if 'https' in args.repository else args.repository.split(':')[1].split('/')[0]
+    ci_summary_file = local_results_dir / f"ci_summary_{repo_owner}_{args.branch.replace('/', '-')}_{build_number}.html"
+    ci_details_file = local_results_dir / f"results_details_{repo_owner}_{args.branch.replace('/', '-')}_{build_number}.tar.xz"
+    if args.url:
+        download_url(f"http://{ip}/job/{base_job_name(args)}/{build_number}/artifact/ci_summary.html", ci_summary_file)
+        download_url(f"http://{ip}/job/{base_job_name(args)}/{build_number}/artifact/results_details.tar.xz", ci_details_file)
+        if (ci_summary_file).exists():
+            print(f"CI summary saved as {ci_summary_file}")
+        if (ci_details_file).exists():
+            print(f"Details file saved as {ci_details_file}")
+        print(" (attach ci_summary….html and results_details….tar.xz to the JIRA ticket)")
+        print("--- Build Summary ---")
+        print_results_summary_ci_summary(ci_summary_file)
+    else:
+        kubeconfig = args.kubeconfig
+        kubecontext = args.kubecontext
+        local_console_log = local_results_dir / "console_log.txt"
+        local_archive_tar = local_results_dir / "archive.tar.gz"
+        remote_build_dir = f"/var/jenkins_home/jobs/{base_job_name(args)}/builds/{build_number}"
+        remote_console_log_path = f"{remote_build_dir}/log"
+        remote_archive_dir = f"{remote_build_dir}/archive"
+
+        print("Downloading build results and logs...")
+        console_log_thread = threading.Thread(target=download_console_log,
+                                              args=(pod_name, DEFAULT_CONTAINER_NAME, kubeconfig, kubecontext, kube_ns, remote_console_log_path, local_console_log))
+        console_log_thread.start()
+
+        # Compress and download the archive directory if it exists
+        archive_path_in_pod = f"{remote_archive_dir}.tar.gz"
+        try:
+            # compress
+            compress_command = ["tar", "czf", f"{archive_path_in_pod}", "-C", remote_build_dir, "archive"]
+            stream.stream(k8s_client.connect_get_namespaced_pod_exec, pod_name, kube_ns, container=DEFAULT_CONTAINER_NAME,
+                        command=compress_command, stderr=True, stdin=False, stdout=True, tty=False)
+
+            local_archive_tar = local_results_dir / "archive.tar.gz"
+            download_archive_tarball(kubeconfig, kubecontext, kube_ns, pod_name, DEFAULT_CONTAINER_NAME, archive_path_in_pod, local_archive_tar)
+            # delete
+            stream.stream(k8s_client.connect_get_namespaced_pod_exec, pod_name, kube_ns, container=DEFAULT_CONTAINER_NAME,
+                        command=['rm', archive_path_in_pod], stderr=True, stdin=False, stdout=True, tty=False)
+
+            extract_and_rename(local_archive_tar, local_results_dir, ci_summary_file, ci_details_file)
+
+            console_log_thread.join()
+            print_results_summary(local_console_log, ci_summary_file)
+        except client.exceptions.ApiException as e:
+            print(f"Failed to tarball artifacts at {archive_path_in_pod} in {pod_name}: {e}")
+
+
+def cleanup_and_maybe_teardown(kubeconfig: Optional[str], kubecontext: Optional[str], kube_ns: str, tear_down: bool):
+    global IS_RUNNING
+    IS_RUNNING = False
+    if tear_down:
+        print("Cleaning up Jenkins and all resources.")
+        run_helm_command(kubeconfig, kubecontext, kube_ns, ["uninstall", "cassius"], capture_output=False)
+        # the pvc is annotated `helm.sh/resource-policy: keep`, see .jenkins/k8s/jenkins-deployment.yaml
+        print(f"Jenkins uninstalled. The jenkins-home volume was kept, delete it with:\n"
+              f"  kubectl --namespace {kube_ns} delete pvc cassius-jenkins")
+
+
+@contextmanager
+def helm_installation_lock(lock_file: Path, timeout: int = 120):
+    with open(lock_file, "w", encoding="utf-8") as lock:
+        start = time.time()
+        while True:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                yield
+                break
+            except BlockingIOError as exc:
+                if (time.time() - start) > timeout:
+                    raise TimeoutError("Timeout waiting for file lock.") from exc
+                time.sleep(1)
+
+
+def main_download_results(k8s_client, ip, args):
+    build_number = int(args.download_results)
+    download_results_and_print_summary(k8s_client, DEFAULT_POD_NAME, DEFAULT_KUBE_NS, build_number, ip, args)
+
+
+def main():
+    load_environment_file()
+    args = parse_arguments()
+    k8s_client = None if args.url else setup_environment(args.kubeconfig, args.kubecontext)
+
+    if args.only_tear_down:
+        cleanup_and_maybe_teardown(args.kubeconfig, args.kubecontext, DEFAULT_KUBE_NS, True)
+        return
+    if args.only_node_cleaner:
+        os.environ["NODE_CLEANER_DEBUG"] = "true"
+        node_cleaner(k8s_client, args.kubeconfig, args.kubecontext, DEFAULT_KUBE_NS)
+        return
+    if args.setup or args.only_setup:
+        init_k8s_namespace(k8s_client, DEFAULT_KUBE_NS)
+        with helm_installation_lock(Path("/tmp/.cassandra-run-ci.lock")):
+            install_jenkins(args.kubeconfig, args.kubecontext, DEFAULT_KUBE_NS, args.values_override)
+
+    (ip, server) = get_jenkins(k8s_client, args, DEFAULT_KUBE_NS)
+    if args.setup or args.only_setup:
+        wait_for_jenkins_http(ip)
+        ensure_cassandra_job_parameters_visible(server)
+    if args.only_setup:
+        return
+    if args.download_results:
+        main_download_results(k8s_client, ip, args)
+        return
+
+    # Background node cleaner: checks for dangling nodes and deletes them, can dramatically reduce k8s costs
+    # set env var NODE_CLEANER_DISABLE to disable
+    if not os.environ.get("NODE_CLEANER_DISABLE") and not args.url:
+        threading.Thread(target=node_cleaner,
+                         args=(k8s_client, args.kubeconfig, args.kubecontext, DEFAULT_KUBE_NS), daemon=True).start()
+
+    # Trigger Jenkins build with parameters
+    build_params = {
+        "repository": args.repository,
+        "branch": args.branch,
+        "profile": args.profile,
+        "profile_custom_regexp": args.profile_custom_regexp or "",
+        "jdk": args.jdk or "",
+        "dtest_repository": args.dtest_repository or "",
+        "dtest_branch": args.dtest_branch or ""
+    }
+
+    if DEFAULT_REPO_URL == args.repository and DEFAULT_REPO_BRANCH == args.branch and is_local_git_dirty(args):
+        print("Local uncommitted/unpushed changes.")
+        print(f"CI only runs on what is pushed in {args.repository} @ {args.branch}")
+        print("  See `git diff-index HEAD --` for uncommitted changes")
+        print("  See `git log @{u}.. --name-only` for unpushed changes")
+        print(" Do you want to continue anyway (y/N):")
+        if "y" != input().strip().lower():
+            return
+
+    queue_item = trigger_jenkins_build(server, base_job_name(args), **build_params)
+    build_number = wait_for_build_number(server, queue_item)
+    print(f"Jenkins UI at http://{ip}/job/{base_job_name(args)}/{build_number}/pipeline-overview/")
+    wait_for_build_complete(server, base_job_name(args), build_number)
+
+    # Post-build processing and cleanup
+    if not args.url:
+        delete_remote_junit_files(k8s_client, DEFAULT_POD_NAME, DEFAULT_KUBE_NS, base_job_name(args), build_number)
+    download_results_and_print_summary(k8s_client, DEFAULT_POD_NAME, DEFAULT_KUBE_NS, build_number, ip, args)
+    cleanup_and_maybe_teardown(args.kubeconfig, args.kubecontext, DEFAULT_KUBE_NS, args.tear_down)
+
+if __name__ == "__main__":
+    main()
