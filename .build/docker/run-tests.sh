@@ -98,6 +98,7 @@ done
 # pre-conditions
 command -v docker >/dev/null 2>&1 || { error 1 "docker needs to be installed"; }
 command -v bc >/dev/null 2>&1 || { error 1 "bc needs to be installed"; }
+command -v timeout >/dev/null 2>&1 || { error 1 "timeout needs to be installed"; }
 (docker info >/dev/null 2>&1) || { error 1 "docker needs to running"; }
 [ -f "${cassandra_dir}/build.xml" ] || { error 1 "${cassandra_dir}/build.xml must exist"; }
 [ -f "${cassandra_dir}/.build/run-tests.sh" ] || { error 1 "${cassandra_dir}/.build/run-tests.sh must exist"; }
@@ -261,6 +262,8 @@ fi
 
 # the docker container's env
 docker_envs="--env TEST_SCRIPT=${test_script} --env JAVA_VERSION=${java_version} --env PYTHON_VERSION=${python_version} --env cython=${cython} --env ANT_OPTS=\"${ANT_OPTS}\""
+# cassandra-4.x build.xml requires CASSANDRA_USE_JDK11 whenever ant runs under jdk 11
+[ "${java_version}" == "11" ] && docker_envs="${docker_envs} --env CASSANDRA_USE_JDK11=true"
 if [ -n "${DTEST_TMPDIR_LOCAL}" ] ; then
     DTEST_TMPDIR_REMOTE="$(sed "s:${build_dir}:/home/cassandra/cassandra/build:" <<< ${DTEST_TMPDIR_LOCAL})"
     docker_envs="${docker_envs} --env TMPDIR=${DTEST_TMPDIR_REMOTE} --env CCM_CONFIG_DIR=${DTEST_TMPDIR_REMOTE}/.ccm"

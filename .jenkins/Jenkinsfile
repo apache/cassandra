@@ -18,6 +18,10 @@
 //
 // Jenkins CI declaration.
 //
+// This is the Cassandra 4.0 adaptation of the 5.0+ pipeline: no `lint` step
+// (no `ant check` target on this branch) and no 5.0-only test steps
+// (simulator-dtest, test-latest, test-oa – no targets for them in this build.xml).
+//
 // The declarative pipeline is presented first as a high level view.
 //
 // Build and Test Stages are dynamic, the full possible list defined by the `tasks()` function.
@@ -139,11 +143,11 @@ pipeline {
 @NonCPS
 def pipelineProfiles() {
   return [
-    'packaging': ['artifacts', 'lint', 'debian', 'redhat'],
-    'skinny': ['lint', 'cqlsh-test', 'test', 'jvm-dtest', 'simulator-dtest', 'dtest'],
-    'pre-commit': ['artifacts', 'lint', 'debian', 'redhat', 'fqltool-test', 'cqlsh-test', 'test', 'test-latest', 'stress-test', 'test-burn', 'jvm-dtest', 'simulator-dtest', 'dtest', 'dtest-latest', 'microbench-test'],
-    'pre-commit w/ upgrades': ['artifacts', 'lint', 'debian', 'redhat', 'fqltool-test', 'cqlsh-test', 'test', 'test-latest', 'stress-test', 'test-burn', 'jvm-dtest', 'jvm-dtest-upgrade', 'simulator-dtest', 'dtest', 'dtest-novnode', 'dtest-latest', 'dtest-upgrade', 'microbench-test'],
-    'post-commit': ['artifacts', 'lint', 'debian', 'redhat', 'fqltool-test', 'cqlsh-test', 'test-cdc', 'test', 'test-latest', 'test-compression', 'stress-test', 'test-burn', 'long-test', 'test-oa', 'test-system-keyspace-directory', 'jvm-dtest', 'jvm-dtest-upgrade', 'simulator-dtest', 'dtest', 'dtest-novnode', 'dtest-latest', 'dtest-large', 'dtest-large-novnode', 'dtest-large-latest', 'dtest-upgrade', 'dtest-upgrade-novnode', 'dtest-upgrade-large', 'dtest-upgrade-large-novnode', 'microbench-test'],
+    'packaging': ['artifacts', 'debian', 'redhat'],
+    'skinny': ['cqlsh-test', 'test', 'jvm-dtest', 'dtest'],
+    'pre-commit': ['artifacts', 'debian', 'redhat', 'fqltool-test', 'cqlsh-test', 'test', 'stress-test', 'test-burn', 'jvm-dtest', 'dtest', 'dtest-latest', 'microbench-test'],
+    'pre-commit w/ upgrades': ['artifacts', 'debian', 'redhat', 'fqltool-test', 'cqlsh-test', 'test', 'stress-test', 'test-burn', 'jvm-dtest', 'jvm-dtest-upgrade', 'dtest', 'dtest-novnode', 'dtest-latest', 'dtest-upgrade', 'microbench-test'],
+    'post-commit': ['artifacts', 'debian', 'redhat', 'fqltool-test', 'cqlsh-test', 'test-cdc', 'test', 'test-compression', 'stress-test', 'test-burn', 'long-test', 'test-system-keyspace-directory', 'jvm-dtest', 'jvm-dtest-upgrade', 'dtest', 'dtest-novnode', 'dtest-latest', 'dtest-large', 'dtest-large-novnode', 'dtest-large-latest', 'dtest-upgrade', 'dtest-upgrade-novnode', 'dtest-upgrade-large', 'dtest-upgrade-large-novnode', 'microbench-test'],
     'performance': ['microbench'],
     'custom': []
   ]
@@ -173,7 +177,6 @@ def tasks() {
   def buildSteps = [
     'jar': [script: 'build-jars.sh', toCopy: null],
     'artifacts': [script: 'build-artifacts.sh', toCopy: 'apache-cassandra-*.tar.gz,apache-cassandra-*.jar,apache-cassandra-*.pom'],
-    'lint': [script: 'check-code.sh', toCopy: null],
     'debian': [script: 'build-debian.sh', toCopy: 'cassandra_*,cassandra-tools_*'],
     'redhat': [script: 'build-redhat.sh rpm', toCopy: '*.rpm'],
   ]
@@ -193,16 +196,13 @@ def tasks() {
     'fqltool-test': [splits: 1, size: 'small'],
     'test-cdc': [splits: 8],
     'test': [splits: 16],
-    'test-latest': [splits: 16],
     'test-compression': [splits: 16],
     'stress-test': [splits: 1, size: 'small'],
     'test-burn': [splits: 2],
     'long-test': [splits: 4],
-    'test-oa': [splits: 16],
     'test-system-keyspace-directory': [splits: 16],
     'jvm-dtest': [splits: 12],
     'jvm-dtest-upgrade': [splits: 6],
-    'simulator-dtest': [splits: 1, size: 'large'],
     'dtest': [splits: 64, size: 'large'],
     'dtest-novnode': [splits: 64, size: 'large'],
     'dtest-latest': [splits: 64, size: 'large'],
@@ -255,7 +255,7 @@ def tasks() {
     !(axis['python'] != pythonDefault && 'cqlsh-test' != axis['step']) && // Use only python 3.8 for all tests but cqlsh-test
     !(axis['cython'] != 'no' && 'cqlsh-test' != axis['step']) && // cython only for cqlsh-test, disable for others
     !(axis['cython'] == 'yes' && (axis['python'] == '3.12' || axis['python'] == '3.13')) && // Skip cython for Python 3.12+ see CASSANDRA-21482
-    !(axis['jdk'] != javaVersionDefault && ('cqlsh-test' == axis['step'] || 'simulator-dtest' == axis['step'] || axis['step'].contains('dtest-upgrade'))) && // run cqlsh-test, simulator-dtest, *dtest-upgrade only with jdk11
+    !(axis['jdk'] != javaVersionDefault && ('cqlsh-test' == axis['step'] || axis['step'].contains('dtest-upgrade'))) && // run cqlsh-test, *dtest-upgrade only with the default jdk
     // Disable splits for all but proper stages
     !(axis['split'] > 1 && !stepsMap.findAll { entry -> entry.value.splits >= axis['split'] }.keySet().contains(axis['step'])) &&
     // run only the build types on non-amd64

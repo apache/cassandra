@@ -32,5 +32,23 @@ echo
 #
 # Creates the debian package
 
-$(dirname -- "$0")/_docker_run.sh bullseye-build.docker docker/_build-debian.sh $1
-exit $?
+# debian/rules runs `ant realclean`, which must be able to remove build/ itself.
+# Use the checkout's normal build/ directory for Ant and a separate bind mount for
+# finished packages; mounting build/ itself at /dist would make realclean fail with EBUSY.
+[ "x${cassandra_dir}" != "x" ] || cassandra_dir="$(readlink -f $(dirname -- "$0")/../..)"
+[ "x${build_dir}" != "x" ] || build_dir="${cassandra_dir}/build"
+package_dir="${build_dir}.debian-packages"
+rm -rf "${package_dir}"
+mkdir -p "${package_dir}"
+
+build_dir="${package_dir}" CASSANDRA_DOCKER_USE_DEFAULT_BUILD_DIR=true \
+    $(dirname -- "$0")/_docker_run.sh bullseye-build.docker docker/_build-debian.sh "$1"
+status=$?
+if [ ${status} -eq 0 ]; then
+    mkdir -p "${build_dir}"
+    for artifact in "${package_dir}"/*; do
+        [ -e "${artifact}" ] && mv "${artifact}" "${build_dir}/"
+    done
+    rm -rf "${package_dir}"
+fi
+exit ${status}
