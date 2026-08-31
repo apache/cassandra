@@ -451,8 +451,7 @@ public class LeveledManifest
         return overlapping(first, last, others);
     }
 
-    @VisibleForTesting
-    static Set<SSTableReader> overlappingWithBounds(SSTableReader sstable, Map<SSTableReader, Bounds<Token>> others)
+    private static Set<SSTableReader> overlappingWithBounds(SSTableReader sstable, Map<SSTableReader, Bounds<Token>> others)
     {
         return overlappingWithBounds(sstable.getFirst().getToken(), sstable.getLast().getToken(), others);
     }
