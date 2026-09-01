@@ -51,6 +51,7 @@ public class ResultHandler implements Closeable
         resultStore = resultPaths != null ? new ResultStore(resultPaths, queryFilePath) : null;
         resultComparator = new ResultComparator(mismatchListener);
     }
+
     /**
      * Since we can't iterate a ResultSet more than once, and we don't want to keep the entire result set in memory
      * we feed the rows one-by-one to resultComparator and resultStore.

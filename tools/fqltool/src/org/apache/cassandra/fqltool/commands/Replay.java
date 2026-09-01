@@ -128,6 +128,11 @@ public class Replay implements Runnable
         }
     }
 
+    public static void replay(String keyspace, List<String> arguments, List<String> targetHosts, List<File> resultPaths, String queryStorePath, boolean replayDDLStatements)
+    {
+        replay(keyspace, arguments, targetHosts, resultPaths, queryStorePath, replayDDLStatements, ConnectionOptions.builder().build());
+    }
+
     public static void replay(String keyspace, List<String> arguments, List<String> targetHosts, List<File> resultPaths, String queryStorePath, boolean replayDDLStatements,
                                ConnectionOptions connectionOptions)
     {
