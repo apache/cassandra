@@ -445,6 +445,11 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         return uncheckedOptions;
     }
 
+    public static Map<String, String> normalizeOptions(Map<String, String> options)
+    {
+        return SizeTieredCompactionStrategyOptions.normalizeOptions(options);
+    }
+
     public String toString()
     {
         return String.format("TimeWindowCompactionStrategy[%s/%s]",

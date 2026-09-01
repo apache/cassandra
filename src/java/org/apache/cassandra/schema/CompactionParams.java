@@ -134,7 +134,7 @@ public final class CompactionParams
         }
         TombstoneOption tombstoneOption = tombstoneOptional.get();
 
-        Map<String, String> allOptions = new HashMap<>(options);
+        Map<String, String> allOptions = new HashMap<>(normalizeOptions(klass, options));
         if (supportsThresholdParams(klass))
         {
             allOptions.putIfAbsent(Option.MIN_THRESHOLD.toString(), Integer.toString(DEFAULT_MIN_THRESHOLD));
@@ -142,6 +142,44 @@ public final class CompactionParams
         }
 
         return new CompactionParams(klass, allOptions, isEnabled, tombstoneOption);
+    }
+
+    /**
+     * Gives the strategy a chance to canonicalize option values before we persist them in the schema and propagate
+     * them to the rest of the cluster. This keeps human-readable inputs such as {@code min_sstable_size = '50MiB'}
+     * from reaching nodes that only know how to parse a plain byte count.
+     * <p>
+     * The hook is opt-in: strategies that do not declare a static {@code normalizeOptions(Map)} - including
+     * {@link UnifiedCompactionStrategy}, whose size options require the unit suffix - are left alone.
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, String> normalizeOptions(Class<? extends AbstractCompactionStrategy> klass,
+                                                        Map<String, String> options)
+    {
+        try
+        {
+            return (Map<String, String>) klass.getMethod("normalizeOptions", Map.class).invoke(null, options);
+        }
+        catch (NoSuchMethodException e)
+        {
+            return options;
+        }
+        catch (InvocationTargetException e)
+        {
+            if (e.getTargetException() instanceof ConfigurationException)
+                throw (ConfigurationException) e.getTargetException();
+
+            Throwable cause = e.getCause() == null ? e : e.getCause();
+            throw new ConfigurationException(format("%s.normalizeOptions() threw an error: %s %s",
+                                                    klass.getName(),
+                                                    cause.getClass().getName(),
+                                                    cause.getMessage()),
+                                             e);
+        }
+        catch (IllegalAccessException e)
+        {
+            throw new ConfigurationException("Cannot access method normalizeOptions in " + klass.getName(), e);
+        }
     }
 
     public static CompactionParams stcs(Map<String, String> options)
