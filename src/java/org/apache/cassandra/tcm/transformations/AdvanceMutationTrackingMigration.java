@@ -109,6 +109,16 @@ public class AdvanceMutationTrackingMigration implements Transformation
             LockedRanges.AffectedRanges.EMPTY);
     }
 
+    @Override
+    public String toString()
+    {
+        return "AdvanceMutationTrackingMigration{" +
+               "keyspace='" + keyspace + '\'' +
+               ", tableId=" + tableId +
+               ", repairedRanges=" + repairedRanges +
+               '}';
+    }
+
     public static class Serializer implements AsymmetricMetadataSerializer<Transformation, AdvanceMutationTrackingMigration>
     {
         @Override
