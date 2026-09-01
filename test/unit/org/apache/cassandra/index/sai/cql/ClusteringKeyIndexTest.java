@@ -17,12 +17,15 @@
  */
 package org.apache.cassandra.index.sai.cql;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.Assert.assertEquals;
 
 public class ClusteringKeyIndexTest extends SAITester
 {
@@ -33,6 +36,12 @@ public class ClusteringKeyIndexTest extends SAITester
         createIndex("CREATE CUSTOM INDEX pk2_idx ON %s(pk2) USING 'StorageAttachedIndex'");
 
         disableCompaction();
+    }
+
+    @After
+    public void resetSegmentSize()
+    {
+        SegmentBuilder.updateLastValidSegmentRowId(-1);
     }
 
     private void insertData1() throws Throwable
@@ -55,6 +64,33 @@ public class ClusteringKeyIndexTest extends SAITester
         insertData1();
         insertData2();
         runQueries();
+    }
+
+
+    @Test
+    public void reversedBigintClusteringMultiSegment()
+    {
+        createTable("CREATE TABLE %s (pk int, ck bigint, PRIMARY KEY (pk, ck)) WITH CLUSTERING ORDER BY (ck DESC)");
+        createIndex("CREATE INDEX ON %s(ck) USING 'sai'");
+        disableCompaction(keyspace());
+
+        for (long ck = 10; ck < 16; ck++)
+            execute("INSERT INTO %s (pk, ck) VALUES (?, ?)", 1, ck);
+        flush();
+
+        for (long ck = 16; ck < 22; ck++)
+            execute("INSERT INTO %s (pk, ck) VALUES (?, ?)", 1, ck);
+        flush();
+
+        // Force compaction with a small segment size cap, producing multiple segments.
+        SegmentBuilder.updateLastValidSegmentRowId(3);
+        compact();
+
+        for (long ck = 10; ck < 22; ck++)
+        {
+            int cnt = getRows(execute("SELECT ck FROM %s WHERE ck = ?", ck)).length;
+            assertEquals("Missing row for ck=" + ck, 1, cnt);
+        }
     }
 
     private Object[] expectedRow(int index)
