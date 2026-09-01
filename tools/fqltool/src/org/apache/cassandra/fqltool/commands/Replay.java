@@ -34,6 +34,7 @@ import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.fqltool.ConnectionOptions;
 import org.apache.cassandra.fqltool.FQLQuery;
 import org.apache.cassandra.fqltool.FQLQueryIterator;
 import org.apache.cassandra.fqltool.QueryReplayer;
@@ -109,8 +110,17 @@ public class Replay implements Runnable
             {
                 throw new IllegalArgumentException("You need to state at least one --target host to replay the query against");
             }
-            replay(keyspace, arguments, targetHosts, resultPaths, queryStorePath, replayDDLStatements,
-                   ssl, truststorePath, truststorePassword, keystorePath, keystorePassword, authProviderClass);
+
+            ConnectionOptions connectionOptions = ConnectionOptions.builder()
+                                                                    .withSsl(ssl)
+                                                                    .withTruststore(truststorePath)
+                                                                    .withTruststorePassword(truststorePassword)
+                                                                    .withKeystore(keystorePath)
+                                                                    .withKeystorePassword(keystorePassword)
+                                                                    .withAuthProviderClass(authProviderClass)
+                                                                    .build();
+
+            replay(keyspace, arguments, targetHosts, resultPaths, queryStorePath, replayDDLStatements, connectionOptions);
         }
         catch (Exception e)
         {
@@ -119,7 +129,7 @@ public class Replay implements Runnable
     }
 
     public static void replay(String keyspace, List<String> arguments, List<String> targetHosts, List<File> resultPaths, String queryStorePath, boolean replayDDLStatements,
-                               boolean ssl, String truststorePath, String truststorePassword, String keystorePath, String keystorePassword, String authProviderClass)
+                               ConnectionOptions connectionOptions)
     {
         int readAhead = 200; // how many fql queries should we read in to memory to be able to sort them?
         List<ChronicleQueue> readQueues = null;
@@ -144,8 +154,7 @@ public class Replay implements Runnable
             readQueues = arguments.stream().map(s -> SingleChronicleQueueBuilder.single(s).readOnly(true).build()).collect(Collectors.toList());
             iterators = readQueues.stream().map(ChronicleQueue::createTailer).map(tailer -> new FQLQueryIterator(tailer, readAhead)).collect(Collectors.toList());
             try (MergeIterator<FQLQuery, List<FQLQuery>> iter = MergeIterator.get(iterators, FQLQuery::compareTo, new Reducer());
-                 QueryReplayer replayer = new QueryReplayer(iter, targetHosts, resultPaths, filters, queryStorePath,
-                                                             ssl, truststorePath, truststorePassword, keystorePath, keystorePassword, authProviderClass))
+                 QueryReplayer replayer = new QueryReplayer(iter, targetHosts, resultPaths, filters, queryStorePath, connectionOptions))
             {
                 replayer.replay();
             }
