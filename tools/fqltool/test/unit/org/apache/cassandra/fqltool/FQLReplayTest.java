@@ -578,6 +578,12 @@ public class FQLReplayTest
         assertEquals(9042, pth.port );
         assertEquals("aaa", pth.user);
         assertEquals("bbb", pth.password);
+
+        pth = fromString("user:p@ssword@127.0.0.1:9042");
+        assertEquals("127.0.0.1", pth.host);
+        assertEquals(9042, pth.port);
+        assertEquals("user", pth.user);
+        assertEquals("p@ssword", pth.password);
     }
 
     @Test
@@ -585,21 +591,12 @@ public class FQLReplayTest
     {
         try
         {
-            new QueryReplayer(Collections.emptyIterator(),
-                              Lists.newArrayList("127.0.0.1:9999"),
-                              null,
-                              new ArrayList<>(),
-                              null,
-                              false, null, null, null, null,
-                              "com.not.a.real.AuthProviderClass");
-            throw new AssertionError("Expected RuntimeException to be thrown for invalid auth provider class");
+            ConnectionOptions.builder().withAuthProviderClass("com.not.a.real.AuthProviderClass").build();
+            throw new AssertionError("Expected RuntimeException for invalid auth provider class");
         }
         catch (RuntimeException e)
         {
-            assertTrue("Exception message should mention auth provider",
-                       e.getMessage().contains("auth provider") || e.getMessage().contains("AuthProvider"));
-            assertTrue("Exception message should mention the class name",
-                       e.getMessage().contains("com.not.a.real.AuthProviderClass"));
+            assertTrue(e.getMessage().contains("com.not.a.real.AuthProviderClass"));
         }
     }
 
@@ -618,20 +615,55 @@ public class FQLReplayTest
     {
         try
         {
-            new QueryReplayer(Collections.emptyIterator(),
-                              Lists.newArrayList("127.0.0.1:9999"),
-                              null,
-                              new ArrayList<>(),
-                              null,
-                              true, "/path/does/not/exist.jks", "password", null, null,
-                              null);
-            throw new AssertionError("Expected RuntimeException to be thrown for invalid truststore path");
+            ConnectionOptions.builder().withSsl(true).withTruststore("/path/does/not/exist.jks").withTruststorePassword("password").build();
+            throw new AssertionError("Expected RuntimeException for a bad truststore path");
         }
         catch (RuntimeException e)
         {
-            assertTrue("Exception message should mention SSL or truststore",
-                       e.getMessage().contains("SSL") || e.getMessage().contains("ssl") ||
-                       e.getMessage().contains("truststore") || e.getMessage().contains("fqltool"));
+            assertTrue(e.getMessage().contains("SSL"));
+        }
+    }
+
+    @Test
+    public void testImplicitSslEnableWithTruststoreOnly()
+    {
+        // no --ssl flag given, but a truststore path should still turn SSL on rather than being ignored
+        try
+        {
+            ConnectionOptions.builder().withTruststore("/path/does/not/exist.jks").build();
+            throw new AssertionError("Expected RuntimeException since SSL should be implicitly enabled");
+        }
+        catch (RuntimeException e)
+        {
+            assertTrue(e.getMessage().contains("SSL"));
+        }
+    }
+
+    @Test
+    public void testTruststorePasswordWithoutPathThrows()
+    {
+        try
+        {
+            ConnectionOptions.builder().withTruststorePassword("somepassword").build();
+            throw new AssertionError("Expected IllegalArgumentException when truststore password is given without a path");
+        }
+        catch (IllegalArgumentException e)
+        {
+            assertTrue(e.getMessage().contains("--ssl-truststore-password requires --ssl-truststore"));
+        }
+    }
+
+    @Test
+    public void testKeystorePasswordWithoutPathThrows()
+    {
+        try
+        {
+            ConnectionOptions.builder().withKeystorePassword("somepassword").build();
+            throw new AssertionError("Expected IllegalArgumentException when keystore password is given without a path");
+        }
+        catch (IllegalArgumentException e)
+        {
+            assertTrue(e.getMessage().contains("--ssl-keystore-password requires --ssl-keystore"));
         }
     }
 
@@ -648,6 +680,9 @@ public class FQLReplayTest
     @Test
     public void testAuthProviderWithoutCredentialsConstructorThrows()
     {
+        ConnectionOptions connectionOptions = ConnectionOptions.builder()
+                                                                .withAuthProviderClass(NoArgOnlyAuthProvider.class.getName())
+                                                                .build();
         try
         {
             new QueryReplayer(Collections.emptyIterator(),
@@ -655,14 +690,12 @@ public class FQLReplayTest
                               null,
                               new ArrayList<>(),
                               null,
-                              false, null, null, null, null,
-                              NoArgOnlyAuthProvider.class.getName());
+                              connectionOptions);
             throw new AssertionError("Expected RuntimeException when auth provider lacks a (String,String) constructor");
         }
         catch (RuntimeException e)
         {
-            assertTrue("Exception should mention plain text credentials",
-                       e.getMessage().contains("does not support plain text credentials"));
+            assertTrue(e.getMessage().contains("does not support plain text credentials"));
         }
     }
 
