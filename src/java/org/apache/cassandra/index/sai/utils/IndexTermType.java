@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
@@ -451,15 +450,6 @@ public class IndexTermType
             default:
                 return null;
         }
-    }
-
-    public Comparator<ByteBuffer> comparator()
-    {
-        // Override the comparator for BigInteger, frozen collections and composite types
-        if (isBigInteger() || isBigDecimal() || isComposite() || isFrozen())
-            return FastByteOperations::compareUnsigned;
-
-        return indexType;
     }
 
     /**
