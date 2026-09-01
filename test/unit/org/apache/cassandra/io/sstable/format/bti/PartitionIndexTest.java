@@ -146,66 +146,29 @@ public class PartitionIndexTest
             assertTrue("Generated index is too small to bound: " + firstPos, firstPos > 2 * PageAware.PAGE_SIZE);
 
             // the default warms the whole trie
-            assertEquals(firstPos, warmedBytes(fh, firstPos));
+            assertEquals(firstPos, PartitionIndex.warmIndex(fh, firstPos));
 
             try (WithProperties ignored = new WithProperties().set(BTI_PARTITION_INDEX_PRELOAD_SIZE, "-1B"))
             {
-                assertEquals(firstPos, warmedBytes(fh, firstPos));
+                assertEquals(firstPos, PartitionIndex.warmIndex(fh, firstPos));
             }
 
             // a bound at or above the trie length also warms the whole trie
             try (WithProperties ignored = new WithProperties().set(BTI_PARTITION_INDEX_PRELOAD_SIZE, (firstPos + 1) + "B"))
             {
-                assertEquals(firstPos, warmedBytes(fh, firstPos));
+                assertEquals(firstPos, PartitionIndex.warmIndex(fh, firstPos));
             }
 
-            // a bound below the trie length warms that much of the tail, rounded up to a page boundary
-            // so that the start of the warmed range always aligns with the real page grid
+            // a bound below the trie length warms exactly that much of the tail
             try (WithProperties ignored = new WithProperties().set(BTI_PARTITION_INDEX_PRELOAD_SIZE, (firstPos / 2) + "B"))
             {
-                long expected = firstPos - PageAware.pageStart(firstPos - firstPos / 2);
-                assertEquals(expected, warmedBytes(fh, firstPos));
-                assertTrue("warmed size should cover at least the requested bound", expected >= firstPos / 2);
+                assertEquals(firstPos / 2, PartitionIndex.warmIndex(fh, firstPos));
             }
 
             // 0B disables warming entirely
             try (WithProperties ignored = new WithProperties().set(BTI_PARTITION_INDEX_PRELOAD_SIZE, "0B"))
             {
-                assertEquals(0, warmedBytes(fh, firstPos));
-            }
-        }
-    }
-
-    private long warmedBytes(FileHandle fh, long firstPos) throws IOException
-    {
-        try (FileDataInput rdr = fh.createReader(0))
-        {
-            return PartitionIndex.warmIndex(fh, rdr, firstPos);
-        }
-    }
-
-    @Test
-    public void testWarmIndexAlwaysCoversFinalPage() throws IOException
-    {
-        File file = FileUtils.createTempFile("PartitionIndexWarmTest", "");
-        int length = 2 * PageAware.PAGE_SIZE + 1; // deliberately not a multiple of PAGE_SIZE
-        FileHandle.Builder fhBuilder = makeHandle(file);
-        try (SequentialWriter writer = new SequentialWriter(file, SequentialWriterOption.newBuilder().finishOnClose(true).build()))
-        {
-            writer.write(new byte[length]);
-        }
-
-        try (FileHandle fh = fhBuilder.complete())
-        {
-            // limit chosen so that start = length - limit == 1: unaligned to a page boundary
-            long limit = length - 1;
-            try (WithProperties ignored = new WithProperties().set(BTI_PARTITION_INDEX_PRELOAD_SIZE, limit + "B");
-                 FileDataInput rdr = fh.createReader(0))
-            {
-                long warmed = PartitionIndex.warmIndex(fh, rdr, length);
-                long start = length - warmed;
-                assertEquals("start of the warmed range must be page-aligned, or the final page can be skipped",
-                             0, start % PageAware.PAGE_SIZE);
+                assertEquals(0, PartitionIndex.warmIndex(fh, firstPos));
             }
         }
     }

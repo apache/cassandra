@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.io.sstable.format.bti;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.ByteBuffer;
@@ -38,7 +39,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
-import org.apache.cassandra.io.util.PageAware;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.Rebufferer;
 import org.apache.cassandra.io.util.SizedInts;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -78,6 +79,13 @@ public class PartitionIndex implements SharedCloseable
     public static final long NOT_FOUND = Long.MIN_VALUE;
     public static final int FOOTER_LENGTH = 3 * 8;
     private static final int FLAG_HAS_HASH_BYTE = 8;
+
+    /**
+     * Chunk size used to warm the partition index in {@link #warmIndex}. Large enough that reads are
+     * device-bound rather than bounded by per-request overhead, small enough to be a negligible
+     * transient allocation per opening thread.
+     */
+    private static final int PRELOAD_CHUNK_SIZE = (int) FileUtils.ONE_MIB;
 
     @VisibleForTesting
     public PartitionIndex(FileHandle fh, long trieRoot, long keyCount, DecoratedKey first, DecoratedKey last)
@@ -197,24 +205,30 @@ public class PartitionIndex implements SharedCloseable
             DecoratedKey first = partitioner != null ? partitioner.decorateKey(ByteBufferUtil.readWithShortLength(rdr)) : null;
             DecoratedKey last = partitioner != null ? partitioner.decorateKey(ByteBufferUtil.readWithShortLength(rdr)) : null;
             if (preload)
-                warmIndex(fh, rdr, firstPos);
+                warmIndex(fh, firstPos);
 
             return new PartitionIndex(fh, root, keyCount, first, last);
         }
     }
 
     /**
-     * Warms the partition index so trie lookups don't each fault it in. When bounded, warms the
-     * trie's tail, since the trie is written bottom-up and every lookup traverses the upper levels
-     * that end up there. The bound is relative to {@code firstPos} (the trie's end), not the file's
-     * end, since the file tail past it isn't trie data.
+     * Warms the partition index so trie lookups don't each fault it in.
+     *
+     * Chunked positioned reads on the channel, not one byte per page through a {@link FileDataInput},
+     * which follows {@code disk_access_mode} and so costs a pread or a page fault per page. A
+     * positioned read is unaffected by access mode, and page cache is shared between the buffered and
+     * mapped views of a file, so a mapped lookup afterwards still finds the data resident.
+     *
+     * When bounded, warms the trie's tail, since the trie is written bottom-up and every lookup
+     * traverses the upper levels that end up there. The bound is relative to {@code firstPos} (the
+     * trie's end), not the file's end, since the file tail past it isn't trie data.
      *
      * @param firstPos offset where the trie ends and the first/last key data begins
-     * @return size of the range warmed, in bytes
+     * @return the number of bytes read
      * @see CassandraRelevantProperties#BTI_PARTITION_INDEX_PRELOAD_SIZE
      */
     @VisibleForTesting
-    static long warmIndex(FileHandle fh, FileDataInput rdr, long firstPos) throws IOException
+    static long warmIndex(FileHandle fh, long firstPos) throws EOFException
     {
         long limit = CassandraRelevantProperties.BTI_PARTITION_INDEX_PRELOAD_SIZE.getSizeInBytes();
         if (limit == 0)
@@ -223,16 +237,33 @@ public class PartitionIndex implements SharedCloseable
             return 0;
         }
 
-        long start = limit > 0 && limit < firstPos ? PageAware.pageStart(firstPos - limit) : 0;
+        if (firstPos <= 0)
+            return 0;
 
-        int csum = 0;
-        for (long pos = start; pos < firstPos; pos += PageAware.PAGE_SIZE)
+        long start = limit > 0 && limit < firstPos ? firstPos - limit : 0;
+
+        ByteBuffer buffer = ByteBuffer.allocateDirect((int) Math.min(PRELOAD_CHUNK_SIZE, firstPos - start));
+        try
         {
-            rdr.seek(pos);
-            csum += rdr.readByte();
+            long pos = start;
+            while (pos < firstPos)
+            {
+                buffer.clear();
+                buffer.limit((int) Math.min(buffer.capacity(), firstPos - pos));
+
+                // ChannelProxy.read may return a short read; advance by what was actually read.
+                int read = fh.channel.read(buffer, pos);
+                if (read < 0)
+                    throw new EOFException("Failed to read " + fh.path() + " at position " + pos);
+
+                pos += read;
+            }
+            return pos - start;
         }
-        logger.trace("Checksum {}", csum);      // Note: trace is required so that reads aren't optimized away.
-        return firstPos - start;
+        finally
+        {
+            FileUtils.clean(buffer);
+        }
     }
 
     @Override
