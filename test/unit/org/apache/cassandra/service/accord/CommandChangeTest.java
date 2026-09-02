@@ -150,6 +150,9 @@ public class CommandChangeTest
                             continue;
                         }
 
+                        // We are not persisting the result, so force it for strict equality
+                        builder.forceResult(orig.result());
+
                         Command reconstructed = builder.construct(RedundantBefore.EMPTY);
 
                         checks.assertThat(reconstructed)
