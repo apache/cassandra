@@ -146,6 +146,53 @@ public abstract class CQLSSTableWriterTest
         testWritingSstableWithFormat(btiFormat);
     }
 
+    @Test
+    public void testUUIDSSTableIdentifiers() throws Exception
+    {
+        String schema = "CREATE TABLE " + qualifiedTable + " ("
+                        + "  k int PRIMARY KEY,"
+                        + "  v int"
+                        + ")";
+        String insert = "INSERT INTO " + qualifiedTable + " (k, v) VALUES (?, ?)";
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .withUUIDSSTableIdentifiers(true)
+                                                  .using(insert).build();
+
+        writer.addRow(0, 1);
+        writer.close();
+
+        File[] dataFiles = dataDir.tryList((dir, name) -> name.contains("Data.db"));
+        assertEquals(1, dataFiles.length);
+
+        Descriptor descriptor = Descriptor.fromFile(dataFiles[0]);
+        assertTrue(UUIDBasedSSTableId.Builder.instance.isUniqueIdentifier(descriptor.id.toString()));
+    }
+
+    @Test
+    public void testDefaultSSTableIdentifiersAreLegacy() throws Exception
+    {
+        String schema = "CREATE TABLE " + qualifiedTable + " ("
+                        + "  k int PRIMARY KEY,"
+                        + "  v int"
+                        + ")";
+        String insert = "INSERT INTO " + qualifiedTable + " (k, v) VALUES (?, ?)";
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using(insert).build();
+
+        writer.addRow(0, 1);
+        writer.close();
+
+        File[] dataFiles = dataDir.tryList((dir, name) -> name.contains("Data.db"));
+        assertEquals(1, dataFiles.length);
+
+        Descriptor descriptor = Descriptor.fromFile(dataFiles[0]);
+        assertTrue(SequenceBasedSSTableId.Builder.instance.isUniqueIdentifier(descriptor.id.toString()));
+    }
+
     private void testWritingSstableWithFormat(SSTableFormat<?, ?> format) throws Exception
     {
         try (AutoCloseable ignored = Util.switchPartitioner(ByteOrderedPartitioner.instance))

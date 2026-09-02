@@ -76,6 +76,18 @@ public class SSTableIdFactory
     }
 
     /**
+     * Returns identifiers builder for the given type, regardless of the uuid_sstable_identifiers_enabled setting.
+     */
+    @SuppressWarnings("unchecked")
+    public SSTableId.Builder<SSTableId> builderFor(boolean uuidBased)
+    {
+        SSTableId.Builder<? extends SSTableId> builder = uuidBased
+                                                         ? UUIDBasedSSTableId.Builder.instance
+                                                         : SequenceBasedSSTableId.Builder.instance;
+        return (SSTableId.Builder<SSTableId>) builder;
+    }
+
+    /**
      * Compare sstable identifiers so that UUID based identifier is always greater than sequence based identifier
      */
     public final static Comparator<SSTableId> COMPARATOR = Comparator.nullsFirst((id1, id2) -> {
