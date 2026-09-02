@@ -36,7 +36,7 @@
     </license>
   </licenses>
   <properties>
-    <bytebuddy.version>1.17.8</bytebuddy.version>
+    <bytebuddy.version>1.18.10</bytebuddy.version>
     <byteman.version>4.0.26</byteman.version>
     <netty.version>4.1.130.Final</netty.version>
     <ohc.version>0.5.1</ohc.version>
@@ -247,11 +247,19 @@
   </scm>
 
   <profiles>
+    <!--
+      The AmazonCorrettoCryptoProvider native jar is platform-specific, so the classifier is selected by the
+      build/test host's OS and CPU. The four profiles partition every (os, arch) combination with no overlap,
+      using the `mac` os family (and its `!mac` negation) to separate macOS from Linux, since both report the
+      `aarch64`/`x86_64` arch. macOS classifiers (osx-*) exist from ACCP 2.3.x onward; this is mainly to let
+      crypto tests run on macOS developer machines (Cassandra ships on Linux).
+    -->
     <profile>
-      <id>x86_64</id>
+      <id>linux-x86_64</id>
       <activation>
         <os>
           <!-- we need something as a default even if it doesn't successfully load the .so files. -->
+          <family>!mac</family>
           <arch>!aarch64</arch>
         </os>
       </activation>
@@ -260,15 +268,16 @@
           <groupId>software.amazon.cryptools</groupId>
           <artifactId>AmazonCorrettoCryptoProvider</artifactId>
           <classifier>linux-x86_64</classifier>
-          <version>2.2.0</version>
+          <version>2.5.0</version>
           <scope>provided</scope>
         </dependency>
       </dependencies>
     </profile>
     <profile>
-      <id>aarch_64</id>
+      <id>linux-aarch_64</id>
       <activation>
         <os>
+          <family>!mac</family>
           <arch>aarch64</arch>
         </os>
       </activation>
@@ -277,7 +286,43 @@
           <groupId>software.amazon.cryptools</groupId>
           <artifactId>AmazonCorrettoCryptoProvider</artifactId>
           <classifier>linux-aarch_64</classifier>
-          <version>2.2.0</version>
+          <version>2.5.0</version>
+          <scope>provided</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+    <profile>
+      <id>osx-x86_64</id>
+      <activation>
+        <os>
+          <family>mac</family>
+          <arch>!aarch64</arch>
+        </os>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>software.amazon.cryptools</groupId>
+          <artifactId>AmazonCorrettoCryptoProvider</artifactId>
+          <classifier>osx-x86_64</classifier>
+          <version>2.5.0</version>
+          <scope>provided</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+    <profile>
+      <id>osx-aarch_64</id>
+      <activation>
+        <os>
+          <family>mac</family>
+          <arch>aarch64</arch>
+        </os>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>software.amazon.cryptools</groupId>
+          <artifactId>AmazonCorrettoCryptoProvider</artifactId>
+          <classifier>osx-aarch_64</classifier>
+          <version>2.5.0</version>
           <scope>provided</scope>
         </dependency>
       </dependencies>
@@ -481,9 +526,11 @@
         <version>1.0.6</version>
       </dependency>
       <dependency>
-        <groupId>com.github.jbellis</groupId>
-        <artifactId>jamm</artifactId>
-        <version>${jamm.version}</version>
+        <!-- build-jamm.xml builds modules/jamm and installs it as
+             org.apache.cassandra:cassandra-jamm in the local Maven repository. -->
+        <groupId>org.apache.cassandra</groupId>
+        <artifactId>cassandra-jamm</artifactId>
+        <version>@version@</version>
       </dependency>
       <dependency>
         <groupId>tools.profiler</groupId>
@@ -513,13 +560,7 @@
       <dependency>
         <groupId>org.mockito</groupId>
         <artifactId>mockito-core</artifactId>
-        <version>5.12.0</version>
-        <scope>test</scope>
-      </dependency>
-      <dependency>
-        <groupId>org.mockito</groupId>
-        <artifactId>mockito-inline</artifactId>
-        <version>5.2.0</version>
+        <version>5.23.0</version>
         <scope>test</scope>
       </dependency>
       <dependency>

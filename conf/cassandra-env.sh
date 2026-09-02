@@ -180,7 +180,7 @@ if [ $DEFINED_XMN -eq 0 ] && [ $USING_G1 -eq 0 ]; then
 fi
 
 # If a user tries to use -Xmn with ZGC we should let them know it's not going to work. Not worth killing the node over though.
-if [ $DEFINED_XMN -eq 0 ] && [ $USING_ZGC -eq 0]; then
+if [ $DEFINED_XMN -eq 0 ] && [ $USING_ZGC -eq 0 ]; then
     echo "-Xmn does nothing when used in conjunction with ZGC; this setting will be ignored."
 fi
 
@@ -198,7 +198,10 @@ fi
 JVM_OPTS="$JVM_OPTS -XX:CompileCommandFile=$CASSANDRA_CONF/hotspot_compiler"
 
 # add the jamm javaagent
-JVM_OPTS="$JVM_OPTS -javaagent:$CASSANDRA_HOME/lib/jamm-0.4.0.jar"
+# Find the versioned cassandra-jamm agent jar.
+for jamm_jar in "$CASSANDRA_HOME"/lib/cassandra-jamm-*.jar; do
+    if [ -f "$jamm_jar" ]; then JVM_OPTS="$JVM_OPTS -javaagent:$jamm_jar"; break; fi
+done
 
 
 if [ "x$CASSANDRA_HEAPDUMP_DIR" = "x" ]; then

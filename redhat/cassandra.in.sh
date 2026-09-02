@@ -84,7 +84,10 @@ if [ -f "$CASSANDRA_HOME"/lib/jsr223/scala/scala-compiler.jar ] ; then
 fi
 
 # set JVM javaagent opts to avoid warnings/errors
-JAVA_AGENT="$JAVA_AGENT -javaagent:$CASSANDRA_HOME/lib/jamm-0.4.0.jar"
+# Find the versioned cassandra-jamm agent jar.
+for jamm_jar in "$CASSANDRA_HOME"/lib/cassandra-jamm-*.jar; do
+    if [ -f "$jamm_jar" ]; then JAVA_AGENT="$JAVA_AGENT -javaagent:$jamm_jar"; break; fi
+done
 
 # Added sigar-bin to the java.library.path CASSANDRA-7838
 JAVA_OPTS="$JAVA_OPTS:-Djava.library.path=$CASSANDRA_HOME/lib/sigar-bin"
@@ -123,7 +126,7 @@ fi
 
 # TODO: Factor this out to something we source so we don't have the duplication all over our scripts
 # Matches variable 'java.supported' in build.xml
-java_versions_supported=(11 17 21)
+java_versions_supported=(11 17 21 25)
 java_version_string=$(IFS=" "; echo "${java_versions_supported[*]}")
 
 # Determine the sort of JVM we'll be running on.
@@ -151,7 +154,9 @@ fi
 
 # Read user-defined JVM options from jvm-server.options file
 JVM_OPTS_FILE=$CASSANDRA_CONF/jvm${jvmoptions_variant:--clients}.options
-if [ $JAVA_VERSION -ge 21 ] ; then
+if [ $JAVA_VERSION -ge 25 ] ; then
+    JVM_DEP_OPTS_FILE=$CASSANDRA_CONF/jvm25${jvmoptions_variant:--clients}.options
+elif [ $JAVA_VERSION -ge 21 ] ; then
     JVM_DEP_OPTS_FILE=$CASSANDRA_CONF/jvm21${jvmoptions_variant:--clients}.options
 elif [ $JAVA_VERSION -ge 17 ] ; then
     JVM_DEP_OPTS_FILE=$CASSANDRA_CONF/jvm17${jvmoptions_variant:--clients}.options

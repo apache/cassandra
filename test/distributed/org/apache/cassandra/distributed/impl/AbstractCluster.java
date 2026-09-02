@@ -101,6 +101,7 @@ import org.apache.cassandra.distributed.shared.ShutdownException;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.tools.SystemExitManager;
 import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Isolated;
@@ -1168,7 +1169,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     public void close()
     {
         // Make sure that a nodetool call is not preventing us from stopping the instance
-        System.setSecurityManager(null);
+        SystemExitManager.reset();
 
         logger.info("Closing cluster {}", this.clusterId);
         FBUtilities.closeQuietly(instanceInitializer);

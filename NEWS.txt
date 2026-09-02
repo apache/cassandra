@@ -79,6 +79,13 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - JDK 25 is now officially supported as a build and runtime target, alongside JDK 11, 17 and 21.
+    Generational ZGC remains the recommended garbage collector on JDK 25; the non-generational ZGC mode
+    was removed from the JDK and is no longer available. See jvm25-server.options for the JDK 25
+    configuration parameters.
+    - Installing a SecurityManager is no longer supported on JDK 25 (JEP 411, finalized in JDK 24), so
+    -Djava.security.manager=allow is not set on that release. User-defined function sandboxing uses a new
+    SecurityManager-free mechanism on JDK 25; see the user_defined_functions options in cassandra.yaml.
 
     - CEP-49 - it is possible to implement custom compression providers, e.g.
       integrating with a specialized hardware which makes de/compression faster.

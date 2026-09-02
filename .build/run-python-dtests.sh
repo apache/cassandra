@@ -142,6 +142,12 @@ set -e # enable immediate exit if venv setup fails
 virtualenv-clone ${BUILD_HOME}/env${python_version} ${DIST_DIR}/venv || virtualenv --python=python${python_version} ${DIST_DIR}/venv
 source ${DIST_DIR}/venv/bin/activate
 pip3 install --exists-action w -r ${CASSANDRA_DTEST_DIR}/requirements.txt
+# Install the mounted cassandra-ccm working copy over the version in requirements.txt.
+[ "x${CASSANDRA_CCM_DIR}" != "x" ] || CASSANDRA_CCM_DIR="$(readlink -f ${CASSANDRA_DIR}/../cassandra-ccm)"
+if [ -f "${CASSANDRA_CCM_DIR}/setup.py" ] ; then
+    echo "Using local ccm from ${CASSANDRA_CCM_DIR}"
+    pip3 install --no-deps --force-reinstall ${CASSANDRA_CCM_DIR}
+fi
 pip3 freeze
 
 ################################

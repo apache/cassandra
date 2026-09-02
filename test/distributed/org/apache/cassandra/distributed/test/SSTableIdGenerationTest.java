@@ -82,14 +82,10 @@ public class SSTableIdGenerationTest extends TestBaseImpl
 
     private int v;
 
-    private static SecurityManager originalSecurityManager;
-
     @BeforeClass
     public static void beforeClass() throws Throwable
     {
         TestBaseImpl.beforeClass();
-
-        originalSecurityManager = System.getSecurityManager();
     }
 
     @Before
@@ -103,7 +99,7 @@ public class SSTableIdGenerationTest extends TestBaseImpl
     @AfterClass
     public static void afterClass() throws Throwable
     {
-        System.setSecurityManager(originalSecurityManager);
+        ClusterUtils.allowSystemExit();
     }
 
     /**

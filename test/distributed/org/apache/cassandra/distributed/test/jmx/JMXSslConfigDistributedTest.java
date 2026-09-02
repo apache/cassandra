@@ -37,6 +37,7 @@ import org.apache.cassandra.distributed.impl.JmxTestClientSslContextFactory;
 import org.apache.cassandra.distributed.impl.JmxTestClientSslSocketFactory;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.distributed.test.AbstractEncryptionOptionsImpl;
+import org.apache.cassandra.transport.TlsTestUtils;
 import org.apache.cassandra.utils.jmx.JMXSslPropertiesUtil;
 
 import static java.util.Map.of;
@@ -113,7 +114,9 @@ public class JMXSslConfigDistributedTest extends AbstractEncryptionOptionsImpl
         try (WithProperties withProperties = JMXSslPropertiesUtil.use(true, false, "TLSv1.2,TLSv1.3,TLSv1.1")
                                                                  .set(CASSANDRA_JMX_LOCAL_PORT, 7199))
         {
-            setKeystoreProperties(withProperties);
+            // JDK 25 SslRMIClientSocketFactory verifies endpoint identity. Use the test certificate with a
+            // 127.0.0.1 subject alternative name. The test truststore contains this certificate.
+            setKeystoreProperties(withProperties, TlsTestUtils.SERVER_KEYSTORE_ENDPOINT_VERIFY_PATH, TlsTestUtils.SERVER_KEYSTORE_ENDPOINT_VERIFY_PASSWORD);
             try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
                 c.with(Feature.JMX);
             }).start())
@@ -163,10 +166,17 @@ public class JMXSslConfigDistributedTest extends AbstractEncryptionOptionsImpl
 
     private void setKeystoreProperties(WithProperties properties)
     {
+        setKeystoreProperties(properties,
+                              (String) validFileBasedKeystores.get("keystore"),
+                              (String) validFileBasedKeystores.get("keystore_password"));
+    }
+
+    private void setKeystoreProperties(WithProperties properties, String keystorePath, String keystorePassword)
+    {
         properties.with(JAVAX_NET_SSL_TRUSTSTORE.getKey(), (String) validFileBasedKeystores.get("truststore"),
                         JAVAX_NET_SSL_TRUSTSTOREPASSWORD.getKey(), (String) validFileBasedKeystores.get("truststore_password"),
-                        JAVAX_NET_SSL_KEYSTORE.getKey(), (String) validFileBasedKeystores.get("keystore"),
-                        JAVAX_NET_SSL_KEYSTOREPASSWORD.getKey(), (String) validFileBasedKeystores.get("keystore_password"));
+                        JAVAX_NET_SSL_KEYSTORE.getKey(), keystorePath,
+                        JAVAX_NET_SSL_KEYSTOREPASSWORD.getKey(), keystorePassword);
     }
 
     @SuppressWarnings("unchecked")

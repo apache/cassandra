@@ -45,7 +45,7 @@
         The use of both CASSANDRA_USE_JDK11 and use-jdk11 is deprecated.
     -->
     <property name="java.default" value="11" />
-    <property name="java.supported" value="11,17,21" />
+    <property name="java.supported" value="11,17,21,25" />
 
     <!-- directory details -->
     <property name="basedir" value="."/>
@@ -116,6 +116,8 @@
     <property name="accord-core.build.libs" value="${accord.dir}/accord-core/build" />
     <property name="accord-core.build.name" value="accord-core-${version}" />
     <property name="accord-core.build.pom" value="${accord-core.build.libs}/publications/mavenJava/pom-default.xml" />
+    <property name="jamm.dir" value="modules/jamm" />
+    <property name="jamm.final.name" value="cassandra-jamm-${version}"/>
 
     <property name="local.repository" value="${user.home}/.m2/repository" />
     <property name="accord.local.repository" value="${local.repository}/org/apache/cassandra/cassandra-accord/${version}" />
@@ -151,7 +153,7 @@
     <property name="cassandra.test.messagingService.nonGracefulShutdown" value="true"/>
 
     <!-- https://www.eclemma.org/jacoco/ -->
-    <property name="jacoco.version" value="0.8.8"/>
+    <property name="jacoco.version" value="0.8.15"/>
     <property name="jacoco.export.dir" value="${build.dir}/jacoco/" />
     <property name="jacoco.partials.dir" value="${jacoco.export.dir}/partials" />
     <property name="jacoco.partialexecfile" value="${jacoco.partials.dir}/partial.exec" />
@@ -175,8 +177,8 @@
     <!-- When updating ASM, please, do consider whether you might need to update also FBUtilities#ASM_BYTECODE_VERSION
       and the simulator InterceptClasses#BYTECODE_VERSION, in particular if we are looking to provide Cassandra support
       for newer JDKs (CASSANDRA-17873). -->
-    <property name="asm.version" value="9.5"/>
-    <property name="allocation-instrumenter.version" value="3.1.0"/>
+    <property name="asm.version" value="9.8"/>
+    <property name="allocation-instrumenter.version" value="3.3.5"/>
 
     <condition property="is.source.artifact">
       <available file="${build.src.java}" type="dir" />
@@ -227,6 +229,15 @@
     </fail>
     <condition property="is.java.default"><equals arg1="${ant.java.version}" arg2="${java.default}"/></condition>
     <echo unless:true="${is.java.default}" message="Non default JDK version used: ${ant.java.version}"/>
+
+    <!-- JDK 23+ requires -proc:full to run the compiler-hints processor that writes
+         META-INF/hotspot_compiler. The flag is available on JDK 21+. -->
+    <condition property="javac-proc-arg" value="-proc:full" else="">
+        <or>
+            <equals arg1="${ant.java.version}" arg2="21"/>
+            <equals arg1="${ant.java.version}" arg2="25"/>
+        </or>
+    </condition>
 
     <condition property="arch_x86">
       <equals arg1="${os.arch}" arg2="x86" />
@@ -397,8 +408,59 @@
         <string>--add-opens jdk.management/com.sun.management=ALL-UNNAMED</string>
     </resources>
     <pathconvert property="_jvm21_args_concat" refid="_jvm21_arg_items" pathsep=" "/>
-    <condition property="java-jvmargs" value="${_jvm21_args_concat}" else="">
+    <condition property="java-jvmargs" value="${_jvm21_args_concat}">
         <equals arg1="${ant.java.version}" arg2="21"/>
+    </condition>
+
+    <resources id="_jvm25_arg_items">
+        <string>-Djdk.attach.allowAttachSelf=true</string>
+        <!-- Suppress the JDK 23+ sun.misc.Unsafe memory-access warning. -->
+        <string>--sun-misc-unsafe-memory-access=allow</string>
+
+        <string>-XX:+UseZGC</string>
+        <!-- JDK 25 uses generational ZGC with -XX:+UseZGC. -->
+
+        <!-- Disable CompressedOops because jamm assumes it is enabled with ZGC. -->
+        <string>-XX:-UseCompressedOops</string>
+
+        <!-- JDK 25 does not support SecurityManager installation. UDFs use the byte-code sandbox. -->
+
+        <string>--add-exports java.base/java.lang.ref=ALL-UNNAMED</string>
+        <string>--add-exports java.base/java.lang.reflect=ALL-UNNAMED</string>
+        <string>--add-exports java.base/jdk.internal.misc=ALL-UNNAMED</string>
+        <string>--add-exports java.base/jdk.internal.ref=ALL-UNNAMED</string>
+        <string>--add-exports java.base/sun.nio.ch=ALL-UNNAMED</string>
+        <string>--add-exports java.management.rmi/com.sun.jmx.remote.internal.rmi=ALL-UNNAMED</string>
+        <string>--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED</string>
+        <string>--add-exports java.rmi/sun.rmi.server=ALL-UNNAMED</string>
+        <string>--add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED</string>
+        <string>--add-exports java.sql/java.sql=ALL-UNNAMED</string>
+        <string>--add-exports jdk.unsupported/sun.misc=ALL-UNNAMED</string>
+        <string>--add-exports jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED</string>
+        <string>--add-exports jdk.attach/sun.tools.attach=ALL-UNNAMED</string>
+
+        <string>--add-opens java.base/java.io=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.lang=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.lang.module=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.lang.reflect=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.math=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.net=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.nio=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.util=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.util.concurrent=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.util.concurrent.atomic=ALL-UNNAMED</string>
+        <string>--add-opens java.base/jdk.internal.loader=ALL-UNNAMED</string>
+        <string>--add-opens java.base/jdk.internal.math=ALL-UNNAMED</string>
+        <string>--add-opens java.base/jdk.internal.module=ALL-UNNAMED</string>
+        <string>--add-opens java.base/jdk.internal.ref=ALL-UNNAMED</string>
+        <string>--add-opens java.base/jdk.internal.reflect=ALL-UNNAMED</string>
+        <string>--add-opens java.base/sun.nio.ch=ALL-UNNAMED</string>
+        <string>--add-opens java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED</string>
+        <string>--add-opens jdk.management/com.sun.management=ALL-UNNAMED</string>
+    </resources>
+    <pathconvert property="_jvm25_args_concat" refid="_jvm25_arg_items" pathsep=" "/>
+    <condition property="java-jvmargs" value="${_jvm25_args_concat}" else="">
+        <equals arg1="${ant.java.version}" arg2="25"/>
     </condition>
 
     <!--
@@ -447,6 +509,22 @@
     </resources>
     <pathconvert property="_jvm21_test_arg_items_concat" refid="_jvm21_test_arg_items" pathsep=" "/>
 
+    <resources id="_jvm25_test_arg_items">
+        <string>-XX:+HeapDumpOnOutOfMemoryError</string>
+        <string>-Dio.netty.tryReflectionSetAccessible=true</string>
+        <!-- Suppress the JDK 23+ sun.misc.Unsafe memory-access warning. -->
+        <string>--sun-misc-unsafe-memory-access=allow</string>
+
+        <!-- Open packages required by jamm in in-JVM dtests. -->
+        <string>--add-opens=java.base/java.lang=ALL-UNNAMED</string>
+        <string>--add-exports=java.base/jdk.internal.vm.annotation=ALL-UNNAMED</string>
+
+        <!-- JDK 25 tests use Byte Buddy's JDK 25 support and Unsafe for final-field writes.
+             testmacrohelper supplies the Byteman and Byte Buddy agents on the command line.
+             The test JVM does not install a SecurityManager. -->
+    </resources>
+    <pathconvert property="_jvm25_test_arg_items_concat" refid="_jvm25_test_arg_items" pathsep=" "/>
+
     <condition property="_std-test-jvmargs" value="${_jvm11_test_arg_items_concat}">
         <equals arg1="${ant.java.version}" arg2="11"/>
     </condition>
@@ -455,6 +533,9 @@
     </condition>
     <condition property="_std-test-jvmargs" value="${_jvm21_test_arg_items_concat}">
         <equals arg1="${ant.java.version}" arg2="21"/>
+    </condition>
+    <condition property="_std-test-jvmargs" value="${_jvm25_test_arg_items_concat}">
+        <equals arg1="${ant.java.version}" arg2="25"/>
     </condition>
 
     <!-- needed to compile org.apache.cassandra.utils.JMXServerUtils -->
@@ -742,7 +823,7 @@
         </classpath>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
         <jvmarg value="-Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true" /> <!-- enable defensive checks -->
-        <jvmarg value="-javaagent:${build.dir.lib}/jars/jamm-${jamm.version}.jar" />
+        <jvmarg value="-javaagent:${build.dir.lib}/jars/${jamm.final.name}.jar" />
         <jvmarg value="-ea"/>
         <jvmarg line="${java-jvmargs}"/>
       </java>
@@ -751,7 +832,7 @@
     <!--
         The build target builds all the .class files
     -->
-    <target name="_build_subprojects" depends="_build-accord" description="Builds all subprojects needed for the build" />
+    <target name="_build_subprojects" depends="_build-accord,_build-jamm" description="Builds all subprojects needed for the build" />
     <target name="build" depends="resolver-retrieve-build,_build_subprojects,build-project" description="Compile Cassandra classes"/>
     <target name="codecoverage" depends="jacoco-run,jacoco-report" description="Create code coverage report"/>
 
@@ -766,6 +847,7 @@
             <src path="${build.src.gen-java}"/>
             <compilerarg value="-XDignore.symbol.file"/>
             <compilerarg line="${jdk11plus-javac-exports}"/>
+            <compilerarg line="${javac-proc-arg}"/>
             <classpath>
                 <path refid="cassandra.classpath"/>
             </classpath>
@@ -1437,7 +1519,7 @@
         <jvmarg value="-Dstorage-config=${test.conf}"/>
         <jvmarg value="-Djava.awt.headless=true"/>
         <!-- Cassandra 3.0+ needs <jvmarg line="... ${additionalagent}" /> here! (not value=) -->
-        <jvmarg line="-javaagent:${build.dir.lib}/jars/jamm-${jamm.version}.jar ${additionalagent}" />
+        <jvmarg line="-javaagent:${build.dir.lib}/jars/${jamm.final.name}.jar ${additionalagent}" />
         <jvmarg value="-ea"/>
         <jvmarg value="-Djava.io.tmpdir=${tmp.dir}"/>
         <jvmarg value="-Dcassandra.debugrefcount=true"/>
@@ -1798,7 +1880,7 @@
         <formatter type="brief" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
         <jvmarg value="-Djava.awt.headless=true"/>
-        <jvmarg value="-javaagent:${build.dir.lib}/jars/jamm-${jamm.version}.jar" />
+        <jvmarg value="-javaagent:${build.dir.lib}/jars/${jamm.final.name}.jar" />
         <jvmarg value="-ea"/>
         <jvmarg value="${jvm_xss}"/>
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
@@ -1844,7 +1926,7 @@
         <formatter type="brief" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
         <jvmarg value="-Djava.awt.headless=true"/>
-        <jvmarg value="-javaagent:${build.dir.lib}/jars/jamm-${jamm.version}.jar" />
+        <jvmarg value="-javaagent:${build.dir.lib}/jars/${jamm.final.name}.jar" />
         <jvmarg value="-ea"/>
         <jvmarg value="${jvm_xss}"/>
         <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
@@ -2438,5 +2520,6 @@
   <import file="${build.helpers.dir}/build-bench.xml"/>
   <import file="${build.helpers.dir}/build-sonar.xml"/>
   <import file="${build.helpers.dir}/build-accord.xml" />
+  <import file="${build.helpers.dir}/build-jamm.xml" />
   <import file="${basedir}/tools/sstableloader/build.xml"/>
 </project>

@@ -52,7 +52,7 @@ RUN sh -c '\
     JDK_TAR="openjdk-21.0.2_${JDK_OS}-$(uname -m | sed "s/x86_64/x64/")_bin.tar.gz" ;\
     JDK_VERSION_SHAS="08db1392a48d4eb5ea5315cf8f18b89dbaf36cda663ba882cf03c704c9257ec2 a2def047a73941e01a73739f92755f86b895811afb1f91243db214cff5bdac3f 8fd09e15dc406387a0aba70bf5d99692874e999bf9cd9208b452b5d76ac922d3 b3d588e16ec1e0ef9805d8a696591bd518a5cea62567da8f53b5ce32d11d22e4" ;\
     curl -L --fail --silent --retry 2 --retry-delay 5 --max-time 3600 "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/${JDK_TAR}" -o $JDK_TAR ;\
-    JDK_SHA="$(sha256sum $JDK_TAR | cut -d" " -f2)" ;\
+    JDK_SHA="$(sha256sum $JDK_TAR | cut -d" " -f1)" ;\
     echo "$JDK_VERSION_SHAS" | sed "s/ /\n/g" | grep -q "$JDK_SHA" || { echo "SHA256 mismatch for $JDK_TAR $JDK_SHA"; exit 1; } ;\
     mkdir -p /usr/lib/jvm/java-21-openjdk-$(dpkg --print-architecture) ;\
     tar -C /usr/lib/jvm/java-21-openjdk-$(dpkg --print-architecture) --strip-components=1 -xzf $JDK_TAR ;\
@@ -61,6 +61,24 @@ RUN sh -c '\
 # Add OpenJDK 21 to update-alternatives
 RUN update-alternatives --install /usr/bin/java java /usr/lib/jvm/java-21-openjdk-$(dpkg --print-architecture)/bin/java 1
 RUN update-alternatives --install /usr/bin/javac javac /usr/lib/jvm/java-21-openjdk-$(dpkg --print-architecture)/bin/javac 1
+
+# Install OpenJDK 25.0.2 for the current architecture.
+# The SHA256 values come from the OpenJDK GA .sha256 files for x64 and aarch64.
+RUN sh -c '\
+  set -ex ;\
+    JDK_OS=linux ;\
+    JDK_TAR="openjdk-25.0.2_${JDK_OS}-$(uname -m | sed "s/x86_64/x64/")_bin.tar.gz" ;\
+    JDK_VERSION_SHAS="555ce0821e4fe175ea50d54518cd6fbece9663c1998de529bc6ce429534457df 671208d205e70c9805da45a483f670d49dd64654990a7b7223ccffb2abb070dd" ;\
+    curl -L --fail --silent --retry 2 --retry-delay 5 --max-time 3600 "https://download.java.net/java/GA/jdk25.0.2/b1e0dfa218384cb9959bdcb897162d4e/10/GPL/${JDK_TAR}" -o $JDK_TAR ;\
+    JDK_SHA="$(sha256sum $JDK_TAR | cut -d" " -f1)" ;\
+    echo "$JDK_VERSION_SHAS" | sed "s/ /\n/g" | grep -q "$JDK_SHA" || { echo "SHA256 mismatch for $JDK_TAR $JDK_SHA"; exit 1; } ;\
+    mkdir -p /usr/lib/jvm/java-25-openjdk-$(dpkg --print-architecture) ;\
+    tar -C /usr/lib/jvm/java-25-openjdk-$(dpkg --print-architecture) --strip-components=1 -xzf $JDK_TAR ;\
+    rm $JDK_TAR'
+
+# Add OpenJDK 25 to update-alternatives
+RUN update-alternatives --install /usr/bin/java java /usr/lib/jvm/java-25-openjdk-$(dpkg --print-architecture)/bin/java 1
+RUN update-alternatives --install /usr/bin/javac javac /usr/lib/jvm/java-25-openjdk-$(dpkg --print-architecture)/bin/javac 1
 
 RUN update-alternatives --set java /usr/lib/jvm/java-11-openjdk-$(dpkg --print-architecture)/bin/java
 RUN update-alternatives --set javac /usr/lib/jvm/java-11-openjdk-$(dpkg --print-architecture)/bin/javac

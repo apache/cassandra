@@ -99,7 +99,6 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbe;
 import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbeFactory;
-import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.distributed.shared.ThrowingRunnable;
 import org.apache.cassandra.distributed.test.log.TestProcessor;
@@ -161,6 +160,7 @@ import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.Output;
 import org.apache.cassandra.tools.SystemExitException;
+import org.apache.cassandra.tools.SystemExitManager;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -1157,9 +1157,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             try (CapturingOutput output = new CapturingOutput();
                  DTestNodeTool nodetool = new DTestNodeTool(withNotifications, output.delegate))
             {
-                SecurityManager before = System.getSecurityManager();
-                // install security manager to get informed about the exit-code
-                ClusterUtils.preventSystemExit();
+                // Intercept System.exit to capture the status code.
+                SystemExitManager.blockExit();
 
                 int rc;
                 try
@@ -1172,7 +1171,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 }
                 finally
                 {
-                    System.setSecurityManager(before);
+                    SystemExitManager.unblockExit();
                 }
                 return new NodeToolResult(commandAndArgs, rc,
                                           new ArrayList<>(nodetool.notifications.notifications),
