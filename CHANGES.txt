@@ -9,6 +9,7 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Upgrade lz4-java to 1.11.2 (CASSANDRA-21564)
  * Encode the CQL as raw bytes to avoid utf string serialization length limitation (CASSANDRA-21599)
  * Add a guardrail to disallow reconfiguring CMS below a minimum size (CASSANDRA-19195)
  * Node can report DECOMMISSION_FAILED while actively leaving after a rejected decommission attempt (CASSANDRA-21583)
