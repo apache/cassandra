@@ -54,7 +54,7 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
     protected final RegularAndStaticColumns columns;
     protected SSTableFormat<?, ?> format = DatabaseDescriptor.getSelectedSSTableFormat();
     protected static final AtomicReference<SSTableId> id = new AtomicReference<>(SSTableIdFactory.instance.defaultBuilder().generator(Stream.empty()).get());
-    protected final SSTableId.Builder<SSTableId> idBuilder;
+    protected final SSTableId.Builder<? extends SSTableId> idBuilder;
     protected boolean makeRangeAware = false;
     protected final Collection<Index.Group> indexGroups;
     protected Consumer<Collection<SSTableReader>> sstableProducedListener;
@@ -62,7 +62,7 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
     protected CompressionDictionary compressionDictionary;
     protected SSTable.Owner owner;
 
-    protected AbstractSSTableSimpleWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, SSTableId.Builder<SSTableId> idBuilder)
+    protected AbstractSSTableSimpleWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, SSTableId.Builder<? extends SSTableId> idBuilder)
     {
         this.metadata = metadata;
         this.directory = directory;

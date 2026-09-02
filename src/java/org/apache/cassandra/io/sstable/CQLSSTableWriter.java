@@ -419,7 +419,7 @@ public class CQLSSTableWriter implements Closeable
         private Consumer<Collection<SSTableReader>> sstableProducedListener;
         private boolean openSSTableOnProduced = false;
         private CompressionDictionary compressionDictionary = null;
-        private SSTableId.Builder<SSTableId> idBuilder = null;
+        private SSTableId.Builder<? extends SSTableId> idBuilder = null;
 
         protected Builder()
         {
@@ -672,16 +672,9 @@ public class CQLSSTableWriter implements Closeable
             return this;
         }
 
-        /**
-         * Whether the created sstables should use UUID based identifiers instead of the legacy sequential ones.
-         * If not set, the uuid_sstable_identifiers_enabled setting from cassandra.yaml is used.
-         *
-         * @param enabled true for UUID based identifiers, false for legacy sequential identifiers.
-         * @return this builder.
-         */
-        public Builder withUUIDSSTableIdentifiers(boolean enabled)
+        public Builder withSSTableIdBuilder(SSTableId.Builder<? extends SSTableId> idBuilder)
         {
-            this.idBuilder = SSTableIdFactory.instance.builderFor(enabled);
+            this.idBuilder = idBuilder;
             return this;
         }
 
@@ -813,7 +806,7 @@ public class CQLSSTableWriter implements Closeable
                 ModificationStatement preparedModificationStatement = prepareModificationStatement();
 
                 TableMetadataRef ref = tableMetadata.ref;
-                SSTableId.Builder<SSTableId> effectiveIdBuilder = idBuilder != null ? idBuilder : SSTableIdFactory.instance.defaultBuilder();
+                SSTableId.Builder<? extends SSTableId> effectiveIdBuilder = idBuilder != null ? idBuilder : SSTableIdFactory.instance.defaultBuilder();
                 AbstractSSTableSimpleWriter writer = sorted
                                                      ? new SSTableSimpleWriter(cfs, directory, ref, preparedModificationStatement.updatedColumns(), maxSSTableSizeInMiB, effectiveIdBuilder)
                                                      : new SSTableSimpleUnsortedWriter(cfs, directory, ref, preparedModificationStatement.updatedColumns(), maxSSTableSizeInMiB, effectiveIdBuilder);
