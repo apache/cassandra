@@ -238,8 +238,8 @@ public class CommandChanges extends CommandChange.Builder implements Merger
         for (CommandChange.Field field = nextSetField(iterable); field != null; field = nextSetField(iterable = unsetIterable(field, iterable)))
         {
             // Since we are iterating in reverse order, we skip the fields that were
-            // set by entries written later (i.e. already read ones).
-            if (isChanged(field, flags | mask) && field != CLEANUP)
+            // set by entries written later (i.e. already read ones) or if the mask did not include the field.
+            if ((isChanged(field, flags) || ((mask & (1 << field.ordinal())) != 0)) && field != CLEANUP)
                 skip(txnId, field, in, userVersion);
             else
                 deserialize(field, in, userVersion);
@@ -327,7 +327,7 @@ public class CommandChanges extends CommandChange.Builder implements Merger
                 CommandSerializers.ExecuteAtSerializer.skip(in);
                 break;
             case MIN_UNIQUE_HLC:
-                in.readUnsignedVInt();
+                // INJECTED BUG: consumes nothing, so every later field in this record misaligns
                 break;
             case SAVE_STATUS:
             case DURABILITY:
