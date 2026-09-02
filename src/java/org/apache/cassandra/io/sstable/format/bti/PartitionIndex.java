@@ -25,6 +25,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.IPartitioner;
@@ -196,19 +197,42 @@ public class PartitionIndex implements SharedCloseable
             DecoratedKey first = partitioner != null ? partitioner.decorateKey(ByteBufferUtil.readWithShortLength(rdr)) : null;
             DecoratedKey last = partitioner != null ? partitioner.decorateKey(ByteBufferUtil.readWithShortLength(rdr)) : null;
             if (preload)
-            {
-                int csum = 0;
-                // force a read of all the pages of the index
-                for (long pos = 0; pos < fh.dataLength(); pos += PageAware.PAGE_SIZE)
-                {
-                    rdr.seek(pos);
-                    csum += rdr.readByte();
-                }
-                logger.trace("Checksum {}", csum);      // Note: trace is required so that reads aren't optimized away.
-            }
+                warmIndex(fh, rdr, firstPos);
 
             return new PartitionIndex(fh, root, keyCount, first, last);
         }
+    }
+
+    /**
+     * Warms the partition index so trie lookups don't each fault it in. When bounded, warms the
+     * trie's tail, since the trie is written bottom-up and every lookup traverses the upper levels
+     * that end up there. The bound is relative to {@code firstPos} (the trie's end), not the file's
+     * end, since the file tail past it isn't trie data.
+     *
+     * @param firstPos offset where the trie ends and the first/last key data begins
+     * @return size of the range warmed, in bytes
+     * @see CassandraRelevantProperties#BTI_PARTITION_INDEX_PRELOAD_SIZE
+     */
+    @VisibleForTesting
+    static long warmIndex(FileHandle fh, FileDataInput rdr, long firstPos) throws IOException
+    {
+        long limit = CassandraRelevantProperties.BTI_PARTITION_INDEX_PRELOAD_SIZE.getSizeInBytes();
+        if (limit == 0)
+        {
+            logger.trace("Partition index warming is disabled, not warming {}", fh.path());
+            return 0;
+        }
+
+        long start = limit > 0 && limit < firstPos ? PageAware.pageStart(firstPos - limit) : 0;
+
+        int csum = 0;
+        for (long pos = start; pos < firstPos; pos += PageAware.PAGE_SIZE)
+        {
+            rdr.seek(pos);
+            csum += rdr.readByte();
+        }
+        logger.trace("Checksum {}", csum);      // Note: trace is required so that reads aren't optimized away.
+        return firstPos - start;
     }
 
     @Override
