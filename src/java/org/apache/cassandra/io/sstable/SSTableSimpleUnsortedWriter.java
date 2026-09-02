@@ -80,7 +80,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         this(owner, directory, metadata, columns, maxSSTableSizeInMiB, SSTableIdFactory.instance.defaultBuilder());
     }
 
-    SSTableSimpleUnsortedWriter(SSTable.Owner owner, File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long maxSSTableSizeInMiB, SSTableId.Builder<SSTableId> idBuilder)
+    SSTableSimpleUnsortedWriter(SSTable.Owner owner, File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long maxSSTableSizeInMiB, SSTableId.Builder<? extends SSTableId> idBuilder)
     {
         super(directory, metadata, columns, idBuilder);
         this.maxSStableSizeInBytes = maxSSTableSizeInMiB * 1024L * 1024L;

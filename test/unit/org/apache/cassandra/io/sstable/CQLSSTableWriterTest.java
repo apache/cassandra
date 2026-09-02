@@ -157,7 +157,7 @@ public abstract class CQLSSTableWriterTest
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
-                                                  .withUUIDSSTableIdentifiers(true)
+                                                  .withSSTableIdBuilder(UUIDBasedSSTableId.Builder.instance)
                                                   .using(insert).build();
 
         writer.addRow(0, 1);

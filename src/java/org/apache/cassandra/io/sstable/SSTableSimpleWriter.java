@@ -86,7 +86,7 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
         this(owner, directory, metadata, columns, maxSSTableSizeInMiB, SSTableIdFactory.instance.defaultBuilder());
     }
 
-    protected SSTableSimpleWriter(SSTable.Owner owner, File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long maxSSTableSizeInMiB, SSTableId.Builder<SSTableId> idBuilder)
+    protected SSTableSimpleWriter(SSTable.Owner owner, File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long maxSSTableSizeInMiB, SSTableId.Builder<? extends SSTableId> idBuilder)
     {
         super(directory, metadata, columns, idBuilder);
         this.maxSSTableSizeInBytes = maxSSTableSizeInMiB * 1024L * 1024L;
