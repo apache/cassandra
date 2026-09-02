@@ -90,6 +90,8 @@ public enum CassandraRelevantProperties
      */
     BOOTSTRAP_SKIP_SCHEMA_CHECK("cassandra.skip_schema_check"),
     BROADCAST_INTERVAL_MS("cassandra.broadcast_interval_ms", "60000"),
+    /** Caps how much of a BTI partition index is preloaded, e.g. "16MiB". 0B disables preloading; negative (default) preloads it all. */
+    BTI_PARTITION_INDEX_PRELOAD_SIZE("cassandra.bti.partition_index_preload_size", "-1B"),
     BTREE_BRANCH_SHIFT("cassandra.btree.branchshift", "5"),
     BTREE_FAN_FACTOR("cassandra.btree.fanfactor"),
     BUILD_DATE("cassandra.buildDate"),
