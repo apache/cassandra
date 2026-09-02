@@ -29,6 +29,7 @@ import org.junit.Test;
 import accord.impl.CommandChange;
 import accord.local.Command;
 import accord.local.RedundantBefore;
+import accord.primitives.Ballot;
 import accord.primitives.SaveStatus;
 import accord.primitives.Status;
 import accord.primitives.TxnId;
@@ -102,36 +103,61 @@ public class CommandChangeTest
         Gen<AccordGenerators.CommandBuilder> gen = AccordGenerators.commandsBuilder();
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
-            qt().forAll(gen)
-                .check(cmdBuilder -> {
-                    for (Version version : Version.V1.greaterThanOrEqual())
+            qt().check(rs -> {
+                AccordGenerators.CommandBuilder cmdBuilder = gen.next(rs);
+                for (Version version : Version.V1.greaterThanOrEqual())
+                {
+                    SoftAssertions checks = new SoftAssertions();
+                    for (SaveStatus saveStatus : SaveStatus.values())
                     {
-                        SoftAssertions checks = new SoftAssertions();
-                        for (SaveStatus saveStatus : SaveStatus.values())
+                        if (cmdBuilder.txnId.awaitsOnlyDeps() && saveStatus.is(Status.Truncated))
+                            continue;
+
+                        out.clear();
+                        Command orig = cmdBuilder.build(saveStatus);
+                        CommandChangeWriter writer = CommandChangeWriter.make(null, orig);
+                        if (writer == null)
+                            continue;
+
+                        writer.write(out, version);
+                        Load load = Load.values()[rs.nextInt(Load.values().length)];
+                        CommandChanges builder = new CommandChanges(orig.txnId(), load);
+                        builder.deserializeNext(new DataInputBuffer(out.unsafeGetBufferAndFlip(), false), version);
+
+                        if (load != Load.ALL)
                         {
-                            if (cmdBuilder.txnId.awaitsOnlyDeps() && saveStatus.is(Status.Truncated))
-                                continue;
+                            if (!CommandChange.isNull(Field.SAVE_STATUS, getFlags(null, orig)))
+                                checks.assertThat(builder.saveStatus()).isEqualTo(orig.saveStatus());
+                            if (!CommandChange.isNull(Field.PARTICIPANTS, getFlags(null, orig)))
+                                checks.assertThat(builder.participants()).isEqualTo(orig.participants());
+                            if (!CommandChange.isNull(Field.EXECUTE_AT, getFlags(null, orig)))
+                                checks.assertThat(builder.executeAt()).isEqualTo(orig.executeAt());
+                            if (!CommandChange.isNull(Field.DURABILITY, getFlags(null, orig)))
+                                checks.assertThat(builder.durability()).isEqualTo(orig.durability());
+                            if (load == Load.MINIMAL_WITH_DEPS && !CommandChange.isNull(Field.PARTIAL_DEPS, getFlags(null, orig)))
+                                checks.assertThat(builder.partialDeps()).isEqualTo(orig.partialDeps());
+                            int mask = CommandChange.mask(load);
 
-                            out.clear();
-                            Command orig = cmdBuilder.build(saveStatus);
-                            CommandChangeWriter writer = CommandChangeWriter.make(null, orig);
-                            if (writer == null)
-                                continue;
-
-                            writer.write(out, version);
-                            CommandChanges builder = new CommandChanges(orig.txnId(), Load.ALL);
-                            builder.deserializeNext(new DataInputBuffer(out.unsafeGetBufferAndFlip(), false), version);
-                            // We are not persisting the result, so force it for strict equality
-                            builder.forceResult(orig.result());
-
-                            Command reconstructed = builder.construct(RedundantBefore.EMPTY);
-
-                            checks.assertThat(reconstructed)
-                                  .describedAs("lhs=expected\nrhs=actual\n%s", new LazyToString(() -> ReflectionUtils.recursiveEquals(orig, reconstructed).toString()))
-                                  .isEqualTo(orig);
+                            // Ensure that fields that are masked out are equal to their default values
+                            for (Field field : ALL)
+                            {
+                                if (field == Field.CLEANUP || (mask & (1 << field.ordinal())) == 0)
+                                    continue;
+                                Object unset = field == Field.PROMISED || field == Field.ACCEPTED ? Ballot.ZERO
+                                             : field == Field.MIN_UNIQUE_HLC ? 0L : null;
+                                checks.assertThat(builder.get(field)).isEqualTo(unset);
+                            }
+                            continue;
                         }
-                        checks.assertAll();
+
+                        Command reconstructed = builder.construct(RedundantBefore.EMPTY);
+
+                        checks.assertThat(reconstructed)
+                              .describedAs("lhs=expected\nrhs=actual\n%s", new LazyToString(() -> ReflectionUtils.recursiveEquals(orig, reconstructed).toString()))
+                              .isEqualTo(orig);
                     }
+                    checks.assertAll();
+                }
             });
         }
     }

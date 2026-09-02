@@ -327,7 +327,7 @@ public class CommandChanges extends CommandChange.Builder implements Merger
                 CommandSerializers.ExecuteAtSerializer.skip(in);
                 break;
             case MIN_UNIQUE_HLC:
-                // INJECTED BUG: consumes nothing, so every later field in this record misaligns
+                in.readUnsignedVInt();
                 break;
             case SAVE_STATUS:
             case DURABILITY:
