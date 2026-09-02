@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -58,6 +59,7 @@ public class MutationJournalTest
     private static final String KEYSPACE = "mjtks";
     private static final String TABLE = "mjtt";
 
+    private static TestDurablyReconciledOffsetsSupplier durablyReconciledOffsetsSupplier;
     private static MutationJournal journal;
     private static File directory;
 
@@ -75,7 +77,9 @@ public class MutationJournalTest
         directory = new File(Files.createTempDirectory("mutation-journal-test-simple"));
         directory.deleteRecursiveOnExit();
 
-        journal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL);
+        durablyReconciledOffsetsSupplier = new TestDurablyReconciledOffsetsSupplier();
+
+        journal = new MutationJournal(directory, TestParams.MUTATION_JOURNAL, durablyReconciledOffsetsSupplier);
         journal.startInternal();
     }
 
@@ -218,7 +222,8 @@ public class MutationJournalTest
 
         {
             // Both segments still need replay; even fully reconciled and unreferenced they must be retained.
-            assertEquals(0, journal.dropSegments(allReconciled));
+            durablyReconciledOffsetsSupplier.setDurablyReconciledOffsetsSupplierForTesting(() -> allReconciled);
+            journal.runCompactionBlocking();
             assertEquals(baseline + 2, journal.countStaticSegmentsForTesting());
         }
 
@@ -227,21 +232,24 @@ public class MutationJournalTest
 
         {
             // Not reconciled -> retained even when !needsReplay and unreferenced (the witness gate).
-            assertEquals(0, journal.dropSegments(new Log2OffsetsMap.Mutable()));
+            durablyReconciledOffsetsSupplier.setDurablyReconciledOffsetsSupplierForTesting(Log2OffsetsMap.Mutable::new);
+            journal.runCompactionBlocking();
             assertEquals(baseline + 2, journal.countStaticSegmentsForTesting());
         }
+
+        durablyReconciledOffsetsSupplier.setDurablyReconciledOffsetsSupplierForTesting(() -> allReconciled);
 
         {
             // An unrepaired sstable referencing the first segment retains it; the second (unreferenced,
             // reconciled, !needsReplay) is dropped.
             SSTableReader referrer = Mockito.mock(SSTableReader.class);
             refs.addReferenceForTesting(firstSegment, referrer);
-            assertEquals(1, journal.dropSegments(allReconciled));
+            journal.runCompactionBlocking();
             assertEquals(baseline + 1, journal.countStaticSegmentsForTesting());
 
             // Releasing the last reference allows the first segment to drop too.
             refs.removeReferenceForTesting(firstSegment, referrer);
-            assertEquals(1, journal.dropSegments(allReconciled));
+            journal.runCompactionBlocking();
             assertEquals(baseline, journal.countStaticSegmentsForTesting());
         }
     }
@@ -277,6 +285,27 @@ public class MutationJournalTest
 
         assertFalse("full-replica segment must not clear needsReplay before its memtable is flushed",
                     journal.pendingCleanupForTesting().contains(fullSegment));
+    }
+
+    private static class TestDurablyReconciledOffsetsSupplier implements Supplier<Log2OffsetsMap<?>>
+    {
+        private Supplier<Log2OffsetsMap<?>> nonDefaultSupplier;
+
+        @Override
+        public Log2OffsetsMap<?> get()
+        {
+            if (nonDefaultSupplier != null)
+                return nonDefaultSupplier.get();
+            Log2OffsetsMap.Mutable durablyReconciled = new Log2OffsetsMap.Mutable();
+            if (MutationTrackingService.isEnabled())
+                MutationTrackingService.instance().collectDurablyReconciledOffsets(durablyReconciled);
+            return durablyReconciled;
+        }
+
+        public void setDurablyReconciledOffsetsSupplierForTesting(Supplier<Log2OffsetsMap<?>> nonDefaultSupplier)
+        {
+            this.nonDefaultSupplier = nonDefaultSupplier;
+        }
     }
 
     private ShortMutationId id(long logId, int offset)

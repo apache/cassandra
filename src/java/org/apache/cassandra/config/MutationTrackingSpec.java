@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.config;
 
+import org.apache.cassandra.exceptions.ConfigurationException;
+
 public class MutationTrackingSpec
 {
     public boolean enabled = false;
@@ -30,6 +32,16 @@ public class MutationTrackingSpec
      * The interval in which the backgroun reconciliation process runs
      */
     public volatile DurationSpec.LongMillisecondsBound background_reconciliation_interval = new DurationSpec.LongMillisecondsBound("1s");
+    /**
+     * Whether the mutation journal's segment-dropping/promotion compactor is enabled
+     */
+    public volatile boolean journal_compaction_enabled = true;
+    /**
+     * Limits how many segments eligible for dropping are processed in a single compaction pass. Any remainder
+     * is picked up by a subsequent trigger or periodic tick. {@code Integer.MAX_VALUE} disables the limit,
+     * relying entirely on segment selection to bound the work of a single pass.
+     */
+    public volatile int journal_compaction_max_segments = Integer.MAX_VALUE;
     /**
      * When the on-disk mutation journal grows beyond this size, out-of-band promotion of already
      * durably-reconciled but still-unrepaired sstables to repaired is triggered so the journal segments they hold
@@ -45,5 +57,12 @@ public class MutationTrackingSpec
     {
         DataStorageSpec.LongBytesBound threshold = journal_promotion_threshold;
         return threshold == null ? 0 : threshold.toBytes();
+    }
+
+    public void validate()
+    {
+        if (journal_compaction_max_segments <= 0)
+            throw new ConfigurationException("Invalid value for mutation_tracking.journal_compaction_max_segments \""
+                                             + journal_compaction_max_segments + "\". Value must be a positive integer");
     }
 }

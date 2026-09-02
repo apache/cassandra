@@ -77,21 +77,6 @@ public class Segments<K, V>
         return new Segments<>(newSegments);
     }
 
-    Segments<K, V> withoutStaticSegments(Collection<StaticSegment<K, V>> removeSegments)
-    {
-        if (removeSegments.isEmpty())
-            return this;
-
-        Long2ObjectHashMap<Segment<K, V>> newSegments = new Long2ObjectHashMap<>(segments);
-        for (StaticSegment<K, V> segment : removeSegments)
-        {
-            Segment<K, V> oldValue = newSegments.remove(segment.descriptor.timestamp);
-            if (oldValue != null)
-                Invariants.require(oldValue.isStatic());
-        }
-        return new Segments<>(newSegments);
-    }
-
     Segments<K, V> withCompletedSegment(ActiveSegment<K, V> activeSegment, StaticSegment<K, V> staticSegment)
     {
         Invariants.requireArgument(activeSegment.descriptor.equals(staticSegment.descriptor));
@@ -213,13 +198,6 @@ public class Segments<K, V>
     {
         for (Segment<K, V> segment : segments.values())
             if (segment.isStatic())
-                into.add(segment.asStatic());
-    }
-
-    void selectStatic(Predicate<StaticSegment<K, V>> filter, Collection<StaticSegment<K, V>> into)
-    {
-        for (Segment<K, V> segment : segments.values())
-            if (segment.isStatic() && filter.test(segment.asStatic()))
                 into.add(segment.asStatic());
     }
 

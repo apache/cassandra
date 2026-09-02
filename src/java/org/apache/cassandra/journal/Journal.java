@@ -324,14 +324,19 @@ public class Journal<K, V> implements Shutdownable
                               "Unexpected journal state after initialization", state);
         flusher.start();
         compactor.start();
+    }
 
-        final int maxSegments = 100;
-        if (segments.get().count(Segment::isStatic) > maxSegments)
+    public void waitForCompaction(int maxSegments)
+    {
+        if (!params.enableCompaction())
+            return;
+
+        if (countStaticSegments() > maxSegments)
         {
             while (true)
             {
                 WaitQueue.Signal signal = compactor.compacted.register();
-                int count = segments.get().count(Segment::isStatic);
+                int count = countStaticSegments();
                 if (count <= maxSegments)
                 {
                     signal.cancel();
@@ -962,11 +967,6 @@ public class Journal<K, V> implements Shutdownable
         swapSegments(current -> current.withoutEmptySegment(activeSegment));
     }
 
-    private void removeStaticSegments(Collection<StaticSegment<K, V>> staticSegments)
-    {
-        swapSegments(current -> current.withoutStaticSegments(staticSegments));
-    }
-
     private void replaceCompletedSegment(ActiveSegment<K, V> activeSegment, StaticSegment<K, V> staticSegment)
     {
         swapSegments(current -> current.withCompletedSegment(activeSegment, staticSegment));
@@ -1094,18 +1094,6 @@ public class Journal<K, V> implements Shutdownable
         }
 
         closer.execute(new CloseActiveSegmentRunnable(activeSegment, onDone));
-    }
-
-    public int dropStaticSegments(Predicate<StaticSegment<K, V>> dropIf)
-    {
-        Set<StaticSegment<K, V>> toDrop = new HashSet<>();
-        segments().selectStatic(dropIf, toDrop);
-        if (toDrop.isEmpty())
-            return 0;
-        removeStaticSegments(toDrop);
-        for (StaticSegment<K, V> segment : toDrop)
-            segment.discard(this);
-        return toDrop.size();
     }
 
     /*
@@ -1418,7 +1406,7 @@ public class Journal<K, V> implements Shutdownable
     @VisibleForTesting
     public void runCompactorForTesting()
     {
-        compactor.run();
+        compactor.runNowBlocking();
     }
 
     @VisibleForTesting
@@ -1455,10 +1443,15 @@ public class Journal<K, V> implements Shutdownable
         toReset.forEach(s -> s.metadata().clearNeedsReplay());
     }
 
+    public int countStaticSegments()
+    {
+        return segments.get().count(Segment::isStatic);
+    }
+
     @VisibleForTesting
     public int countStaticSegmentsForTesting()
     {
-        return segments.get().count(Segment::isStatic);
+        return countStaticSegments();
     }
 
     @VisibleForTesting

@@ -27,6 +27,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 import java.util.zip.CRC32;
 
 import javax.annotation.Nullable;
@@ -46,6 +47,7 @@ import accord.utils.Invariants;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.TypeSizes;
@@ -69,7 +71,6 @@ import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.journal.RecordConsumer;
 import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.journal.Segment;
-import org.apache.cassandra.journal.SegmentCompactor;
 import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.net.MessagingService;
@@ -102,6 +103,8 @@ public class MutationJournal
     private static final MutationJournal instance = DatabaseDescriptor.getMutationTrackingEnabled() ? new MutationJournal() : null;
 
     private final Journal<ShortMutationId, Mutation> journal;
+    @VisibleForTesting
+    final MutationJournalSegmentCompactor segmentCompactor;
     private final Map<Long, SegmentStateTracker> segmentStateTrackers;
     private final SegmentReferenceTracker segmentReferenceTracker;
 
@@ -171,14 +174,22 @@ public class MutationJournal
     @VisibleForTesting
     MutationJournal(File directory, Params params)
     {
-        journal =
+        this(directory, params, null);
+    }
+
+    @VisibleForTesting
+    MutationJournal(File directory, Params params, Supplier<Log2OffsetsMap<?>> durablyReconciledOffsetsSupplier)
+    {
+        segmentStateTrackers = new NonBlockingHashMapLong<>();
+        segmentCompactor = new MutationJournalSegmentCompactor(this, durablyReconciledOffsetsSupplier);
+        Journal<ShortMutationId, Mutation> journal =
             new Journal<>("MutationJournal",
                           directory,
                           params,
                           MutationIdSupport.INSTANCE,
                           MutationSerializer.INSTANCE,
                           OffsetRangesFactory.INSTANCE,
-                          SegmentCompactor.noop(),
+                          segmentCompactor,
                           new OpOrder())
                           {
                               // TODO (expected): a cleaner way to override it; pass a Callbacks object with sanctioned callbacks?
@@ -191,9 +202,17 @@ public class MutationJournal
                                   });
                               }
                           };
-        segmentReferenceTracker = new SegmentReferenceTracker(
-            () -> MutationTrackingService.instance().scheduleSegmentDropAttempt());
-        segmentStateTrackers = new NonBlockingHashMapLong<>();
+        this.journal = journal;
+        segmentReferenceTracker = new SegmentReferenceTracker(() -> journal.compactor().triggerNow());
+    }
+
+    /**
+     * Triggers the journal's compactor to initiate a segment-dropping + promotion pass
+     * (see {@link MutationJournalSegmentCompactor}
+     */
+    private void triggerSegmentCompaction()
+    {
+        journal.compactor().triggerNow();
     }
 
     public CommitLogPosition getCurrentPosition()
@@ -255,8 +274,8 @@ public class MutationJournal
             }
         }
 
-        if (anyCleared && MutationTrackingService.isEnabled())
-            MutationTrackingService.instance().scheduleSegmentDropAttempt();
+        if (anyCleared)
+            triggerSegmentCompaction();
     }
 
     @VisibleForTesting
@@ -467,11 +486,17 @@ public class MutationJournal
         }
     }
 
-    synchronized int dropSegments(Log2OffsetsMap<?> durablyReconciled)
+    void runCompactionBlocking()
     {
-        return journal.dropStaticSegments(segment -> !segment.metadata().needsReplay()
-                                                     && !segmentReferenceTracker.isReferenced(segment.id())
-                                                     && ((StaticOffsetRanges) segment.keyStats()).isFullyCovered(durablyReconciled));
+        journal.compactor().runNowBlocking();
+    }
+
+    /**
+     * Reclaim droppable segments without sstable promotion
+     */
+    void drainBlocking()
+    {
+        journal.compactor().drainBlocking();
     }
 
     /**
@@ -489,6 +514,9 @@ public class MutationJournal
 
     static class JournalParams implements Params
     {
+        /** for now match {@link MutationTrackingService.LogStatePersister#PERSIST_INTERVAL_MILLIS} **/
+        public DurationSpec.IntMillisecondsBound compactionPeriod = new DurationSpec.IntMillisecondsBound("1s");
+
         @Override
         public int segmentSize()
         {
@@ -521,7 +549,7 @@ public class MutationJournal
         @Override
         public int compactMaxSegments()
         {
-            return 0;
+            return DatabaseDescriptor.getMutationTrackingConfig().journal_compaction_max_segments;
         }
 
         @Override
@@ -533,13 +561,13 @@ public class MutationJournal
         @Override
         public boolean enableCompaction()
         {
-            return false;
+            return DatabaseDescriptor.getMutationTrackingConfig().journal_compaction_enabled;
         }
 
         @Override
-        public long compactionPeriod(TimeUnit units)
+        public long compactionPeriod(TimeUnit unit)
         {
-            return 0;
+            return compactionPeriod.to(unit);
         }
 
         @Override
@@ -919,7 +947,7 @@ public class MutationJournal
     @VisibleForTesting
     public int countStaticSegmentsForTesting()
     {
-        return journal.countStaticSegmentsForTesting();
+        return journal.countStaticSegments();
     }
 
     /**

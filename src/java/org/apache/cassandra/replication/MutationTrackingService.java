@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.replication;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -30,7 +29,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
@@ -80,14 +78,10 @@ import org.apache.cassandra.repair.SyncTask;
 import org.apache.cassandra.repair.SyncTasks;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.ReplicationParams;
-import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.reads.tracked.TrackedLocalReads;
-import org.apache.cassandra.service.replication.migration.KeyspaceMigrationInfo;
-import org.apache.cassandra.service.replication.migration.MutationTrackingMigrationState;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -96,7 +90,6 @@ import org.apache.cassandra.tcm.listeners.ChangeListener;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
-import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 
@@ -260,8 +253,14 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
         onNewClusterMetadata(null, metadata);
 
-        if (!keyspaceShards.isEmpty() && !config.background_reconciliation_enabled)
-            logBackgroundReconciliationDisabledWarning(keyspaceShards.keySet());
+        if (!keyspaceShards.isEmpty())
+        {
+            if (!config.background_reconciliation_enabled)
+                logBackgroundReconciliationDisabledWarning(keyspaceShards.keySet());
+
+            if (!config.journal_compaction_enabled)
+                logJournalCompactionDisabledWarning(keyspaceShards.keySet());
+        }
 
         offsetsBroadcaster.start();
         offsetsPersister.start();
@@ -353,7 +352,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         if (isStarted())
         {
             offsetsPersister.persistAndDrain();
-            truncateMutationJournal();
+            MutationJournal.instance().drainBlocking();
         }
         ExpiredStatePurger.instance.shutdownBlocking();
     }
@@ -1082,33 +1081,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         }
     }
 
-    private final AtomicBoolean segmentDropScheduled = new AtomicBoolean();
-
-    /**
-     * Best-effort attempt to drop journal segments
-     */
-    void scheduleSegmentDropAttempt()
-    {
-        if (executor == null || executor.isShutdown())
-            return;
-        if (segmentDropScheduled.compareAndSet(false, true))
-            executor.execute(this::runScheduledSegmentDrop);
-    }
-
-    private void runScheduledSegmentDrop()
-    {
-        segmentDropScheduled.set(false);
-        truncateMutationJournal();
-    }
-
-    private void truncateMutationJournal()
-    {
-        Log2OffsetsMap.Mutable durablyReconciled = new Log2OffsetsMap.Mutable();
-        collectDurablyReconciledOffsets(durablyReconciled);
-        MutationJournal.instance().dropSegments(durablyReconciled);
-    }
-
-    private void collectDurablyReconciledOffsets(Log2OffsetsMap.Mutable into)
+    void collectDurablyReconciledOffsets(Log2OffsetsMap.Mutable into)
     {
         forEachKeyspace(keyspace -> keyspace.collectDurablyReconciledOffsets(into));
     }
@@ -1127,7 +1100,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     @VisibleForTesting
     public void maybePromoteReconciledSSTablesForTesting()
     {
-        maybePromoteReconciledSSTables();
+        MutationJournal.instance().segmentCompactor.maybePromoteReconciledSSTables();
     }
 
     public SyncTasks alignToShardBoundaries(Keyspace keyspace, List<SyncTask> tasks)
@@ -1169,92 +1142,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         return into;
     }
 
-    /**
-     * Out-of-band promotion of already durably-reconciled but still-unrepaired sstables to repaired, triggered
-     * once the on-disk mutation journal grows past {@code mutation_tracking.journal_promotion_threshold}.
-     *
-     * <p>Best-effort: a failure to flip one table's sstables is logged and retried on a later trigger. Not gated
-     * by {@code runWithCompactionsDisabled} (which would interrupt validation/repair); {@code mutateRepaired}
-     * only rewrites the stats component and reloads, and a concurrently-compacted sstable simply retries.
-     */
-    private void maybePromoteReconciledSSTables()
-    {
-        long threshold = DatabaseDescriptor.getMutationTrackingConfig().getJournalPromotionThresholdBytes();
-        if (threshold <= 0 || MutationJournal.instance().getDiskSpaceUsed() <= threshold)
-            return;
-
-        SegmentReferenceTracker tracker = MutationJournal.instance().segmentReferenceTracker();
-        Set<SSTableReader> trackedSSTables = tracker.trackedSSTables();
-        if (trackedSSTables.isEmpty())
-            return;
-
-        MutationTrackingMigrationState mutationTrackingMigrationState = ClusterMetadata.current().mutationTrackingMigrationState;
-        long repairedAt = Clock.Global.currentTimeMillis();
-        Map<ColumnFamilyStore, List<SSTableReader>> toPromoteByTable = new HashMap<>();
-        for (SSTableReader sstable : trackedSSTables)
-        {
-            if (!isReconciliationPromotable(mutationTrackingMigrationState, sstable))
-                continue;
-
-            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(sstable.metadata().id);
-            if (cfs == null)
-                continue;
-
-            toPromoteByTable.computeIfAbsent(cfs, ignore -> new ArrayList<>()).add(sstable);
-        }
-
-        if (toPromoteByTable.isEmpty())
-            return;
-
-        for (Map.Entry<ColumnFamilyStore, List<SSTableReader>> entry : toPromoteByTable.entrySet())
-        {
-            ColumnFamilyStore cfs = entry.getKey();
-            List<SSTableReader> toPromote = entry.getValue();
-            try
-            {
-                cfs.getCompactionStrategyManager().mutateRepaired(toPromote, repairedAt, ActiveRepairService.NO_PENDING_REPAIR);
-                logger.debug("Promoted {} reconciled sstables of {}.{} to repaired to release journal segments",
-                             toPromote.size(), cfs.getKeyspaceName(), cfs.getTableName());
-            }
-            catch (IOException e)
-            {
-                logger.warn("Failed to promote reconciled sstables of {}.{} to repaired; will retry",
-                            cfs.getKeyspaceName(), cfs.getTableName(), e);
-            }
-        }
-    }
-
-    /**
-     * Whether the {@code sstable} is eligible for reconciliation-based promotion to repaired.
-     *
-     * <p>We replicate the guard in {@link org.apache.cassandra.io.sstable.format.SSTableWriter#finalizeMetadata()}
-     * to exclude sstables that have a pending migration.
-     *
-     * <p>During {@code MIGRATE_TO} writes are tracked for all tokens while reads are not. So we exclude
-     * sstables already owned by a pending repair session.
-     * @param state the mutation tracking migration state
-     * @param sstable the sstable to test
-     * @return true if the sstable should be considered for promotion to repaired
-     */
-    private boolean isReconciliationPromotable(MutationTrackingMigrationState state, SSTableReader sstable)
-    {
-        if (sstable.isRepaired() || sstable.isPendingRepair())
-            return false;
-
-        ReplicationType replicationType = sstable.metadata().replicationType();
-        if (replicationType == null || !replicationType.isTracked())
-            return false;
-
-        KeyspaceMigrationInfo migrationInfo = state.getKeyspaceInfo(sstable.metadata().keyspace);
-        boolean inMigrationPendingRange = migrationInfo != null && migrationInfo.isRangeInPendingMigration(sstable.metadata().id,
-                                                                                                           sstable.getFirst().getToken(),
-                                                                                                           sstable.getLast().getToken());
-        if (inMigrationPendingRange)
-            return false;
-
-        return isDurablyReconciled(sstable.getCoordinatorLogOffsets());
-    }
-
     private static List<SyncTask> unwrapped(Collection<SyncTask> tasks)
     {
         List<SyncTask> unwrapped = new ArrayList<>();
@@ -1280,6 +1167,14 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     {
         logger.warn("Background reconciliation is disabled but mutation tracking keyspaces exist: {}. " +
                     "Unreconciled mutations will not be automatically repaired in the background.", keyspaces);
+    }
+
+    private void logJournalCompactionDisabledWarning(Set<String> keyspaces)
+    {
+        logger.warn("Mutation journal compaction is disabled but mutation tracking keyspaces exist: {}. " +
+                    "Journal segments will not be reclaimed and durably-reconciled sstables will not be promoted " +
+                    "to repaired (mutation_tracking.journal_promotion_threshold has no effect while compaction is " +
+                    "disabled); the on-disk journal will grow without bound.", keyspaces);
     }
 
     public static class KeyspaceShards
@@ -1802,7 +1697,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             if (isPaused)
                 return;
             persistAndDrain();
-            MutationTrackingService.instance().maybePromoteReconciledSSTables();
         }
 
         void persistAndDrain()
@@ -1839,8 +1733,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     @VisibleForTesting
     public void persistLogStateForTesting()
     {
-        offsetsPersister.persistAndDrain();
-        truncateMutationJournal();
+        persistLogStateForTesting(true);
     }
 
     @VisibleForTesting
@@ -1848,7 +1741,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     {
         offsetsPersister.persistAndDrain();
         if (dropSegments)
-            truncateMutationJournal();
+            MutationJournal.instance().runCompactionBlocking();
     }
 
     @VisibleForTesting
