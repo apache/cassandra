@@ -66,7 +66,7 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
      */
     public SSTableSimpleWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long maxSSTableSizeInMiB)
     {
-        this(null, directory, metadata, columns, maxSSTableSizeInMiB);
+        this(null, directory, metadata, columns, maxSSTableSizeInMiB, SSTableIdFactory.instance.defaultBuilder());
     }
 
     /**
@@ -83,7 +83,12 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
      */
     protected SSTableSimpleWriter(SSTable.Owner owner, File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long maxSSTableSizeInMiB)
     {
-        super(directory, metadata, columns);
+        this(owner, directory, metadata, columns, maxSSTableSizeInMiB, SSTableIdFactory.instance.defaultBuilder());
+    }
+
+    protected SSTableSimpleWriter(SSTable.Owner owner, File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long maxSSTableSizeInMiB, SSTableId.Builder<? extends SSTableId> idBuilder)
+    {
+        super(directory, metadata, columns, idBuilder);
         this.maxSSTableSizeInBytes = maxSSTableSizeInMiB * 1024L * 1024L;
         this.owner = owner;
     }
