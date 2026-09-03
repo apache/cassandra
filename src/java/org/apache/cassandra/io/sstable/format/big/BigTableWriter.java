@@ -402,6 +402,7 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
 
             SequentialWriter dataWriter = DataComponent.buildWriter(descriptor,
                                                                     getCompressionParams(),
+                                                                    getTableMetadataRef().getLocal().params.flushCompression,
                                                                     getIOOptions().writerOptions,
                                                                     getMetadataCollector(),
                                                                     ensuringInBuildInternalContext(operationType),
