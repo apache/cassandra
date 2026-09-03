@@ -632,7 +632,9 @@ public class Config
     public volatile DataStorageSpec.LongBytesBound row_index_read_size_warn_threshold = null;
     public volatile DataStorageSpec.LongBytesBound row_index_read_size_fail_threshold = null;
 
-    public volatile int sstables_per_read_log_threshold = 100;
+    @Replaces(oldName = "sstables_per_read_log_threshold", converter = Converters.IDENTITY, deprecated = true)
+    public volatile int sstables_per_read_warn_threshold = 100;
+    public volatile int sstables_per_read_fail_threshold = -1;
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;
 

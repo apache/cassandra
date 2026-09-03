@@ -2072,9 +2072,15 @@ transparent_data_encryption_options:
 # SAFETY THRESHOLDS #
 #####################
 
-# Log the query if it reads more than
-# sstables_per_read_log_threshold SSTables
-sstables_per_read_log_threshold: 100
+# Guardrail on the number of SSTables touched by a single local read (per replica).
+# A read that touches more than sstables_per_read_warn_threshold SSTables logs a diagnostic
+# warning (for all reads) and, for client reads, warns the client; a client read that touches
+# more than sstables_per_read_fail_threshold SSTables is aborted before opening the remaining
+# SSTables, protecting the node from an exorbitantly expensive local read. A value <= 0 disables
+# the corresponding threshold. Internal (system/repair) reads are never warned or aborted.
+# sstables_per_read_warn_threshold replaces the deprecated sstables_per_read_log_threshold.
+sstables_per_read_warn_threshold: 100
+sstables_per_read_fail_threshold: -1
 
 # When executing a scan, within or across a partition, we need to keep the
 # tombstones seen in memory so we can return them to the coordinator, which

@@ -661,6 +661,18 @@ public final class Guardrails implements GuardrailsMBean
                              what, isWarning ? "warning" : "failure", threshold, value)));
 
     /**
+     * Guardrail on the number of SSTables touched by a single local read.
+     */
+    public static final MaxThreshold sstablesPerRead =
+    new MaxThreshold("sstables_per_read",
+                     "A single local read touching too many SSTables can consume excessive resources on the replica",
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getSSTablesPerReadWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getSSTablesPerReadFailThreshold(),
+                     ((isWarning, what, value, threshold) ->
+                      format("Query %s attempted to read from %s SSTables in a single local read, which violated the %s threshold of %s",
+                             what, value, isWarning ? "warning" : "failure", threshold)));
+
+    /**
      * Guardrail on the size of a string term written to SAI index.
      */
     public static final MaxThreshold saiStringTermSize =
@@ -1776,6 +1788,24 @@ public final class Guardrails implements GuardrailsMBean
     public void setSaiSSTableIndexesPerQueryThreshold(int warn, int fail)
     {
         DEFAULT_CONFIG.setSaiSSTableIndexesPerQueryThreshold(warn, fail);
+    }
+
+    @Override
+    public int getSSTablesPerReadWarnThreshold()
+    {
+        return DEFAULT_CONFIG.getSSTablesPerReadWarnThreshold();
+    }
+
+    @Override
+    public int getSSTablesPerReadFailThreshold()
+    {
+        return DEFAULT_CONFIG.getSSTablesPerReadFailThreshold();
+    }
+
+    @Override
+    public void setSSTablesPerReadThreshold(int warn, int fail)
+    {
+        DEFAULT_CONFIG.setSSTablesPerReadThreshold(warn, fail);
     }
 
     @Override

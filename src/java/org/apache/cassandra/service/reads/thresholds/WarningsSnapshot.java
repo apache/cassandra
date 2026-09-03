@@ -31,6 +31,7 @@ import org.apache.cassandra.exceptions.QueryReferencesTooManyIndexesAbortExcepti
 import org.apache.cassandra.exceptions.ReadSizeAbortException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.TombstoneAbortException;
+import org.apache.cassandra.exceptions.TooManySSTablesReadAbortException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
 public class WarningsSnapshot
@@ -38,19 +39,22 @@ public class WarningsSnapshot
     private static final WarningsSnapshot EMPTY = new WarningsSnapshot(Warnings.EMPTY,
                                                                        Warnings.EMPTY,
                                                                        Warnings.EMPTY,
+                                                                       Warnings.EMPTY,
                                                                        Warnings.EMPTY);
 
-    public final Warnings tombstones, localReadSize, rowIndexReadSize, indexReadSSTablesCount;
+    public final Warnings tombstones, localReadSize, rowIndexReadSize, indexReadSSTablesCount, sstablesPerRead;
 
     private WarningsSnapshot(Warnings tombstones,
                              Warnings localReadSize,
                              Warnings rowIndexReadSize,
-                             Warnings indexReadSSTablesCount)
+                             Warnings indexReadSSTablesCount,
+                             Warnings sstablesPerRead)
     {
         this.tombstones = tombstones;
         this.localReadSize = localReadSize;
         this.rowIndexReadSize = rowIndexReadSize;
         this.indexReadSSTablesCount = indexReadSSTablesCount;
+        this.sstablesPerRead = sstablesPerRead;
     }
 
     public static WarningsSnapshot empty()
@@ -61,15 +65,17 @@ public class WarningsSnapshot
     public static WarningsSnapshot create(Warnings tombstones,
                                           Warnings localReadSize,
                                           Warnings rowIndexTooLarge,
-                                          Warnings indexReadSSTablesCount)
+                                          Warnings indexReadSSTablesCount,
+                                          Warnings sstablesPerRead)
     {
         if (tombstones == localReadSize
             && tombstones == rowIndexTooLarge
             && tombstones == indexReadSSTablesCount
+            && tombstones == sstablesPerRead
             && tombstones == Warnings.EMPTY)
             return EMPTY;
 
-        return new WarningsSnapshot(tombstones, localReadSize, rowIndexTooLarge, indexReadSSTablesCount);
+        return new WarningsSnapshot(tombstones, localReadSize, rowIndexTooLarge, indexReadSSTablesCount, sstablesPerRead);
     }
 
     public static WarningsSnapshot merge(WarningsSnapshot... values)
@@ -101,7 +107,8 @@ public class WarningsSnapshot
         return WarningsSnapshot.create(tombstones.merge(other.tombstones),
                                        localReadSize.merge(other.localReadSize),
                                        rowIndexReadSize.merge(other.rowIndexReadSize),
-                                       indexReadSSTablesCount.merge(other.indexReadSSTablesCount));
+                                       indexReadSSTablesCount.merge(other.indexReadSSTablesCount),
+                                       sstablesPerRead.merge(other.sstablesPerRead));
     }
 
     public void maybeAbort(ReadCommand command, ConsistencyLevel cl, int received, int blockFor, boolean isDataPresent, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
@@ -124,6 +131,13 @@ public class WarningsSnapshot
                                                                   indexReadSSTablesCount.aborts.maxValue,
                                                                   isDataPresent,
                                                                   cl, received, blockFor, failureReasonByEndpoint);
+
+        if (!sstablesPerRead.aborts.instances.isEmpty())
+            throw new TooManySSTablesReadAbortException(tooManySSTablesReadAbortMessage(sstablesPerRead.aborts.instances.size(), sstablesPerRead.aborts.maxValue, command.toCQLString()),
+                                                        sstablesPerRead.aborts.instances.size(),
+                                                        sstablesPerRead.aborts.maxValue,
+                                                        isDataPresent,
+                                                        cl, received, blockFor, failureReasonByEndpoint);
     }
 
     @VisibleForTesting
@@ -174,6 +188,20 @@ public class WarningsSnapshot
     {
         return String.format("%s nodes referenced %s SSTable indexes for a query without restrictions on partition key " +
                              "and aborted the query %s (see sai_sstable_indexes_per_query_fail_threshold)", nodes, value, cql);
+    }
+
+    @VisibleForTesting
+    public static String tooManySSTablesReadWarnMessage(int nodes, long value, String cql)
+    {
+        return String.format("%s nodes read from up to %s SSTables in a single local read " +
+                             "and issued warnings for query %s (see sstables_per_read_warn_threshold)", nodes, value, cql);
+    }
+
+    @VisibleForTesting
+    public static String tooManySSTablesReadAbortMessage(int nodes, long value, String cql)
+    {
+        return String.format("%s nodes read from over %s SSTables in a single local read " +
+                             "and aborted the query %s (see sstables_per_read_fail_threshold)", nodes, value, cql);
     }
 
     @Override
@@ -332,7 +360,7 @@ public class WarningsSnapshot
         public Builder tombstonesWarning(Counter counter)
         {
             Objects.requireNonNull(counter);
-            snapshot = snapshot.merge(new WarningsSnapshot(new Warnings(counter, Counter.EMPTY), Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY));
+            snapshot = snapshot.merge(new WarningsSnapshot(new Warnings(counter, Counter.EMPTY), Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY));
             return this;
         }
 
@@ -344,7 +372,7 @@ public class WarningsSnapshot
         public Builder tombstonesAbort(Counter counter)
         {
             Objects.requireNonNull(counter);
-            snapshot = snapshot.merge(new WarningsSnapshot(new Warnings(Counter.EMPTY, counter), Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY));
+            snapshot = snapshot.merge(new WarningsSnapshot(new Warnings(Counter.EMPTY, counter), Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY));
             return this;
         }
 
@@ -356,7 +384,7 @@ public class WarningsSnapshot
         public Builder localReadSizeWarning(Counter counter)
         {
             Objects.requireNonNull(counter);
-            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, new Warnings(counter, Counter.EMPTY), Warnings.EMPTY, Warnings.EMPTY));
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, new Warnings(counter, Counter.EMPTY), Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY));
             return this;
         }
 
@@ -368,35 +396,49 @@ public class WarningsSnapshot
         public Builder localReadSizeAbort(Counter counter)
         {
             Objects.requireNonNull(counter);
-            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, new Warnings(Counter.EMPTY, counter), Warnings.EMPTY, Warnings.EMPTY));
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, new Warnings(Counter.EMPTY, counter), Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY));
             return this;
         }
 
         public Builder rowIndexSizeWarning(Counter counter)
         {
             Objects.requireNonNull(counter);
-            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, new Warnings(counter, Counter.EMPTY), Warnings.EMPTY));
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, new Warnings(counter, Counter.EMPTY), Warnings.EMPTY, Warnings.EMPTY));
             return this;
         }
 
         public Builder rowIndexSizeAbort(Counter counter)
         {
             Objects.requireNonNull(counter);
-            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, new Warnings(Counter.EMPTY, counter), Warnings.EMPTY));
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, new Warnings(Counter.EMPTY, counter), Warnings.EMPTY, Warnings.EMPTY));
             return this;
         }
 
         public Builder indexReadSSTablesWarning(Counter counter)
         {
             Objects.requireNonNull(counter);
-            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, new Warnings(Counter.EMPTY, counter), new Warnings(counter, Counter.EMPTY)));
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, new Warnings(Counter.EMPTY, counter), new Warnings(counter, Counter.EMPTY), Warnings.EMPTY));
             return this;
         }
 
         public Builder indexReadSSTablesAbort(Counter counter)
         {
             Objects.requireNonNull(counter);
-            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY, new Warnings(Counter.EMPTY, counter)));
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY, new Warnings(Counter.EMPTY, counter), Warnings.EMPTY));
+            return this;
+        }
+
+        public Builder sstablesPerReadWarning(Counter counter)
+        {
+            Objects.requireNonNull(counter);
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY, new Warnings(counter, Counter.EMPTY)));
+            return this;
+        }
+
+        public Builder sstablesPerReadAbort(Counter counter)
+        {
+            Objects.requireNonNull(counter);
+            snapshot = snapshot.merge(new WarningsSnapshot(Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY, Warnings.EMPTY, new Warnings(Counter.EMPTY, counter)));
             return this;
         }
 

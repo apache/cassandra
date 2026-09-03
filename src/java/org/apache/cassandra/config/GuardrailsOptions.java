@@ -117,6 +117,7 @@ public class GuardrailsOptions implements GuardrailsConfig
                                  config.sai_sstable_indexes_per_query_fail_threshold,
                                  "sai_sstable_indexes_per_query",
                                  false);
+        validateMaxIntThreshold(config.sstables_per_read_warn_threshold, config.sstables_per_read_fail_threshold, "sstables_per_read");
         validatePasswordPolicy(config.password_policy);
         validateRoleNamePolicy(config.role_name_policy);
         validateAndSanitizeClientDriverVersions(config.minimum_client_driver_versions_warned, "minimum_client_driver_versions_warned");
@@ -1246,6 +1247,33 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   fail,
                                   () -> config.sai_sstable_indexes_per_query_fail_threshold,
                                   x -> config.sai_sstable_indexes_per_query_fail_threshold = x);
+    }
+
+    @Override
+    public int getSSTablesPerReadWarnThreshold()
+    {
+        return config.sstables_per_read_warn_threshold;
+    }
+
+    @Override
+    public int getSSTablesPerReadFailThreshold()
+    {
+        return config.sstables_per_read_fail_threshold;
+    }
+
+    @Override
+    public void setSSTablesPerReadThreshold(int warn, int fail)
+    {
+        validateMaxIntThreshold(warn, fail, "sstables_per_read");
+        updatePropertyWithLogging("sstables_per_read_warn_threshold",
+                                  warn,
+                                  () -> config.sstables_per_read_warn_threshold,
+                                  x -> config.sstables_per_read_warn_threshold = x);
+
+        updatePropertyWithLogging("sstables_per_read_fail_threshold",
+                                  fail,
+                                  () -> config.sstables_per_read_fail_threshold,
+                                  x -> config.sstables_per_read_fail_threshold = x);
     }
 
     @Override

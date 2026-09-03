@@ -313,6 +313,9 @@ public class TableMetrics
     public final TableMeter tooManySSTableIndexesReadWarnings;
     public final TableMeter tooManySSTableIndexesReadAborts;
 
+    public final TableMeter sstablesPerReadWarnings;
+    public final TableMeter sstablesPerReadAborts;
+
     public final TableMeter writeSizeWarnings;
     public final TableMeter writeTombstoneWarnings;
 
@@ -918,6 +921,9 @@ public class TableMetrics
 
         tooManySSTableIndexesReadWarnings = createTableMeter("TooManySSTableIndexesReadWarnings", cfs.keyspace.metric.tooManySSTableIndexesReadWarnings);
         tooManySSTableIndexesReadAborts = createTableMeter("TooManySSTableIndexesReadAborts", cfs.keyspace.metric.tooManySSTableIndexesReadAborts);
+
+        sstablesPerReadWarnings = createTableMeter("SSTablesPerReadWarnings", cfs.keyspace.metric.sstablesPerReadWarnings);
+        sstablesPerReadAborts = createTableMeter("SSTablesPerReadAborts", cfs.keyspace.metric.sstablesPerReadAborts);
 
         writeSizeWarnings = createTableMeter("WriteSizeWarnings", cfs.keyspace.metric.writeSizeWarnings);
         writeTombstoneWarnings = createTableMeter("WriteTombstoneWarnings", cfs.keyspace.metric.writeTombstoneWarnings);

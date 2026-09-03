@@ -54,6 +54,7 @@ public class RequestFailure
     public static final RequestFailure INDEX_NOT_AVAILABLE = new RequestFailure(RequestFailureReason.INDEX_NOT_AVAILABLE);
     public static final RequestFailure COORDINATOR_BEHIND = new RequestFailure(RequestFailureReason.COORDINATOR_BEHIND);
     public static final RequestFailure READ_TOO_MANY_INDEXES = new RequestFailure(RequestFailureReason.READ_TOO_MANY_INDEXES);
+    public static final RequestFailure READ_TOO_MANY_SSTABLES = new RequestFailure(RequestFailureReason.READ_TOO_MANY_SSTABLES);
     public static final RequestFailure RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM = new RequestFailure(RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM);
     public static final RequestFailure INDEX_BUILD_IN_PROGRESS = new RequestFailure(RequestFailureReason.INDEX_BUILD_IN_PROGRESS);
     public static final RequestFailure TRUNCATE_FAILED = new RequestFailure(RequestFailureReason.TRUNCATE_FAILED);
@@ -149,6 +150,7 @@ public class RequestFailure
             case INDEX_NOT_AVAILABLE: return INDEX_NOT_AVAILABLE;
             case COORDINATOR_BEHIND: return COORDINATOR_BEHIND;
             case READ_TOO_MANY_INDEXES: return READ_TOO_MANY_INDEXES;
+            case READ_TOO_MANY_SSTABLES: return READ_TOO_MANY_SSTABLES;
             case INDEX_BUILD_IN_PROGRESS: return INDEX_BUILD_IN_PROGRESS;
             case RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM: return RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM;
             case TRUNCATE_FAILED: return TRUNCATE_FAILED;

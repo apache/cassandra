@@ -593,6 +593,24 @@ public interface GuardrailsConfig
     void setSaiSSTableIndexesPerQueryThreshold(int warn, int fail);
 
     /**
+     * @return the warning threshold for the number of SSTables touched by a single local read
+     */
+    int getSSTablesPerReadWarnThreshold();
+
+    /**
+     * @return the failure threshold for the number of SSTables touched by a single local read
+     */
+    int getSSTablesPerReadFailThreshold();
+
+    /**
+     * Sets warning and failure thresholds for the number of SSTables touched by a single local read
+     *
+     * @param warn value to set for warn threshold
+     * @param fail value to set for fail threshold
+     */
+    void setSSTablesPerReadThreshold(int warn, int fail);
+
+    /**
      * @return the warning threshold for the size of string terms written to an SAI index
      */
     DataStorageSpec.LongBytesBound getSaiStringTermSizeWarnThreshold();

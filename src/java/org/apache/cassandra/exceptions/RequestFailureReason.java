@@ -52,6 +52,8 @@ public enum RequestFailureReason
     COORDINATOR_BEHIND                      (10),
     RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM   (11),
     TRUNCATE_FAILED                         (12),
+    // below reason does not have an associated exception
+    READ_TOO_MANY_SSTABLES                  (13),
     // The following codes have been ported from an external fork, where they were offset explicitly to avoid conflicts.
     INDEX_BUILD_IN_PROGRESS                 (503),
     ;
@@ -76,7 +78,7 @@ public enum RequestFailureReason
 
     static
     {
-        EnumSet<RequestFailureReason> withoutExceptions = EnumSet.of(UNKNOWN, NODE_DOWN, READ_TOO_MANY_INDEXES);
+        EnumSet<RequestFailureReason> withoutExceptions = EnumSet.of(UNKNOWN, NODE_DOWN, READ_TOO_MANY_INDEXES, READ_TOO_MANY_SSTABLES);
         Sets.SetView<RequestFailureReason> withExceptions =  Sets.difference(EnumSet.allOf(RequestFailureReason.class), withoutExceptions);
         RequestFailureReason[] reasons = values();
 

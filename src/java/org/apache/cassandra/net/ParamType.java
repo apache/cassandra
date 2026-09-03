@@ -60,6 +60,8 @@ public enum ParamType
     WRITE_SIZE_WARN                  (18, WriteThresholdMapSerializer.serializer),
     WRITE_TOMBSTONE_WARN             (19, WriteThresholdMapSerializer.serializer),
     ACCORD_TRACING                   (20, AccordRemoteTracing.tracingSerializer),
+    TOO_MANY_SSTABLES_WARN           (21, Int32Serializer.serializer),
+    TOO_MANY_SSTABLES_FAIL           (22, Int32Serializer.serializer),
     ;
 
     final int id;

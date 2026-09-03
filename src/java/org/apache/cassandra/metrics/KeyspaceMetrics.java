@@ -193,6 +193,8 @@ public class KeyspaceMetrics
 
     public final Meter tooManySSTableIndexesReadWarnings;
     public final Meter tooManySSTableIndexesReadAborts;
+    public final Meter sstablesPerReadWarnings;
+    public final Meter sstablesPerReadAborts;
 
     public final Meter writeSizeWarnings;
     public final Meter writeTombstoneWarnings;
@@ -315,6 +317,8 @@ public class KeyspaceMetrics
 
         tooManySSTableIndexesReadWarnings = createKeyspaceMeter("TooManySSTableIndexesReadWarnings");
         tooManySSTableIndexesReadAborts = createKeyspaceMeter("TooManySSTableIndexesReadAborts");
+        sstablesPerReadWarnings = createKeyspaceMeter("SSTablesPerReadWarnings");
+        sstablesPerReadAborts = createKeyspaceMeter("SSTablesPerReadAborts");
 
         writeSizeWarnings = createKeyspaceMeter("WriteSizeWarnings");
         writeTombstoneWarnings = createKeyspaceMeter("WriteTombstoneWarnings");
