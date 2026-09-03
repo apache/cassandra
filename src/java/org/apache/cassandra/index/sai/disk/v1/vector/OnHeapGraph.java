@@ -31,6 +31,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.slf4j.Logger;
@@ -63,6 +65,7 @@ import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.utils.concurrent.Semaphore;
 import org.apache.lucene.util.StringHelper;
 
 public class OnHeapGraph<T>
@@ -70,6 +73,13 @@ public class OnHeapGraph<T>
     private static final Logger logger = LoggerFactory.getLogger(OnHeapGraph.class);
 
     public static final int MIN_PQ_ROWS = 1024;
+
+    /**
+     * jvector's {@link GraphIndexBuilder#addGraphNode} throws if more than this many threads are inside it at once
+     * (see {@code PoolingSupport}). Uses {@link Runtime} rather than {@code DatabaseDescriptor} because that is what jvector reads.
+     */
+    @VisibleForTesting
+    public static final int MAX_CONCURRENT_GRAPH_INSERTS = Runtime.getRuntime().availableProcessors() + 1;
 
     private final RamAwareVectorValues vectorValues;
     private final GraphIndexBuilder<float[]> builder;
@@ -79,6 +89,8 @@ public class OnHeapGraph<T>
     private final NonBlockingHashMapLong<VectorPostings<T>> postingsByOrdinal;
     private final NonBlockingHashMap<T, float[]> vectorsByKey;
     private final AtomicInteger nextOrdinal = new AtomicInteger();
+    // memtable inserts are concurrent (CASSANDRA-21160); excess writers wait here rather than fail in jvector
+    private final Semaphore graphInsertPermits = Semaphore.newSemaphore(MAX_CONCURRENT_GRAPH_INSERTS);
     private volatile boolean hasDeletions;
     private String source;
 
@@ -187,7 +199,15 @@ public class OnHeapGraph<T>
                              : ((CompactionVectorValues) vectorValues).add(ordinal, term);
                 bytesUsed += VectorPostings.emptyBytesUsed() + VectorPostings.bytesPerPosting();
                 postingsByOrdinal.put(ordinal, postings);
-                bytesUsed += builder.addGraphNode(ordinal, vectorValues);
+                graphInsertPermits.acquireThrowUncheckedOnInterrupt(1);
+                try
+                {
+                    bytesUsed += builder.addGraphNode(ordinal, vectorValues);
+                }
+                finally
+                {
+                    graphInsertPermits.release(1);
+                }
                 return bytesUsed;
             }
             else
