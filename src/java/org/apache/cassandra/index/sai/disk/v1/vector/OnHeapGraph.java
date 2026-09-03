@@ -31,6 +31,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.lucene.util.StringHelper;
@@ -90,8 +92,10 @@ public class OnHeapGraph<T>
     private final NonBlockingHashMapLong<VectorPostings<T>> postingsByOrdinal;
     private final NonBlockingHashMap<T, float[]> vectorsByKey;
     private final AtomicInteger nextOrdinal = new AtomicInteger();
-    // memtable inserts are concurrent (CASSANDRA-21160); excess writers wait here rather than fail in jvector
-    private final Semaphore graphInsertPermits = Semaphore.newSemaphore(MAX_CONCURRENT_GRAPH_INSERTS);
+    // memtable inserts are concurrent (CASSANDRA-21160); excess writers wait here rather than fail in jvector.
+    // Null when the memtable itself already limits writers to that many, e.g. a TrieMemtable with few enough shards.
+    @Nullable
+    private final Semaphore graphInsertPermits;
     private volatile boolean hasDeletions;
     private String source;
 
@@ -120,6 +124,9 @@ public class OnHeapGraph<T>
         postingsMap = new ConcurrentSkipListMap<>(Arrays::compare);
         postingsByOrdinal = new NonBlockingHashMapLong<>();
         vectorsByKey = memtable != null ? new NonBlockingHashMap<>() : null;
+        graphInsertPermits = memtable != null && memtable.limitsConcurrentWritesTo(MAX_CONCURRENT_GRAPH_INSERTS)
+                             ? null
+                             : Semaphore.newSemaphore(MAX_CONCURRENT_GRAPH_INSERTS);
 
         builder = new GraphIndexBuilder<>(vectorValues,
                                           VectorEncoding.FLOAT32,
@@ -200,14 +207,16 @@ public class OnHeapGraph<T>
                              : ((CompactionVectorValues) vectorValues).add(ordinal, term);
                 bytesUsed += VectorPostings.emptyBytesUsed() + VectorPostings.bytesPerPosting();
                 postingsByOrdinal.put(ordinal, postings);
-                graphInsertPermits.acquireThrowUncheckedOnInterrupt(1);
+                if (graphInsertPermits != null)
+                    graphInsertPermits.acquireThrowUncheckedOnInterrupt(1);
                 try
                 {
                     bytesUsed += builder.addGraphNode(ordinal, vectorValues);
                 }
                 finally
                 {
-                    graphInsertPermits.release(1);
+                    if (graphInsertPermits != null)
+                        graphInsertPermits.release(1);
                 }
                 return bytesUsed;
             }
