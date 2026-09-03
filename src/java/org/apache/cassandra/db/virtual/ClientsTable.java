@@ -29,6 +29,7 @@ final class ClientsTable extends AbstractVirtualTable
 {
     private static final String ADDRESS = "address";
     private static final String PORT = "port";
+    private static final String HOSTNAME = "hostname";
     private static final String USERNAME = "username";
     private static final String CONNECTION_STAGE = "connection_stage";
     private static final String PROTOCOL_VERSION = "protocol_version";
@@ -48,6 +49,7 @@ final class ClientsTable extends AbstractVirtualTable
                            .partitioner(new LocalPartitioner(InetAddressType.instance))
                            .addPartitionKeyColumn(ADDRESS, InetAddressType.instance)
                            .addClusteringColumn(PORT, Int32Type.instance)
+                           .addRegularColumn(HOSTNAME, UTF8Type.instance)
                            .addRegularColumn(USERNAME, UTF8Type.instance)
                            .addRegularColumn(CONNECTION_STAGE, UTF8Type.instance)
                            .addRegularColumn(PROTOCOL_VERSION, Int32Type.instance)
@@ -71,6 +73,7 @@ final class ClientsTable extends AbstractVirtualTable
             InetSocketAddress remoteAddress = client.remoteAddress();
 
             result.row(remoteAddress.getAddress(), remoteAddress.getPort())
+                  .column(HOSTNAME, remoteAddress.getHostString())
                   .column(USERNAME, client.username().orElse(null))
                   .column(CONNECTION_STAGE, client.stage().toString().toLowerCase())
                   .column(PROTOCOL_VERSION, client.protocolVersion())
