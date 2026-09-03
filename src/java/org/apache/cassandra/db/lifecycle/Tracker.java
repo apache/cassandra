@@ -40,9 +40,12 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.LogDomain;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.memtable.LogDomainBounds;
 import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.SplitDomainMemtable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.File;
@@ -107,18 +110,19 @@ public class Tracker
     /**
      * @param columnFamilyStore
      * @param memtable Initial Memtable. Can be null.
+     * @param bounds The boundary the current memtable starts at. null only if there's no memtable.
      * @param loadsstables true to indicate to load SSTables (TODO: remove as this is only accessed from 2i)
      */
-    public Tracker(ColumnFamilyStore columnFamilyStore, Memtable memtable, boolean loadsstables)
+    public Tracker(ColumnFamilyStore columnFamilyStore, Memtable memtable, LogDomainBounds bounds, boolean loadsstables)
     {
         this.cfstore = columnFamilyStore;
         this.loadsstables = loadsstables;
-        this.reset(memtable);
+        this.reset(memtable, bounds);
     }
 
     public static Tracker newDummyTracker()
     {
-        return new Tracker(null, null, false);
+        return new Tracker(null, null, null, false);
     }
 
     public LifecycleTransaction tryModify(SSTableReader sstable, OperationType operationType)
@@ -319,7 +323,7 @@ public class Tracker
 
     /** (Re)initializes the tracker, purging all references. */
     @VisibleForTesting
-    public void reset(Memtable memtable)
+    public void reset(Memtable memtable, LogDomainBounds bounds)
     {
         viewUpdateLock.lock();
         try
@@ -328,7 +332,8 @@ public class Tracker
                             Collections.emptyList(),
                             Collections.emptyMap(),
                             Collections.emptyMap(),
-                            SSTableIntervalTree.empty());
+                            SSTableIntervalTree.empty(),
+                            bounds);
         }
         finally
         {
@@ -415,7 +420,7 @@ public class Tracker
     /**
      * get the Memtable that the ordered writeOp should be directed to
      */
-    public Memtable getMemtableFor(OpOrder.Group opGroup, CommitLogPosition commitLogPosition)
+    public Memtable getMemtableFor(OpOrder.Group opGroup, CommitLogPosition commitLogPosition, LogDomain domain)
     {
         // since any new memtables appended to the list after we fetch it will be for operations started
         // after us, we can safely assume that we will always find the memtable that 'accepts' us;
@@ -427,10 +432,62 @@ public class Tracker
         View view = this.view;
         for (Memtable memtable : view.liveMemtables)
         {
-            if (memtable.accepts(opGroup, commitLogPosition))
+            if (memtable.accepts(opGroup, commitLogPosition, domain))
                 return memtable;
         }
-        throw new AssertionError(view.liveMemtables.toString());
+
+        // the only valid reason to leave the loop above without a memtable is if the current memtable doesn't
+        // address the domain we're trying to write for. Otherwise, this we have a bug and need to throw an exception
+        if (view.getCurrentMemtable().holds(domain))
+            throw new AssertionError("No live memtable accepted a " + domain + " write, but the current one holds that "
+                                     + "domain: " + view.liveMemtables);
+
+        // Otherwise we need to install a split memtable for the current generation
+        return installSplit(opGroup, commitLogPosition, domain);
+    }
+
+    private static final int MAX_SPLIT_ATTEMPTS = 64;
+
+    private Memtable installSplit(OpOrder.Group opGroup, CommitLogPosition commitLogPosition, LogDomain domain)
+    {
+        SplitDomainMemtable lastRefused = null;
+
+        for (int attempt = 0; attempt < MAX_SPLIT_ATTEMPTS; attempt++)
+        {
+            View current = this.view;
+            Memtable oldMemtable = current.getCurrentMemtable();
+            SplitDomainMemtable splitMemtable;
+
+            if (oldMemtable instanceof SplitDomainMemtable)
+            {
+                // Split already, by a writer that beat us here.
+                splitMemtable = (SplitDomainMemtable) oldMemtable;
+            }
+            else
+            {
+                // The new internal takes the position this memtable generation's boundary holds for its domain, so
+                // its span begins exactly where the previous generation's ended.
+                Memtable newMemtable = cfstore.createMemtable(current.currentBounds.sealIfUnset(domain), domain);
+                splitMemtable = new SplitDomainMemtable(newMemtable, oldMemtable, oldMemtable.getMemtableId());
+
+                if (apply(View.canSplitMemtable(oldMemtable), View.splitMemtable(oldMemtable, splitMemtable)) == null)
+                    continue;
+            }
+
+            // Asked of the generation, which delegates to the internal holding the bounds this write is measured
+            // against. The generation is also what is returned, since put routes inside it.
+            if (splitMemtable.accepts(opGroup, commitLogPosition, domain))
+                return splitMemtable;
+
+            // don't loop on the same generation refusing our write
+            if (splitMemtable == lastRefused)
+                throw new AssertionError("A " + domain + " write was refused twice by the same generation " + splitMemtable
+                                         + " in " + view.liveMemtables);
+            lastRefused = splitMemtable;
+        }
+
+        throw new AssertionError("Gave up routing a " + domain + " write after " + MAX_SPLIT_ATTEMPTS
+                                 + " attempts against " + view.liveMemtables);
     }
 
     /**
@@ -441,9 +498,9 @@ public class Tracker
      *
      * @return the previously active memtable
      */
-    public Memtable switchMemtable(boolean truncating, Memtable newMemtable)
+    public Memtable switchMemtable(boolean truncating, Memtable newMemtable, LogDomainBounds newBounds)
     {
-        Pair<View, View> result = apply(View.switchMemtable(newMemtable));
+        Pair<View, View> result = apply(View.switchMemtable(newMemtable, newBounds));
         if (truncating)
             notifyRenewed(newMemtable);
         else

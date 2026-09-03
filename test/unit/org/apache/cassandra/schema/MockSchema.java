@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -44,7 +45,9 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.LogDomain;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.SkipListMemtable;
@@ -121,9 +124,10 @@ public class MockSchema
 
     public static final IndexSummary indexSummary;
 
+    /** Mock tables are untracked, so every memtable here is commit-log domain and bounded at {@code NONE}. */
     public static Memtable memtable(ColumnFamilyStore cfs)
     {
-        return SkipListMemtable.FACTORY.create(null, cfs.metadata, cfs);
+        return SkipListMemtable.FACTORY.create(new AtomicReference<>(CommitLogPosition.NONE), cfs.metadata, cfs, LogDomain.COMMIT_LOG);
     }
 
     public static SSTableReader sstable(int generation, ColumnFamilyStore cfs)

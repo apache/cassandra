@@ -41,6 +41,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionInfo;
+import org.apache.cassandra.db.LogDomain;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.Slices;
@@ -125,9 +126,9 @@ public class TrieMemtable extends AbstractShardedMemtable
     @Unmetered
     private final TrieMemtableMetricsView metrics;
 
-    TrieMemtable(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadataRef, Owner owner, Integer shardCountOption)
+    TrieMemtable(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadataRef, Owner owner, LogDomain domain, Integer shardCountOption)
     {
-        super(commitLogLowerBound, metadataRef, owner, shardCountOption);
+        super(commitLogLowerBound, metadataRef, owner, domain, shardCountOption);
         this.metrics = new TrieMemtableMetricsView(metadataRef.keyspace, metadataRef.name);
         this.shards = generatePartitionShards(boundaries.shardCount(), allocator, metadataRef, metrics);
         this.mergedTrie = makeMergedTrie(shards);
@@ -186,8 +187,9 @@ public class TrieMemtable extends AbstractShardedMemtable
      * commitLogSegmentPosition should only be null if this is a secondary index, in which case it is *expected* to be null
      */
     @Override
-    public long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
+    public long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, LogDomain domain, boolean assumeMissing)
     {
+        requireDomain(domain);
         try
         {
             DecoratedKey key = update.partitionKey();
@@ -801,9 +803,10 @@ public class TrieMemtable extends AbstractShardedMemtable
 
         public Memtable create(AtomicReference<CommitLogPosition> commitLogLowerBound,
                                TableMetadataRef metadaRef,
-                               Owner owner)
+                               Owner owner,
+                               LogDomain domain)
         {
-            return new TrieMemtable(commitLogLowerBound, metadaRef, owner, shardCount);
+            return new TrieMemtable(commitLogLowerBound, metadaRef, owner, domain, shardCount);
         }
 
         @Override

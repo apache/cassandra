@@ -29,13 +29,16 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
+import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.memtable.LogDomainBounds;
 import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.SplitDomainMemtable;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.LatencyMetrics;
@@ -87,16 +90,26 @@ public class View
 
     final SSTableIntervalTree intervalTree;
 
-    View(List<Memtable> liveMemtables, List<Memtable> flushingMemtables, Map<SSTableReader, SSTableReader> sstables, Map<SSTableReader, SSTableReader> compacting, SSTableIntervalTree intervalTree)
+    // log domain boundaries the current memtable generateion began at
+    final LogDomainBounds currentBounds;
+
+    View(List<Memtable> liveMemtables,
+         List<Memtable> flushingMemtables,
+         Map<SSTableReader, SSTableReader> sstables,
+         Map<SSTableReader, SSTableReader> compacting,
+         SSTableIntervalTree intervalTree,
+         LogDomainBounds currentBounds)
     {
         assert liveMemtables != null;
         assert flushingMemtables != null;
         assert sstables != null;
         assert compacting != null;
         assert intervalTree != null;
+        assert currentBounds != null || liveMemtables.isEmpty();
 
         this.liveMemtables = liveMemtables;
         this.flushingMemtables = flushingMemtables;
+        this.currentBounds = currentBounds;
 
         this.sstablesMap = sstables;
         this.sstables = sstablesMap.keySet();
@@ -279,7 +292,7 @@ public class View
                 assert all(mark, Helpers.idIn(view.sstablesMap));
                 return new View(view.liveMemtables, view.flushingMemtables, view.sstablesMap,
                                 replace(view.compactingMap, unmark, mark),
-                                view.intervalTree);
+                                view.intervalTree, view.currentBounds);
             }
         };
     }
@@ -314,7 +327,7 @@ public class View
                 SSTableIntervalTree sstableIntervalTree = SSTableIntervalTree.update(view.intervalTree, remove, add);
                 if (sstableIntervalTreeLatency != null)
                     sstableIntervalTreeLatency.addNano(Clock.Global.nanoTime() - treeBuildStart);
-                return new View(view.liveMemtables, view.flushingMemtables, sstableMap, view.compactingMap, sstableIntervalTree);
+                return new View(view.liveMemtables, view.flushingMemtables, sstableMap, view.compactingMap, sstableIntervalTree, view.currentBounds);
             }
         };
     }
@@ -331,13 +344,35 @@ public class View
                 SSTableIntervalTree sstableIntervalTree = SSTableIntervalTree.replace(view.intervalTree, replacementMap);
                 if (sstableIntervalTreeLatency != null)
                     sstableIntervalTreeLatency.addNano(Clock.Global.nanoTime() - treeBuildStart);
-                return new View(view.liveMemtables, view.flushingMemtables, sstableMap, view.compactingMap, sstableIntervalTree);
+                return new View(view.liveMemtables, view.flushingMemtables, sstableMap, view.compactingMap, sstableIntervalTree, view.currentBounds);
             }
         };
     }
 
-    // called prior to initiating flush: add newMemtable to liveMemtables, making it the latest memtable
-    static Function<View, View> switchMemtable(final Memtable newMemtable)
+    /**
+     * Replace the current memtable with a wrapper holding it, at the same position in the list.
+     * <p>
+     * This is used when we encounter writes from 2 different backing log domains.
+     */
+    static Function<View, View> splitMemtable(final Memtable toWrap, final SplitDomainMemtable wrapper)
+    {
+        return view -> {
+            List<Memtable> live = view.liveMemtables;
+            Preconditions.checkArgument(live.get(live.size() - 1) == toWrap, "Only the current memtable can be split");
+            List<Memtable> newLive = ImmutableList.<Memtable>builder()
+                                                  .addAll(live.subList(0, live.size() - 1))
+                                                  .add(wrapper)
+                                                  .build();
+            return new View(newLive, view.flushingMemtables, view.sstablesMap, view.compactingMap, view.intervalTree, view.currentBounds);
+        };
+    }
+
+    static Predicate<View> canSplitMemtable(final Memtable toSplit)
+    {
+        return view -> view.getCurrentMemtable() == toSplit;
+    }
+
+    static Function<View, View> switchMemtable(final Memtable newMemtable, final LogDomainBounds newBounds)
     {
         return new Function<View, View>()
         {
@@ -345,7 +380,7 @@ public class View
             {
                 List<Memtable> newLive = ImmutableList.<Memtable>builder().addAll(view.liveMemtables).add(newMemtable).build();
                 assert newLive.size() == view.liveMemtables.size() + 1;
-                return new View(newLive, view.flushingMemtables, view.sstablesMap, view.compactingMap, view.intervalTree);
+                return new View(newLive, view.flushingMemtables, view.sstablesMap, view.compactingMap, view.intervalTree, newBounds);
             }
         };
     }
@@ -364,7 +399,7 @@ public class View
                                                            filter(flushing, not(lessThan(toFlush)))));
                 assert newLive.size() == live.size() - 1;
                 assert newFlushing.size() == flushing.size() + 1;
-                return new View(newLive, newFlushing, view.sstablesMap, view.compactingMap, view.intervalTree);
+                return new View(newLive, newFlushing, view.sstablesMap, view.compactingMap, view.intervalTree, view.currentBounds);
             }
         };
     }
@@ -381,14 +416,14 @@ public class View
 
                 if (flushed == null || Iterables.isEmpty(flushed))
                     return new View(view.liveMemtables, flushingMemtables, view.sstablesMap,
-                                    view.compactingMap, view.intervalTree);
+                                    view.compactingMap, view.intervalTree, view.currentBounds);
 
                 Map<SSTableReader, SSTableReader> sstableMap = replace(view.sstablesMap, emptySet(), flushed);
                 long treeBuildStart = Clock.Global.nanoTime();
                 SSTableIntervalTree sstableIntervalTree = SSTableIntervalTree.addSSTables(view.intervalTree, flushed);
                 if (sstableIntervalTreeLatency != null)
                     sstableIntervalTreeLatency.addNano(Clock.Global.nanoTime() - treeBuildStart);
-                return new View(view.liveMemtables, flushingMemtables, sstableMap, view.compactingMap, sstableIntervalTree);
+                return new View(view.liveMemtables, flushingMemtables, sstableMap, view.compactingMap, sstableIntervalTree, view.currentBounds);
             }
         };
     }

@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.LogDomain;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.Slices;
@@ -91,10 +92,11 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
     ShardedSkipListMemtable(AtomicReference<CommitLogPosition> commitLogLowerBound,
                             TableMetadataRef metadataRef,
                             Owner owner,
+                            LogDomain domain,
                             Integer shardCountOption,
                             boolean locking)
     {
-        super(commitLogLowerBound, metadataRef, owner, shardCountOption);
+        super(commitLogLowerBound, metadataRef, owner, domain, shardCountOption);
         this.shards = generatePartitionShards(boundaries.shardCount(), allocator, metadataRef, locking);
     }
 
@@ -143,8 +145,9 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
      *
      * commitLogSegmentPosition should only be null if this is a secondary index, in which case it is *expected* to be null
      */
-    public long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
+    public long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, LogDomain domain, boolean assumeMissing)
     {
+        requireDomain(domain);
         DecoratedKey key = update.partitionKey();
         MemtableShard shard = shards[boundaries.getShardForKey(key)];
         return shard.put(mutationId, key, update, indexer, opGroup, assumeMissing);
@@ -531,9 +534,9 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
 
     static class Locking extends ShardedSkipListMemtable
     {
-        Locking(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadataRef, Owner owner, Integer shardCountOption)
+        Locking(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadataRef, Owner owner, LogDomain domain, Integer shardCountOption)
         {
-            super(commitLogLowerBound, metadataRef, owner, shardCountOption, true);
+            super(commitLogLowerBound, metadataRef, owner, domain, shardCountOption, true);
         }
 
         /**
@@ -542,8 +545,9 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
          *
          * commitLogSegmentPosition should only be null if this is a secondary index, in which case it is *expected* to be null
          */
-        public long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
+        public long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, LogDomain domain, boolean assumeMissing)
         {
+            requireDomain(domain);
             DecoratedKey key = update.partitionKey();
             MemtableShard shard = shards[boundaries.getShardForKey(key)];
             synchronized (shard)
@@ -575,11 +579,12 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
 
         public Memtable create(AtomicReference<CommitLogPosition> commitLogLowerBound,
                                TableMetadataRef metadataRef,
-                               Owner owner)
+                               Owner owner,
+                               LogDomain domain)
         {
             return isLocking
-                   ? new Locking(commitLogLowerBound, metadataRef, owner, shardCount)
-                   : new ShardedSkipListMemtable(commitLogLowerBound, metadataRef, owner, shardCount, false);
+                   ? new Locking(commitLogLowerBound, metadataRef, owner, domain, shardCount)
+                   : new ShardedSkipListMemtable(commitLogLowerBound, metadataRef, owner, domain, shardCount, false);
         }
 
         public boolean equals(Object o)

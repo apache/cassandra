@@ -20,6 +20,7 @@ package org.apache.cassandra.db.tracked;
 import org.apache.cassandra.db.CassandraWriteContext;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.KeyspaceWriteHandler;
+import org.apache.cassandra.db.LogDomain;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
@@ -48,7 +49,7 @@ public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
                 pointer = MutationJournal.instance().write(mutation.id(), mutation);
             }
 
-            return new CassandraWriteContext(group, pointer);
+            return new CassandraWriteContext(group, pointer, LogDomain.MUTATION_JOURNAL);
         }
         catch (Throwable t)
         {
@@ -75,7 +76,9 @@ public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
         OpOrder.Group group = Keyspace.writeOrder.start();
         try
         {
-            return new CassandraWriteContext(group, null);
+            // Index rebuild and read contexts append to neither log. Commit-log domain because the writes they
+            // carry are index updates derived from data already durable, never journal appends of their own.
+            return new CassandraWriteContext(group, null, LogDomain.COMMIT_LOG);
         }
         catch (Throwable t)
         {

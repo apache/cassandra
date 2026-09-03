@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.config.InheritingClass;
+import org.apache.cassandra.db.LogDomain;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.schema.TableMetadataRef;
 
@@ -37,9 +38,9 @@ import org.apache.cassandra.schema.TableMetadataRef;
 public class SkipListMemtableFactory implements Memtable.Factory
 {
     @Override
-    public Memtable create(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadaRef, Memtable.Owner owner)
+    public Memtable create(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadaRef, Memtable.Owner owner, LogDomain domain)
     {
-        return new SkipListMemtable(commitLogLowerBound, metadaRef, owner);
+        return new SkipListMemtable(commitLogLowerBound, metadaRef, owner, domain);
     }
 
     public static final SkipListMemtableFactory INSTANCE = new SkipListMemtableFactory();

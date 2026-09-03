@@ -55,7 +55,7 @@ public class CassandraKeyspaceWriteHandler implements KeyspaceWriteHandler
             {
                 position = addToCommitLog(mutation);
             }
-            return new CassandraWriteContext(group, position);
+            return new CassandraWriteContext(group, position, LogDomain.COMMIT_LOG);
         }
         catch (Throwable t)
         {
@@ -108,7 +108,9 @@ public class CassandraKeyspaceWriteHandler implements KeyspaceWriteHandler
         try
         {
             group = Keyspace.writeOrder.start();
-            return new CassandraWriteContext(group, null);
+            // Index rebuild and read contexts append to neither log. Commit-log domain because the writes they
+            // carry are index updates derived from data already durable, never journal appends of their own.
+            return new CassandraWriteContext(group, null, LogDomain.COMMIT_LOG);
         }
         catch (Throwable t)
         {
