@@ -157,6 +157,11 @@ Fail fast with repeating tests is done with REPEATED_TESTS_STOP_ON_FAILURE
 
     .build/run-tests.sh -a jvm-dtest-repeat -t BooleanTest -e REPEATED_TESTS_COUNT=2 -e REPEATED_TESTS_STOP_ON_FAILURE=false
 
+Each split chunk runs the full set of iterations on its own machine, so -c multiplies the number of
+machines doing the same REPEATED_TESTS_COUNT runs (the chunk does not partition the iterations):
+
+    .build/run-tests.sh -a jvm-dtest-repeat -t BooleanTest -e REPEATED_TESTS_COUNT=2 -c 1/2
+
 Running python dtests without docker:
 
     .build/run-python-dtests.sh dtest

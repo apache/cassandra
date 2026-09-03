@@ -2,8 +2,9 @@
 
 ```
 ➤ .build/run-ci --help
-usage: run-ci [-h] [-c KUBECONFIG] [-x KUBECONTEXT] [-i URL] [-u USER] [-r REPOSITORY] [-b BRANCH] [-p {packaging,skinny,pre-commit,pre-commit w/ upgrades,post-commit,custom}] [-e PROFILE_CUSTOM_REGEXP] [-j JDK] [-d DTEST_REPOSITORY] [-k DTEST_BRANCH]
-              [-s] [--only-setup] [-v VALUES_OVERRIDE] [--tear-down] [--only-tear-down] [--only-node-cleaner] [-o DOWNLOAD_RESULTS]
+usage: run-ci [-h] [-c KUBECONFIG] [-x KUBECONTEXT] [-i URL] [-u USER] [-r REPOSITORY] [-b BRANCH] [-p {packaging,skinny,pre-commit,pre-commit w/ upgrades,post-commit,custom}] [-e PROFILE_CUSTOM_REGEXP] [-j JDK]
+              [-t REPEAT_TEST_REGEX] [-n REPEAT_COUNT] [--repeat-stop-on-failure] [-m REPEAT_MACHINES] [-d DTEST_REPOSITORY] [-k DTEST_BRANCH] [-s] [--only-setup] [-v VALUES_OVERRIDE]
+              [--tear-down] [--only-tear-down] [--only-node-cleaner] [-o DOWNLOAD_RESULTS]
 
 Run CI pipeline for Cassandra on K8s using Jenkins.
 
@@ -24,6 +25,14 @@ options:
   -e PROFILE_CUSTOM_REGEXP, --profile-custom-regexp PROFILE_CUSTOM_REGEXP
                         Regexp for stages when using custom profile. See `testSteps` in Jenkinsfile for list of stages. Example: 'stress.*|jvm-dtest.'
   -j JDK, --jdk JDK     Specify JDK version. Defaults to all JDKs the current branch supports.
+  -t REPEAT_TEST_REGEX, --repeat-test-regex REPEAT_TEST_REGEX
+                        Test name regexp (csv list) to run repeatedly via the *-repeat stages. Requires -p custom and -e selecting a *-repeat stage. Example: 'HostReplacementTest'
+  -n REPEAT_COUNT, --repeat-count REPEAT_COUNT
+                        How many times to run the *-repeat stages. Example: 200
+  --repeat-stop-on-failure
+                        Stop all workers in a *-repeat stage when any worker reports a failed run (default: run all iterations and report the failure rate)
+  -m REPEAT_MACHINES, --repeat-machines REPEAT_MACHINES
+                        Number of machines that each run the full set of repeated test iterations in parallel (default 1). Example: 4
   -d DTEST_REPOSITORY, --dtest-repository DTEST_REPOSITORY
                         DTest repository URL.
   -k DTEST_BRANCH, --dtest-branch DTEST_BRANCH
@@ -58,6 +67,21 @@ Run the the specified fork and branch through the "skinny" pipeline restricted t
 Run the the specified fork and branch through just the "fqltool-test" tests
 ```
 .build/run-ci -r "https://github.com/jrwest/cassandra.git" -b "jwest/15452-5.0" -p "custom" -e "fqltool-test"
+```
+
+Run a single test 200 times to hunt for a flake (custom profile, `jvm-dtest-repeat` stage; `test-repeat` for unit tests)
+```
+.build/run-ci -r "https://github.com/jrwest/cassandra.git" -b "jwest/15452-5.0" -p "custom" -e "jvm-dtest-repeat" -t "HostReplacementTest" -n 200
+```
+
+The same but aborting all repeat workers when any worker reports a failed run
+```
+.build/run-ci -r "https://github.com/jrwest/cassandra.git" -b "jwest/15452-5.0" -p "custom" -e "jvm-dtest-repeat" -t "HostReplacementTest" -n 200 --repeat-stop-on-failure
+```
+
+The same but on 4 machines, each running all 200 iterations in parallel (4x the samples, same wall-clock time)
+```
+.build/run-ci -r "https://github.com/jrwest/cassandra.git" -b "jwest/15452-5.0" -p "custom" -e "jvm-dtest-repeat" -t "HostReplacementTest" -n 200 -m 4
 ```
 
 Setup/Update Jenkins Helm into your current kubeconfig

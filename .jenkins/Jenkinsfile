@@ -76,6 +76,10 @@ pipeline {
 
     choice(name: 'profile', choices: pipelineProfileNames(params.profile ?: ''), description: 'Pick a pipeline profile.')
     string(name: 'profile_custom_regexp', defaultValue: params.profile_custom_regexp ?: '', description: 'Regexp for stages when using custom profile. See `testSteps` in Jenkinsfile for list of stages. Example: stress.*|jvm-dtest.*')
+    string(name: 'repeat_test_regex', defaultValue: params.repeat_test_regex ?: '', description: 'Test name regexp (csv list) to run repeatedly. Only used by *-repeat stages, see `repeatTestSteps()` in Jenkinsfile. Example: HostReplacementTest')
+    string(name: 'repeated_tests_count', defaultValue: params.repeated_tests_count ?: '', description: 'How many times to run the tests selected by repeat_test_regex in a *-repeat stage. Example: 200')
+    booleanParam(name: 'repeated_tests_stop_on_failure', defaultValue: false, description: 'Stop all workers in a *-repeat stage when any worker reports a failed run. Default runs all iterations and reports the failure rate.')
+    string(name: 'repeated_tests_machines', defaultValue: params.repeated_tests_machines ?: '1', description: 'Number of machines that each run the full set of repeated test iterations in parallel, in *-repeat stages. Example: 4')
 
     choice(name: 'architecture', choices: archsSupported + "all", description: 'Pick architecture. The ARM64 is disabled by default at the moment.')
     string(name: 'jdk', defaultValue: params.jdk ?: '', description: 'Restrict JDK versions. (e.g. "11", "17", etc)')
@@ -89,7 +93,19 @@ pipeline {
         script {
           // this helps assure folk their parameters are correct and will be used (despite the earlier output about the configured job coordinates)
           echo "Printing parameters used for this build"
-          ["Repository: ${params.repository}", "Branch: ${params.branch}", "Profile: ${params.profile}", "Custom Profile Regexp: ${params.profile_custom_regexp}", "Architecture: ${params.architecture}", "JDK: ${params.jdk}", "DTest Repository: ${params.dtest_repository}", "DTest Branch: ${params.dtest_branch}"].each { println it }
+          ["Repository: ${params.repository}", "Branch: ${params.branch}", "Profile: ${params.profile}", "Custom Profile Regexp: ${params.profile_custom_regexp}", "Architecture: ${params.architecture}", "JDK: ${params.jdk}", "DTest Repository: ${params.dtest_repository}", "DTest Branch: ${params.dtest_branch}", "Repeat Test Regexp: ${params.repeat_test_regex}", "Repeated Tests Count: ${params.repeated_tests_count}", "Repeated Tests Stop On Failure: ${params.repeated_tests_stop_on_failure}"].each { println it }
+          def repeatStagesSelected = repeatTestSteps().keySet().findAll { it ==~ (params.profile_custom_regexp ?: '') }
+          if ("custom" == params.profile && repeatStagesSelected) {
+            if (!(params.repeat_test_regex?.trim() && params.repeated_tests_count?.trim())) {
+              error("The custom profile regexp '${params.profile_custom_regexp}' selects the repeat stages ${repeatStagesSelected}, which require the 'repeat_test_regex' and 'repeated_tests_count' parameters")
+            }
+            if (!(params.repeated_tests_count?.trim() ==~ /^[1-9][0-9]*$/)) {
+              error("The 'repeated_tests_count' parameter must be a positive integer, got: '${params.repeated_tests_count}'")
+            }
+            if (!(params.repeated_tests_machines?.trim() ==~ /^[1-9][0-9]*$/)) {
+              error("The 'repeated_tests_machines' parameter must be a positive integer, got: '${params.repeated_tests_machines}'")
+            }
+          }
         }
       }
     }
@@ -147,6 +163,29 @@ def pipelineProfiles() {
     'performance': ['microbench'],
     'custom': []
   ]
+}
+
+@NonCPS
+def repeatTestSteps() {
+  // stages that re-run the test(s) named by the `repeat_test_regex` parameter `repeated_tests_count` times
+  // (the REPEATED_TESTS_COUNT/REPEATED_TESTS_STOP_ON_FAILURE options of .build/run-tests.sh).
+  // Custom profile only (see isStageEnabled). The stage is "split" across `repeated_tests_machines`
+  // machines, each running every iteration (see splitsFor()). A long timeout: 200 iterations of a
+  // dtest easily outlasts the default hour.
+  return [
+    'test-repeat': [splits: 1, size: 'medium', timeout_hours: 24],
+    'jvm-dtest-repeat': [splits: 1, size: 'medium', timeout_hours: 24],
+  ]
+}
+
+// number of machines each running the full set of repeated test iterations in *-repeat stages
+def repeatMachines() {
+  return (params.repeated_tests_machines?.trim() ?: '1').toInteger()
+}
+
+// repeat stages are "split" across machines, each running every iteration; other stages split the test set
+def splitsFor(String step, def stepConfig) {
+  return step.endsWith('-repeat') ? repeatMachines() : stepConfig.splits
 }
 
 @NonCPS
@@ -217,6 +256,8 @@ def tasks() {
     // performance tests need 'cassandra-*large-dedicated' nodes
     'microbench': [splits: 4, size: 'large', timeout_hours: 6, benchmark: true],
   ]
+  // *-repeat stages: re-run a single test (csv list) N times, see the repeat parameters
+  testSteps.putAll(repeatTestSteps())
   testSteps.each() {
     it.value.put('type', 'test')
     if (!it.value['size']) {
@@ -245,7 +286,7 @@ def tasks() {
     python: pythonsSupported,
     cython: ['yes', 'no'],
     step: stepsMap.keySet(),
-    split: (1..testSteps.values().splits.max()).toList()
+    split: (1..Math.max(testSteps.values().splits.max(), repeatMachines())).toList()
   ]
 
   def List _axes = getMatrixAxes(matrix_axes).findAll { axis ->
@@ -257,7 +298,7 @@ def tasks() {
     !(axis['cython'] == 'yes' && (axis['python'] == '3.12' || axis['python'] == '3.13')) && // Skip cython for Python 3.12+ see CASSANDRA-21482
     !(axis['jdk'] != javaVersionDefault && ('cqlsh-test' == axis['step'] || 'simulator-dtest' == axis['step'] || axis['step'].contains('dtest-upgrade'))) && // run cqlsh-test, simulator-dtest, *dtest-upgrade only with jdk11
     // Disable splits for all but proper stages
-    !(axis['split'] > 1 && !stepsMap.findAll { entry -> entry.value.splits >= axis['split'] }.keySet().contains(axis['step'])) &&
+    !(axis['split'] > 1 && !stepsMap.findAll { entry -> splitsFor(entry.key, entry.value) >= axis['split'] }.keySet().contains(axis['step'])) &&
     // run only the build types on non-amd64
     !(axis['arch'] != 'amd64' && !stepsMap.findAll { entry -> 'build' == entry.value.type }.keySet().contains(axis['step']))
   }
@@ -295,7 +336,8 @@ def getStepName(cell, command) {
   def arch = "amd64" == cell.arch ? "" : " ${cell.arch}"
   def python = "cqlsh-test" != cell.step ? "" : " python${cell.python}"
   def cython = "no" == cell.cython ? "" : " cython"
-  def split = command.splits > 1 ? " ${cell.split}/${command.splits}" : ""
+  def splits = splitsFor(cell.step, command)
+  def split = splits > 1 ? " ${cell.split}/${splits}" : ""
   return "${cell.step}${arch} jdk${cell.jdk}${python}${cython}${split}"
 }
 
@@ -325,7 +367,9 @@ def isCanonical() {
 }
 
 def isStageEnabled(stage) {
-  return "jar" == stage || pipelineProfiles()[params.profile]?.contains(stage) || ("custom" == params.profile && stage ==~ params.profile_custom_regexp)
+  return "jar" == stage || pipelineProfiles()[params.profile]?.contains(stage) || ("custom" == params.profile && stage ==~ params.profile_custom_regexp &&
+    // *-repeat stages also need their parameters, otherwise run-tests.sh would fail inside the container
+    (!stage.endsWith('-repeat') || (params.repeat_test_regex?.trim() && params.repeated_tests_count?.trim())))
 }
 
 def isArchEnabled(arch) {
@@ -401,8 +445,10 @@ def build(command, cell) {
 
 def test(command, cell) {
   if (command.containsKey('script')) { error("test commands all use `.build/docker/run-tests.sh`") }
-  def splits = command.splits ? command.splits : 1
-  def maxAttempts = 2
+  def splits = splitsFor(cell.step, command)
+  def stopRepeatedTestsOnFailure = cell.step.endsWith('-repeat') && params.repeated_tests_stop_on_failure
+  // An intentional repeat-test failure must cancel sibling workers, not retry this worker.
+  def maxAttempts = stopRepeatedTestsOnFailure ? 1 : 2
   def attempt = 0
   def nodeExclusion = ""
   retry(maxAttempts) {
@@ -423,16 +469,30 @@ def test(command, cell) {
               script_vars = "${script_vars} cython=\'${cell.cython}\'"
             }
             script_vars = fetchDTestsSource(command, script_vars)
+            def status = 0
+            def repeatedTestFailed = false
             timeout(time: command.timeout_hours, unit: 'HOURS') { // best throughput with each cell at ~10 minutes
               def timer = System.currentTimeMillis()
               try {
                 buildJVMDTestJars(cell, script_vars, logfile)
                 script_vars = "${script_vars} docker_timeout_hours=\"${command.timeout_hours}\""
-                def status = sh label: "RUNNING TESTS ${cell.step}...", script: "${script_vars} .build/docker/run-tests.sh -a ${cell.step} -c '${cell.split}/${splits}' -j ${cell.jdk} 2>&1 | tee >( xz -c > build/${logfile} )", returnStatus: true
+                def test_args = ".build/docker/run-tests.sh -a ${cell.step} -c '${cell.split}/${splits}' -j ${cell.jdk}"
+                if (cell.step.endsWith('-repeat')) {
+                  // each "split" machine runs the full set of iterations itself, hence -c plus the repeat options
+                  test_args += " -t '${params.repeat_test_regex}' -e REPEATED_TESTS_COUNT=${params.repeated_tests_count}"
+                  if (params.repeated_tests_stop_on_failure) {
+                    test_args += " -e REPEATED_TESTS_STOP_ON_FAILURE=true"
+                  }
+                }
+                status = sh label: "RUNNING TESTS ${cell.step}...", script: "${script_vars} ${test_args} 2>&1 | tee >( xz -c > build/${logfile} )", returnStatus: true
                 dir("build") {
                   archiveArtifacts artifacts: "${logfile}", fingerprint: true
                 }
-                if (0 != status) { error("Stage ${cell.step}${cell_suffix} failed with exit status ${status}") }
+                // run-tests.sh uses status 2 for an intentional repeat-test fail-fast. Preserve its
+                // results below before failing this branch, which makes parallel(failFast: true)
+                // interrupt the other workers. Other execution failures retain the normal retry path.
+                repeatedTestFailed = stopRepeatedTestsOnFailure && 2 == status
+                if (0 != status && !repeatedTestFailed) { error("Stage ${cell.step}${cell_suffix} failed with exit status ${status}") }
               } catch (exc) {
                 if ("org.jenkinsci.plugins.workflow.steps.FlowInterruptedException" == exc.getClass().getName()) {
                   def descriptions = []
@@ -461,6 +521,9 @@ def test(command, cell) {
               compressTestResultFiles()
               archiveArtifacts artifacts: "test/logs/**,test/**/TEST-*.xml.xz,test/**/cqlshlib*.xml.xz,test/**/nosetests*.xml.xz,test/**/jmh-result.json", fingerprint: true
               copyToNightlies("${logfile},test/logs/**,test/**/jmh-result.json", "${cell.step}/${cell.arch}/jdk${cell.jdk}/python${cell.python}/cython_${cell.cython}/" + "split_${cell.split}_${splits}".replace("/", "_"))
+            }
+            if (repeatedTestFailed) {
+              error("Stage ${cell.step}${cell_suffix} stopped after a repeated test failure")
             }
           } finally {
             cleanAgent(cell.step)

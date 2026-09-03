@@ -330,7 +330,12 @@ logfile="${build_dir}/test/logs/docker_attach_${container_name}.log"
 # Docker commands:
 #  set java to java_version
 #  execute the run_script
-[ -n "${test_name_regexp}" ] && test_name_regexp_arg="-t ${test_name_regexp}" || split_chunk_arg="-c ${split_chunk}"
+[ -n "${test_name_regexp}" ] && test_name_regexp_arg="-t ${test_name_regexp}"
+# Named tests normally disable splitting. For *-repeat targets the chunk instead identifies the
+# machine, with each machine running every iteration.
+if [ -z "${test_name_regexp}" ] || [[ "${test_target}" == *"-repeat" ]]; then
+    split_chunk_arg="-c ${split_chunk}"
+fi
 
 docker_command="source \${CASSANDRA_DIR}/.build/docker/_set_java.sh ${java_version} ; \
             \${CASSANDRA_DIR}/.build/docker/_docker_init_tests.sh -a ${target} ${split_chunk_arg} ${test_name_regexp_arg} ${summary_arg} ${env_vars} ${extra_args} ; exit \$?"
