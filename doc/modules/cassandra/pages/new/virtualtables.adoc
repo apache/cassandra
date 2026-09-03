@@ -107,15 +107,15 @@ We shall discuss some of the virtual tables in more detail next.
 
 The `clients` virtual table lists all active connections (connected
 clients) including their ip address, port, connection stage, driver
-name, driver version, protocol version, request count, ssl
+name, driver version, hostname, protocol version, request count, ssl
 enabled, ssl protocol and user name:
 
 ....
 cqlsh:system_views> select * from system_views.clients;
- address   | port  | connection_stage | driver_name | driver_version | protocol_version | request_count | ssl_cipher_suite | ssl_enabled | ssl_protocol | username
------------+-------+------------------+-------------+----------------+------------------+---------------+------------------+-------------+--------------+-----------
- 127.0.0.1 | 50628 |            ready |        null |           null |                4 |            55 |             null |       False |         null | anonymous
- 127.0.0.1 | 50630 |            ready |        null |           null |                4 |            70 |             null |       False |         null | anonymous
+ address   | port  | connection_stage | driver_name | driver_version | hostname  | protocol_version | request_count | ssl_cipher_suite | ssl_enabled | ssl_protocol | username
+-----------+-------+------------------+-------------+----------------+-----------+------------------+---------------+------------------+-------------+--------------+-----------
+ 127.0.0.1 | 50628 |            ready |        null |           null | localhost |                4 |            55 |             null |       False |         null | anonymous
+ 127.0.0.1 | 50630 |            ready |        null |           null | localhost |                4 |            70 |             null |       False |         null | anonymous
 
 (2 rows)
 ....
@@ -139,6 +139,7 @@ CREATE TABLE system_views.clients (
   connection_stage text,
   driver_name text,
   driver_version text,
+  hostname text,
   port int,
   protocol_version int,
   request_count bigint,
@@ -400,10 +401,10 @@ cqlsh> SELECT * FROM clients LIMIT 2;
 
 [source, cql]
 ----
- address   | port  | connection_stage | driver_name            | driver_version | protocol_version | request_count | ssl_cipher_suite | ssl_enabled | ssl_protocol | username
------------+-------+------------------+------------------------+----------------+------------------+---------------+------------------+-------------+--------------+-----------
- 127.0.0.1 | 37308 |            ready | DataStax Python Driver |   3.21.0.post0 |                4 |            17 |             null |       False |         null | anonymous
- 127.0.0.1 | 37310 |            ready | DataStax Python Driver |   3.21.0.post0 |                4 |             8 |             null |       False |         null | anonymous
+ address   | port  | connection_stage | driver_name            | driver_version | hostname  | protocol_version | request_count | ssl_cipher_suite | ssl_enabled | ssl_protocol | username
+-----------+-------+------------------+------------------------+----------------+-----------+------------------+---------------+------------------+-------------+--------------+-----------
+ 127.0.0.1 | 37308 |            ready | DataStax Python Driver |   3.21.0.post0 | localhost |                4 |            17 |             null |       False |         null | anonymous
+ 127.0.0.1 | 37310 |            ready | DataStax Python Driver |   3.21.0.post0 | localhost |                4 |             8 |             null |       False |         null | anonymous
 
 (2 rows)
 ----
