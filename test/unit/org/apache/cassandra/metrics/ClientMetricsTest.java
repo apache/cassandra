@@ -34,6 +34,7 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.auth.IAuthenticator.AuthenticationMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.OverrideConfigurationLoader;
+import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.transport.TlsTestUtils;
 
@@ -241,18 +242,29 @@ public class ClientMetricsTest
     }
 
     @Test
-    public void testGracefulDisconnectMetrics()
+    public void testGracefulDisconnectMetricsViaServerLifecycle() throws Exception
     {
-        assertEquals(0, clientMetrics.connectionsDraining.get());
-        long initialForcedDisconnects = clientMetrics.forcedDisconnects.getCount();
+        boolean original = DatabaseDescriptor.getGracefulDisconnectEnabled();
+        DatabaseDescriptor.getRawConfig().graceful_disconnect_enabled = true;
 
-        clientMetrics.incrementConnectionsDraining();
-        assertEquals(1, clientMetrics.connectionsDraining.get());
+        try
+        {
+            assertEquals(0, clientMetrics.connectionsDraining.get());
+            long initialForcedDisconnects = clientMetrics.forcedDisconnects.getCount();
 
-        clientMetrics.decrementConnectionsDraining();
-        assertEquals(0, clientMetrics.connectionsDraining.get());
-
-        clientMetrics.markForcedDisconnect(3);
-        assertEquals(initialForcedDisconnects + 3, clientMetrics.forcedDisconnects.getCount());
+            try (Cluster cluster = clusterBuilder().withCredentials("cassandra", "cassandra").build();
+                 Session ignored = cluster.connect())
+            {
+                assertEquals(2, clientMetrics.connectedNativeClients.getValue().intValue());
+                CassandraDaemon.getInstanceForTesting().nativeTransportService().stop();
+                assertEquals(0, clientMetrics.connectionsDraining.get());
+                assertEquals(initialForcedDisconnects, clientMetrics.forcedDisconnects.getCount());
+            }
+        }
+        finally
+        {
+            DatabaseDescriptor.getRawConfig().graceful_disconnect_enabled = original;
+            CassandraDaemon.getInstanceForTesting().nativeTransportService().start();
+        }
     }
 }
