@@ -2515,6 +2515,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         if (current.isClean())
             return null;
 
+        if (current.holds(LogDomain.COMMIT_LOG) && current.holds(LogDomain.MUTATION_JOURNAL))
+            throw new IllegalStateException("Cannot stream from a memtable holding more than one log domain: " + current);
+
         List<Memtable.FlushablePartitionSet<?>> dataSets = new ArrayList<>(ranges.size());
         ImmutableCoordinatorLogOffsets.Builder logOffsetsBuilder = new ImmutableCoordinatorLogOffsets.Builder();
         IntervalSet.Builder<CommitLogPosition> commitLogIntervals = new IntervalSet.Builder();
@@ -2524,7 +2527,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             Memtable.FlushablePartitionSet<?> dataSet = current.getFlushSet(range.left, range.right);
             dataSets.add(dataSet);
             logOffsetsBuilder.addAll(dataSet.coordinatorLogOffsets());
-            commitLogIntervals.add(dataSet.commitLogLowerBound(), dataSet.commitLogUpperBound());
+            commitLogIntervals.addAll(dataSet.commitLogIntervals());
             keys += dataSet.partitionCount();
         }
         if (keys == 0)
