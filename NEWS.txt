@@ -95,6 +95,11 @@ Upgrading
 ---------
 
     - trickle_fsync is by default set to "true" instead of "false" in cassandra.yaml (see CASSANDRA-21572)
+    - Authorizing a batch or an Accord transaction now performs the table permission checks once per run of
+      consecutive statements on the same table rather than once per statement. The permissions required are
+      unchanged, and the datacenter and CIDR checks that ride along with them still run at least once per
+      request. Auth cache request/hit/miss counts and the system_views.cidr_filtering_metrics_* counts and
+      latencies will therefore report fewer events than before. (see CASSANDRA-21606)
 
 Deprecation
 -----------
