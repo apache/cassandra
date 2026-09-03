@@ -164,6 +164,7 @@ public class NativeTransportService
         return server;
     }
 
+    @VisibleForTesting
     public ChannelGroup getChannelsSubscribedToGracefulDisconnect()
     {
         return server.getChannelsSubscribedToGracefulDisconnect();

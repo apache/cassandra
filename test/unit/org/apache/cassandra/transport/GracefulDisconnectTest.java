@@ -21,23 +21,21 @@ package org.apache.cassandra.transport;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 
-import io.netty.channel.Channel;
 import io.netty.channel.DefaultChannelId;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.util.concurrent.GlobalEventExecutor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class GracefulDisconnectLifecycleTest
+public class GracefulDisconnectTest
 {
     @BeforeClass
     public static void setup()
@@ -46,194 +44,64 @@ public class GracefulDisconnectLifecycleTest
     }
 
     @Test
-    public void testCompletesImmediatelyWithNoChannels() throws Exception
+    public void testEmptyChannelGroupGracefulHandling()
     {
-        DefaultChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
-
-        GracefulDisconnectLifecycle lifecycle = new GracefulDisconnectLifecycle(channelGroup, channel -> {});
-
-        assertThat(lifecycle.run()).isEqualTo(0);
+        ChannelGroup group = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
+        boolean completed = group.newCloseFuture().awaitUninterruptibly(100, TimeUnit.MILLISECONDS);
+        assertThat(completed).isTrue();
+        assertThat(group.size()).isEqualTo(0);
     }
 
     @Test
-    public void testCompletesWhenChannelCloses() throws Exception
+    public void testChannelGroupAutomaticRemovalOnClose()
     {
-        DefaultChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
+        ChannelGroup group = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
+        EmbeddedChannel channel = new EmbeddedChannel(DefaultChannelId.newInstance());
+        group.add(channel);
 
-        EmbeddedChannel channel = new EmbeddedChannel();
-        channelGroup.add(channel);
-
-        AtomicReference<Channel> closedChannel = new AtomicReference<>();
-
-        GracefulDisconnectLifecycle lifecycle = new GracefulDisconnectLifecycle(channelGroup, closedChannel::set);
-
-        Future<Integer> result = CompletableFuture.supplyAsync(() -> {
-            try
-            {
-                return lifecycle.run();
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
-        });
-
-        assertThat(result.isDone()).isFalse();
-
+        assertThat(group.size()).isEqualTo(1);
         channel.close();
-
-        assertThat(result.get(5, TimeUnit.SECONDS)).isEqualTo(0);
-        assertThat(closedChannel.get()).isSameAs(channel);
+        assertThat(group.size()).isEqualTo(0);
     }
 
     @Test
-    public void testForceClosesChannelAfterGracePeriod() throws Exception
+    public void testCloseFutureTriggersWhenAllChannelsTerminate() throws Exception
     {
-        DefaultChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
-
-        EmbeddedChannel channel = new EmbeddedChannel();
-        channelGroup.add(channel);
-
-        GracefulDisconnectLifecycle lifecycle = new GracefulDisconnectLifecycle(channelGroup, ignored -> {}, 100, 100);
-
-        Future<Integer> result = CompletableFuture.supplyAsync(() -> {
-            try
-            {
-                return lifecycle.run();
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
-        });
-
-        int forcedDisconnects = result.get(5, TimeUnit.SECONDS);
-
-        assertThat(forcedDisconnects).isEqualTo(1);
-        assertThat(channel.isOpen()).isFalse();
-    }
-
-    @Test
-    public void testWaitsForAllChannelsToClose() throws Exception
-    {
-        DefaultChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
-
-        EmbeddedChannel channel1 = new EmbeddedChannel();
-        EmbeddedChannel channel2 = new EmbeddedChannel();
-
-        channelGroup.add(channel1);
-        channelGroup.add(channel2);
-
-        GracefulDisconnectLifecycle lifecycle = new GracefulDisconnectLifecycle(channelGroup, ignored -> {}, 1000, 100);
-
-        Future<Integer> result = CompletableFuture.supplyAsync(() -> {
-            try
-            {
-                return lifecycle.run();
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
-        });
-
-        channel1.close();
-
-        assertThat(result.isDone()).isFalse();
-
-        channel2.close();
-
-        assertThat(result.get(5, TimeUnit.SECONDS)).isEqualTo(0);
-        assertThat(channel1.isOpen()).isFalse();
-        assertThat(channel2.isOpen()).isFalse();
-    }
-
-    @Test
-    public void testMixedCooperativeAndUncooperativeChannels() throws Exception
-    {
-        DefaultChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
-
-        EmbeddedChannel cooperativeChannel = new EmbeddedChannel(DefaultChannelId.newInstance());
-        EmbeddedChannel uncooperativeChannel = new EmbeddedChannel(DefaultChannelId.newInstance());
-
-        channelGroup.add(cooperativeChannel);
-        channelGroup.add(uncooperativeChannel);
-
-        GracefulDisconnectLifecycle lifecycle = new GracefulDisconnectLifecycle(channelGroup, ignored -> {}, 200, 100);
-
-        Future<Integer> result = CompletableFuture.supplyAsync(() -> {
-            try
-            {
-                return lifecycle.run();
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
-        });
-
-        // Close only the cooperative channel immediately
-        cooperativeChannel.close();
-
-        // The lifecycle should wait for the grace period to expire for the uncooperative channel
-        int forcedDisconnects = result.get(5, TimeUnit.SECONDS);
-
-        assertThat(forcedDisconnects).as("Only the uncooperative channel should be force closed").isEqualTo(1);
-        assertThat(cooperativeChannel.isOpen()).isFalse();
-        assertThat(uncooperativeChannel.isOpen()).isFalse();
-    }
-
-    @Test
-    public void testChannelAlreadyClosedBeforeLifecycleStart() throws Exception
-    {
-        DefaultChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
-
-        EmbeddedChannel alreadyClosedChannel = new EmbeddedChannel();
-        alreadyClosedChannel.close(); // Closed before lifecycle starts
-
-        channelGroup.add(alreadyClosedChannel);
-
-        GracefulDisconnectLifecycle lifecycle = new GracefulDisconnectLifecycle(channelGroup, ignored -> {}, 1000, 100);
-
-        int forcedDisconnects = lifecycle.run();
-
-        assertThat(forcedDisconnects).isEqualTo(0);
-        assertThat(alreadyClosedChannel.isOpen()).isFalse();
-    }
-
-    @Test
-    public void testCallbackInvokedForEachChannel() throws Exception
-    {
-        DefaultChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
-
+        ChannelGroup group = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
         EmbeddedChannel ch1 = new EmbeddedChannel(DefaultChannelId.newInstance());
         EmbeddedChannel ch2 = new EmbeddedChannel(DefaultChannelId.newInstance());
+        group.add(ch1);
+        group.add(ch2);
 
-        channelGroup.add(ch1);
-        channelGroup.add(ch2);
+        Future<Boolean> closeFutureCompletion = CompletableFuture.supplyAsync(() -> group.newCloseFuture().awaitUninterruptibly(3000, TimeUnit.MILLISECONDS));
 
-        AtomicInteger closedCallbackCount = new AtomicInteger(0);
-
-        // Grace period 100ms: ch1 will close cooperatively, ch2 will be force closed
-        GracefulDisconnectLifecycle lifecycle = new GracefulDisconnectLifecycle(channelGroup, ch -> closedCallbackCount.incrementAndGet(), 100, 100);
-
-        Future<Integer> result = CompletableFuture.supplyAsync(() -> {
-            try
-            {
-                return lifecycle.run();
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
-        });
+        assertThat(closeFutureCompletion.isDone()).isFalse();
 
         ch1.close();
+        ch2.close();
 
-        result.get(5, TimeUnit.SECONDS);
+        assertThat(closeFutureCompletion.get(2, TimeUnit.SECONDS)).isTrue();
+    }
 
-        assertThat(closedCallbackCount.get())
-                  .as("Callback must be invoked exactly once per channel regardless of how it closed")
-                  .isEqualTo(2);
+    @Test
+    public void testGracePeriodTimeoutTriggersBulkForceClose()
+    {
+        ChannelGroup group = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
+        EmbeddedChannel cooperative = new EmbeddedChannel(DefaultChannelId.newInstance());
+        EmbeddedChannel uncooperative = new EmbeddedChannel(DefaultChannelId.newInstance());
+        group.add(cooperative);
+        group.add(uncooperative);
+
+        cooperative.close();
+
+        boolean completedCleanly = group.newCloseFuture().awaitUninterruptibly(50, TimeUnit.MILLISECONDS);
+
+        assertThat(completedCleanly).isFalse();
+
+        int unclosedCount = group.size();
+        assertThat(unclosedCount).isEqualTo(1);
+
+        group.close();
+        assertThat(uncooperative.isOpen()).isFalse();
     }
 }

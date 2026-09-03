@@ -82,7 +82,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageEncoder;
 import io.netty.handler.ssl.SslContext;
-import io.netty.util.concurrent.Promise;
+import io.netty.util.concurrent.Promise; // checkstyle: permit this import
 import io.netty.util.concurrent.PromiseCombiner;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
@@ -170,6 +170,12 @@ public class SimpleClient implements Closeable
         }
     }
 
+
+    public static Builder builder(String host, int port)
+    {
+        return new Builder(host, port);
+    }
+
     private SimpleClient(Builder builder)
     {
         this.host = builder.host;
@@ -204,18 +210,13 @@ public class SimpleClient implements Closeable
         this.version = version;
         this.encryptionOptions = encryptionOptions.applyConfig();
         this.largeMessageThreshold = FrameEncoder.Payload.MAX_SIZE -
-                                     Math.max(FrameEncoderCrc.HEADER_AND_TRAILER_LENGTH,
-                                              FrameEncoderLZ4.HEADER_AND_TRAILER_LENGTH);
+                                        Math.max(FrameEncoderCrc.HEADER_AND_TRAILER_LENGTH,
+                                                 FrameEncoderLZ4.HEADER_AND_TRAILER_LENGTH);
     }
 
     public SimpleClient(String host, int port)
     {
         this(host, port, new EncryptionOptions.ClientEncryptionOptions());
-    }
-
-    public static Builder builder(String host, int port)
-    {
-        return new Builder(host, port);
     }
 
     public SimpleClient connect(boolean useCompression) throws IOException
@@ -252,9 +253,10 @@ public class SimpleClient implements Closeable
     void establishConnection() throws IOException
     {
         // Configure the client.
-        bootstrap = new Bootstrap().group(new NioEventLoopGroup(new NamedThreadFactory("SimpleClient-nioEventLoopGroup")))
-                                   .channel(io.netty.channel.socket.nio.NioSocketChannel.class)
-                                   .option(ChannelOption.TCP_NODELAY, true);
+        bootstrap = new Bootstrap()
+                    .group(new NioEventLoopGroup(new NamedThreadFactory("SimpleClient-nioEventLoopGroup")))
+                    .channel(io.netty.channel.socket.nio.NioSocketChannel.class)
+                    .option(ChannelOption.TCP_NODELAY, true);
 
         // Configure the pipeline factory.
         if(encryptionOptions.getEnabled())
@@ -299,7 +301,7 @@ public class SimpleClient implements Closeable
     {
         Message.Response msg = execute(new ExecuteMessage(prepared.statementId, prepared.resultMetadataId, QueryOptions.forInternalCalls(consistency, values)));
         assert msg instanceof ResultMessage;
-        return (ResultMessage) msg;
+        return (ResultMessage)msg;
     }
 
     public void close()
@@ -426,9 +428,7 @@ public class SimpleClient implements Closeable
 
     private static class ConnectionTracker implements Connection.Tracker
     {
-        public void addConnection(Channel ch, Connection connection)
-        {
-        }
+        public void addConnection(Channel ch, Connection connection) {}
 
         @Override
         public boolean isRunning()
@@ -574,28 +574,28 @@ public class SimpleClient implements Closeable
             };
 
             CQLMessageHandler<Message.Response> processor =
-            new CQLMessageHandler<Message.Response>(ctx.channel(),
-                                                    null,
-                                                    version,
-                                                    frameDecoder,
-                                                    envelopeDecoder,
-                                                    messageDecoder,
-                                                    responseConsumer,
-                                                    payloadAllocator,
-                                                    queueCapacity,
-                                                    QueueBackpressure.NO_OP,
-                                                    resources,
-                                                    handler -> {},
-                                                    errorHandler,
-                                                    ctx.channel().attr(Connection.attributeKey).get().isThrowOnOverload())
-            {
-                protected boolean processRequest(Envelope request, Overload overload)
+                new CQLMessageHandler<Message.Response>(ctx.channel(),
+                                        null,
+                                        version,
+                                        frameDecoder,
+                                        envelopeDecoder,
+                                        messageDecoder,
+                                        responseConsumer,
+                                        payloadAllocator,
+                                        queueCapacity,
+                                        QueueBackpressure.NO_OP,
+                                        resources,
+                                        handler -> {},
+                                        errorHandler,
+                                        ctx.channel().attr(Connection.attributeKey).get().isThrowOnOverload())
                 {
-                    boolean continueProcessing = super.processRequest(request, overload);
-                    releaseCapacity(Ints.checkedCast(request.header.bodySizeInBytes));
-                    return continueProcessing;
-                }
-            };
+                    protected boolean processRequest(Envelope request, Overload overload)
+                    {
+                        boolean continueProcessing = super.processRequest(request, overload);
+                        releaseCapacity(Ints.checkedCast(request.header.bodySizeInBytes));
+                        return continueProcessing;
+                    }
+                };
 
             pipeline.addLast(HandlerNames.FRAME_DECODER, frameDecoder);
             pipeline.addLast(HandlerNames.FRAME_ENCODER, frameEncoder);
@@ -659,6 +659,7 @@ public class SimpleClient implements Closeable
      static class MessageBatchEncoder extends MessageToMessageEncoder<List<Message>>
     {
         public static final MessageBatchEncoder instance = new MessageBatchEncoder();
+        private MessageBatchEncoder(){}
 
         public void encode(ChannelHandlerContext ctx, List<Message> messages, List<Object> results)
         {
@@ -673,8 +674,7 @@ public class SimpleClient implements Closeable
 
     private class Initializer extends ChannelInitializer<Channel>
     {
-        private final int largeMessageThreshold;
-
+        private int largeMessageThreshold;
         Initializer(int largeMessageThreshold)
         {
             this.largeMessageThreshold = largeMessageThreshold;
@@ -693,6 +693,23 @@ public class SimpleClient implements Closeable
             pipeline.addLast(HandlerNames.MESSAGE_DECODER, PreV5Handlers.ProtocolDecoder.instance);
             pipeline.addLast(HandlerNames.MESSAGE_ENCODER, MessageBatchEncoder.instance);
             pipeline.addLast(HandlerNames.RESPONSE_HANDLER, responseHandler);
+        }
+    }
+
+    private class SecureInitializer extends Initializer
+    {
+        SecureInitializer(int largeMessageThreshold)
+        {
+            super(largeMessageThreshold);
+        }
+
+        protected void initChannel(Channel channel) throws Exception
+        {
+            super.initChannel(channel);
+            SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions, encryptionOptions.getClientAuth(),
+                                                                     ISslContextFactory.SocketType.CLIENT, SSL_FACTORY_CONTEXT_DESCRIPTION);
+            InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? new InetSocketAddress(host, port) : null;
+            channel.pipeline().addFirst("ssl", newSslHandler(channel, sslContext, peer));
         }
     }
 
@@ -912,22 +929,6 @@ public class SimpleClient implements Closeable
             }
             f.release();
             return futures.toArray(EMPTY_FUTURES_ARRAY);
-        }
-    }
-
-    private class SecureInitializer extends Initializer
-    {
-        SecureInitializer(int largeMessageThreshold)
-        {
-            super(largeMessageThreshold);
-        }
-
-        protected void initChannel(Channel channel) throws Exception
-        {
-            super.initChannel(channel);
-            SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions, encryptionOptions.getClientAuth(), ISslContextFactory.SocketType.CLIENT, SSL_FACTORY_CONTEXT_DESCRIPTION);
-            InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? new InetSocketAddress(host, port) : null;
-            channel.pipeline().addFirst("ssl", newSslHandler(channel, sslContext, peer));
         }
     }
 }

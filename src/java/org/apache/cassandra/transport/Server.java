@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.BooleanSupplier;
@@ -156,23 +155,33 @@ public class Server implements CassandraDaemon.Server
         stopAcceptingNewConnections();
 
         ChannelGroup channelGroup = getChannelsSubscribedToGracefulDisconnect();
-        ClientMetrics.instance.connectionsDraining.set(channelGroup.size());
+        if (channelGroup.isEmpty())
+            return;
 
-        try
+        ClientMetrics.instance.connectionsDraining.set(channelGroup.size());
+        channelGroup.forEach(channel ->
+                             channel.closeFuture().addListener(future -> ClientMetrics.instance.decrementConnectionsDraining())
+        );
+
+        connectionTracker.send(new Event.GracefulDisconnect());
+
+        long gracePeriod = DatabaseDescriptor.getGracefulDisconnectGracePeriod();
+        int forcedDisconnects = 0;
+
+        boolean completedCleanly = channelGroup.newCloseFuture().awaitUninterruptibly(gracePeriod, TimeUnit.MILLISECONDS);
+
+        if (!completedCleanly)
         {
-            int forcedDisconnects = new GracefulDisconnectLifecycle(channelGroup,
-                                                                    channel -> ClientMetrics.instance.decrementConnectionsDraining()).run();
-            ClientMetrics.instance.markForcedDisconnect(forcedDisconnects);
+            forcedDisconnects = channelGroup.size();
+            if (forcedDisconnects > 0)
+            {
+                logger.warn("Draining grace period of {}ms elapsed; {} active client connection(s) failed to close cleanly and will be forcefully terminated.",
+                            gracePeriod, forcedDisconnects);
+                channelGroup.close();
+            }
         }
-        catch (InterruptedException e)
-        {
-            logger.warn("Graceful disconnect interrupted", e);
-            Thread.currentThread().interrupt();
-        }
-        catch (TimeoutException e)
-        {
-            logger.warn("Graceful disconnect timed out waiting for channels to close; proceeding with shutdown", e);
-        }
+
+        ClientMetrics.instance.markForcedDisconnect(forcedDisconnects);
     }
 
     public boolean isRunning()
