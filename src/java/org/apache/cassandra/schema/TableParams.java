@@ -61,6 +61,7 @@ import static org.apache.cassandra.schema.TableParams.Option.COMPRESSION;
 import static org.apache.cassandra.schema.TableParams.Option.CRC_CHECK_CHANCE;
 import static org.apache.cassandra.schema.TableParams.Option.DEFAULT_TIME_TO_LIVE;
 import static org.apache.cassandra.schema.TableParams.Option.EXTENSIONS;
+import static org.apache.cassandra.schema.TableParams.Option.FLUSH_COMPRESSION;
 import static org.apache.cassandra.schema.TableParams.Option.FAST_PATH;
 import static org.apache.cassandra.schema.TableParams.Option.GC_GRACE_SECONDS;
 import static org.apache.cassandra.schema.TableParams.Option.INCREMENTAL_BACKUPS;
@@ -76,6 +77,7 @@ import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 public final class TableParams
 {
     public static final Serializer serializer = new Serializer();
+
     public enum Option
     {
         ALLOW_AUTO_SNAPSHOT,
@@ -101,7 +103,8 @@ public final class TableParams
         TRANSACTIONAL_MODE,
         TRANSACTIONAL_MIGRATION_FROM,
         PENDING_DROP,
-        AUTO_REPAIR;
+        AUTO_REPAIR,
+        FLUSH_COMPRESSION;
 
         @Override
         public String toString()
@@ -126,6 +129,7 @@ public final class TableParams
     public final CachingParams caching;
     public final CompactionParams compaction;
     public final CompressionParams compression;
+    public final FlushCompressionParams flushCompression;
     public final MemtableParams memtable;
     public final ImmutableMap<String, ByteBuffer> extensions;
     public final boolean cdc;
@@ -157,6 +161,7 @@ public final class TableParams
         caching = builder.caching;
         compaction = builder.compaction;
         compression = builder.compression;
+        flushCompression = builder.flushCompression;
         memtable = builder.memtable;
         extensions = builder.extensions;
         cdc = builder.cdc;
@@ -183,6 +188,7 @@ public final class TableParams
                             .securityLabel(params.securityLabel)
                             .compaction(params.compaction)
                             .compression(params.compression)
+                            .flushCompression(params.flushCompression)
                             .memtable(params.memtable)
                             .crcCheckChance(params.crcCheckChance)
                             .defaultTimeToLive(params.defaultTimeToLive)
@@ -294,6 +300,7 @@ public final class TableParams
             && caching.equals(p.caching)
             && compaction.equals(p.compaction)
             && compression.equals(p.compression)
+            && flushCompression.equals(p.flushCompression)
             && memtable.equals(p.memtable)
             && extensions.equals(p.extensions)
             && cdc == p.cdc
@@ -324,6 +331,7 @@ public final class TableParams
                                 caching,
                                 compaction,
                                 compression,
+                                flushCompression,
                                 memtable,
                                 extensions,
                                 cdc,
@@ -356,6 +364,7 @@ public final class TableParams
                           .add(CACHING.toString(), caching)
                           .add(COMPACTION.toString(), compaction)
                           .add(COMPRESSION.toString(), compression)
+                          .add(FLUSH_COMPRESSION.toString(), flushCompression)
                           .add(MEMTABLE.toString(), memtable)
                           .add(EXTENSIONS.toString(), extensions)
                           .add(CDC.toString(), cdc)
@@ -406,6 +415,8 @@ public final class TableParams
                                                                             e -> "0x" + ByteBufferUtil.bytesToHex(e.getValue()))),
                                                    false)
                .newLine()
+               .append("AND flush_compression = ").appendWithSingleQuotes(flushCompression.toString())
+               .newLine()
                .append("AND gc_grace_seconds = ").append(gcGraceSeconds)
                .newLine()
                .append("AND incremental_backups = ").append(incrementalBackups)
@@ -454,6 +465,7 @@ public final class TableParams
         private CachingParams caching = CachingParams.DEFAULT;
         private CompactionParams compaction = CompactionParams.DEFAULT;
         private CompressionParams compression = CompressionParams.DEFAULT;
+        private FlushCompressionParams flushCompression = FlushCompressionParams.DEFAULT;
         private MemtableParams memtable = MemtableParams.DEFAULT;
         private ImmutableMap<String, ByteBuffer> extensions = ImmutableMap.of();
         private boolean cdc;
@@ -575,6 +587,12 @@ public final class TableParams
             return this;
         }
 
+        public Builder flushCompression(FlushCompressionParams val)
+        {
+            flushCompression = val;
+            return this;
+        }
+
         public Builder cdc(boolean val)
         {
             cdc = val;
@@ -660,6 +678,8 @@ public final class TableParams
             }
             if (version.isAtLeast(Version.V8))
                 out.writeUTF(t.securityLabel);
+            if (version.isAtLeast(Version.V11))
+                out.writeUTF(t.flushCompression.toString());
         }
 
         public TableParams deserialize(DataInputPlus in, Version version) throws IOException
@@ -693,6 +713,9 @@ public final class TableParams
             }
             if (version.isAtLeast(Version.V8))
                 builder.securityLabel(in.readUTF());
+            if (version.isAtLeast(Version.V11))
+                builder.flushCompression(FlushCompressionParams.fromString(in.readUTF()));
+
             return builder.build();
         }
 
@@ -725,9 +748,9 @@ public final class TableParams
                         sizeof(t.pendingDrop);
             }
             if (version.isAtLeast(Version.V8))
-            {
                 size += sizeof(t.securityLabel);
-            }
+            if (version.isAtLeast(Version.V11))
+                size += sizeof(t.flushCompression.toString());
             return size;
         }
 

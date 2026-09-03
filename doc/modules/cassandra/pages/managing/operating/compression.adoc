@@ -330,6 +330,14 @@ this is a performance problem it is highly encouraged not to turn this
 off as it is Cassandra's only protection against bitrot. In earlier versions of Cassandra a
 duplicate of this option existed in the compression configuration.
 The latter was deprecated in Cassandra 3.0 and removed in Cassandra 5.0.
+* `flush_compression` (default: `auto`): selects the compressor used when a
+memtable is flushed. Flushes sit on the write path, so a "good" ratio compressor
+can back them up and block writes; by default Cassandra flushes with a fast
+compressor and lets compaction rewrite the data with the table compressor.
+`auto` follows the `flush_compression` setting in `cassandra.yaml` (default `fast`).
+`none`, `fast` and `table` override the node setting for this table. See the
+xref:cassandra:developing/cql/ddl.adoc#cql-flush-compression-option[CQL reference]
+for the semantics of each value.
 
 == Benefits and Uses
 
