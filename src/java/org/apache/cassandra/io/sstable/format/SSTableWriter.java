@@ -373,10 +373,20 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                 if (MutationTrackingService.instance().isDurablyReconciled(coordinatorLogOffsets))
                 {
                     repairedAt = Clock.Global.currentTimeMillis();
+                    // Clear the offsets, as PromoteReconciledTask does. Offsets are only meaningful while an sstable is
+                    // unrepaired, so setting repairedAt and keeping them would leave it claiming journal provenance.
+                    coordinatorLogOffsets = new ImmutableCoordinatorLogOffsets.Builder().build();
                     logger.debug("Marking SSTable {} as reconciled with repairedAt {}", descriptor, repairedAt);
                 }
             }
         }
+
+        // Offsets are only meaningful while an sstable is unrepaired. Compaction and anticompaction outputs inherit
+        // repairedAt from their inputs, so the branch above is skipped and CompactionTask.getCoordinatorLogOffsets()
+        // would write the union of the inputs' offsets through. No path is known to reach this with offsets present:
+        // StatsMetadata.mutateRepairedMetadata() clears them wherever repairedAt is set. This is a backstop.
+        if (repairedAt != ActiveRepairService.UNREPAIRED_SSTABLE)
+            coordinatorLogOffsets = ImmutableCoordinatorLogOffsets.NONE;
 
         return metadataCollector.finalizeMetadata(getPartitioner().getClass().getCanonicalName(),
                                                   metadata().params.bloomFilterFpChance,

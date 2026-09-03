@@ -73,11 +73,9 @@ public class PendingRepairHolder extends AbstractStrategyHolder
     }
 
     @Override
-    public boolean managesRepairedGroup(boolean isRepaired, boolean isPendingRepair)
+    public boolean managesGroup(CompactionGroup group)
     {
-        Preconditions.checkArgument(!isPendingRepair || !isRepaired,
-                                    "SSTables cannot be both repaired and pending repair");
-        return isPendingRepair;
+        return group == CompactionGroup.PENDING_REPAIR;
     }
 
     @Override

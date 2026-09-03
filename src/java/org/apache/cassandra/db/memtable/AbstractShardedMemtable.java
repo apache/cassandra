@@ -24,6 +24,7 @@ import org.github.jamm.Unmetered;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.LogDomain;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
@@ -55,9 +56,10 @@ public abstract class AbstractShardedMemtable extends AbstractAllocatorMemtable
     AbstractShardedMemtable(AtomicReference<CommitLogPosition> commitLogLowerBound,
                             TableMetadataRef metadataRef,
                             Owner owner,
+                            LogDomain domain,
                             Integer shardCountOption)
     {
-        super(commitLogLowerBound, metadataRef, owner);
+        super(commitLogLowerBound, metadataRef, owner, domain);
         int shardCount = shardCountOption != null ? shardCountOption : defaultShardCount;
         this.boundaries = owner.localRangeSplits(shardCount);
     }

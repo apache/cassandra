@@ -51,6 +51,7 @@ import org.apache.cassandra.db.Columns;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.LogDomain;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.RegularAndStaticColumns;
@@ -355,7 +356,8 @@ public class AccordKeyspace
                 ColumnFamilyStore cfs = AccordColumnFamilyStores.commandsForKey;
                 try (OpOrder.Group group = Keyspace.writeOrder.start())
                 {
-                    cfs.getCurrentMemtable().put(MutationId.fixme(), upd, UpdateTransaction.NO_OP, group, true);
+                    cfs.getCurrentMemtable().put(MutationId.fixme(), upd, UpdateTransaction.NO_OP, group,
+                                                 LogDomain.COMMIT_LOG, true);
                 }
             };
         }

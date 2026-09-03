@@ -228,6 +228,12 @@ on disk.
 |BytesPendingRepair |Gauge<Long> |Size of table data isolated for an
 ongoing incremental repair
 
+|UnpromotableSSTables |Gauge<Integer> |Number of sstables on a
+mutation-tracked table that can never be promoted to repaired, because they
+are unrepaired and carry no coordinator log offsets. Reports 0 for untracked
+tables, and for tracked keyspaces still in migration state, where offset-free
+unrepaired sstables are the ordinary state of pre-migration data.
+
 |SpeculativeRetries |Counter |Number of times speculative retries were
 sent for this table.
 

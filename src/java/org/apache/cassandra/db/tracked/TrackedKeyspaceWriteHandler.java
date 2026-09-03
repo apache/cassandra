@@ -20,6 +20,7 @@ package org.apache.cassandra.db.tracked;
 import org.apache.cassandra.db.CassandraWriteContext;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.KeyspaceWriteHandler;
+import org.apache.cassandra.db.LogDomain;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
@@ -33,14 +34,14 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
 {
     @Override
-    public WriteContext beginWrite(Mutation mutation, boolean makeDurable) throws RequestExecutionException
+    public WriteContext beginWrite(Mutation mutation, boolean makeDurable, boolean isReplay) throws RequestExecutionException
     {
         OpOrder.Group group = null;
         try
         {
             group = Keyspace.writeOrder.start();
 
-            MigrationRouter.validateTrackedMutation(mutation);
+            MigrationRouter.validateTrackedMutation(mutation, isReplay);
 
             CommitLogPosition pointer = null;
             if (makeDurable)
@@ -51,7 +52,7 @@ public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
                 pointer = MutationJournal.instance().write(mutation.id(), mutation, isFullReplica);
             }
 
-            return new CassandraWriteContext(group, pointer);
+            return new CassandraWriteContext(group, pointer, LogDomain.MUTATION_JOURNAL);
         }
         catch (Throwable t)
         {
@@ -64,27 +65,14 @@ public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
     @Override
     public WriteContext createContextForIndexing()
     {
-        return createEmptyContext();
+        // all callers of this method use keyspace.getWriteHandler(), which is the standard CassandraWriteHandler
+        throw new UnsupportedOperationException("Can't call createContextForIndexing on TrackedKeyspaceWriteHandler");
     }
 
     @Override
     public WriteContext createContextForRead()
     {
-        return createEmptyContext();
-    }
-
-    private WriteContext createEmptyContext()
-    {
-        OpOrder.Group group = Keyspace.writeOrder.start();
-        try
-        {
-            return new CassandraWriteContext(group, null);
-        }
-        catch (Throwable t)
-        {
-            if (group != null)
-                group.close();
-            throw t;
-        }
+        // all callers of this method use keyspace.getWriteHandler(), which is the standard CassandraWriteHandler
+        throw new UnsupportedOperationException("Can't call createContextForRead on TrackedKeyspaceWriteHandler");
     }
 }

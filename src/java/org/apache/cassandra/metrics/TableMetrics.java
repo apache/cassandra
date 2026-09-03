@@ -60,6 +60,7 @@ import org.apache.cassandra.metrics.Sampler.SamplerType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.reads.ReplicaFilteringProtection;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.ExpMovingAverage;
 import org.apache.cassandra.utils.MovingAverage;
@@ -209,6 +210,8 @@ public class TableMetrics
     public final Gauge<Long> bytesRepaired;
     public final Gauge<Long> bytesUnrepaired;
     public final Gauge<Long> bytesPendingRepair;
+    /** SSTables on a tracked table that can't be promoted, because they are unrepaired and contain no offsets */
+    public final Gauge<Integer> unpromotableSSTables;
     /** Number of started repairs as coordinator on this table */
     public final Counter repairsStarted;
     /** Number of completed repairs as coordinator on this table */
@@ -629,6 +632,32 @@ public class TableMetrics
                     size += sstable.uncompressedLength();
                 }
                 return size;
+            }
+        });
+
+        // An unrepaired sstable with no coordinator log offsets cannot be promoted by reconciliation, because it names
+        // no mutations to reconcile, and it cannot be promoted by incremental repair once the table is fully migrated.
+        // It therefore occupies the unrepaired pool indefinitely. During migration this is the ordinary state of
+        // pre-migration data, so the gauge reports zero until the keyspace leaves migration state.
+        unpromotableSSTables = createTableGauge("UnpromotableSSTables", new Gauge<Integer>()
+        {
+            public Integer getValue()
+            {
+                if (!cfs.metadata().replicationType().isTracked())
+                    return 0;
+
+                ClusterMetadata metadata = ClusterMetadata.currentNullable();
+                if (metadata == null || metadata.mutationTrackingMigrationState.isMigrating(cfs.getKeyspaceName()))
+                    return 0;
+
+                int count = 0;
+                for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
+                {
+                    if (!sstable.isRepaired() && !sstable.isPendingRepair()
+                        && sstable.getSSTableMetadata().coordinatorLogOffsets.isEmpty())
+                        count++;
+                }
+                return count;
             }
         });
 

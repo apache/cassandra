@@ -24,6 +24,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.memtable.DomainMemtable;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.SkipListMemtable;
 import org.apache.cassandra.db.memtable.TestMemtable;
@@ -683,7 +684,7 @@ public class AlterTest extends CQLTester
                    row(expected));
     }
 
-    private void testMemtableConfig(String memtableConfig, Memtable.Factory factoryInstance, Class<? extends Memtable> memtableClass) throws Throwable
+    private void testMemtableConfig(String memtableConfig, DomainMemtable.Factory factoryInstance, Class<? extends Memtable> memtableClass) throws Throwable
     {
         alterTable("ALTER TABLE %s"
                    + " WITH memtable = '" + memtableConfig + "';");

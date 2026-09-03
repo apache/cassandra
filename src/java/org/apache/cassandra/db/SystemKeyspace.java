@@ -68,6 +68,7 @@ import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.db.memtable.LogDomainPositions;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Rows;
@@ -883,12 +884,12 @@ public final class SystemKeyspace
         return status;
     }
 
-    public static void saveTruncationRecord(ColumnFamilyStore cfs, long truncatedAt, CommitLogPosition position)
+    public static void saveTruncationRecord(ColumnFamilyStore cfs, long truncatedAt, LogDomainPositions position)
     {
         synchronized (truncationRecordLock)
         {
             String req = "UPDATE system.%s SET truncated_at = truncated_at + ? WHERE key = '%s'";
-            executeInternal(format(req, LOCAL, LOCAL), truncationAsMapEntry(cfs, truncatedAt, position));
+            executeInternal(format(req, LOCAL, LOCAL), truncationAsMapEntry(cfs, truncatedAt, position.commitLog));
             truncationRecords = null;
             forceBlockingFlush(LOCAL);
         }
@@ -1115,7 +1116,7 @@ public final class SystemKeyspace
     {
         if (!DatabaseDescriptor.isUnsafeSystem())
         {
-            List<Future<CommitLogPosition>> futures = new ArrayList<>();
+            List<Future<?>> futures = new ArrayList<>();
 
             for (String cfname : cfnames)
             {

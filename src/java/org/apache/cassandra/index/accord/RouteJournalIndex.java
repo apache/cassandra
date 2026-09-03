@@ -60,6 +60,7 @@ import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.memtable.DomainMemtable;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -350,14 +351,17 @@ public class RouteJournalIndex implements Index, INotificationConsumer
         // since we are attached we only care about update
         if (transactionType != IndexTransaction.Type.UPDATE)
             return null;
+
+        // The index for a row belongs to the domain memtable that will hold it
+        DomainMemtable source = memtable.flushSourceFor(CassandraWriteContext.fromContext(ctx).domain());
         return new Indexer()
         {
             @Override
             public void insertRow(Row row)
             {
-                long size = memtableIndexManager.index(key, row, memtable);
+                long size = memtableIndexManager.index(key, row, source);
                 if (size > 0)
-                    memtable.markExtraOnHeapUsed(size, CassandraWriteContext.fromContext(ctx).getGroup());
+                    source.markExtraOnHeapUsed(size, CassandraWriteContext.fromContext(ctx).getGroup());
             }
 
             @Override
@@ -558,7 +562,8 @@ public class RouteJournalIndex implements Index, INotificationConsumer
         }
         else if (notification instanceof MemtableDiscardedNotification)
         {
-            memtableIndexManager.discardMemtable(((MemtableDiscardedNotification) notification).memtable);
+            for (DomainMemtable source : ((MemtableDiscardedNotification) notification).memtable.flushSources())
+                memtableIndexManager.discardMemtable(source);
         }
     }
 

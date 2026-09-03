@@ -46,6 +46,7 @@ import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 
 /**
@@ -349,14 +350,22 @@ class PendingRepairManager
     synchronized Collection<AbstractCompactionTask> getNextRepairFinishedTasks()
     {
         List<AbstractCompactionTask> tasks = new ArrayList<>();
-        for (TimeUUID sessionID : strategies.keySet())
+        try
         {
-            if (canCleanup(sessionID))
+            for (TimeUUID sessionID : strategies.keySet())
             {
-                RepairFinishedCompactionTask repairFinishedTask = getRepairFinishedCompactionTask(sessionID);
-                if (repairFinishedTask != null)
-                    tasks.add(repairFinishedTask);
+                if (canCleanup(sessionID))
+                {
+                    RepairFinishedCompactionTask repairFinishedTask = getRepairFinishedCompactionTask(sessionID);
+                    if (repairFinishedTask != null)
+                        tasks.add(repairFinishedTask);
+                }
             }
+        }
+        catch (Throwable t)
+        {
+            // Abort any txns already created
+            throw Throwables.throwAsUncheckedException(Throwables.perform(t, tasks.stream().map(task -> task::rejected)));
         }
         return tasks;
     }

@@ -92,6 +92,7 @@ import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static java.lang.String.format;
@@ -185,6 +186,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     private static final int SHARD_MULTIPLIER = 1;
 
     private static final Logger logger = LoggerFactory.getLogger(MutationTrackingService.class);
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
 
     private final TrackedLocalReads localReads = new TrackedLocalReads();
     private ConcurrentHashMap<String, KeyspaceShards> keyspaceShards = new ConcurrentHashMap<>();
@@ -518,6 +520,42 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         {
             Preconditions.checkArgument(!mutation.id().isNone());
             return getOrCreateShards(mutation.getKeyspaceName()).startWriting(mutation);
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Register a mutation being replayed from the journal, tolerating a shard that is no longer present.
+     * <p>
+     * Unlike {@link #startWriting}, this never creates shards. {@link KeyspaceShards#make} asserts the keyspace is
+     * still tracked or migrating, which is false once a keyspace has been altered back to untracked — and that flip
+     * is instant, so unflushed journal records are routinely replayed into exactly that state on restart. Creating
+     * shards for a keyspace that is no longer tracked would also resurrect tracking state the operator has just turned
+     * off.
+     * <p>
+     * A replayed record was already registered with its shard when it was originally coordinated. If the shard is
+     * gone there is nothing left to reconcile it against, and the only thing that still has to happen is for the
+     * record to reach the memtable so the data is not lost.
+     *
+     * @return true if the record was registered with a shard, false if no shard covers it
+     */
+    public boolean startWritingForReplay(Mutation mutation)
+    {
+        shardLock.readLock().lock();
+        try
+        {
+            Preconditions.checkArgument(!mutation.id().isNone());
+            KeyspaceShards shards = keyspaceShards.get(mutation.getKeyspaceName());
+            if (shards == null)
+            {
+                noSpamLogger.info("Replaying journal record for {} with no shards; applying without registration",
+                                  mutation.getKeyspaceName());
+                return false;
+            }
+            return shards.startWritingIfShardPresent(mutation);
         }
         finally
         {
@@ -945,7 +983,8 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             if (!shardUpdateNeeded(keyspaceShards, prev, next))
                 return;
 
-            // recalculating the shards will repopulate this via the existing callbacks
+            // Emptied and repopulated by the onNewLog callbacks below. Every arm of applyUpdatedMetadata has to
+            // announce the logs of the shards it keeps, whether it rebuilds them or carries them forward.
             log2ShardMap = new ConcurrentHashMap<>();
             keyspaceShards = applyUpdatedMetadata(keyspaceShards, prev, next, this::nextLogId, this::onNewLog);
 
@@ -1019,7 +1058,10 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
                     evictSegmentReferences(keyspace);
                 case NONE:
                     if (current != null)
+                    {
+                        current.reportAllLogsToCallback();
                         updated.put(keyspace, current);
+                    }
                     break;
                 case DROP:
                     // Don't carry forward the state for the dropped keyspace
@@ -1347,6 +1389,11 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             return new KeyspaceShards(keyspace.name, newShards, new ReplicaGroups(newGroups));
         }
 
+        void reportAllLogsToCallback()
+        {
+            shards.values().forEach(Shard::reportAllLogsToCallback);
+        }
+
         MutationId nextMutationId(Token token)
         {
             return lookUp(token).nextId();
@@ -1363,6 +1410,23 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         boolean startWriting(Mutation mutation)
         {
             return lookUp(mutation).startWriting(mutation);
+        }
+
+        /**
+         * Register a replayed mutation, returning false rather than throwing when no shard covers its token.
+         * See {@link MutationTrackingService#startWritingForReplay}.
+         */
+        boolean startWritingIfShardPresent(Mutation mutation)
+        {
+            VersionedEndpoints.ForRange forRange = groups.matchToken(mutation.key().getToken());
+            Shard shard = forRange == null ? null : shards.get(forRange.range());
+            if (shard == null)
+            {
+                noSpamLogger.info("Replaying journal record for {} with no shard covering token {}; applying without registration",
+                                  keyspace, mutation.key().getToken());
+                return false;
+            }
+            return shard.startWriting(mutation);
         }
 
         void finishWriting(Mutation mutation)

@@ -22,8 +22,13 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 
 public interface KeyspaceWriteHandler
 {
+    default WriteContext beginWrite(Mutation mutation, boolean makeDurable) throws RequestExecutionException
+    {
+        return beginWrite(mutation, makeDurable, false);
+    }
+
     // mutation can be null if makeDurable is false
-    WriteContext beginWrite(Mutation mutation, boolean makeDurable) throws RequestExecutionException;
+    WriteContext beginWrite(Mutation mutation, boolean makeDurable, boolean isReplay) throws RequestExecutionException;
     WriteContext createContextForIndexing();
     WriteContext createContextForRead();
 }

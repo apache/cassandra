@@ -18,8 +18,9 @@
 
 package org.apache.cassandra.db.memtable;
 
-import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -30,24 +31,24 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
 
 import org.github.jamm.Unmetered;
 
+import org.apache.cassandra.db.LogDomain;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 
-public abstract class AbstractMemtable implements Memtable
+public abstract class AbstractMemtable implements DomainMemtable
 {
     private static final AtomicLong nextId = new AtomicLong();
 
-    private final AtomicReference<LifecycleTransaction> flushTransaction = new AtomicReference<>(null);
+    private final AtomicReference<ILifecycleTransaction> flushTransaction = new AtomicReference<>(null);
     protected final AtomicLong currentOperations = new AtomicLong(0);
     protected final ColumnsCollector columnsCollector;
     protected final StatsCollector statsCollector = new StatsCollector();
@@ -56,7 +57,7 @@ public abstract class AbstractMemtable implements Memtable
     // The smallest local deletion time for all partitions in this memtable
     protected AtomicLong minLocalDeletionTime = new AtomicLong(Long.MAX_VALUE);
     private final long id = nextId.incrementAndGet();
-    private Map<Object, Consumer<TableMetadata>> onFlush = ImmutableMap.of();
+    private final FlushListeners onFlush = new FlushListeners();
     // Note: statsCollector has corresponding statistics to the two above, but starts with an epoch value which is not
     // correct for their usage.
 
@@ -142,44 +143,40 @@ public abstract class AbstractMemtable implements Memtable
     }
 
     @Override
-    public LifecycleTransaction getFlushTransaction()
+    public List<DomainMemtable> flushSources()
+    {
+        return Collections.singletonList(this);
+    }
+
+    @Override
+    public DomainMemtable flushSourceFor(LogDomain domain)
+    {
+        if (!holds(domain))
+            throw new IllegalArgumentException(String.format("Memtable %s does not hold domain %s", this, domain));
+        return this;
+    }
+
+    @Override
+    public ILifecycleTransaction getFlushTransaction()
     {
         return flushTransaction.get();
     }
 
     @Override
-    public LifecycleTransaction setFlushTransaction(LifecycleTransaction flushTransaction)
+    public ILifecycleTransaction setFlushTransaction(ILifecycleTransaction flushTransaction)
     {
         return this.flushTransaction.getAndSet(flushTransaction);
     }
 
     @Override
-    public synchronized <T extends Consumer<TableMetadata>> T ensureFlushListener(Object key, Supplier<T> factory)
+    public <T extends Consumer<TableMetadata>> T ensureFlushListener(Object key, Supplier<T> factory)
     {
-        if (onFlush == null)
-            return null;
-
-        T listener = (T)onFlush.get(key);
-        if (null == listener)
-        {
-            listener = factory.get();
-            onFlush = ImmutableMap.<Object, Consumer<TableMetadata>>builder()
-                                  .putAll(onFlush)
-                                  .put(key, listener)
-                                  .build();
-        }
-        return listener;
+        return onFlush.ensureFlushListener(key, factory);
     }
 
     public void notifyFlushed()
     {
-        Collection<Consumer<TableMetadata>> run;
-        synchronized (this)
-        {
-            run = onFlush.values();
-            onFlush = null;
-        }
-        run.forEach(c -> c.accept(metadata()));
+        onFlush.notifyFlushed(metadata());
     }
 
     protected static class ColumnsCollector

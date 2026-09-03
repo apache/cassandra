@@ -48,13 +48,13 @@ import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.memtable.LogDomainPositions;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.BTreeRow;
@@ -148,7 +148,7 @@ public class TableViews extends AbstractCollection<View>
             viewCfs.dumpMemtable();
     }
 
-    public void truncateBlocking(CommitLogPosition replayAfter, long truncatedAt)
+    public void truncateBlocking(LogDomainPositions replayAfter, long truncatedAt)
     {
         for (ColumnFamilyStore viewCfs : allViewsCfs())
         {

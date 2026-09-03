@@ -39,18 +39,17 @@ import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.CompactionParams;
-import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.TimeUUID;
 
 public class CompactionStrategyHolder extends AbstractStrategyHolder
 {
     private final List<AbstractCompactionStrategy> strategies = new ArrayList<>();
-    private final boolean isRepaired;
+    private final CompactionGroup group;
 
-    public CompactionStrategyHolder(ColumnFamilyStore cfs, DestinationRouter router, boolean isRepaired)
+    public CompactionStrategyHolder(ColumnFamilyStore cfs, DestinationRouter router, CompactionGroup group)
     {
         super(cfs, router);
-        this.isRepaired = isRepaired;
+        this.group = group;
     }
 
     @Override
@@ -74,18 +73,14 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
     }
 
     @Override
-    public boolean managesRepairedGroup(boolean isRepaired, boolean isPendingRepair)
+    public boolean managesGroup(CompactionGroup group)
     {
-        if (!isPendingRepair)
-        {
-            return this.isRepaired == isRepaired;
-        }
-        else
-        {
-            Preconditions.checkArgument(!isRepaired, "SSTables cannot be both repaired and pending repair");
-            return false;
+        return this.group == group;
+    }
 
-        }
+    boolean isRepaired()
+    {
+        return group == CompactionGroup.REPAIRED;
     }
 
     @Override
@@ -204,7 +199,7 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
 
     Collection<Collection<SSTableReader>> groupForAnticompaction(Iterable<SSTableReader> sstables)
     {
-        Preconditions.checkState(!isRepaired);
+        Preconditions.checkState(!isRepaired());
         GroupedSSTableContainer group = createGroupedSSTableContainer();
         sstables.forEach(group::add);
 
@@ -232,18 +227,9 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
                                                        Collection<Index.Group> indexGroups,
                                                        ILifecycleTransaction txn)
     {
-        if (isRepaired)
-        {
-            Preconditions.checkArgument(repairedAt != ActiveRepairService.UNREPAIRED_SSTABLE,
-                                        "Repaired CompactionStrategyHolder can't create unrepaired sstable writers");
-        }
-        else
-        {
-            Preconditions.checkArgument(repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE,
-                                        "Unrepaired CompactionStrategyHolder can't create repaired sstable writers");
-        }
-        Preconditions.checkArgument(pendingRepair == null,
-                                    "CompactionStrategyHolder can't create sstable writer with pendingRepair id");
+        Preconditions.checkArgument(managesGroup(CompactionGroup.of(repairedAt, pendingRepair, coordinatorLogOffsets)),
+                                    "%s CompactionStrategyHolder can't create a writer for an sstable it would not manage",
+                                    group);
         // to avoid creating a compaction strategy for the wrong pending repair manager, we get the index based on where the sstable is to be written
         AbstractCompactionStrategy strategy = strategies.get(router.getIndexForSSTableDirectory(descriptor));
         return strategy.createSSTableMultiWriter(descriptor,

@@ -33,12 +33,21 @@ public class MutationTrackingMigrationRepairResult
         new MutationTrackingMigrationRepairResult(Epoch.EMPTY, false, "dead nodes were excluded from the repair");
     private static final MutationTrackingMigrationRepairResult PREVIEW =
         new MutationTrackingMigrationRepairResult(Epoch.EMPTY, false, "the repair was a preview");
-    private static final MutationTrackingMigrationRepairResult NO_DATA_REPAIR =
-        new MutationTrackingMigrationRepairResult(Epoch.EMPTY, false, "the repair did not repair data (paxos-only or accord-only repair)");
+    private static final MutationTrackingMigrationRepairResult NOT_INCREMENTAL =
+        new MutationTrackingMigrationRepairResult(Epoch.EMPTY, false,
+                                                 "the repair was not incremental, so it synced the pre-migration data " +
+                                                 "without marking it repaired; migration requires incremental repair");
     private static final MutationTrackingMigrationRepairResult NOT_ALL_REPLICAS =
-        new MutationTrackingMigrationRepairResult(Epoch.EMPTY, false, "the repair did not include all replicas (-local, -dc, or -hosts repair)");
+        new MutationTrackingMigrationRepairResult(Epoch.EMPTY, false,
+                                                 "not all replicas were included in the repair; " +
+                                                 "migration requires repairing all replicas");
     private static final MutationTrackingMigrationRepairResult PULL_REPAIR =
-        new MutationTrackingMigrationRepairResult(Epoch.EMPTY, false, "the repair only streamed data one way (-pull repair)");
+        new MutationTrackingMigrationRepairResult(Epoch.EMPTY, false,
+                                                 "the repair only streamed data one way (-pull repair)");
+    private static final MutationTrackingMigrationRepairResult DATA_NOT_REPAIRED =
+        new MutationTrackingMigrationRepairResult(Epoch.EMPTY, false,
+                                                 "data repair was not performed; " +
+                                                 "migration requires repairing table data");
 
     public final Epoch minEpoch;
     public final boolean eligible;
@@ -54,18 +63,30 @@ public class MutationTrackingMigrationRepairResult
         this.ineligibleReason = ineligibleReason;
     }
 
+    /**
+     * Only an incremental repair may advance migration. A full repair syncs the pre-migration data but leaves it
+     * unrepaired, and nothing can promote it afterwards: reconciliation has no ids to work from, and once the range is
+     * migrated incremental repair no longer anticompacts it. Incremental repair marks exactly the ranges it verified,
+     * which is why migration needs no separate promotion step at completion.
+     *
+     * A tracked keyspace with no migration in progress has its incremental flag cleared by
+     * {@link org.apache.cassandra.repair.RepairCoordinator}, but such a repair never reaches this check: the handler
+     * returns earlier because the keyspace is not migrating.
+     */
     public static MutationTrackingMigrationRepairResult fromRepair(Epoch minEpoch,
-                                                                   boolean dataRepaired,
-                                                                   boolean allReplicas,
-                                                                   boolean pullRepair,
-                                                                   boolean deadNodesExcluded,
-                                                                   boolean isPreview)
+                                                                  boolean deadNodesExcluded,
+                                                                  boolean isPreview,
+                                                                  boolean isIncremental,
+                                                                  boolean allReplicas,
+                                                                  boolean pullRepair,
+                                                                  boolean repairData)
     {
         if (deadNodesExcluded) return DEAD_NODES_EXCLUDED;
         if (isPreview) return PREVIEW;
-        if (!dataRepaired) return NO_DATA_REPAIR;
+        if (!isIncremental) return NOT_INCREMENTAL;
         if (!allReplicas) return NOT_ALL_REPLICAS;
         if (pullRepair) return PULL_REPAIR;
+        if (!repairData) return DATA_NOT_REPAIRED;
         return new MutationTrackingMigrationRepairResult(minEpoch, true, null);
     }
 }

@@ -17,13 +17,13 @@
  */
 package org.apache.cassandra.notifications;
 
-import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.DomainMemtable;
 
 public class MemtableRenewedNotification implements INotification
 {
-    public final Memtable renewed;
+    public final DomainMemtable renewed;
 
-    public MemtableRenewedNotification(Memtable renewed)
+    public MemtableRenewedNotification(DomainMemtable renewed)
     {
         this.renewed = renewed;
     }

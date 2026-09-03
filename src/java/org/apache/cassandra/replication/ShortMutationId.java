@@ -19,7 +19,6 @@ package org.apache.cassandra.replication;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.Comparator;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.UnversionedSerializer;
@@ -34,7 +33,7 @@ import static org.apache.cassandra.replication.CoordinatorLogId.NONE_LOG_ID;
  * MutationId without the timestamp component. This is sufficient for uniquely identifying a mutation,
  * and for lookup in the journal and most tracking data structures.
  */
-public class ShortMutationId implements Serializable
+public class ShortMutationId implements Serializable, Comparable<ShortMutationId>
 {
     static final int NONE_OFFSET = Integer.MIN_VALUE;
 
@@ -76,7 +75,19 @@ public class ShortMutationId implements Serializable
 
     public ShortMutationId(MutationId mutationId)
     {
-        this(mutationId.hostLogId(), mutationId.hostId(), mutationId.offset());
+        this(mutationId.hostId(), mutationId.hostLogId(), mutationId.offset());
+    }
+
+    @Override
+    public int compareTo(ShortMutationId that)
+    {
+        int cmp = Integer.compare(this.hostId, that.hostId);
+        if (cmp != 0) return cmp;
+
+        cmp = Integer.compare(this.hostLogId, that.hostLogId);
+        if (cmp != 0) return cmp;
+
+        return Integer.compare(this.offset, that.offset);
     }
 
     public int hostId()
@@ -129,11 +140,6 @@ public class ShortMutationId implements Serializable
     {
         return "ShortMutationId{" + hostId() + ", " + hostLogId() + ", " + offset() + '}';
     }
-
-    public static final Comparator<ShortMutationId> comparator = (l, r) -> {
-        int cmp = Long.compareUnsigned(l.logId(), r.logId());
-        return cmp != 0 ? cmp : Integer.compare(l.offset, r.offset);
-    };
 
     public static final UnversionedSerializer<ShortMutationId> serializer = new UnversionedSerializer<>()
     {

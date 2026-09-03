@@ -43,6 +43,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.serializers.AbstractTypeSerializer;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.TimeUUID;
@@ -212,8 +213,20 @@ public class StatsMetadata extends MetadataComponent
                                  lastKey);
     }
 
+    /**
+     * Coordinator log offsets are dropped whenever this sets {@code repairedAt}. They are only meaningful while an
+     * sstable is unrepaired: repairing it asserts the data is consistent on every replica, which is what the offsets
+     * exist to establish, and {@code TrackedCompactionManager.isPromotable} declines a repaired sstable, so anything
+     * left behind here could never be cleared afterwards.
+     *
+     * A pending-repair session leaves {@code repairedAt} unset, so the offsets survive it. That matters, because a
+     * failed session returns the sstable to unrepaired and it has to stay promotable.
+     */
     public StatsMetadata mutateRepairedMetadata(long newRepairedAt, TimeUUID newPendingRepair)
     {
+        ImmutableCoordinatorLogOffsets newOffsets = newRepairedAt != ActiveRepairService.UNREPAIRED_SSTABLE
+                                                    ? ImmutableCoordinatorLogOffsets.NONE
+                                                    : coordinatorLogOffsets;
         return new StatsMetadata(estimatedPartitionSize,
                                  estimatedCellPerPartitionCount,
                                  commitLogIntervals,
@@ -236,7 +249,7 @@ public class StatsMetadata extends MetadataComponent
                                  originatingHostId,
                                  newPendingRepair,
                                  hasPartitionLevelDeletions,
-                                 coordinatorLogOffsets,
+                                 newOffsets,
                                  firstKey,
                                  lastKey);
     }

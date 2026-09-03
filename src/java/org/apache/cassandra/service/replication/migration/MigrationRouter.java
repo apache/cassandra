@@ -376,7 +376,7 @@ public class MigrationRouter
         return getMutationRouting(mutation) == MutationRouting.TRACKED;
     }
 
-    private static void validateMutationReplication(IMutation mutation, MutationRouting expected)
+    private static void validateMutationReplication(IMutation mutation, MutationRouting expected, boolean isReplay)
     {
         switch (expected)
         {
@@ -393,19 +393,22 @@ public class MigrationRouter
 
         }
 
+        if (isReplay)
+            return;
+
         MutationRouting actual = getMutationRouting(mutation);
         if (expected != actual)
             throw new CoordinatorBehindException("Mutation replication mismatch: expected " + expected + ", actual " + actual);
     }
 
-    public static void validateTrackedMutation(IMutation mutation)
+    public static void validateTrackedMutation(IMutation mutation, boolean isReplay)
     {
-        validateMutationReplication(mutation, MutationRouting.TRACKED);
+        validateMutationReplication(mutation, MutationRouting.TRACKED, isReplay);
     }
 
-    public static void validateUntrackedMutation(IMutation mutation)
+    public static void validateUntrackedMutation(IMutation mutation, boolean isReplay)
     {
-        validateMutationReplication(mutation, MutationRouting.UNTRACKED);
+        validateMutationReplication(mutation, MutationRouting.UNTRACKED, isReplay);
     }
 
     /**

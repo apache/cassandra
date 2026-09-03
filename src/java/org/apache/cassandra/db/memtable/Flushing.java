@@ -19,8 +19,10 @@
 package org.apache.cassandra.db.memtable;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
@@ -34,21 +36,25 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.DiskBoundaries;
+import org.apache.cassandra.db.LogDomain;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.db.commitlog.IntervalSet;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ThreadStats;
+import org.apache.cassandra.utils.TimeUUID;
 
 public class Flushing
 {
@@ -59,10 +65,11 @@ public class Flushing
     }
 
     public static List<FlushRunnable> flushRunnables(ColumnFamilyStore cfs,
-                                                     Memtable memtable,
-                                                     LifecycleTransaction txn)
+                                                     DomainMemtable memtable,
+                                                     ILifecycleTransaction generationTxn)
     {
-        LifecycleTransaction ongoingFlushTransaction = memtable.setFlushTransaction(txn);
+        ILifecycleTransaction txn = new SourceTransaction(generationTxn, memtable);
+        ILifecycleTransaction ongoingFlushTransaction = memtable.setFlushTransaction(txn);
         Preconditions.checkState(ongoingFlushTransaction == null,
                                  "Attempted to flush Memtable more than once on %s.%s",
                                  cfs.keyspace.getName(),
@@ -100,10 +107,10 @@ public class Flushing
     }
 
     static FlushRunnable flushRunnable(ColumnFamilyStore cfs,
-                                       Memtable memtable,
+                                       DomainMemtable memtable,
                                        PartitionPosition from,
                                        PartitionPosition to,
-                                       LifecycleTransaction txn,
+                                       ILifecycleTransaction txn,
                                        Directories.DataDirectory flushLocation)
     {
         Memtable.FlushablePartitionSet<?> flushSet = memtable.getFlushSet(from, to);
@@ -121,6 +128,150 @@ public class Flushing
                                                       flushSet.partitionCount());
 
         return new FlushRunnable(flushSet, writer, cfs.metric, true);
+    }
+
+    /**
+     * One flush source's view of the flush transaction. A flush operation flushes every domain memtable under a single
+     * transaction so that its sstables become visible together, which leaves the transaction unable to say which
+     * source an output came from. Each source is given its own view instead, so anything holding per-memtable state
+     * can recognize its own outputs.
+     *
+     * Tracking is forwarded, since every output still belongs to the one transaction. Committing, aborting and
+     * obsoletion are the generation's to drive and throw here rather than acting on a part of the flush.
+     */
+    private static class SourceTransaction implements ILifecycleTransaction
+    {
+        private final ILifecycleTransaction generationTxn;
+        private final TimeUUID id;
+
+        SourceTransaction(ILifecycleTransaction generationTxn, Memtable source)
+        {
+            this.generationTxn = generationTxn;
+            // Sequence 0 is the generation's own id, so number the domains from 1.
+            this.id = generationTxn.opId() == null
+                      ? null
+                      : generationTxn.opId().withSequence(source.holds(LogDomain.MUTATION_JOURNAL) ? 2 : 1);
+        }
+
+        @Override
+        public void trackNew(SSTable table)
+        {
+            generationTxn.trackNew(table);
+        }
+
+        @Override
+        public void untrackNew(SSTable table)
+        {
+            generationTxn.untrackNew(table);
+        }
+
+        @Override
+        public OperationType opType()
+        {
+            return generationTxn.opType();
+        }
+
+        @Override
+        public boolean isOffline()
+        {
+            return generationTxn.isOffline();
+        }
+
+        @Override
+        public TimeUUID opId()
+        {
+            return id;
+        }
+
+        @Override
+        public void checkpoint()
+        {
+            throw unsupported("checkpoint");
+        }
+
+        @Override
+        public void update(SSTableReader reader, boolean original)
+        {
+            throw unsupported("update");
+        }
+
+        @Override
+        public void update(Collection<SSTableReader> readers, boolean original)
+        {
+            throw unsupported("update");
+        }
+
+        @Override
+        public SSTableReader current(SSTableReader reader)
+        {
+            throw unsupported("current");
+        }
+
+        @Override
+        public void obsolete(SSTableReader reader)
+        {
+            throw unsupported("obsolete");
+        }
+
+        @Override
+        public void obsoleteOriginals()
+        {
+            throw unsupported("obsoleteOriginals");
+        }
+
+        @Override
+        public Set<SSTableReader> originals()
+        {
+            // A flush has no input sstables.
+            return Collections.emptySet();
+        }
+
+        @Override
+        public boolean isObsolete(SSTableReader reader)
+        {
+            return false;
+        }
+
+        @Override
+        public void cancel(SSTableReader removedSSTable)
+        {
+            throw unsupported("cancel");
+        }
+
+        @Override
+        public Throwable commit(Throwable accumulate)
+        {
+            throw unsupported("commit");
+        }
+
+        @Override
+        public Throwable abort(Throwable accumulate)
+        {
+            throw unsupported("abort");
+        }
+
+        @Override
+        public void prepareToCommit()
+        {
+            throw unsupported("prepareToCommit");
+        }
+
+        @Override
+        public void close()
+        {
+            throw unsupported("close");
+        }
+
+        private UnsupportedOperationException unsupported(String operation)
+        {
+            return new UnsupportedOperationException(operation + " called on SourceTransaction");
+        }
+
+        @Override
+        public String toString()
+        {
+            return "SourceTransaction(" + generationTxn + ')';
+        }
     }
 
     public static Throwable abortRunnables(List<FlushRunnable> runnables, Throwable t)
@@ -232,7 +383,7 @@ public class Flushing
 
     public static SSTableMultiWriter createFlushWriter(ColumnFamilyStore cfs,
                                                        Memtable.FlushablePartitionSet<?> flushSet,
-                                                       LifecycleTransaction txn,
+                                                       ILifecycleTransaction txn,
                                                        Descriptor descriptor,
                                                        long partitionCount)
     {
@@ -244,8 +395,7 @@ public class Flushing
                                             ActiveRepairService.UNREPAIRED_SSTABLE,
                                             ActiveRepairService.NO_PENDING_REPAIR,
                                             flushSet.coordinatorLogOffsets(),
-                                            new IntervalSet<>(flushSet.commitLogLowerBound(),
-                                                              flushSet.commitLogUpperBound()),
+                                            flushSet.commitLogIntervals(),
                                             new SerializationHeader(true,
                                                                     flushSet.metadata(),
                                                                     flushSet.columns(),

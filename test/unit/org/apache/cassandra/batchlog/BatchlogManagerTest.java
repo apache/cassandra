@@ -42,8 +42,8 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.memtable.LogDomainPositions;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
@@ -223,7 +223,7 @@ public class BatchlogManagerTest extends CassandraTestBase
             if (i == 500)
                 SystemKeyspace.saveTruncationRecord(Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD2),
                                                     timestamp,
-                                                    CommitLogPosition.NONE);
+                                                    LogDomainPositions.NONE);
 
             // Adjust the timestamp (slightly) to make the test deterministic.
             if (i >= 500)

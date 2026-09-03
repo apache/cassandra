@@ -19,7 +19,6 @@ package org.apache.cassandra.replication;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Comparator;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.UnversionedSerializer;
@@ -107,12 +106,6 @@ public class MutationId extends ShortMutationId
     {
         return "MutationId{" + hostId + ", " + hostLogId + ", " + offset + ", " + timestamp + '}';
     }
-
-    /**
-     * The comparator is intentionally not overridden by this class, since log id and offset alone
-     * are meant to uniquely identify a mutation, and only offset determines the order within a log.
-     */
-    public static final Comparator<MutationId> comparator = ShortMutationId.comparator::compare;
 
     public ByteBuffer toByteBuffer()
     {

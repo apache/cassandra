@@ -37,6 +37,8 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.memtable.LogDomainBounds;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -167,13 +169,13 @@ public class ViewTest
         Memtable memtable1 = initialView.getCurrentMemtable();
         Memtable memtable2 = MockSchema.memtable(cfs);
 
-        cur = View.switchMemtable(memtable2).apply(cur);
+        cur = View.switchMemtable(memtable2, LogDomainBounds.of(CommitLogPosition.NONE)).apply(cur);
         Assert.assertEquals(2, cur.liveMemtables.size());
         Assert.assertEquals(memtable1, cur.liveMemtables.get(0));
         Assert.assertEquals(memtable2, cur.getCurrentMemtable());
 
         Memtable memtable3 = MockSchema.memtable(cfs);
-        cur = View.switchMemtable(memtable3).apply(cur);
+        cur = View.switchMemtable(memtable3, LogDomainBounds.of(CommitLogPosition.NONE)).apply(cur);
         Assert.assertEquals(3, cur.liveMemtables.size());
         Assert.assertEquals(0, cur.flushingMemtables.size());
         Assert.assertEquals(memtable1, cur.liveMemtables.get(0));
@@ -226,6 +228,8 @@ public class ViewTest
         for (int i = 0 ; i < sstableCount ; i++)
             sstables.add(MockSchema.sstable(i, keepRef, cfs));
         return new View(ImmutableList.copyOf(memtables), Collections.<Memtable>emptyList(), Helpers.identityMap(sstables),
-                        Collections.<SSTableReader, SSTableReader>emptyMap(), buildSSTableIntervalTree(sstables));
+                        Collections.<SSTableReader, SSTableReader>emptyMap(), buildSSTableIntervalTree(sstables),
+                        // View requires a boundary when it holds memtables, and none when it holds none.
+                        memtables.isEmpty() ? null : LogDomainBounds.of(CommitLogPosition.NONE));
     }
 }

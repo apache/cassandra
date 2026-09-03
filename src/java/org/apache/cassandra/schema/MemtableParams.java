@@ -35,7 +35,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.InheritingClass;
 import org.apache.cassandra.config.ParameterizedClass;
-import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.DomainMemtable;
 import org.apache.cassandra.db.memtable.SkipListMemtableFactory;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
@@ -50,10 +50,10 @@ import org.apache.cassandra.exceptions.ConfigurationException;
   */
 public final class MemtableParams
 {
-    private final Memtable.Factory factory;
+    private final DomainMemtable.Factory factory;
     private final String configurationKey;
 
-    private MemtableParams(Memtable.Factory factory, String configurationKey)
+    private MemtableParams(DomainMemtable.Factory factory, String configurationKey)
     {
         this.configurationKey = configurationKey;
         this.factory = factory;
@@ -64,7 +64,7 @@ public final class MemtableParams
         return configurationKey;
     }
 
-    public Memtable.Factory factory()
+    public DomainMemtable.Factory factory()
     {
         return factory;
     }
@@ -96,7 +96,7 @@ public final class MemtableParams
     }
 
     private static final String DEFAULT_CONFIGURATION_KEY = "default";
-    private static final Memtable.Factory DEFAULT_MEMTABLE_FACTORY = SkipListMemtableFactory.INSTANCE;
+    private static final DomainMemtable.Factory DEFAULT_MEMTABLE_FACTORY = SkipListMemtableFactory.INSTANCE;
     private static final ParameterizedClass DEFAULT_CONFIGURATION = SkipListMemtableFactory.CONFIGURATION;
     private static final Map<String, ParameterizedClass>
         CONFIGURATION_DEFINITIONS = expandDefinitions(DatabaseDescriptor.getMemtableConfigurations());
@@ -214,7 +214,7 @@ public final class MemtableParams
     }
 
 
-    private static Memtable.Factory getMemtableFactory(ParameterizedClass options)
+    private static DomainMemtable.Factory getMemtableFactory(ParameterizedClass options)
     {
         // Special-case this so that we don't initialize memtable class for tests that need to delay that.
         if (options == DEFAULT_CONFIGURATION)
@@ -227,7 +227,7 @@ public final class MemtableParams
         className = className.contains(".") ? className : "org.apache.cassandra.db.memtable." + className;
         try
         {
-            Memtable.Factory factory;
+            DomainMemtable.Factory factory;
             Class<?> clazz = Class.forName(className);
             final Map<String, String> parametersCopy = options.parameters != null
                                                        ? new HashMap<>(options.parameters)
@@ -235,13 +235,13 @@ public final class MemtableParams
             try
             {
                 Method factoryMethod = clazz.getDeclaredMethod("factory", Map.class);
-                factory = (Memtable.Factory) factoryMethod.invoke(null, parametersCopy);
+                factory = (DomainMemtable.Factory) factoryMethod.invoke(null, parametersCopy);
             }
             catch (NoSuchMethodException e)
             {
                 // continue with FACTORY field
                 Field factoryField = clazz.getDeclaredField("FACTORY");
-                factory = (Memtable.Factory) factoryField.get(null);
+                factory = (DomainMemtable.Factory) factoryField.get(null);
             }
             if (!parametersCopy.isEmpty())
                 throw new ConfigurationException("Memtable class " + className + " does not accept any futher parameters, but " +

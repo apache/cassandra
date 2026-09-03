@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.db.memtable;
 
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -27,10 +27,11 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.cassandra.db.CellSourceIdentifier;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.LogDomain;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.EncodingStats;
@@ -41,7 +42,6 @@ import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -64,97 +64,6 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
 {
     public static final long NO_MIN_TIMESTAMP = -1;
 
-    // Construction
-
-    /**
-     * Factory interface for constructing memtables, and querying write durability features.
-     *
-     * The factory is chosen using the MemtableParams class (passed as argument to
-     * {@code CREATE TABLE ... WITH memtable = '<configuration_name>'} where the configuration definition is a map given
-     * under {@code memtable_configurations} in cassandra.yaml). To make that possible, implementations must provide
-     * either a static {@code FACTORY} field (if they accept no further option) or a static
-     * {@code factory(Map<String, String>)} method. In the latter case, the method should avoid creating
-     * multiple instances of the factory for the same parameters, or factories should at least implement hashCode and
-     * equals.
-     */
-    interface Factory
-    {
-        /**
-         * Create a memtable.
-         *
-         * @param commitLogLowerBound A commit log lower bound for the new memtable. This will be equal to the previous
-         *                            memtable's upper bound and defines the span of positions that any flushed sstable
-         *                            will cover.
-         * @param metadaRef Pointer to the up-to-date table metadata.
-         * @param owner Owning objects that will receive flush requests triggered by the memtable (e.g. on expiration).
-         */
-        Memtable create(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadaRef, Owner owner);
-
-        /**
-         * Create a release action for the memtable's metrics. This is used to release any resources that are not needed.
-         * @param metadataRef Pointer to the up-to-date table metadata.
-         * @return Runnable that releases the metrics resources.
-         */
-        default Runnable createMemtableMetricsReleaser(TableMetadataRef metadataRef)
-        {
-            return () -> {};
-        }
-
-        /**
-         * If the memtable can achieve write durability directly (i.e. using some feature other than the commitlog, e.g.
-         * persistent memory), it can return true here, in which case the commit log will not store mutations in this
-         * table.
-         * Note that doing so will prevent point-in-time restores and changed data capture, thus a durable memtable must
-         * allow the option of turning commit log writing on even if it does not need it.
-         */
-        default boolean writesShouldSkipCommitLog()
-        {
-            return false;
-        }
-
-        /**
-         * This should be true if the memtable can achieve write durability for crash recovery directly (i.e. using some
-         * feature other than the commitlog, e.g. persistent memory).
-         * Setting this flag to true means that the commitlog should not replay mutations for this table on restart,
-         * and that it should not try to preserve segments that contain relevant data.
-         * Unless writesShouldSkipCommitLog() is also true, writes will be recorded in the commit log as they may be
-         * needed for changed data capture or point-in-time restore.
-         */
-        default boolean writesAreDurable()
-        {
-            return false;
-        }
-
-        /**
-         * Normally we can receive streamed sstables directly, skipping the memtable stage (zero-copy-streaming). When
-         * the memtable is the primary data store (e.g. persistent memtables), it will usually prefer to receive the
-         * data instead.
-         *
-         * If this returns true, all streamed sstables's content will be read and replayed as mutations, disabling
-         * zero-copy streaming.
-         */
-        default boolean streamToMemtable()
-        {
-            return false;
-        }
-
-        /**
-         * When we need to stream data, we usually flush and stream the resulting sstables. This will not work correctly
-         * if the memtable does not want to flush for streaming (e.g. persistent memtables acting as primary data
-         * store), because data (not just recent) will be missing from the streamed view. Such memtables must present
-         * their data separately for streaming.
-         * In other words if the memtable returns false on shouldSwitch(STREAMING/REPAIR), its factory must return true
-         * here.
-         *
-         * If this flag returns true, streaming will write the relevant content that resides in the memtable to
-         * temporary sstables, stream these sstables and then delete them.
-         */
-        default boolean streamFromMemtable()
-        {
-            return false;
-        }
-    }
-
     /**
      * Interface for providing signals back and requesting information from the owner, i.e. the object that controls the
      * memtable. This is usually the ColumnFamilyStore; the interface is used to limit the dependency of memtables on
@@ -163,7 +72,7 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
     interface Owner
     {
         /** Signal to the owner that a flush is required (e.g. in response to hitting space limits) */
-        Future<CommitLogPosition> signalFlushRequired(Memtable memtable, ColumnFamilyStore.FlushReason reason);
+        Future<LogDomainPositions> signalFlushRequired(Memtable memtable, ColumnFamilyStore.FlushReason reason);
 
         /** Get the current memtable for this owner. Used to avoid capturing memtable in scheduled flush tasks. */
         Memtable getCurrentMemtable();
@@ -186,9 +95,9 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
 
     // Main write and read operations
 
-    default long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
+    default long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, LogDomain domain)
     {
-        return put(mutationId, update, indexer, opGroup, false);
+        return put(mutationId, update, indexer, opGroup, domain, false);
     }
 
     /**
@@ -198,6 +107,8 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
      * @param indexer receives information about the update's effect
      * @param opGroup write operation group, used to permit the operation to complete if it is needed to complete a
      *                flush to free space.
+     * @param domain which backing log the write's position reference. Attempting to write to the incorrect domain
+     *               throws an exception.
      * @param assumeMissing if true, the implementation MAY clone the key and attempt putIfAbsent without first
      *                      looking for the keys' presence
      *
@@ -205,7 +116,7 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
      * timestamp delta being computed as the difference between the cells and DeletionTimes from any existing partition
      * and those in {@code update}. See CASSANDRA-7979.
      */
-    long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing);
+    long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, LogDomain domain, boolean assumeMissing);
 
     /**
      * Creates a point-in-time snapshot of a partition in this memtable.
@@ -319,11 +230,6 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
     // Flushing
 
     /**
-     * Get the collection of data between the given partition boundaries in a form suitable for flushing.
-     */
-    FlushablePartitionSet<?> getFlushSet(PartitionPosition from, PartitionPosition to);
-
-    /**
      * A collection of partitions for flushing plus some information required for writing an sstable.
      *
      * Note that the listed entries must conform with the specified metadata. In particular, if the memtable is still
@@ -332,7 +238,7 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
      */
     interface FlushablePartitionSet<P extends Partition> extends Iterable<P>, SSTableWriter.SSTableSizeParameters
     {
-        Memtable memtable();
+        DomainMemtable memtable();
 
         PartitionPosition from();
         PartitionPosition to();
@@ -341,6 +247,19 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
         CommitLogPosition commitLogLowerBound();
         /** The commit log position at the time that this memtable was switched out */
         CommitLogPosition commitLogUpperBound();
+
+        /**
+         * The *commit log* span the flushed sstable covers, recorded in its {@code StatsMetadata}.
+         *
+         * Empty for a journal-domain memtable. Journal bounds have one consumer, {@code MutationJournal.notifyFlushed},
+         * and a journal position stored here would be read back as a commit log position;
+         */
+        default IntervalSet<CommitLogPosition> commitLogIntervals()
+        {
+            return memtable().holds(LogDomain.COMMIT_LOG)
+                   ? new IntervalSet<>(commitLogLowerBound(), commitLogUpperBound())
+                   : IntervalSet.empty();
+        }
 
         /** The set of all columns that have been written */
         RegularAndStaticColumns columns();
@@ -372,10 +291,23 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
      * @param writeBarrier The barrier that will signal that all writes to this memtable have completed. That is, the
      *                     point after which writes cannot be accepted by this memtable (it is permitted for writes
      *                     before this barrier to go into the next; see {@link #accepts}).
-     * @param commitLogUpperBound The upper commit log position for this memtable. The value may be modified after this
-     *                            call and will match the next memtable's lower commit log bound.
+     * @param upperBounds The generation boundary this memtable ends at. The position for the memtable's own domain is
+     *                    its upper bound; it may be modified after this call, and is the next generation's lower bound
+     *                    in that log.
      */
-    void switchOut(OpOrder.Barrier writeBarrier, AtomicReference<CommitLogPosition> commitLogUpperBound);
+    void switchOut(OpOrder.Barrier writeBarrier, LogDomainBounds upperBounds);
+
+    /**
+     * The memtables whose contents are written out when this generation flushes. This is where split domain memtables
+     * become 2 memtables for flushing to different memtables
+     */
+    List<DomainMemtable> flushSources();
+
+    /**
+     * The domain memtable a write for {@code domain} is held by, which is the memtable itself unless this generation is
+     * split.
+     */
+    DomainMemtable flushSourceFor(LogDomain domain);
 
     /**
      * This memtable is no longer in use or required for outstanding flushes or operations.
@@ -385,36 +317,40 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
 
     /**
      * Decide if this memtable should take a write with the given parameters, or if the write should go to the next
-     * memtable. This enforces that no writes after the barrier set by {@link #switchOut} can be accepted, and
-     * is also used to define a shared commit log bound as the upper for this memtable and lower for the next.
+     * memtable (or split the memtable across domains if the domain doesn't match and this is the current memtable).
+     * This enforces that no writes after the barrier set by {@link #switchOut} can be accepted, and is also used to
+     * define a shared commit log bound as the upper for this memtable and lower for the next.
      */
-    boolean accepts(OpOrder.Group opGroup, CommitLogPosition commitLogPosition);
+    boolean accepts(OpOrder.Group opGroup, CommitLogPosition commitLogPosition, LogDomain domain);
 
     long getMemtableId();
 
-    /** Approximate commit log lower bound, <= getCommitLogLowerBound, used as a time stamp for ordering */
-    CommitLogPosition getApproximateCommitLogLowerBound();
+    /**
+     * Whether this memtable can accept writes from the given log domain
+     */
+    boolean holds(LogDomain domain);
 
-    /** The commit log position at the time that this memtable was created */
-    CommitLogPosition getCommitLogLowerBound();
+    Owner owner();
 
-    /** The commit log position at the time that this memtable was switched out */
-    LastCommitLogPosition getFinalCommitLogUpperBound();
+    default boolean allocatesFromMemtablePool()
+    {
+        return false;
+    }
 
-    /** True if the memtable can contain any data that was written before the given commit log position */
-    boolean mayContainDataBefore(CommitLogPosition position);
+    default void flushIfPeriodExpired()
+    {
+    }
 
     /** True if the memtable contains no data */
     boolean isClean();
 
-    // The following two methods provide a way of tracking ongoing flushes
-    LifecycleTransaction setFlushTransaction(LifecycleTransaction transaction);
-    LifecycleTransaction getFlushTransaction();
-
-    /** Order memtables by time as reflected in the commit log position at time of construction */
+    /**
+     * Order memtables by time as reflected in memtable id at time of construction.
+     * Note that split generations share the id of the generation they replace.
+     */
     default int compareTo(Memtable that)
     {
-        return this.getApproximateCommitLogLowerBound().compareTo(that.getApproximateCommitLogLowerBound());
+        return Long.compare(this.getMemtableId(), that.getMemtableId());
     }
 
     /**
