@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.sstable.format.bti;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -216,8 +217,7 @@ public class BtiFormat extends AbstractSSTableFormat<BtiTableReader, BtiTableWri
     {
         logger.info("Deleting sstable: {}", desc);
 
-        if (components.remove(SSTableFormat.Components.DATA))
-            components.add(0, SSTableFormat.Components.DATA); // DATA component should be first
+        components.sort(Comparator.comparingLong(c -> desc.fileFor(c).lastModified()));
 
         for (Component component : components)
         {

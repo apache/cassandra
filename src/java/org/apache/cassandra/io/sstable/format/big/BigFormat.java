@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -323,10 +324,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
     {
         logger.info("Deleting sstable: {}", desc);
 
-        if (components.remove(DATA))
-            components.add(0, DATA); // DATA component should be first
-        if (components.remove(Components.SUMMARY))
-            components.add(Components.SUMMARY); // SUMMARY component should be last (IDK why)
+        components.sort(Comparator.comparingLong(c -> desc.fileFor(c).lastModified()));
 
         for (Component component : components)
         {
