@@ -31,6 +31,7 @@ import org.apache.cassandra.schema.AutoRepairParams;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.schema.FlushCompressionParams;
 import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -54,6 +55,7 @@ import static org.apache.cassandra.schema.TableParams.Option.COMPACTION;
 import static org.apache.cassandra.schema.TableParams.Option.COMPRESSION;
 import static org.apache.cassandra.schema.TableParams.Option.CRC_CHECK_CHANCE;
 import static org.apache.cassandra.schema.TableParams.Option.DEFAULT_TIME_TO_LIVE;
+import static org.apache.cassandra.schema.TableParams.Option.FLUSH_COMPRESSION;
 import static org.apache.cassandra.schema.TableParams.Option.GC_GRACE_SECONDS;
 import static org.apache.cassandra.schema.TableParams.Option.INCREMENTAL_BACKUPS;
 import static org.apache.cassandra.schema.TableParams.Option.MAX_INDEX_INTERVAL;
@@ -142,6 +144,9 @@ public final class TableAttributes extends PropertyDefinitions
 
         if (hasOption(COMPRESSION))
             builder.compression(CompressionParams.fromMap(getMap(COMPRESSION)));
+
+        if (hasOption(FLUSH_COMPRESSION))
+            builder.flushCompression(FlushCompressionParams.fromString(getString(FLUSH_COMPRESSION)));
 
         if (hasOption(Option.MEMTABLE))
             builder.memtable(MemtableParams.getWithFallback(getString(Option.MEMTABLE)));

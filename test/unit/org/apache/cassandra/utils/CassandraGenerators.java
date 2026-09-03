@@ -119,6 +119,7 @@ import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.schema.FlushCompressionParams;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -818,6 +819,16 @@ public final class CassandraGenerators
         private Gen<TransactionalMode> transactionalMode = null;
         @Nullable
         private Gen<FastPathStrategy> fastPathStrategy = null;
+        @Nullable
+        private Gen<FlushCompressionParams> flushCompressionGen = null;
+
+        public TableParamsBuilder withFlushCompression()
+        {
+            flushCompressionGen = SourceDSL.arbitrary()
+                                           .enumValues(FlushCompressionParams.Option.class)
+                                           .map(option -> FlushCompressionParams.fromString(option.name()));
+            return this;
+        }
 
         public TableParamsBuilder withKnownMemtables()
         {
@@ -941,6 +952,8 @@ public final class CassandraGenerators
                     params.transactionalMode(transactionalMode.generate(rnd));
                 if (fastPathStrategy != null)
                     params.fastPath(fastPathStrategy.generate(rnd));
+                if (flushCompressionGen != null)
+                    params.flushCompression(flushCompressionGen.generate(rnd));
                 return params.build();
             };
         }

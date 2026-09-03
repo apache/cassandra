@@ -191,6 +191,7 @@ public class ColumnSpecificationTest extends CQLTester
                "    AND fast_path = 'keyspace'\n" +
                "    AND default_time_to_live = 0\n" +
                "    AND extensions = {}\n" +
+               "    AND flush_compression = 'auto'\n" +
                "    AND gc_grace_seconds = 864000\n" +
                "    AND incremental_backups = true\n" +
                "    AND max_index_interval = 2048\n" +

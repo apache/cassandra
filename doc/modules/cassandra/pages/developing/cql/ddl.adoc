@@ -509,6 +509,7 @@ impacts the size of bloom filters in-memory and on-disk.
 | `default_time_to_live` |_simple_ |0 |Default expiration time (“TTL”) in seconds for a table
 | `compaction` |_map_ |_see below_ | xref:cassandra:managing/operating/compaction/index.adoc#cql-compaction-options[Compaction options]
 | `compression` |_map_ |_see below_ | xref:cassandra:managing/operating/compression/index.adoc#cql-compression-options[Compression options]
+| `flush_compression` |_simple_ |auto | xref:cassandra:developing/cql/ddl.adoc#cql-flush-compression-option[Flush compression option]
 | `caching` |_map_ |_see below_ |Caching options
 | `memtable_flush_period_in_ms` |_simple_ |0 |Time (in ms) before Cassandra flushes memtables to disk
 | `read_repair` |_simple_ |BLOCKING |Sets read repair behavior (see below)
@@ -655,6 +656,31 @@ For instance, to create a table with LZ4Compressor and a `chunk_length_in_kb` of
 [source,cql]
 ----
 include::cassandra:example$CQL/chunk_length.cql[]
+----
+
+[[cql-flush-compression-option]]
+===== Flush compression option
+
+The `flush_compression` option selects the compressor used when a memtable is flushed to an SSTable.
+Flushes are on the write path, so a slow compressor (`ZstdCompressor`, `DeflateCompressor`, LZ4 in high compression mode)
+can back up flushes and block writes. Compaction always rewrites SSTables with the compressor configured
+in `compression`, so the choice only affects freshly flushed SSTables.
+
+[cols=",",options="header",]
+|===
+|Value |Description
+| `auto` | Default. Use the node-wide `flush_compression` setting from `cassandra.yaml`.
+| `none` | Flush without compressing blocks. Checksums are still written.
+| `fast` | Flush with a fast compressor. If the table compressor is already fast it is used as is, otherwise the default LZ4 compressor is used.
+| `table` | Flush with the compressor configured in `compression`.
+|===
+
+The option has no effect on tables with compression disabled. For example, to flush a Zstd compressed
+table with its own compressor regardless of the node setting:
+
+[source,cql]
+----
+ALTER TABLE cycling.cyclist_name WITH flush_compression = 'table';
 ----
 
 [[cql-caching-options]]
