@@ -137,6 +137,23 @@ controller:
                 }
               }
           - script: >
+              pipelineJob('cassandra-4.1') {
+                definition {
+                  cpsScm {
+                    scm {
+                      git {
+                        remote {
+                          url('https://github.com/apache/cassandra')
+                        }
+                        branch('cassandra-4.1')
+                        scriptPath('.jenkins/Jenkinsfile')
+                      }
+                    }
+                    lightweight()
+                  }
+                }
+              }
+          - script: >
               pipelineJob('cassandra-5.0') {
                 definition {
                   cpsScm {
