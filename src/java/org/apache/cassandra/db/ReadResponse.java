@@ -32,6 +32,7 @@ import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
+import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Row;
@@ -39,6 +40,7 @@ import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
+import org.apache.cassandra.db.rows.WrappingUnfilteredRowIterator;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -418,6 +420,9 @@ public abstract class ReadResponse
     // limits; larger responses are serialized in full and returned as an ordinary LocalDataResponse instead
     private static class InMemoryDataResponse extends DataResponse
     {
+        // An empty static row which is intentionally not the Rows.EMPTY_STATIC_ROW singleton
+        private static final Row PRESENT_EMPTY_STATIC_ROW = BTreeRow.emptyRow(Clustering.STATIC_CLUSTERING);
+
         // the whole response as an in-memory partition; null if the response was empty
         private final ImmutableBTreePartition partition;
 
@@ -468,7 +473,7 @@ public abstract class ReadResponse
         // buffer in the intra-node partition format, so it can be read back like any other serialized DataResponse.
         private static ByteBuffer serialize(ReadCommand command, ImmutableBTreePartition prefix, UnfilteredRowIterator suffix)
         {
-            UnfilteredRowIterator prefixIter = prefix.unfilteredIterator(command.columnFilter(), Slices.ALL, suffix.isReverseOrder());
+            UnfilteredRowIterator prefixIter = unfilteredIteratorWithStaticRow(prefix, command.columnFilter(), suffix.isReverseOrder());
             UnfilteredRowIterator combined = UnfilteredRowIterators.concat(prefixIter, suffix);
             UnfilteredPartitionIterator partitionIter = new SingletonUnfilteredPartitionIterator(command.metadata(), combined);
             return LocalDataResponse.build(partitionIter, command.columnFilter());
@@ -581,8 +586,33 @@ public abstract class ReadResponse
             if (partition == null)
                 return EmptyIterators.unfilteredPartition(command.metadata());
 
-            UnfilteredRowIterator inMemoryIter = partition.unfilteredIterator(command.columnFilter(), Slices.ALL, command.isReversed());
+            UnfilteredRowIterator inMemoryIter = unfilteredIteratorWithStaticRow(partition, command.columnFilter(), command.isReversed());
             return new SingletonUnfilteredPartitionIterator(command.metadata(), inMemoryIter);
+        }
+
+        // Iterating a partition turns an empty static row into the Rows.EMPTY_STATIC_ROW singleton.
+        // EMPTY_STATIC_ROW identity is used to decide if the static columns join the digest (UnfilteredRowIterators.digest) and
+        // the static row is serialized at all (UnfilteredRowIteratorSerializer).
+        // So, we use PRESENT_EMPTY_STATIC_ROW here to preserve the original behavior.
+        private static UnfilteredRowIterator unfilteredIteratorWithStaticRow(ImmutableBTreePartition partition, ColumnFilter columnFilter, boolean reversed)
+        {
+            UnfilteredRowIterator iter = partition.unfilteredIterator(columnFilter, Slices.ALL, reversed);
+            if (iter.staticRow() != Rows.EMPTY_STATIC_ROW || partition.staticRow() == Rows.EMPTY_STATIC_ROW)
+                return iter;
+
+            return new WrappingUnfilteredRowIterator()
+            {
+                public UnfilteredRowIterator wrapped()
+                {
+                    return iter;
+                }
+
+                @Override
+                public Row staticRow()
+                {
+                    return PRESENT_EMPTY_STATIC_ROW;
+                }
+            };
         }
 
         @Override
