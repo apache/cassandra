@@ -18,7 +18,11 @@
 -->
 <project basedir=".." name="apache-cassandra-accord-build"
          xmlns:if="ant:if">
-    <target name="_build-accord" depends="init">
+    <!-- no-build-accord skips the gradle invocation below, for when the jar is already current. Two checkouts building
+         concurrently contend on the shared gradle artifact cache (~/.gradle/caches/modules-2) and one blocks until the
+         other finishes; setting GRADLE_USER_HOME per checkout isolates that instead, at the cost of duplicated
+         downloads. Follows the same convention as no-checkstyle and no-build-test. -->
+    <target name="_build-accord" depends="init" unless="no-build-accord">
       <exec executable="${basedir}/${accord.dir}/gradlew" dir="${basedir}/${accord.dir}" logError="true" failonerror="true" failifexecutionfails="true">
         <!-- Need to call clean as a version change with a jar that didn't have code changes will not produce a new jar with the new version... so need clean to make sure build is stable -->
         <arg value="clean" />
