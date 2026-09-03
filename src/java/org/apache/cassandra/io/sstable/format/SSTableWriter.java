@@ -356,6 +356,8 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         // Reconciliation should not occur before activation for coordinated transfer streams for tracked keyspaces.
         boolean reconcile = txn.opType() != OperationType.STREAM;
 
+        ImmutableCoordinatorLogOffsets offsets = coordinatorLogOffsets;
+
         // During migration, incremental repair handles repair status for ranges still pending migration.
         // Only apply mutation tracking reconciliation for ranges NOT in the migration pending set.
         // For SSTables whose range falls within pending migration ranges, IR sets pendingRepair/repairedAt.
@@ -370,9 +372,13 @@ public abstract class SSTableWriter extends SSTable implements Transactional
             if (!inMigrationPendingRange)
             {
                 Preconditions.checkState(Objects.equals(pendingRepair, ActiveRepairService.NO_PENDING_REPAIR));
-                if (MutationTrackingService.instance().isDurablyReconciled(coordinatorLogOffsets))
+                if (MutationTrackingService.instance().isDurablyReconciled(offsets))
                 {
                     repairedAt = Clock.Global.currentTimeMillis();
+                    // Promotion clears the offsets, exactly as the background sweep does. Setting repairedAt while
+                    // keeping them would leave a repaired sstable still asserting journal provenance, and offsets are
+                    // only meaningful for as long as an sstable is unrepaired.
+                    offsets = new ImmutableCoordinatorLogOffsets.Builder().build();
                     logger.debug("Marking SSTable {} as reconciled with repairedAt {}", descriptor, repairedAt);
                 }
             }
@@ -382,7 +388,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                                   metadata().params.bloomFilterFpChance,
                                                   repairedAt,
                                                   pendingRepair,
-                                                  coordinatorLogOffsets,
+                                                  offsets,
                                                   header,
                                                   first.retainable().getKey(),
                                                   last.retainable().getKey());

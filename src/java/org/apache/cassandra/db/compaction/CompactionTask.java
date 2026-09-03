@@ -56,7 +56,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
-import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.SnapshotOptions;
@@ -443,12 +442,19 @@ public class CompactionTask extends AbstractCompactionTask
         return ids.iterator().next();
     }
 
+    /**
+     * Union the inputs' coordinator log offsets.
+     * <p>
+     * Reconciled ids are deliberately not purged here. Removing them piecemeal as they reconcile leaves an sstable
+     * that is still journal-derived but no longer says so — and once its last id goes, indistinguishable from
+     * commit-log-derived data it must not be combined with while unrepaired. Offsets are removed in one step when the
+     * sstable is promoted to repaired; see {@link SSTableReader#mutatePromotedToRepairedAndReload}.
+     */
     public static ImmutableCoordinatorLogOffsets getCoordinatorLogOffsets(Set<SSTableReader> sstables)
     {
         ImmutableCoordinatorLogOffsets.Builder builder = new ImmutableCoordinatorLogOffsets.Builder();
         for (SSTableReader sstable : sstables)
             builder.addAll(sstable.getCoordinatorLogOffsets());
-        builder.purgeTransfers(id -> MutationTrackingService.instance().isDurablyReconciled(id));
         return builder.build();
     }
 

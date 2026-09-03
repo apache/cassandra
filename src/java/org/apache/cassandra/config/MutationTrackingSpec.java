@@ -30,4 +30,15 @@ public class MutationTrackingSpec
      * The interval in which the backgroun reconciliation process runs
      */
     public volatile DurationSpec.LongMillisecondsBound background_reconciliation_interval = new DurationSpec.LongMillisecondsBound("1s");
+    /**
+     * Whether unrepaired sstables whose mutations have all reconciled are promoted to repaired in the background
+     */
+    public volatile boolean reconciled_sstable_promotion_enabled = true;
+    /**
+     * The interval at which reconciled sstables are promoted to repaired.
+     *
+     * This also bounds how long coordinator log offsets accumulate, since they are now removed only at promotion
+     * rather than incrementally at compaction.
+     */
+    public volatile DurationSpec.LongMillisecondsBound reconciled_sstable_promotion_interval = new DurationSpec.LongMillisecondsBound("60s");
 }

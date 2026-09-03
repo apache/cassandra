@@ -1414,6 +1414,31 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     }
 
     /**
+     * Promote a reconciled sstable to repaired, clearing its coordinator log offsets in the same metadata mutation.
+     * <p>
+     * These must not be two mutations. While an sstable is unrepaired its offsets are what identify it as holding
+     * journal-derived data; clearing them first would make it look commit-log-derived while still unrepaired, and
+     * setting repairedAt first would make it eligible to be compacted with commit-log-derived data while it still
+     * carries offsets. A single rewrite of the stats component leaves no observable state in between.
+     * <p>
+     * Offsets are removed only here, never incrementally as individual ids reconcile, so that they remain a reliable
+     * statement of provenance for exactly as long as the sstable is unrepaired.
+     */
+    public void mutatePromotedToRepairedAndReload(long newRepairedAt) throws IOException
+    {
+        ImmutableCoordinatorLogOffsets cleared = new ImmutableCoordinatorLogOffsets.Builder().build();
+        synchronized (tidy.global)
+        {
+            descriptor.getMetadataSerializer()
+                      .mutate(descriptor,
+                              "promoted to repaired at " + newRepairedAt + " with offsets cleared",
+                              stats -> stats.mutateRepairedMetadata(newRepairedAt, ActiveRepairService.NO_PENDING_REPAIR)
+                                            .mutateCoordinatorLogOffsets(cleared));
+            reloadSSTableMetadata();
+        }
+    }
+
+    /**
      * Reloads the sstable metadata from disk.
      * <p>
      * Called after level is changed on sstable, for example if the sstable is dropped to L0

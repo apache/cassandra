@@ -1515,6 +1515,47 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
     }
 
+    /**
+     * Promote reconciled sstables to repaired, clearing their coordinator log offsets in the same metadata mutation,
+     * and move them between strategies under the write lock as {@link #mutateRepaired} does.
+     *
+     * No data is rewritten. Offsets are cleared here rather than incrementally at compaction so that they remain a
+     * reliable statement of provenance for as long as an sstable is unrepaired.
+     *
+     * @return the sstables that were successfully promoted
+     */
+    public Set<SSTableReader> promoteReconciled(Collection<SSTableReader> sstables, long repairedAt) throws IOException
+    {
+        if (sstables.isEmpty())
+            return Collections.emptySet();
+        Set<SSTableReader> changed = new HashSet<>();
+
+        writeLock.lock();
+        try
+        {
+            for (SSTableReader sstable : sstables)
+            {
+                sstable.mutatePromotedToRepairedAndReload(repairedAt);
+                verifyMetadata(sstable, repairedAt, ActiveRepairService.NO_PENDING_REPAIR);
+                if (!sstable.getSSTableMetadata().coordinatorLogOffsets.isEmpty())
+                    throw new IllegalStateException(String.format("Failed clearing coordinator log offsets on %s", sstable));
+                changed.add(sstable);
+            }
+        }
+        finally
+        {
+            try
+            {
+                cfs.getTracker().notifySSTableRepairedStatusChanged(changed);
+            }
+            finally
+            {
+                writeLock.unlock();
+            }
+        }
+        return changed;
+    }
+
     private static void verifyMetadata(SSTableReader sstable, long repairedAt, TimeUUID pendingRepair)
     {
         if (!Objects.equals(pendingRepair, sstable.getPendingRepair()))

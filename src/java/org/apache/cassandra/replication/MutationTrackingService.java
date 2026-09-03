@@ -217,6 +217,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     private final LogStatePersister offsetsPersister = new LogStatePersister();
     private final ActiveLogReconciler activeReconciler = new ActiveLogReconciler();
     private final BackgroundReconciler backgroundReconciler = new BackgroundReconciler();
+    private final ReconciledSSTablePromotionTask reconciledSSTablePromoter = new ReconciledSSTablePromotionTask();
 
     private final IncomingMutations incomingMutations = new IncomingMutations();
     private final OutgoingMutations outgoingMutations = new OutgoingMutations();
@@ -260,6 +261,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         offsetsBroadcaster.start();
         offsetsPersister.start();
         backgroundReconciler.start();
+        reconciledSSTablePromoter.start();
 
         ExpiredStatePurger.instance.register(incomingMutations);
 
@@ -1518,6 +1520,43 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         if (rows.isEmpty())
             return 0;
         return rows.one().getInt("host_log_id");
+    }
+
+    /**
+     * Periodically promotes unrepaired sstables whose mutations have all reconciled to repaired.
+     *
+     * The interval also bounds how long coordinator log offsets accumulate, since they are removed only at promotion
+     * rather than incrementally at compaction.
+     */
+    private static class ReconciledSSTablePromotionTask
+    {
+        void start()
+        {
+            scheduleNext();
+        }
+
+        private void scheduleNext()
+        {
+            long intervalMillis = config.reconciled_sstable_promotion_interval.toMilliseconds();
+            executor.schedule(this::runAndReschedule, intervalMillis, TimeUnit.MILLISECONDS);
+        }
+
+        private void runAndReschedule()
+        {
+            try
+            {
+                if (config.reconciled_sstable_promotion_enabled)
+                    ReconciledSSTablePromoter.sweep();
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Reconciled sstable promotion sweep failed", t);
+            }
+            finally
+            {
+                scheduleNext();
+            }
+        }
     }
 
     private static class BackgroundReconciler
