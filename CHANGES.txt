@@ -31,6 +31,7 @@ Merged from 6.0:
  * Make cqlsh prompt to reset to no keyspace set by USE after dropping that keyspace (CASSANDRA-21548)
  * Implement CMS rediscovery and recovery protocol (CASSANDRA-20476)
 Merged from 5.0:
+ * Fix concurrent SAI vector inserts failing once jvector's per-graph pool limit is exceeded (CASSANDRA-21644)
  * Unwrap LongType properly when calculating min/max terms in V1SSTableIndex (CASSANDRA-21635)
  * Force repair should ignore min_repair_interval (CASSANDRA-21552)
  * Render SubnetGroups as JSON in system_views.settings (CASSANDRA-21579)
