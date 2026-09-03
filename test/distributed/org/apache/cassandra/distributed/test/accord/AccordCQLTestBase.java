@@ -122,6 +122,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCQLTestBase.class);
     private final int maxConcurrency;
+    private static final int INTEROP_MAX_CONCURRENCY = 16;
 
     protected AccordCQLTestBase(TransactionalMode transactionalMode)
     {
@@ -131,7 +132,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
             default: throw new UnhandledEnum(transactionalMode);
             case mixed_reads:
             case test_interop_read:
-                maxConcurrency = 16;
+                maxConcurrency = INTEROP_MAX_CONCURRENCY;
                 break;
             case full:
             case off:
@@ -152,7 +153,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     {
         AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL)
                                                                                     .set("paxos_variant", PaxosVariant.v2.name())
-                                                                                    .set("accord.migration_concurrency", "" + (1 + CAS_SIMULATOR_LITE_CONCURRENCY))
+                                                                                    .set("accord.migration_concurrency", "" + (1 + INTEROP_MAX_CONCURRENCY))
         ), 2);
         SHARED_CLUSTER.schemaChange("CREATE TYPE " + KEYSPACE + ".person (height int, age int)");
     }
