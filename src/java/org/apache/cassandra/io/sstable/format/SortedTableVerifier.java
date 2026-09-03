@@ -125,7 +125,12 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
 
     protected void markAndThrow(Throwable cause, boolean mutateRepaired)
     {
-        if (mutateRepaired && options.mutateRepairStatus) // if we are able to mutate repaired flag, an incremental repair should be enough
+        // Marking the sstable unrepaired exists so that incremental repair notices it and repairs it. That would
+        // create an unreconcilable table on a tracked table
+        boolean tracked = cfs.metadata().replicationType().isTracked();
+        boolean unRepair = mutateRepaired && options.mutateRepairStatus && !tracked;
+
+        if (unRepair)
         {
             try
             {
@@ -137,7 +142,24 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
                 outputHandler.output("Error mutating repairedAt for SSTable %s, as part of markAndThrow", sstable.getFilename());
             }
         }
-        Exception e = new Exception(String.format("Invalid SSTable %s, please force %srepair", sstable.getFilename(), (mutateRepaired && options.mutateRepairStatus) ? "" : "a full "), cause);
+
+        Exception e;
+        if (tracked)
+        {
+            // Full repair adds correct data but cannot remove the corrupt row: read resolution is last-write-wins on
+            // timestamp, so a corrupt row with a mangled high timestamp still beats the row repair streams in.
+            String message = String.format("Invalid SSTable %s on tracked table %s.%s; repairedAt left unchanged. " +
+                                           "Run a full repair to restore any missing data, and scrub or replace the " +
+                                           "node to remove the corruption - a corrupt row can still win read " +
+                                           "resolution on timestamp, so full repair alone may not be sufficient.",
+                                           sstable.getFilename(), cfs.metadata.keyspace, cfs.metadata.name);
+            outputHandler.warn(message);
+            e = new Exception(message, cause);
+        }
+        else
+        {
+            e = new Exception(String.format("Invalid SSTable %s, please force %srepair", sstable.getFilename(), unRepair ? "" : "a full "), cause);
+        }
         if (options.invokeDiskFailurePolicy)
             throw new CorruptSSTableException(e, sstable.getFilename());
         else
