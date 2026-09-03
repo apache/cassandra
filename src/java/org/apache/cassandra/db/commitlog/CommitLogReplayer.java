@@ -322,7 +322,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
                     {
                         assert !newPUCollector.isEmpty();
 
-                        keyspace.apply(newPUCollector.build(), false, true, false);
+                        keyspace.applyForReplay(newPUCollector.build());
                         commitLogReplayer.keyspacesReplayed.add(keyspace);
                     }
                 }

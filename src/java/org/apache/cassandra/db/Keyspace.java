@@ -408,7 +408,7 @@ public class Keyspace
     public Future<?> applyFuture(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
     {
         if (mutation.id().isNone())
-            return applyInternal(mutation, writeCommitLog, updateIndexes, true, true, new AsyncPromise<>());
+            return applyInternal(mutation, writeCommitLog, updateIndexes, true, true, false, new AsyncPromise<>());
         else
             return applyInternalTracked(mutation, false, new AsyncPromise<>());
     }
@@ -446,7 +446,7 @@ public class Keyspace
             applyInternalTracked(mutation, false, null);
         }
         else
-            applyInternal(mutation, makeDurable, updateIndexes, isDroppable, false, null);
+            applyInternal(mutation, makeDurable, updateIndexes, isDroppable, false, false, null);
     }
 
     /**
@@ -458,15 +458,23 @@ public class Keyspace
      * @param updateIndexes  false to disable index updates (used by CollationController "defragmenting")
      * @param isDroppable    true if this should throw WriteTimeoutException if it does not acquire lock within write_request_timeout
      * @param isDeferrable   true if caller is not waiting for future to complete, so that future may be deferred
+     * @param isReplay       true if this is commit log replay, which skips the routing check
      */
     private Future<?> applyInternal(final Mutation mutation,
-                                               final boolean makeDurable,
-                                               boolean updateIndexes,
-                                               boolean isDroppable,
-                                               boolean isDeferrable,
-                                               Promise<?> future)
+                                    final boolean makeDurable,
+                                    boolean updateIndexes,
+                                    boolean isDroppable,
+                                    boolean isDeferrable,
+                                    boolean isReplay,
+                                    Promise<?> future)
     {
-        Preconditions.checkState(!MigrationRouter.isFullyTracked(mutation) && mutation.id().isNone());
+        // An untracked apply must carry no mutation id
+        Preconditions.checkState(mutation.id().isNone());
+
+        // Don't check routing for replay. A replayed mutations's domain is determined by which log it came out of.
+        // We may be replaying a commit log after a migration to tracked has completed
+        if (!isReplay)
+            Preconditions.checkState(!MigrationRouter.isFullyTracked(mutation));
 
         if (TEST_FAIL_WRITES && getMetadata().name.equals(TEST_FAIL_WRITES_KS))
             throw new RuntimeException("Testing write failures");
@@ -523,9 +531,7 @@ public class Keyspace
 
                             // This view update can't happen right now. so rather than keep this thread busy
                             // we will re-apply ourself to the queue and try again later
-                            Stage.MUTATION.execute(() ->
-                                                   applyInternal(mutation, makeDurable, true, isDroppable, true, future)
-                            );
+                            Stage.MUTATION.execute(() -> applyInternal(mutation, makeDurable, true, isDroppable, true, isReplay, future) );
                             return future;
                         }
                         else
@@ -563,7 +569,7 @@ public class Keyspace
                     columnFamilyStores.get(tableId).metric.viewLockAcquireTime.update(acquireTime, MILLISECONDS);
             }
         }
-        try (WriteContext ctx = getWriteHandler().beginWrite(mutation, makeDurable))
+        try (WriteContext ctx = getWriteHandler().beginWrite(mutation, makeDurable, isReplay))
         {
             ConsensusMigrationMutationHelper.validateSafeToExecuteNonTransactionally(mutation);
             for (PartitionUpdate upd : mutation.getPartitionUpdates())
@@ -615,17 +621,12 @@ public class Keyspace
         }
     }
 
-    /**
-     * Apply a tracked mutation read from the {@link org.apache.cassandra.replication.MutationJournal}
-     * during static-segment replay on startup.
-     *
-     * Compared to the normal write apply path, this skips the journal append (since we're replaying from it)
-     * and always writes to the memtable, even when {@link MutationTrackingService#startWriting} reports the offset
-     * as already witnessed.
-     */
     public void applyForReplay(Mutation mutation)
     {
-        applyInternalTracked(mutation, true, null);
+        if (mutation.id().isNone())
+            applyInternal(mutation, false, true, false, false, true, null);
+        else
+            applyInternalTracked(mutation, true, null);
     }
 
     /**
@@ -634,19 +635,28 @@ public class Keyspace
     private Future<?> applyInternalTracked(Mutation mutation, boolean isReplay, Promise<?> future)
     {
         MutationTrackingService.ensureEnabled();
-        if (!MigrationRouter.isFullyTracked(mutation) || mutation.id().isNone())
-            throw new CoordinatorBehindException("Mutation routing mismatch in applyInternalTracked: isFullyTracked=" +
-                                                 MigrationRouter.isFullyTracked(mutation) + ", id.isNone=" + mutation.id().isNone() +
+        // A tracked apply must carry a mutation id, replay or not.
+        if (mutation.id().isNone())
+            throw new CoordinatorBehindException("Mutation routing mismatch in applyInternalTracked: id.isNone=true" +
                                                  ", keyspace=" + mutation.getKeyspaceName());
+
+        // Don't check routing for replay. A replayed mutations's domain is determined by which log it came out of. We may
+        // be replaying a journal after a migration to untracked has completed
+        if (!isReplay && !MigrationRouter.isFullyTracked(mutation))
+            throw new CoordinatorBehindException("Mutation routing mismatch in applyInternalTracked: isFullyTracked=false" +
+                                                 ", keyspace=" + mutation.getKeyspaceName());
+
         ClusterMetadata cm = ClusterMetadata.current();
 
         if (TEST_FAIL_WRITES && getMetadata().name.equals(TEST_FAIL_WRITES_KS))
             throw new RuntimeException("Testing write failures");
 
         boolean started;
-        try (WriteContext ctx = trackedWriteHandler.beginWrite(mutation, !isReplay))
+        try (WriteContext ctx = trackedWriteHandler.beginWrite(mutation, !isReplay, isReplay))
         {
-            started = MutationTrackingService.instance().startWriting(mutation);
+            started = isReplay
+                      ? MutationTrackingService.instance().startWritingForReplay(mutation)
+                      : MutationTrackingService.instance().startWriting(mutation);
 
             if (started || isReplay)
             {

@@ -40,14 +40,15 @@ public class CassandraKeyspaceWriteHandler implements KeyspaceWriteHandler
     }
 
     @Override
-    public WriteContext beginWrite(Mutation mutation, boolean makeDurable) throws RequestExecutionException
+    public WriteContext beginWrite(Mutation mutation, boolean makeDurable, boolean isReplay) throws RequestExecutionException
     {
         OpOrder.Group group = null;
         try
         {
             group = Keyspace.writeOrder.start();
 
-            MigrationRouter.validateUntrackedMutation(mutation);
+            MigrationRouter.validateUntrackedMutation(mutation, isReplay);
+
             // write the mutation to the commitlog and memtables
             CommitLogPosition position = null;
             if (makeDurable)

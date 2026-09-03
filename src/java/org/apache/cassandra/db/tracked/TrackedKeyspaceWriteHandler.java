@@ -32,14 +32,14 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
 {
     @Override
-    public WriteContext beginWrite(Mutation mutation, boolean makeDurable) throws RequestExecutionException
+    public WriteContext beginWrite(Mutation mutation, boolean makeDurable, boolean isReplay) throws RequestExecutionException
     {
         OpOrder.Group group = null;
         try
         {
             group = Keyspace.writeOrder.start();
 
-            MigrationRouter.validateTrackedMutation(mutation);
+            MigrationRouter.validateTrackedMutation(mutation, isReplay);
 
             CommitLogPosition pointer = null;
             if (makeDurable)
