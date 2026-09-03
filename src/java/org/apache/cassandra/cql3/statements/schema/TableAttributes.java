@@ -38,6 +38,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.TableParams.Option;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.service.accord.topology.FastPathStrategy;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
@@ -211,6 +212,15 @@ public final class TableAttributes extends PropertyDefinitions
     public boolean hasOption(Option option)
     {
         return hasProperty(option.toString());
+    }
+
+    /**
+     * Minimum cluster-wide metadata serialization version required to enact a schema change carrying these options.
+     * Options unknown to older nodes must not be committed while such nodes can still replay the statement.
+     */
+    public Version minimumSerializationVersion()
+    {
+        return hasOption(FLUSH_COMPRESSION) ? Version.V11 : Version.V0;
     }
 
     private String getString(Option option)
