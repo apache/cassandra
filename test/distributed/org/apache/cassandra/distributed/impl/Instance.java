@@ -27,6 +27,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -41,6 +42,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
@@ -1098,10 +1100,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             try
             {
                 future.get();
-                ThreadGroup group = Thread.currentThread().getThreadGroup();
-                int active = group.activeCount();
-                Invariants.expect(group.getParent().activeCount() <= active
-                                  || CassandraRelevantProperties.DTEST_IGNORE_SHUTDOWN_THREADCOUNT.getBoolean());
+                List<Thread> alive = awaitInstanceThreadsExit(Thread.currentThread().getThreadGroup(), 10, TimeUnit.SECONDS);
+                Invariants.expect(alive.isEmpty() || CassandraRelevantProperties.DTEST_IGNORE_SHUTDOWN_THREADCOUNT.getBoolean(),
+                                  "Instance %d did not terminate %d of its threads: %s", config.num(), alive.size(), alive);
                 return null;
             }
             finally
@@ -1111,6 +1112,43 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 //withThreadLeakCheck();
             }
         });
+    }
+
+    // excludes the calling group's threads, and includes all other threads of the group's parents
+    // parameter is expected to be the isolatedExecutor group, which is a direct child of the instance's group
+    private List<Thread> awaitInstanceThreadsExit(ThreadGroup group, long timeout, TimeUnit unit)
+    {
+        ThreadGroup parent = group.getParent();
+        Thread[] threads = new Thread[parent.activeCount() + 16];
+        long deadline = System.nanoTime() + unit.toNanos(timeout);
+        int count;
+        do
+        {
+            int inCount = parent.enumerate(threads, true);
+            while (inCount == threads.length)
+            {
+                threads = new Thread[inCount * 2];
+                inCount = parent.enumerate(threads, true);
+            }
+
+            count = 0;
+            for (int i = 0 ; i < inCount ; ++i)
+            {
+                Thread thread = threads[i];
+                if (thread.getThreadGroup() == group || !thread.isAlive())
+                    continue;
+
+                threads[count++] = thread;
+            }
+
+            if (count == 0)
+                return Collections.emptyList();
+
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
+        }
+        while (System.nanoTime() < deadline);
+
+        return Arrays.asList(Arrays.copyOf(threads, count));
     }
 
     private void withThreadLeakCheck()
