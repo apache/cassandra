@@ -20,12 +20,10 @@ package org.apache.cassandra.db;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
@@ -38,6 +36,7 @@ import org.junit.runners.Parameterized.Parameters;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.compaction.CompactionGroup;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.memtable.Memtable;
@@ -195,18 +194,17 @@ public class CoordinatorLogOffsetsLifecycleTest
             assertNumSSTables(view, 1);
 
             SSTableReader sstable = Iterables.getOnlyElement(view.liveSSTables());
-            ImmutableCoordinatorLogOffsets logOffsets = sstable.getCoordinatorLogOffsets();
-            Assertions.assertThat(logOffsets.mutations().size()).isEqualTo(1);
-            Assertions.assertThat(logOffsets.mutations().offsets(id2.logId()).contains(id2.offset())).isTrue();
-            // Single-participant, so mutations are immediately reconciled once applied
+            // Single-participant, so mutations are immediately reconciled once applied, and a reconciled flush is
+            // promoted as it is written.
             Assertions.assertThat(sstable.isRepaired()).isTrue();
+            Assertions.assertThat(sstable.getCoordinatorLogOffsets().isEmpty()).isTrue();
+            Assertions.assertThat(CompactionGroup.of(sstable)).isEqualTo(CompactionGroup.REPAIRED);
         }
 
-        MutationId id3;
         MutationId id4;
         // apply 2
         {
-            id3 = applyMutation(cfs.metadata(), 3, 3);
+            applyMutation(cfs.metadata(), 3, 3);
             id4 = applyMutation(cfs.metadata(), 4, 4);
 
             View view = cfs.getTracker().getView();
@@ -228,21 +226,11 @@ public class CoordinatorLogOffsetsLifecycleTest
             assertEmptyMemtable(view);
             assertNumSSTables(view, 2);
 
-            List<SSTableReader> sstables = Lists.newArrayList(view.liveSSTables());
-            sstables.sort(Comparator.comparing(sst -> sst.descriptor.id.asBytes()));
+            for (SSTableReader sstable : view.liveSSTables())
             {
-                ImmutableCoordinatorLogOffsets logOffsets = sstables.get(0).getCoordinatorLogOffsets();
-                Assertions.assertThat(logOffsets.mutations().size()).isEqualTo(1);
-                Assertions.assertThat(logOffsets.mutations().offsets(id2.logId()).contains(id2.offset())).isTrue();
-            }
-            {
-
-                ImmutableCoordinatorLogOffsets logOffsets = sstables.get(1).getCoordinatorLogOffsets();
-                Assertions.assertThat(logOffsets.mutations().size()).isEqualTo(1);
-                Assertions.assertThat(logOffsets.mutations().offsets(id4.logId()).contains(id4.offset())).isTrue();
-            }
-            for (SSTableReader sstable : sstables)
                 Assertions.assertThat(sstable.isRepaired()).isTrue();
+                Assertions.assertThat(sstable.getCoordinatorLogOffsets().isEmpty()).isTrue();
+            }
         }
 
         // compaction
@@ -254,10 +242,9 @@ public class CoordinatorLogOffsetsLifecycleTest
             assertNumSSTables(view, 1);
 
             SSTableReader sstable = Iterables.getOnlyElement(view.liveSSTables());
-            ImmutableCoordinatorLogOffsets logOffsets = sstable.getCoordinatorLogOffsets();
-            Assertions.assertThat(logOffsets.mutations().size()).isEqualTo(1);
-            Assertions.assertThat(logOffsets.mutations().offsets(id4.logId()).contains(id4.offset())).isTrue();
+            // Compacting repaired inputs yields a repaired output, still with no offsets to carry forward.
             Assertions.assertThat(sstable.isRepaired()).isTrue();
+            Assertions.assertThat(sstable.getCoordinatorLogOffsets().isEmpty()).isTrue();
         }
     }
 }

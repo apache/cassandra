@@ -58,6 +58,7 @@ import javax.management.openmbean.SimpleType;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.base.Joiner;
+import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.base.Strings;
@@ -95,8 +96,10 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.memtable.Flushing;
+import org.apache.cassandra.db.memtable.LogDomainBounds;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.ShardBoundaries;
+import org.apache.cassandra.db.memtable.SplitDomainMemtable;
 import org.apache.cassandra.db.partitions.CachedPartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.repair.CassandraTableRepairManager;
@@ -145,6 +148,7 @@ import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
@@ -520,18 +524,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         logger.info("Initializing {}.{}", getKeyspaceName(), name);
 
         Memtable initialMemtable = null;
+        LogDomainBounds initialBounds = null;
         if (DatabaseDescriptor.isDaemonInitialized())
         {
-            CommitLogPosition commitLogPosition;
-            if (metadata().replicationType().isTracked())
-                commitLogPosition = MutationJournal.instance().getCurrentPosition();
-            else
-                commitLogPosition = CommitLog.instance.getCurrentPosition();
-            initialMemtable = createMemtable(new AtomicReference<>(commitLogPosition));
+            initialBounds = LogDomainBounds.atCurrentPositions();
+            initialMemtable = createMemtable(initialBounds);
         }
         memtableMetricsReleaser = memtableFactory.createMemtableMetricsReleaser(metadata);
 
-        data = new Tracker(this, initialMemtable, loadSSTables);
+        data = new Tracker(this, initialMemtable, initialBounds, loadSSTables);
 
         // Note that this needs to happen before we load the first sstables, or the global sstable tracker will not
         // be notified on the initial loading.
@@ -1051,6 +1052,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     }
 
     /**
+     * Whether the given memtable is the current generation, accepting an internal of the current split memtable as well
+     * as the memtable itself. Memtables can flush themselves, so we need to check if they're calling flush from inside
+     * a split domain memtable.
+     */
+    private boolean isCurrentGeneration(Memtable memtable)
+    {
+        Memtable current = data.getView().getCurrentMemtable();
+        return current == memtable
+               || (current instanceof SplitDomainMemtable && ((SplitDomainMemtable) current).isInternal(memtable));
+    }
+
+    /**
      * Switches the memtable iff the live memtable is the one provided
      *
      * @param memtable
@@ -1059,7 +1072,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     {
         synchronized (data)
         {
-            if (data.getView().getCurrentMemtable() == memtable)
+            if (isCurrentGeneration(memtable))
                 return switchMemtable(reason);
         }
         logger.debug("Memtable is no longer current, returning future that completes when current flushing operation completes");
@@ -1192,14 +1205,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             // If a flush errored out but the error was ignored, make sure we don't discard the commit log.
             if (flushFailure == null && mainMemtable != null)
             {
-                CommitLogPosition commitLogLowerBound = mainMemtable.getCommitLogLowerBound();
-                commitLogUpperBound = mainMemtable.getFinalCommitLogUpperBound();
                 TableMetadata metadata = metadata();
 
-                if (metadata().replicationType().isTracked())
-                    MutationJournal.instance().notifyFlushed(metadata.id, commitLogLowerBound, commitLogUpperBound);
+                // Each log is told about the span the memtable bounded in that log.
+                for (Memtable source : mainMemtable.flushSources())
+                {
+                    CommitLogPosition lowerBound = source.getCommitLogLowerBound();
+                    CommitLogPosition upperBound = source.getFinalCommitLogUpperBound();
 
-                CommitLog.instance.discardCompletedSegments(metadata.id, commitLogLowerBound, commitLogUpperBound);
+                    if (source.holds(LogDomain.MUTATION_JOURNAL))
+                        MutationJournal.instance().notifyFlushed(metadata.id, lowerBound, upperBound);
+                    else
+                        CommitLog.instance.discardCompletedSegments(metadata.id, lowerBound, upperBound);
+                }
+
+                commitLogUpperBound = mainMemtable.getFinalCommitLogUpperBound();
             }
 
             metric.pendingFlushes.dec();
@@ -1252,21 +1272,24 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             memtables = new LinkedHashMap<>();
 
             // submit flushes for the memtable for any indexed sub-cfses, and our own
-            AtomicReference<CommitLogPosition> commitLogUpperBound = new AtomicReference<>();
+            LogDomainBounds upperBounds = LogDomainBounds.unset();
             for (ColumnFamilyStore cfs : concatWithIndexes())
             {
                 // switch all memtables, regardless of their dirty status, setting the barrier
                 // so that we can reach a coordinated decision about cleanliness once they
                 // are no longer possible to be modified
-                Memtable newMemtable = cfs.createMemtable(commitLogUpperBound);
-                Memtable oldMemtable = cfs.data.switchMemtable(truncate, newMemtable);
-                oldMemtable.switchOut(writeBarrier, commitLogUpperBound);
+                Memtable newMemtable = cfs.createMemtable(upperBounds);
+                Memtable oldMemtable = cfs.data.switchMemtable(truncate, newMemtable, upperBounds);
+                oldMemtable.switchOut(writeBarrier, upperBounds);
                 memtables.put(cfs, oldMemtable);
             }
 
-            // we then ensure an atomic decision is made about the upper bound of the continuous range of commit log
-            // records owned by this memtable
-            setCommitLogUpperBound(commitLogUpperBound, metadata().replicationType().isTracked());
+            // we then ensure an atomic decision is made about the upper bound of the continuous range of records owned
+            // by this memtable, in each log separately: a position from one log does not compare against a bound from
+            // the other
+            upperBounds.seal();
+
+            Preconditions.checkState(allSealed(upperBounds), "Unsealed bound %s for %d", upperBounds, memtables.values());
 
             // we then issue the barrier; this lets us wait for all operations started prior to the barrier to complete;
             // since this happens after wiring up the commitLogUpperBound, we also know all operations with earlier
@@ -1274,6 +1297,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             writeBarrier.issue();
             postFlush = new PostFlush(Iterables.get(memtables.values(), 0, null));
             postFlushTask = new FutureTask<>(postFlush);
+        }
+
+        private boolean allSealed(LogDomainBounds upperBounds)
+        {
+            for (Memtable memtable : memtables.values())
+                for (LogDomain domain : LogDomain.values())
+                    if (memtable.holds(domain) && !upperBounds.isSealed(domain))
+                        return false;
+            return true;
         }
 
         public void run()
@@ -1348,11 +1380,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 try
                 {
                     // flush the memtable
-                    flushRunnables = Flushing.flushRunnables(cfs, memtable, txn);
                     ExecutorPlus[] executors = perDiskflushExecutors.getExecutorsFor(getKeyspaceName(), name);
+                    flushRunnables = new ArrayList<>();
+                    // One transaction over every log domain's output, so the generation's sstables become visible
+                    // together and PostFlush can't run against a half-persisted memtable generation.
+                    for (Memtable source : memtable.flushSources())
+                    {
+                        if (source.isClean())
+                            continue;
 
-                    for (int i = 0; i < flushRunnables.size(); i++)
-                        futures.add(executors[i].submit(flushRunnables.get(i)));
+                        List<Flushing.FlushRunnable> perDisk = Flushing.flushRunnables(cfs, source, txn);
+                        flushRunnables.addAll(perDisk);
+                        for (int i = 0; i < perDisk.size(); i++)
+                            futures.add(executors[i].submit(perDisk.get(i)));
+                    }
 
                     /**
                      * we can flush 2is as soon as the barrier completes, as they will be consistent with (or ahead of) the
@@ -1461,32 +1502,26 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
     }
 
-    public Memtable createMemtable(AtomicReference<CommitLogPosition> commitLogUpperBound)
+    public Memtable createMemtable(LogDomainBounds lowerBounds)
     {
-        return memtableFactory.create(commitLogUpperBound, metadata, this);
+        LogDomain domain = initialMemtableDomain();
+        return createMemtable(lowerBounds.forDomain(domain), domain);
     }
 
-    // atomically set the upper bound for the commit log
-    private static void setCommitLogUpperBound(AtomicReference<CommitLogPosition> commitLogUpperBound, boolean useMutationJournal)
+    public Memtable createMemtable(AtomicReference<CommitLogPosition> commitLogLowerBound, LogDomain domain)
     {
-        // we attempt to set the holder to the current commit log context. at the same time all writes to the memtables are
-        // also maintaining this value, so if somebody sneaks ahead of us somehow (should be rare) we simply retry,
-        // so that we know all operations prior to the position have not reached it yet
-        CommitLogPosition lastReplayPosition;
-        while (true)
-        {
-            CommitLogPosition commitLogPosition;
-            if (useMutationJournal)
-                commitLogPosition = MutationJournal.instance().getCurrentPosition();
-            else
-                commitLogPosition = CommitLog.instance.getCurrentPosition();
+        return memtableFactory.create(commitLogLowerBound, metadata, this, domain);
+    }
 
-            lastReplayPosition = new Memtable.LastCommitLogPosition(commitLogPosition);
-            CommitLogPosition currentLast = commitLogUpperBound.get();
-            if ((currentLast == null || currentLast.compareTo(lastReplayPosition) <= 0)
-                && commitLogUpperBound.compareAndSet(currentLast, lastReplayPosition))
-                break;
-        }
+    private LogDomain initialMemtableDomain()
+    {
+        // TableMetadata.Builder.kind() nulls keyspaceReplicationType for any non-regular kind, so an index has to ask
+        // the keyspace. replicationType() cannot stand in: it answers untracked for those kinds, which would make every
+        // index of a tracked keyspace start in the wrong domain and wrap on the first write of every generation.
+        ReplicationType replicationType = metadata().keyspaceReplicationType;
+        if (replicationType == null)
+            replicationType = keyspace.getMetadata().params.replicationType;
+        return LogDomain.initialFor(replicationType);
     }
 
     @Override
@@ -1527,11 +1562,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         long start = nanoTime();
         OpOrder.Group opGroup = context.getGroup();
         CommitLogPosition commitLogPosition = context.getPosition();
+
+        // mutation ids aren't passed through to 2i writes, otherwise validate that the mutation id and log domain match
+        Preconditions.checkState(isIndex() || context.domain().isJournal() != mutationId.isNone(),
+                                 "write context domain %s disagrees with mutation id %s", context.domain(), mutationId);
         try
         {
-            Memtable mt = data.getMemtableFor(opGroup, commitLogPosition);
+            Memtable mt = data.getMemtableFor(opGroup, commitLogPosition, context.domain());
             UpdateTransaction indexer = newUpdateTransaction(update, context, updateIndexes, mt);
-            long timeDelta = mt.put(mutationId, update, indexer, opGroup);
+            long timeDelta = mt.put(mutationId, update, indexer, opGroup, context.domain());
             DecoratedKey key = update.partitionKey();
             invalidateCachedPartition(key);
             metric.topWritePartitionFrequency.addSample(key.getKey(), 1);
@@ -2476,6 +2515,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         if (current.isClean())
             return null;
 
+        if (current.holds(LogDomain.COMMIT_LOG) && current.holds(LogDomain.MUTATION_JOURNAL))
+            throw new IllegalStateException("Cannot stream from a memtable holding more than one log domain: " + current);
+
         List<Memtable.FlushablePartitionSet<?>> dataSets = new ArrayList<>(ranges.size());
         ImmutableCoordinatorLogOffsets.Builder logOffsetsBuilder = new ImmutableCoordinatorLogOffsets.Builder();
         IntervalSet.Builder<CommitLogPosition> commitLogIntervals = new IntervalSet.Builder();
@@ -2485,7 +2527,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             Memtable.FlushablePartitionSet<?> dataSet = current.getFlushSet(range.left, range.right);
             dataSets.add(dataSet);
             logOffsetsBuilder.addAll(dataSet.coordinatorLogOffsets());
-            commitLogIntervals.add(dataSet.commitLogLowerBound(), dataSet.commitLogUpperBound());
+            commitLogIntervals.addAll(dataSet.commitLogIntervals());
             keys += dataSet.partitionCount();
         }
         if (keys == 0)
@@ -2592,7 +2634,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         for (final ColumnFamilyStore cfs : concatWithIndexes())
         {
             cfs.runWithCompactionsDisabled((Callable<Void>) () -> {
-                cfs.data.reset(memtableFactory.create(new AtomicReference<>(CommitLogPosition.NONE), cfs.metadata, cfs));
+                LogDomainBounds bounds = LogDomainBounds.of(CommitLogPosition.NONE);
+                LogDomain domain = cfs.initialMemtableDomain();
+                cfs.data.reset(memtableFactory.create(bounds.forDomain(domain), cfs.metadata, cfs, domain), bounds);
                 return null;
             }, OperationType.P0, true, false);
         }

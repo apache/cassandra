@@ -197,6 +197,17 @@ public class MutationJournal
         return journal.currentActiveSegment().currentPosition();
     }
 
+    @Nullable
+    public static CommitLogPosition currentPositionOrNull()
+    {
+        MutationJournal mutationJournal = instance;
+        if (mutationJournal == null)
+            return null;
+
+        ActiveSegment<ShortMutationId, Mutation> segment = mutationJournal.journal.currentActiveSegment();
+        return segment == null ? null : segment.currentPosition();
+    }
+
     // If all Memtables associated with given segment were flushed by the time we have closed active segment
     // and opened it as static, the segment is eligible to be marked as not needing replay. The actual durable
     // recording of needsReplay=false is deferred — we record the segment in pendingClearReplay and let the

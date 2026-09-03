@@ -19,13 +19,17 @@
 package org.apache.cassandra.replication;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 
 import org.agrona.collections.Long2ObjectHashMap;
@@ -45,8 +49,15 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
 {
     private static final Logger logger = LoggerFactory.getLogger(ImmutableCoordinatorLogOffsets.class);
 
+    private static final ImmutableSet<ShortMutationId> EMPTY = ImmutableSet.of();
+
     private final ImmutableMutations mutations;
     private final ActivatedTransfers transfers;
+
+    /**
+     * materialized sorted tracked transfer key for unreconciled compaction silo assignment
+     */
+    private final ImmutableSet<ShortMutationId> transferSiloKey;
 
     private ImmutableCoordinatorLogOffsets(Builder builder)
     {
@@ -58,6 +69,24 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
 
         this.mutations = new ImmutableMutations(ids);
         this.transfers = ActivatedTransfers.copyOf(builder.transfers);
+        this.transferSiloKey = buildTransferSiloKey(this.transfers);
+    }
+
+    private static ImmutableSet<ShortMutationId> buildTransferSiloKey(ActivatedTransfers transfers)
+    {
+        if (transfers == null || transfers.isEmpty())
+            return EMPTY;
+
+        List<ShortMutationId> ids = new ArrayList<>(2);
+        for (ShortMutationId id : transfers)
+            ids.add(id);
+        ids.sort(Comparator.naturalOrder());
+        return ImmutableSet.copyOf(ids);
+    }
+
+    public ImmutableSet<ShortMutationId> transferSiloKey()
+    {
+        return transferSiloKey;
     }
 
     @Override

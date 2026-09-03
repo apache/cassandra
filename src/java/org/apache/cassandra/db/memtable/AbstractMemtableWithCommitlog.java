@@ -20,6 +20,7 @@ package org.apache.cassandra.db.memtable;
 
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.apache.cassandra.db.LogDomain;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -32,7 +33,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 public abstract class AbstractMemtableWithCommitlog extends AbstractMemtable
 {
     // The approximate lower bound by this memtable; must be <= commitLogLowerBound once our predecessor
-    // has been finalised, and this is enforced in the ColumnFamilyStore.setCommitLogUpperBound
+    // has been finalised, and this is enforced in LogDomainBounds.seal
     private final CommitLogPosition approximateCommitLogLowerBound = CommitLog.instance.getCurrentPosition();
     // the precise lower bound of CommitLogPosition owned by this memtable; equal to its predecessor's commitLogUpperBound
     private final AtomicReference<CommitLogPosition> commitLogLowerBound;
@@ -40,11 +41,36 @@ public abstract class AbstractMemtableWithCommitlog extends AbstractMemtable
     private volatile OpOrder.Barrier writeBarrier;
     // the precise upper bound of CommitLogPosition owned by this memtable
     private volatile AtomicReference<CommitLogPosition> commitLogUpperBound;
+    // which log every position above is drawn from; positions from the other log do not compare against them
+    private final LogDomain domain;
 
-    public AbstractMemtableWithCommitlog(TableMetadataRef metadataRef, AtomicReference<CommitLogPosition> commitLogLowerBound)
+    public AbstractMemtableWithCommitlog(TableMetadataRef metadataRef,
+                                        AtomicReference<CommitLogPosition> commitLogLowerBound,
+                                        LogDomain domain)
     {
         super(metadataRef);
         this.commitLogLowerBound = commitLogLowerBound;
+        this.domain = domain;
+    }
+
+    public LogDomain domain()
+    {
+        return domain;
+    }
+
+    @Override
+    public boolean holds(LogDomain writeDomain)
+    {
+        return writeDomain == domain;
+    }
+
+    /**
+     * Refuse a write whose position is in the other log.
+     */
+    protected void requireDomain(LogDomain writeDomain)
+    {
+        if (writeDomain != domain)
+            throw new IllegalArgumentException("Cannot put a " + writeDomain + " write into a " + domain + " memtable");
     }
 
     public CommitLogPosition getApproximateCommitLogLowerBound()
@@ -52,12 +78,12 @@ public abstract class AbstractMemtableWithCommitlog extends AbstractMemtable
         return approximateCommitLogLowerBound;
     }
 
-    public void switchOut(OpOrder.Barrier writeBarrier, AtomicReference<CommitLogPosition> commitLogUpperBound)
+    public void switchOut(OpOrder.Barrier writeBarrier, LogDomainBounds upperBounds)
     {
         // This can prepare the memtable data for deletion; it will still be used while the flush is proceeding.
         // A setDiscarded call will follow.
         assert this.writeBarrier == null;
-        this.commitLogUpperBound = commitLogUpperBound;
+        this.commitLogUpperBound = upperBounds.forDomain(domain);
         this.writeBarrier = writeBarrier;
     }
 
@@ -68,8 +94,12 @@ public abstract class AbstractMemtableWithCommitlog extends AbstractMemtable
 
     // decide if this memtable should take the write, or if it should go to the next memtable
     @Override
-    public boolean accepts(OpOrder.Group opGroup, CommitLogPosition commitLogPosition)
+    public boolean accepts(OpOrder.Group opGroup, CommitLogPosition commitLogPosition, LogDomain domain)
     {
+        // we don't accept writes against other backing log domains
+        if (domain != this.domain)
+            return false;
+
         // if the barrier hasn't been set yet, then this memtable is still the newest and is taking ALL writes.
         OpOrder.Barrier barrier = this.writeBarrier;
         if (barrier == null)

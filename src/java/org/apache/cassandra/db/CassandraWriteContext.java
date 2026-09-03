@@ -27,12 +27,15 @@ public class CassandraWriteContext implements WriteContext
 {
     private final OpOrder.Group opGroup;
     private final CommitLogPosition position;
+    private final LogDomain domain;
 
-    public CassandraWriteContext(OpOrder.Group opGroup, CommitLogPosition position)
+    public CassandraWriteContext(OpOrder.Group opGroup, CommitLogPosition position, LogDomain domain)
     {
         Preconditions.checkArgument(opGroup != null);
+        Preconditions.checkArgument(domain != null);
         this.opGroup = opGroup;
         this.position = position;
+        this.domain = domain;
     }
 
     public static CassandraWriteContext fromContext(WriteContext context)
@@ -49,6 +52,11 @@ public class CassandraWriteContext implements WriteContext
     public CommitLogPosition getPosition()
     {
         return position;
+    }
+
+    public LogDomain domain()
+    {
+        return domain;
     }
 
     @Override

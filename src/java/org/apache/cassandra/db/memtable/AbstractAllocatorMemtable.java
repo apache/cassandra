@@ -33,6 +33,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.LogDomain;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -114,9 +115,9 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
     }
 
     // only to be used by init(), to setup the very first memtable for the cfs
-    public AbstractAllocatorMemtable(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadataRef, Owner owner)
+    public AbstractAllocatorMemtable(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadataRef, Owner owner, LogDomain domain)
     {
-        super(metadataRef, commitLogLowerBound);
+        super(metadataRef, commitLogLowerBound, domain);
         this.allocator = MEMORY_POOL.newAllocator(metadataRef.toString());
         this.initialComparator = metadata.get().comparator;
         this.initialFactory = metadata().params.memtable.factory();
@@ -127,6 +128,18 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
     public MemtableAllocator getAllocator()
     {
         return allocator;
+    }
+
+    @Override
+    public Owner owner()
+    {
+        return owner;
+    }
+
+    @Override
+    public boolean allocatesFromMemtablePool()
+    {
+        return true;
     }
 
     @Override
@@ -161,9 +174,9 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
         throw new AssertionError("performSnapshot must be implemented if shouldSwitch(SNAPSHOT) can return false.");
     }
 
-    public void switchOut(OpOrder.Barrier writeBarrier, AtomicReference<CommitLogPosition> commitLogUpperBound)
+    public void switchOut(OpOrder.Barrier writeBarrier, LogDomainBounds upperBounds)
     {
-        super.switchOut(writeBarrier, commitLogUpperBound);
+        super.switchOut(writeBarrier, upperBounds);
         allocator.setDiscarding();
     }
 
@@ -217,9 +230,9 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
         {
             protected void runMayThrow()
             {
-                Memtable current = owner.getCurrentMemtable();
-                if (current instanceof AbstractAllocatorMemtable)
-                    ((AbstractAllocatorMemtable) current).flushIfPeriodExpired();
+                // Asked of the memtable rather than gated on its class, so a generation that delegates still gets the
+                // chance to flush. Gating on AbstractAllocatorMemtable silently stopped periodic flush for one.
+                owner.getCurrentMemtable().flushIfPeriodExpired();
             }
 
             @Override
@@ -231,7 +244,8 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
         ScheduledExecutors.scheduledTasks.scheduleSelfRecurring(runnable, period, TimeUnit.MILLISECONDS);
     }
 
-    private void flushIfPeriodExpired()
+    @Override
+    public void flushIfPeriodExpired()
     {
         int period = metadata().params.memtableFlushPeriodInMs;
         if (period > 0 && (Clock.Global.nanoTime() - creationNano >= TimeUnit.MILLISECONDS.toNanos(period)))
@@ -257,25 +271,27 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
     public static Future<Boolean> flushLargestMemtable()
     {
         float largestRatio = 0f;
-        AbstractAllocatorMemtable largestMemtable = null;
+        Memtable largestMemtable = null;
         Memtable.MemoryUsage largestUsage = null;
         float liveOnHeap = 0, liveOffHeap = 0;
         // we take a reference to the current main memtable for the CF prior to snapping its ownership ratios
         // to ensure we have some ordering guarantee for performing the switchMemtableIf(), i.e. we will only
         // swap if the memtables we are measuring here haven't already been swapped by the time we try to swap them
-        for (Memtable currentMemtable : ColumnFamilyStore.activeMemtables())
+        // Candidacy and ownership are asked of the memtable rather than gated on its class. Gating on
+        // AbstractAllocatorMemtable skipped a generation that delegates entirely, so it was never reclaimed however
+        // large it grew, and undercounted a delegating index generation's memory.
+        for (Memtable current : ColumnFamilyStore.activeMemtables())
         {
-            if (!(currentMemtable instanceof AbstractAllocatorMemtable))
+            if (!current.allocatesFromMemtablePool())
                 continue;
-            AbstractAllocatorMemtable current = (AbstractAllocatorMemtable) currentMemtable;
 
             // find the total ownership ratio for the memtable and all SecondaryIndexes owned by this CF,
             // both on- and off-heap, and select the largest of the two ratios to weight this CF
             MemoryUsage usage = Memtable.newMemoryUsage();
             current.addMemoryUsageTo(usage);
 
-            for (Memtable indexMemtable : current.owner.getIndexMemtables())
-                if (indexMemtable instanceof AbstractAllocatorMemtable)
+            for (Memtable indexMemtable : current.owner().getIndexMemtables())
+                if (indexMemtable.allocatesFromMemtablePool())
                     indexMemtable.addMemoryUsageTo(usage);
 
             float ratio = Math.max(usage.ownershipRatioOnHeap, usage.ownershipRatioOffHeap);
@@ -299,10 +315,10 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
             float flushingOnHeap = MEMORY_POOL.onHeap.reclaimingRatio();
             float flushingOffHeap = MEMORY_POOL.offHeap.reclaimingRatio();
             logger.info("Flushing largest {} to free up room. Used total: {}, live: {}, flushing: {}, this: {}",
-                        largestMemtable.owner, ratio(usedOnHeap, usedOffHeap), ratio(liveOnHeap, liveOffHeap),
+                        largestMemtable.owner(), ratio(usedOnHeap, usedOffHeap), ratio(liveOnHeap, liveOffHeap),
                         ratio(flushingOnHeap, flushingOffHeap), ratio(largestUsage.ownershipRatioOnHeap, largestUsage.ownershipRatioOffHeap));
 
-            Future<CommitLogPosition> flushFuture = largestMemtable.owner.signalFlushRequired(largestMemtable, ColumnFamilyStore.FlushReason.MEMTABLE_LIMIT);
+            Future<CommitLogPosition> flushFuture = largestMemtable.owner().signalFlushRequired(largestMemtable, ColumnFamilyStore.FlushReason.MEMTABLE_LIMIT);
             flushFuture.addListener(() -> {
                 try
                 {

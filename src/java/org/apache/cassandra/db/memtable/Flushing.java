@@ -37,7 +37,6 @@ import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -244,8 +243,7 @@ public class Flushing
                                             ActiveRepairService.UNREPAIRED_SSTABLE,
                                             ActiveRepairService.NO_PENDING_REPAIR,
                                             flushSet.coordinatorLogOffsets(),
-                                            new IntervalSet<>(flushSet.commitLogLowerBound(),
-                                                              flushSet.commitLogUpperBound()),
+                                            flushSet.commitLogIntervals(),
                                             new SerializationHeader(true,
                                                                     flushSet.metadata(),
                                                                     flushSet.columns(),

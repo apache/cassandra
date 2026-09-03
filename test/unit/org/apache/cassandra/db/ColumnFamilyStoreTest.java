@@ -31,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -57,6 +56,7 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.memtable.AbstractMemtable;
+import org.apache.cassandra.db.memtable.LogDomainBounds;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.Partition;
@@ -847,7 +847,7 @@ public class ColumnFamilyStoreTest
         {
 
             @Override
-            public long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, Group opGroup, boolean assumeMissing)
+            public long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, Group opGroup, LogDomain domain, boolean assumeMissing)
             {
                 return 0;
             }
@@ -886,7 +886,7 @@ public class ColumnFamilyStoreTest
             }
 
             @Override
-            public void switchOut(Barrier writeBarrier, AtomicReference<CommitLogPosition> commitLogUpperBound)
+            public void switchOut(Barrier writeBarrier, LogDomainBounds upperBounds)
             {
             }
 
@@ -896,9 +896,21 @@ public class ColumnFamilyStoreTest
             }
 
             @Override
-            public boolean accepts(Group opGroup, CommitLogPosition commitLogPosition)
+            public boolean accepts(Group opGroup, CommitLogPosition commitLogPosition, LogDomain domain)
             {
                 return false;
+            }
+
+            @Override
+            public boolean holds(LogDomain domain)
+            {
+                return domain == LogDomain.COMMIT_LOG;
+            }
+
+            @Override
+            public Owner owner()
+            {
+                return cfs;
             }
 
             @Override

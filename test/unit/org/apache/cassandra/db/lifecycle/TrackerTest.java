@@ -23,7 +23,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
@@ -37,10 +36,13 @@ import org.junit.Test;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.LogDomain;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.memtable.LogDomainBounds;
 import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.SplitDomainMemtable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.keycache.KeyCacheSupport;
 import org.apache.cassandra.notifications.INotification;
@@ -272,21 +274,23 @@ public class TrackerTest
         Tracker tracker = cfs.getTracker();
         tracker.subscribe(listener);
 
-        Memtable prev1 = tracker.switchMemtable(true, cfs.createMemtable(new AtomicReference<>(CommitLog.instance.getCurrentPosition())));
+        LogDomainBounds bounds1 = LogDomainBounds.atCurrentPositions();
+        Memtable prev1 = tracker.switchMemtable(true, cfs.createMemtable(bounds1), bounds1);
         OpOrder.Group write1 = cfs.keyspace.writeOrder.getCurrent();
         OpOrder.Barrier barrier1 = cfs.keyspace.writeOrder.newBarrier();
-        prev1.switchOut(barrier1, new AtomicReference<>(CommitLog.instance.getCurrentPosition()));
+        prev1.switchOut(barrier1, LogDomainBounds.atCurrentPositions());
         barrier1.issue();
-        Memtable prev2 = tracker.switchMemtable(false, cfs.createMemtable(new AtomicReference<>(CommitLog.instance.getCurrentPosition())));
+        LogDomainBounds bounds2 = LogDomainBounds.atCurrentPositions();
+        Memtable prev2 = tracker.switchMemtable(false, cfs.createMemtable(bounds2), bounds2);
         OpOrder.Group write2 = cfs.keyspace.writeOrder.getCurrent();
         OpOrder.Barrier barrier2 = cfs.keyspace.writeOrder.newBarrier();
-        prev2.switchOut(barrier2, new AtomicReference<>(CommitLog.instance.getCurrentPosition()));
+        prev2.switchOut(barrier2, LogDomainBounds.atCurrentPositions());
         barrier2.issue();
         Memtable cur = tracker.getView().getCurrentMemtable();
         OpOrder.Group writecur = cfs.keyspace.writeOrder.getCurrent();
-        Assert.assertEquals(prev1, tracker.getMemtableFor(write1, CommitLogPosition.NONE));
-        Assert.assertEquals(prev2, tracker.getMemtableFor(write2, CommitLogPosition.NONE));
-        Assert.assertEquals(cur, tracker.getMemtableFor(writecur, CommitLogPosition.NONE));
+        Assert.assertEquals(prev1, tracker.getMemtableFor(write1, CommitLogPosition.NONE, LogDomain.COMMIT_LOG));
+        Assert.assertEquals(prev2, tracker.getMemtableFor(write2, CommitLogPosition.NONE, LogDomain.COMMIT_LOG));
+        Assert.assertEquals(cur, tracker.getMemtableFor(writecur, CommitLogPosition.NONE, LogDomain.COMMIT_LOG));
         Assert.assertEquals(2, listener.received.size());
         Assert.assertTrue(listener.received.get(0) instanceof MemtableRenewedNotification);
         Assert.assertTrue(listener.received.get(1) instanceof MemtableSwitchedNotification);
@@ -321,8 +325,9 @@ public class TrackerTest
         tracker = cfs.getTracker();
         listener = new MockListener(false);
         tracker.subscribe(listener);
-        Memtable next1 = cfs.createMemtable(new AtomicReference<>(CommitLog.instance.getCurrentPosition()));
-        prev1 = tracker.switchMemtable(false, next1);
+        LogDomainBounds nextBounds = LogDomainBounds.atCurrentPositions();
+        Memtable next1 = cfs.createMemtable(nextBounds);
+        prev1 = tracker.switchMemtable(false, next1, nextBounds);
         tracker.markFlushing(prev1);
         reader = MockSchema.sstable(0, 10, true, cfs);
         cfs.invalidate(false);
@@ -382,6 +387,39 @@ public class TrackerTest
         Assert.assertEquals(singleton(r1), ((SSTableListChangedNotification) listener.received.get(0)).removed);
         Assert.assertEquals(singleton(r2), ((SSTableListChangedNotification) listener.received.get(0)).added);
         listener.received.clear();
+    }
+
+    /**
+     * {@code Tracker.installSplit} reads the current memtable outside {@code viewUpdateLock}, so it can race with a
+     * flush before the split applies. This test emulates that race and confirms that the split fails and nothing breaks
+     */
+    @Test
+    public void retiredGenerationCantBeSplit()
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        Tracker tracker = cfs.getTracker();
+        Memtable retiring = tracker.getView().getCurrentMemtable();
+
+        // Stand in for the flush that wins the race: switchMemtable retires the generation installSplit had read.
+        LogDomainBounds replacementBounds = LogDomainBounds.atCurrentPositions();
+        tracker.switchMemtable(false, cfs.createMemtable(replacementBounds), replacementBounds);
+        // The window the guard covers: no longer current, but not yet moved to flushingMemtables.
+        Assert.assertNotEquals(retiring, tracker.getView().getCurrentMemtable());
+        Assert.assertTrue("still live until marked flushing", tracker.getView().liveMemtables.contains(retiring));
+
+        // The split installSplit would have applied, had it not rechecked under the lock.
+        Memtable journal = cfs.createMemtable(tracker.getView().currentBounds.forDomain(LogDomain.MUTATION_JOURNAL),
+                                              LogDomain.MUTATION_JOURNAL);
+        SplitDomainMemtable wrapper = new SplitDomainMemtable(journal, retiring, retiring.getMemtableId());
+        // Tracker.apply returns null when the permit predicate rejects the view.
+        Assert.assertNull("the split transform must not have run against a retired generation",
+                          tracker.apply(View.canSplitMemtable(retiring), View.splitMemtable(retiring, wrapper)));
+        Assert.assertFalse(Iterables.any(tracker.getView().liveMemtables, m -> m instanceof SplitDomainMemtable));
+
+        // markFlushing is what a split would have broken: it filters retiring out of liveMemtables and asserts the
+        // list shrank by one, which a wrapper in retiring's place would fail.
+        tracker.markFlushing(retiring);
+        Assert.assertTrue(tracker.getView().flushingMemtables.contains(retiring));
     }
 
 }

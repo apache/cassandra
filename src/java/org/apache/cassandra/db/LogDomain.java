@@ -18,17 +18,26 @@
 
 package org.apache.cassandra.db;
 
-import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.schema.ReplicationType;
 
-public interface KeyspaceWriteHandler
+/**
+ * Which log a {@link org.apache.cassandra.db.commitlog.CommitLogPosition} came from.
+ * <p>
+ * The commit log and the mutation journal generate their segment ids independently, so positions from different logs
+ * can't be compared with each other.
+ */
+public enum LogDomain
 {
-    default WriteContext beginWrite(Mutation mutation, boolean makeDurable) throws RequestExecutionException
+    COMMIT_LOG,
+    MUTATION_JOURNAL;
+
+    public boolean isJournal()
     {
-        return beginWrite(mutation, makeDurable, false);
+        return this == MUTATION_JOURNAL;
     }
 
-    // mutation can be null if makeDurable is false
-    WriteContext beginWrite(Mutation mutation, boolean makeDurable, boolean isReplay) throws RequestExecutionException;
-    WriteContext createContextForIndexing();
-    WriteContext createContextForRead();
+    public static LogDomain initialFor(ReplicationType keyspaceReplicationType)
+    {
+        return keyspaceReplicationType.isTracked() ? MUTATION_JOURNAL : COMMIT_LOG;
+    }
 }

@@ -34,6 +34,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.LogDomain;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
@@ -93,9 +94,9 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
 
     private final AtomicLong liveDataSize = new AtomicLong(0);
 
-    protected SkipListMemtable(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadataRef, Owner owner)
+    protected SkipListMemtable(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadataRef, Owner owner, LogDomain domain)
     {
-        super(commitLogLowerBound, metadataRef, owner);
+        super(commitLogLowerBound, metadataRef, owner, domain);
     }
 
     @Override
@@ -120,8 +121,9 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
      * commitLogSegmentPosition should only be null if this is a secondary index, in which case it is *expected* to be null
      */
     @Override
-    public long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
+    public long put(MutationId mutationId, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, LogDomain domain, boolean assumeMissing)
     {
+        requireDomain(domain);
         long initialSize = 0;
         Cloner cloner = allocator.cloner(opGroup);
         AtomicBTreePartition previous = assumeMissing ? null : partitions.get(update.partitionKey());
