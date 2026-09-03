@@ -2233,7 +2233,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             SystemKeyspace.removeEndpoint(DatabaseDescriptor.getReplaceAddress());
         }
         if (!Gossiper.instance.seenAnySeed())
+        {
+            logger.info("Announcing shutdown to get out of the hibernation deadlock");
+            Gossiper.instance.announceShutdown();
             throw new IllegalStateException("Unable to contact any seeds: " + Gossiper.instance.getSeeds());
+        }
 
         if (RESET_BOOTSTRAP_PROGRESS.getBoolean())
         {
