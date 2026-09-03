@@ -143,9 +143,7 @@ public class Server implements CassandraDaemon.Server
         if (isRunning.compareAndSet(true, false))
         {
             if (!force && DatabaseDescriptor.getGracefulDisconnectEnabled())
-            {
                 gracefulDisconnect();
-            }
             close(force);
         }
     }
@@ -158,9 +156,11 @@ public class Server implements CassandraDaemon.Server
         if (channelGroup.isEmpty())
             return;
 
-        ClientMetrics.instance.connectionsDraining.set(channelGroup.size());
         channelGroup.forEach(channel ->
-                             channel.closeFuture().addListener(future -> ClientMetrics.instance.decrementConnectionsDraining())
+                             {
+                                 ClientMetrics.instance.connectionsDraining.set(channelGroup.size());
+                                 channel.closeFuture().addListener(future -> ClientMetrics.instance.decrementConnectionsDraining());
+                             }
         );
 
         connectionTracker.send(new Event.GracefulDisconnect());

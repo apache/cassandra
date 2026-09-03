@@ -37,7 +37,6 @@ import org.apache.cassandra.utils.NativeLibrary;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.epoll.Epoll;
 import io.netty.channel.epoll.EpollEventLoopGroup;
-import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.util.Version;
 
@@ -165,9 +164,9 @@ public class NativeTransportService
     }
 
     @VisibleForTesting
-    public ChannelGroup getChannelsSubscribedToGracefulDisconnect()
+    public int getChannelsSubscribedToGracefulDisconnectCount()
     {
-        return server.getChannelsSubscribedToGracefulDisconnect();
+        return server.getChannelsSubscribedToGracefulDisconnect().size();
     }
 
     public void clearConnectionHistory()

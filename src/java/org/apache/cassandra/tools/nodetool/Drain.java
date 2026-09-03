@@ -34,8 +34,7 @@ public class Drain extends AbstractCommand
         try
         {
             probe.drain();
-        }
-        catch (IOException | InterruptedException | ExecutionException e)
+        } catch (IOException | InterruptedException | ExecutionException e)
         {
             throw new RuntimeException("Error occurred during flushing", e);
         }

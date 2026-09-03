@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.SynchronousQueue; // checkstyle: permit this import
 import java.util.concurrent.TimeUnit;
@@ -121,6 +122,7 @@ public class SimpleClient implements Closeable
     protected Channel channel;
     protected ChannelFuture lastWriteFuture;
     private final AtomicBoolean draining = new AtomicBoolean(false);
+    private volatile CompletableFuture<Void> inFlight = CompletableFuture.completedFuture(null);
     protected String compression;
 
     public static class Builder
@@ -323,12 +325,14 @@ public class SimpleClient implements Closeable
         return execute(request, true);
     }
 
+
     public Message.Response execute(Message.Request request, boolean throwOnErrorResponse)
     {
         if (draining.get())
-        {
             throw new RuntimeException("Connection is draining (GRACEFUL_DISCONNECT received)");
-        }
+
+        CompletableFuture<Void> requestCompletion = new CompletableFuture<>();
+        inFlight = requestCompletion;
         try
         {
             request.attach(connection);
@@ -343,6 +347,10 @@ public class SimpleClient implements Closeable
         catch (InterruptedException e)
         {
             throw new UncheckedInterruptedException(e);
+        }
+        finally
+        {
+            requestCompletion.complete(null);
         }
     }
 
@@ -408,11 +416,7 @@ public class SimpleClient implements Closeable
     private void handleGracefulDisconnect()
     {
         draining.set(true);
-        channel.eventLoop().execute(() -> {
-            ChannelFuture writeFuture = lastWriteFuture;
-            ChannelFuture closeAfter = (writeFuture != null) ? writeFuture : channel.newSucceededFuture();
-            closeAfter.addListener(f -> channel.close());
-        });
+        inFlight.thenRun(() -> channel.eventLoop().execute(channel::close));
         channel.closeFuture().addListener(f -> bootstrap.group().shutdownGracefully());
     }
 

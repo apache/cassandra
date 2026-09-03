@@ -120,8 +120,7 @@ public class GracefulDisconnectTest
                 int subscribedCount = cluster.get(1).callOnInstance(() ->
                                                                     CassandraDaemon.getInstanceForTesting()
                                                                                    .nativeTransportService()
-                                                                                   .getChannelsSubscribedToGracefulDisconnect()
-                                                                                   .size());
+                                                                                   .getChannelsSubscribedToGracefulDisconnectCount());
 
                 assertThat(subscribedCount)
                 .as("One channel should be subscribed to GRACEFUL_DISCONNECT")
@@ -146,8 +145,7 @@ public class GracefulDisconnectTest
                 int subscribedCount = cluster.get(1).callOnInstance(() ->
                                                                     CassandraDaemon.getInstanceForTesting()
                                                                                    .nativeTransportService()
-                                                                                   .getChannelsSubscribedToGracefulDisconnect()
-                                                                                   .size());
+                                                                                   .getChannelsSubscribedToGracefulDisconnectCount());
 
                 assertThat(subscribedCount)
                 .as("V4 client should not be able to subscribe")
@@ -170,8 +168,7 @@ public class GracefulDisconnectTest
                 int subscribedCount = cluster.get(1).callOnInstance(() ->
                                                                     CassandraDaemon.getInstanceForTesting()
                                                                                    .nativeTransportService()
-                                                                                   .getChannelsSubscribedToGracefulDisconnect()
-                                                                                   .size());
+                                                                                   .getChannelsSubscribedToGracefulDisconnectCount());
                 assertThat(subscribedCount).isEqualTo(0);
             }
         }
@@ -212,8 +209,7 @@ public class GracefulDisconnectTest
                 int subscribedCount = cluster.get(1).callOnInstance(() ->
                                                                     CassandraDaemon.getInstanceForTesting()
                                                                                    .nativeTransportService()
-                                                                                   .getChannelsSubscribedToGracefulDisconnect()
-                                                                                   .size());
+                                                                                   .getChannelsSubscribedToGracefulDisconnectCount());
 
                 assertThat(subscribedCount).isEqualTo(0);
 
@@ -262,8 +258,7 @@ public class GracefulDisconnectTest
                 int subscribedCount = cluster.get(1).callOnInstance(() ->
                                                                     CassandraDaemon.getInstanceForTesting()
                                                                                    .nativeTransportService()
-                                                                                   .getChannelsSubscribedToGracefulDisconnect()
-                                                                                   .size());
+                                                                                   .getChannelsSubscribedToGracefulDisconnectCount());
 
                 assertThat(subscribedCount).isEqualTo(2);
             }

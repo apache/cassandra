@@ -177,11 +177,6 @@ public final class ClientMetrics
         protocolException.mark();
     }
 
-    public void incrementConnectionsDraining()
-    {
-        connectionsDraining.incrementAndGet();
-    }
-
     public void decrementConnectionsDraining()
     {
         connectionsDraining.decrementAndGet();
@@ -216,7 +211,6 @@ public final class ClientMetrics
         registerGauge("ClientsByProtocolVersion", "clientsByProtocolVersion", this::recentClientStats);
         registerGauge("RequestsSize", ClientResourceLimits::getCurrentGlobalUsage);
 
-        connectionsDraining = new AtomicInteger();
         registerGauge("ConnectionsDraining", connectionsDraining::get);
         forcedDisconnects = registerMeter("ForcedDisconnects");
 

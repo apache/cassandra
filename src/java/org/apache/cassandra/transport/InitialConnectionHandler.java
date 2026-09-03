@@ -83,6 +83,7 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                     cqlVersions.add(QueryProcessor.CQL_VERSION.toString());
 
                     List<String> compressions = new ArrayList<>();
+                    final List<String> gracefulDisconnect = List.of("true");
                     if (Compressor.SnappyCompressor.instance != null)
                         compressions.add("snappy");
                     // LZ4 is always available since worst case scenario it default to a pure JAVA implem.
@@ -93,7 +94,7 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                     supportedOptions.put(StartupMessage.COMPRESSION, compressions);
                     supportedOptions.put(StartupMessage.PROTOCOL_VERSIONS, ProtocolVersion.supportedVersions());
                     if (DatabaseDescriptor.getGracefulDisconnectEnabled())
-                        supportedOptions.put(StartupMessage.GRACEFUL_DISCONNECT, List.of("true"));
+                        supportedOptions.put(StartupMessage.GRACEFUL_DISCONNECT, gracefulDisconnect);
                     SupportedMessage supported = new SupportedMessage(supportedOptions);
                     outbound = supported.encode(inbound.header.version, inbound.header.streamId);
                     ctx.writeAndFlush(outbound);
