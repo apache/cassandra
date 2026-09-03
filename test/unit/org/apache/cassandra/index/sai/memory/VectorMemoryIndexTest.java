@@ -74,6 +74,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.index.sai.disk.v1.vector.OnHeapGraph;
 import org.apache.cassandra.index.sai.disk.v1.vector.PrimaryKeyWithScore;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
@@ -102,6 +103,7 @@ public class VectorMemoryIndexTest extends SAITester
 
     private static final double RECALL_THRESHOLD = 0.9;
     private static final int VECTORS_PER_THREAD = 2000;
+    private static final int VECTORS_PER_THREAD_BEYOND_POOL_CAP = 500; // more writers, so fewer vectors each
 
     private ColumnFamilyStore cfs;
     private StorageAttachedIndex index;
@@ -242,13 +244,24 @@ public class VectorMemoryIndexTest extends SAITester
     @Test
     public void testConcurrentAddsWithRandomVectors() throws Exception
     {
-        testConcurrentAddsAreEventuallyConsistent((threadId, i) -> randomVectorFromThreadLocal());
+        testConcurrentAddsAreEventuallyConsistent(Runtime.getRuntime().availableProcessors(), VECTORS_PER_THREAD, (threadId, i) -> randomVectorFromThreadLocal());
     }
 
     @Test
     public void testConcurrentAddsWithSharedVectors() throws Exception
     {
-        testConcurrentAddsAreEventuallyConsistent((threadId, i) -> makeSharedVector(i));
+        testConcurrentAddsAreEventuallyConsistent(Runtime.getRuntime().availableProcessors(), VECTORS_PER_THREAD, (threadId, i) -> makeSharedVector(i));
+    }
+
+    /**
+     * More writers than jvector's GraphIndexBuilder can serve at once must wait, not fail the insert. The other
+     * concurrent tests use exactly availableProcessors writers, which never exceeds jvector's limit.
+     */
+    @Test
+    public void testConcurrentAddsExceedingJVectorPoolCap() throws Exception
+    {
+        int numThreads = 2 * OnHeapGraph.MAX_CONCURRENT_GRAPH_INSERTS;
+        testConcurrentAddsAreEventuallyConsistent(numThreads, VECTORS_PER_THREAD_BEYOND_POOL_CAP, (threadId, i) -> randomVectorFromThreadLocal());
     }
 
     /**
@@ -262,13 +275,12 @@ public class VectorMemoryIndexTest extends SAITester
      * After all writers complete, a full-ring search must return the vast majority of
      * inserted keys with valid scores, confirming no data was lost or corrupted.
      */
-    private void testConcurrentAddsAreEventuallyConsistent(BiFunction<Integer, Integer, ByteBuffer> vectorFactory) throws Exception
+    private void testConcurrentAddsAreEventuallyConsistent(int numThreads, int vectorsPerThread, BiFunction<Integer, Integer, ByteBuffer> vectorFactory) throws Exception
     {
         Memtable memtable = Mockito.mock(Memtable.class);
         memtableIndex = new VectorMemoryIndex(index, memtable);
 
-        int numThreads = Runtime.getRuntime().availableProcessors();
-        int totalInserted = numThreads * VECTORS_PER_THREAD;
+        int totalInserted = numThreads * vectorsPerThread;
 
         ExecutorService executor = Executors.newFixedThreadPool(numThreads);
 
@@ -284,9 +296,9 @@ public class VectorMemoryIndexTest extends SAITester
                 try
                 {
                     barrier.await();
-                    for (int i = 0; i < VECTORS_PER_THREAD; i++)
+                    for (int i = 0; i < vectorsPerThread; i++)
                     {
-                        int pk = threadId * VECTORS_PER_THREAD + i;
+                        int pk = threadId * vectorsPerThread + i;
                         addRow(pk, vectorFactory.apply(threadId, i));
                     }
                 }
