@@ -103,6 +103,9 @@ Upgrading
       are in this inconsistent state will time out and schema versions will not converge until all nodes are
       brought up with the same setting. Once all nodes have the property set consistently, schema will converge
       automatically.
+    - The hostname column in system_views.clients will no longer perform a reverse DNS lookup and will instead
+      return the same value as the address column. This avoids the risk of client connections overwhelming
+      DNS. (CASSANDRA-21539)
 
 5.0.7
 ======
