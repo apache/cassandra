@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.ConcurrentModificationException;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +41,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -130,8 +132,10 @@ public class CompactionStrategyManager implements INotificationConsumer
     private final PendingRepairHolder pendingRepairs;
     private final CompactionStrategyHolder repaired;
     private final CompactionStrategyHolder unrepaired;
+    private final TrackedCompactionManager tracked;
 
     private final ImmutableList<AbstractStrategyHolder> holders;
+    private final EnumMap<CompactionGroup, AbstractStrategyHolder> holderByGroup;
 
     private volatile CompactionParams params;
     private DiskBoundaries currentBoundaries;
@@ -175,9 +179,23 @@ public class CompactionStrategyManager implements INotificationConsumer
             }
         };
         pendingRepairs = new PendingRepairHolder(cfs, router);
-        repaired = new CompactionStrategyHolder(cfs, router, true);
-        unrepaired = new CompactionStrategyHolder(cfs, router, false);
-        holders = ImmutableList.of(pendingRepairs, repaired, unrepaired);
+        repaired = new CompactionStrategyHolder(cfs, router, CompactionGroup.REPAIRED);
+        unrepaired = new CompactionStrategyHolder(cfs, router, CompactionGroup.UNREPAIRED);
+        tracked = new TrackedCompactionManager(cfs, router);
+        holders = ImmutableList.of(pendingRepairs, repaired, unrepaired, tracked);
+
+        holderByGroup = new EnumMap<>(CompactionGroup.class);
+        for (CompactionGroup group : CompactionGroup.values())
+        {
+            for (AbstractStrategyHolder holder : holders)
+            {
+                if (!holder.managesGroup(group))
+                    continue;
+                AbstractStrategyHolder previous = holderByGroup.put(group, holder);
+                Preconditions.checkState(previous == null, "More than one holder claims %s", group);
+            }
+            Preconditions.checkState(holderByGroup.containsKey(group), "No holder claims %s", group);
+        }
 
         cfs.getTracker().subscribe(this);
         logger.trace("Compaction manager for {}.{} subscribed to the data tracker.", cfs.keyspace.getName(), cfs.name);
@@ -214,6 +232,11 @@ public class CompactionStrategyManager implements INotificationConsumer
             repairFinishedTasks = pendingRepairs.getNextRepairFinishedTasks();
             if (repairFinishedTasks != null && !repairFinishedTasks.isEmpty())
                 return repairFinishedTasks;
+
+            // then promote tracked sstables whose mutations or transfers have reconciled
+            Collection<AbstractCompactionTask> promotionTasks = tracked.getNextPromotionTasks();
+            if (promotionTasks != null && !promotionTasks.isEmpty())
+                return promotionTasks;
 
             // sort compaction task suppliers by remaining tasks descending
             List<TaskSupplier> suppliers = new ArrayList<>(numPartitions * holders.size());
@@ -927,32 +950,20 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     private AbstractStrategyHolder getHolder(SSTableReader sstable)
     {
-        for (AbstractStrategyHolder holder : holders)
-        {
-            if (holder.managesSSTable(sstable))
-                return holder;
-        }
-
-        throw new IllegalStateException("No holder claimed " + sstable);
+        return getHolder(CompactionGroup.of(sstable));
     }
 
-    private AbstractStrategyHolder getHolder(long repairedAt, TimeUUID pendingRepair)
+    private AbstractStrategyHolder getHolder(long repairedAt,
+                                             TimeUUID pendingRepair,
+                                             ImmutableCoordinatorLogOffsets coordinatorLogOffsets)
     {
-        return getHolder(repairedAt != ActiveRepairService.UNREPAIRED_SSTABLE,
-                         pendingRepair != ActiveRepairService.NO_PENDING_REPAIR);
+        return getHolder(CompactionGroup.of(repairedAt, pendingRepair, coordinatorLogOffsets));
     }
 
     @VisibleForTesting
-    AbstractStrategyHolder getHolder(boolean isRepaired, boolean isPendingRepair)
+    AbstractStrategyHolder getHolder(CompactionGroup group)
     {
-        for (AbstractStrategyHolder holder : holders)
-        {
-            if (holder.managesRepairedGroup(isRepaired, isPendingRepair))
-                return holder;
-        }
-
-        throw new IllegalStateException(String.format("No holder claimed isPendingRepair: %s, isPendingRepair %s",
-                                                      isRepaired, isPendingRepair));
+        return holderByGroup.get(group);
     }
 
     @VisibleForTesting
@@ -1410,7 +1421,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         readLock.lock();
         try
         {
-            return getHolder(repairedAt, pendingRepair).createSSTableMultiWriter(descriptor,
+            return getHolder(repairedAt, pendingRepair, coordinatorLogOffsets).createSSTableMultiWriter(descriptor,
                                                                                               keyCount,
                                                                                               repairedAt,
                                                                                               pendingRepair,
@@ -1516,13 +1527,10 @@ public class CompactionStrategyManager implements INotificationConsumer
     }
 
     /**
-     * Promote reconciled sstables to repaired, clearing their coordinator log offsets in the same metadata mutation,
-     * and move them between strategies under the write lock as {@link #mutateRepaired} does.
+     * Promote reconciled sstables to repaired and clear their coordinator log offsets in the same metadata mutation,
+     * then move them between strategies under the write lock as {@link #mutateRepaired} does.
      *
-     * No data is rewritten. Offsets are cleared here rather than incrementally at compaction so that they remain a
-     * reliable statement of provenance for as long as an sstable is unrepaired.
-     *
-     * @return the sstables that were successfully promoted
+     * @return the sstables that were promoted
      */
     public Set<SSTableReader> promoteReconciled(Collection<SSTableReader> sstables, long repairedAt) throws IOException
     {

@@ -443,12 +443,11 @@ public class CompactionTask extends AbstractCompactionTask
     }
 
     /**
-     * Union the inputs' coordinator log offsets.
-     * <p>
-     * Reconciled ids are deliberately not purged here. Removing them piecemeal as they reconcile leaves an sstable
-     * that is still journal-derived but no longer says so — and once its last id goes, indistinguishable from
-     * commit-log-derived data it must not be combined with while unrepaired. Offsets are removed in one step when the
-     * sstable is promoted to repaired; see {@link SSTableReader#mutatePromotedToRepairedAndReload}.
+     * Union the inputs' coordinator log offsets. Reconciled ids are not purged here.
+     *
+     * Removing ids as they reconcile leaves an sstable that is still journal-derived but no longer says so, and once
+     * its last id goes it cannot be told apart from commit-log-derived data it must not be combined with while
+     * unrepaired. {@link SSTableReader#mutatePromotedToRepairedAndReload} removes them in one step at promotion.
      */
     public static ImmutableCoordinatorLogOffsets getCoordinatorLogOffsets(Set<SSTableReader> sstables)
     {

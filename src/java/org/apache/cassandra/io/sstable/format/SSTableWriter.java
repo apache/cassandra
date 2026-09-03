@@ -356,8 +356,6 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         // Reconciliation should not occur before activation for coordinated transfer streams for tracked keyspaces.
         boolean reconcile = txn.opType() != OperationType.STREAM;
 
-        ImmutableCoordinatorLogOffsets offsets = coordinatorLogOffsets;
-
         // During migration, incremental repair handles repair status for ranges still pending migration.
         // Only apply mutation tracking reconciliation for ranges NOT in the migration pending set.
         // For SSTables whose range falls within pending migration ranges, IR sets pendingRepair/repairedAt.
@@ -372,23 +370,30 @@ public abstract class SSTableWriter extends SSTable implements Transactional
             if (!inMigrationPendingRange)
             {
                 Preconditions.checkState(Objects.equals(pendingRepair, ActiveRepairService.NO_PENDING_REPAIR));
-                if (MutationTrackingService.instance().isDurablyReconciled(offsets))
+                if (MutationTrackingService.instance().isDurablyReconciled(coordinatorLogOffsets))
                 {
                     repairedAt = Clock.Global.currentTimeMillis();
-                    // Promotion clears the offsets, exactly as the background sweep does. Setting repairedAt while
-                    // keeping them would leave a repaired sstable still asserting journal provenance, and offsets are
-                    // only meaningful for as long as an sstable is unrepaired.
-                    offsets = new ImmutableCoordinatorLogOffsets.Builder().build();
+                    // Clear the offsets, as PromoteReconciledTask does. Offsets are only meaningful while an sstable is
+                    // unrepaired, so setting repairedAt and keeping them would leave it claiming journal provenance.
+                    coordinatorLogOffsets = new ImmutableCoordinatorLogOffsets.Builder().build();
                     logger.debug("Marking SSTable {} as reconciled with repairedAt {}", descriptor, repairedAt);
                 }
             }
         }
 
+        // Offsets are only meaningful while an sstable is unrepaired, and this runs for compaction and anticompaction
+        // outputs as well as flushes. Those inherit repairedAt from their inputs, so the branch above is skipped and
+        // the union of the inputs' offsets would otherwise be written through. An anticompaction during a migration
+        // does exactly that: it repairs a journal-derived sstable in a pending range without clearing its offsets, and
+        // a later compaction in the repaired holder can then union it with commit-log-derived data.
+        if (repairedAt != ActiveRepairService.UNREPAIRED_SSTABLE)
+            coordinatorLogOffsets = ImmutableCoordinatorLogOffsets.NONE;
+
         return metadataCollector.finalizeMetadata(getPartitioner().getClass().getCanonicalName(),
                                                   metadata().params.bloomFilterFpChance,
                                                   repairedAt,
                                                   pendingRepair,
-                                                  offsets,
+                                                  coordinatorLogOffsets,
                                                   header,
                                                   first.retainable().getKey(),
                                                   last.retainable().getKey());

@@ -22,7 +22,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -73,7 +76,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 /**
  * We use byte ordered partitioner in this test to be able to easily infer an SSTable
@@ -275,54 +277,40 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
         DatabaseDescriptor.setAutomaticSSTableUpgradeEnabled(false);
     }
 
-    private static void assertHolderExclusivity(boolean isRepaired, boolean isPendingRepair, Class<? extends AbstractStrategyHolder> expectedType)
-    {
-        ColumnFamilyStore cfs = Keyspace.open(KS_PREFIX).getColumnFamilyStore(TABLE_PREFIX);
-        CompactionStrategyManager csm = cfs.getCompactionStrategyManager();
-
-        AbstractStrategyHolder holder = csm.getHolder(isRepaired, isPendingRepair);
-        assertNotNull(holder);
-        assertSame(expectedType, holder.getClass());
-
-        int matches = 0;
-        for (AbstractStrategyHolder other : csm.getHolders())
-        {
-            if (other.managesRepairedGroup(isRepaired, isPendingRepair))
-            {
-                assertSame("holder assignment should be mutually exclusive", holder, other);
-                matches++;
-            }
-        }
-        assertEquals(1, matches);
-    }
-
-    private static void assertInvalidHolderConfig(boolean isRepaired, boolean isPendingRepair)
-    {
-        ColumnFamilyStore cfs = Keyspace.open(KS_PREFIX).getColumnFamilyStore(TABLE_PREFIX);
-        CompactionStrategyManager csm = cfs.getCompactionStrategyManager();
-        try
-        {
-            csm.getHolder(isRepaired, isPendingRepair);
-            fail("Expected IllegalArgumentException");
-        }
-        catch (IllegalArgumentException e)
-        {
-            // expected
-        }
-    }
-
-    /**
-     * If an sstable can be be assigned to a strategy holder, it shouldn't be possibly to
-     * assign it to any of the other holders.
-     */
     @Test
     public void testMutualExclusiveHolderClassification() throws Exception
     {
-        assertHolderExclusivity(false, false, CompactionStrategyHolder.class);
-        assertHolderExclusivity(true, false, CompactionStrategyHolder.class);
-        assertHolderExclusivity(false, true, PendingRepairHolder.class);
-        assertHolderExclusivity(false, true, PendingRepairHolder.class);
-        assertInvalidHolderConfig(true, true);
+        Map<CompactionGroup, Class<? extends AbstractStrategyHolder>> expected = new EnumMap<>(CompactionGroup.class);
+        expected.put(CompactionGroup.UNREPAIRED, CompactionStrategyHolder.class);
+        expected.put(CompactionGroup.REPAIRED, CompactionStrategyHolder.class);
+        expected.put(CompactionGroup.PENDING_REPAIR, PendingRepairHolder.class);
+        expected.put(CompactionGroup.UNRECONCILED, TrackedCompactionManager.class);
+
+        assertEquals("a new compaction group needs a holder named here before it can be routed",
+                     EnumSet.allOf(CompactionGroup.class), expected.keySet());
+
+        ColumnFamilyStore cfs = Keyspace.open(KS_PREFIX).getColumnFamilyStore(TABLE_PREFIX);
+        CompactionStrategyManager csm = cfs.getCompactionStrategyManager();
+
+        for (CompactionGroup group : CompactionGroup.values())
+        {
+            AbstractStrategyHolder holder = csm.getHolder(group);
+            assertNotNull("no holder claims " + group, holder);
+
+            assertSame(expected.get(group), holder.getClass());
+
+            int matches = 0;
+            for (AbstractStrategyHolder other : csm.getHolders())
+            {
+                if (other.managesGroup(group))
+                {
+                    assertSame("holder assignment should be mutually exclusive", holder, other);
+                    matches++;
+                }
+            }
+            assertEquals(1, matches);
+
+        }
     }
 
     PartitionPosition forKey(int key)
@@ -364,13 +352,20 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
 
         List<GroupedSSTableContainer> grouped = csm.groupSSTables(Iterables.concat( pendingRepair, repaired, unrepaired));
 
+        int placed = 0;
         for (int x=0; x<grouped.size(); x++)
         {
             GroupedSSTableContainer group = grouped.get(x);
             AbstractStrategyHolder holder = csm.getHolders().get(x);
             for (int y=0; y<numDir; y++)
             {
+                // Holders whose group is not represented among these sstables get nothing; the tracked holders are
+                // empty here because none of these sstables carry coordinator log offsets.
+                if (group.isGroupEmpty(y))
+                    continue;
+
                 SSTableReader sstable = Iterables.getOnlyElement(group.getGroup(y));
+                placed++;
                 assertTrue(holder.managesSSTable(sstable));
                 SSTableReader expected;
                 if (sstable.isRepaired())
@@ -385,6 +380,8 @@ public class CompactionStrategyManagerTest extends CassandraTestBase
                 assertSame(expected, sstable);
             }
         }
+        // every sstable landed somewhere, so skipping empty groups above cannot mask a lost sstable
+        assertEquals(3 * numDir, placed);
     }
 
     @Test

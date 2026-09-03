@@ -21,7 +21,6 @@ package org.apache.cassandra.distributed.test.tracking;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -34,23 +33,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.shared.AssertUtils;
-import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.Uninterruptibles;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.replication.ActivatedTransfers;
 import org.apache.cassandra.replication.ActivationRequest;
-import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 
@@ -206,104 +200,74 @@ public class TrackedImportFailureTest extends TrackedTransferTestBase
         }
     }
 
-    /*
-     * Ensure that activation IDs attached to SSTables aren't spread across Token boundaries by compaction.
-     *
-     * For example:
-     * IMPORT_TOKEN is owned by replicas (A, B)
-     * OUTSIDE_IMPORT_TOKEN is owned by replicas (B, C)
-     * Execute import so (A, B) have IMPORT_TOKEN
-     * Execute plain write so (B, C) have OUTSIDE_IMPORT_TOKEN
-     * Do a major compaction on B so IMPORT_TOKEN and OUTSIDE_IMPORT_TOKEN are compacted together into the same SSTable
-     * Execute a data read for OUTSIDE_IMPORT_TOKEN against B, ensure it doesn't contain any activation IDs
-     */
     @Test
-    public void importActivationMergedByCompaction() throws Throwable
+    public void majorCompactionPromotesReconciledImportActivation() throws Throwable
     {
         try (Cluster cluster = cluster((cl, tg, instance, gen) -> ByteBuddyInjections.SkipPurgeTransfers.install().initialise(cl, tg, instance, gen)))
         {
             createSchema(cluster, 2);
 
-            Set<IInvokableInstance> inImportRange = new HashSet<>();
-            cluster.forEach(instance -> {
-                logger.debug("Instance {} ring is {}", ClusterUtils.instanceId(instance), ClusterUtils.ring(instance));
-                boolean isInRange = instance.callOnInstance(() -> {
+            // The import needs a replica of IMPORT_TOKEN to run on. Any of them will do.
+            IInvokableInstance importReplica = null;
+            for (IInvokableInstance instance : cluster)
+            {
+                boolean isReplica = instance.callOnInstance(() -> {
                     ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
                     DataPlacement placement = ClusterMetadata.current().placements.get(cfs.keyspace.getMetadata().params.replication);
                     return placement.writes.forToken(IMPORT_TOKEN).get().containsSelf();
                 });
-                if (isInRange)
-                    inImportRange.add(instance);
-            });
-            Assertions.assertThat(inImportRange).hasSize(2);
-
-            // Find a partition key that's not owned by the same replicas as the import
-            Murmur3Partitioner.LongToken NON_IMPORT_TOKEN = new Murmur3Partitioner.LongToken(IMPORT_TOKEN.getLongValue() * 3);
-            int NON_IMPORT_PK = Int32Type.instance.compose(Murmur3Partitioner.LongToken.keyForToken(NON_IMPORT_TOKEN));
-
-            Set<IInvokableInstance> inNonImportRange = new HashSet<>();
-            cluster.forEach(instance -> {
-                boolean isInRange = instance.callOnInstance(() -> {
-                    ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
-                    DataPlacement placement = ClusterMetadata.current().placements.get(cfs.keyspace.getMetadata().params.replication);
-                    return placement.writes.forToken(NON_IMPORT_TOKEN).get().containsSelf();
-                });
-                if (isInRange)
-                    inNonImportRange.add(instance);
-            });
-            Assertions.assertThat(inNonImportRange).hasSize(2);
-            Assertions.assertThat(inNonImportRange).isNotEqualTo(inImportRange);
-
-            // Import: (A, B)
-            // Plain: (B, C)
-            IInvokableInstance A = null;
-            IInvokableInstance B = null;
-            IInvokableInstance C = null;
-            for (IInvokableInstance instance : cluster)
-            {
-                boolean isImport = inImportRange.contains(instance);
-                boolean isNonImport = inNonImportRange.contains(instance);
-                if (isImport && isNonImport)
-                    B = instance;
-                else if (isImport)
-                    A = instance;
-                else if (isNonImport)
-                    C = instance;
+                if (isReplica)
+                {
+                    importReplica = instance;
+                    break;
+                }
             }
-            Assertions.assertThat(A).isNotNull();
-            Assertions.assertThat(B).isNotNull();
-            Assertions.assertThat(C).isNotNull();
+            Assertions.assertThat(importReplica).isNotNull();
 
-            doImport(cluster, A);
-            assertLocalSelect(List.of(A, B), (IIsolatedExecutor.SerializableConsumer<Object[][]>) rows -> {
-                assertRows(rows, row(IMPORT_PK, IMPORT_PK));
+            doImport(cluster, importReplica);
+            assertLocalSelect(Collections.singleton(importReplica),
+                              (IIsolatedExecutor.SerializableConsumer<Object[][]>) rows -> {
+                                  assertRows(rows, row(IMPORT_PK, IMPORT_PK));
+                              });
+
+            // The import has to have left an activation behind, or the promotion asserted below proves nothing.
+            importReplica.runOnInstance(() -> {
+                ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
+                Assertions.assertThat(cfs.getLiveSSTables())
+                          .describedAs("the import should have left an activated transfer")
+                          .anyMatch(sstable -> !sstable.getCoordinatorLogOffsets().transfers().isEmpty());
             });
 
-            ShortMutationId importTransferId = callSerialized(A, () -> ShortMutationId.serializer, () -> {
+            // Any second partition will do now that replica placement does not matter. At ALL, so every node holds an
+            // sstable with no transfer for the compaction to find beside the import's.
+            int otherPk = IMPORT_PK + 1;
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s." + TABLE + "(k, v) VALUES (?, ?)"),
+                                           ConsistencyLevel.ALL, otherPk, otherPk);
+            assertCompaction(cluster, Collections.singleton(importReplica), NOOP, NOOP);
+
+            importReplica.runOnInstance(() -> {
                 ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, TABLE);
+                int repaired = 0;
                 for (SSTableReader sstable : cfs.getLiveSSTables())
                 {
-                    ActivatedTransfers transfers = sstable.getCoordinatorLogOffsets().transfers();
-                    if (!transfers.isEmpty())
-                        return transfers.iterator().next();
+                    Assertions.assertThat(sstable.getCoordinatorLogOffsets().transfers())
+                              .describedAs("promotion should have cleared the offsets of %s", sstable)
+                              .isEmpty();
+                    if (sstable.isRepaired())
+                        repaired++;
                 }
-                return null;
+                Assertions.assertThat(repaired)
+                          .describedAs("promotion should have taken the transfer and nothing else")
+                          .isEqualTo(1);
             });
-            Assertions.assertThat(importTransferId).isNotNull();
-            C.coordinator().execute(withKeyspace("INSERT INTO %s." + TABLE + "(k, v) VALUES (?, ?)"), ConsistencyLevel.ALL, NON_IMPORT_PK, NON_IMPORT_PK);
-            assertCompaction(cluster, Collections.singleton(B), NOOP, NOOP);
 
-            // Reading from B for a range that doesn't include the import shouldn't include any transfer IDs, even though they've been compacted together
-            long mark = B.logs().mark();
-            Object[][] rows = B.coordinator().execute(withKeyspace("SELECT * FROM %s." + TABLE + " WHERE k = ?"), ConsistencyLevel.ALL, NON_IMPORT_PK);
-            assertRows(rows, row(NON_IMPORT_PK, NON_IMPORT_PK));
-            Assertions.assertThat(B.logs().grep(mark, "Found overlapping activation ID ").getResult()).isEmpty();
-
-            // But if the read range does include a transfer ID, it should have been added
-            mark = B.logs().mark();
-            rows = B.coordinator().execute(withKeyspace("SELECT * FROM %s." + TABLE + " WHERE k = ?"), ConsistencyLevel.ALL, IMPORT_PK);
-            assertRows(rows, row(IMPORT_PK, IMPORT_PK));
-            Assertions.assertThat(B.logs().grep(mark, "Found overlapping activation ID ").getResult()).isNotEmpty();
+            // Both partitions survive the import and the compaction.
+            for (int pk : new int[]{ otherPk, IMPORT_PK })
+            {
+                Object[][] rows = cluster.coordinator(1).execute(withKeyspace("SELECT * FROM %s." + TABLE + " WHERE k = ?"),
+                                                                 ConsistencyLevel.ALL, pk);
+                assertRows(rows, row(pk, pk));
+            }
         }
     }
 
