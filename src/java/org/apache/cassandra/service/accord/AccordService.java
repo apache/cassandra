@@ -568,6 +568,9 @@ public class AccordService implements IAccordService, Shutdownable
             CompactionManager.instance.submitBackground(AccordColumnFamilyStores.journal);
         }, 1L, MINUTES);
 
+        long durabilityFlushIntervalNanos = DatabaseDescriptor.getAccordDurabilityFlushInterval(NANOSECONDS);
+        scheduler.recurring(() -> AccordDurableOnFlush.flushWaitingCfs(durabilityFlushIntervalNanos), durabilityFlushIntervalNanos/2, NANOSECONDS);
+
         state = State.STARTING;
         node.unsafeSetReplaying(true);
         try

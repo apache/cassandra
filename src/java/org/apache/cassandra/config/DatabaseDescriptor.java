@@ -664,6 +664,9 @@ public class DatabaseDescriptor
             }
         }
 
+        if (conf.accord.durability_flush_interval == null)
+            conf.accord.durability_flush_interval = conf.accord.shard_durability_cycle;
+
         /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */
         if (conf.disk_access_mode == DiskAccessMode.auto || conf.disk_access_mode == DiskAccessMode.mmap_index_only)
         {
@@ -1390,6 +1393,7 @@ public class DatabaseDescriptor
         }
     }
 
+    // TODO (expected): move all of the Accord config setup and accessors into AccordConfig
     private static void applyAccord()
     {
         try
@@ -5841,6 +5845,11 @@ public class DatabaseDescriptor
     public static long getAccordShardDurabilityCycle(TimeUnit unit)
     {
         return conf.accord.shard_durability_cycle.to(unit);
+    }
+
+    public static long getAccordDurabilityFlushInterval(TimeUnit unit)
+    {
+        return conf.accord.durability_flush_interval.to(unit);
     }
 
     public static boolean getAccordStateCacheListenerJFREnabled()

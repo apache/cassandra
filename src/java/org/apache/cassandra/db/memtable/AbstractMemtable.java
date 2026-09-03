@@ -43,6 +43,8 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public abstract class AbstractMemtable implements Memtable
 {
     private static final AtomicLong nextId = new AtomicLong();
@@ -55,8 +57,8 @@ public abstract class AbstractMemtable implements Memtable
     protected AtomicLong minTimestamp = new AtomicLong(Long.MAX_VALUE);
     // The smallest local deletion time for all partitions in this memtable
     protected AtomicLong minLocalDeletionTime = new AtomicLong(Long.MAX_VALUE);
-    private final long id = nextId.incrementAndGet();
-    private Map<Object, BiConsumer<Long, TableMetadata>> onFlush = ImmutableMap.of();
+    private final long id = nextId.accumulateAndGet(nanoTime(), (a, b) -> a >= b ? a + 1 : b);
+    private volatile Map<Object, BiConsumer<Long, TableMetadata>> onFlush = ImmutableMap.of();
     // Note: statsCollector has corresponding statistics to the two above, but starts with an epoch value which is not
     // correct for their usage.
 
@@ -171,6 +173,12 @@ public abstract class AbstractMemtable implements Memtable
         return listener;
     }
 
+    public boolean hasFlushListener()
+    {
+        Map<?, ?> listeners = onFlush;
+        return listeners != null && !listeners.isEmpty();
+    }
+
     public void notifyFlushed()
     {
         Collection<BiConsumer<Long, TableMetadata>> run;
@@ -180,6 +188,11 @@ public abstract class AbstractMemtable implements Memtable
             onFlush = null;
         }
         run.forEach(c -> c.accept(id, metadata()));
+    }
+
+    public long createdAtNanos()
+    {
+        return id;
     }
 
     protected static class ColumnsCollector

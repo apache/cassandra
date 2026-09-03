@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 
 import org.agrona.collections.Int2ObjectHashMap;
@@ -36,9 +39,13 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.execution.Unstoppable;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public class AccordDurableOnFlush implements BiConsumer<Long, TableMetadata>
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordDurableOnFlush.class);
+
+    private static final Set<ColumnFamilyStore> awaitingFlush = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     public static class ReportDurable
     {
@@ -156,7 +163,10 @@ public class AccordDurableOnFlush implements BiConsumer<Long, TableMetadata>
 
             AccordDurableOnFlush onFlush = candidate.ensureFlushListener(AccordDataStore.FlushListenerKey.KEY, AccordDurableOnFlush::new);
             if (onFlush != null && onFlush.add(commandStore.id(), onDurable))
+            {
+                awaitingFlush.add(cfs);
                 return;
+            }
         }
 
         for (int i = view.flushingMemtables.size() - 1; i >= 0 ; --i)
@@ -168,6 +178,34 @@ public class AccordDurableOnFlush implements BiConsumer<Long, TableMetadata>
         }
 
         notifyNow(commandStore, onDurable);
+    }
+
+    public static void flushWaitingCfs(long flushIfOlderThanNanos)
+    {
+        long flushIfCreatedBeforeNanos = nanoTime() - flushIfOlderThanNanos;
+        for (ColumnFamilyStore cfs : awaitingFlush)
+        {
+            Memtable memtable = cfs.getTracker().getView().getCurrentMemtable();
+            if (memtable.createdAtNanos() >= flushIfCreatedBeforeNanos)
+                continue;
+
+            try
+            {
+                if (!memtable.hasFlushListener())
+                    continue;
+
+                logger.debug("Flushing {}.{} as a durability report is waiting on it", cfs.getKeyspaceName(), cfs.name);
+                cfs.switchMemtableIfCurrent(memtable, ColumnFamilyStore.FlushReason.ACCORD);
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Failed to flush {}.{} for a waiting durability report", cfs.getKeyspaceName(), cfs.name, t);
+            }
+            finally
+            {
+                awaitingFlush.remove(cfs);
+            }
+        }
     }
 
     static void notifyInOrder(long memtableId, TableMetadata metadata, CommandStore commandStore, ReportDurable report)

@@ -277,6 +277,10 @@ public class AccordConfig
     public volatile DurationSpec.IntSecondsBound durability_txnid_lag = new DurationSpec.IntSecondsBound(5);
     public volatile DurationSpec.IntSecondsBound shard_durability_cycle = new DurationSpec.IntSecondsBound(5, TimeUnit.MINUTES);
     public volatile DurationSpec.IntSecondsBound global_durability_cycle = new DurationSpec.IntSecondsBound(5, TimeUnit.MINUTES);
+    /**
+     * Flush tables that a durability report is waiting on with approximately this frequency; defaults to {@link #shard_durability_cycle}.
+     */
+    public volatile DurationSpec.IntSecondsBound durability_flush_interval;
 
     public volatile DurationSpec.IntSecondsBound topology_watermark_interval = new DurationSpec.IntSecondsBound(60);
     public volatile boolean topology_sync_propagator_enabled_pre_start = false;

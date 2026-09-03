@@ -72,6 +72,7 @@ import accord.local.SafeCommandStore;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.PartialTxn;
 import accord.primitives.Range;
+import accord.primitives.RangeRoute;
 import accord.primitives.Ranges;
 import accord.primitives.Route;
 import accord.primitives.SaveStatus;
@@ -538,10 +539,10 @@ public class AccordCommandStore extends CommandStore
     }
 
     @Override
-    protected void markExclusiveSyncPointLocallyApplied(SafeCommandStore safeStore, TxnId syncId, Ranges ranges, SaveStatus prevStatus)
+    protected void markExclusiveSyncPointLocallyApplied(SafeCommandStore safeStore, TxnId txnId, TxnId txnIdWithFlags, RangeRoute route, Ranges ranges, SaveStatus prevStatus)
     {
-        super.markExclusiveSyncPointLocallyApplied(safeStore, syncId, ranges, prevStatus);
-        rangeIndex.prune(syncId, ranges, safeStore.redundantBefore());
+        super.markExclusiveSyncPointLocallyApplied(safeStore, txnId, txnIdWithFlags, route, ranges, prevStatus);
+        rangeIndex.prune(txnIdWithFlags, ranges, safeStore.redundantBefore());
     }
 
     void maybeTerminated(boolean setCommandStoreDurable, boolean setDataStoreDurable)
