@@ -135,6 +135,10 @@ implementations) are provided as the `AbstractMemtable` (statistics tracking), `
 commit log span tracking) and `AbstractAllocatorMemtable` (adds memory management via the `Allocator` class, together
 with flush triggering on memory use and time interval expiration).
 
+A memtable that serializes writes, for example per shard, can say so through `limitsConcurrentWritesTo`. Secondary
+indexes whose implementation limits the number of concurrent writers use this to skip their own bounding when the
+memtable already provides it. The default answer is false.
+
 The memtable API also gives the memtable some control over flushing and the functioning of the commit log. The former
 is there to permit memtables that operate long-term and/or can handle some events internally, without a need to flush.
 The latter enables memtables that have an internal durability mechanism, such as ones using persistent memory or a
