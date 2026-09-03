@@ -65,6 +65,7 @@ public class ReadResponseTest
     private final Random random = new Random();
     private TableMetadata metadata;
     private TableMetadata metadataWithClustering;
+    private TableMetadata metadataWithStatic;
 
     @BeforeClass
     public static void beforeClass()
@@ -89,6 +90,15 @@ public class ReadResponseTest
                                               .addRegularColumn("v", Int32Type.instance)
                                               .partitioner(Murmur3Partitioner.instance)
                                               .build();
+
+        metadataWithStatic = TableMetadata.builder("ks", "t3")
+                                          .offline()
+                                          .addPartitionKeyColumn("p", Int32Type.instance)
+                                          .addStaticColumn("s", Int32Type.instance)
+                                          .addClusteringColumn("c", Int32Type.instance)
+                                          .addRegularColumn("v", Int32Type.instance)
+                                          .partitioner(Murmur3Partitioner.instance)
+                                          .build();
     }
 
     @Test
@@ -221,6 +231,81 @@ public class ReadResponseTest
         ReadResponse inMemoryResponse = command.createLocalObjectResponse(singlePartitionIterator(update), rdi, false);
 
         assertIteratorsEqual(command, localResponse, inMemoryResponse);
+    }
+
+    @Test
+    public void inMemoryResponseDigestsLikeSerializedResponse()
+    {
+        // A partition contains a row deletion only.
+        // Read from a table that declares a static column but holds no static data.
+        int key = key();
+        ReadCommand command = command(key, metadataWithStatic);
+        StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
+
+        PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(metadataWithStatic, ByteBufferUtil.bytes(key)).timestamp(1);
+        builder.row(0).delete();
+        PartitionUpdate update = builder.build();
+
+        ReadResponse localResponse = command.createResponse(readIterator(update, command), rdi);
+        ReadResponse inMemoryResponse = command.createLocalObjectResponse(readIterator(update, command), rdi, true);
+
+        assertEquals(ByteBufferUtil.bytesToHex(localResponse.digest(command)),
+                     ByteBufferUtil.bytesToHex(inMemoryResponse.digest(command)));
+    }
+
+    @Test
+    public void inMemoryResponseWithOverflowDigestsLikeSerializedResponse()
+    {
+        // Same as above for the overflow path, where the response is serialized from the in-memory prefix followed
+        // by the rows that did not fit: the static row of the prefix must survive into that buffer.
+        int key = key();
+        ReadCommand command = command(key, metadataWithStatic);
+        StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
+
+        PartitionUpdate update = buildMultiRowUpdate(metadataWithStatic, key, 5);
+
+        ReadResponse localResponse = command.createResponse(readIterator(update, command), rdi);
+        ReadResponse overflowedResponse = ReadResponse.createInMemoryDataResponse(readIterator(update, command), command, rdi, 2, 0);
+
+        assertEquals("response should have overflowed", 0, overflowedResponse.inMemoryUnfilteredCount());
+        assertEquals(ByteBufferUtil.bytesToHex(localResponse.digest(command)),
+                     ByteBufferUtil.bytesToHex(overflowedResponse.digest(command)));
+    }
+
+    @Test
+    public void inMemoryResponseKeepsStaticRowContent()
+    {
+        // A partition which does hold static data: the static row must be kept as it is
+        int key = key();
+        ReadCommand command = command(key, metadataWithStatic);
+        StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
+
+        PartitionUpdate update = buildMultiRowUpdate(metadataWithStatic, key, 3);
+        Row staticRow = staticRow(metadataWithStatic, 7);
+
+        ReadResponse localResponse = command.createResponse(readIterator(update, command, staticRow), rdi);
+        ReadResponse inMemoryResponse = command.createLocalObjectResponse(readIterator(update, command, staticRow), rdi, true);
+
+        assertIteratorsEqual(command, localResponse, inMemoryResponse);
+        assertEquals(ByteBufferUtil.bytesToHex(localResponse.digest(command)),
+                     ByteBufferUtil.bytesToHex(inMemoryResponse.digest(command)));
+    }
+
+    @Test
+    public void inMemoryResponseWithoutStaticRowDigestsLikeSerializedResponse()
+    {
+        // The other direction: a read that produced no static row at all must not gain one
+        int key = key();
+        ReadCommand command = command(key, metadataWithStatic);
+        StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
+
+        PartitionUpdate update = buildMultiRowUpdate(metadataWithStatic, key, 3);
+
+        ReadResponse localResponse = command.createResponse(singlePartitionIterator(update), rdi);
+        ReadResponse inMemoryResponse = command.createLocalObjectResponse(singlePartitionIterator(update), rdi, true);
+
+        assertEquals(ByteBufferUtil.bytesToHex(localResponse.digest(command)),
+                     ByteBufferUtil.bytesToHex(inMemoryResponse.digest(command)));
     }
 
     @Test(expected = UnsupportedOperationException.class)
@@ -765,6 +850,9 @@ public class ReadResponseTest
             {
                 try (UnfilteredRowIterator partition = iter.next())
                 {
+                    // an empty static row is skipped, its presence is a matter of the digest, not of the content
+                    if (!partition.staticRow().isEmpty())
+                        result.add(partition.staticRow().toString(partition.metadata(), true));
                     while (partition.hasNext())
                         result.add(partition.next().toString(partition.metadata(), true));
                 }
@@ -786,6 +874,36 @@ public class ReadResponseTest
         for (int i = 0; i < rowCount; i++)
             builder.row(i).add("v", i);
         return builder.build();
+    }
+
+    /**
+     * Iterates the update the way a read of a table with static columns does: the iterator reports the columns
+     * fetched by the command's filter (see {@code AbstractSSTableIterator.columns()}) rather than only the ones the
+     * update happens to contain, and a partition without static data still carries an empty static row that is not
+     * the Rows.EMPTY_STATIC_ROW singleton (that is what the sstable read path produces).
+     */
+    private UnfilteredPartitionIterator readIterator(PartitionUpdate update, ReadCommand command)
+    {
+        return readIterator(update, command, BTreeRow.emptyRow(Clustering.STATIC_CLUSTERING));
+    }
+
+    private UnfilteredPartitionIterator readIterator(PartitionUpdate update, ReadCommand command, Row staticRow)
+    {
+        UnfilteredRowIterator rowIter = update.unfilteredIterator(command.columnFilter(), Slices.ALL, command.isReversed());
+        return singlePartitionIterator(new WrappingUnfilteredRowIterator()
+        {
+            public UnfilteredRowIterator wrapped() { return rowIter; }
+
+            @Override
+            public Row staticRow() { return staticRow; }
+        });
+    }
+
+    private Row staticRow(TableMetadata metadata, int value)
+    {
+        ColumnMetadata col = metadata.getColumn(ByteBufferUtil.bytes("s"));
+        return BTreeRow.singleCellRow(Clustering.STATIC_CLUSTERING,
+                                      BufferCell.live(col, FBUtilities.timestampMicros(), ByteBufferUtil.bytes(value)));
     }
 
     private UnfilteredPartitionIterator singlePartitionIterator(PartitionUpdate update)
