@@ -37,7 +37,7 @@ public abstract class Event
         STATUS_CHANGE(ProtocolVersion.V3),
         SCHEMA_CHANGE(ProtocolVersion.V3),
         TRACE_COMPLETE(ProtocolVersion.V4),
-        GRACEFUL_DISCONNECT(ProtocolVersion.V5);
+        GRACEFUL_DISCONNECT(ProtocolVersion.V4);
 
         public final ProtocolVersion minimumVersion;
 

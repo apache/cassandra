@@ -698,6 +698,12 @@ Table of Contents
   for events on all connections, as this would only result in receiving
   multiple times the same event messages, wasting bandwidth.
 
+  Note: Unlike cluster-wide events (such as TOPOLOGY_CHANGE, STATUS_CHANGE,
+  and SCHEMA_CHANGE) which are distributed to any registered connection, the
+  "GRACEFUL_DISCONNECT" event is strictly connection-specific. To benefit
+  from graceful connection draining, clients must register for the "GRACEFUL_DISCONNECT"
+  event type on all connections they establish.
+
 
 4.2. Responses
 
@@ -756,6 +762,11 @@ Table of Contents
       supported, encoded as the version number followed by a slash and the
       version description. For example: 3/v3, 4/v4, 5/v5-beta. If a version is
       in beta, it will have the word "beta" in its description.
+
+      - "GRACEFUL_DISCONNECT": if graceful disconnect is supported and enabled
+      by the server, this key will be present with the list of supported values
+      set to ["true"]. If the key is absent, the server does not support or has
+      disabled the graceful disconnect feature.
 
 
 4.2.5. RESULT
@@ -987,6 +998,8 @@ Table of Contents
       consists of a [string] and an [inet], corresponding respectively to the
       type of change ("NEW_NODE" or "REMOVED_NODE") followed by the address of
       the new/removed node.
+
+
     - "STATUS_CHANGE": events related to change of node status. Currently,
       up/down events are sent. The body of the message (after the event type)
       consists of a [string] and an [inet], corresponding respectively to the
@@ -1013,6 +1026,12 @@ Table of Contents
             - [string] keyspace containing the user defined function / aggregate
             - [string] the function/aggregate name
             - [string list] one string for each argument type (as CQL type)
+    - "GRACEFUL_DISCONNECT": events related to an impending clean shutdown of
+      the node. This event signals to the client that the server is shutting down
+      and will close the connection after the configured grace period. The body of
+      the message (after the event type) is empty. Upon receiving this event,
+      the client must stop sending new queries on this connection, let in-flight
+      queries finish, and cleanly close the socket.
 
   All EVENT messages have a streamId of -1 (Section 2.4.1.3).
 

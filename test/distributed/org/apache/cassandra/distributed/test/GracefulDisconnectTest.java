@@ -130,7 +130,7 @@ public class GracefulDisconnectTest
     }
 
     @Test
-    public void testRegisterGracefulDisconnectRejectedOnV4() throws IOException
+    public void testRegisterGracefulDisconnectAcceptedOnV4() throws IOException
     {
         try (Cluster cluster = buildCluster(1, true))
         {
@@ -138,18 +138,14 @@ public class GracefulDisconnectTest
             try (SimpleClient client = SimpleClient.builder(nativeAddr.getHostString(), 9042).protocolVersion(ProtocolVersion.V4).build())
             {
                 client.connect(false);
-
-                assertThatThrownBy(() -> client.execute(new RegisterMessage(Collections.singletonList(Event.Type.GRACEFUL_DISCONNECT))))
-                .hasCauseInstanceOf(org.apache.cassandra.transport.ProtocolException.class);
-
+                client.execute(new RegisterMessage(Collections.singletonList(Event.Type.GRACEFUL_DISCONNECT)));
                 int subscribedCount = cluster.get(1).callOnInstance(() ->
                                                                     CassandraDaemon.getInstanceForTesting()
                                                                                    .nativeTransportService()
                                                                                    .getChannelsSubscribedToGracefulDisconnectCount());
-
                 assertThat(subscribedCount)
-                .as("V4 client should not be able to subscribe")
-                .isEqualTo(0);
+                .as("V4 client should be able to subscribe")
+                .isEqualTo(1);
             }
         }
     }

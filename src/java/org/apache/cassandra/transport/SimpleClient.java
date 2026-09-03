@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletableFuture; // checkstyle: permit this import
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.SynchronousQueue; // checkstyle: permit this import
 import java.util.concurrent.TimeUnit;
