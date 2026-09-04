@@ -8,6 +8,7 @@
  * Avoid using ObjectUtils.getFirstNonNull in Schema (CASSANDRA-21394)
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
+ * [CEP-59] Implementation of In-Band Connection Draining (Graceful Disconnect) (CASSANDRA-21191)
 Merged from 6.0:
  * Support multi-cell columns in cursor compaction (CASSANDRA-21463)
  * Optimize authorization logic for BatchStatement and TransactionStatement when a single table is updated (CASSANDRA-21606)

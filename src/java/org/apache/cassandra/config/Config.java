@@ -144,6 +144,10 @@ public class Config
     /** Triggers automatic allocation of tokens if set, based on the provided replica count for a datacenter */
     public Integer allocate_tokens_for_local_replication_factor = null;
 
+    public boolean graceful_disconnect_enabled = false;
+
+    public volatile DurationSpec.LongMillisecondsBound graceful_disconnect_grace_period = new DurationSpec.LongMillisecondsBound(5000);
+
     @Replaces(oldName = "native_transport_idle_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public DurationSpec.LongMillisecondsBound native_transport_idle_timeout = new DurationSpec.LongMillisecondsBound("0ms");
 

@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Compressor;
@@ -65,6 +66,7 @@ public class OptionsMessage extends Message.Request
         cqlVersions.add(QueryProcessor.CQL_VERSION.toString());
 
         List<String> compressions = new ArrayList<String>();
+        final List<String> gracefulDisconnect = List.of("true");
         if (Compressor.SnappyCompressor.instance != null)
             compressions.add("snappy");
         // LZ4 is always available since worst case scenario it default to a pure JAVA implem.
@@ -73,6 +75,8 @@ public class OptionsMessage extends Message.Request
         Map<String, List<String>> supported = new HashMap<String, List<String>>();
         supported.put(StartupMessage.CQL_VERSION, cqlVersions);
         supported.put(StartupMessage.COMPRESSION, compressions);
+        if (DatabaseDescriptor.getGracefulDisconnectEnabled())
+            supported.put(StartupMessage.GRACEFUL_DISCONNECT, gracefulDisconnect);
         supported.put(StartupMessage.PROTOCOL_VERSIONS, ProtocolVersion.supportedVersions());
 
         return new SupportedMessage(supported);

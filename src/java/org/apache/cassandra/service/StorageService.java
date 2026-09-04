@@ -1199,6 +1199,25 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getRpcTimeout(MILLISECONDS);
     }
 
+
+    @Override
+    public boolean getGracefulDisconnectEnabled()
+    {
+        return DatabaseDescriptor.getGracefulDisconnectEnabled();
+    }
+
+    @Override
+    public void setGracefulDisconnectGracePeriod(long value)
+    {
+        DatabaseDescriptor.setGracefulDisconnectGracePeriod(value);
+    }
+
+    @Override
+    public long getGracefulDisconnectGracePeriod()
+    {
+        return DatabaseDescriptor.getGracefulDisconnectGracePeriod();
+    }
+
     public void setReadRpcTimeout(long value)
     {
         DatabaseDescriptor.setReadRpcTimeout(value);

@@ -51,6 +51,7 @@ public class StartupMessage extends Message.Request
     public static final String DRIVER_NAME = "DRIVER_NAME";
     public static final String DRIVER_VERSION = "DRIVER_VERSION";
     public static final String THROW_ON_OVERLOAD = "THROW_ON_OVERLOAD";
+    public static final String GRACEFUL_DISCONNECT = "GRACEFUL_DISCONNECT";
 
     public static final Message.Codec<StartupMessage> codec = new Message.Codec<StartupMessage>()
     {
