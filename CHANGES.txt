@@ -1,4 +1,5 @@
 6.0-alpha3
+ * Throw InvalidRequestException instead of crashing on malformed IN marker values (CASSANDRA-21648)
  * Avoid serialization and deserialization for coordinator-local single partition data read (CASSANDRA-21354)
  * Allow nodetool cms reconfigure to ignore nodes via --ignore, excluding them from the new CMS (CASSANDRA-21627)
  * Accord: Compute Dependencies Incrementally (CASSANDRA-21682)
