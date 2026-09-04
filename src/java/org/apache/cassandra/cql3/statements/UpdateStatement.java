@@ -214,7 +214,7 @@ public class UpdateStatement extends ModificationStatement
                 {
                     ReferenceValue.Raw raw = (ReferenceValue.Raw) value;
                     ReferenceValue referenceValue = raw.prepare(def, bindVariables);
-                    ReferenceOperation operation = new ReferenceOperation(def, metadata, TxnReferenceOperation.Kind.setterFor(def), null, null, referenceValue);
+                    ReferenceOperation operation = new ReferenceOperation(def, metadata, TxnReferenceOperation.Kind.setterFor(def), null, null, null, referenceValue);
                     operations.add(def, operation);
                 }
                 else

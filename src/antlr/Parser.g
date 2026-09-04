@@ -807,6 +807,12 @@ rowDataReference returns [RowDataReference.Raw rawRef]
     : t=sident ('.' s=referenceSelection)? { tuple = t; selectable = s; }
     ;
 
+indexedRowDataReference returns [RowDataReference.Raw rawRef]
+    @init { Selectable.RawIdentifier tuple = null; Selectable.Raw selectable = null; }
+    @after { $rawRef = newRowDataReference(tuple, selectable); }
+    : t=sident '.' s=referenceSelection { tuple = t; selectable = s; }
+    ;
+
 referenceSelection returns [Selectable.Raw s]
     : g=referenceSelectionWithoutField m=selectorModifier[g] {$s = m;}
     ;
@@ -2105,9 +2111,16 @@ normalColumnOperation[UpdateStatement.OperationCollector operations, ColumnIdent
               addRecognitionError("Only expressions of the form X = X " + ($i.text.charAt(0) == '-' ? '-' : '+') + " <value> are supported.");
           addRawUpdate(operations, key, new Operation.Addition(Constants.Literal.integer($i.text)));
       }
-     | {isParsingTxn}? r=rowDataReference
+     | {isParsingTxn}? r=indexedRowDataReference (sig=('+'|'-') t=term)? 
        {
-           addRawReferenceOperation(operations, key, new ReferenceOperation.Raw(new Operation.SetValue(r), key, new ReferenceValue.Substitution.Raw(r)));
+           if (t == null)
+           {
+               addRawReferenceOperation(operations, key, new ReferenceOperation.Raw(new Operation.SetValue(r), key, new ReferenceValue.Substitution.Raw(r)));
+           }
+           else
+           {
+               addRawReferenceOperation(operations, key, new ReferenceOperation.Raw($sig.text.equals("+") ? new Operation.Addition(t) : new Operation.Substraction(t), key, new ReferenceValue.Substitution.Raw(r)));
+           }
        }
     ;
 
