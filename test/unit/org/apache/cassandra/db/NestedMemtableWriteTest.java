@@ -42,9 +42,10 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * CASSANDRA-21019: a write made from within an already-started mutation on the same write context is a
- * nested write, and {@link ColumnFamilyStore#apply} must route it to {@code Memtable.putNested}, which does
- * not wait for pool room. Every other write must still wait, including the writes an index build makes,
- * which the {@code updateIndexes} flag cannot tell apart from a nested one.
+ * nested write, and {@link ColumnFamilyStore#apply} must route it to {@code Memtable.put}, which does not
+ * wait for pool room, rather than to {@code Memtable.checkSpaceAndPut}, which does. Every other write must
+ * still wait, including the writes an index build makes, which the {@code updateIndexes} flag cannot tell
+ * apart from a nested one.
  */
 public class NestedMemtableWriteTest extends CQLTester
 {

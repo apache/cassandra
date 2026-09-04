@@ -133,32 +133,20 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
 
     /**
      * The memory limit is enforced here, once per PartitionUpdate and before any memtable-internal lock is
-     * taken; the allocations the update then makes only track usage. A mutation carries one update per table,
-     * so a mutation that writes to several tables is gated once for each of them.
+     * taken; the allocations {@link #put} then makes only track usage. A mutation carries one update per table,
+     * so a mutation that writes to several tables is gated once for each of them. A nested write calls
+     * {@link #put} directly and is not gated, see {@link Memtable#checkSpaceAndPut}.
      * <p>
      * The wait does not depend on how much the update will allocate, which is not known until it has been
      * merged into the memtable. An update that adds little or nothing therefore waits as well: a deletion, or
      * one that loses on timestamp against what the memtable already holds.
      */
     @Override
-    public final long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
+    public final long checkSpaceAndPut(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
     {
         allocator.awaitRoomToStart(opGroup);
-        return performPut(update, indexer, opGroup, assumeMissing);
+        return put(update, indexer, opGroup, assumeMissing);
     }
-
-    /**
-     * A nested write was gated when its enclosing mutation started, and must not park again. Parking holds the
-     * enclosing mutation's memtable-internal locks, which deadlocks a flush anywhere in the process, because
-     * Keyspace.writeOrder is one OpOrder shared by every table (CASSANDRA-21019).
-     */
-    @Override
-    public final long putNested(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
-    {
-        return performPut(update, indexer, opGroup, assumeMissing);
-    }
-
-    protected abstract long performPut(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing);
 
     @Override
     public boolean shouldSwitch(ColumnFamilyStore.FlushReason reason, TableMetadata latest)

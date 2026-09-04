@@ -189,7 +189,9 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
     }
 
     /**
-     * Put new data in the memtable. This operation may block until enough memory is available in the memory pool.
+     * Put new data in the memtable. This does not wait for room in the memory pool; the memory limit is enforced
+     * once per write, in {@link #checkSpaceAndPut}, which is what a write starting a mutation calls
+     * (CASSANDRA-21019). Call this directly only for a nested write, see {@link #checkSpaceAndPut}.
      *
      * @param update the partition update, may be a new partition or an update to an existing one
      * @param indexer receives information about the update's effect
@@ -205,25 +207,29 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
     long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing);
 
     /**
-     * Put variant for a nested write, that is a write made from within an already-started mutation on the
-     * same write context, as legacy 2i does from {@code indexer.onInserted()} under the base table's
-     * memtable-internal locks. Such a write must not wait for memtable pool room: parking there holds those
-     * locks, and a writer queued behind them cannot be released by markBlocking(), so the write barrier of any
-     * concurrent flush in the process never completes (CASSANDRA-21019; Keyspace.writeOrder is shared by every
-     * table, so the flush need not be of this memtable). The limit was enforced when the enclosing mutation
-     * started, so nested writes may overshoot it.
+     * Enforce the memtable memory limit, then put the update in the memtable. This operation may block until
+     * enough memory is available in the memory pool. Use this for a write that starts a mutation on this
+     * memtable; an implementation that waits for pool room does so here and not in {@link #put}.
      * <p>
-     * An implementation that blocks in {@link #put} MUST override this to skip that wait. Nesting is
+     * A nested write, that is a write made from within an already-started mutation on the same write context,
+     * calls {@link #put} instead and is not gated. Legacy 2i writes to the index table from
+     * {@code indexer.onInserted()}, under the base table's memtable-internal locks, and must not wait there:
+     * parking holds those locks, and a writer queued behind them cannot be released by markBlocking(), so the
+     * write barrier of any concurrent flush in the process never completes (CASSANDRA-21019;
+     * Keyspace.writeOrder is one OpOrder shared by every table, so the flush need not be of this memtable). The
+     * limit was enforced when the enclosing mutation started, so nested writes may overshoot it. Nesting is
      * identified by enterMemtableWrite() on {@link org.apache.cassandra.db.CassandraWriteContext}.
+     *
+     * @see #put(PartitionUpdate, UpdateTransaction, OpOrder.Group, boolean) for the parameters and return value
      */
-    default long putNested(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
+    default long checkSpaceAndPut(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
     {
         return put(update, indexer, opGroup, assumeMissing);
     }
 
-    default long putNested(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
+    default long checkSpaceAndPut(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
     {
-        return putNested(update, indexer, opGroup, false);
+        return checkSpaceAndPut(update, indexer, opGroup, false);
     }
 
     // Read operations are provided by the UnfilteredSource interface.
