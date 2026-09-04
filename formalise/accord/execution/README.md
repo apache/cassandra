@@ -1,3 +1,5 @@
+<!-- This entire directory has been authored by Claude -->
+
 # Accord execution queues: formal model
 
 Formal model of the wait relation induced by the per-CommandStore execution queues —
