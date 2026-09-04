@@ -27,13 +27,13 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.AbstractCompactionController;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.TimeUUID;
 
 abstract class AbstractCompactionPipeline extends CompactionInfo.Holder implements AutoCloseable {
-    // Which pipeline each compaction selected, as a delta across one compaction. Read by
-    // CompactionPipelineCounts (test), which documents why supportability alone cannot establish it.
+    // Pipeline selection counts, read only by CompactionPipelineCounts in the test tree.
     private static final LongAdder CURSOR_PIPELINES_CREATED = new LongAdder();
     private static final LongAdder ITERATOR_PIPELINES_CREATED = new LongAdder();
 
@@ -66,27 +66,70 @@ abstract class AbstractCompactionPipeline extends CompactionInfo.Holder implemen
         return new IteratorCompactionPipeline(task, type, scanners, controller, nowInSec, compactionId);
     }
 
+    final CompactionTask task;
+    long totalKeysWritten;
+    CompactionAwareWriter writer;
+
+    AbstractCompactionPipeline(CompactionTask task)
+    {
+        this.task = task;
+    }
+
+    /**
+     * The object that does the work. It owns the progress and the stop flag this pipeline reports,
+     * so a subclass must not keep a second copy of either.
+     */
+    abstract CompactionInfo.Holder delegate();
+
+    @Override
+    public CompactionInfo getCompactionInfo()
+    {
+        return delegate().getCompactionInfo();
+    }
+
+    @Override
+    public boolean isGlobal()
+    {
+        return delegate().isGlobal();
+    }
+
+    public void stop()
+    {
+        delegate().stop();
+    }
+
     abstract boolean processNextPartitionKey() throws IOException;
 
     public abstract long[] getMergedRowCounts();
 
     public abstract long getTotalSourceCQLRows();
 
-    public abstract long getTotalKeysWritten();
-
     public abstract long getTotalBytesScanned();
-
-    public abstract AutoCloseable openWriterResource(ColumnFamilyStore cfs,
-                                                     Directories directories,
-                                                     ILifecycleTransaction transaction,
-                                                     Set<SSTableReader> nonExpiredSSTables);
 
     @Override
     public abstract void close() throws IOException;
 
-    public abstract Collection<SSTableReader> finishWriting();
+    public AutoCloseable openWriterResource(ColumnFamilyStore cfs,
+                                            Directories directories,
+                                            ILifecycleTransaction transaction,
+                                            Set<SSTableReader> nonExpiredSSTables)
+    {
+        this.writer = task.getCompactionAwareWriter(cfs, directories, transaction, nonExpiredSSTables);
+        return writer;
+    }
 
-    public abstract long estimatedKeys();
+    public Collection<SSTableReader> finishWriting()
+    {
+        return writer.finish();
+    }
 
-    public abstract void stop();
+    public long estimatedKeys()
+    {
+        return writer.estimatedKeys();
+    }
+
+    public long getTotalKeysWritten()
+    {
+        return totalKeysWritten;
+    }
 }

@@ -151,6 +151,8 @@ public class InstanceConfig implements IInstanceConfig
 
                 .set("commitlog_disk_access_mode", "auto")
 
+                .set("cursor_compaction_enabled", "true")
+
                 .set("background_write_disk_access_mode", "direct")
 
                 .set("trickle_fsync", "true")

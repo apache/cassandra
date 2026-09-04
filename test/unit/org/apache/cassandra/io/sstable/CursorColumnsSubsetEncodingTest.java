@@ -41,18 +41,17 @@ import static org.junit.Assert.assertEquals;
  * {@link Columns.Serializer#serializeSubset} for every encoding form and boundary:
  *
  *  - the < 64-column missing-bitmap form;
- *  - the >= 64-column large-subset form in BOTH modes (present-index and missing-index),
- *    including the exact mode boundary presentCount == supersetCount/2 at odd and even
- *    superset sizes (a flipped mode selection at this boundary made the deserializer
- *    read the wrong mode — silent corruption);
- *  - subsets whose present columns sort AFTER the last missing column (a wrong tail-loop
- *    bound silently dropped them from the encoding).
+ *  - the >= 64-column large-subset form in both modes, present-index and missing-index;
+ *  - the mode boundary presentCount == supersetCount/2, at odd and even superset sizes. A
+ *    wrong mode here makes the deserializer read the encoding in the other mode;
+ *  - subsets whose present columns sort after the last missing column. A wrong tail-loop
+ *    bound leaves those columns out of the encoding.
  *
- * The cursor writer cannot delegate to the upstream serializer — it requires a
- * materialized Columns + iterator per call, a per-row allocation the garbage-free mandate
- * forbids — so this sweep is what keeps the hand-mirror from drifting. Every encoding is
- * also round-tripped through {@link Columns.Serializer#deserializeSubset} and compared to
- * the expected present set.
+ * The cursor writer cannot call the upstream serializer, because that call needs a materialized
+ * Columns and an iterator per row. This sweep is what holds the garbage-free mirror to the
+ * upstream bytes. It also round-trips every encoding through
+ * {@link Columns.Serializer#deserializeSubset} and compares the result to the expected present
+ * set.
  */
 public class CursorColumnsSubsetEncodingTest
 {
@@ -100,7 +99,6 @@ public class CursorColumnsSubsetEncodingTest
                                         size, missingList.size()),
                           referenceBytes.toByteArray(), cursorBytes.toByteArray());
 
-        // round-trip: the upstream deserializer must reconstruct exactly the present set
         try (DataInputBuffer in = new DataInputBuffer(cursorBytes.toByteArray()))
         {
             Columns decoded = Columns.serializer.deserializeSubset(superset, in);
@@ -122,9 +120,9 @@ public class CursorColumnsSubsetEncodingTest
             Columns superset = superset(size);
             for (int missingCount = 1; missingCount < size; missingCount++)
             {
-                // structured shapes: leading block, trailing block (present columns sorting
-                // after the last missing index — the shape a wrong tail-loop bound used to
-                // silently drop), even spread
+                // structured shapes: leading block, trailing block, even spread. The trailing
+                // block puts present columns after the last missing index, which is the case
+                // the tail loop of the present-index mode covers.
                 boolean[] leading = new boolean[size];
                 boolean[] trailing = new boolean[size];
                 boolean[] spread = new boolean[size];
@@ -138,7 +136,6 @@ public class CursorColumnsSubsetEncodingTest
                 assertEncodingMatchesReference(superset, trailing);
                 assertEncodingMatchesReference(superset, spread);
 
-                // randomized shape, seeded
                 boolean[] randomShape = new boolean[size];
                 int placed = 0;
                 while (placed < missingCount)

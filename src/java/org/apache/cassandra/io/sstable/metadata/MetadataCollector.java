@@ -288,17 +288,15 @@ public class MetadataCollector implements PartitionStatisticsCollector
     }
 
     /**
-     * Cell level stats, if we accept that LDT and LET are the same...
+     * Cell level statistics. The local-deletion-time stat covers both a cell's
+     * {@code localDeletionTime} and a liveness's {@code localExpirationTime}.
      *
-     * Mirrors {@link #update(Cell)} rather than delegating to {@link #update(LivenessInfo)}. That overload
-     * early-returns on {@link LivenessInfo#isEmpty()}, which is a ROW concept — an empty primary-key
-     * liveness contributes nothing — and applying it to a cell silently drops the timestamp, TTL and
-     * deletion-time contributions of a cell timestamped {@link LivenessInfo#NO_TIMESTAMP}.
-     * {@link #update(Cell)}, which the iterator path uses, has no such branch, so the unconditional form is
-     * the reference.
+     * Do not delegate to {@link #update(LivenessInfo)}: that overload early-returns on
+     * {@link LivenessInfo#isEmpty()}, a ROW concept, which drops the contributions of a cell
+     * timestamped {@link LivenessInfo#NO_TIMESTAMP}.
      *
-     * It does not delegate to {@link #update(Cell)} either: that method opens with its own
-     * {@code ++currentPartitionCells}, so delegating would count every cell twice.
+     * Do not delegate to {@link #update(Cell)} either: it opens with its own
+     * {@code ++currentPartitionCells}, so every cell would count twice.
      */
     public void updateCellLiveness(CellLivenessInfo newInfo)
     {

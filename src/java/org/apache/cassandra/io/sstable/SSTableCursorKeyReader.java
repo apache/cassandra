@@ -87,7 +87,7 @@ public class SSTableCursorKeyReader implements AutoCloseable
         return new SSTableCursorKeyReader(null, indexFileReader);
     }
 
-    @SuppressWarnings({ "resource", "RedundantSuppression" }) // iFile and reader are closed in the BigTableKeyReader#close method
+    @SuppressWarnings({ "resource", "RedundantSuppression" }) // iFile and reader are closed in the SSTableCursorKeyReader#close method
     public static SSTableCursorKeyReader create(FileHandle indexFile) throws IOException
     {
         FileHandle iFile = null;

@@ -21,13 +21,12 @@ package org.apache.cassandra.db.rows;
 import org.apache.cassandra.db.LivenessInfo;
 
 /**
- * A mutable {@link CellLivenessInfo}, for readers that walk cells without materializing a {@link Cell}.
+ * A mutable {@link CellLivenessInfo}, for readers that walk cells without materializing a
+ * {@link Cell}.
  *
- * Deliberately does NOT implement {@link org.apache.cassandra.db.LivenessInfo}. That is the whole point of
- * the type: it makes {@code supersedes}, {@code isEmpty}, {@code digest}, {@code validate},
- * {@code withUpdatedTimestamp} and {@code unsharedHeapSize} unreachable on cell liveness rather than merely
- * unused. All six are row-liveness operations, and {@code supersedes} in particular inverts the cell
- * reconciliation rule that prefers a tombstone to a live cell at the same timestamp.
+ * It does not implement {@link LivenessInfo}, so the row-liveness operations are unreachable
+ * rather than merely unused. {@code supersedes} is the one that matters: it inverts the cell
+ * rule, which prefers a tombstone to a live cell at the same timestamp.
  */
 public class ReusableCellLivenessInfo implements CellLivenessInfo
 {

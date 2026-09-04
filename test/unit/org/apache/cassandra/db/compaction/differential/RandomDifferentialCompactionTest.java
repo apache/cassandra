@@ -71,7 +71,7 @@ import static org.junit.Assert.assertTrue;
  * at a single timestamp — so the tie-break is reached without depending on the random draw.
  *
  * Example count is property-gated: -Dcassandra.test.differential.examples=N (default
- * {@value #DEFAULT_EXAMPLES}; the pre-JIRA validation run uses thousands).
+ * {@value #DEFAULT_EXAMPLES}; a full validation run uses thousands).
  *
  * Reproducing a failure: every failure message is wrapped in a seed; rerun with
  * -Dcassandra.test.differential.seed=N (the failing seed becomes example 0), or plug it
@@ -97,15 +97,15 @@ public class RandomDifferentialCompactionTest extends DifferentialCompactionTest
 
     /**
      * Base of the small explicit-timestamp pool, deliberately ABOVE the wall clock. CQL timestamps are
-     * MICROSECONDS since the epoch, so a pool near 1e6 is 1970 and loses on timestamp to every wall-clock
-     * write this workload makes to the same primary key — which leaves the tie-break under test unable to
-     * influence an output byte at all. Derived from the clock rather than written as a literal so it
-     * cannot silently fall behind it, and truncated to a whole day so that all runs on the same day share
+     * MICROSECONDS since the epoch, so a pool near 1e6 is 1970. Such a pool loses on timestamp to every
+     * wall-clock write this workload makes to the same primary key, which leaves the tie-break under test
+     * unable to influence an output byte at all. The expression reads the clock instead of a literal, so
+     * the base cannot silently fall behind it. It truncates to a whole day, so all runs on one day share
      * one pool and a pinned seed still reproduces the same timestamps. A year of headroom covers a long
-     * soak and a skewed clock; no guardrail rejects a future timestamp (maximum_timestamp_warn_threshold
-     * and maximum_timestamp_fail_threshold both default to null). The consequence to accept is that
-     * wall-clock DELETEs no longer shadow these rows, which is unavoidable: a tie-break can only be
-     * observed if the tied writes win.
+     * soak and a skewed clock. No guardrail rejects a future timestamp: maximum_timestamp_warn_threshold
+     * and maximum_timestamp_fail_threshold both default to null. The consequence to accept is that
+     * wall-clock DELETEs cannot shadow these rows. A tie-break can only be observed if the tied writes
+     * win.
      */
     private static final long TIE_POOL_BASE =
         TimeUnit.DAYS.toMicros(TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis()) + 365);
@@ -152,9 +152,9 @@ public class RandomDifferentialCompactionTest extends DifferentialCompactionTest
                        .withStaticColumnsBetween(0, 2)
                        .build(qtRandom);
         }
-        // Same filter production uses to route to the cursor pipeline.
-        // Also rejects invalid CQL the generator can produce: static columns require
-        // clustering columns.
+        // unsupportedMetadata is the same filter production uses to route to the cursor pipeline.
+        // The second condition rejects invalid CQL the generator can produce: static columns
+        // require clustering columns.
         while (CursorCompactor.unsupportedMetadata(metadata)
                || (metadata.clusteringColumns().isEmpty() && !metadata.staticColumns().isEmpty()));
 
@@ -167,10 +167,10 @@ public class RandomDifferentialCompactionTest extends DifferentialCompactionTest
         ColumnFamilyStore cfs = getColumnFamilyStore(KEYSPACE, metadata.name);
         cfs.disableAutoCompaction();
 
-        // ~12% of non-key values are null: cell tombstones on simple columns. The data
-        // generator maps null to an empty buffer on clustering columns (null clustering is
-        // invalid; empty is legal and exercises the empty-vs-valued clustering comparison)
-        // and never applies the domain to partition keys.
+        // ~12% of non-key values are null: cell tombstones on simple columns. The data generator
+        // maps null to an empty buffer on clustering columns, because null clustering is invalid and
+        // empty is legal. That exercises the empty-vs-valued clustering comparison. The generator
+        // never applies the domain to partition keys.
         Gen<ValueDomain> valueDomains = SourceDSL.integers().between(0, 99)
                                                  .map(i -> i < 12 ? ValueDomain.NULL : ValueDomain.NORMAL);
         Gen<ByteBuffer[]> dataGen = CassandraGenerators.data(metadata, valueDomains);
@@ -198,16 +198,16 @@ public class RandomDifferentialCompactionTest extends DifferentialCompactionTest
         int tieWinnerOffset = workload.nextInt(rounds);
 
         // One DETERMINISTIC cross-sstable same-timestamp tie per example: the same primary key written
-        // once per round with fresh values at one timestamp, so the tie-break is reached in EVERY example
-        // instead of only when the random draw happens to collide on a key. Its timestamp sits just above
-        // the pool the random workload draws from, so a pooled write that lands on the same key (low
-        // cardinality key types make that likely) loses on timestamp rather than joining the tie; and the
-        // whole pool being above the wall clock means no wall-clock write or delete can shadow it either.
-        // Never added to `rows`, so none of the delete loops below can target it.
+        // once per round with fresh values at one timestamp. The tie-break is then reached in EVERY
+        // example, instead of only when the random draw happens to collide on a key. Its timestamp sits
+        // just above the pool the random workload draws from, so a pooled write that lands on the same
+        // key loses on timestamp rather than joining the tie; low cardinality key types make such a write
+        // likely. The whole pool sits above the wall clock, so no wall-clock write or delete can shadow
+        // the tie either. The tie row never enters `rows`, so none of the delete loops below can target it.
         long tieTimestamp = TIE_POOL_BASE + TIE_POOL_WIDTH;
-        // no value domain: every tie candidate is a live cell, so the winner is decided by the value
-        // comparison alone and not by the tombstone-or-expiring-beats-live branch
-        // (Cells.java:97-98) on a NULL column
+        // no value domain: every tie candidate is a live cell, so the value comparison alone decides
+        // the winner, not the tombstone-or-expiring-beats-live branch of
+        // CellLivenessInfo.resolveSameTimestampTie on a NULL column
         Gen<ByteBuffer[]> tieDataGen = CassandraGenerators.data(metadata, null);
         ByteBuffer[] tieKey = tieDataGen.generate(qtRandom);
         List<ByteBuffer[]> tieWrites = new ArrayList<>();
@@ -219,12 +219,13 @@ public class RandomDifferentialCompactionTest extends DifferentialCompactionTest
         }
         // Spread the winners ACROSS rounds: column c's greatest bytes are arranged into round
         // (c + tieWinnerOffset) % rounds. Leaving the maxima wherever the generator put them makes the
-        // assertion below bite only by luck (a merge that kept the last writer agrees with the rule about
-        // 1/rounds of the time per column); putting them all in ONE round would instead make a merge that
-        // kept that round pass every time. Spread, no rule of the form "always keep sstable k" can agree
-        // with the real rule on a schema with two or more regular columns, and the per-example offset
-        // means it cannot agree on a single-regular-column schema either without getting lucky in every
-        // example. Drawn from `workload`, so a pinned seed still reproduces the arrangement.
+        // assertion below bite only by luck, because a merge that kept the last writer agrees with the
+        // rule about 1/rounds of the time per column. Putting them all in ONE round would instead make a
+        // merge that kept that round pass every time. With the spread, no rule of the form "always keep
+        // sstable k" can agree with the real rule on a schema with two or more regular columns. The
+        // per-example offset means such a rule cannot agree on a single-regular-column schema either
+        // without getting lucky in every example. The offset is drawn from `workload`, so a pinned seed
+        // still reproduces the arrangement.
         for (int c = 0; c < regularColumns.size(); c++)
         {
             int valueIndex = selectOrderIndex.get(regularColumns.get(c).name.toString());
@@ -245,10 +246,10 @@ public class RandomDifferentialCompactionTest extends DifferentialCompactionTest
         for (int round = 0; round < rounds; round++)
         {
             // Watermark taken at ROUND start: the explicit-timestamp branch below draws its overwrite
-            // target from `rows` BELOW this index only, i.e. from a key written in an EARLIER round.
-            // Drawing from all of `rows` — which is appended to on every iteration, including earlier
-            // iterations of this round — lets both writes land in one memtable, where the memtable
-            // reconciles them and the compactor's tie-break is never reached.
+            // target only from `rows` BELOW this index, that is, from a key written in an EARLIER round.
+            // Every iteration appends to `rows`, including earlier iterations of this round. Drawing from
+            // all of `rows` therefore lets both writes land in one memtable. The memtable reconciles them
+            // and the compactor's tie-break is never reached.
             int rowsBeforeThisRound = rows.size();
             int inserts = 15 + workload.nextInt(26); // 15-40 rows
             for (int i = 0; i < inserts; i++)
@@ -267,12 +268,12 @@ public class RandomDifferentialCompactionTest extends DifferentialCompactionTest
                 if (overwrite && rowsBeforeThisRound > 0 && workload.nextInt(100) < 40)
                 {
                     // explicit-timestamp collision candidate: re-keyed onto a row from an EARLIER round,
-                    // and stamped from a pool offset DERIVED from the primary key so that two pooled
-                    // writes to one key land on the SAME timestamp rather than merely being ordered by it.
-                    // The pair that ties is two pooled writes; the earlier-round target only guarantees
-                    // this write is in a later sstable than the row it re-keys onto, which is what lets a
-                    // tie form across sstables instead of inside one memtable. Guaranteed coverage comes
-                    // from the designated tie below, not from this draw.
+                    // and stamped from a pool offset DERIVED from the primary key. Two pooled writes to
+                    // one key therefore land on the SAME timestamp, rather than merely being ordered by
+                    // it. The pair that ties is two pooled writes. The earlier-round target only
+                    // guarantees this write lands in a later sstable than the row it re-keys onto, which
+                    // is what lets a tie form across sstables instead of inside one memtable. Guaranteed
+                    // coverage comes from the designated tie below, not from this draw.
                     ByteBuffer[] prev = rows.get(workload.nextInt(rowsBeforeThisRound));
                     System.arraycopy(prev, 0, row, 0, primaryColumnCount);
                     long ts = TIE_POOL_BASE + Math.floorMod(primaryKeyHash(row, primaryColumnCount), TIE_POOL_WIDTH);
@@ -363,13 +364,13 @@ public class RandomDifferentialCompactionTest extends DifferentialCompactionTest
 
         assertCursorMatchesIterator(cfs);
 
-        // The tie candidates must be in DIFFERENT sstables: two writes to one key inside a single
-        // memtable are reconciled by the memtable and the compactor's tie-break is never reached. One tie
-        // write per round and one flush per round makes that structural, and the input count observes the
-        // flush half of it: autocompaction is off and an auto-flush can only ADD sstables, so moving the
-        // per-round flush to after the round loop fails here. (Dropping the flush outright fails earlier,
-        // in compactPath's "scenario produced no input sstables"; and hoisting the tie write out of the
-        // round loop is caught by the per-column assertion below, not by this one.)
+        // The tie candidates must be in DIFFERENT sstables. A memtable reconciles two writes to one key
+        // itself, so the compactor's tie-break is never reached inside one memtable. One tie write per
+        // round and one flush per round makes that structural. This assertion observes the flush half of
+        // it: autocompaction is off and an auto-flush can only ADD sstables, so moving the per-round flush
+        // to after the round loop fails here. Dropping the flush outright fails earlier, in compactPath's
+        // "scenario produced no input sstables". Hoisting the tie write out of the round loop is caught by
+        // the per-column assertion below, not by this one.
         int inputSSTables = cfs.getLiveSSTables().size();
         assertTrue("one flush per round must leave one input sstable per round, got " + inputSSTables +
                    " for " + rounds + " rounds", inputSSTables >= rounds);
@@ -382,15 +383,24 @@ public class RandomDifferentialCompactionTest extends DifferentialCompactionTest
         assertEquals("the designated tie row must survive compaction: it is written above the wall clock, " +
                      "so no wall-clock write or delete in this example can shadow it", 1, tieResult.size());
         UntypedResultSet.Row survivor = tieResult.one();
-        // ABSOLUTE, per column: at equal timestamps the GREATER raw value bytes win (the last rule of
-        // resolveRegular). Every candidate is a live cell and every regular column is a simple one —
-        // unsupportedMetadata refuses complex columns — so the rule reduces to an unsigned byte compare.
-        // The winners were arranged into different rounds per column, so a merge that resolved this tie by
-        // write order fails on any column whose candidate values are not all equal — a low-cardinality
-        // column type can make them equal, which costs an example rather than producing a false failure.
-        // Byte equality between the two paths cannot see a rule they both get wrong.
+        // For a simple column, the cell with the greater value bytes wins a tie of equal
+        // timestamps. This is the last rule of resolveRegular, and it is an unsigned comparison of
+        // the whole value.
+        //
+        // The loop below skips the complex columns. A tie on a complex column resolves separately
+        // for each cell path, and the result holds the paths of both writes. It does not compare the
+        // whole value of one write against the whole value of the other, which is the only rule this
+        // test models. The EdgeCase and Pathological tests cover ties on complex columns.
+        //
+        // The arrangement loop above put each column's winner in a different round, so a merge that
+        // resolved this tie by write order fails on any column whose candidate values are not all
+        // equal. A low-cardinality column type can make them equal, which costs an example rather
+        // than producing a false failure. Byte equality between the two paths cannot see a rule they
+        // both get wrong.
         for (ColumnMetadata col : regularColumns)
         {
+            if (col.isComplex())
+                continue;
             int valueIndex = selectOrderIndex.get(col.name.toString());
             ByteBuffer expected = tieWrites.get(0)[valueIndex];
             for (ByteBuffer[] candidate : tieWrites)

@@ -113,7 +113,6 @@ public class ClusteringDescriptor extends ResizableByteBuffer
         this.clusteringColumnsBound = clusteringColumnsBound;
     }
 
-    // Expose and rename parent data
     public final ByteBuffer clusteringBuffer() {
         return buffer();
     }

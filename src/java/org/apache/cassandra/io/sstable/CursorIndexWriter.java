@@ -25,23 +25,17 @@ import org.apache.cassandra.db.DeletionTime;
 /**
  * Format-specific partition/row index production for {@link SSTableCursorWriter}.
  *
- * The seam is EVENT-shaped because {@link UnfilteredDescriptor}s are transient (reused per
- * row): implementations that need block-boundary clusterings must capture them at
- * {@link #rowWritten} time, or take them from a descriptor the write side owns, rather than
- * expecting one to still exist at a block boundary. The cursor writer owns all data-file
- * serialization and the open range-tombstone marker; implementations own everything about
- * their index format (BIG: promoted index blocks + Index.db entries + bloom filter/summary;
- * other formats own their own index structures accordingly).
+ * An {@link UnfilteredDescriptor} stays valid only during its own row. An implementation that
+ * needs a clustering at a block boundary must copy that clustering during {@link #rowWritten}.
+ *
+ * The cursor writer owns data-file serialization and the open range-tombstone marker. An
+ * implementation owns its index format.
  */
 public abstract class CursorIndexWriter
 {
     protected long partitionStart;
-    // Offset within the current partition where the current index block begins. MUST be a
-    // long, like the reference SortedTablePartitionWriter.indexBlockStartOffset: partitions
-    // can exceed 2GiB, and an int here wraps negative past Integer.MAX_VALUE — the block-cut
-    // arithmetic then cuts every row and the serialized offsets corrupt the promoted index
-    // (pinned by CursorIndexWriterOffsetWidthTest, and exercised at scale by the giant-partition
-    // boundary run, ck_stride = rows_per_sstable).
+    // Offset of the current index block from the start of the current partition. Keep this a
+    // long: a partition can exceed 2GiB. CursorIndexWriterOffsetWidthTest pins the width.
     protected long indexBlockStartOffset;
 
     public final void startPartition(long partitionStartPosition, long positionAfterHeader)
@@ -51,7 +45,7 @@ public abstract class CursorIndexWriter
         notePosition(positionAfterHeader);
     }
 
-    /** Static rows reset the block clock without participating in row index blocks. */
+    /** No row index block holds a static row. The next block still starts at {@code position}. */
     public final void staticRowWritten(long position)
     {
         notePosition(position);
@@ -72,23 +66,25 @@ public abstract class CursorIndexWriter
         return position - partitionStart;
     }
 
-    /** Clear per-partition state. Called by {@link #startPartition}. */
+    /** Clear per-partition state. */
     protected abstract void reset();
 
     /**
-     * A non-static row or range tombstone marker was written to [rowStart, rowEnd).
-     * The descriptor's clustering describes it; openMarker is the range deletion open at
-     * the END of this unfiltered (LIVE if none).
+     * The writer wrote a non-static row or a range tombstone marker to [rowStart, rowEnd).
+     *
+     * @param openMarker the range deletion open at the end of this unfiltered, or
+     *                   {@link DeletionTime#LIVE} if no range deletion is open.
      */
     public abstract void rowWritten(UnfilteredDescriptor descriptor, long rowStart, long rowEnd,
                                     DeletionTime openMarker) throws IOException;
 
     /**
-     * The partition (including its end-of-partition marker) ends at partitionEnd.
+     * The partition ends at partitionEnd, which includes the end-of-partition marker.
      *
-     * @param lastName the clustering of the last non-static unfiltered written to this partition, which a
-     *                 trailing index block needs as its last name; null if the partition wrote none, in which
-     *                 case there is no trailing block to cut.
+     * @param lastName the clustering of the last non-static unfiltered in this partition. A
+     *                 trailing index block uses it as the block's last name. Null if the
+     *                 partition wrote no non-static unfiltered, which leaves no trailing block
+     *                 to cut.
      */
     public abstract void endPartition(byte[] key, int keyLength, int headerLength,
                                       DeletionTime partitionDeletionTime, long partitionEnd,
