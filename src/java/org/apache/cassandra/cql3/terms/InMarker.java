@@ -33,6 +33,7 @@ import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MultiElementType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -77,7 +78,15 @@ public final class InMarker extends Terms.NonTerminals
                                       ListType<T> type,
                                       java.util.function.Function<ByteBuffer, Term.Terminal> terminalConverter)
     {
-        List<T> elements = type.getSerializer().deserialize(value, ByteBufferAccessor.instance);
+        List<T> elements;
+        try
+        {
+            elements = type.getSerializer().deserialize(value, ByteBufferAccessor.instance);
+        }
+        catch (MarshalException e)
+        {
+            throw new InvalidRequestException(e.getMessage());
+        }
         List<Term.Terminal> terminals = new ArrayList<>(elements.size());
         for (T element : elements)
         {
