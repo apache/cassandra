@@ -75,6 +75,9 @@ public class ClearSnapshotTest extends TestBaseImpl
             {
                 String ksname = "ks"+i;
                 Thread t = new Thread(() -> cluster.get(1).nodetoolResult("repair", "-full", ksname).asserts().success());
+                // daemon, so that a failure before the join() below cannot leave a non-daemon thread holding the JVM
+                // open (which ant reports as a crashed suite rather than as this test failing)
+                t.setDaemon(true);
                 t.start();
                 repairThreads.add(t);
             }
@@ -97,29 +100,46 @@ public class ClearSnapshotTest extends TestBaseImpl
                 }
             });
 
+            reads.setDaemon(true);
             reads.start();
-            long activeRepairs;
-            do
+            try
             {
-                activeRepairs = cluster.get(1).callOnInstance(() -> ActiveRepairService.instance().parentRepairSessionCount());
-                Thread.sleep(50);
-            }
-            while (activeRepairs < 10);
+                // NOTE: BB.install below is a no-op on trunk - Directories.snapshotExists was removed by
+                // "Consolidate all snapshot management to SnapshotManager", and snapshot clearing is now performed
+                // asynchronously on ActiveRepairService.snapshotExecutor *after* the parent session has been removed,
+                // so nothing slows a repair down here any more. Without the slow-down the twenty repairs can all
+                // complete before we sample, and this loop used to spin forever; bound it so we fail with a diagnostic
+                // instead of hanging the whole JVM (which ant reports as a crashed suite).
+                long activeRepairs;
+                long deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(2);
+                do
+                {
+                    activeRepairs = cluster.get(1).callOnInstance(() -> ActiveRepairService.instance().parentRepairSessionCount());
+                    if (System.nanoTime() - deadline >= 0)
+                        throw new AssertionError("Timed out waiting for 10 concurrent parent repair sessions; saw " + activeRepairs +
+                                                 ". The injected slow-down for snapshot clearing is no longer effective.");
+                    Thread.sleep(50);
+                }
+                while (activeRepairs < 10);
 
-            cluster.setUncaughtExceptionsFilter((t) -> t.getMessage() != null && t.getMessage().contains("Parent repair session with id") );
-            cluster.get(2).shutdown().get();
-            repairThreads.forEach(t -> {
-                try
-                {
-                    t.join();
-                }
-                catch (InterruptedException e)
-                {
-                    throw new RuntimeException(e);
-                }
-            });
-            exit.set(true);
-            reads.join();
+                cluster.setUncaughtExceptionsFilter((t) -> t.getMessage() != null && t.getMessage().contains("Parent repair session with id") );
+                cluster.get(2).shutdown().get();
+                repairThreads.forEach(t -> {
+                    try
+                    {
+                        t.join();
+                    }
+                    catch (InterruptedException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                });
+            }
+            finally
+            {
+                exit.set(true);
+                reads.join(TimeUnit.MINUTES.toMillis(1));
+            }
 
             assertFalse(gotExc.get());
         }

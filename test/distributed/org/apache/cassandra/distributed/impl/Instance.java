@@ -103,6 +103,7 @@ import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbe;
 import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbeFactory;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
+import org.apache.cassandra.distributed.shared.InstanceClassLoader;
 import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.distributed.shared.ThrowingRunnable;
 import org.apache.cassandra.distributed.test.log.TestProcessor;
@@ -1023,6 +1024,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     AccordService.unsafeInstance().shutdownAndWait(1L, MINUTES);
             });
 
+            // AutoRepair must stop before ActiveRepairService and before the commit log: it submits repairs, and its
+            // scheduler thread writes repair history when one completes, so shutting these down concurrently either
+            // leaves the scheduler running or blocks it forever on the commit log
+            error = parallelRun(error, executor, () -> AutoRepair.instance.shutdownBlocking(1L, MINUTES));
+
             error = parallelRun(error, executor,
                                 shutdownBatchlogAndHints,
                                 () -> CompactionLogger.shutdownNowAndWait(1L, MINUTES),
@@ -1043,14 +1049,14 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> SSTableReader.shutdownBlocking(1L, MINUTES),
                                 () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor())),
                                 () -> ActiveRepairService.instance().shutdownNowAndWait(1L, MINUTES),
-                                () -> AutoRepair.instance.shutdownBlocking(),
                                 () -> EpochAwareDebounce.instance.close(),
                                 SnapshotManager.instance::close,
                                 () -> IndexStatusManager.instance.shutdownAndWait(1L, MINUTES),
                                 DiskErrorsHandlerService::close,
                                 () -> ThreadLocalMetrics.shutdownCleaner(1L, MINUTES),
                                 () -> JavaBasedUDFunction.shutdownAndWait(1L, MINUTES),
-                                () -> PerSSTableIndexWriter.shutdownAndWait(1L, MINUTES)
+                                () -> PerSSTableIndexWriter.shutdownAndWait(1L, MINUTES),
+                                () -> shutdownJVectorPhysicalCoreExecutor(1L, MINUTES)
             );
 
             internodeMessagingStarted = false;
@@ -1058,10 +1064,15 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             error = parallelRun(error, executor, () -> ScheduledExecutors.shutdownNowAndWait(1L, MINUTES));
             error = parallelRun(error, executor,
                                 // can only shutdown message once, so if the test shutsdown an instance, then ignore the failure
-                                (IgnoreThrowingRunnable) () -> MessagingService.instance().shutdown(1L, MINUTES, shutdownMessagingGracefully, config.has(NETWORK))
+                                // NOTE: the executors must be shut down whether or not NETWORK is enabled: SocketFactory
+                                // (and hence its Streaming-EventLoop group) is created unconditionally, and streaming -
+                                // e.g. for repair - uses it even when internode messaging is being mocked
+                                (IgnoreThrowingRunnable) () -> MessagingService.instance().shutdown(1L, MINUTES, shutdownMessagingGracefully, true)
             );
             error = parallelRun(error, executor,
-                                () -> { if (config.has(NETWORK)) { try { GlobalEventExecutor.INSTANCE.awaitInactivity(1L, MINUTES); } catch (IllegalStateException ignore) {} } },
+                                // as with the socket factory above, GlobalEventExecutor is created (and its non-daemon
+                                // thread started) whether or not NETWORK is enabled
+                                () -> { try { GlobalEventExecutor.INSTANCE.awaitInactivity(1L, MINUTES); } catch (IllegalStateException ignore) {} },
                                 () -> Stage.shutdownAndWait(1L, MINUTES),
                                 () -> SharedExecutorPool.SHARED.shutdownAndWait(1L, MINUTES)
             );
@@ -1106,7 +1117,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 future.get();
                 List<Thread> alive = awaitInstanceThreadsExit(Thread.currentThread().getThreadGroup(), 10, TimeUnit.SECONDS);
                 Invariants.expect(alive.isEmpty() || CassandraRelevantProperties.DTEST_IGNORE_SHUTDOWN_THREADCOUNT.getBoolean(),
-                                  "Instance %d did not terminate %d of its threads: %s", config.num(), alive.size(), alive);
+                                  "Instance %d did not terminate %d of its threads: %s", config.num(), alive.size(), describe(alive));
                 return null;
             }
             finally
@@ -1118,6 +1129,22 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         });
     }
 
+    /**
+     * The names of the supplied threads, each with its stack, so that a leak report says enough to fix the leak.
+     */
+    private static String describe(List<Thread> threads)
+    {
+        StringBuilder sb = new StringBuilder();
+        for (Thread thread : threads)
+        {
+            sb.append("\n  ").append(thread.getName()).append(" (group ")
+              .append(thread.getThreadGroup() == null ? "null" : thread.getThreadGroup().getName()).append(')');
+            for (StackTraceElement ste : thread.getStackTrace())
+                sb.append("\n\tat ").append(ste);
+        }
+        return sb.toString();
+    }
+
     // excludes the calling group's threads, and includes all other threads of the group's parents
     // parameter is expected to be the isolatedExecutor group, which is a direct child of the instance's group
     private List<Thread> awaitInstanceThreadsExit(ThreadGroup group, long timeout, TimeUnit unit)
@@ -1125,8 +1152,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         ThreadGroup parent = group.getParent();
         Thread[] threads = new Thread[parent.activeCount() + 16];
         long deadline = System.nanoTime() + unit.toNanos(timeout);
-        int count;
-        do
+        List<Thread> alive;
+        while (true)
         {
             int inCount = parent.enumerate(threads, true);
             while (inCount == threads.length)
@@ -1135,24 +1162,85 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 inCount = parent.enumerate(threads, true);
             }
 
-            count = 0;
+            alive = new ArrayList<>();
             for (int i = 0 ; i < inCount ; ++i)
             {
                 Thread thread = threads[i];
                 if (thread.getThreadGroup() == group || !thread.isAlive())
                     continue;
 
-                threads[count++] = thread;
+                // we cannot be certain that {@code parent} is this instance's group (the isolatedExecutor's group is
+                // created by whoever first grew the pool, and if a test replaces the default instance initializer
+                // there is no per-instance ExecutorFactory at all, in which case every thread lands in the root
+                // group) - so never blame a thread that demonstrably belongs to a different instance
+                ClassLoader contextClassLoader = thread.getContextClassLoader();
+                if (contextClassLoader != classLoader && contextClassLoader instanceof InstanceClassLoader)
+                    continue;
+
+                alive.add(thread);
             }
 
-            if (count == 0)
-                return Collections.emptyList();
+            if (alive.isEmpty() || System.nanoTime() - deadline >= 0)
+                return alive;
 
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
         }
-        while (System.nanoTime() < deadline);
+    }
 
-        return Arrays.asList(Arrays.copyOf(threads, count));
+    /**
+     * jvector's {@code PhysicalCoreExecutor} is a static singleton wrapping a {@link java.util.concurrent.ForkJoinPool}
+     * and exposes no way to stop it, so - as one static per instance class loader - its workers outlive the instance
+     * and keep its class loader reachable. Stop it reflectively.
+     * <p>
+     * Only do so if it has already been initialised: merely reading the singleton would run the class initialiser and
+     * create the very pool we are trying to get rid of. Live ForkJoinPool workers in our own thread group are the
+     * observable proxy for "has been initialised", and are also precisely the case we care about.
+     */
+    private void shutdownJVectorPhysicalCoreExecutor(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
+    {
+        if (!hasLiveForkJoinWorker())
+            return;
+
+        try
+        {
+            Class<?> clazz = classLoader.loadClass("io.github.jbellis.jvector.util.PhysicalCoreExecutor");
+            Object singleton = clazz.getField("instance").get(null);
+            java.lang.reflect.Field poolField = clazz.getDeclaredField("pool");
+            poolField.setAccessible(true);
+            ExecutorUtils.shutdownNowAndWait(timeout, unit, poolField.get(singleton));
+        }
+        catch (ClassNotFoundException | NoSuchFieldException | IllegalAccessException | RuntimeException e)
+        {
+            // jvector is not on the classpath, or its internals have changed; nothing we can do from here
+            if (inInstancelogger != null)
+                inInstancelogger.warn("Unable to shut down jvector's PhysicalCoreExecutor", e);
+        }
+    }
+
+    private boolean hasLiveForkJoinWorker()
+    {
+        // NOTE: cannot be identified by class loader - since JDK9 ForkJoinPool's default worker factory sets the
+        // worker's context class loader to the *system* loader, precisely so that pools do not pin the loader that
+        // created them. The thread group is what ties them to this instance.
+        ThreadGroup group = Thread.currentThread().getThreadGroup();
+        ThreadGroup parent = group.getParent();
+        if (parent == null)
+            return false;
+
+        Thread[] threads = new Thread[parent.activeCount() + 64];
+        int count = parent.enumerate(threads, true);
+        while (count == threads.length)
+        {
+            threads = new Thread[count * 2];
+            count = parent.enumerate(threads, true);
+        }
+        for (int i = 0 ; i < count ; ++i)
+        {
+            Thread thread = threads[i];
+            if (thread.isAlive() && thread.getName().startsWith("ForkJoinPool-"))
+                return true;
+        }
+        return false;
     }
 
     private void withThreadLeakCheck()

@@ -119,6 +119,21 @@ import static org.junit.Assert.fail;
 public abstract class AccordCQLTestBase extends AccordTestBase
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCQLTestBase.class);
+
+    /**
+     * A pool for driving concurrent requests from a test. Daemon threads, so that leaving one running (because the
+     * test failed before it could be shut down) cannot stop the JUnit JVM from exiting - the shape that makes ant
+     * report "Forked Java VM exited abnormally" for the whole suite rather than the failing method.
+     */
+    private static ExecutorService newDaemonExecutor()
+    {
+        return Executors.newCachedThreadPool(runnable -> {
+            Thread thread = new Thread(runnable, "accord-cql-test");
+            thread.setDaemon(true);
+            return thread;
+        });
+    }
+
     private final int maxConcurrency;
 
     protected AccordCQLTestBase(TransactionalMode transactionalMode)
@@ -3350,7 +3365,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                  coordinator.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, count, seq1, seq2) VALUES (1, 0, '', []) USING TIMESTAMP 0", ConsistencyLevel.ALL);
 
                  ListType<Integer> LIST_TYPE = ListType.getInstance(Int32Type.instance, true);
-                 ExecutorService es = Executors.newCachedThreadPool();
+                 ExecutorService es = newDaemonExecutor();
                  List<Future<Object[][]>> futures = new ArrayList<>();
                  for (int ii = 0; ii < 10; ii++)
                  {
@@ -3370,6 +3385,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                 int[] seq2 = ((ArrayList<Integer>) result[0][3]).stream().mapToInt(x -> x).toArray();
                 logger.info("String append of ids executed {}", Arrays.toString(seq1));
                 logger.info("List append of ids executed {}", Arrays.toString(seq2));
+                es.shutdownNow();
                 assertArrayEquals("History doesn't match between the two columns", seq1, seq2);
              });
     }
@@ -3384,7 +3400,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                  coordinator.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, count, seq1, seq2) VALUES (1, 0, '', []) USING TIMESTAMP 0", ConsistencyLevel.ALL);
 
                  ListType<Integer> LIST_TYPE = ListType.getInstance(Int32Type.instance, true);
-                 ExecutorService es = Executors.newCachedThreadPool();
+                 ExecutorService es = newDaemonExecutor();
                  List<Future<SimpleQueryResult>> futures = new ArrayList<>();
                  for (int ii = 0; ii < 10; ii++)
                  {
@@ -3410,6 +3426,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                  int[] seq2 = ((ArrayList<Integer>) result[0][3]).stream().mapToInt(x -> x).toArray();
                  logger.info("String append of ids executed {}", Arrays.toString(seq1));
                  logger.info("List append of ids executed {}", Arrays.toString(seq2));
+                 es.shutdownNow();
                  assertArrayEquals("History doesn't match between the two columns", seq1, seq2);
              }
         );
@@ -3425,7 +3442,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                  coordinator.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, count) VALUES (1, 0) USING TIMESTAMP 0", ConsistencyLevel.ALL);
 
                  ListType<Integer> LIST_TYPE = ListType.getInstance(Int32Type.instance, true);
-                 ExecutorService es = Executors.newCachedThreadPool();
+                 ExecutorService es = newDaemonExecutor();
                  ArrayDeque<Future<SimpleQueryResult>> futures = new ArrayDeque<>();
                  int success = 0, unknown = 0;
                  for (int ii = 0; ii < 10000; ii++)
@@ -3470,6 +3487,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                                 "COMMIT TRANSACTION";
 
                  Object[][] result = coordinator.execute(check, ConsistencyLevel.ALL);
+                 es.shutdownNow();
                  int actual = (int) result[0][1];
                  assertTrue(actual >= success);
                  assertTrue(actual <= success + unknown);

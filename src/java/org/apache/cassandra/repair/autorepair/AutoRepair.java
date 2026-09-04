@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -55,6 +56,7 @@ import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -294,6 +296,13 @@ public class AutoRepair
         {
             try
             {
+                if (isShutDown)
+                {
+                    logger.info("AutoRepair is shutting down, abandoning the remaining {} repair assignment(s) for {}",
+                                totalRepairAssignments - totalProcessedAssignments, keyspaceName);
+                    repairState.setRepairInProgress(false);
+                    return;
+                }
                 totalProcessedAssignments++;
                 boolean repairOneTableAtATime = !config.getRepairByKeyspace(repairType);
                 if (previousAssignment != null && repairOneTableAtATime && !previousAssignment.tableNames.equals(curRepairAssignment.tableNames))
@@ -357,6 +366,13 @@ public class AutoRepair
                         }
                         if (success)
                         {
+                            break;
+                        }
+                        else if (isShutDown)
+                        {
+                            f.cancel(true);
+                            logger.info("AutoRepair is shutting down, not retrying repair for range {}-{}",
+                                        tokenRange.left, tokenRange.right);
                             break;
                         }
                         else if (retryCount < config.getRepairMaxRetries(repairType))
@@ -627,7 +643,28 @@ public class AutoRepair
         }
     }
 
-    public synchronized void shutdownBlocking() throws ExecutionException, InterruptedException
+    public void shutdownBlocking() throws ExecutionException, InterruptedException
+    {
+        try
+        {
+            shutdownBlocking(1L, TimeUnit.MINUTES);
+        }
+        catch (TimeoutException e)
+        {
+            throw new ExecutionException(e);
+        }
+    }
+
+    /**
+     * Stop scheduling repairs, interrupt any repair that is presently running, and wait for the executors to
+     * terminate.
+     * <p>
+     * This must actually wait: an in-flight repair otherwise keeps running against subsystems that are being shut
+     * down around it (the commit log in particular, since {@code AutoRepairUtils.updateFinishAutoRepairHistory} is a
+     * write), where it blocks indefinitely in {@code awaitAvailableSegment}; and in jvm-dtests it keeps the
+     * instance's threads - and hence its class loader - alive past {@code Instance.shutdown}.
+     */
+    public synchronized void shutdownBlocking(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
         if (!isSetupDone)
         {
@@ -639,12 +676,16 @@ public class AutoRepair
         {
             throw new IllegalStateException("AutoRepair has already been shut down");
         }
+        // set before shutting the executors down, so that a repair that is presently running notices and stops at
+        // the next assignment boundary rather than working through every remaining assignment
         isShutDown = true;
+        List<ScheduledExecutorPlus> executors = new ArrayList<>();
         for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
         {
-            repairRunnableExecutors.get(repairType).shutdown();
-            repairExecutors.get(repairType).shutdown();
+            executors.add(repairRunnableExecutors.get(repairType));
+            executors.add(repairExecutors.get(repairType));
         }
+        ExecutorUtils.shutdownNowAndWait(timeout, unit, executors);
         logger.info("Paused AutoRepair");
     }
 

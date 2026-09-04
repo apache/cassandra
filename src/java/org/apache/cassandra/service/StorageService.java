@@ -3953,6 +3953,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // we don't want to start any new compactions while we are draining
             disableAutoCompaction();
 
+            // AutoRepair has to stop before the flushes below and, above all, before CommitLog.shutdownBlocking():
+            // an in-flight repair writes to system_distributed.auto_repair_history when it completes, and once the
+            // commit log is shut down that write blocks forever in awaitAvailableSegment
+            AutoRepair.instance.shutdownBlocking();
+
             // count CFs first, since forceFlush could block for the flushWriter to get a queue slot empty
             totalCFs = 0;
             for (Keyspace keyspace : Keyspace.nonLocalStrategy())
@@ -4010,8 +4015,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             CommitLog.instance.forceRecycleAllSegments();
 
             CommitLog.instance.shutdownBlocking();
-
-            AutoRepair.instance.shutdownBlocking();
 
             // wait for miscellaneous tasks like sstable and commitlog segment deletion
             ColumnFamilyStore.shutdownPostFlushExecutor();
