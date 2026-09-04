@@ -174,14 +174,17 @@ public class KeyspaceMigrationInfo
                                                             @Nonnull TableId tableId,
                                                             @Nonnull Collection<Range<Token>> repairedRanges)
     {
-        if (repairStartedEpoch.isBefore(startedAtEpoch))
-            return this;
+        // TODO (expected): do something about this? nuke or serialize the correct epoch alongised the transformation?
+        //      this was dead code; repairStartedEpoch as passed was always next transformation's epoch,
+        //      and it was always > startedAtEpoch, guarding against nothing;
+        //      there is an epoch eligibility check in MutationTrackingRepairHandler in onSuccess(), but it is
+        //      insufficient in face of potential race conditions (AY)
+        // if (repairStartedEpoch.isBefore(startedAtEpoch))
+        //    return this;
 
         NormalizedRanges<Token> currentPendingForTable = pendingRangesPerTable.get(tableId);
         if (currentPendingForTable == null)
-        {
             return this;
-        }
 
         NormalizedRanges<Token> normalizedRepaired = NormalizedRanges.normalizedRanges(repairedRanges);
         NormalizedRanges<Token> remainingForTable = currentPendingForTable.subtract(normalizedRepaired);

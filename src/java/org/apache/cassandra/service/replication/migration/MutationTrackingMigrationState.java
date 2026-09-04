@@ -177,8 +177,10 @@ public class MutationTrackingMigrationState implements MetadataValue<MutationTra
         if (info == null)
             return this;
 
-        // Subtract repaired ranges from table's pending set
+        // subtract repaired ranges from table's pending set; noop is nothing's changed
         KeyspaceMigrationInfo updated = info.withRangesRepairedForTable(epoch, tableId, repairedRanges);
+        if (info == updated)
+            return this;
 
         // if all tables fully repaired, remove keyspace (migration complete)
         if (updated.isComplete())

@@ -23,9 +23,6 @@ import java.util.Collection;
 
 import javax.annotation.Nonnull;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -57,7 +54,6 @@ import static org.apache.cassandra.utils.CollectionSerializers.serializedCollect
  */
 public class AdvanceMutationTrackingMigration implements Transformation
 {
-    private static final Logger logger = LoggerFactory.getLogger(AdvanceMutationTrackingMigration.class);
     public static final Serializer serializer = new Serializer();
 
     @Nonnull
@@ -94,10 +90,7 @@ public class AdvanceMutationTrackingMigration implements Transformation
         KeyspaceMigrationInfo ksInfo = prev.mutationTrackingMigrationState.getKeyspaceInfo(keyspace);
 
         if (ksInfo == null)
-        {
-            logger.warn("Attempted to advance mutation tracking migration for keyspace {} table {} which is not migrating", keyspace, tableId);
             return new Rejected(INVALID, String.format("Keyspace %s is not migrating", keyspace));
-        }
 
         Transformer transformer = prev.transformer();
 
@@ -105,12 +98,25 @@ public class AdvanceMutationTrackingMigration implements Transformation
         MutationTrackingMigrationState newState = prev.mutationTrackingMigrationState
             .withRangesRepairedForTable(keyspace, tableId, repairedRanges, transformer.epoch());
 
-        logger.info("Advanced mutation tracking migration for keyspace {}, table {}: {} ranges repaired",
-                   keyspace, tableId, repairedRanges.size());
+        if (newState == prev.mutationTrackingMigrationState)
+        {
+            return new Rejected(INVALID, String.format("Keyspace %s table %s has no pending ranges intersecting %s",
+                                                       keyspace, tableId, repairedRanges));
+        }
 
         return Transformation.success(
             transformer.with(newState),
             LockedRanges.AffectedRanges.EMPTY);
+    }
+
+    @Override
+    public String toString()
+    {
+        return "AdvanceMutationTrackingMigration{" +
+               "keyspace='" + keyspace + '\'' +
+               ", tableId=" + tableId +
+               ", repairedRanges=" + repairedRanges +
+               '}';
     }
 
     public static class Serializer implements AsymmetricMetadataSerializer<Transformation, AdvanceMutationTrackingMigration>

@@ -63,8 +63,8 @@ public class MutationTrackingRepairHandler
 
                     if (migrationInfo == null)
                     {
-                        logger.info("Repair session {} (parent session {}) completed for {}.{} but the keyspace is not migrating, not advancing mutation tracking migration",
-                                    desc.sessionId, desc.parentSessionId, keyspace, tableName);
+                        logger.debug("Repair session {} (parent session {}) completed for {}.{} but the keyspace is not migrating, not advancing mutation tracking migration",
+                                     desc.sessionId, desc.parentSessionId, keyspace, tableName);
                         return;
                     }
 
@@ -78,10 +78,13 @@ public class MutationTrackingRepairHandler
                         return;
                     }
 
-                    if (migrationInfo.getPendingRangesForTable(tableMetadata.id).isEmpty())
+                    NormalizedRanges<Token> pendingRanges = migrationInfo.getPendingRangesForTable(tableMetadata.id);
+                    NormalizedRanges<Token> repairedPendingRanges = pendingRanges.intersection(NormalizedRanges.normalizedRanges(repairedRanges));
+
+                    if (repairedPendingRanges.isEmpty())
                     {
-                        logger.info("Repair session {} (parent session {}) completed for {}.{} but the table has no ranges left to migrate, not advancing mutation tracking migration",
-                                    desc.sessionId, desc.parentSessionId, keyspace, tableName);
+                        logger.info("Repair session {} (parent session {}) completed for {}.{} but none of the repaired ranges {} are still pending migration (pending: {}), not advancing mutation tracking migration",
+                                    desc.sessionId, desc.parentSessionId, keyspace, tableName, repairedRanges, pendingRanges);
                         return;
                     }
 
@@ -104,7 +107,17 @@ public class MutationTrackingRepairHandler
                     }
 
                     ClusterMetadata committed = ClusterMetadataService.instance().commit(
-                        new AdvanceMutationTrackingMigration(keyspace, tableMetadata.id, repairedRanges));
+                        new AdvanceMutationTrackingMigration(keyspace, tableMetadata.id, repairedPendingRanges),
+                        ignore -> ignore,
+                        (code, message) ->
+                        {
+                            logger.info("Repair session {} (parent session {}) did not advance mutation tracking migration of {}.{}: {} ({})",
+                                        desc.sessionId, desc.parentSessionId, keyspace, tableName, message, code);
+                            return null;
+                        });
+
+                    if (committed == null)
+                        return;
 
                     // Report from the metadata commit returned, not current(), which races with other epochs
                     KeyspaceMigrationInfo advanced = committed.mutationTrackingMigrationState.getKeyspaceInfo(keyspace);
@@ -119,7 +132,7 @@ public class MutationTrackingRepairHandler
                                 "contributed {} range(s) {}; {} range(s) remain to be repaired {}; {} range(s) already repaired {}; " +
                                 "{} table(s) in the keyspace still migrating",
                                 desc.sessionId, desc.parentSessionId, keyspace, tableName, committed.epoch,
-                                repairedRanges.size(), repairedRanges,
+                                repairedPendingRanges.size(), repairedPendingRanges,
                                 pending.size(), pending,
                                 repaired.size(), repaired,
                                 keyspaceComplete ? 0 : advanced.pendingRangesPerTable.size());
