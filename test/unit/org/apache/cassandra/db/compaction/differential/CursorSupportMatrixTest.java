@@ -45,12 +45,10 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * Pins the cursor compaction support matrix.
- *
- * Each increment of the cursor completion work flips
- * its row here from unsupported to supported. A change in the gate's semantics — whether it decides on the
- * schema, on an input sstable's header, or on the compaction the controller describes — that silently
- * widens or narrows the fallback becomes a test failure instead of a silently different code path in
- * production.
+ * <p>
+ * The gate decides on three inputs: the schema, an input sstable's header, and the compaction the
+ * controller describes. A change in its semantics that widens or narrows the fallback fails a test
+ * here, instead of taking a different code path in production.
  */
 public class CursorSupportMatrixTest extends CQLTester
 {
@@ -109,7 +107,6 @@ public class CursorSupportMatrixTest extends CQLTester
         assertSupported("CREATE TABLE %s (pk bigint, ck frozen<" + udt + ">, v text, PRIMARY KEY (pk, ck))");
     }
 
-    /** Frozen UDT as (part of) the PARTITION key. */
     @Test
     public void frozenUdtInPartitionKeySupported()
     {
@@ -117,7 +114,6 @@ public class CursorSupportMatrixTest extends CQLTester
         assertSupported("CREATE TABLE %s (pk frozen<" + udt + ">, ck bigint, v text, PRIMARY KEY (pk, ck))");
     }
 
-    /** Frozen collections as (part of) the PRIMARY key, not just as regular columns. */
     @Test
     public void frozenCollectionInPrimaryKeySupported()
     {
@@ -125,21 +121,21 @@ public class CursorSupportMatrixTest extends CQLTester
         assertSupported("CREATE TABLE %s (pk frozen<set<text>>, ck bigint, v text, PRIMARY KEY (pk, ck))");
     }
 
-    /** Increment 2 flips these to supported. */
+    /** The cursor path can read, merge and write a multi-cell collection. */
     @Test
-    public void multiCellCollectionsUnsupported()
+    public void multiCellCollectionsSupported()
     {
-        assertUnsupported("CREATE TABLE %s (pk bigint, ck bigint, m map<text, bigint>, PRIMARY KEY (pk, ck))");
-        assertUnsupported("CREATE TABLE %s (pk bigint, ck bigint, l list<text>, PRIMARY KEY (pk, ck))");
-        assertUnsupported("CREATE TABLE %s (pk bigint, ck bigint, s set<int>, PRIMARY KEY (pk, ck))");
+        assertSupported("CREATE TABLE %s (pk bigint, ck bigint, m map<text, bigint>, PRIMARY KEY (pk, ck))");
+        assertSupported("CREATE TABLE %s (pk bigint, ck bigint, l list<text>, PRIMARY KEY (pk, ck))");
+        assertSupported("CREATE TABLE %s (pk bigint, ck bigint, s set<int>, PRIMARY KEY (pk, ck))");
     }
 
-    /** Increment 2 flips this to supported. */
+    /** The cursor path can read, merge and write a multi-cell UDT. */
     @Test
-    public void multiCellUdtUnsupported()
+    public void multiCellUdtSupported()
     {
         String udt = createType("CREATE TYPE %s (a int, b text)");
-        assertUnsupported("CREATE TABLE %s (pk bigint, ck bigint, u " + udt + ", PRIMARY KEY (pk, ck))");
+        assertSupported("CREATE TABLE %s (pk bigint, ck bigint, u " + udt + ", PRIMARY KEY (pk, ck))");
     }
 
     /** Vector and duration are inside the supported surface (single-cell types). */
@@ -150,14 +146,14 @@ public class CursorSupportMatrixTest extends CQLTester
                         "PRIMARY KEY (pk, ck))");
     }
 
-    /** Increment 5 flips this to supported. */
+    /** Counter columns are a planned gap in the supported surface, not a permanent limit. */
     @Test
     public void countersUnsupported()
     {
         assertUnsupported("CREATE TABLE %s (pk bigint, ck bigint, c counter, PRIMARY KEY (pk, ck))");
     }
 
-    /** Out of scope for the current plan: indexes keep the iterator path. */
+    /** An indexed table keeps the iterator path. */
     @Test
     public void secondaryIndexUnsupported()
     {
@@ -168,38 +164,38 @@ public class CursorSupportMatrixTest extends CQLTester
     }
 
     /**
-     * Why the cursor path must refuse this is at the gate, in {@code CursorCompactor.isSupported}'s
-     * ignore-gc-grace branch. What is test-specific is when the gate can be observed.
+     * The refusal belongs to the gate, in {@code CursorCompactor.isSupported}'s ignore-gc-grace
+     * branch. This test supplies only the window in which the gate can be observed.
      * <p>
-     * The set exists only for the duration of the force compaction:
-     * {@code forceCompactionKeysIgnoringGcGrace} populates it, hands the keys to {@code CompactionManager},
-     * and clears it in a finally block. The gate therefore has to be evaluated from inside that window,
-     * which is what the tracker subscriber below is for — the compaction's own sstable swap is published on
-     * the compaction thread while the caller is still blocked inside the force compaction, with the set
+     * The key set lives only for the duration of the force compaction.
+     * {@code forceCompactionKeysIgnoringGcGrace} populates it, hands the keys to
+     * {@code CompactionManager}, then clears it in a finally block. The tracker subscriber below
+     * reads the gate from inside that window. The compaction publishes its sstable swap on the
+     * compaction thread while the caller still blocks inside the force compaction, with the set
      * populated.
      */
     @Test
     public void ignoreGcGraceForAnyKeyUnsupported() throws Throwable
     {
-        // cursor compaction only supports BIG output, so under a non-BIG format isSupported is false for
-        // every table and the assertions below could not tell the ignore-gc-grace gate apart
+        // cursor compaction only supports BIG output. Under another format isSupported is false for
+        // every table, so the assertions below could not tell the ignore-gc-grace gate apart
         Assume.assumeTrue("requires the BIG sstable format", BigFormat.isSelected());
 
         createTable("CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck))");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();
 
-        // pk 1 is the key forcecompact will name, and its row deletion is what that compaction is asked to
-        // purge ahead of gc grace; pk 2 keeps the output non-empty whatever the purge decides about pk 1,
-        // so the observer below always has an output sstable to gate on
+        // pk 1 is the key forcecompact names, and its row deletion is what that compaction must purge
+        // ahead of gc grace. pk 2 keeps the output non-empty whatever the purge decides about pk 1, so
+        // the observer below always has an output sstable to gate on
         execute("INSERT INTO %s (pk, ck, v) VALUES (1, 1, 'x')");
         execute("INSERT INTO %s (pk, ck, v) VALUES (2, 1, 'y')");
         flush();
         execute("DELETE FROM %s WHERE pk = 1 AND ck = 1");
         flush();
 
-        // control: the same table, the same two sstables, with nothing ignoring gc grace, is supported —
-        // so the rejection observed below is attributable to the key set and to no other gate
+        // control: the same table and the same two sstables, with nothing ignoring gc grace, is
+        // supported. The rejection observed below is therefore attributable to the key set alone
         assertEquals("expected one sstable per flush", 2, cfs.getLiveSSTables().size());
         assertFalse("no key should ignore gc grace outside a force compaction",
                     cfs.shouldIgnoreGcGraceForAnyKey());
@@ -213,22 +209,22 @@ public class CursorSupportMatrixTest extends CQLTester
         {
             if (!(notification instanceof SSTableListChangedNotification))
                 return;
-            // record the first sstable swap only, and record the key set before anything else, so that a
+            // record the first sstable swap only. Record the key set before anything else, so a
             // throw below cannot leave the window unaccounted for
             if (!ignoredGcGraceInside.compareAndSet(null, cfs.shouldIgnoreGcGraceForAnyKey()))
                 return;
             try
             {
                 // the compaction strategy manager subscribes to the tracker in the ColumnFamilyStore
-                // constructor, so it precedes this observer and has already taken the swap and released
-                // its lock: on the commit path the live set here is the compaction's output, and it is
-                // safe to open scanners over it
+                // constructor, so it precedes this observer. It has already taken the swap and
+                // released its lock. On the commit path the live set here is the compaction's output,
+                // so it is safe to open scanners over it
                 supportedInside.set(isSupportedNow(cfs));
             }
             catch (Throwable t)
             {
-                // Tracker merges a subscriber's throw into the compaction's own failure, which would say
-                // nothing about the gate; carry it out and rethrow it on the calling thread instead
+                // Tracker merges a subscriber's throw into the compaction's own failure, which would
+                // say nothing about the gate. Carry the throw out and rethrow it on the calling thread
                 observerFailure.set(t);
             }
         };
@@ -246,8 +242,8 @@ public class CursorSupportMatrixTest extends CQLTester
         if (observerFailure.get() != null)
             throw observerFailure.get();
 
-        // the scenario is only covering its subject while the force compaction really compacts something
-        // with the key set populated; assert both, so it cannot go quiet and still pass
+        // the scenario covers its subject only while the force compaction really compacts something
+        // with the key set populated. Assert both, so the test cannot go quiet and still pass
         assertNotNull("expected the force compaction to change the sstable list while the observer was " +
                       "subscribed; with no compaction there is no window in which the gate is exercised",
                       ignoredGcGraceInside.get());
@@ -260,8 +256,8 @@ public class CursorSupportMatrixTest extends CQLTester
                     "suppresses row-level purging wholesale there and a streaming cursor cannot",
                     supportedInside.get());
 
-        // and the gate reopens once the force compaction has cleared the set, using the very same helper
-        // that returned false inside the window, so that assertion cannot be vacuously false
+        // the gate reopens once the force compaction has cleared the set. The assertion below reuses
+        // the helper that returned false inside the window, so the helper is not hardwired to one answer
         assertFalse("expected the key set to be cleared when the force compaction returned",
                     cfs.shouldIgnoreGcGraceForAnyKey());
         assertTrue("expected the table to be cursor-supported again after the force compaction",
@@ -269,10 +265,15 @@ public class CursorSupportMatrixTest extends CQLTester
     }
 
     /**
-     * A DROPPED non-frozen collection is gone from the schema but still present in the header of
-     * every sstable written before the drop, still multi-cell. The metadata-level check cannot see
-     * it, so the gate has to screen the input headers too — otherwise the cell cursor, which has no
-     * complex framing, misparses those rows.
+     * A DROPPED non-frozen collection is gone from the schema. Every sstable written before the drop
+     * still lists it in that sstable's own header, still multi-cell. The metadata-level check cannot
+     * see it, so the gate has to screen the input headers too.
+     * <p>
+     * The cursor reads complex framing correctly, so this gate is not about parsing. It is held
+     * closed because a cell written above the drop time survives the read, and the iterator cannot
+     * merge a row that holds one. See {@code CursorCompactor.unsupportedHeaderColumns} and
+     * {@code DroppedColumnDifferentialCompactionTest.droppedComplexColumnSurvivingCells}, which is
+     * {@code @Ignore}d on CASSANDRA-21607.
      */
     @Test
     public void droppedCollectionUnsupportedFromHeaders() throws Exception
@@ -284,9 +285,9 @@ public class CursorSupportMatrixTest extends CQLTester
     }
 
     /**
-     * Same hole via a dropped STATIC collection, which lands in header.columns(true) only — so a
-     * check that inspected regular columns alone would pass this test's regular-column sibling and
-     * still admit the misparse.
+     * The same shape through a dropped STATIC collection. A static column lands in
+     * {@code header.columns(true)} only, so a gate that inspected regular columns alone would
+     * reach a different verdict here than on this test's regular-column sibling.
      */
     @Test
     public void droppedStaticCollectionUnsupportedFromHeaders() throws Exception
@@ -299,8 +300,8 @@ public class CursorSupportMatrixTest extends CQLTester
 
     private void assertDroppedCollectionUnsupported(String ddl, String insert, boolean isStatic) throws Exception
     {
-        // cursor compaction only supports BIG output, so under a non-BIG format isSupported is
-        // false for every table and the assertion below could not tell the header check apart
+        // cursor compaction only supports BIG output. Under another format isSupported is false
+        // for every table, so the assertion below could not tell the header check apart
         Assume.assumeTrue("requires the BIG sstable format", BigFormat.isSelected());
 
         createTable(ddl);
@@ -314,12 +315,10 @@ public class CursorSupportMatrixTest extends CQLTester
 
         execute("ALTER TABLE %s DROP m");
 
-        // the schema-level check is satisfied: the collection is no longer a current column
         assertFalse("dropped collection should leave the metadata check satisfied, which is exactly " +
                     "why the header check is needed",
                     CursorCompactor.unsupportedMetadata(cfs.metadata()));
 
-        // ... but the pre-drop sstable still carries it, multi-cell, in its own header
         boolean anyHeaderStillHasIt = false;
         for (SSTableReader reader : cfs.getLiveSSTables())
             for (ColumnMetadata column : reader.header.columns(isStatic))
@@ -328,25 +327,64 @@ public class CursorSupportMatrixTest extends CQLTester
                    anyHeaderStillHasIt);
 
         assertFalse("cursor compaction must refuse a table whose input headers still carry a " +
-                    "multi-cell column; the cursor cannot parse complex framing",
+                    "dropped multi-cell column",
                     isSupportedNow(cfs));
 
-        // Positive control on a separate table: isSupportedNow returns true for an equivalent table
-        // that never had a collection, so the rejection above is attributable to the dropped column
-        // and not to the harness, the format or any other gate. (The table under test cannot serve
-        // as its own pre-drop control: while the collection is still live the SCHEMA check rejects
-        // it, which is the very check the drop defeats.)
+        // positive control on a separate table: an equivalent table that never had a collection is
+        // supported. The rejection above is therefore attributable to the dropped column alone. The
+        // table under test cannot serve as its own pre-drop control, because the schema check rejects
+        // it while the collection is still live
         createTable("CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck))");
         ColumnFamilyStore plain = getCurrentColumnFamilyStore();
         plain.disableAutoCompaction();
-        // same shape as the table under test after its drop — same surviving columns, same two
-        // inserts and two flushes — so the only difference left is the dropped collection itself
         execute("INSERT INTO %s (pk, ck, v) VALUES (1, 1, 'x')");
         flush();
         execute("INSERT INTO %s (pk, ck, v) VALUES (1, 2, 'y')");
         flush();
         assertTrue("expected a plain table with no dropped collection to be cursor-supported",
                    isSupportedNow(plain));
+    }
+
+    /**
+     * A dropped COUNTER column stays gated. The cursor path has no counter merge at all, so the
+     * header gate must still screen a counter the schema has dropped.
+     * <p>
+     * The dropped-collection tests above reach the same verdict through the same gate, but for a
+     * different reason. This one is about the missing counter merge, not about the drop filter.
+     */
+    @Test
+    public void droppedCounterUnsupportedFromHeaders() throws Exception
+    {
+        Assume.assumeTrue("requires the BIG sstable format", BigFormat.isSelected());
+
+        // ONE counter column, so the drop leaves no counter in the schema. With a second counter
+        // still live, unsupportedSchema would reject the table on its own and this test would pass
+        // without the header gate doing anything.
+        createTable("CREATE TABLE %s (pk bigint, ck bigint, c counter, PRIMARY KEY (pk, ck))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        execute("UPDATE %s SET c = c + 1 WHERE pk = 1 AND ck = 1");
+        flush();
+        execute("UPDATE %s SET c = c + 1 WHERE pk = 1 AND ck = 2");
+        flush();
+
+        execute("ALTER TABLE %s DROP c");
+
+        assertFalse("the dropped counter must leave the metadata check satisfied, which is exactly " +
+                    "why the header check is needed",
+                    CursorCompactor.unsupportedMetadata(cfs.metadata()));
+
+        boolean anyHeaderStillHasIt = false;
+        for (SSTableReader reader : cfs.getLiveSSTables())
+            for (ColumnMetadata column : reader.header.columns(false))
+                anyHeaderStillHasIt |= cfs.metadata().getColumn(column.name) == null;
+        assertTrue("expected a pre-drop sstable header to still list the dropped counter",
+                   anyHeaderStillHasIt);
+
+        assertFalse("cursor compaction must refuse a table whose input headers still carry a " +
+                    "counter column; the cursor has no counter merge",
+                    isSupportedNow(cfs));
     }
 
     private boolean isSupportedNow(ColumnFamilyStore cfs) throws Exception

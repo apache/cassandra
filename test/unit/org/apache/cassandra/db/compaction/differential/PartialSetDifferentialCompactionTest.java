@@ -32,16 +32,16 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Partial-set compactions: only a subset of the live sstables participates, and the purge
- * evaluator must consult overlapping NON-participating sstables before dropping tombstones
- * (CompactionController.getPurgeEvaluator / CursorCompactor's shouldPurge). The differential
- * assertion is agnostic to which outcome is correct — both paths must simply agree, byte for
- * byte. All writes use explicit timestamps so purge decisions are deterministic.
+ * Partial-set compaction: only a subset of the live sstables participates. The purge evaluator
+ * must consult the overlapping NON-participants before it drops a tombstone
+ * (CompactionController.getPurgeEvaluator, CursorCompactor.Purger.shouldPurge). The differential
+ * assertion proves only that the two paths agree, so every scenario also asserts the purge
+ * outcome it sets up.
  */
 public class PartialSetDifferentialCompactionTest extends DifferentialCompactionTester
 {
 
-    /** Flushes and returns the sstable that flush produced; tracks flush order explicitly. */
+    /** Returns the one sstable this flush created, and appends it to {@code flushed} in flush order. */
     private SSTableReader flushAndTrack(ColumnFamilyStore cfs, List<SSTableReader> flushed) throws Throwable
     {
         Set<SSTableReader> before = new HashSet<>(cfs.getLiveSSTables());
@@ -55,9 +55,8 @@ public class PartialSetDifferentialCompactionTest extends DifferentialCompaction
     }
 
     /**
-     * Tombstones whose purge is BLOCKED by an overlapping non-participant: the partition also
-     * exists in a non-compacting sstable with OLDER timestamps, so the tombstone must survive
-     * the partial compaction in both paths.
+     * Purge BLOCKED by an overlapping non-participant. The partition also lives in a
+     * non-compacting sstable with OLDER timestamps, so the tombstones must survive.
      */
     @Test
     public void purgeBlockedByOverlappingNonParticipant() throws Throwable
@@ -80,26 +79,23 @@ public class PartialSetDifferentialCompactionTest extends DifferentialCompaction
         execute("DELETE FROM %s USING TIMESTAMP 200 WHERE pk = 2");
         flushAndTrack(cfs, flushed);
 
-        // sstable C (non-participant): same partitions with OLDER data (ts=50) — purging the
-        // ts=200 tombstones would resurrect this data, so the evaluator must block it
+        // sstable C (non-participant): the same partitions with OLDER data at ts=50
         for (long pk = 1; pk <= 2; pk++)
             for (long ck = 0; ck < 10; ck++)
                 execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP 50", pk, ck, "old" + ck);
         flushAndTrack(cfs, flushed);
 
-        // purge boundary: gcBefore strictly past sstable B's tombstones, read from its own stats
+        // gcBefore makes every tombstone in sstable B purgeable, so only the overlap can block it
         long gcBefore = maxTombstoneLocalDeletionTime(List.of(flushed.get(1))) + 1;
 
         CapturedOutput out = assertCursorMatchesIterator(cfs, new HashSet<>(flushed.subList(0, 2)), DEFAULT_TASK, gcBefore);
-        // non-vacuousness: the overlap must have actually BLOCKED the purge
         assertTrue("expected ts=200 tombstones retained because of the overlapping non-participant",
                    allJson(out).contains("\"marked_deleted\":\"200\""));
     }
 
     /**
-     * Tombstones whose purge is ALLOWED despite a non-participant existing: the non-compacting
-     * sstable holds entirely different partitions, so nothing blocks the drop. Both paths must
-     * purge identically (and drop the emptied partitions).
+     * Purge ALLOWED despite a non-participant. The non-compacting sstable holds different
+     * partitions only, so nothing blocks the drop.
      */
     @Test
     public void purgeAllowedWithDisjointNonParticipant() throws Throwable
@@ -128,19 +124,17 @@ public class PartialSetDifferentialCompactionTest extends DifferentialCompaction
                 execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP 50", pk, ck, "other" + ck);
         flushAndTrack(cfs, flushed);
 
-        // purge boundary: gcBefore strictly past sstable B's tombstones, read from its own stats
+        // gcBefore makes every tombstone in sstable B purgeable
         long gcBefore = maxTombstoneLocalDeletionTime(List.of(flushed.get(1))) + 1;
 
         CapturedOutput out = assertCursorMatchesIterator(cfs, new HashSet<>(flushed.subList(0, 2)), DEFAULT_TASK, gcBefore);
-        // non-vacuousness: with no overlap on those keys, the tombstones must actually purge
         assertFalse("expected ts=200 tombstones purged (disjoint non-participant cannot block)",
                     allJson(out).contains("\"marked_deleted\":\"200\""));
     }
 
     /**
-     * Compacting newer sstables while the OLDEST (holding the shadowed data) stays out:
-     * tombstones must be retained because the overlapping non-participant holds data they
-     * still shadow.
+     * The OLDEST sstable stays out of the compaction. The tombstones in the newer sstables
+     * still shadow its data, so those tombstones must be retained.
      */
     @Test
     public void tombstonesRetainedOverShadowedNonParticipant() throws Throwable
@@ -168,12 +162,11 @@ public class PartialSetDifferentialCompactionTest extends DifferentialCompaction
             execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP 300", pk, 20L, "new");
         flushAndTrack(cfs, flushed);
 
-        // purge boundary: gcBefore strictly past sstable B's tombstones, read from its own stats
+        // gcBefore makes every tombstone in sstable B purgeable, so only the overlap can block it
         long gcBefore = maxTombstoneLocalDeletionTime(List.of(flushed.get(1))) + 1;
 
         // compact B+C, leaving A (the shadowed data) out
         CapturedOutput out = assertCursorMatchesIterator(cfs, new HashSet<>(flushed.subList(1, 3)), DEFAULT_TASK, gcBefore);
-        // non-vacuousness: tombstones still shadow A's data and must survive
         assertTrue("expected ts=200 tombstones retained over the shadowed non-participant",
                    allJson(out).contains("\"marked_deleted\":\"200\""));
     }

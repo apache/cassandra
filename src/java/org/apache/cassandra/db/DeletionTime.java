@@ -177,18 +177,15 @@ public abstract class DeletionTime implements Comparable<DeletionTime>, IMeasura
     }
 
     /**
-     * Whether this deletion shadows a cell written at {@code timestamp}. The LIVE short-circuit is
-     * load-bearing rather than an optimisation: {@link #deletes(long)} answers TRUE for
-     * {@link LivenessInfo#NO_TIMESTAMP}, because Long.MIN_VALUE is both that sentinel and LIVE's
-     * {@code markedForDeleteAt} — so a LIVE deletion would shadow a cell carrying it.
+     * Whether this deletion shadows a cell written at {@code timestamp}.
      *
-     * {@link #deletes(LivenessInfo)} has no such guard, and must not grow one. Two reasons, and the second is
-     * the load-bearing one: for ROW liveness the answer is behaviour-neutral, since an empty row liveness has
-     * nothing to shadow and "deleted" and "absent" coincide; and the iterator path applies that same unguarded
-     * form to row liveness of its own accord ({@code Row.Merger.merge}, {@code BTreeRow}), so guarding it would
-     * move the reference as well as the cursor. The guard belongs to the cell contract alone, which is why
-     * {@link #deletes(Cell)} carries it too; that overload keeps its own copy because the check has to precede
-     * the virtual {@code timestamp()} read it guards.
+     * LIVE stores {@code Long.MIN_VALUE} as its {@code markedForDeleteAt}, and that is also
+     * {@link LivenessInfo#NO_TIMESTAMP}. The LIVE check is therefore required: without it a LIVE
+     * deletion shadows a cell that carries no timestamp.
+     *
+     * Do not add the same check to {@link #deletes(LivenessInfo)}. The iterator path applies the
+     * unguarded form to row liveness ({@code Row.Merger.merge}, {@code BTreeRow}), so a guard there
+     * would move the reference as well as the cursor.
      */
     public boolean deletesCellAt(long timestamp)
     {

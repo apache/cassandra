@@ -136,13 +136,8 @@ public class ReusableLivenessInfoTest
     }
 
     /**
-     * {@code supersedes} is the row-side analogue of cell reconciliation, is load-bearing in the cursor's row
-     * merge, and is inherited default behaviour on a mutable holder — so it is asserted against the reference
-     * over the whole shape cross product rather than left to the default's own tests.
-     *
-     * Pairs where either side is a shape the reference {@link #referenceRejects} or
-     * {@link #referenceNormalisesAway} are counted, not asserted, since the reference can't hold the same
-     * input; both counts are themselves asserted so neither set can change size unnoticed.
+     * {@code supersedes} is inherited behaviour, so it is asserted against the reference over the
+     * whole shape cross product. Pairs the reference cannot hold are counted instead.
      */
     @Test
     public void supersedesAgreesWithRowReference()

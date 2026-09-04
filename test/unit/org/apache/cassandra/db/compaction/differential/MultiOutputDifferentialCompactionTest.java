@@ -33,18 +33,15 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Multi-output compactions: a size-capped CompactionAwareWriter forces writer switches at
- * partition boundaries, so one compaction produces several sstables. Both pipelines receive
- * the same writer type (CursorCompactionPipeline and IteratorCompactionPipeline both call
- * task.getCompactionAwareWriter); the differential assertion requires the SAME number of
- * outputs with byte-identical components pairwise — divergent switch decisions would show up
- * as a count mismatch, divergent per-output finalization (first/last keys, promoted index,
- * stats) as component diffs.
+ * A size-capped CompactionAwareWriter switches output sstables at partition boundaries, so one
+ * compaction writes several. CursorCompactionPipeline and IteratorCompactionPipeline both call
+ * task.getCompactionAwareWriter, so both receive the same writer type. A divergent switch
+ * decision then shows up as a different output count. A divergent per-output finalization
+ * (first and last keys, promoted index, stats) shows up as a component diff.
  */
 public class MultiOutputDifferentialCompactionTest extends DifferentialCompactionTester
 {
 
-    /** CompactionTask whose writer switches outputs once the current one exceeds maxBytes. */
     private static TaskFactory sizeCapped(long maxBytes)
     {
         return (cfs, txn, gcBefore) -> new CompactionTask(cfs, txn, gcBefore, true /* keepOriginals */)
@@ -61,7 +58,6 @@ public class MultiOutputDifferentialCompactionTest extends DifferentialCompactio
         };
     }
 
-    /** Many small partitions split across several outputs. */
     @Test
     public void manyPartitionsSplitAcrossOutputs() throws Exception
     {
@@ -79,13 +75,13 @@ public class MultiOutputDifferentialCompactionTest extends DifferentialCompactio
             flush();
         }
 
-        // ~40 partitions * ~1KB each; 8KB cap => several outputs, switch points mid-stream
+        // The 40 partitions hold about 1KB each, so an 8KB cap writes several outputs and puts
+        // the switch points mid-stream.
         CapturedOutput out = assertCursorMatchesIterator(cfs, cfs.getLiveSSTables(), sizeCapped(8 * 1024));
         assertTrue("scenario must produce multiple outputs to test anything, got " + out.sstables.size(),
                    out.sstables.size() >= 2);
     }
 
-    /** Tombstones and static rows crossing output boundaries. */
     @Test
     public void tombstonesAndStaticsAcrossOutputs() throws Exception
     {
@@ -104,7 +100,6 @@ public class MultiOutputDifferentialCompactionTest extends DifferentialCompactio
         }
         flush();
 
-        // second sstable: range tombstones inside many partitions + some partition deletes
         for (long pk = 0; pk < 30; pk += 2)
             execute("DELETE FROM %s WHERE pk = ? AND ck >= 3 AND ck < 7", pk);
         execute("DELETE FROM %s WHERE pk = 5");
@@ -116,7 +111,6 @@ public class MultiOutputDifferentialCompactionTest extends DifferentialCompactio
                    out.sstables.size() >= 2);
     }
 
-    /** One output ending exactly at a wide partition boundary, the next starting fresh. */
     @Test
     public void widePartitionsForceFrequentSwitches() throws Exception
     {
@@ -126,7 +120,8 @@ public class MultiOutputDifferentialCompactionTest extends DifferentialCompactio
         cfs.disableAutoCompaction();
 
         String padding = "z".repeat(300);
-        // each partition ~6KB > cap/2: nearly every partition triggers a switch decision
+        // Each partition holds about 6KB, which is more than half the 8KB cap, so nearly every
+        // partition triggers a switch decision.
         for (int round = 0; round < 2; round++)
         {
             for (long pk = 0; pk < 12; pk++)

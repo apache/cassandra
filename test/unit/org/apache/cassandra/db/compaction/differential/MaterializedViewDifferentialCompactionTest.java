@@ -34,7 +34,9 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -45,13 +47,14 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Differential coverage for MATERIALIZED VIEW tables: view tables are admitted
- * by the cursor gate (no isView rejection) and compact through the same pipelines, but their
- * row shapes are view-specific — strict liveness (CursorCompactor.enforceStrictLiveness
- * mirrors PurgeFunction), view-generated row tombstones when a base row moves between view
- * partitions, and expired-liveness markers. Shadowable row deletions (deprecated since 4.0,
- * CASSANDRA-11500) can still appear on old view data written before that deprecation — nothing
- * currently produces new ones, so {@link #shadowableRowDeletion} constructs them directly.
+ * Differential coverage for MATERIALIZED VIEW tables. The cursor gate admits view tables, and they
+ * compact through the same pipelines. Their row shapes are view-specific: strict liveness
+ * (CursorCompactor.enforceStrictLiveness mirrors PurgeFunction), view-generated row tombstones when
+ * a base row moves between view partitions, and expired-liveness markers.
+ * <p>
+ * Shadowable row deletions are deprecated since 4.0 (CASSANDRA-11500) and nothing produces new
+ * ones, but old view data still carries them. {@link #shadowableRowDeletion} constructs them
+ * directly.
  */
 public class MaterializedViewDifferentialCompactionTest extends DifferentialCompactionTester
 {
@@ -96,8 +99,7 @@ public class MaterializedViewDifferentialCompactionTest extends DifferentialComp
     /**
      * MV + TTL: the view-generated row liveness must track the base row's TTL, including
      * across a view-partition move (v1 changes -> old view row dies, new one carries its own
-     * TTL). Recent bugs in this area (CASSANDRA-21152) motivate dedicated coverage rather
-     * than relying on materializedViewTable's TTL-free scenario.
+     * TTL). This interaction has produced bugs (CASSANDRA-21152).
      */
     @Test
     public void materializedViewWithTTL() throws Exception
@@ -125,7 +127,7 @@ public class MaterializedViewDifferentialCompactionTest extends DifferentialComp
 
         // view-partition move on a short-TTL row, itself given a new (long) TTL: the old view
         // row's move-tombstone and its own now-irrelevant short TTL race the new view row's
-        // fresh long TTL — the MV+TTL interaction CASSANDRA-21152-style bugs live in
+        // fresh long TTL
         for (long pk = 0; pk < 6; pk += 2)
             execute("UPDATE %s USING TTL 86400 SET v1 = ? WHERE pk = ? AND ck = ?", pk * 100 + 77, pk, 0L);
         flush(KEYSPACE, view);
@@ -135,10 +137,11 @@ public class MaterializedViewDifferentialCompactionTest extends DifferentialComp
     }
 
     /**
-     * A shadowable row deletion that the merged primary-key liveness SHADOWS: the compaction merge
+     * A shadowable row deletion that the merged primary-key liveness SHADOWS. The compaction merge
      * ({@link Row.Merger#merge}) clears such a deletion to LIVE before it becomes the row's active
-     * deletion, so the row keeps its liveness AND the cells the deletion would otherwise have shadowed,
-     * and the output carries no row deletion and no {@code HAS_SHADOWABLE_DELETION} extension flag.
+     * deletion. The row therefore keeps its liveness AND the cells the deletion would otherwise have
+     * shadowed, and the output carries no row deletion and no {@code HAS_SHADOWABLE_DELETION}
+     * extension flag.
      * <p>
      * The three pieces are in three sstables on purpose. A shadowable deletion never meets a
      * superseding liveness inside one memtable: {@code BTreeRow.Builder.build} applies
@@ -181,9 +184,9 @@ public class MaterializedViewDifferentialCompactionTest extends DifferentialComp
 
     /**
      * Shadowable row deletions predate CASSANDRA-11500 and nothing since produces new ones, but
-     * old data can still carry the flag on either a static or a non-static row — and, for a
-     * non-static row, whether or not it's the partition's first unfiltered (the reader's three
-     * flag-dispatch methods used to treat extended flags as static-only there). Not constructible
+     * old data can still carry the flag on either a static or a non-static row. A non-static row
+     * carries it at any position in the partition, not only as the partition's first unfiltered, so
+     * the reader's flag dispatch must read extended flags at every position. Not constructible
      * through CQL — {@code Row.Deletion.shadowable(...)} has to be called directly.
      */
     @Test
@@ -202,9 +205,8 @@ public class MaterializedViewDifferentialCompactionTest extends DifferentialComp
         flush();
 
         // second generation: a live write to the same static row, postdating the shadowable
-        // deletion — the merge must let both survive and coexist in the output (the deletion
-        // doesn't purge a cell that postdates it) across sstables, not just copy a single source
-        // through
+        // deletion — the merge must keep both in the output across sstables, not copy a single
+        // source through
         execute("INSERT INTO %s (pk, ck, s1, v1) VALUES (1, 0, 5, 99)");
         flush();
 
@@ -223,11 +225,11 @@ public class MaterializedViewDifferentialCompactionTest extends DifferentialComp
      * live cells included.
      * <p>
      * Both halves are asserted, because "keep everything" and "drop everything" each satisfy only one
-     * of them, and each half is built twice: once from a SINGLE sstable, and once merged across two, so
-     * the cursor path's cell walk runs the multi-source case too — several rounds of the cell sort, cells
-     * from both sources reaching one output row through the rewound cursors, and, for the drop half, the
-     * dead cell in the SECOND source and a later column, so the walk has to get past a live cell to find
-     * it.
+     * of them. Each half is built twice: once from a SINGLE sstable, and once merged across two, so the
+     * cursor path's cell walk runs the multi-source case too. That case takes several rounds of the cell
+     * sort, and cells from both sources reach one output row through the rewound cursors. The drop half
+     * puts its dead cell in the SECOND source and a later column, so the walk has to get past a live
+     * cell to find it.
      * <p>
      * The rows are constructed directly against the VIEW's ColumnFamilyStore because view maintenance
      * cannot produce this shape — no view row {@code ViewUpdateGenerator} writes has empty primary-key
@@ -293,9 +295,9 @@ public class MaterializedViewDifferentialCompactionTest extends DifferentialComp
         // nothing else in this scenario writes one, so it is a cell tombstone; and it is above gcBefore,
         // so the purger cannot remove it before the merge decides the row
         assertSomethingExpiredAt(viewCfs, nowInSec);
-        // Against the gcBefore the harness will actually derive, sampled the way it derives it. Comparing
-        // against getDefaultGcBefore(nowInSec) instead would reduce to gc_grace_seconds >= 0 and assert
-        // nothing at all.
+        // This compares against the gcBefore the harness will actually derive, sampled the way it
+        // derives it. Comparing against getDefaultGcBefore(nowInSec) instead would reduce to
+        // gc_grace_seconds >= 0 and assert nothing at all.
         assertTrue("the cell tombstones must NOT be purgeable, or the purger removes them before the "
                    + "merge decides the row and they cannot decide a strict-liveness drop",
                    nowInSec >= viewCfs.getDefaultGcBefore(FBUtilities.nowInSeconds()));
@@ -321,7 +323,123 @@ public class MaterializedViewDifferentialCompactionTest extends DifferentialComp
     }
 
     /**
-     * The other way the reference's {@code hasDeletion(nowInSec)} guard opens for a row strict liveness
+     * The third way the {@code hasDeletion(nowInSec)} guard of the reference path opens: a
+     * complex-column deletion.
+     * {@link BTreeRow#minDeletionTime(org.apache.cassandra.db.rows.ComplexColumnData)} always folds
+     * a non-live complex deletion in as {@code Long.MIN_VALUE}, above what the cells contribute.
+     * The deletion therefore drops the whole row on its own, and takes a live cell of its own
+     * column with it.
+     * <p>
+     * {@code keptWithLiveComplexDeletion} is the control: the same shape, but its column holds no
+     * deletion, only a live cell, so strict liveness must keep the row.
+     * <p>
+     * Both rows go directly to the view's ColumnFamilyStore, for the reason
+     * {@link #strictLivenessKeepsARowWithNoDeletionAtNow} gives.
+     */
+    @Test
+    public void strictLivenessAccountsForComplexColumnDeletion() throws Exception
+    {
+        createTable("CREATE TABLE %s (pk bigint, ck bigint, v1 bigint, v2 text, m map<text, bigint>, PRIMARY KEY (pk, ck))");
+        String view = createView("CREATE MATERIALIZED VIEW %s AS SELECT pk, ck, v1, v2, m FROM %s " +
+                                 "WHERE pk IS NOT NULL AND ck IS NOT NULL AND v1 IS NOT NULL " +
+                                 "PRIMARY KEY (v1, pk, ck)");
+        ColumnFamilyStore viewCfs = getColumnFamilyStore(KEYSPACE, view);
+        viewCfs.disableAutoCompaction();
+        assertTrue("v1 is a base non-PK column in the view PK, so the view must enforce strict liveness",
+                   viewCfs.metadata().enforceStrictLiveness());
+
+        long nowInSec = FBUtilities.nowInSeconds();
+        TableMetadata metadata = viewCfs.metadata();
+        ColumnMetadata mapColumn = metadata.getColumn(ByteBufferUtil.bytes("m"));
+
+        Row.Builder droppedByDeadComplexDeletion = livenessFreeViewRow(2L, 2L);
+        droppedByDeadComplexDeletion.addComplexDeletion(mapColumn, DeletionTime.build(100L, nowInSec));
+        droppedByDeadComplexDeletion.addCell(BufferCell.live(mapColumn, 150L, LongType.instance.decompose(1L),
+                                                              CellPath.create(UTF8Type.instance.decompose("k"))));
+        applyViewRow(viewCfs, 7L, droppedByDeadComplexDeletion.build());
+
+        Row.Builder keptWithLiveComplexDeletion = livenessFreeViewRow(3L, 3L);
+        keptWithLiveComplexDeletion.addCell(BufferCell.live(mapColumn, 150L, LongType.instance.decompose(2L),
+                                                            CellPath.create(UTF8Type.instance.decompose("k"))));
+        applyViewRow(viewCfs, 7L, keptWithLiveComplexDeletion.build());
+        flush(KEYSPACE, view);
+
+        assertEquals("the constructed rows must reach the compaction merge", 1, viewCfs.getLiveSSTables().size());
+        assertTrue("the complex deletion must NOT be purgeable, or the purger removes it before the "
+                   + "merge decides the row and it cannot decide a strict-liveness drop on its own",
+                   nowInSec >= viewCfs.getDefaultGcBefore(FBUtilities.nowInSeconds()));
+
+        assertCursorMatchesIterator(viewCfs);
+    }
+
+    /**
+     * Strict liveness must drop a row when the merged winner of a complex cell is dead, and the two
+     * cells come from different sstables. {@link #strictLivenessAccountsForComplexColumnDeletion}
+     * is one sstable and short-circuits on a dead complex deletion, so it never enters the
+     * {@code cellMergeLimit > 1} resolve loop in {@code anyMergedCellDeadAtNow}.
+     * <p>
+     * The dropped row has a live map cell in the first sstable and a tombstone on the same path in
+     * the second. No complex deletion: that branch would skip the loop again. The control row has
+     * two live cells on the same path and must be kept.
+     */
+    @Test
+    public void strictLivenessAccountsForMergedComplexCell() throws Exception
+    {
+        createTable("CREATE TABLE %s (pk bigint, ck bigint, v1 bigint, v2 text, m map<text, bigint>, PRIMARY KEY (pk, ck))");
+        String view = createView("CREATE MATERIALIZED VIEW %s AS SELECT pk, ck, v1, v2, m FROM %s " +
+                                 "WHERE pk IS NOT NULL AND ck IS NOT NULL AND v1 IS NOT NULL " +
+                                 "PRIMARY KEY (v1, pk, ck)");
+        ColumnFamilyStore viewCfs = getColumnFamilyStore(KEYSPACE, view);
+        viewCfs.disableAutoCompaction();
+        assertTrue("v1 is a base non-PK column in the view PK, so the view must enforce strict liveness",
+                   viewCfs.metadata().enforceStrictLiveness());
+
+        execute("INSERT INTO %s (pk, ck, v1, v2) VALUES (1, 1, 5, 'normal')");
+        flush(KEYSPACE, view);
+
+        long nowInSec = FBUtilities.nowInSeconds();
+        TableMetadata metadata = viewCfs.metadata();
+        ColumnMetadata mapColumn = metadata.getColumn(ByteBufferUtil.bytes("m"));
+
+        Row.Builder droppedA = livenessFreeViewRow(2L, 2L);
+        addLiveCell(droppedA, metadata, "v2", "droppedByMergedTombstone");
+        addMapCell(droppedA, mapColumn, "k", 100L, 1L);
+        applyViewRow(viewCfs, 7L, droppedA.build());
+
+        Row.Builder keptA = livenessFreeViewRow(3L, 3L);
+        addLiveCell(keptA, metadata, "v2", "keptMergedComplex");
+        addMapCell(keptA, mapColumn, "k", 100L, 2L);
+        applyViewRow(viewCfs, 7L, keptA.build());
+        flush(KEYSPACE, view);
+
+        Row.Builder droppedB = livenessFreeViewRow(2L, 2L);
+        addMapTombstone(droppedB, mapColumn, "k", 200L, nowInSec);
+        applyViewRow(viewCfs, 7L, droppedB.build());
+
+        Row.Builder keptB = livenessFreeViewRow(3L, 3L);
+        addMapCell(keptB, mapColumn, "k", 200L, 3L);
+        applyViewRow(viewCfs, 7L, keptB.build());
+        flush(KEYSPACE, view);
+
+        assertEquals("the constructed rows must reach the compaction merge from their own sstables",
+                     3, viewCfs.getLiveSSTables().size());
+        assertSomethingExpiredAt(viewCfs, nowInSec);
+        assertTrue("the map cell tombstone must NOT be purgeable, or the purger removes it before the "
+                   + "merge decides the row and it cannot decide a strict-liveness drop on its own",
+                   nowInSec >= viewCfs.getDefaultGcBefore(FBUtilities.nowInSeconds()));
+
+        CapturedOutput out = assertCursorMatchesIterator(viewCfs);
+        String json = allJson(out);
+        assertEquals("the two-source row whose merged map cell is a tombstone survived strict liveness: " + json,
+                     0, countOccurrences(json, cellValue("droppedByMergedTombstone")));
+        assertEquals("the two-source row with two live map cells lost its cell: " + json,
+                     1, countOccurrences(json, cellValue("keptMergedComplex")));
+        assertEquals("the view-maintained row is missing: " + json,
+                     1, countOccurrences(json, cellValue("normal")));
+    }
+
+    /**
+     * Another way the reference's {@code hasDeletion(nowInSec)} guard opens for a row strict liveness
      * then drops: not through a cell, but because the PURGER cleared the row's liveness or its row
      * deletion. Whichever it cleared was, before it ran, a term of the merged row's
      * {@code minLocalDeletionTime} at or below {@code nowInSec} — an expired liveness contributes its
@@ -381,7 +499,7 @@ public class MaterializedViewDifferentialCompactionTest extends DifferentialComp
                      2, viewCfs.getLiveSSTables().size());
 
         long gcBefore = localDeletionTime + 1;
-        long pinnedNow = localDeletionTime + 60; // past the liveness expiry, well below any live cell's
+        long pinnedNow = localDeletionTime + 60; // past the liveness expiry, below any live cell's deletion time
         CapturedOutput out = assertCursorMatchesIterator(viewCfs, viewCfs.getLiveSSTables(),
                                                          taskWithFixedNow(pinnedNow), gcBefore);
         String json = allJson(out);
@@ -410,13 +528,24 @@ public class MaterializedViewDifferentialCompactionTest extends DifferentialComp
     }
 
     /**
-     * A cell tombstone whose local deletion time is {@code nowInSec} and so sits above the default
-     * {@code gcBefore} — unpurgeable, which is what lets it decide its row's fate instead of being purged
-     * away before the merge gets there.
+     * A cell tombstone whose local deletion time is {@code nowInSec}, so it sits above the default
+     * {@code gcBefore}. The purger cannot remove it before the merge decides its row.
      */
     private void addCellTombstone(Row.Builder builder, TableMetadata metadata, String column, long nowInSec)
     {
         builder.addCell(BufferCell.tombstone(metadata.getColumn(ByteBufferUtil.bytes(column)), 200L, nowInSec));
+    }
+
+    private void addMapCell(Row.Builder builder, ColumnMetadata mapColumn, String key, long timestamp, long value)
+    {
+        builder.addCell(BufferCell.live(mapColumn, timestamp, LongType.instance.decompose(value),
+                                        CellPath.create(UTF8Type.instance.decompose(key))));
+    }
+
+    private void addMapTombstone(Row.Builder builder, ColumnMetadata mapColumn, String key, long timestamp, long nowInSec)
+    {
+        builder.addCell(BufferCell.tombstone(mapColumn, timestamp, nowInSec,
+                                             CellPath.create(UTF8Type.instance.decompose(key))));
     }
 
     private void applyViewRow(ColumnFamilyStore viewCfs, long v1, Row row)

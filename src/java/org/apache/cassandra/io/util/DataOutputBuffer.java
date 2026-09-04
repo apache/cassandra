@@ -201,6 +201,33 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
         buffer.clear();
     }
 
+    /**
+     * True if this buffer holds a heap array, the precondition {@link #readFully} and
+     * {@link #getData()} both require. This class allocates such a buffer by default. Note that
+     * {@link #scratchBuffer} does NOT meet it: it allocates off heap unless
+     * {@code cassandra.dob.allocate_type} says otherwise.
+     */
+    public boolean hasArray()
+    {
+        return buffer.hasArray();
+    }
+
+    /**
+     * Reads {@code length} bytes from {@code in} directly into the array of this buffer.
+     *
+     * This makes one copy. A call to {@code in.readFully(byte[])} and then to
+     * {@link #write(byte[], int, int)} makes two, because it copies through a transfer buffer.
+     *
+     * Use this method only on a buffer that holds a heap array: check {@link #hasArray()} first.
+     */
+    public void readFully(DataInputPlus in, int length) throws IOException
+    {
+        if (buffer.remaining() < length)
+            expandToFit(length - buffer.remaining());
+        in.readFully(buffer.array(), buffer.arrayOffset() + buffer.position(), length);
+        buffer.position(buffer.position() + length);
+    }
+
     @VisibleForTesting
     final class GrowingChannel implements WritableByteChannel
     {

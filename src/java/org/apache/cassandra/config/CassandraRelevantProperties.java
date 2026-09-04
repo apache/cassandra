@@ -663,6 +663,9 @@ public enum CassandraRelevantProperties
     TEST_DIFFERENTIAL_LARGEPARTITION_VALUE_PADDING("cassandra.test.differential.largepartition.value_padding", "240"),
     /** Seed for the randomized differential soak; defaults to the wall clock, logged per example. */
     TEST_DIFFERENTIAL_SEED("cassandra.test.differential.seed"),
+    /** Column counts for the pathological wide-table differential test. */
+    TEST_DIFFERENTIAL_WIDE_REGULARS("cassandra.test.differential.wide.regulars", "1800"),
+    TEST_DIFFERENTIAL_WIDE_STATICS("cassandra.test.differential.wide.statics", "200"),
     TEST_DRIVER_CONNECTION_TIMEOUT_MS("cassandra.test.driver.connection_timeout_ms", "5000"),
     TEST_DRIVER_READ_TIMEOUT_MS("cassandra.test.driver.read_timeout_ms", "12000"),
     TEST_ENCRYPTION("cassandra.test.encryption", "false"),

@@ -81,11 +81,11 @@ public abstract class Cells
         CellLivenessInfo.Resolution resolution;
         if (left instanceof HeapAbstractCell && right instanceof HeapAbstractCell)
         {
-            // Narrowed before the call to keep the liveness accessors bound from the static type here, rather
-            // than from resolve()'s receiver-type profile -- which is per-bytecode and shared with the cursor
-            // compaction path, so cells and the cursor's liveness holder pollute each other's. HeapAbstractCell
-            // declares those accessors and nothing below it overrides them; keep it that way, because an
-            // override anywhere under it silently returns this branch to the profile.
+            // The cast binds the liveness accessors to HeapAbstractCell here. Without it they
+            // bind from resolve()'s receiver profile, which is per-bytecode and shared with the
+            // cursor compaction path, so the two callers pollute each other. Nothing under
+            // HeapAbstractCell may override those accessors; an override returns this branch to
+            // the shared profile.
             HeapAbstractCell<?> narrowLeft = (HeapAbstractCell<?>) left;
             HeapAbstractCell<?> narrowRight = (HeapAbstractCell<?>) right;
             resolution = CellLivenessInfo.resolve(narrowLeft, narrowRight);
