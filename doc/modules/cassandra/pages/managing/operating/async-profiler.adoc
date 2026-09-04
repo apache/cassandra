@@ -109,13 +109,13 @@ If you need to use a different version of async-profiler (for example, to test a
 After building Cassandra, replace the JAR in the build output directory:
 
 ----
-$ cp /path/to/your/async-profiler-X.Y.jar build/lib/jars/async-profiler-4.2.jar
+$ cp /path/to/your/async-profiler-X.Y.jar build/lib/jars/async-profiler-<current_version>.jar
 ----
 
 Or replace it in the lib directory before building:
 
 ----
-$ cp /path/to/your/async-profiler-X.Y.jar lib/async-profiler-4.2.jar
+$ cp /path/to/your/async-profiler-X.Y.jar lib/async-profiler-<current_version>.jar
 $ ant clean jar
 ----
 

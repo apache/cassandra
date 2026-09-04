@@ -40,7 +40,7 @@
     <byteman.version>4.0.26</byteman.version>
     <netty.version>4.1.130.Final</netty.version>
     <ohc.version>0.5.1</ohc.version>
-    <async-profiler.version>4.2</async-profiler.version>
+    <async-profiler.version>4.5</async-profiler.version>
 
     <!-- These are referenced in build.xml, so need to be propagated from there -->
     <asm.version>@asm.version@</asm.version>
