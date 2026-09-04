@@ -112,6 +112,7 @@ import org.apache.cassandra.hints.DTestSerializer;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.index.IndexStatusManager;
 import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.cassandra.index.sasi.disk.PerSSTableIndexWriter;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummaryManager;
@@ -1048,7 +1049,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> IndexStatusManager.instance.shutdownAndWait(1L, MINUTES),
                                 DiskErrorsHandlerService::close,
                                 () -> ThreadLocalMetrics.shutdownCleaner(1L, MINUTES),
-                                () -> JavaBasedUDFunction.shutdownAndWait(1L, MINUTES)
+                                () -> JavaBasedUDFunction.shutdownAndWait(1L, MINUTES),
+                                () -> PerSSTableIndexWriter.shutdownAndWait(1L, MINUTES)
             );
 
             internodeMessagingStarted = false;

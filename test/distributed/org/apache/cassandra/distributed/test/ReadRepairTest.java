@@ -95,6 +95,8 @@ public class ReadRepairTest extends TestBaseImpl
     public void setup()
     {
         incrementTableName();
+        System.gc();
+        System.gc();
     }
 
     /**
