@@ -8288,7 +8288,7 @@ Merged from 0.8:
  * avoid preserving login information after client disconnects
    (CASSANDRA-1057)
  * prefer sun jdk to openjdk in debian init script (CASSANDRA-1174)
- * detect partioner config changes between restarts and fail fast
+ * detect partitioner config changes between restarts and fail fast
    (CASSANDRA-1146)
  * use generation time to resolve node token reassignment disagreements
    (CASSANDRA-1118)

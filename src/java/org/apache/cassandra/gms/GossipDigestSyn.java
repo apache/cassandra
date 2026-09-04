@@ -38,14 +38,14 @@ public class GossipDigestSyn
     public static final IVersionedSerializer<GossipDigestSyn> serializer = new GossipDigestSynSerializer();
 
     final String clusterId;
-    final String partioner;
+    final String partitioner;
     final int metadataId;
     final List<GossipDigest> gDigests;
 
-    public GossipDigestSyn(String clusterId, String partioner, int metadataId, List<GossipDigest> gDigests)
+    public GossipDigestSyn(String clusterId, String partitioner, int metadataId, List<GossipDigest> gDigests)
     {
         this.clusterId = clusterId;
-        this.partioner = partioner;
+        this.partitioner = partitioner;
         this.metadataId = metadataId;
         this.gDigests = gDigests;
     }
@@ -88,7 +88,7 @@ class GossipDigestSynSerializer implements IVersionedSerializer<GossipDigestSyn>
     public void serialize(GossipDigestSyn gDigestSynMessage, DataOutputPlus out, int version) throws IOException
     {
         out.writeUTF(gDigestSynMessage.clusterId);
-        out.writeUTF(gDigestSynMessage.partioner);
+        out.writeUTF(gDigestSynMessage.partitioner);
         if (version >= MessagingService.VERSION_60)
             out.writeUnsignedVInt32(gDigestSynMessage.metadataId);
         GossipDigestSerializationHelper.serialize(gDigestSynMessage.gDigests, out, version);
@@ -97,19 +97,19 @@ class GossipDigestSynSerializer implements IVersionedSerializer<GossipDigestSyn>
     public GossipDigestSyn deserialize(DataInputPlus in, int version) throws IOException
     {
         String clusterId = in.readUTF();
-        String partioner = null;
-        partioner = in.readUTF();
+        String partitioner = null;
+        partitioner = in.readUTF();
         int metadataId = version >= MessagingService.VERSION_60
                          ? in.readUnsignedVInt32()
                          : ClusterMetadata.EMPTY_METADATA_IDENTIFIER;
         List<GossipDigest> gDigests = GossipDigestSerializationHelper.deserialize(in, version);
-        return new GossipDigestSyn(clusterId, partioner, metadataId, gDigests);
+        return new GossipDigestSyn(clusterId, partitioner, metadataId, gDigests);
     }
 
     public long serializedSize(GossipDigestSyn syn, int version)
     {
         long size = TypeSizes.sizeof(syn.clusterId);
-        size += TypeSizes.sizeof(syn.partioner);
+        size += TypeSizes.sizeof(syn.partitioner);
         if (version >= MessagingService.VERSION_60)
             size += TypeSizes.sizeofUnsignedVInt(syn.metadataId);
         size += GossipDigestSerializationHelper.serializedSize(syn.gDigests, version);
