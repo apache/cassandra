@@ -1,5 +1,4 @@
 6.0-alpha3
- * Upgrade async-profiler from 4.2 to 4.5 (CASSANDRA-21630)
  * Optimize authorization logic for BatchStatement and TransactionStatement when a single table is updated (CASSANDRA-21606)
  * Upgrade lz4-java to 1.11.2 (CASSANDRA-21564)
  * Encode the CQL as raw bytes to avoid utf string serialization length limitation (CASSANDRA-21599)
