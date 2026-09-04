@@ -28,6 +28,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
@@ -37,6 +38,7 @@ import org.apache.cassandra.replication.CoordinatorLog;
 import org.apache.cassandra.replication.CoordinatorLogId;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.SegmentReferenceTracker;
 import org.apache.cassandra.replication.Shard;
 import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -66,7 +68,8 @@ public class MutationTrackingTables
         private static final String FSYNCED_TO = "fsynced_to";
         private static final String NEEDS_REPLAY = "needs_replay";
         private static final String FILE_PATH = "file_path";
-    
+        private static final String REFERRING_SSTABLES = "referring_sstables";
+
         MutationJournalTable(String keyspace)
         {
             super(TableMetadata.builder(keyspace, MUTATION_JOURNAL)
@@ -81,16 +84,19 @@ public class MutationTrackingTables
                                .addRegularColumn(FSYNCED_TO, Int32Type.instance)
                                .addRegularColumn(NEEDS_REPLAY, BooleanType.instance)
                                .addRegularColumn(FILE_PATH, UTF8Type.instance)
+                               .addRegularColumn(REFERRING_SSTABLES, ListType.getInstance(UTF8Type.instance, false))
                                .build());
         }
-    
+
         @Override
         public DataSet data()
         {
             SimpleDataSet result = new SimpleDataSet(metadata());
-    
+            SegmentReferenceTracker referenceTracker = MutationJournal.instance().segmentReferenceTracker();
+
             for (Segment<ShortMutationId, Mutation> segment : MutationJournal.instance().getAllSegments())
             {
+                List<String> referringSstables = referenceTracker.referrerDescriptors(segment.id());
                 result.row(segment.id())
                       .column(IS_ACTIVE, segment instanceof ActiveSegment)
                       .column(BYTES_ON_DISK, segment.segmentSizeOnDisk())
@@ -98,9 +104,10 @@ public class MutationTrackingTables
                       .column(WRITTEN_TO, segment.writtenTo())
                       .column(FSYNCED_TO, segment.fsyncedTo())
                       .column(NEEDS_REPLAY, segment.metadata().needsReplay())
-                      .column(FILE_PATH, segment.filePath());
+                      .column(FILE_PATH, segment.filePath())
+                      .column(REFERRING_SSTABLES, referringSstables);
             }
-    
+
             return result;
         }
     }

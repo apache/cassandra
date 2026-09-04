@@ -202,6 +202,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         // start table first to scrub directories before compactor starts
         journalTable.start();
         journal.start();
+        journal.waitForCompaction(100);
     }
 
     public boolean started()

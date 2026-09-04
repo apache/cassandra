@@ -1218,6 +1218,8 @@ public class DatabaseDescriptor
 
         conf.sai_options.validate();
 
+        conf.mutation_tracking.validate();
+
         List<ConsistencyLevel> progressBarrierCLsArr = Arrays.asList(ALL, EACH_QUORUM, LOCAL_QUORUM, QUORUM, ONE, NODE_LOCAL);
         Set<ConsistencyLevel> progressBarrierCls = new HashSet<>(progressBarrierCLsArr);
         if (!progressBarrierCls.contains(conf.progress_barrier_min_consistency_level))

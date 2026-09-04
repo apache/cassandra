@@ -74,6 +74,10 @@ public class MutationTrackingLogPersisterTest extends FuzzTestBase
                                                                                           .build(schema, hb, cluster)));
                 }
 
+                // Keep background compaction from promoting sstables to repaired before we explicitly compact
+                // below, so the segment-drop timing is deterministic.
+                cluster.forEach(i -> i.nodetoolResult("disableautocompaction", KEYSPACE).asserts().success());
+
                 int counter = 0;
                 for (int pk = 0; pk < pks; pk++)
                 {
@@ -86,13 +90,22 @@ public class MutationTrackingLogPersisterTest extends FuzzTestBase
                 }
 
                 cluster.forEach(i -> i.nodetoolResult("flush", KEYSPACE).asserts().success());
+
                 cluster.forEach(i -> i.runOnInstance(() -> MutationTrackingService.instance().persistLogStateForTesting()));
                 cluster.forEach(i -> i.runOnInstance(() -> MutationTrackingService.instance().broadcastOffsetsForTesting()));
                 cluster.forEach(i -> i.runOnInstance(() -> MutationTrackingService.instance().persistLogStateForTesting()));
 
+                // The flushed sstables are unrepaired and therefore still reference their journal segments
+                // (CASSANDRA-21406). Now that their mutations are durably reconciled, compaction rewrites them into
+                // repaired outputs (SSTableWriter.finalizeMetadata), releasing the references so the persister can
+                // finally drop the static segments.
+                cluster.forEach(i -> i.nodetoolResult("compact", KEYSPACE).asserts().success());
+                cluster.forEach(i -> i.runOnInstance(() -> MutationTrackingService.instance().persistLogStateForTesting()));
+
                 cluster.forEach(i -> i.runOnInstance(() -> {
                     int staticSegments = MutationJournal.instance().countStaticSegmentsForTesting();
-                    Assert.assertEquals("Expected no static segments after log persister runs", 0, staticSegments);
+                    Assert.assertEquals("Expected no static segments once reconciled sstables are compacted to repaired",
+                                        0, staticSegments);
                 }));
             });
         }

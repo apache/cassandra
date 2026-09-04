@@ -595,7 +595,15 @@ public abstract class CoordinatorLog
 
     void collectDurablyReconciledOffsets(Log2OffsetsMap.Mutable into)
     {
-        into.add(reconciledPersistedOffsets);
+        lock.readLock().lock();
+        try
+        {
+            into.add(reconciledPersistedOffsets);
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
     }
 
     boolean isDurablyReconciled(ShortMutationId id)

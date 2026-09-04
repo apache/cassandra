@@ -27,6 +27,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 import java.util.zip.CRC32;
 
 import javax.annotation.Nullable;
@@ -46,6 +47,7 @@ import accord.utils.Invariants;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.TypeSizes;
@@ -69,12 +71,12 @@ import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.journal.RecordConsumer;
 import org.apache.cassandra.journal.RecordPointer;
 import org.apache.cassandra.journal.Segment;
-import org.apache.cassandra.journal.SegmentCompactor;
 import org.apache.cassandra.journal.StaticSegment;
 import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Semaphore;
@@ -101,7 +103,10 @@ public class MutationJournal
     private static final MutationJournal instance = DatabaseDescriptor.getMutationTrackingEnabled() ? new MutationJournal() : null;
 
     private final Journal<ShortMutationId, Mutation> journal;
+    @VisibleForTesting
+    final MutationJournalSegmentCompactor segmentCompactor;
     private final Map<Long, SegmentStateTracker> segmentStateTrackers;
+    private final SegmentReferenceTracker segmentReferenceTracker;
 
     // Static segments awaiting durable cleanup of their needsReplay=false metadata.
     private final Set<Long> pendingClearReplay = ConcurrentHashMap.newKeySet();
@@ -169,14 +174,22 @@ public class MutationJournal
     @VisibleForTesting
     MutationJournal(File directory, Params params)
     {
-        journal =
+        this(directory, params, null);
+    }
+
+    @VisibleForTesting
+    MutationJournal(File directory, Params params, Supplier<Log2OffsetsMap<?>> durablyReconciledOffsetsSupplier)
+    {
+        segmentStateTrackers = new NonBlockingHashMapLong<>();
+        segmentCompactor = new MutationJournalSegmentCompactor(this, durablyReconciledOffsetsSupplier);
+        Journal<ShortMutationId, Mutation> journal =
             new Journal<>("MutationJournal",
                           directory,
                           params,
                           MutationIdSupport.INSTANCE,
                           MutationSerializer.INSTANCE,
                           OffsetRangesFactory.INSTANCE,
-                          SegmentCompactor.noop(),
+                          segmentCompactor,
                           new OpOrder())
                           {
                               // TODO (expected): a cleaner way to override it; pass a Callbacks object with sanctioned callbacks?
@@ -189,7 +202,17 @@ public class MutationJournal
                                   });
                               }
                           };
-        segmentStateTrackers = new NonBlockingHashMapLong<>();
+        this.journal = journal;
+        segmentReferenceTracker = new SegmentReferenceTracker(() -> journal.compactor().triggerNow());
+    }
+
+    /**
+     * Triggers the journal's compactor to initiate a segment-dropping + promotion pass
+     * (see {@link MutationJournalSegmentCompactor}
+     */
+    private void triggerSegmentCompaction()
+    {
+        journal.compactor().triggerNow();
     }
 
     public CommitLogPosition getCurrentPosition()
@@ -207,7 +230,7 @@ public class MutationJournal
     {
         Invariants.require(segment.isStatic());
         SegmentStateTracker tracker = segmentStateTrackers.get(segment.id());
-        if (tracker != null && tracker.removeCleanFromDirty())
+        if (tracker == null || tracker.removeCleanFromDirty())
             pendingClearReplay.add(segment.id());
     }
 
@@ -226,6 +249,7 @@ public class MutationJournal
      */
     public void drainCleanup(PendingClearReplay toDrain)
     {
+        boolean anyCleared = false;
         for (long segId : toDrain.segments)
         {
             List<Segment<ShortMutationId, Mutation>> found = journal.getSegments(segId, segId);
@@ -241,6 +265,7 @@ public class MutationJournal
                 segment.metadata().clearNeedsReplay();
                 segment.persistMetadata();
                 pendingClearReplay.remove(segId);
+                anyCleared = true;
             }
             catch (Throwable t)
             {
@@ -248,6 +273,9 @@ public class MutationJournal
                 // leave in live queue
             }
         }
+
+        if (anyCleared)
+            triggerSegmentCompaction();
     }
 
     @VisibleForTesting
@@ -273,23 +301,40 @@ public class MutationJournal
         journal.shutdown();
     }
 
+    @VisibleForTesting
     public RecordPointer write(ShortMutationId id, Mutation mutation)
+    {
+        return write(id, mutation, true);
+    }
+
+    /**
+     * Append a mutation to the journal.
+     *
+     * @param id            the short mutation id
+     * @param mutation      the mutation to be applied to the journal
+     * @param isFullReplica whether this node is a full replica for the mutation's token
+     * @return the record pointer to the journal
+     */
+    public RecordPointer write(ShortMutationId id, Mutation mutation, boolean isFullReplica)
     {
         // TODO (required): why are we using blocking write here? We can/should wait for completion on `close` of WriteContext.
         RecordPointer ptr = journal.blockingWrite(id, mutation);
 
         // IMPORTANT: there should be no way for mutation to be applied to memtable before we mark it as dirty here,
         // since this will introduce a race between marking as dirty and marking as clean.
-        for (TableId tableId : mutation.getTableIds())
+        if (isFullReplica)
         {
-            SegmentStateTracker tracker = lastSegmentTracker;
-            if (tracker == null || tracker.segmentId() != ptr.segmentId)
+            for (TableId tableId : mutation.getTableIds())
             {
-                tracker = segmentStateTrackers.computeIfAbsent(ptr.segmentId, SegmentStateTracker::new);
-                lastSegmentTracker = tracker;
-            }
+                SegmentStateTracker tracker = lastSegmentTracker;
+                if (tracker == null || tracker.segmentId() != ptr.segmentId)
+                {
+                    tracker = segmentStateTrackers.computeIfAbsent(ptr.segmentId, SegmentStateTracker::new);
+                    lastSegmentTracker = tracker;
+                }
 
-            tracker.markDirty(tableId, ptr);
+                tracker.markDirty(tableId, ptr);
+            }
         }
 
         return ptr;
@@ -378,6 +423,7 @@ public class MutationJournal
                     return;
                 // TODO: if (commitLogReplayer.pointInTimeExceeded(mutation))
                 final Keyspace keyspace = Keyspace.open(value.getKeyspaceName());
+                final boolean isFullReplica = keyspace.isFullReplicaFor(value.key().getToken(), ClusterMetadata.current());
 
                 Mutation.PartitionUpdateCollector newPUCollector = null;
                 // TODO (required): replayFilter
@@ -389,9 +435,9 @@ public class MutationJournal
                         continue; // dropped
                     TableId tableId = e.getKey();
 
-                    // Start segment state tracking
-                    segmentStateTrackers.computeIfAbsent(segmentId, SegmentStateTracker::new)
-                                        .markDirty(tableId, segmentId, position);
+                    if (isFullReplica)
+                        segmentStateTrackers.computeIfAbsent(segmentId, SegmentStateTracker::new)
+                                            .markDirty(tableId, segmentId, position);
                     // TODO (required): shouldReplay
                     if (newPUCollector == null)
                         newPUCollector = new Mutation.PartitionUpdateCollector(value.id(), value.getKeyspaceName(), value.key());
@@ -440,13 +486,25 @@ public class MutationJournal
         }
     }
 
-    @VisibleForTesting
-    public int dropReconciledSegments(Log2OffsetsMap<?> reconciledOffsets)
+    void runCompactionBlocking()
     {
-        return journal.dropStaticSegments((segment) -> {
-            StaticOffsetRanges ranges = (StaticOffsetRanges) segment.keyStats();
-            return ranges.isFullyCovered(reconciledOffsets) && !segment.metadata().needsReplay();
-        });
+        journal.compactor().runNowBlocking();
+    }
+
+    /**
+     * Reclaim droppable segments without sstable promotion
+     */
+    void drainBlocking()
+    {
+        journal.compactor().drainBlocking();
+    }
+
+    /**
+     * Listener tracking how many unrepaired sstables of tracked tables reference each static segment.
+     */
+    public SegmentReferenceTracker segmentReferenceTracker()
+    {
+        return segmentReferenceTracker;
     }
 
     public void readAll(RecordConsumer<ShortMutationId> consumer)
@@ -456,6 +514,9 @@ public class MutationJournal
 
     static class JournalParams implements Params
     {
+        /** for now match {@link MutationTrackingService.LogStatePersister#PERSIST_INTERVAL_MILLIS} **/
+        public DurationSpec.IntMillisecondsBound compactionPeriod = new DurationSpec.IntMillisecondsBound("1s");
+
         @Override
         public int segmentSize()
         {
@@ -488,7 +549,7 @@ public class MutationJournal
         @Override
         public int compactMaxSegments()
         {
-            return 0;
+            return DatabaseDescriptor.getMutationTrackingConfig().journal_compaction_max_segments;
         }
 
         @Override
@@ -500,13 +561,13 @@ public class MutationJournal
         @Override
         public boolean enableCompaction()
         {
-            return false;
+            return DatabaseDescriptor.getMutationTrackingConfig().journal_compaction_enabled;
         }
 
         @Override
-        public long compactionPeriod(TimeUnit units)
+        public long compactionPeriod(TimeUnit unit)
         {
-            return 0;
+            return compactionPeriod.to(unit);
         }
 
         @Override
@@ -804,8 +865,11 @@ public class MutationJournal
         }
 
         /**
-         * @return whether all keys in the segment are fully covered by the specified (durably reconciled) offsets map
+         * @return whether every key range in this segment is fully covered by the given (durably reconciled)
+         * offsets — i.e. every mutation id the segment holds has been durably reconciled across peers. Used to
+         * decide when a segment holding witnessed-only data may be dropped.
          */
+        @SuppressWarnings("unchecked")
         boolean isFullyCovered(Log2OffsetsMap<?> durablyReconciled)
         {
             Long2ObjectHashMap<Offsets> reconciledMap = ((Log2OffsetsMap<Offsets>) durablyReconciled).asMap();
@@ -819,9 +883,8 @@ public class MutationJournal
                 int max = maxOffset(range);
 
                 Offsets offsets = reconciledMap.get(logId);
-                if (offsets == null)
-                    return false;
-                if (!offsets.containsRange(min, max))
+                if (offsets == null
+                    || !offsets.containsRange(min, max))
                     return false;
             }
             return true;
@@ -884,7 +947,19 @@ public class MutationJournal
     @VisibleForTesting
     public int countStaticSegmentsForTesting()
     {
-        return journal.countStaticSegmentsForTesting();
+        return journal.countStaticSegments();
+    }
+
+    /**
+     *  Lets tests wait for reconciliation to converge without having to first release the sstable references
+     *  that gate (R).
+     * @return the number of static segments not yet fully covered by the given durably-reconciled offsets.
+     */
+    @VisibleForTesting
+    public int countStaticSegmentsPendingReconciliationForTesting(Log2OffsetsMap<?> durablyReconciled)
+    {
+        return journal.countStaticSegmentsForTesting(
+        segment -> !((StaticOffsetRanges) segment.keyStats()).isFullyCovered(durablyReconciled));
     }
 
     public long getDiskSpaceUsed()
