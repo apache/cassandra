@@ -39,7 +39,6 @@ import org.apache.cassandra.tcm.CMSMembership;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.Directory;
-import org.apache.cassandra.tcm.membership.MembershipUtils;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
@@ -81,7 +80,8 @@ public class PlacementsChangeListenerTest
         DataPlacements.Builder builder = before.unbuild();
         before.forEach((params, placement) -> {
             Replica remove = placement.writes.byEndpoint().flattenValues().iterator().next();
-            Replica add = Replica.fullReplica(MembershipUtils.endpoint(99), remove.range());
+            // randomPlacements gives 127.0.0.{1-255} ip addresses, need to add a non-conflicting one here:
+            Replica add = Replica.fullReplica(InetAddressAndPort.getByNameUnchecked("127.0.1.99"), remove.range());
             DataPlacement newPlacement = placement.unbuild()
                                                   .withoutWriteReplica(e.nextEpoch(), remove)
                                                   .withWriteReplica(e.nextEpoch(), add).build();
