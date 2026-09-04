@@ -111,14 +111,32 @@ public class SerializationHeader
         // but rather on their stats stored in StatsMetadata that are fully accurate.
         EncodingStats.Collector stats = new EncodingStats.Collector();
         RegularAndStaticColumns.Builder columns = RegularAndStaticColumns.builder();
+        RegularAndStaticColumns currentSchemaColumns = metadata.regularAndStaticColumns();
         // We need to order the SSTables by descending generation to be sure that we use latest column metadata.
         for (SSTableReader sstable : orderByDescendingGeneration(sstables))
         {
             stats.updateTimestamp(sstable.getMinTimestamp());
             stats.updateLocalDeletionTime(sstable.getMinLocalDeletionTime());
             stats.updateTTL(sstable.getMinTTL());
-            columns.addAll(sstable.header.columns());
+            for (ColumnMetadata column : sstable.header.columns())
+            {
+                // Include column in a header only if it is in the current schema.
+                // It is not enough to check if a column is not among dropped ones,
+                // because that would not cover the scenario when a column is dropped
+                // and re-added back before flush. Consider:
+                //
+                // insert into ks.tb (id, val) values (1, 2);
+                // alter table ks.tb drop val;
+                // alter table ks.tb add val int;
+                //
+                // If we backed our logic only by a check against a dropped column,
+                // then we would see that it was dropped (in metadata.droppedColumn)
+                // but we would omit the fact that it was actually re-added.
+                if (currentSchemaColumns.contains(column))
+                    columns.add(column);
+            }
         }
+
         return new SerializationHeader(true, metadata, columns.build(), stats.get());
     }
 
