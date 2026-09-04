@@ -93,21 +93,25 @@ public class ShardedMemtableIndex implements MemtableIndex
         return shards.length;
     }
 
+    @Override
     public long writeCount()
     {
         return writeCount.sum();
     }
 
+    @Override
     public boolean isEmpty()
     {
         return getMinTerm() == null;
     }
 
+    @Override
     public Memtable getMemtable()
     {
         return memtable;
     }
 
+    @Override
     public long estimatedMemoryUsed()
     {
         return estimatedMemoryUsed.sum();
@@ -126,6 +130,7 @@ public class ShardedMemtableIndex implements MemtableIndex
      *
      * @return the minimum indexed term across all shards, or {@code null} if the index is empty.
      */
+    @Override
     @Nullable
     public ByteBuffer getMinTerm()
     {
@@ -148,6 +153,7 @@ public class ShardedMemtableIndex implements MemtableIndex
      *
      * @return the maximum indexed term across all shards, or {@code null} if the index is empty
      */
+    @Override
     @Nullable
     public ByteBuffer getMaxTerm()
     {
@@ -157,6 +163,7 @@ public class ShardedMemtableIndex implements MemtableIndex
         return result;
     }
 
+    @Override
     public long index(DecoratedKey key, Clustering<?> clustering, ByteBuffer value)
     {
         if (value == null || (value.remaining() == 0 && index.termType().skipsEmptyValue()))
@@ -168,6 +175,7 @@ public class ShardedMemtableIndex implements MemtableIndex
         return ram;
     }
 
+    @Override
     public KeyRangeIterator search(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange)
     {
         List<Integer> shardsForRange = boundaries.getShardsForRange(keyRange);

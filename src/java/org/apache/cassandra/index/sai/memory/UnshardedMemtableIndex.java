@@ -57,36 +57,43 @@ public class UnshardedMemtableIndex implements MemtableIndex
         this.memtable = memtable;
     }
 
+    @Override
     public long writeCount()
     {
         return writeCount.sum();
     }
 
+    @Override
     public long estimatedMemoryUsed()
     {
         return estimatedMemoryUsed.sum();
     }
 
+    @Override
     public boolean isEmpty()
     {
         return memoryIndex.isEmpty();
     }
 
+    @Override
     public Memtable getMemtable()
     {
         return memtable;
     }
 
+    @Override
     public ByteBuffer getMinTerm()
     {
         return memoryIndex.getMinTerm();
     }
 
+    @Override
     public ByteBuffer getMaxTerm()
     {
         return memoryIndex.getMaxTerm();
     }
 
+    @Override
     public long index(DecoratedKey key, Clustering<?> clustering, ByteBuffer value)
     {
         if (value == null || (value.remaining() == 0 && memoryIndex.index.termType().skipsEmptyValue()))
@@ -99,16 +106,19 @@ public class UnshardedMemtableIndex implements MemtableIndex
     }
 
     /** Used only for Vector Indexes */
+    @Override
     public long update(DecoratedKey key, Clustering<?> clustering, ByteBuffer oldValue, ByteBuffer newValue)
     {
         return memoryIndex.update(key, clustering, oldValue, newValue);
     }
 
+    @Override
     public KeyRangeIterator search(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange)
     {
         return memoryIndex.search(queryContext, expression, keyRange);
     }
 
+    @Override
     public Iterator<Pair<ByteComparable, Iterator<PrimaryKey>>> iterator(DecoratedKey min, DecoratedKey max)
     {
         Iterator<Pair<ByteComparable, PrimaryKeys>> memoryIndexIterator = memoryIndex.iterator();
@@ -131,6 +141,7 @@ public class UnshardedMemtableIndex implements MemtableIndex
     }
 
     /** Used only for Vector Indexes */
+    @Override
     public SegmentMetadata.ComponentMetadataMap writeDirect(IndexDescriptor indexDescriptor,
                                                             IndexIdentifier indexIdentifier,
                                                             Function<PrimaryKey, Integer> postingTransformer) throws IOException

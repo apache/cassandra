@@ -310,6 +310,16 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
+    public void shouldRejectShardsOptionGreaterThanMaxShardCount()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'shards' : '257' }"))
+        .isInstanceOf(InvalidQueryException.class)
+        .hasMessageContaining("Shard count for a storage-attached index must not exceed");
+    }
+
+    @Test
     public void shouldCreateIndexIfExists()
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
