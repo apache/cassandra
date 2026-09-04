@@ -66,16 +66,21 @@ public interface MemtableIndex extends MemtableOrdering
     KeyRangeIterator search(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange);
 
     /**
-     * NOTE: Returned data may contain keys outside [minKey, maxKey].
-     * Bounds are used for shard selection only; implementations
-     * without sharding may ignore them.
+     * Returns an iterator over the in-memory index in ascending term order.
+     * <p>
+     * Returned data may contain keys outside [minKey, maxKey]. The bounds
+     * are used for shard selection only; implementations without sharding may
+     * ignore them.
+     * <p>
+     * Callers should invoke this method only when the source Memtable is no longer accepting
+     * writes. Otherwise, concurrent inserts may be observed partway through iteration.
      */
     Iterator<Pair<ByteComparable, Iterator<PrimaryKey>>> iterator(DecoratedKey min, DecoratedKey max);
 
     /** Implementation only for Vector Indexes */
     default SegmentMetadata.ComponentMetadataMap writeDirect(IndexDescriptor indexDescriptor,
-                                                     IndexIdentifier indexIdentifier,
-                                                     Function<PrimaryKey, Integer> postingTransformer) throws IOException
+                                                             IndexIdentifier indexIdentifier,
+                                                             Function<PrimaryKey, Integer> postingTransformer) throws IOException
     {
         throw new UnsupportedOperationException();
     }

@@ -65,7 +65,7 @@ public class ShardBoundaries
         this.boundaries = boundaries;
         this.epoch = epoch;
         this.ranges = precomputeRanges();
-        this.allShards = IntStream.range(0, boundaries.length + 1).boxed().collect(Collectors.toList());
+        this.allShards = IntStream.range(0, boundaries.length + 1).boxed().collect(Collectors.toUnmodifiableList());
     }
 
     private Range<PartitionPosition>[] precomputeRanges()

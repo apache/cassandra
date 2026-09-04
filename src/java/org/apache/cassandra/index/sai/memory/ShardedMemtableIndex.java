@@ -60,7 +60,7 @@ public class ShardedMemtableIndex implements MemtableIndex
     private final LongAdder estimatedMemoryUsed = new LongAdder();
     private final Memtable memtable;
 
-    private static volatile int defaultShardCount = MEMTABLE_SHARD_COUNT.getInt(FBUtilities.getAvailableProcessors());
+    private static final int DEFAULT_SHARD_COUNT = MEMTABLE_SHARD_COUNT.getInt(FBUtilities.getAvailableProcessors());
     public static final String SHARDS_OPTION = "shards";
 
     public ShardedMemtableIndex(StorageAttachedIndex index,
@@ -69,14 +69,13 @@ public class ShardedMemtableIndex implements MemtableIndex
                                 Memtable memtable)
     {
         this.index = index;
-        int shardCount = (null == shardCountOption) ? defaultShardCount: shardCountOption;
+        int shardCount = (null == shardCountOption) ? DEFAULT_SHARD_COUNT : shardCountOption;
         this.boundaries = owner.localRangeSplits(shardCount);
         this.shards = generateShards(boundaries.shardCount(), index);
         this.memtable = memtable;
     }
 
-    private MemoryIndex[] generateShards(int splits,
-                                         StorageAttachedIndex index)
+    private MemoryIndex[] generateShards(int splits, StorageAttachedIndex index)
     {
         MemoryIndex[] generatedShards = new MemoryIndex[splits];
 
@@ -114,28 +113,44 @@ public class ShardedMemtableIndex implements MemtableIndex
         return estimatedMemoryUsed.sum();
     }
 
-    // Returns the minimum indexed term in the combined memory indexes.
-    // This can be null if the indexed memtable was empty. Users of the
-    // {@code MemtableIndex} requiring a non-null minimum term should
-    // use the {@link MemtableIndex#isEmpty} method.
-    // Note: Individual index shards can return null here if the index
-    // didn't receive any terms within the token range of the shard
+    /**
+     * Returns the minimum indexed term in the combined memory indexes.
+     * This can be {@code null} if the indexed memtable was empty. Users of the
+     * {@code MemtableIndex} requiring a non-null minimum term should
+     * use the {@link MemtableIndex#isEmpty} method.
+     *
+     * <p>
+     * <b>Note:</b> Individual index shards can return {@code null} here if the index
+     *      didn't receive any terms within the token range of the shard
+     * </p>
+     *
+     * @return the minimum indexed term across all shards, or {@code null} if the index is empty.
+     */
     @Nullable
-    public ByteBuffer getMinTerm() {
+    public ByteBuffer getMinTerm()
+    {
         ByteBuffer result = null;
         for (MemoryIndex shard : shards)
             result = index.termType().min(shard.getMinTerm(), result);
         return result;
     }
 
-    // Returns the maximum indexed term in the combined memory indexes.
-    // This can be null if the indexed memtable was empty. Users of the
-    // {@code MemtableIndex} requiring a non-null maximum term should
-    // use the {@link MemtableIndex#isEmpty} method.
-    // Note: Individual index shards can return null here if the index
-    // didn't receive any terms within the token range of the shard
+    /**
+     *  Returns the maximum indexed term in the combined memory indexes.
+     *  This can be {@code null} if the indexed memtable was empty. Users of the
+     *  {@code MemtableIndex} requiring a non-null maximum term should
+     *  use the {@link MemtableIndex#isEmpty} method.
+     *
+     *  <p>
+     *  <b>Note:</b> Individual index shards can return {@code null} here if the index
+     *      didn't receive any terms within the token range of the shard
+     *  </p>
+     *
+     * @return the maximum indexed term across all shards, or {@code null} if the index is empty
+     */
     @Nullable
-    public ByteBuffer getMaxTerm() {
+    public ByteBuffer getMaxTerm()
+    {
         ByteBuffer result = null;
         for (MemoryIndex shard : shards)
             result = index.termType().max(shard.getMaxTerm(), result);
@@ -167,6 +182,7 @@ public class ShardedMemtableIndex implements MemtableIndex
         return builder.build();
     }
 
+    @Override
     public Iterator<Pair<ByteComparable, Iterator<PrimaryKey>>> iterator(DecoratedKey min, DecoratedKey max)
     {
         int minSubrange = min == null ? 0 : boundaries.getShardForKey(min);
@@ -183,10 +199,12 @@ public class ShardedMemtableIndex implements MemtableIndex
                                  new PrimaryKeysMergeReducer(rangeIterators.size()));
     }
 
-    // The PrimaryKeysMergeReducer receives the range iterators from each of the shards selected based on the
-    // min and max keys passed to the iterator method. It doesn't strictly do any reduction because the terms in each
-    // shard are unique. It will receive at most one shard entry per selected shard before getReduced
-    // is called.
+    /**
+     *  The PrimaryKeysMergeReducer receives the range iterators from each of the shards selected based on the
+     *  min and max keys passed to the iterator method. It doesn't strictly do any reduction because the terms in each
+     *  shard are unique. It will receive at most one shard entry per selected shard before {@link #getReduced}
+     *  is called.
+     */
     private static class PrimaryKeysMergeReducer extends MergeIterator.Reducer<Pair<ByteComparable, PrimaryKeys>, Pair<ByteComparable, Iterator<PrimaryKey>>>
     {
         private final Pair<ByteComparable, PrimaryKeys>[] shardEntriesToMerge;
@@ -202,9 +220,14 @@ public class ShardedMemtableIndex implements MemtableIndex
             this.comparator = PrimaryKey::compareTo;
         }
 
+        /**
+         * Receive the term entry for a shard. This should only be called once for each
+         * shard before reduction.
+         *
+         * @param idx the index of the shard contributing this entry
+         * @param current the term and its associated primary keys from the shard
+         */
         @Override
-        // Receive the term entry for a shard. This should only be called once for each
-        // shard before reduction.
         public void reduce(int idx, Pair<ByteComparable, PrimaryKeys> current)
         {
             Preconditions.checkArgument(shardEntriesToMerge[idx] == null, "Terms should be unique in the memory index");
