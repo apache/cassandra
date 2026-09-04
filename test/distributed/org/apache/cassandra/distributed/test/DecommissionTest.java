@@ -109,7 +109,7 @@ public class DecommissionTest extends TestBaseImpl
         try (Cluster cluster = init(Cluster.build(2)
                                            .withConfig(config -> config.with(GOSSIP)
                                                                        .with(NETWORK))
-                                           .withInstanceInitializer((classLoader, threadGroup, num, generation) -> {
+                                           .addInstanceInitializer((classLoader, threadGroup, num, generation) -> {
                                                // we do not want to install BB after restart of a node which
                                                // failed to decommission which is the second generation, here
                                                // as "1" as it is counted from 0.

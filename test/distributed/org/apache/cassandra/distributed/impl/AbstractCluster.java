@@ -241,6 +241,15 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             });
         }
 
+        public B addInstanceInitializer(IInstanceInitializer instanceInitializer)
+        {
+            IInstanceInitializer current = this.getInstanceInitializer2();
+            return withInstanceInitializer((classLoader, threadGroup, num, v) -> {
+                current.initialise(classLoader, threadGroup, num, v);
+                instanceInitializer.initialise(classLoader, threadGroup, num, v);
+            });
+        }
+
         public AbstractBuilder(Factory<I, C, B> factory)
         {
             super(factory);

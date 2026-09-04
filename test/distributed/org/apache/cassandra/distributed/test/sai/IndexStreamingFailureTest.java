@@ -52,7 +52,7 @@ public class IndexStreamingFailureTest extends TestBaseImpl
     public void testAvailabilityAfterFailedNonEntireFileStreaming() throws Exception
     {
         try (Cluster cluster = init(Cluster.build(2).withConfig(c -> c.with(NETWORK, GOSSIP))
-                                                    .withInstanceInitializer((classLoader, threadGroup, num, generation) -> {
+                                                    .addInstanceInitializer((classLoader, threadGroup, num, generation) -> {
                                                         // We only want to install the error on node 2 the first time it
                                                         // is started.
                                                         if (num == 2 && generation == 0)
@@ -69,7 +69,7 @@ public class IndexStreamingFailureTest extends TestBaseImpl
     public void testAvailabilityAfterFailedEntireFileStreaming() throws Exception
     {
         try (Cluster cluster = init(Cluster.build(2).withConfig(c -> c.with(NETWORK, GOSSIP))
-                                           .withInstanceInitializer((classLoader, threadGroup, num, generation) -> {
+                                           .addInstanceInitializer((classLoader, threadGroup, num, generation) -> {
                                                // We only want to install the error on node 2 the first time it
                                                // is started.
                                                if (num == 2 && generation == 0)
