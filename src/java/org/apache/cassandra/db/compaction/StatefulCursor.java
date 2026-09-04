@@ -68,6 +68,7 @@ class StatefulCursor extends SSTableCursorReader
     public StatefulCursor(SSTableReader reader, DiskAccessMode diskAccessMode)
     {
         super(reader, diskAccessMode);
+        bytesReadPositionSnapshot = position();
         currPartition = new PartitionDescriptor(reader.getPartitioner().createReusableKey(0));
         prevPartition = new PartitionDescriptor(reader.getPartitioner().createReusableKey(0));
         unfiltered = new UnfilteredDescriptor(reader.header.clusteringTypes().toArray(AbstractType[]::new));

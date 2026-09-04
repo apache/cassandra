@@ -339,6 +339,27 @@ public abstract class SortedTableScrubber<R extends SSTableReaderWithFilter> imp
         outOfOrder.add(ImmutableBTreePartition.create(iterator));
     }
 
+    /**
+     * @return {@code true} when the index agrees with the independently checksummed first partition position;
+     *         otherwise scrub must discard the index and recover directly from Data.db at that recorded position
+     */
+    protected boolean validateFirstIndexPosition(long indexPosition)
+    {
+        long expectedPosition = sstable.firstPartitionPosition();
+        if (indexPosition == expectedPosition)
+            return true;
+
+        outputHandler.warn("First position reported by index should be %d for sstable version %s, was %d; " +
+                           "continuing without index", expectedPosition, sstable.descriptor.version, indexPosition);
+        return false;
+    }
+
+    /** Position an index-less scrub at the first partition recorded in checksummed Statistics.db. */
+    protected void seekToDataStartWithoutIndex() throws IOException
+    {
+        dataFile.seek(sstable.firstPartitionPosition());
+    }
+
     protected static void throwIfFatal(Throwable th)
     {
         if (th instanceof Error && !(th instanceof AssertionError || th instanceof IOError))

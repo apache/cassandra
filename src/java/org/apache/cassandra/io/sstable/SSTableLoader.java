@@ -54,6 +54,7 @@ import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.StreamingChannel;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Ref;
@@ -168,7 +169,12 @@ public class SSTableLoader implements StreamEventHandler
 
                                                   long estimatedKeys = sstable.estimatedKeysForRanges(tokenRanges);
                                                   Ref<SSTableReader> ref = sstable.ref();
-                                                  CassandraOutgoingFile stream = new CassandraOutgoingFile(StreamOperation.BULK_LOAD, ref, sstableSections, tokenRanges, estimatedKeys);
+                                                  CassandraOutgoingFile stream = new CassandraOutgoingFile(StreamOperation.BULK_LOAD,
+                                                                                                             ref,
+                                                                                                             sstableSections,
+                                                                                                             tokenRanges,
+                                                                                                             estimatedKeys,
+                                                                                                             client.getEndpointVersion(endpoint));
                                                   streamingDetails.put(endpoint, stream);
                                               }
 
@@ -321,6 +327,12 @@ public class SSTableLoader implements StreamEventHandler
         public Map<InetAddressAndPort, Collection<Range<Token>>> getEndpointToRangesMap()
         {
             return endpointToRanges;
+        }
+
+        /** Release version advertised by an endpoint, or {@code null} when the client cannot establish it. */
+        public CassandraVersion getEndpointVersion(InetAddressAndPort endpoint)
+        {
+            return null;
         }
 
         protected void addRangeForEndpoint(Range<Token> range, InetAddressAndPort endpoint)

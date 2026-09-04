@@ -197,9 +197,14 @@ public class MmappedRegions extends SharedCloseableImpl
 
     private void updateState(CompressionMetadata metadata)
     {
-        long lastSegmentOffset = state.getPosition();
-        long offset = metadata.getDataOffsetForChunkOffset(lastSegmentOffset);
-        long segmentSize = 0;
+        // A split SSTable can retain physical alignment padding before its first compressed chunk. Include that pad
+        // in the first region so offsets[0] remains zero and floor() retains its long-standing domain invariant.
+        // Resumed mappings still continue from the current mapped end.
+        boolean fresh = state.isEmpty();
+        long firstChunkOffset = fresh && metadata.dataLength > 0 ? metadata.chunkFor(0).offset : 0;
+        long lastSegmentOffset = fresh ? 0 : state.getPosition();
+        long offset = fresh ? 0 : metadata.getDataOffsetForChunkOffset(lastSegmentOffset);
+        long segmentSize = firstChunkOffset;
 
         while (offset < metadata.dataLength)
         {

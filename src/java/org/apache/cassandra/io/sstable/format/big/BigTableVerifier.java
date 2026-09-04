@@ -117,7 +117,14 @@ public class BigTableVerifier extends SortedTableVerifier<BigTableReader> implem
         try (BigTableKeyReader it = (BigTableKeyReader)sstable.keyReader(true))
         {
             if (it.isExhausted())
+            {
+                if (sstable.hasSplitPrefix())
+                    verifyFirstIndexEntry(it, false);
                 return;
+            }
+
+            if (sstable.hasSplitPrefix())
+                verifyFirstIndexEntry(it, false);
             ByteBuffer key;
             boolean isFirst = true;
             do
@@ -165,7 +172,7 @@ public class BigTableVerifier extends SortedTableVerifier<BigTableReader> implem
                     }
                 }
             }
-            // The verifier checks that the partition key/position in the index and data match, here we waant to verify
+            // The verifier checks that the partition key/position in the index and data match; here we want to verify
             // the entries clustering keys match.
             while (it.advance()); // no-op, just check if index is readable
 

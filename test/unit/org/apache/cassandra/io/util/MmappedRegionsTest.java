@@ -415,6 +415,32 @@ public class MmappedRegionsTest
         testExtendForCompressionMetadata(2, 4, 4, 8, 12);
     }
 
+    @Test
+    public void testCompressedMappingWithPaddedFirstChunkStartsAtZero() throws Exception
+    {
+        int padding = 16;
+        int compressedLength = 100;
+        File file = writeFile("testCompressedMappingWithPaddedFirstChunkStartsAtZero",
+                              allocateBuffer(compressedLength));
+        Memory offsets = Memory.allocate(Long.BYTES);
+        offsets.setLong(0, padding);
+
+        try (CompressionMetadata metadata = new CompressionMetadata(file,
+                                                                     CompressionParams.deflate(4 << 10),
+                                                                     offsets,
+                                                                     offsets.size(),
+                                                                     4 << 10,
+                                                                     compressedLength,
+                                                                     null);
+             ChannelProxy channel = new ChannelProxy(file);
+             MmappedRegions regions = MmappedRegions.map(channel, metadata))
+        {
+            assertEquals(0, regions.floor(0).offset());
+            assertEquals(0, regions.floor(padding - 1).offset());
+            assertEquals(0, regions.floor(padding).offset());
+        }
+    }
+
     public void testExtendForCompressionMetadata(int maxSegmentSize, int chunkSize, int... writeSizes) throws Exception
     {
         MmappedRegions.MAX_SEGMENT_SIZE = maxSegmentSize << 10;

@@ -63,6 +63,7 @@ import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.StorageCompatibilityMode;
 
 import static org.apache.cassandra.io.sstable.format.SSTableFormat.Components.DATA;
 
@@ -434,7 +435,8 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
     static class BigVersion extends Version
     {
         public static final String current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? "nb" :
-                                                     DatabaseDescriptor.getStorageCompatibilityMode().isBefore(6) ? "oa" : "pa";
+                                                     DatabaseDescriptor.getStorageCompatibilityMode().isBefore(6) ? "oa" :
+                                                     DatabaseDescriptor.getStorageCompatibilityMode() == StorageCompatibilityMode.UPGRADING ? "pa" : "qa";
         public static final String earliest_supported_version = "ma";
 
         // ma (3.0.0): swap bf hash order
@@ -450,10 +452,13 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         //           Long deletionTime to prevent TTL overflow
         //           token space coverage
         // pa (6.0): compression dictionary metadata in CompressionInfo component
+        // pb (development): splitter-only variant with the first partition position in Statistics component
+        // qa (7.0): first partition position in Statistics component
         //
-        // NOTE: When adding a new version:
+        // NOTE: When adding a new writer version:
         //  - Please add it to LegacySSTableTest
         //  - Please maybe add it to hasOriginatingHostId's regexp
+        // The development-only pb variant was never released and intentionally has no legacy fixture.
 
         private final boolean isLatestVersion;
         private final int correspondingMessagingVersion;
@@ -471,6 +476,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         private final boolean hasKeyRange;
         private final boolean hasUintDeletionTime;
         private final boolean hasTokenSpaceCoverage;
+        private final boolean hasSplitPrefixMarker;
 
         /**
          * CASSANDRA-9067: 4.0 bloom filter representation changed (two longs just swapped)
@@ -503,6 +509,8 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
             hasKeyRange = version.compareTo("oa") >= 0;
             hasUintDeletionTime = version.compareTo("oa") >= 0;
             hasTokenSpaceCoverage = version.compareTo("oa") >= 0;
+            // Keep reading development pb children, while qa is the first released version with this field.
+            hasSplitPrefixMarker = version.equals("pb") || version.compareTo("qa") >= 0;
         }
 
         @Override
@@ -605,6 +613,20 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         public boolean hasKeyRange()
         {
             return hasKeyRange;
+        }
+
+        @Override
+        public boolean hasSplitPrefixMarker()
+        {
+            return hasSplitPrefixMarker;
+        }
+
+        @Override
+        public boolean supportsZeroCopySplitInput()
+        {
+            // Split input layout is only understood for these versions. In particular, do not infer support from
+            // the version ordering: a future minor may change the copied component layout.
+            return version.equals("pa") || version.equals("pb") || version.equals("qa");
         }
 
         @Override

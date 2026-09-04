@@ -24,6 +24,9 @@ sstablesplit <options> <filename>
 
 |-s, --size <size> |maximum size in MB for the output sstables (default:
 50)
+
+|--zero-copy |split a compressed BIG-format sstable without deserializing or
+recompressing rows
 |===
 
 This command should be run with Cassandra stopped. Note: the script does
@@ -94,3 +97,56 @@ sstablesplit --size 1 --no-snapshot /var/lib/cassandra/data/keyspace/eventlog-63
 
 Note: There is no output, but you can see the results in your file
 system.
+
+== Zero-copy Split
+
+Use `--zero-copy` to split a compressed BIG-format sstable by retaining its
+compression chunks and rebuilding its index and metadata. On Linux filesystems
+that support byte-range reflinks, the tool shares the data extents with the
+children. If reflinks are unavailable, it copies the compressed bytes instead;
+rows are still not deserialized or recompressed.
+
+Zero-copy splitting requires `storage_compatibility_mode: NONE` and a BIG parent
+whose exact on-disk version is supported by the splitter. It refuses uncompressed
+sstables, unknown or newer BIG versions, SSTable-attached indexes, and components
+it cannot reproduce. Split children use the `qa` format version. Binaries that do
+not understand the retained-prefix layout reject these children as an incompatible
+major version instead of attempting to read them. Do not use this option while a
+rolling upgrade is in progress. A rollback to software that supports only `p`-era
+sstables requires restoring the pre-split snapshot, when one was created; using
+`--no-snapshot` leaves no rollback copy. Older software cannot open `qa` children.
+
+The requested size remains a maximum unless one partition's compression-chunk
+span is itself larger than that size.
+
+A compression chunk crossed by a split boundary is retained by both adjacent
+children, although each child exposes only its own indexed partitions. Reflink
+filesystems share those blocks; the copy fallback duplicates the boundary
+chunk. A later normal compaction rewrites the children and reclaims the retained
+bytes.
+
+The splitter rebuilds the partition-size estimate, compression ratio, key range,
+index summary, and Bloom filter for each child. Statistics that require decoding
+the rows cannot be recovered without giving up the zero-copy algorithm, so each
+child inherits these parent-wide values: cell-count and tombstone histograms,
+total rows and columns, timestamp, TTL and deletion-time bounds, covered
+clustering bounds, partition-deletion and legacy-counter flags, commit-log
+intervals, originating host, and sstable level.
+
+Consequently, totals that are summed across sstables can be over-reported until
+the children are compacted, and single-sstable tombstone compaction can be less
+likely to select a child. Zero-copy splitting also does not purge tombstones.
+Where prompt tombstone reclamation matters, run a normal compaction after the
+split or temporarily adjust the table's tombstone-compaction settings. A normal
+compaction rewrites the rows and computes exact per-child statistics.
+
+After committing each input, the tool reports the number of children, bytes
+reflinked, bytes written, and whether any reflink was used. `reflink used=no`
+means the Data.db ranges were copied and should be budgeted as ordinary read,
+write, and temporary disk traffic.
+
+Example:
+
+....
+sstablesplit --zero-copy --size 1024 /var/lib/cassandra/data/keyspace/table/pa-1-big-Data.db
+....
