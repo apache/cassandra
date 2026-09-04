@@ -41,6 +41,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -89,6 +90,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
     {
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+        CassandraRelevantProperties.TCM_SIMULATION_ONLY_SEQUENCE_UNLOCKING.setBoolean(true);
     }
 
     @Test

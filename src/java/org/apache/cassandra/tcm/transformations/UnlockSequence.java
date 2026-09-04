@@ -19,6 +19,7 @@ package org.apache.cassandra.tcm.transformations;
 
 import java.io.IOException;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -44,6 +45,11 @@ public class UnlockSequence implements Transformation
 
     static boolean isSupportedBy(ClusterMetadata metadata)
     {
+        // for simulation testing only, this forces range unlocking to be performed by the
+        // FINISH_(JOIN|LEAVE|REPLACE|MOVE) step of a MultiStepOperation, rather than by a
+        // distinct UNLOCK_SEQUENCE step.
+        if (CassandraRelevantProperties.TCM_SIMULATION_ONLY_SEQUENCE_UNLOCKING.getBoolean())
+            return false;
         return metadata.directory.commonSerializationVersion.isAtLeast(Kind.UNLOCK_SEQUENCE.introducedIn);
     }
 
