@@ -204,6 +204,17 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
      */
     long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing);
 
+    /**
+     * Whether this memtable guarantees that no more than {@code maxWriters} threads are inside {@link #put} at once,
+     * and therefore that no more than that many threads concurrently apply the update's effect to the {@code indexer}.
+     * Memtables that serialize writes per shard can return true when they have at most {@code maxWriters} shards.
+     * Indexes whose implementation has a limit on concurrent writers can skip their own bounding when this is true.
+     */
+    default boolean limitsConcurrentWritesTo(int maxWriters)
+    {
+        return false;
+    }
+
     // Read operations are provided by the UnfilteredSource interface.
 
     // Statistics
