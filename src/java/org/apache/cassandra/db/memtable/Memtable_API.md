@@ -135,7 +135,7 @@ implementations) are provided as the `AbstractMemtable` (statistics tracking), `
 commit log span tracking) and `AbstractAllocatorMemtable` (adds memory management via the `Allocator` class, together
 with flush triggering on memory use and time interval expiration).
 
-A memtable that serializes writes, for example per shard, can say so through `limitsConcurrentWritesTo`. Secondary
+A memtable that serializes writes, for example per shard, can say so through `limitsConcurrentWritesTo()`. Secondary
 indexes whose implementation limits the number of concurrent writers use this to skip their own bounding when the
 memtable already provides it. The default answer is false.
 
