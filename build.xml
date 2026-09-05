@@ -2360,7 +2360,7 @@
 
   <!-- Installs artifacts to local Maven repository -->
   <target name="mvn-install"
-          depends="jar,sources-jar,javadoc-jar"
+          depends="jar,sources-jar,javadoc-jar,install-javadoc"
           description="Installs the artifacts in the Maven Local Repository">
     <!-- This logic does not install cassandra-accord as the accord submodule already did so -->
 
@@ -2372,12 +2372,16 @@
     <!-- the cassandra-all jar -->
     <install pomFile="${build.dir}/${final.name}.pom"
              file="${build.dir}/${final.name}.jar"/>
+
     <install pomFile="${build.dir}/${final.name}.pom"
              file="${build.dir}/${final.name}-sources.jar"
              classifier="sources"/>
+  </target>
+
+  <target name="install-javadoc" unless="no-javadoc">
     <install pomFile="${build.dir}/${final.name}.pom"
-             file="${build.dir}/${final.name}-javadoc.jar"
-             classifier="javadoc"/>
+             file="${build.dir}/${final.name}-sources.jar"
+             classifier="sources"/>
   </target>
 
   <!-- Publish artifacts to remote Maven repository -->
