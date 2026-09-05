@@ -111,6 +111,32 @@ public class AccordGenerators
     {
     }
 
+    /**
+     * Generates a random byte array whose size is determined by the given size generator.
+     * Fills 8 bytes at a time using {@code nextLong()} for efficiency, then fills any remaining bytes individually.
+     */
+    public static Gen<byte[]> byteArray(Gen.IntGen sizeGen)
+    {
+        return rs -> {
+            int size = sizeGen.nextInt(rs);
+            byte[] bytes = new byte[size];
+            int i = 0;
+            for (; i + 8 <= size; i += 8)
+                ByteArrayUtil.putLong(bytes, i, rs.nextLong());
+            for (; i < size; i++)
+                bytes[i] = (byte) rs.nextInt();
+            return bytes;
+        };
+    }
+
+    /**
+     * Generates a random byte array of the specified fixed size.
+     */
+    public static Gen<byte[]> byteArrayOfSize(int size)
+    {
+        return byteArray(rs -> size);
+    }
+
     public static boolean maybeUpdatePartitioner(List<Topology> topologies)
     {
         for (var t : topologies)
