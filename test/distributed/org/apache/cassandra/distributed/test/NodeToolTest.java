@@ -26,10 +26,16 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.service.paxos.Ballot;
 
 import static org.junit.Assert.assertEquals;
 
@@ -153,5 +159,46 @@ public class NodeToolTest extends TestBaseImpl
             .asserts()
             .success()
             .stdoutContains("GitSHA:");
+    }
+
+    @Test
+    public void testClearPaxos() throws Throwable
+    {
+        CLUSTER.schemaChange("CREATE KEYSPACE IF NOT EXISTS clearpaxos_test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
+        CLUSTER.schemaChange("CREATE TABLE IF NOT EXISTS clearpaxos_test.tbl (id int PRIMARY KEY, v int)");
+
+        long before = NODE.callsOnInstance(() -> {
+            ColumnFamilyStore cfs = Keyspace.open("clearpaxos_test").getColumnFamilyStore("tbl");
+            DecoratedKey key = cfs.decorateKey(Int32Type.instance.decompose(1));
+            return cfs.getPaxosRepairHistory().ballotForToken(key.getToken()).uuidTimestamp();
+        }).call();
+
+        CLUSTER.coordinator(1)
+               .execute("INSERT INTO clearpaxos_test.tbl (id, v) VALUES (1, 1) IF NOT EXISTS", ConsistencyLevel.QUORUM);
+
+        NODE.nodetoolResult("clearpaxos", "clearpaxos_test", "tbl")
+            .asserts()
+            .success()
+            .stdoutContains("Paxos cleanup completed.");
+
+        long after = NODE.callsOnInstance(() -> {
+            ColumnFamilyStore cfs = Keyspace.open("clearpaxos_test").getColumnFamilyStore("tbl");
+            DecoratedKey key = cfs.decorateKey(Int32Type.instance.decompose(1));
+            return cfs.getPaxosRepairHistory().ballotForToken(key.getToken()).uuidTimestamp();
+        }).call();
+
+        assertEquals(Ballot.none().uuidTimestamp(), before);
+        org.junit.Assert.assertTrue("Expected paxos repair history to be updated", after > before);
+    }
+
+    @Test
+    public void testClearPaxosUnknownTable() throws Throwable
+    {
+        CLUSTER.schemaChange("CREATE KEYSPACE IF NOT EXISTS clearpaxos_test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
+
+        NODE.nodetoolResult("clearpaxos", "clearpaxos_test", "missing_tbl")
+            .asserts()
+            .failure()
+            .stdoutContains("Unknown table: clearpaxos_test.missing_tbl");
     }
 }
