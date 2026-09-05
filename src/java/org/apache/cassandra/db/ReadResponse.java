@@ -21,21 +21,35 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.ColumnData;
+import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.DeserializationHelper;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIterators;
+import org.apache.cassandra.db.rows.WrappingUnfilteredRowIterator;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.metrics.ReadResponseMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -49,8 +63,42 @@ public abstract class ReadResponse
     // Serializer for single partition read response
     public static final IVersionedSerializer<ReadResponse> serializer = new Serializer();
 
+    // Per-request limits for keeping a local single-partition read response in memory. Unfiltered objects are
+    // kept as an in-memory partition, and once either enabled limit is reached the whole response is serialized
+    // instead, so a response is either fully in memory or fully serialized. Each limit is disabled independently
+    // by setting it to <= 0.
+    //   - IN_MEMORY_MAX_ROWS: maximum number of in-memory Unfiltered objects (rows and range tombstone markers).
+    //   - IN_MEMORY_MAX_SIZE: maximum accumulated unshared heap size (in bytes) of the in-memory Unfiltered objects.
+    // ONE/LOCAL_ONE reads use separate higher limits: the local read is consumed directly
+    // without waiting for cross-replica interactions, so it is worth keeping more of it in memory.
+    static final int IN_MEMORY_MAX_ROWS = CassandraRelevantProperties.DATA_RESPONSE_IN_MEMORY_MAX_ROWS.getInt();
+    static final long IN_MEMORY_MAX_SIZE = CassandraRelevantProperties.DATA_RESPONSE_IN_MEMORY_MAX_SIZE.getSizeInBytes();
+    static final int IN_MEMORY_MAX_ROWS_CL_ONE = CassandraRelevantProperties.DATA_RESPONSE_IN_MEMORY_MAX_ROWS_CL_ONE.getInt();
+    static final long IN_MEMORY_MAX_SIZE_CL_ONE = CassandraRelevantProperties.DATA_RESPONSE_IN_MEMORY_MAX_SIZE_CL_ONE.getSizeInBytes();
+
     protected ReadResponse()
     {
+    }
+
+    private static int inMemoryMaxRows(boolean localReplicaOnly)
+    {
+        return localReplicaOnly ? IN_MEMORY_MAX_ROWS_CL_ONE : IN_MEMORY_MAX_ROWS;
+    }
+
+    private static long inMemoryMaxHeapSize(boolean localReplicaOnly)
+    {
+        return localReplicaOnly ? IN_MEMORY_MAX_SIZE_CL_ONE : IN_MEMORY_MAX_SIZE;
+    }
+
+    static boolean inMemoryLocalResponseEnabled(boolean localReplicaOnly)
+    {
+        return inMemoryMaxRows(localReplicaOnly) > 0 || inMemoryMaxHeapSize(localReplicaOnly) > 0;
+    }
+
+    @VisibleForTesting
+    int inMemoryUnfilteredCount()
+    {
+        return 0;
     }
 
     public static ReadResponse createDataResponse(UnfilteredPartitionIterator data, ReadCommand command, RepairedDataInfo rdi)
@@ -63,9 +111,16 @@ public abstract class ReadResponse
         return new LocalDataResponse(data, command, NO_OP_REPAIRED_DATA_INFO);
     }
 
-    public static ReadResponse createSimpleDataResponse(UnfilteredPartitionIterator data, ColumnFilter selection)
+    static ReadResponse createInMemoryDataResponse(UnfilteredPartitionIterator data, ReadCommand command, RepairedDataInfo rdi, boolean oneOrLocalOne)
     {
-        return new LocalDataResponse(data, selection);
+        return createInMemoryDataResponse(data, command, rdi, inMemoryMaxRows(oneOrLocalOne), inMemoryMaxHeapSize(oneOrLocalOne));
+    }
+
+    @VisibleForTesting
+    static ReadResponse createInMemoryDataResponse(UnfilteredPartitionIterator data, ReadCommand command, RepairedDataInfo rdi,
+                                                   int inMemoryMaxRows, long inMemoryMaxHeapSize)
+    {
+        return InMemoryDataResponse.build(data, command, rdi, inMemoryMaxRows, inMemoryMaxHeapSize);
     }
 
     @VisibleForTesting
@@ -240,9 +295,11 @@ public abstract class ReadResponse
                   DeserializationHelper.Flag.LOCAL);
         }
 
-        private LocalDataResponse(UnfilteredPartitionIterator iter, ColumnFilter selection)
+        // Wraps an already-serialized response buffer; used when a local in-memory response outgrows its limits and
+        // is serialized fully (see InMemoryDataResponse.build).
+        private LocalDataResponse(ByteBuffer data, ByteBuffer repairedDataDigest, boolean isRepairedDigestConclusive)
         {
-            super(build(iter, selection), null, false, MessagingService.current_version, DeserializationHelper.Flag.LOCAL);
+            super(data, repairedDataDigest, isRepairedDigestConclusive, MessagingService.current_version, DeserializationHelper.Flag.LOCAL);
         }
 
         private static ByteBuffer build(UnfilteredPartitionIterator iter, ColumnFilter selection)
@@ -354,6 +411,305 @@ public abstract class ReadResponse
         {
             return false;
         }
+
+        protected ByteBuffer getSerializedData()
+        {
+            return data;
+        }
+    }
+
+    // built on the coordinator for local single-partition reads; never sent over the network.
+    // Holds the whole response as an in-memory object graph. Only used when the response fits within the per-request
+    // limits; larger responses are serialized in full and returned as an ordinary LocalDataResponse instead
+    private static class InMemoryDataResponse extends DataResponse
+    {
+        // An empty static row which is intentionally not the Rows.EMPTY_STATIC_ROW singleton
+        private static final Row PRESENT_EMPTY_STATIC_ROW = BTreeRow.emptyRow(Clustering.STATIC_CLUSTERING);
+
+        // the whole response as an in-memory partition; null if the response was empty
+        private final ImmutableBTreePartition partition;
+
+        static ReadResponse build(UnfilteredPartitionIterator iter, ReadCommand command, RepairedDataInfo rdi,
+                                  int inMemoryMaxRows, long inMemoryMaxHeapSize)
+        {
+            if (!iter.hasNext())
+            {
+                // Empty response
+                ReadResponseMetrics.inMemoryResponses.inc();
+                return new InMemoryDataResponse(null, rdi.getDigest(), rdi.isConclusive());
+            }
+
+            ImmutableBTreePartition partition;
+            ByteBuffer serialized = null;
+            // Closing rowIter is our job, LimitedUnfilteredRowIterator deliberately never closes what it wraps.
+            // The only exception is the overflow path, where serialize() takes it over, hence no try-with-resources.
+            UnfilteredRowIterator rowIter = iter.next();
+            try
+            {
+                LimitedUnfilteredRowIterator limitedIter = new LimitedUnfilteredRowIterator(rowIter, inMemoryMaxRows, inMemoryMaxHeapSize);
+                partition = ImmutableBTreePartition.create(limitedIter);
+
+                if (limitedIter.hasOverflow())
+                {
+                    // if a per-request limit is crossed then fall back to the ordinary serialized representation.
+                    (limitedIter.overflowedByRowLimit() ? ReadResponseMetrics.inMemoryRowLimitHits
+                                                        : ReadResponseMetrics.inMemorySizeLimitHits).inc();
+                    serialized = serialize(command, partition, rowIter);
+                    rowIter = null;
+                }
+            }
+            finally
+            {
+                if (rowIter != null)
+                    rowIter.close();
+            }
+
+            // Capture digest after consuming and closing the iterator so any RepairedDataInfo transformations are reflected.
+            if (serialized != null)
+                return new LocalDataResponse(serialized, rdi.getDigest(), rdi.isConclusive());
+
+            ReadResponseMetrics.inMemoryResponses.inc();
+            return new InMemoryDataResponse(partition, rdi.getDigest(), rdi.isConclusive());
+        }
+
+        // Serializes the full response (the already-consumed in-memory prefix followed by the remaining rows) into a
+        // buffer in the intra-node partition format, so it can be read back like any other serialized DataResponse.
+        private static ByteBuffer serialize(ReadCommand command, ImmutableBTreePartition prefix, UnfilteredRowIterator suffix)
+        {
+            UnfilteredRowIterator prefixIter = unfilteredIteratorAsRead(prefix, command.columnFilter(), suffix.isReverseOrder());
+            UnfilteredRowIterator combined = UnfilteredRowIterators.concat(prefixIter, suffix);
+            UnfilteredPartitionIterator partitionIter = new SingletonUnfilteredPartitionIterator(command.metadata(), combined);
+            return LocalDataResponse.build(partitionIter, command.columnFilter());
+        }
+
+        private InMemoryDataResponse(ImmutableBTreePartition partition,
+                                     ByteBuffer repairedDataDigest, boolean isRepairedDigestConclusive)
+        {
+            super(null, repairedDataDigest, isRepairedDigestConclusive, MessagingService.current_version, DeserializationHelper.Flag.LOCAL);
+            this.partition = partition;
+        }
+
+        @Override
+        @VisibleForTesting
+        int inMemoryUnfilteredCount()
+        {
+            if (partition == null)
+                return 0;
+            int count = 0;
+            try (UnfilteredRowIterator iter = partition.unfilteredIterator())
+            {
+                while (iter.hasNext()) { iter.next(); count++; }
+            }
+            return count;
+        }
+
+        // Decorating iterator that stops once a per-request limit is reached and records whether overflow occurred and which limit caused it.
+        // Does NOT close the wrapped iterator on close() so the caller can continue reading overflow rows.
+        private static class LimitedUnfilteredRowIterator extends AbstractUnfilteredRowIterator
+        {
+            private final UnfilteredRowIterator wrapped;
+            private final int inMemoryMaxRows;
+            private final long inMemoryMaxHeapSize;
+
+            private int unfilteredCount = 0;
+            private long accumulatedHeapSize = 0;
+            private boolean hasOverflow = false;
+            private boolean overflowByRowLimit = false;
+            private boolean insideOpenMarker = false;
+
+            private LimitedUnfilteredRowIterator(UnfilteredRowIterator wrapped, int inMemoryMaxRows, long inMemoryMaxHeapSize)
+            {
+                super(wrapped.metadata(),
+                      wrapped.partitionKey(),
+                      wrapped.partitionLevelDeletion(),
+                      wrapped.columns(),
+                      wrapped.staticRow(),
+                      wrapped.isReverseOrder(),
+                      wrapped.stats());
+                this.wrapped = wrapped;
+                this.inMemoryMaxRows = inMemoryMaxRows;
+                this.inMemoryMaxHeapSize = inMemoryMaxHeapSize;
+            }
+
+            boolean hasOverflow()
+            {
+                return hasOverflow;
+            }
+
+            boolean overflowedByRowLimit()
+            {
+                return overflowByRowLimit;
+            }
+
+            @Override
+            protected Unfiltered computeNext()
+            {
+                if (!wrapped.hasNext())
+                    return endOfData();
+
+                if (!insideOpenMarker)
+                {
+                    if (inMemoryMaxRows > 0 && unfilteredCount >= inMemoryMaxRows)
+                        return overflow(true);
+                    if (inMemoryMaxHeapSize > 0 && accumulatedHeapSize >= inMemoryMaxHeapSize)
+                        return overflow(false);
+                }
+
+                Unfiltered next = wrapped.next();
+                if (next.isRangeTombstoneMarker())
+                {
+                    RangeTombstoneMarker marker = (RangeTombstoneMarker) next;
+                    insideOpenMarker = marker.isOpen(isReverseOrder);
+                }
+                else
+                {
+                    next = withoutShadowedData((Row) next);
+                }
+                unfilteredCount++;
+                // Compute the heap size only when the size limit is enabled to avoid overheads if it is not needed
+                if (inMemoryMaxHeapSize > 0)
+                    accumulatedHeapSize += unsharedHeapSize(next);
+                return next;
+            }
+
+            // A row read back from a buffer is rebuilt cell by cell on top of its row deletion using BTreeRow.Builder.
+            // The builder silently drops whatever that deletion covers.
+            // So, we rebuild here the row in the same way, to avoid a digest mismatch.
+            private static Row withoutShadowedData(Row row)
+            {
+                if (row.deletion().isLive())
+                    return row;
+
+                Row.Builder builder = BTreeRow.sortedBuilder();
+                builder.newRow(row.clustering());
+                builder.addPrimaryKeyLivenessInfo(row.primaryKeyLivenessInfo());
+                builder.addRowDeletion(row.deletion());
+                for (ColumnData cd : row)
+                {
+                    if (cd.column().isSimple())
+                    {
+                        builder.addCell((Cell<?>) cd);
+                    }
+                    else
+                    {
+                        ComplexColumnData complexData = (ComplexColumnData) cd;
+                        if (!complexData.complexDeletion().isLive())
+                            builder.addComplexDeletion(complexData.column(), complexData.complexDeletion());
+                        for (Cell<?> cell : complexData)
+                            builder.addCell(cell);
+                    }
+                }
+                return builder.build();
+            }
+
+            private Unfiltered overflow(boolean byRowLimit)
+            {
+                hasOverflow = true;
+                overflowByRowLimit = byRowLimit;
+                return endOfData();
+            }
+
+            private static long unsharedHeapSize(Unfiltered unfiltered)
+            {
+                return unfiltered.isRow()
+                       ? ((Row) unfiltered).unsharedHeapSize()
+                       : ((RangeTombstoneMarker) unfiltered).unsharedHeapSize();
+            }
+        }
+
+        @Override
+        public UnfilteredPartitionIterator makeIterator(ReadCommand command)
+        {
+            if (partition == null)
+                return EmptyIterators.unfilteredPartition(command.metadata());
+
+            UnfilteredRowIterator inMemoryIter = unfilteredIteratorAsRead(partition, command.columnFilter(), command.isReversed());
+            return new SingletonUnfilteredPartitionIterator(command.metadata(), inMemoryIter);
+        }
+
+        // Iterating an ImmutableBTreePartition partition does not give back the iterator the buffer deserialized read produced.
+        // The method adjusts the iterator to produce results in the same way as the deserialized path, to avoid a digest mismatch.
+        private static UnfilteredRowIterator unfilteredIteratorAsRead(ImmutableBTreePartition partition, ColumnFilter columnFilter, boolean reversed)
+        {
+            UnfilteredRowIterator iter = partition.unfilteredIterator(columnFilter, Slices.ALL, reversed);
+
+            // A partition with nothing in it is serialized as a flag and read back without columns and without a static row
+            if (iter.isEmpty())
+            {
+                iter.close();
+                return EmptyIterators.unfilteredRow(partition.metadata(), partition.partitionKey(), reversed);
+            }
+
+            Row staticRow = iter.staticRow() == Rows.EMPTY_STATIC_ROW && partition.staticRow() != Rows.EMPTY_STATIC_ROW
+                            ? PRESENT_EMPTY_STATIC_ROW
+                            : iter.staticRow();
+            // the static columns are serialized together with a static row only
+            RegularAndStaticColumns columns = staticRow == Rows.EMPTY_STATIC_ROW
+                                              ? new RegularAndStaticColumns(Columns.NONE, partition.columns().regulars)
+                                              : partition.columns();
+
+            if (staticRow == iter.staticRow() && columns.equals(iter.columns()))
+                return iter;
+
+            return new WrappingUnfilteredRowIterator()
+            {
+                public UnfilteredRowIterator wrapped()
+                {
+                    return iter;
+                }
+
+                @Override
+                public RegularAndStaticColumns columns()
+                {
+                    return columns;
+                }
+
+                @Override
+                public Row staticRow()
+                {
+                    return staticRow;
+                }
+            };
+        }
+
+        @Override
+        protected ByteBuffer getSerializedData()
+        {
+            throw new UnsupportedOperationException("InMemoryDataResponse cannot be serialized over the network");
+        }
+    }
+
+    private static class SingletonUnfilteredPartitionIterator extends AbstractUnfilteredPartitionIterator
+    {
+        private final TableMetadata metadata;
+        private final UnfilteredRowIterator partition;
+        private boolean returned = false;
+
+        private SingletonUnfilteredPartitionIterator(TableMetadata metadata, UnfilteredRowIterator partition)
+        {
+            this.metadata = metadata;
+            this.partition = partition;
+        }
+
+        public TableMetadata metadata() { return metadata; }
+
+        public boolean hasNext()
+        {
+            return !returned;
+        }
+
+        public UnfilteredRowIterator next()
+        {
+            if (returned) throw new NoSuchElementException();
+            returned = true;
+            return partition;
+        }
+
+        @Override
+        public void close()
+        {
+            partition.close();
+        }
     }
 
     private static class Serializer implements IVersionedSerializer<ReadResponse>
@@ -378,7 +734,7 @@ public abstract class ReadResponse
                 ByteBufferUtil.writeWithVIntLength(response.repairedDataDigest(), out);
                 out.writeBoolean(response.isRepairedDigestConclusive());
 
-                ByteBuffer data = ((DataResponse)response).data;
+                ByteBuffer data = ((DataResponse)response).getSerializedData();
                 ByteBufferUtil.writeWithVIntLength(data, out);
             }
         }
@@ -418,7 +774,7 @@ public abstract class ReadResponse
                 // In theory, we should deserialize/re-serialize if the version asked is different from the current
                 // version as the content could have a different serialization format. So far though, we haven't made
                 // change to partition iterators serialization since 3.0 so we skip this.
-                ByteBuffer data = ((DataResponse)response).data;
+                ByteBuffer data = ((DataResponse)response).getSerializedData();
                 size += ByteBufferUtil.serializedSizeWithVIntLength(data);
             }
             return size;
