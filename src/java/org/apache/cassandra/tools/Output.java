@@ -33,9 +33,19 @@ public class Output
         this.err = err;
     }
 
+    public void printInfo(String msg)
+    {
+        out.println(msg);
+    }
+
     public void printInfo(String msg, Object... args)
     {
         out.printf(msg, args);
+    }
+
+    public void printError(String msg)
+    {
+        err.println(msg);
     }
 
     public void printError(String msg, Object... args)

@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.tools;
 
-import java.io.IOException;
-
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -39,11 +37,11 @@ public class NodeProbeTest extends CQLTester
     {
         requireNetwork();
         startJMXServer();
-        probe = new NodeProbe(jmxHost, jmxPort);
+        probe = new NodeProbe(new RemoteJmxMBeanAccessor(jmxHost, jmxPort));
     }
 
     @AfterClass
-    public static void teardown() throws IOException
+    public static void teardown() throws Exception
     {
         probe.close();
     }

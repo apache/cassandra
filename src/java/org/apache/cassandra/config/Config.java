@@ -372,6 +372,20 @@ public class Config
     public DataStorageSpec.IntBytesBound native_transport_receive_queue_capacity = new DataStorageSpec.IntBytesBound("1MiB");
 
     /**
+     * Management RPC address and interface refer to the address/interface used for the native management protocol
+     * to communicate with management clients. If not explicitly configured, these default to the regular RPC address
+     * configuration (rpc_address or rpc_interface).
+     * <p>
+     * native_transport_management_port is the port paired with the management RPC address to bind on.
+     */
+    public String rpc_management_address;
+    public String rpc_management_interface;
+    public boolean rpc_management_interface_prefer_ipv6 = false;
+    public boolean start_native_transport_management = false;
+    public int native_transport_management_port = 11211;
+    public int native_transport_management_max_threads = 2;
+
+    /**
      * Max size of values in SSTables, in MebiBytes.
      * Default is the same as the native protocol frame limit: 256MiB.
      * See AbstractType for how it is used.

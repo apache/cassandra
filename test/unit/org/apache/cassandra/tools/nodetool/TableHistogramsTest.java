@@ -22,7 +22,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.auth.AuthKeyspace;
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspace;
@@ -31,14 +31,13 @@ import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.tracing.TraceKeyspace;
 
-import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertNotEquals;
 
 /**
  * @see TableHistograms
  */
-public class TableHistogramsTest extends CQLTester
+public class TableHistogramsTest extends CQLNodetoolProtocolTester
 {
     private static final String INFO_ROW = "Percentile      Read Latency     Write Latency          SSTables    Partition Size        Cell Count";
     private final int ALL_TABLE_SIZE = SystemKeyspace.TABLE_NAMES.size() +
@@ -91,16 +90,16 @@ public class TableHistogramsTest extends CQLTester
         //format 1 : ks1.tb1 ks2.tb2
         ToolRunner.ToolResult tool = invokeNodetool("tablehistograms", "system.local", "system.paxos");
         assertNotEquals(0, tool.getExitCode());
-        assertThat(tool.getStdout()).contains("nodetool: tablehistograms requires <keyspace> <table> or <keyspace.table> format argument");
+        assertThat(tool.getStdout()).contains("tablehistograms requires <keyspace> <table> or <keyspace.table> format argument");
 
         // format 2 : ks1 tb1 ks2 tb2
         tool = invokeNodetool("tablehistograms", "system", "local", "system", "paxos");
         assertNotEquals(0, tool.getExitCode());
-        assertThat(tool.getStdout()).contains("nodetool: Unmatched arguments from index 7: 'system', 'paxos'");
+        assertThat(tool.getStdout()).contains("Unmatched arguments from index 7: 'system', 'paxos'");
 
         // format 3 : ks1.tb1 ks2
         tool = invokeNodetool("tablehistograms", "system.local", "system");
         assertNotEquals(0, tool.getExitCode());
-        assertThat(tool.getStdout()).contains("nodetool: tablehistograms requires <keyspace> <table> or <keyspace.table> format argument");
+        assertThat(tool.getStdout()).contains("tablehistograms requires <keyspace> <table> or <keyspace.table> format argument");
     }
 }

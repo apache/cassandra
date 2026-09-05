@@ -48,16 +48,35 @@ public interface QueueBackpressure
 {
     QueueBackpressure NO_OP = timeUnit -> 0;
 
-    QueueBackpressure DEFAULT = new QueueBackpressure()
-    {
-        private final AtomicReference<Incident> state = new AtomicReference<>(noBackpressure(() -> DatabaseDescriptor.getNativeTransportMinBackoffOnQueueOverload(TimeUnit.NANOSECONDS),
-                                                                                             () -> DatabaseDescriptor.getNativeTransportMaxBackoffOnQueueOverload(TimeUnit.NANOSECONDS)));
+    /** Shared incident state for connections served by {@link Dispatcher#requestExecutor}. */
+    QueueBackpressure DEFAULT = newDefault();
 
-        public long markAndGetDelay(TimeUnit timeUnit)
+    /**
+     * Shared incident state for management connections ({@link Dispatcher#managementExecutor}). Kept separate
+     * from {@link #DEFAULT} because incident severity describes a single executor's queue: an overload streak
+     * on the client transport must not inflate delays applied to management connections, and vice versa.
+     */
+    QueueBackpressure MANAGEMENT_DEFAULT = newDefault();
+
+    static QueueBackpressure newDefault()
+    {
+        return newDefault(() -> DatabaseDescriptor.getNativeTransportMinBackoffOnQueueOverload(TimeUnit.NANOSECONDS),
+                          () -> DatabaseDescriptor.getNativeTransportMaxBackoffOnQueueOverload(TimeUnit.NANOSECONDS));
+    }
+
+    @VisibleForTesting
+    static QueueBackpressure newDefault(LongSupplier minDelayNanos, LongSupplier maxDelayNanos)
+    {
+        return new QueueBackpressure()
         {
-            return state.updateAndGet(Incident::mark).delay(timeUnit);
-        }
-    };
+            private final AtomicReference<Incident> state = new AtomicReference<>(noBackpressure(minDelayNanos, maxDelayNanos));
+
+            public long markAndGetDelay(TimeUnit timeUnit)
+            {
+                return state.updateAndGet(Incident::mark).delay(timeUnit);
+            }
+        };
+    }
 
     long markAndGetDelay(TimeUnit timeUnit);
 

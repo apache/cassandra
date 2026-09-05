@@ -28,7 +28,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.tools.ToolRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,7 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Tests for the {@code GetAuditLog} nodetool command.
  * @see GetAuditLog
  */
-public class GetAuditLogTest extends CQLTester
+public class GetAuditLogTest extends CQLNodetoolProtocolTester
 {
     @BeforeClass
     public static void setup() throws Exception
@@ -84,24 +84,24 @@ public class GetAuditLogTest extends CQLTester
 
     private String getAuditLog()
     {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("getauditlog");
+        ToolRunner.ToolResult tool = invokeNodetool("getauditlog");
         tool.assertOnCleanExit();
         return tool.getStdout();
     }
 
     private void disableAuditLog()
     {
-        ToolRunner.invokeNodetool("disableauditlog").assertOnCleanExit();
+        invokeNodetool("disableauditlog").assertOnCleanExit();
     }
 
     private void enableAuditLogSimple()
     {
-        ToolRunner.invokeNodetool("enableauditlog").assertOnCleanExit();
+        invokeNodetool("enableauditlog").assertOnCleanExit();
     }
 
     private void enableAuditLogComplex()
     {
-        ToolRunner.invokeNodetool("enableauditlog",
+        invokeNodetool("enableauditlog",
                                   "--included-keyspaces", "ks1,ks2,ks3",
                                   "--excluded-categories", "ddl,dcl").assertOnCleanExit();
     }

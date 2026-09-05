@@ -61,6 +61,7 @@ public class ForceCompact extends AbstractCommand
         try
         {
             probe.forceCompactionKeysIgnoringGcGrace(keyspaceName, tableName, partitionKeysIgnoreGcGrace);
+            probe.output().printInfo("Force compaction performed for keyspace '%s', table '%s'", keyspaceName, tableName);
         }
         catch (Exception e)
         {

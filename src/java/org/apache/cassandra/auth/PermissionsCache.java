@@ -50,4 +50,10 @@ public class PermissionsCache extends AuthCache<Pair<AuthenticatedUser, IResourc
     {
         invalidate(Pair.create(new AuthenticatedUser(roleName), Resources.fromName(resourceName)));
     }
+
+    @Override
+    public void accept(MBeanVisitor visitor)
+    {
+        visitor.visitPermissions(this);
+    }
 }

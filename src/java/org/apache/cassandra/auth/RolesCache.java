@@ -119,4 +119,10 @@ public class RolesCache extends AuthCache<RoleResource, Set<Role>> implements Ro
         super.setUpdateInterval(updateInterval);
         generation.incrementAndGet();
     }
+
+    @Override
+    public void accept(MBeanVisitor visitor)
+    {
+        visitor.visitRoles(this);
+    }
 }

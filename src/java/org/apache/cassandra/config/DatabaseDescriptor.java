@@ -149,6 +149,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_LOA
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_STCS_IN_L0;
 import static org.apache.cassandra.config.CassandraRelevantProperties.INITIAL_TOKEN;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IO_NETTY_TRANSPORT_ESTIMATE_SIZE_ON_SUBMIT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.NATIVE_TRANSPORT_MANAGEMENT_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.NATIVE_TRANSPORT_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
 import static org.apache.cassandra.config.CassandraRelevantProperties.PARTITIONER;
@@ -217,6 +218,7 @@ public class DatabaseDescriptor
     private static InetAddress broadcastAddress;
     private static InetAddress rpcAddress;
     private static InetAddress broadcastRpcAddress;
+    private static InetAddress rpcManagementAddress;
     private static SeedProvider seedProvider;
     private static IInternodeAuthenticator internodeAuthenticator = new AllowAllInternodeAuthenticator();
 
@@ -1496,6 +1498,7 @@ public class DatabaseDescriptor
         rpcAddress = null;
         broadcastAddress = null;
         broadcastRpcAddress = null;
+        rpcManagementAddress = null;
 
         /* Local IP, hostname or interface to bind services to */
         if (config.listen_address != null && config.listen_interface != null)
@@ -1582,6 +1585,32 @@ public class DatabaseDescriptor
             if (rpcAddress.isAnyLocalAddress())
                 throw new ConfigurationException("If rpc_address is set to a wildcard address (" + config.rpc_address + "), then " +
                                                  "you must set broadcast_rpc_address to a value other than " + config.rpc_address, false);
+        }
+
+        /* Local IP, hostname or interface to bind Management RPC server to */
+        if (config.rpc_management_address != null && config.rpc_management_interface != null)
+        {
+            throw new ConfigurationException("Set rpc_management_address OR rpc_management_interface, not both", false);
+        }
+        else if (config.rpc_management_address != null)
+        {
+            try
+            {
+                rpcManagementAddress = InetAddress.getByName(config.rpc_management_address);
+            }
+            catch (UnknownHostException e)
+            {
+                throw new ConfigurationException("Unknown host in rpc_management_address " + config.rpc_management_address, false);
+            }
+        }
+        else if (config.rpc_management_interface != null)
+        {
+            rpcManagementAddress = getNetworkInterfaceAddress(config.rpc_management_interface, "rpc_management_interface", config.rpc_management_interface_prefer_ipv6);
+        }
+        else
+        {
+            // Default to regular rpc_address if not specified
+            rpcManagementAddress = rpcAddress;
         }
     }
 
@@ -3618,6 +3647,18 @@ public class DatabaseDescriptor
         return rpcAddress;
     }
 
+    /**
+     * This is the address used to bind for the native management protocol to communicate with management clients.
+     * If not explicitly configured via rpc_management_address or rpc_management_interface, defaults to the regular
+     * rpc_address. The address alone is not enough to uniquely identify this instance because multiple instances
+     * might use the same interface with different ports.
+     */
+    public static InetAddress getRpcManagementAddress()
+    {
+        assert rpcManagementAddress != null;
+        return rpcManagementAddress;
+    }
+
     public static void setBroadcastRpcAddress(InetAddress broadcastRPCAddr)
     {
         broadcastRpcAddress = broadcastRPCAddr;
@@ -3860,6 +3901,38 @@ public class DatabaseDescriptor
                    conf.native_transport_max_request_data_in_flight_per_ip.toBytes()
                    )
         );
+    }
+
+    public static boolean startNativeTransportManagement()
+    {
+        return conf.start_native_transport_management;
+    }
+
+    @VisibleForTesting
+    public static void setStartNativeTransportManagement(boolean start)
+    {
+        conf.start_native_transport_management = start;
+    }
+
+    public static int getNativeTransportManagementPort()
+    {
+        return NATIVE_TRANSPORT_MANAGEMENT_PORT.getInt(conf.native_transport_management_port);
+    }
+
+    @VisibleForTesting
+    public static void setNativeTransportPortManagement(int port)
+    {
+        conf.native_transport_management_port = port;
+    }
+
+    public static int getNativeTransportManagementMaxThreads()
+    {
+        return conf.native_transport_management_max_threads;
+    }
+
+    public static void setNativeTransportManagementMaxThreads(int max_threads)
+    {
+        conf.native_transport_management_max_threads = max_threads;
     }
 
     public static Config.PaxosVariant getPaxosVariant()
