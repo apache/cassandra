@@ -27,6 +27,8 @@ import java.util.Set;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Mutation;
@@ -72,6 +74,13 @@ public class EdgeCaseDifferentialCompactionTest extends DifferentialCompactionTe
      * written for those partitions but must not be counted in stats (totalRows/totalColumnsSet).
      * The staticRows scenario gives every partition static data, so it never writes an empty
      * static row.
+     * <p>
+     * pk 0 additionally carries a static row LARGER than column_index_size, which pins the other
+     * half of the same rule: {@code SSTableCursorWriter} routes a static row to
+     * {@code CursorIndexWriter.staticRowWritten}, which moves the next block's start past it,
+     * because a static row belongs to the partition header and not to a row index block. The
+     * block count below is what states that; the size of a static row cannot otherwise be seen,
+     * since {@code staticRowWritten} is final and branch-free.
      */
     @Test
     public void emptyStaticRows() throws Exception
@@ -80,12 +89,15 @@ public class EdgeCaseDifferentialCompactionTest extends DifferentialCompactionTe
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();
 
+        // pk 0's static alone exceeds the 4 KiB column_index_size; its two regular rows are tiny
+        String bigStatic = "s".repeat(5000);
         for (int round = 0; round < 2; round++)
         {
             for (long pk = 0; pk < 8; pk++)
             {
                 if (pk % 2 == 0)
-                    execute("INSERT INTO %s (pk, s1, ck, v) VALUES (?, ?, ?, ?)", pk, "static" + pk, (long) round, "v" + round);
+                    execute("INSERT INTO %s (pk, s1, ck, v) VALUES (?, ?, ?, ?)",
+                            pk, pk == 0 ? bigStatic + round : "static" + pk, (long) round, "v" + round);
                 else
                     execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)", pk, (long) round, "v" + round);
             }
@@ -107,6 +119,16 @@ public class EdgeCaseDifferentialCompactionTest extends DifferentialCompactionTe
         // static s1 cells.
         assertTrue("expected totalColumnsSet=20, got: " + out.sstables.get(0).statsSummary,
                    out.sstables.get(0).statsSummary.contains("totalColumnsSet=20 "));
+
+        // ABSOLUTE. If pk 0's oversized static counted toward the first index block, its row at
+        // ck 0 would cut that block and the row at ck 1 would leave a tail, giving 2 blocks.
+        assertEquals("the cross-generation rung should leave one cursor-produced output",
+                     1, cfs.getLiveSSTables().size());
+        SSTableReader output = cfs.getLiveSSTables().iterator().next();
+        assertEquals("a static row larger than column_index_size opened an index block: two tiny " +
+                     "regular rows cannot reach the threshold on their own, so this partition must " +
+                     "not be promoted however large its static row is",
+                     0, blockCount(output, 0L));
     }
 
     /**
@@ -516,7 +538,21 @@ public class EdgeCaseDifferentialCompactionTest extends DifferentialCompactionTe
         assertCursorMatchesIteratorAcrossGenerations(cfs);
     }
 
-    /** Wide partition crossing column-index block boundaries (indexed RowIndexEntry path). */
+    /**
+     * Wide partition crossing column-index block boundaries (indexed RowIndexEntry path).
+     * <p>
+     * Round 0's delete opens at {@code ck >= 0}, and the table has no static column, so that
+     * {@code INCL_START_BOUND} sorts ahead of every row and IS the partition's first unfiltered.
+     * At the config's 4 KiB granularity the first block cut falls around row 17, well inside the
+     * range covering rows 0-249, so {@code BtiCursorIndexWriter.blockStartOpenMarker} starts LIVE,
+     * is replaced with the range's deletion at the first cut, and is back to LIVE well before the
+     * last: the whole open-marker-across-a-cut cycle. A writer that carried an open marker across
+     * a partition boundary, or that recorded the marker open at the START of a block rather than
+     * at the end of the previous one, has to produce different index bytes here.
+     * <p>
+     * Cannot see: the recorded marker itself. {@code IndexInfo.openDeletion} is not exposed by any
+     * reader; the byte comparison of the index component is what pins it.
+     */
     @Test
     public void widePartitionCrossingIndexBlocks() throws Exception
     {
@@ -536,6 +572,7 @@ public class EdgeCaseDifferentialCompactionTest extends DifferentialCompactionTe
         }
 
         assertCursorMatchesIteratorAcrossGenerations(cfs);
+        assertIndexedCursorOutput(cfs);
     }
 
     /**
@@ -1880,6 +1917,716 @@ public class EdgeCaseDifferentialCompactionTest extends DifferentialCompactionTe
                      0, countOccurrences(json, "expiring-fl"));
         for (long ck = 0; ck < 6; ck++)
             assertEquals("row column missing at ck " + ck, 1, countOccurrences(json, cellValue("row" + ck)));
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Scenarios below exist for the ROW INDEX, i.e. for partitions above column_index_size.
+    //
+    // Every one of them is here because ClusteringDescriptorPrefixView.parse — the only
+    // cursor-specific input to a BTI row trie — ran in exactly one shape before them: a single
+    // `ck bigint`, fixed width, never null, never empty, never a second component. parse only runs
+    // from BtiCursorIndexWriter.addIndexBlock, which only runs at a block cut, which only happens
+    // above column_index_size (4 KiB in test/conf/cassandra.yaml), so a scenario that stays under
+    // that threshold exercises none of it however exotic its clustering is.
+    //
+    // The oracles are: the harness byte comparison over Rows.db / Partitions.db (or Index.db under
+    // BIG) for the written bytes, assertEveryRowReadableThroughASlice for retrievability, and the
+    // absolute blockCount assertions here for the block arithmetic. A block count is stated
+    // outright wherever the shape makes it computable, because byte equality is blind to a rule
+    // both pipelines get wrong.
+    // ------------------------------------------------------------------------------------------
+
+    /**
+     * Granularity the two one-byte-resolution sweeps below run at. 1 KiB is the smallest
+     * column_index_size the config accepts, and a sweep pays one partition per byte, so the
+     * smallest granularity is the cheapest place to bracket a cut.
+     */
+    private static final int SWEEP_GRANULARITY_KIB = 1;
+    private static final int SWEEP_GRANULARITY = SWEEP_GRANULARITY_KIB * 1024;
+
+    /**
+     * How many one-byte padding steps a block-boundary sweep walks, ending one byte short of
+     * {@link #SWEEP_GRANULARITY}. It has to exceed the per-row serialization overhead — row flags,
+     * clustering, the body and previous-body length vints, the liveness delta and the cell header,
+     * comfortably under 40 bytes today — so the sweep straddles the cut rather than sitting wholly
+     * on one side of it; the marker sweep additionally needs it to exceed that plus one range
+     * tombstone boundary marker. Both sweeps fail with an explicit "widen this" message if the
+     * value ever stops being enough, so a serialization change that outgrows it is a loud failure
+     * and not a silently vacuous test.
+     */
+    private static final int SWEEP_BYTES =
+        CassandraRelevantProperties.TEST_DIFFERENTIAL_BLOCK_BOUNDARY_SWEEP.getInt();
+
+    /** Named in every sweep failure message, so a failure says which knob to turn. */
+    private static final String SWEEP_PROPERTY =
+        CassandraRelevantProperties.TEST_DIFFERENTIAL_BLOCK_BOUNDARY_SWEEP.getKey();
+
+    /**
+     * The single cursor-written sstable the cross-generation rung leaves live, with the absolute
+     * assertion that at least one of its partitions really carried a promoted row index.
+     * <p>
+     * Every scenario in this section is defined by crossing column_index_size. A change to row
+     * sizing, to the config, or to a merge rule that quietly dropped a scenario back under the
+     * threshold would leave it passing while testing an unindexed partition, which is the shape
+     * the rest of this class already covers to death. The non-zero return is what says the index
+     * was exercised at all.
+     */
+    private SSTableReader assertIndexedCursorOutput(ColumnFamilyStore cfs)
+    {
+        assertEquals("the cross-generation rung should leave one cursor-produced output",
+                     1, cfs.getLiveSSTables().size());
+        SSTableReader output = cfs.getLiveSSTables().iterator().next();
+        assertTrue("no partition of the cursor-written output carries a promoted row index: this " +
+                   "scenario has stopped crossing column_index_size and now says nothing about the " +
+                   "row index at all",
+                   assertEveryRowReadableThroughASlice(output) > 0);
+        return output;
+    }
+
+    /**
+     * A single {@code blob} clustering above the block threshold, whose largest value is a run of
+     * {@code 0xFF} bytes and one of whose block-cutting values ends in {@code 0x00}.
+     * <p>
+     * What it covers, stated as what it reaches rather than as what it is named for:
+     * <ul>
+     * <li>The vint length branch of {@code ClusteringDescriptorPrefixView.parse} for a single
+     *     variable-width component, which the tree's {@code ck bigint} partitions never touch.
+     *     {@code UTF8Type} and {@code BytesType} are both variable width and the type identity does
+     *     not change the walk, so a {@code text} clustering of this shape is not written as a
+     *     second scenario; {@code partitionEndingOnABlockCutHasNoTailBlock} below runs one anyway,
+     *     over a 200-byte shared prefix.</li>
+     * <li>The {@code 0x00} escape {@code ByteSource.escaped} performs on the way into a trie
+     *     separator. A clustering only reaches a separator as a block's FIRST or LAST, the two
+     *     positions {@code snapshotOf} is applied to, so the row carrying the trailing
+     *     {@code 0x00} clustering takes a value larger than the granularity and cuts a block by
+     *     itself, making it both. {@code blob} reaches this and {@code 0xFF} in one table;
+     *     {@code text} cannot hold {@code 0xFF} at all.</li>
+     * <li>Aimed at, but NOT asserted: the {@code 0xFF} arm of {@code RowIndexWriter.nudge}, which
+     *     returns the byte unchanged rather than incrementing it. The partition's maximum is
+     *     {@code 0xFF} followed by eight more {@code 0xFF} bytes, so the branch fires if the
+     *     preceding separator diverges exactly on the order byte, and that position is decided by
+     *     where {@code prevSep} left {@code prevMax}.</li>
+     * </ul>
+     * <p>
+     * Cannot see: that the nudge branch fired. Nothing counts it, and a nudge that silently
+     * produced a separator no greater than the maximum still yields an ordered trie, so
+     * {@code IncrementalTrieWriterBase.add}'s order assertion stays quiet. The byte comparison pins
+     * that both pipelines nudged alike; the slice read-back pins that the result routes.
+     */
+    @Test
+    public void blobClusteringCrossingIndexBlocks() throws Exception
+    {
+        createTable("CREATE TABLE %s (pk bigint, ck blob, v text, PRIMARY KEY (pk, ck))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        String padding = "x".repeat(200);
+        for (int round = 0; round < 2; round++)
+        {
+            // orders 0xD8..0xFF, so the partition's maximum clustering — the one nudge() is applied
+            // to — is 0xFF followed by eight more 0xFF bytes
+            for (int order = 0xD8; order <= 0xFF; order++)
+                execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)",
+                        1L, blobClustering(order, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+                        padding + "-" + round);
+            // trailing 0x00 bytes, kept at low order bytes so they cannot become the maximum
+            for (int order = 0xD8; order < 0xDD; order++)
+            {
+                execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)",
+                        1L, blobClustering(order, 0x00, 0x00), padding + "-" + round);
+                execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)",
+                        1L, blobClustering(order, 0x01, 0x00), padding + "-" + round);
+            }
+            // one clustering ending in 0x00 whose value exceeds the 4 KiB granularity, so it cuts
+            // a block on its own and is that block's FIRST and LAST: the escape reaches a trie
+            // separator by design here, not by wherever the cuts happened to fall. Order 0xDD is
+            // below 0xFF, so it cannot become the partition's maximum.
+            execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)",
+                    1L, blobClustering(0xDD, 0x00, 0x00), "e".repeat(5000) + "-" + round);
+            for (int order = 0; order < 3; order++)
+                execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)",
+                        2L, blobClustering(order, 0x01), "small-" + round);
+            flush();
+        }
+
+        assertCursorMatchesIteratorAcrossGenerations(cfs);
+        SSTableReader output = assertIndexedCursorOutput(cfs);
+        assertEquals("a partition well under column_index_size must not be promoted", 0, blockCount(output, 2L));
+    }
+
+    /** A blob clustering: a 16-byte shared prefix, one ordering byte, then {@code suffix}. */
+    private static ByteBuffer blobClustering(int order, int... suffix)
+    {
+        byte[] bytes = new byte[16 + 1 + suffix.length];
+        for (int i = 0; i < 16; i++)
+            bytes[i] = 0x11;
+        bytes[16] = (byte) order;
+        for (int i = 0; i < suffix.length; i++)
+            bytes[17 + i] = (byte) suffix[i];
+        return ByteBuffer.wrap(bytes);
+    }
+
+    /**
+     * Three clustering columns above the block threshold, variable width then two fixed widths.
+     * <p>
+     * {@code compositeClustering} above builds the same column shape but ~800 bytes per partition,
+     * so it never cuts a block. Here {@code ClusteringDescriptorPrefixView.parse} walks PAST
+     * component 0: the {@code pos += len} advance after a variable-width component, and the
+     * two-bit-per-component header shift, both run only for {@code i > 0}. A single wrong offset
+     * there still yields an ordered separator, so the trie is written and misroutes.
+     * <p>
+     * {@code descendingClusteringCrossingIndexBlocks} below takes the SAME parse branches in the
+     * opposite component order; it is kept for {@code ReversedType}, which is outside parse, not
+     * for this walk. Both are named, deterministic shapes that fail loudly rather than drifting
+     * out of a generator's range, which is what they hold over
+     * {@code RandomDifferentialCompactionTest}'s generated clusterings.
+     * <p>
+     * Cannot see: more than 32 components, where parse reads a second header vint. No table
+     * written by CQL in this class has that many clustering columns;
+     * {@code RandomDifferentialCompactionTest} draws 33-36 on one example in four, and
+     * {@code ClusteringDescriptorPrefixViewTest.parseMatchesTheSerializer} asserts its corpus
+     * reached that branch.
+     */
+    @Test
+    public void compositeClusteringCrossingIndexBlocks() throws Exception
+    {
+        createTable("CREATE TABLE %s (pk bigint, ck1 text, ck2 int, ck3 bigint, v text, " +
+                    "PRIMARY KEY (pk, ck1, ck2, ck3))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        String prefix = "p".repeat(48);
+        String padding = "x".repeat(200);
+        for (int round = 0; round < 2; round++)
+        {
+            for (String ck1 : new String[]{ prefix + "a", prefix + "b" })
+                for (int ck2 = 0; ck2 < 5; ck2++)
+                    for (long ck3 = 0; ck3 < 3; ck3++)
+                        execute("INSERT INTO %s (pk, ck1, ck2, ck3, v) VALUES (?, ?, ?, ?, ?)",
+                                1L, ck1, ck2, ck3, padding + "-" + round);
+            for (long ck3 = 0; ck3 < 3; ck3++)
+                execute("INSERT INTO %s (pk, ck1, ck2, ck3, v) VALUES (?, ?, ?, ?, ?)",
+                        2L, prefix + "a", 0, ck3, "small-" + round);
+            flush();
+        }
+
+        assertCursorMatchesIteratorAcrossGenerations(cfs);
+        SSTableReader output = assertIndexedCursorOutput(cfs);
+        assertEquals("a partition well under column_index_size must not be promoted", 0, blockCount(output, 2L));
+    }
+
+    /**
+     * A {@code DESC} clustering column above the block threshold, paired with an {@code ASC} one.
+     * <p>
+     * Its parse branch set is the one {@code compositeClusteringCrossingIndexBlocks} above already
+     * walks, in the opposite component order — fixed width then variable rather than the reverse —
+     * and {@code parse} has no branch that separates the two orders. What it adds is outside
+     * {@code parse} entirely:
+     * {@code ClusteringComparator.asByteComparable} emits inverted bytes and
+     * {@code NEXT_COMPONENT_EMPTY_REVERSED} for a {@link org.apache.cassandra.db.marshal.ReversedType}
+     * component, and that is the encoding the row trie's separators are built from. The write side
+     * builds its comparator from {@code SerializationHeader.clusteringTypes()} while the read side
+     * uses {@code metadata.comparator}. No other DETERMINISTIC scenario pairs DESC with an indexed
+     * partition: {@code descendingClustering} and {@code openEndedRangeTombstonesDescending} above
+     * both stay under the threshold and so never reach a trie.
+     * {@code BtiRandomDifferentialCompactionTest} does reach the shape, because its generator wraps
+     * a clustering type in {@code ReversedType} on a coin flip, but only when the draw also lands a
+     * hub partition across the drawn granularity; this scenario is the one that always does.
+     * Mixing DESC with ASC means a comparator that inverted unconditionally fails here too.
+     * <p>
+     * Cannot see: a disagreement between the two comparators that both pipelines share. Both build
+     * the write-side comparator the same way, so the byte comparison is blind to it; the slice
+     * read-back, which goes through {@code metadata.comparator}, is what covers it.
+     */
+    @Test
+    public void descendingClusteringCrossingIndexBlocks() throws Exception
+    {
+        createTable("CREATE TABLE %s (pk bigint, ck1 bigint, ck2 text, v text, " +
+                    "PRIMARY KEY (pk, ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 DESC, ck2 ASC)");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        String prefix = "p".repeat(48);
+        String padding = "x".repeat(200);
+        for (int round = 0; round < 2; round++)
+        {
+            for (long ck1 = 0; ck1 < 10; ck1++)
+                for (int ck2 = 0; ck2 < 3; ck2++)
+                    execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (?, ?, ?, ?)",
+                            1L, ck1, prefix + ck2, padding + "-" + round);
+            for (long ck1 = 0; ck1 < 3; ck1++)
+                execute("INSERT INTO %s (pk, ck1, ck2, v) VALUES (?, ?, ?, ?)",
+                        2L, ck1, prefix + "0", "small-" + round);
+            flush();
+        }
+
+        assertCursorMatchesIteratorAcrossGenerations(cfs);
+        SSTableReader output = assertIndexedCursorOutput(cfs);
+        assertEquals("a partition well under column_index_size must not be promoted", 0, blockCount(output, 2L));
+    }
+
+    /**
+     * An EMPTY clustering component inside a multi-block partition, ascending.
+     * <p>
+     * {@code ClusteringDescriptorPrefixView.parse} has a null branch and an empty branch that no
+     * test reaches, because the two scenarios in this class that write an empty clustering
+     * ({@code emptyClusteringValuesAscending} and its DESC twin) build partitions far under
+     * column_index_size. Landing an empty component in a trie separator takes more than writing
+     * one: {@code snapshotOf} is only applied to a block's FIRST and LAST clustering. The
+     * empty-clustering row therefore carries a value larger than the granularity, so it cuts a
+     * block on its own and is necessarily both — under ASC it sorts first, so it is block 1
+     * entire.
+     * <p>
+     * Cannot see: a null (as opposed to empty) clustering component. CQL cannot write one on a
+     * single-column clustering; that branch stays unreached.
+     */
+    @Test
+    public void emptyClusteringComponentCrossingIndexBlocksAscending() throws Exception
+    {
+        emptyClusteringComponentCrossingIndexBlocks(false);
+    }
+
+    /**
+     * DESC twin of the above: the empty component sorts LAST, so it is the last block's last
+     * clustering rather than the first block's first. That is the other of the two positions
+     * {@code snapshotOf} is applied to, and under {@code ReversedType} it is also the value
+     * {@code RowIndexWriter.complete} nudges.
+     */
+    @Test
+    public void emptyClusteringComponentCrossingIndexBlocksDescending() throws Exception
+    {
+        emptyClusteringComponentCrossingIndexBlocks(true);
+    }
+
+    private void emptyClusteringComponentCrossingIndexBlocks(boolean descending) throws Exception
+    {
+        createTable("CREATE TABLE %s (pk bigint, ck text, v text, PRIMARY KEY (pk, ck))" +
+                    (descending ? " WITH CLUSTERING ORDER BY (ck DESC)" : ""));
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        String padding = "x".repeat(200);
+        // larger than the 4 KiB column_index_size, so the empty-clustering row cuts a block by itself
+        String bigPadding = "e".repeat(5000);
+        for (int round = 0; round < 2; round++)
+        {
+            for (int i = 0; i < 30; i++)
+                execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)",
+                        1L, "c" + String.format("%04d", i), padding + "-" + round);
+            execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)",
+                    1L, ByteBufferUtil.EMPTY_BYTE_BUFFER, bigPadding + "-" + round);
+            flush();
+        }
+
+        assertCursorMatchesIteratorAcrossGenerations(cfs);
+        assertIndexedCursorOutput(cfs);
+    }
+
+    /**
+     * The tail-block decision, stated as four absolute block counts, over clusterings that share a
+     * 200-byte prefix.
+     * <p>
+     * {@code BtiCursorIndexWriter.endPartition} cuts a trailing block only when a block is still
+     * open, and BIG reaches the same decision from a tail size of more than the one end-of-partition
+     * marker byte. {@code fixedLengthValuesLargerThanCopyBuffer} and
+     * {@code mapKeysAcrossTheVintLengthBoundary} above already REACH the closed-block arm, because
+     * every row of theirs exceeds the granularity, but neither asserts a block count, so a writer
+     * that cut a tail unconditionally passes both. The pk 1 / pk 2 pair below is what separates the
+     * branches.
+     * <p>
+     * The {@code text} clustering carries a 200-byte shared prefix, so this is also where the
+     * separator chain runs deep: every {@code ByteComparable.separatorGt} result runs the whole
+     * prefix before it diverges, and {@code RowIndexWriter.complete} walks that prefix to find its
+     * nudge point. Neither has a length-dependent branch, so the prefix buys reach into the loops
+     * rather than a new branch.
+     * <p>
+     * Each row here exceeds the 4 KiB granularity on its own, which makes the counts exact without
+     * any arithmetic on the serialized row size:
+     * <ul>
+     * <li>pk 1, two big rows: both cut, nothing is left open, 2 blocks.</li>
+     * <li>pk 2, two big rows and a small one: the small row leaves a block open, so a tail is cut,
+     *     3 blocks. This is the pair that pins the branch — a writer that never cut a tail gives
+     *     pk 2 two blocks, one that always cut gives pk 1 three.</li>
+     * <li>pk 3, ONE big row: one cut, no tail, and a one-block index is not promoted at all
+     *     (BTI's {@code finish} returns a -1 trie root, BIG's {@code totalBlocks <= 1} writes a
+     *     plain entry), so 0.</li>
+     * <li>pk 4, two small rows: never reaches the threshold, 0.</li>
+     * </ul>
+     * <p>
+     * Cannot see: a partition that ends EXACTLY on a granularity multiple. Hitting that needs the
+     * serialized size of a row, which no reader exposes; {@code blockCutBracketsTheGranularityCut}
+     * below brackets it to one byte instead of naming it.
+     */
+    @Test
+    public void partitionEndingOnABlockCutHasNoTailBlock() throws Exception
+    {
+        createTable("CREATE TABLE %s (pk bigint, ck text, v text, PRIMARY KEY (pk, ck))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        // shared by every clustering, so each separator runs 200 bytes deep before it diverges.
+        // The suffix is zero-padded, so lexicographic order is the numeric order the counts assume.
+        String prefix = "p".repeat(200);
+        String big = "x".repeat(4500);   // one row > the 4 KiB column_index_size
+        String small = "s".repeat(50);
+        for (int round = 0; round < 2; round++)
+        {
+            for (int ck = 0; ck < 2; ck++)
+            {
+                execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)", 1L, clustering(prefix, ck), big + "-" + round);
+                execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)", 2L, clustering(prefix, ck), big + "-" + round);
+            }
+            execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)", 2L, clustering(prefix, 2), small + "-" + round);
+            execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)", 3L, clustering(prefix, 0), big + big + "-" + round);
+            for (int ck = 0; ck < 2; ck++)
+                execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)", 4L, clustering(prefix, ck), small + "-" + round);
+            flush();
+        }
+
+        assertCursorMatchesIteratorAcrossGenerations(cfs);
+        SSTableReader output = assertIndexedCursorOutput(cfs);
+        assertEquals("both rows exceed column_index_size, so the last one ends a block and no tail " +
+                     "remains to cut", 2, blockCount(output, 1L));
+        assertEquals("the trailing small row leaves a block open, so endPartition must cut a tail",
+                     3, blockCount(output, 2L));
+        assertEquals("a single row cuts one block and leaves no tail, and a one-block index is never " +
+                     "promoted", 0, blockCount(output, 3L));
+        assertEquals("a partition under column_index_size must not be promoted", 0, blockCount(output, 4L));
+    }
+
+    /** A {@code text} clustering: a long shared prefix, then a zero-padded suffix that orders. */
+    private static String clustering(String prefix, int suffix)
+    {
+        return prefix + String.format("%04d", suffix);
+    }
+
+    /**
+     * Brackets the granularity cut to a single byte, by sweeping the row size across it.
+     * <p>
+     * The exact shapes this stands in for — a partition of exactly N granularities, of a
+     * granularity plus one byte, a single row of exactly the block size — need the serialized size
+     * of a row, which is a function of the row flags, the clustering encoding, two length vints, the
+     * liveness delta against the sstable's encoding stats and the cell header. No reader exposes it,
+     * and guessing it would give a scenario that CLAIMS to sit on the cut and does not. This sweeps
+     * instead: one partition per padding length, one byte apart, so the exact boundary is somewhere
+     * inside and the shape of the crossing is asserted rather than its position.
+     * <p>
+     * Every partition holds two rows of the same padding. Row 1 cuts iff its serialized size reaches
+     * the granularity; if it does, row 2 is at least as large and cuts too, giving 2 blocks with no
+     * tail. If row 1 does not cut, the two together do, giving one block — never promoted, reported
+     * as 0. So the count is 0 below the cut and 2 at or above it, and the serialized size is
+     * monotone in the padding, so the sweep must show one step and no other value. A fixed
+     * {@code USING TIMESTAMP} keeps the liveness delta constant, so the row size is a function of
+     * the padding alone.
+     * <p>
+     * Runs at {@link #SWEEP_GRANULARITY_KIB} KiB rather than the config's 4 KiB purely for cost:
+     * the sweep pays one partition per byte either way.
+     * <p>
+     * Cannot see: WHICH padding sits exactly on the cut, only that exactly one does. And it says
+     * nothing about a writer whose cut is off by a constant — the step would simply move, and this
+     * asserts the step's shape, not its position.
+     */
+    @Test
+    public void blockCutBracketsTheGranularityCut() throws Exception
+    {
+        createTable("CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        int previousGranularity = DatabaseDescriptor.getColumnIndexSizeInKiB();
+        // set BEFORE the compaction, not before the schema: BtiCursorIndexWriter reads
+        // column_index_size once, in its constructor
+        DatabaseDescriptor.setColumnIndexSizeInKiB(SWEEP_GRANULARITY_KIB);
+        try
+        {
+            for (int step = 0; step < SWEEP_BYTES; step++)
+            {
+                String padding = "x".repeat(SWEEP_GRANULARITY - SWEEP_BYTES + step);
+                for (long ck = 0; ck < 2; ck++)
+                    execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP 1000",
+                            (long) step, ck, padding);
+            }
+            flush();
+            // a second input, so this is a merge and not a single-sstable rewrite
+            execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", -1L, 0L, "control");
+            flush();
+
+            assertCursorMatchesIteratorAcrossGenerations(cfs);
+            SSTableReader output = assertIndexedCursorOutput(cfs);
+
+            assertEquals("the sweep starts ABOVE the cut, so it does not bracket it: the shortest " +
+                         "padding already cuts a block. Widen " + SWEEP_PROPERTY,
+                         0, blockCount(output, 0));
+            assertEquals("the sweep ends BELOW the cut, so it does not bracket it: even the longest " +
+                         "padding never reaches " + SWEEP_GRANULARITY + " serialized bytes. Widen " +
+                         SWEEP_PROPERTY,
+                         2, blockCount(output, SWEEP_BYTES - 1));
+
+            int steps = 0;
+            int previousCount = 0;
+            for (int step = 0; step < SWEEP_BYTES; step++)
+            {
+                int count = blockCount(output, step);
+                assertTrue("padding step " + step + " gave " + count + " blocks: two rows can cut at " +
+                           "most one block each, and a one-block index is never promoted, so 0 and 2 " +
+                           "are the only counts reachable here",
+                           count == 0 || count == 2);
+                if (count != previousCount)
+                {
+                    assertEquals("the promoted block count FELL as the rows grew, at padding step " +
+                                 step + ": the serialized row size is monotone in the padding, so the " +
+                                 "cut cannot un-fire", 2, count);
+                    steps++;
+                }
+                previousCount = count;
+            }
+            assertEquals("the block count crossed the cut more than once, so the serialized row size " +
+                         "is not monotone in the padding and the byte the cut sits on is not bracketed",
+                         1, steps);
+        }
+        finally
+        {
+            DatabaseDescriptor.setColumnIndexSizeInKiB(previousGranularity);
+        }
+    }
+
+    /**
+     * Puts a range tombstone BOUNDARY marker at the end of an index block, by sweeping the row
+     * before it across the cut.
+     * <p>
+     * {@code SSTableCursorWriter.writeRangeTombstone} sets the open marker to a boundary's
+     * {@code deletionTime2} — the deletion of the range that OPENS there — and when a block is cut
+     * on that marker, that is the value {@code addIndexBlock} carries into the NEXT block's
+     * {@code IndexInfo}. Nothing in the tree lands a boundary marker at a cut by design; the wide
+     * partitions that hold both do it by whatever the layout happened to be.
+     * <p>
+     * Each partition is: the open bound of [0,1), a row of swept padding, the boundary at 1, a row
+     * larger than the granularity, and the close bound of [1,3). The rows are written in one
+     * sstable and the two ranges in another, so the boundary is formed by the MERGE. The block
+     * count is 2 while neither the open bound nor the first row reaches the cut, and 3 once
+     * something does. The first padding at which it becomes 3 is necessarily a partition where the
+     * BOUNDARY MARKER, not the row, ended block 1: the step happens the moment
+     * {@code openBound + row + marker} reaches the granularity, and one padding byte earlier
+     * {@code openBound + row} was already below it by at least a marker's width. So the sweep
+     * contains at least one such partition by construction, not by luck.
+     * <p>
+     * Cannot see: which partition that is, or that the {@code IndexInfo} carried the right
+     * deletion. The byte comparison of Rows.db / Index.db is the oracle for the value; this
+     * scenario's job is only to make the shape occur.
+     */
+    @Test
+    public void blockCutLandsOnARangeTombstoneBoundaryMarker() throws Exception
+    {
+        createTable("CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck)) " +
+                    "WITH gc_grace_seconds = 864000");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        int previousGranularity = DatabaseDescriptor.getColumnIndexSizeInKiB();
+        DatabaseDescriptor.setColumnIndexSizeInKiB(SWEEP_GRANULARITY_KIB);
+        try
+        {
+            // comfortably over the granularity on its own, so it always cuts, and large enough
+            // that a three-block partition clears the harness's own
+            // "length >= (blocks - 1) * granularity" bound with room
+            String trailing = "y".repeat(SWEEP_GRANULARITY + 512);
+            for (int step = 0; step < SWEEP_BYTES; step++)
+            {
+                String padding = "x".repeat(SWEEP_GRANULARITY - SWEEP_BYTES + step);
+                execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP 3000",
+                        (long) step, 0L, padding);
+                execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP 3000",
+                        (long) step, 1L, trailing);
+            }
+            flush();
+
+            // two abutting ranges with DIFFERENT deletion times: equal ones would merge into a
+            // single range and produce no boundary marker at all. Both are older than the rows, so
+            // the rows survive and the markers stay.
+            for (int step = 0; step < SWEEP_BYTES; step++)
+            {
+                execute("DELETE FROM %s USING TIMESTAMP 1000 WHERE pk = ? AND ck >= ? AND ck < ?",
+                        (long) step, 0L, 1L);
+                execute("DELETE FROM %s USING TIMESTAMP 2000 WHERE pk = ? AND ck >= ? AND ck < ?",
+                        (long) step, 1L, 3L);
+            }
+            flush();
+
+            assertCursorMatchesIteratorAcrossGenerations(cfs);
+            SSTableReader output = assertIndexedCursorOutput(cfs);
+
+            assertEquals("the sweep starts ABOVE the cut: the shortest padding already ends block 1 " +
+                         "before the trailing row, so the step this scenario relies on is outside the " +
+                         "sweep. Widen " + SWEEP_PROPERTY,
+                         2, blockCount(output, 0));
+            assertEquals("the sweep ends BELOW the cut: even the longest padding leaves block 1 open " +
+                         "until the trailing row, so no partition ended a block on the boundary " +
+                         "marker. Widen " + SWEEP_PROPERTY,
+                         3, blockCount(output, SWEEP_BYTES - 1));
+
+            int steps = 0;
+            int previousCount = 2;
+            for (int step = 0; step < SWEEP_BYTES; step++)
+            {
+                int count = blockCount(output, step);
+                assertTrue("padding step " + step + " gave " + count + " blocks; the trailing row " +
+                           "always cuts and the close bound always leaves a tail, so the only counts " +
+                           "reachable here are 2 (nothing cut before the trailing row) and 3",
+                           count == 2 || count == 3);
+                if (count != previousCount)
+                {
+                    assertEquals("the promoted block count FELL as the first row grew, at padding step " +
+                                 step, 3, count);
+                    steps++;
+                }
+                previousCount = count;
+            }
+            assertEquals("the block count crossed the cut more than once, so the step from 2 to 3 does " +
+                         "not identify the partitions whose block 1 ended on the boundary marker",
+                         1, steps);
+        }
+        finally
+        {
+            DatabaseDescriptor.setColumnIndexSizeInKiB(previousGranularity);
+        }
+    }
+
+    /**
+     * An INDEXED partition carrying a non-LIVE partition-level deletion.
+     * <p>
+     * {@code TrieIndexEntry.serialize} writes a partition deletion time into the index entry, and
+     * only for an indexed entry; BIG's promoted entry has the same field. Partition-level deletes
+     * exist elsewhere in the suite but always on small partitions, so neither field has ever been
+     * written non-LIVE, in either format. That also leaves the eager serialization in
+     * {@code BtiTableWriter.IndexWriter.append} unpinned — the caller hands it a REUSED
+     * {@code DeletionTime} instance, and the entry is correct only because it is serialized before
+     * the call returns.
+     * <p>
+     * pk 1 is deleted between two rounds of inserts, so the deletion survives compaction (it is not
+     * purgeable inside gc_grace) while the later rows survive it, leaving a partition that is both
+     * indexed and deleted. pk 2 is the same shape without the delete, so the entry's deletion field
+     * is asserted against both values and cannot pass as a constant.
+     * <p>
+     * The index entry's copy is read back directly here; the harness's
+     * {@code assertPartitionDeletionReadableFromIndexEntry}, which compares it against the data
+     * file's, is dormant until a scenario like this one exists.
+     * <p>
+     * Cannot see: a reused-instance defect that happens to reuse the SAME value. Both partitions'
+     * deletions would have to differ within one sstable for that, which one partition delete
+     * cannot arrange.
+     */
+    @Test
+    public void indexedPartitionCarriesAPartitionDeletion() throws Exception
+    {
+        createTable("CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck)) " +
+                    "WITH gc_grace_seconds = 864000");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        String padding = "x".repeat(200);
+        for (long pk = 1; pk <= 2; pk++)
+            for (long ck = 0; ck < 30; ck++)
+                execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP 1000", pk, ck, padding + "-0");
+        flush();
+
+        execute("DELETE FROM %s USING TIMESTAMP 2000 WHERE pk = ?", 1L);
+        flush();
+
+        // re-inserted above the deletion, so pk 1 stays wide enough to be indexed
+        for (long pk = 1; pk <= 2; pk++)
+            for (long ck = 0; ck < 30; ck++)
+                execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP 3000", pk, ck, padding + "-1");
+        flush();
+
+        assertCursorMatchesIteratorAcrossGenerations(cfs);
+        SSTableReader output = assertIndexedCursorOutput(cfs);
+
+        assertEquals("pk 1 must still cross column_index_size exactly once after the delete",
+                     2, blockCount(output, 1L));
+        assertEquals("pk 2 is the undeleted control and must be indexed the same way",
+                     2, blockCount(output, 2L));
+
+        AbstractRowIndexEntry deleted = output.getRowIndexEntry(output.decorateKey(ByteBufferUtil.bytes(1L)),
+                                                                SSTableReader.Operator.EQ);
+        assertNotNull("pk 1 lost its index entry", deleted);
+        assertNotNull("an indexed entry must carry a partition deletion time", deleted.deletionTime());
+        assertFalse("the index entry for a deleted partition reports a LIVE deletion: the entry's " +
+                    "deletion field is the only copy a read takes when the column filter fetches no " +
+                    "statics, so a partition delete lost here is a partition delete lost on read",
+                    deleted.deletionTime().isLive());
+        assertEquals("the index entry carries the wrong deletion timestamp",
+                     2000L, deleted.deletionTime().markedForDeleteAt());
+
+        AbstractRowIndexEntry undeleted = output.getRowIndexEntry(output.decorateKey(ByteBufferUtil.bytes(2L)),
+                                                                  SSTableReader.Operator.EQ);
+        assertNotNull("pk 2 lost its index entry", undeleted);
+        assertTrue("the undeleted control partition's index entry reports a deletion, so the field is " +
+                   "not being read from the partition at all",
+                   undeleted.deletionTime().isLive());
+    }
+
+    /**
+     * A DESIGNED partition at BTI's own default granularity, 16 KiB
+     * ({@code BtiFormatPartitionWriter.DEFAULT_GRANULARITY}).
+     * <p>
+     * Every config in the tree sets column_index_size to 4 KiB — test/conf/cassandra.yaml,
+     * test/conf/latest_diff.yaml and InstanceConfig alike. 16 KiB is not unreached, though:
+     * {@code RandomDifferentialCompactionTest} draws its granularity per example from
+     * {@code COLUMN_INDEX_SIZES_KIB}, one of whose eight entries is 16, and applies it immediately
+     * before the compaction. What that soak does not do is state a designed count, so a partition
+     * whose promotion decision moved between 4 KiB and 16 KiB would still leave it green. This
+     * scenario names one. {@code BtiCursorIndexWriter} reads the granularity ONCE, in its
+     * constructor, so it is set after the writes and before the compaction; setting it before
+     * {@code createTable} would change nothing about the compaction under test.
+     * <p>
+     * pk 2 is what proves the setting took effect. It holds 30 padded rows, the shape
+     * {@code partitionCrossingOneIndexBlock} above pins at exactly 2 blocks under the config's
+     * 4 KiB. At 16 KiB it must not be promoted at all. Without that assertion this scenario would
+     * pass identically if the setter were a no-op.
+     * <p>
+     * Cannot see: a granularity read at the wrong TIME. A writer that re-read column_index_size per
+     * partition instead of per writer would behave identically here, because the value does not
+     * change during the compaction.
+     */
+    @Test
+    public void realBtiGranularity() throws Exception
+    {
+        createTable("CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        String padding = "x".repeat(200);
+        for (int round = 0; round < 2; round++)
+        {
+            for (long ck = 0; ck < 400; ck++)
+                execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)", 1L, ck, padding + "-" + round);
+            for (long ck = 0; ck < 30; ck++)
+                execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)", 2L, ck, padding + "-" + round);
+            flush();
+        }
+
+        int previousGranularity = DatabaseDescriptor.getColumnIndexSizeInKiB();
+        DatabaseDescriptor.setColumnIndexSizeInKiB(16);
+        try
+        {
+            assertCursorMatchesIteratorAcrossGenerations(cfs);
+            SSTableReader output = assertIndexedCursorOutput(cfs);
+            // 400 rows carrying a 202-byte value each serialize to at least 82 KiB and at most
+            // ~104 KiB, so the count is between 4 and 8 whatever the exact per-row overhead is. The
+            // bound is deliberately loose: the assertion that matters is pk 2's zero below.
+            int wide = blockCount(output, 1L);
+            assertTrue("pk 1 is over 80 KiB and must cut at least four 16 KiB blocks, got " + wide,
+                       wide >= 4);
+            assertTrue("pk 1 is under 110 KiB and cannot cut more than eight 16 KiB blocks, got " + wide,
+                       wide <= 8);
+            assertEquals("a 30-row partition crosses 4 KiB but not 16 KiB: a 0 here is what says the " +
+                         "granularity change reached the writer at all",
+                         0, blockCount(output, 2L));
+        }
+        finally
+        {
+            DatabaseDescriptor.setColumnIndexSizeInKiB(previousGranularity);
+        }
     }
 
     /** {@code "c".repeat(n)}, spelled out because this suite targets a source level without it. */

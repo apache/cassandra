@@ -24,6 +24,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -45,6 +46,10 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.ActiveCompactionsTracker;
 import org.apache.cassandra.db.compaction.CompactionController;
@@ -52,15 +57,22 @@ import org.apache.cassandra.db.compaction.CompactionPipelineCounts;
 import org.apache.cassandra.db.compaction.CompactionTask;
 import org.apache.cassandra.db.compaction.CursorCompactor;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.IVerifier;
+import org.apache.cassandra.io.sstable.SSTableReadsListener;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tools.JsonTransformer;
 import org.apache.cassandra.tools.Util;
 import org.apache.cassandra.utils.FBUtilities;
@@ -111,6 +123,30 @@ public abstract class DifferentialCompactionTester extends CQLTester
      */
     private static final boolean KEEP_SCRATCH_ON_FAILURE =
         CassandraRelevantProperties.TEST_DIFFERENTIAL_KEEP_SCRATCH_ON_FAILURE.getBoolean();
+
+    /**
+     * Whether {@link #capture} reads every captured output back through single-row slices; see
+     * {@link #assertEveryRowReadableThroughASlice}. Defaults ON, because the slice path is the only
+     * reader that opens a BTI row trie and nothing else in this suite touches one. Turn it off for a
+     * local run that only wants the byte comparison; a CI run that has it off proves less than the
+     * suite claims.
+     */
+    private static final boolean SLICE_READBACK =
+        CassandraRelevantProperties.TEST_DIFFERENTIAL_SLICE_READBACK.getBoolean();
+
+    /**
+     * Ceiling on how many rows of ONE partition {@link #assertEveryRowReadableThroughASlice} probes.
+     * A probe is two seeks (forward and reverse) plus a reader open, the cost is linear in row count,
+     * and it is paid once per captured output — four times over a cross-generation scenario. The
+     * default clears every scenario in the tree today (the widest single partition is the 4000-row
+     * one in {@code EdgeCaseDifferentialCompactionTest}), so nothing is currently sampled down.
+     * <p>
+     * The cap is per PARTITION, so total cost still scales with partition count. That is affordable
+     * only because no scenario outside scale mode has both many partitions and many rows per
+     * partition; the two multi-GB burn scenarios are in scale mode and skip the read-back entirely.
+     */
+    private static final int SLICE_READBACK_MAX_ROWS_PER_PARTITION =
+        CassandraRelevantProperties.TEST_DIFFERENTIAL_SLICE_READBACK_MAX_ROWS.getInt();
 
     // sstabledump renders "expired" from the WALL CLOCK, not from the fixed nowInSec above, so
     // the two paths' captures can differ on it. Every capture normalizes it away; see capture().
@@ -578,11 +614,11 @@ public abstract class DifferentialCompactionTester extends CQLTester
      * skip-versus-fail on the type it receives, so an AssumptionViolatedException crossing a broad
      * catch that rewraps, as Harry's TestHelper.withRandom does, arrives as a failure.
      */
-    protected static void assumeBigFormatSelected()
+    protected static void assumeCursorSupportedFormatSelected()
     {
-        Assume.assumeTrue("cursor compaction requires the BIG sstable format; selected=" +
+        Assume.assumeTrue("cursor compaction does not support the selected sstable format; selected=" +
                           DatabaseDescriptor.getSelectedSSTableFormat().name(),
-                          BigFormat.isSelected());
+                          DatabaseDescriptor.getSelectedSSTableFormat().supportsCursorCompaction());
     }
 
     private static String listDataDir(Descriptor desc)
@@ -599,9 +635,358 @@ public abstract class DifferentialCompactionTester extends CQLTester
         }
     }
 
+    /**
+     * Asserts this compaction output was written in the sstable format the JVM currently has selected.
+     * <p>
+     * The FORMAT counterpart of {@link CompactionPipelineCounts#assertPipelineRan}, which closes the
+     * same silent-fallback trap for the PIPELINE. A {@code Bti*} subclass selects BTI in
+     * {@code @Before}, restores in {@code @After}, and asserts nothing about the format in between.
+     * Meanwhile the byte comparison in {@link #assertEquivalentOutputs} walks
+     * {@code descriptor.discoverComponents()} — whatever components happen to be on disk. Under BIG
+     * that is {@code Index.db} and {@code Summary.db}, which compare equal and pass, so if the
+     * selection ever stopped taking effect every {@code Bti*} class would quietly become a duplicate
+     * of its base class and stay green. Nothing in the suite would say so.
+     * <p>
+     * Compares the format NAME so a failure names both formats rather than printing two object
+     * identities.
+     * <p>
+     * What it cannot see: that the writer for the selected format produced the right CONTENT. It
+     * pins only which writer ran. The byte comparison and
+     * {@link #assertEveryRowReadableThroughASlice} carry that.
+     */
+    protected static void assertOutputFormatIsSelected(SSTableReader sstable)
+    {
+        SSTableFormat<?, ?> selected = DatabaseDescriptor.getSelectedSSTableFormat();
+        SSTableFormat<?, ?> written = sstable.descriptor.getFormat();
+        assertEquals("compaction output " + sstable.descriptor + " was written in the '" + written.name() +
+                     "' format while '" + selected.name() + "' is selected: this scenario is not testing the " +
+                     "format it claims, and the byte comparison below would compare that other format's " +
+                     "components and pass",
+                     selected.name(), written.name());
+    }
+
+    /**
+     * ABSOLUTE, not differential: opens a single-row slice for every row of every partition and
+     * asserts the row that comes back is the row a plain sequential walk of the same sstable
+     * returned. Returns how many partitions actually carried a promoted row index.
+     * <p>
+     * Byte identity between the two compaction paths says they agree on what to write. It cannot say
+     * the index they wrote ROUTES A SEEK to the right place: a row trie with wrong separators is
+     * written identically by both paths and compares equal, and the data is then unreachable. Nothing
+     * else in the tree reads a cursor-written BTI row trie. {@code sstable.getScanner()} walks
+     * {@code Partitions.db} and {@code Data.db} end to end; {@code BtiTableVerifier.verifyPartition}
+     * is a no-op; {@code SortedTableVerifier} opens partitions with {@code SSTableIdentityIterator},
+     * a straight data-file read. The trie is read only from
+     * {@code bti.SSTableIterator.ForwardIndexedReader.setForSlice} and from
+     * {@code bti.SSTableReversedIterator.ReverseIndexedReader.setForSlice}, and only on a real slice.
+     * <p>
+     * Both directions are probed because they take different routes through the same trie: forward
+     * calls {@code RowIndexReader.separatorFloor}, reverse drives a {@code RowIndexReverseIterator}
+     * and then walks blocks backwards.
+     * <p>
+     * One slice per reader instance is deliberate. {@code ForwardIndexedReader.setForSlice} seeks
+     * only when the target is ahead of the current file pointer, so packing many slices into one
+     * iterator would let later slices ride on wherever the first one landed and stop exercising the
+     * trie at all.
+     * <p>
+     * The reference walk is {@code getScanner()} — {@code SSTableSimpleScanner} over
+     * {@code SSTableIdentityIterator}, a sequential data-file read that consults no index and applies
+     * no column filter. That independence is the point: a reference read through
+     * {@code partitionIterator} would itself seek through the trie for its first block.
+     * <p>
+     * WHAT THIS CANNOT SEE:
+     * <ul>
+     * <li><b>A partition with fewer than two index blocks has no trie.</b> {@code isIndexed()} is
+     *     {@code blockCount() > 1}, and below that the reader falls back to a plain forward scan of
+     *     the partition, so those partitions prove nothing here beyond retrievability. The return
+     *     value is how many partitions were actually indexed; zero means this call said nothing
+     *     whatsoever about any index.</li>
+     * <li><b>Cell content, when the sstable header carries columns the schema no longer has.</b> The
+     *     probe reads with {@code ColumnFilter.all(metadata)} and the reference reads unfiltered, so
+     *     on a dropped-column sstable the two legitimately disagree about cells. There the comparison
+     *     drops to clustering, liveness and row deletion — enough for routing, which is what this
+     *     assertion exists for. The byte comparison and the JSON dump cover the cells.</li>
+     * <li><b>The middle of a partition wider than {@link #SLICE_READBACK_MAX_ROWS_PER_PARTITION}.</b>
+     *     The head and the TAIL are always kept, because the tail block is where
+     *     {@code BtiFormatPartitionWriter.finish}'s "the last row may have fallen on a boundary
+     *     already" decision lands.</li>
+     * <li><b>An encoding both sides get wrong.</b> This reads back through the same deserializer the
+     *     writer serialized with. It pins ROUTING, not encoding.</li>
+     * </ul>
+     *
+     * @return how many partitions carried a promoted row index, i.e. how many of these probes opened
+     *         a trie at all. A scenario that means to test the index should assert this is non-zero.
+     */
+    protected int assertEveryRowReadableThroughASlice(SSTableReader sstable)
+    {
+        TableMetadata metadata = sstable.metadata();
+        // No clustering columns: one row per partition, never indexable, and Slice.make over an empty
+        // clustering degenerates to the whole partition. There is no seek to route.
+        if (metadata.comparator.size() == 0 || SLICE_READBACK_MAX_ROWS_PER_PARTITION <= 0)
+            return 0;
+
+        ColumnFilter fetchAll = ColumnFilter.all(metadata);
+        // Cells are only comparable when the probe's filter fetches exactly what the sequential read
+        // deserializes. A dropped column lives on in the sstable header but not in the schema.
+        boolean cellsComparable = sstable.header.columns().equals(metadata.regularAndStaticColumns());
+        int headCap = (SLICE_READBACK_MAX_ROWS_PER_PARTITION + 1) / 2;
+        int tailCap = SLICE_READBACK_MAX_ROWS_PER_PARTITION / 2;
+        int granularity = DatabaseDescriptor.getColumnIndexSize(-1);
+        int indexedPartitions = 0;
+
+        PendingPartition pending = new PendingPartition();
+
+        try (ISSTableScanner scanner = sstable.getScanner())
+        {
+            while (scanner.hasNext())
+            {
+                List<Row> probes = new ArrayList<>();
+                int unfiltereds;
+                DecoratedKey key;
+                DeletionTime partitionDeletion;
+                try (UnfilteredRowIterator partition = scanner.next())
+                {
+                    key = partition.partitionKey();
+                    partitionDeletion = partition.partitionLevelDeletion();
+                    unfiltereds = collectProbeRows(partition, probes, headCap, tailCap);
+                }
+
+                AbstractRowIndexEntry entry = sstable.getRowIndexEntry(key, SSTableReader.Operator.EQ);
+                if (entry == null)
+                    throw new AssertionError("a partition the sequential walk returned has no index entry: " +
+                                             key + " in " + sstable.descriptor);
+                if (entry.blockCount() > 1)
+                    indexedPartitions++;
+
+                pending.advance(sstable, key, entry, unfiltereds, granularity);
+
+                assertPartitionDeletionReadableFromIndexEntry(sstable, key, entry, partitionDeletion);
+                assertEveryProbeReturnsExactly(sstable, metadata, fetchAll, key, probes, cellsComparable);
+            }
+        }
+        pending.finish(sstable, granularity);
+        return indexedPartitions;
+    }
+
+    /**
+     * A partition's serialized length is only known once the NEXT partition's start is read, so each
+     * partition's block-count bound is checked one iteration late, and the last one after the walk.
+     */
+    private static final class PendingPartition
+    {
+        private DecoratedKey key;
+        private long position = -1;
+        private int blockCount;
+        private int unfiltereds;
+
+        /** Bounds the partition held here against the next one's start, then holds the next one. */
+        void advance(SSTableReader sstable, DecoratedKey nextKey, AbstractRowIndexEntry nextEntry,
+                     int nextUnfiltereds, int granularity)
+        {
+            if (key != null && nextEntry.position > position)
+                assertBlockCountWithinBounds(sstable, key, blockCount, unfiltereds,
+                                             nextEntry.position - position, granularity);
+            key = nextKey;
+            position = nextEntry.position;
+            blockCount = nextEntry.blockCount();
+            unfiltereds = nextUnfiltereds;
+        }
+
+        /** The last partition's bound, measured against the end of the file. */
+        void finish(SSTableReader sstable, int granularity)
+        {
+            if (key != null && sstable.uncompressedLength() > position)
+                assertBlockCountWithinBounds(sstable, key, blockCount, unfiltereds,
+                                             sstable.uncompressedLength() - position, granularity);
+        }
+    }
+
+    /** Every probe row of one partition, seeked in both directions. */
+    private static void assertEveryProbeReturnsExactly(SSTableReader sstable, TableMetadata metadata,
+                                                       ColumnFilter fetchAll, DecoratedKey key,
+                                                       List<Row> probes, boolean cellsComparable)
+    {
+        for (Row expected : probes)
+        {
+            assertSliceReturnsExactly(sstable, metadata, fetchAll, key, expected, false, cellsComparable);
+            assertSliceReturnsExactly(sstable, metadata, fetchAll, key, expected, true, cellsComparable);
+        }
+    }
+
+    /**
+     * The rows one partition is probed with: the first {@code headCap}, then the last {@code tailCap},
+     * appended to {@code probes} in partition order.
+     *
+     * @return how many unfiltereds the partition held, markers included
+     */
+    private static int collectProbeRows(UnfilteredRowIterator partition, List<Row> probes,
+                                        int headCap, int tailCap)
+    {
+        ArrayDeque<Row> tail = new ArrayDeque<>();
+        int unfiltereds = 0;
+        while (partition.hasNext())
+        {
+            Unfiltered unfiltered = partition.next();
+            unfiltereds++;
+            if (!unfiltered.isRow())
+                continue;
+            Row row = (Row) unfiltered;
+            if (probes.size() < headCap)
+                probes.add(row);
+            else if (tailCap > 0)
+            {
+                tail.addLast(row);
+                if (tail.size() > tailCap)
+                    tail.removeFirst();
+            }
+        }
+        probes.addAll(tail);
+        return unfiltereds;
+    }
+
+    /**
+     * One single-row slice, in one direction, through the reader's index. Asserts exactly one row
+     * comes back and that it is {@code expected}.
+     * <p>
+     * Range tombstone markers are skipped: a slice bounded to one clustering still emits the open and
+     * close markers of any range covering it, and those are not what this is about.
+     * <p>
+     * Every failure message is built only once something has already failed. This runs once per row
+     * per direction over the whole corpus, and rendering a clustering decodes its values, so an eager
+     * message would cost more than the seek it describes.
+     */
+    private static void assertSliceReturnsExactly(SSTableReader sstable,
+                                                  TableMetadata metadata,
+                                                  ColumnFilter fetchAll,
+                                                  DecoratedKey key,
+                                                  Row expected,
+                                                  boolean reversed,
+                                                  boolean cellsComparable)
+    {
+        Slices slices = Slices.with(metadata.comparator, Slice.make(expected.clustering()));
+        try (UnfilteredRowIterator probe = sstable.rowIterator(key, slices, fetchAll, reversed,
+                                                               SSTableReadsListener.NOOP_LISTENER))
+        {
+            Row found = null;
+            int rows = 0;
+            while (probe.hasNext())
+            {
+                Unfiltered unfiltered = probe.next();
+                if (!unfiltered.isRow())
+                    continue;
+                rows++;
+                found = (Row) unfiltered;
+            }
+
+            if (rows == 1 && (cellsComparable ? expected.equals(found) : sameRowIdentity(expected, found)))
+                return;
+
+            String where = (reversed ? "reverse" : "forward") + " slice of " +
+                           expected.clustering().toString(metadata) + " in partition " + key +
+                           " of " + sstable.descriptor;
+            if (rows != 1)
+                fail("the index routed a " + where + " to " + rows + " rows; a single-clustering slice " +
+                     "must return exactly one");
+            fail("the index routed a " + where + " to the wrong row" +
+                 (cellsComparable ? "" : " (this sstable's header carries columns the schema does not, " +
+                                         "so only clustering, liveness and row deletion are compared)") +
+                 "\n  sequential walk: " + expected.toString(metadata, true) +
+                 "\n  slice returned:  " + found.toString(metadata, true));
+        }
+    }
+
+    /** Clustering, primary key liveness and row deletion — everything a misrouted seek would change. */
+    private static boolean sameRowIdentity(Row expected, Row found)
+    {
+        return expected.clustering().equals(found.clustering())
+               && expected.primaryKeyLivenessInfo().equals(found.primaryKeyLivenessInfo())
+               && expected.deletion().equals(found.deletion());
+    }
+
+    /**
+     * Asserts the partition-level deletion the INDEX ENTRY carries matches the one in the data file.
+     * <p>
+     * {@code AbstractSSTableIterator} skips the seek to the partition header when the entry is
+     * indexed and the column filter fetches no statics, and takes {@code indexEntry.deletionTime()}
+     * instead. So a probe with {@link ColumnFilter#NONE} reads the deletion out of
+     * {@code TrieIndexEntry} (or out of BIG's promoted entry) rather than out of {@code Data.db},
+     * and the sequential walk gives the data file's own copy to compare it against. Nothing else in
+     * the suite reads that field back.
+     * <p>
+     * It only means something for an indexed partition, and it is dormant while no scenario writes a
+     * non-LIVE partition deletion on one: LIVE compared against LIVE passes for free.
+     */
+    private static void assertPartitionDeletionReadableFromIndexEntry(SSTableReader sstable,
+                                                                      DecoratedKey key,
+                                                                      AbstractRowIndexEntry entry,
+                                                                      DeletionTime fromDataFile)
+    {
+        if (entry.blockCount() <= 1)
+            return;
+        try (UnfilteredRowIterator probe = sstable.rowIterator(key, Slices.ALL, ColumnFilter.NONE, false,
+                                                               SSTableReadsListener.NOOP_LISTENER))
+        {
+            assertEquals("the index entry's partition-level deletion differs from the data file's for " +
+                         key + " in " + sstable.descriptor,
+                         fromDataFile, probe.partitionLevelDeletion());
+        }
+    }
+
+    /**
+     * Bounds {@code blockCount()} by what the partition's own block structure implies.
+     * <p>
+     * {@code BtiFormatPartitionWriter.addUnfiltered} cuts a block the moment the current one reaches
+     * {@code column_index_size}, and {@code finish} adds a tail block only if a cut already happened.
+     * So of {@code n} blocks at least {@code n - 1} are cut blocks, each at least one granularity of
+     * serialized data, which puts the partition's length at or above {@code (n - 1) * granularity}.
+     * Every block also begins at its own unfiltered — the static row is part of the partition header
+     * and never opens one — so {@code n} can never exceed the unfiltered count. Finally, a one-block
+     * index is not promoted at all: BTI's {@code finish} returns a {@code -1} trie root and
+     * {@code TrieIndexEntry.create} maps that to zero, and BIG's {@code RowIndexEntry.create}
+     * promotes only above one block. A block count of exactly 1 is unreadable by construction.
+     * <p>
+     * These bound the count from ABOVE only. An index with too FEW blocks — a writer that stopped
+     * cutting halfway down a partition — satisfies all three, because the last block may be any
+     * length. Nothing outside the format can compute the exact count: that needs the serialized size
+     * of each individual unfiltered, which no reader exposes. The slice read-back is what catches an
+     * under-split index, by landing on the wrong row.
+     * <p>
+     * {@code partitionLength} is measured from this partition's data-file position to the next one's
+     * (or to the end of the data file), so it includes the partition header and the end-of-partition
+     * marker. That only ever makes the bound looser.
+     */
+    private static void assertBlockCountWithinBounds(SSTableReader sstable,
+                                                     DecoratedKey key,
+                                                     int blockCount,
+                                                     int unfiltereds,
+                                                     long partitionLength,
+                                                     int granularity)
+    {
+        // granularity is -1 when column_index_size is unset in the yaml, in which case each format
+        // falls back to its own default and the length bound cannot be stated.
+        boolean lengthBoundHolds = granularity <= 0 || blockCount < 2
+                                   || partitionLength >= (long) (blockCount - 1) * granularity;
+        if (blockCount != 1 && blockCount <= unfiltereds && lengthBoundHolds)
+            return;
+
+        String where = " for partition " + key + " in " + sstable.descriptor;
+        assertFalse("a promoted row index of exactly one block cannot be written: the writer drops it" + where,
+                    blockCount == 1);
+        assertTrue("row index claims " + blockCount + " blocks but the partition holds only " + unfiltereds +
+                   " unfiltereds, and every block begins at its own unfiltered" + where,
+                   blockCount <= unfiltereds);
+        assertTrue("row index claims " + blockCount + " blocks, so at least " + (blockCount - 1) +
+                   " of them were cut at the " + granularity + "-byte column_index_size, but the " +
+                   "partition is only " + partitionLength + " bytes long" + where,
+                   lengthBoundHolds);
+    }
+
     private CapturedSSTable capture(ColumnFamilyStore cfs, SSTableReader sstable, Path dir) throws IOException
     {
-        // 1. structural verification of the output. In scale mode the verifier's debug
+        // 1. the output really is in the format this scenario selected
+        assertOutputFormatIsSelected(sstable);
+
+        // 2. structural verification of the output. In scale mode the verifier's debug
         // stream must be silenced: the extended index walk debug-logs EVERY index block
         // (~560K lines for a >2GiB partition), and ant's junit formatter buffers all test
         // output in memory — the log volume, not the verification, OOMs the fork.
@@ -615,7 +1000,13 @@ public abstract class DifferentialCompactionTester extends CQLTester
             verifier.verify();
         }
 
-        // 2. canonical logical dump
+        // 3. every row is retrievable through a real slice, i.e. the index routes seeks correctly.
+        // Skipped in scale mode for the same reason the verifier is muted there: those scenarios hold
+        // millions of rows in one partition, and a seek per row is not affordable.
+        if (SLICE_READBACK && !scaleCapture())
+            assertEveryRowReadableThroughASlice(sstable);
+
+        // 4. canonical logical dump
         // JsonTransformer computes its "expired" fields from WALL CLOCK (currentTimeMillis),
         // ignoring the fixed nowInSec passed below. Byte-identical outputs therefore render
         // differently when a localExpirationTime falls between the two paths' captures, which run
@@ -653,7 +1044,7 @@ public abstract class DifferentialCompactionTester extends CQLTester
                                .replaceAll("\"expired\":\"normalized\"");
         }
 
-        // 3. stats spot-check summary
+        // 5. stats spot-check summary
         StatsMetadata stats = sstable.getSSTableMetadata();
         String statsSummary = "minTimestamp=" + stats.minTimestamp +
                               " maxTimestamp=" + stats.maxTimestamp +
@@ -667,7 +1058,7 @@ public abstract class DifferentialCompactionTester extends CQLTester
                               " tombstoneHist=" + stats.estimatedTombstoneDropTime +
                               " cellsPerPartition=" + stats.estimatedCellPerPartitionCount.mean() + "/" + stats.estimatedCellPerPartitionCount.count();
 
-        // 4. copy components for byte comparison
+        // 6. copy components for byte comparison
         Files.createDirectories(dir);
         CapturedSSTable captured = new CapturedSSTable(dir, json, statsSummary);
         for (Component c : sstable.descriptor.discoverComponents())
@@ -684,51 +1075,59 @@ public abstract class DifferentialCompactionTester extends CQLTester
     {
         assertEquals("output sstable count differs between paths", iterator.sstables.size(), cursor.sstables.size());
         for (int i = 0; i < iterator.sstables.size(); i++)
+            assertEquivalentSSTable(i, iterator.sstables.get(i), cursor.sstables.get(i));
+    }
+
+    /** One output sstable of each path: logical dump, stats summary, then every component's bytes. */
+    private void assertEquivalentSSTable(int i, CapturedSSTable it, CapturedSSTable cu)
+    {
+        // logical first: a row-level diff is far more debuggable than a stats mismatch.
+        // In scale mode the dump is a digest — defer it below the byte comparison, which
+        // still localizes divergences to exact offsets.
+        boolean digestMode = it.json.startsWith("sha256:");
+        if (!digestMode && !it.json.equals(cu.json))
+            fail("LOGICAL divergence in output sstable " + i + " (iterator vs cursor):\n" + firstJsonDiff(it.json, cu.json) +
+                 "\niterator stats: " + it.statsSummary + "\ncursor stats:   " + cu.statsSummary);
+
+        assertEquals("stats summary divergence in output sstable " + i, it.statsSummary, cu.statsSummary);
+
+        List<String> divergences = componentDivergences(it, cu);
+        if (!divergences.isEmpty())
+            fail("BYTE divergence in output sstable " + i + " (iterator vs cursor):\n" + String.join("\n", divergences) +
+                 "\nNothing is allowed to diverge: every divergence found to date has been a bug in one of the paths");
+
+        if (digestMode)
+            assertEquals("logical dump digest divergence in output sstable " + i +
+                         " (scale mode; rerun a reduced scenario without scale mode for a row-level diff)",
+                         it.json, cu.json);
+    }
+
+    /** One description per component whose bytes differ, or that only one path wrote. */
+    private static List<String> componentDivergences(CapturedSSTable it, CapturedSSTable cu)
+    {
+        SortedSet<String> components = new TreeSet<>();
+        components.addAll(it.componentSizes.keySet());
+        components.addAll(cu.componentSizes.keySet());
+        List<String> divergences = new ArrayList<>();
+        for (String comp : components)
         {
-            CapturedSSTable it = iterator.sstables.get(i);
-            CapturedSSTable cu = cursor.sstables.get(i);
-
-            // logical first: a row-level diff is far more debuggable than a stats mismatch.
-            // In scale mode the dump is a digest — defer it below the byte comparison, which
-            // still localizes divergences to exact offsets.
-            boolean digestMode = it.json.startsWith("sha256:");
-            if (!digestMode && !it.json.equals(cu.json))
-                fail("LOGICAL divergence in output sstable " + i + " (iterator vs cursor):\n" + firstJsonDiff(it.json, cu.json) +
-                     "\niterator stats: " + it.statsSummary + "\ncursor stats:   " + cu.statsSummary);
-
-            assertEquals("stats summary divergence in output sstable " + i, it.statsSummary, cu.statsSummary);
-
-            SortedSet<String> components = new TreeSet<>();
-            components.addAll(it.componentSizes.keySet());
-            components.addAll(cu.componentSizes.keySet());
-            List<String> divergences = new ArrayList<>();
-            for (String comp : components)
+            Path a = it.dir.resolve(comp);
+            Path b = cu.dir.resolve(comp);
+            boolean hasA = Files.exists(a);
+            boolean hasB = Files.exists(b);
+            if (hasA != hasB)
             {
-                Path a = it.dir.resolve(comp);
-                Path b = cu.dir.resolve(comp);
-                boolean hasA = Files.exists(a);
-                boolean hasB = Files.exists(b);
-                if (hasA != hasB)
-                {
-                    divergences.add(String.format("  %s: present only in %s path", comp, hasA ? "iterator" : "cursor"));
-                    continue;
-                }
-                if (!hasA)
-                    continue;
-                long firstDiff = firstFileDifference(a, b);
-                if (firstDiff < 0)
-                    continue;
-                divergences.add(describeFileDiff(comp, a, b, firstDiff));
+                divergences.add(String.format("  %s: present only in %s path", comp, hasA ? "iterator" : "cursor"));
+                continue;
             }
-            if (!divergences.isEmpty())
-                fail("BYTE divergence in output sstable " + i + " (iterator vs cursor):\n" + String.join("\n", divergences) +
-                     "\nNothing is allowed to diverge: every divergence found to date has been a bug in one of the paths");
-
-            if (digestMode)
-                assertEquals("logical dump digest divergence in output sstable " + i +
-                             " (scale mode; rerun a reduced scenario without scale mode for a row-level diff)",
-                             it.json, cu.json);
+            if (!hasA)
+                continue;
+            long firstDiff = firstFileDifference(a, b);
+            if (firstDiff < 0)
+                continue;
+            divergences.add(describeFileDiff(comp, a, b, firstDiff));
         }
+        return divergences;
     }
 
     /** Streaming comparison: -1 if byte-identical, else the offset of the first difference
@@ -884,22 +1283,28 @@ public abstract class DifferentialCompactionTester extends CQLTester
         int max = Math.max(linesA.length, linesB.length);
         for (int i = 0; i < max; i++)
         {
-            String la = i < linesA.length ? linesA[i] : "<missing>";
-            String lb = i < linesB.length ? linesB[i] : "<missing>";
-            if (!la.equals(lb))
-            {
-                StringBuilder sb = new StringBuilder();
-                sb.append("first differing line ").append(i + 1).append(" of ").append(max).append(":\n");
-                for (int j = Math.max(0, i - 2); j < Math.min(max, i + 3); j++)
-                {
-                    String ja = j < linesA.length ? linesA[j] : "<missing>";
-                    String jb = j < linesB.length ? linesB[j] : "<missing>";
-                    sb.append(j == i ? ">>" : "  ").append(" iterator: ").append(ja).append('\n');
-                    sb.append(j == i ? ">>" : "  ").append(" cursor:   ").append(jb).append('\n');
-                }
-                return sb.toString();
-            }
+            if (!lineAt(linesA, i).equals(lineAt(linesB, i)))
+                return renderDiffContext(linesA, linesB, i, max);
         }
         return "(no line diff found despite string inequality — check line endings)";
+    }
+
+    /** Line {@code i} of one dump, or a placeholder where that dump is the shorter one. */
+    private static String lineAt(String[] lines, int i)
+    {
+        return i < lines.length ? lines[i] : "<missing>";
+    }
+
+    /** The differing line marked, with two lines either side, both dumps interleaved. */
+    private static String renderDiffContext(String[] linesA, String[] linesB, int i, int max)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append("first differing line ").append(i + 1).append(" of ").append(max).append(":\n");
+        for (int j = Math.max(0, i - 2); j < Math.min(max, i + 3); j++)
+        {
+            sb.append(j == i ? ">>" : "  ").append(" iterator: ").append(lineAt(linesA, j)).append('\n');
+            sb.append(j == i ? ">>" : "  ").append(" cursor:   ").append(lineAt(linesB, j)).append('\n');
+        }
+        return sb.toString();
     }
 }

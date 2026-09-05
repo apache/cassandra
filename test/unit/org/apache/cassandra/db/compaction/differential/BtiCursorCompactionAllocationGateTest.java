@@ -18,32 +18,22 @@
 
 package org.apache.cassandra.db.compaction.differential;
 
-import org.junit.After;
-import org.junit.Before;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 
 /**
  * Runs the inherited allocation tests with the BTI format selected. The measured region then
  * covers BTI's index path: per-block boundary prefix copies, IndexInfo, and open-marker
  * snapshots.
+ * <p>
+ * The wide-schema sparse-row ceiling is deliberately NOT overridden. BTI measures 0.505-0.514
+ * B/B there against BIG's 0.352-0.353, and the inherited 0.6 leaves the same headroom the
+ * complex-column ceiling below keeps. An override would only loosen it.
  */
 public class BtiCursorCompactionAllocationGateTest extends CursorCompactionAllocationGateTest
 {
-    private SSTableFormat<?, ?> originalFormat;
-
-    @Before
-    public void selectBti()
+    @Override
+    protected String formatName()
     {
-        originalFormat = DatabaseDescriptor.getSelectedSSTableFormat();
-        DatabaseDescriptor.setSelectedSSTableFormat("bti");
-    }
-
-    @After
-    public void restoreFormat()
-    {
-        DatabaseDescriptor.setSelectedSSTableFormat(originalFormat);
+        return "bti";
     }
 
     @Override
@@ -75,5 +65,17 @@ public class BtiCursorCompactionAllocationGateTest extends CursorCompactionAlloc
     protected double complexPerInputByteCeiling()
     {
         return 0.6;
+    }
+
+    /**
+     * The large-file test compacts ~40MB, so BTI's per-partition index cost spreads thin: measured
+     * 0.247-0.248 B/B over three runs, against 0.178-0.179 under BIG. The inherited 0.5 was
+     * calibrated for BIG and leaves BTI room to double its allocation unnoticed. 0.32 keeps the
+     * ~30% headroom the range-tombstone ceiling above uses.
+     */
+    @Override
+    protected double largeFilePerInputByteCeiling()
+    {
+        return 0.32;
     }
 }

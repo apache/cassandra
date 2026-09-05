@@ -24,14 +24,18 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Assume;
 import org.junit.Test;
+import org.mockito.Mockito;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionController;
 import org.apache.cassandra.db.compaction.CursorCompactor;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
 import org.apache.cassandra.notifications.INotificationConsumer;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -146,21 +150,109 @@ public class CursorSupportMatrixTest extends CQLTester
                         "PRIMARY KEY (pk, ck))");
     }
 
-    /** BTI output is inside the supported surface. */
+    /**
+     * BTI output is inside the supported surface, asserted through the gate production calls.
+     * <p>
+     * {@link #assertSupported} cannot carry this claim: it reaches only
+     * {@code CursorCompactor.unsupportedMetadata}, which reads {@link TableMetadata} and never the
+     * selected format, so the assertion would read the same with the format selection deleted. The
+     * format gate is in {@code CursorCompactor.isSupported}, which {@link #isSupportedNow} drives.
+     */
     @Test
-    public void btiFormatSupported() throws Throwable
+    public void btiFormatSupported() throws Exception
     {
-        org.apache.cassandra.io.sstable.format.SSTableFormat<?, ?> original =
-            org.apache.cassandra.config.DatabaseDescriptor.getSelectedSSTableFormat();
-        org.apache.cassandra.config.DatabaseDescriptor.setSelectedSSTableFormat("bti");
+        SSTableFormat<?, ?> original = DatabaseDescriptor.getSelectedSSTableFormat();
+        DatabaseDescriptor.setSelectedSSTableFormat(BtiFormat.NAME);
         try
         {
-            assertSupported("CREATE TABLE %s (pk bigint, ck bigint, m map<text, bigint>, v text, PRIMARY KEY (pk, ck))");
+            assertTrue("the BTI format must report cursor compaction support",
+                       DatabaseDescriptor.getSelectedSSTableFormat().supportsCursorCompaction());
+
+            ColumnFamilyStore cfs =
+                twoSSTableTable("CREATE TABLE %s (pk bigint, ck bigint, m map<text, bigint>, v text, " +
+                                "PRIMARY KEY (pk, ck))",
+                                "INSERT INTO %s (pk, ck, m, v) VALUES (1, 1, {'a': 1}, 'x')",
+                                "INSERT INTO %s (pk, ck, m, v) VALUES (1, 2, {'b': 2}, 'y')");
+
+            // the inputs have to be in the format under test, or the gate would be reading a
+            // selection nothing in this table reflects
+            for (SSTableReader reader : cfs.getLiveSSTables())
+                assertTrue("expected BTI input sstables, got " + reader.descriptor.version.format.name(),
+                           BtiFormat.is(reader.descriptor.version.format));
+
+            assertTrue("cursor compaction must accept a BTI table", isSupportedNow(cfs));
         }
         finally
         {
-            org.apache.cassandra.config.DatabaseDescriptor.setSelectedSSTableFormat(original);
+            DatabaseDescriptor.setSelectedSSTableFormat(original);
         }
+    }
+
+    /**
+     * The negative half of the format gate: a selected format that does not support cursor
+     * compaction is refused.
+     * <p>
+     * No such format exists in tree. BIG and BTI both override
+     * {@link SSTableFormat#supportsCursorCompaction()} to return true, so the only way into the
+     * branch is the interface default at {@code SSTableFormat:60}, which is false and is what
+     * gates a format added later. The stand-in below is that default and nothing else: every
+     * other method is left at Mockito's default, and it is selected only across the
+     * {@code isSupported} call, after the inputs and the scanners have been built by a real format.
+     * <p>
+     * What this cannot see: {@code supportsCursorCompaction()} returning false is not
+     * distinguishable here from Mockito's own default for a boolean, because it is the sole
+     * default method on the interface. The assertion is about the gate's branch, not about where
+     * the false came from.
+     */
+    @Test
+    public void formatWithoutCursorSupportUnsupported() throws Exception
+    {
+        Assume.assumeTrue("requires the BIG sstable format", BigFormat.isSelected());
+
+        ColumnFamilyStore cfs =
+            twoSSTableTable("CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck))",
+                            "INSERT INTO %s (pk, ck, v) VALUES (1, 1, 'x')",
+                            "INSERT INTO %s (pk, ck, v) VALUES (1, 2, 'y')");
+
+        // control: the same table and the same two sstables under the real selected format are
+        // supported, so the rejection below is attributable to the format alone
+        assertTrue("expected a plain two-sstable table to be cursor-supported", isSupportedNow(cfs));
+
+        SSTableFormat<?, ?> original = DatabaseDescriptor.getSelectedSSTableFormat();
+        SSTableFormat<?, ?> noCursorSupport = Mockito.mock(SSTableFormat.class, Mockito.CALLS_REAL_METHODS);
+        assertFalse("the stand-in must report no cursor compaction support, or the gate below is " +
+                    "not the thing being observed",
+                    noCursorSupport.supportsCursorCompaction());
+
+        DatabaseDescriptor.setSelectedSSTableFormat(noCursorSupport);
+        try
+        {
+            assertFalse("cursor compaction must refuse a table whose selected output format does " +
+                        "not support it",
+                        isSupportedNow(cfs));
+        }
+        finally
+        {
+            DatabaseDescriptor.setSelectedSSTableFormat(original);
+        }
+
+        // the gate reopens once the real format is back, so the helper is not hardwired to one answer
+        assertTrue("expected the table to be cursor-supported again under the real format",
+                   isSupportedNow(cfs));
+    }
+
+    /** Creates {@code ddl} with auto-compaction off and flushes each insert into its own sstable. */
+    private ColumnFamilyStore twoSSTableTable(String ddl, String firstInsert, String secondInsert)
+    {
+        createTable(ddl);
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+        execute(firstInsert);
+        flush();
+        execute(secondInsert);
+        flush();
+        assertEquals("expected one sstable per flush", 2, cfs.getLiveSSTables().size());
+        return cfs;
     }
 
     /** Counter columns are a planned gap in the supported surface, not a permanent limit. */

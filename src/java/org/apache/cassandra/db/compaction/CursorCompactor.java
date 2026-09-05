@@ -74,6 +74,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.LazyToString;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -327,13 +328,10 @@ public class CursorCompactor extends CompactionInfo.Holder
         {
             if (isDroppedMultiCellOrCounterColumn(metadata, column, reader.header.getType(column)))
             {
-                LOGGER.atDebug()
-                      .setMessage("Cursor compaction for table: {} keyspace: {} is not supported. REASON: A multi-cell or counter column dropped from the schema is still carried in the header of {}, which the cursor path does not yet cover. column={}")
-                      .addArgument(metadata.name)
-                      .addArgument(metadata.keyspace)
-                      .addArgument(() -> reader.descriptor)
-                      .addArgument(() -> column)
-                      .log();
+                LOGGER.debug("Cursor compaction for table: {} keyspace: {} is not supported. REASON: A multi-cell " +
+                             "or counter column dropped from the schema is still carried in the header of {}, which " +
+                             "the cursor path does not yet cover. column={}",
+                             metadata.name, metadata.keyspace, reader.descriptor, column);
                 return true;
             }
         }
@@ -2364,24 +2362,22 @@ public class CursorCompactor extends CompactionInfo.Holder
             activeCompactions.finishCompaction(this);
         }
 
-        // Every argument is a supplier: the builder is a no-op when INFO is off, so none of these
-        // histograms is built or summed unless the line is actually logged.
-        LOGGER.atInfo()
-              .setMessage("Compaction ended {}: { data bytes read = {}, data bytes written = {}, input (keys = {}, static rows = {}, rows = {}, range tombstones = {}, cells = {}), output (keys = {}, static rows = {}, rows = {}, range tombstones = {}, cells = {})}")
-              .addArgument(compactionId)
-              .addArgument(this::getTotalBytesScanned)
-              .addArgument(() -> totalDataBytesWritten)
-              .addArgument(() -> mergeHistogramToString(partitionMergeCounters))
-              .addArgument(() -> mergeHistogramToString(staticRowMergeCounters))
-              .addArgument(() -> mergeHistogramToString(rowMergeCounters))
-              .addArgument(() -> mergeHistogramToString(rangeTombstonesMergeCounters))
-              .addArgument(() -> mergeHistogramToString(cellMergeCounters))
-              .addArgument(() -> sumHistogram(partitionMergeCounters))
-              .addArgument(() -> sumHistogram(staticRowMergeCounters))
-              .addArgument(() -> sumHistogram(rowMergeCounters))
-              .addArgument(() -> sumHistogram(rangeTombstonesMergeCounters))
-              .addArgument(() -> sumHistogram(cellMergeCounters))
-              .log();
+        LOGGER.info("Compaction ended {}: { data bytes read = {}, data bytes written = {}, " +
+                    "input (keys = {}, static rows = {}, rows = {}, range tombstones = {}, cells = {}), " +
+                    "output (keys = {}, static rows = {}, rows = {}, range tombstones = {}, cells = {})}",
+                    compactionId,
+                    LazyToString.lazy(() -> Long.toString(getTotalBytesScanned())),
+                    totalDataBytesWritten,
+                    LazyToString.lazy(() -> mergeHistogramToString(partitionMergeCounters)),
+                    LazyToString.lazy(() -> mergeHistogramToString(staticRowMergeCounters)),
+                    LazyToString.lazy(() -> mergeHistogramToString(rowMergeCounters)),
+                    LazyToString.lazy(() -> mergeHistogramToString(rangeTombstonesMergeCounters)),
+                    LazyToString.lazy(() -> mergeHistogramToString(cellMergeCounters)),
+                    LazyToString.lazy(() -> Long.toString(sumHistogram(partitionMergeCounters))),
+                    LazyToString.lazy(() -> Long.toString(sumHistogram(staticRowMergeCounters))),
+                    LazyToString.lazy(() -> Long.toString(sumHistogram(rowMergeCounters))),
+                    LazyToString.lazy(() -> Long.toString(sumHistogram(rangeTombstonesMergeCounters))),
+                    LazyToString.lazy(() -> Long.toString(sumHistogram(cellMergeCounters))));
     }
 
 }

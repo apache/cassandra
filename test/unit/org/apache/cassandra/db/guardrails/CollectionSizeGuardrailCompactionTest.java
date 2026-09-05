@@ -126,7 +126,7 @@ public class CollectionSizeGuardrailCompactionTest extends DifferentialCompactio
     @Test
     public void bothPipelinesReportTheSameOversizedCollection() throws Exception
     {
-        assumeBigFormatSelected();
+        assumeCursorSupportedFormatSelected();
 
         List<String> iterator = warningsFromOneCompaction(false);
         List<String> cursor = warningsFromOneCompaction(true);
