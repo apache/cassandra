@@ -7,7 +7,7 @@ SYNOPSIS
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] cms reconfigure
                 [(-c | --cancel)]
-                [(-i <ignored_endpoints> | --ignore <ignored_endpoints>)...]
+                [(-i <host_or_subnet> | --ignore <host_or_subnet>)...]
                 [(-r | --resume)] [--status] [--] [<replication factor>] or
                 <datacenter>:<replication_factor> ...
 
@@ -18,11 +18,12 @@ OPTIONS
         -h <host>, --host <host>
             Node hostname or ip address
 
-        -i <ignored_endpoints>, --ignore <ignored_endpoints>
-            Hosts to exclude from the new CMS, in addition to any which are
-            currently down. Useful before shrinking a cluster: excluding the
-            nodes which are about to be decommissioned keeps the CMS membership
-            stable, avoiding a reconfiguration per decommissioned member.
+        -i <host_or_subnet>, --ignore <host_or_subnet>
+            Hosts (IP or hostname) or CIDR subnets to exclude from the new CMS,
+            in addition to any which are currently down. Useful before
+            shrinking a cluster: excluding the nodes which are about to be
+            decommissioned keeps the CMS membership stable, avoiding a
+            reconfiguration per decommissioned member.
 
         -p <port>, --port <port>
             Remote jmx agent port number

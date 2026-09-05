@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -37,12 +38,15 @@ import java.util.function.Supplier;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 
+import inet.ipaddr.IPAddressString;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.SubnetGroups;
 import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.StartupException;
@@ -503,20 +507,14 @@ public class ClusterMetadataService
     }
 
     /**
-     * Reconfigure the CMS so that its membership satisfies the supplied replication params.
-     *
-     * Nodes named in {@code ignoredEndpoints}, along with any node currently considered down, are not eligible for
-     * membership of the new CMS. Excluding nodes that are about to be decommissioned lets an operator shrink a cluster
-     * with a single reconfiguration up front, rather than one per departing CMS member. The ignore list applies only to
-     * this call; it is not remembered, and does not change whether the CMS is later reported as needing reconfiguration.
-     *
-     * Note that a subsequent bootstrap, replace or move recomputes placement without any ignore list and may therefore
-     * reintroduce an ignored node to the CMS.
+     * Reconfigure the CMS so its membership matches the given replication params. Anything in {@code ignored} (a
+     * hostname, IP, or CIDR subnet), plus any node that is down, is kept out of the new CMS. The list applies only to
+     * this call; it is not stored, so a later bootstrap, replace or move can put an ignored node back in the CMS.
      */
-    public void reconfigureCMS(ReplicationParams replicationParams, List<String> ignoredEndpoints)
+    public void reconfigureCMS(ReplicationParams replicationParams, List<String> ignored)
     {
         ClusterMetadata metadata = ClusterMetadata.current();
-        Set<NodeId> excludedNodes = new HashSet<>(resolveIgnoredEndpoints(metadata, ignoredEndpoints));
+        Set<NodeId> excludedNodes = new HashSet<>(resolveIgnoredEndpoints(metadata, ignored));
         Set<NodeId> allJoinedNodes = Sets.newHashSetWithExpectedSize(metadata.directory.allJoinedEndpoints().size());
         for (InetAddressAndPort ep : metadata.directory.allJoinedEndpoints())
         {
@@ -541,38 +539,73 @@ public class ClusterMetadataService
     }
 
     /**
-     * Resolve operator supplied hosts to the NodeIds they identify, rejecting any host which does not exist in the
-     * cluster.
+     * Resolve the operator's ignore entries to the NodeIds they refer to. Each entry is either a CIDR subnet (matched
+     * against every address in the cluster) or a hostname/IP (looked up by name and required to be a node).
      */
-    private static Set<NodeId> resolveIgnoredEndpoints(ClusterMetadata metadata, List<String> ignoredEndpoints)
+    @VisibleForTesting
+    Set<NodeId> resolveIgnoredEndpoints(ClusterMetadata metadata, List<String> ignored)
     {
-        if (ignoredEndpoints.isEmpty())
+        if (ignored.isEmpty())
             return Collections.emptySet();
 
-        Set<InetAddressAndPort> ignored = new HashSet<>(ignoredEndpoints.size());
-        for (String host : ignoredEndpoints)
+        Set<InetAddressAndPort> allAddresses = metadata.directory.allAddresses();
+        Set<InetAddressAndPort> resolved = new HashSet<>();
+        Set<InetAddressAndPort> named = new HashSet<>();
+        List<String> subnets = new ArrayList<>();
+
+        for (String entry : ignored)
         {
-            try
+            if (entry.indexOf('/') >= 0)
             {
-                ignored.add(InetAddressAndPort.getByName(host));
+                // Has a '/', so it is a CIDR subnet. Check if it is valid; the matching happens below.
+                if (!new IPAddressString(entry).isValid())
+                    throw new IllegalArgumentException("Invalid CIDR in ignore list: " + entry);
+                subnets.add(entry);
             }
-            catch (UnknownHostException e)
+            else
             {
-                throw new IllegalArgumentException("Unknown host in ignore list: " + host, e);
+                // A hostname or IP: resolve it now, and check below that it is a node in the cluster.
+                try
+                {
+                    named.add(InetAddressAndPort.getByName(entry));
+                }
+                catch (UnknownHostException e)
+                {
+                    throw new IllegalArgumentException("Unknown host in ignore list: " + entry, e);
+                }
             }
         }
 
-        // Unlike CMS initialization, the local node may legitimately be ignored here. Reconfiguring the CMS away from
-        // the node running the command is valid, and is expected when that node is itself due to be decommissioned.
-        Set<InetAddressAndPort> unknown = Sets.difference(ignored, metadata.directory.allAddresses());
-        if (!unknown.isEmpty())
+        if (!named.isEmpty())
         {
-            String msg = "Ignored host(s) " + unknown + " don't exist in the cluster";
-            logger.error(msg);
-            throw new IllegalStateException(msg);
+            // Every named host must exist in the cluster; report all of the unknown ones at once. Ignoring the local
+            // node is fine here (unlike CMS initialization) - reconfiguring the CMS away from the node running the
+            // command is expected when that node is being decommissioned.
+            Set<InetAddressAndPort> unknown = Sets.difference(named, allAddresses);
+            if (!unknown.isEmpty())
+            {
+                String msg = "Ignored host(s) " + unknown + " don't exist in the cluster";
+                logger.error(msg);
+                throw new IllegalStateException(msg);
+            }
+            resolved.addAll(named);
         }
 
-        Set<NodeId> ignoredIds = metadata.directory.toNodeIds(ignored);
+        if (!subnets.isEmpty())
+        {
+            SubnetGroups groups = new SubnetGroups(subnets);
+            Set<InetAddressAndPort> matched = new HashSet<>();
+            for (InetAddressAndPort address : allAddresses)
+            {
+                if (groups.contains(address))
+                    matched.add(address);
+            }
+            if (matched.isEmpty())
+                logger.warn("Ignored subnet(s) {} do not match any node in the cluster", subnets);
+            resolved.addAll(matched);
+        }
+
+        Set<NodeId> ignoredIds = metadata.directory.toNodeIds(resolved);
         logger.info("Excluding operator specified hosts from CMS reconfiguration: {}", ignoredIds);
         return ignoredIds;
     }

@@ -1,5 +1,5 @@
 6.0-alpha3
- * Allow nodetool cms reconfigure to ignore nodes via --ignore, excluding them from the new CMS (CASSANDRA-21627)
+ * Allow nodetool cms reconfigure --ignore to accept hostnames, IPs or CIDR subnets (CASSANDRA-21627)
  * Guardrail configurations of zero are now treated as zero instead of unlimited (CASSANDRA-21517)
  * Support multi-cell columns in cursor compaction (CASSANDRA-21463)
  * Optimize authorization logic for BatchStatement and TransactionStatement when a single table is updated (CASSANDRA-21606)

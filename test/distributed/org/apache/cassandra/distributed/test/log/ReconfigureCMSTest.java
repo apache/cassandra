@@ -276,6 +276,41 @@ public class ReconfigureCMSTest extends FuzzTestBase
     }
 
     @Test
+    public void testReconfigureIgnoreAcceptsCidrNotation() throws Exception
+    {
+        try (Cluster cluster = init(Cluster.build(5)
+                                           .withConfig(conf -> conf.with(Feature.NETWORK, Feature.GOSSIP))
+                                           .start()))
+        {
+            // A /32 subnet matches exactly one host, so ignoring nodes 2 and 3 this way
+            // must produce the same placement (1, 4, 5) as ignoring them by address.
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "3",
+                                          "--ignore", broadcastAddress(cluster, 2) + "/32",
+                                          "--ignore", broadcastAddress(cluster, 3) + "/32")
+                   .asserts().success();
+
+            Set<String> expectedCMSMembers = expectedCMS(cluster, 1, 4, 5);
+            cluster.forEach(inst -> assertEquals(expectedCMSMembers, ClusterUtils.getCMSMembers(inst)));
+        }
+    }
+
+    @Test
+    public void testReconfigureIgnoreSkipsSubnetMatchingNoNode() throws Exception
+    {
+        try (Cluster cluster = init(Cluster.build(3)
+                                           .withConfig(conf -> conf.with(Feature.NETWORK, Feature.GOSSIP))
+                                           .start()))
+        {
+            // A valid subnet that covers none of the cluster's addresses is not an error: it matches nothing and is
+            // skipped, so the reconfiguration proceeds using every node. The cluster runs on 127.0.0.x, so a subnet in
+            // 127.0.1.x is guaranteed to match none of it.
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "3", "--ignore", "127.0.1.0/24")
+                   .asserts().success();
+            cluster.get(1).runOnInstance(() -> assertEquals(3, ClusterMetadata.current().fullCMSMembers().size()));
+        }
+    }
+
+    @Test
     public void testReconfigureIgnoreRejectsUnknownAndExcessiveHosts() throws Exception
     {
         try (Cluster cluster = init(Cluster.build(3)
@@ -296,6 +331,11 @@ public class ReconfigureCMSTest extends FuzzTestBase
                    .asserts().failure()
                    .errorContains("Unknown host in ignore list: 999.999.999.999");
 
+            // A CIDR with an out-of-range prefix length is rejected rather than silently matching nothing.
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "3", "--ignore", "127.0.0.0/33")
+                   .asserts().failure()
+                   .errorContains("Invalid CIDR in ignore list: 127.0.0.0/33");
+
             // Ignoring so many nodes that fewer than a quorum of the requested members can be placed is rejected.
             cluster.get(1).nodetoolResult("cms", "reconfigure", "3",
                                           "--ignore", broadcastAddress(cluster, 2),
@@ -309,6 +349,12 @@ public class ReconfigureCMSTest extends FuzzTestBase
                                           "--ignore", broadcastAddress(cluster, 1),
                                           "--ignore", broadcastAddress(cluster, 2),
                                           "--ignore", broadcastAddress(cluster, 3))
+                   .asserts().failure()
+                   .errorContains("Cannot reconfigure CMS as all joined nodes are DOWN or ignored");
+
+            // A subnet which covers every node is just another way of ignoring them all, and is rejected for the same
+            // reason. This also confirms a CIDR entry is matched against more than one node.
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "3", "--ignore", "127.0.0.0/24")
                    .asserts().failure()
                    .errorContains("Cannot reconfigure CMS as all joined nodes are DOWN or ignored");
 
