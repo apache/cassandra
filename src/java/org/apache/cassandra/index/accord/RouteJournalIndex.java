@@ -44,7 +44,6 @@ import accord.primitives.TxnId;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
-import org.apache.cassandra.db.CassandraWriteContext;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -357,7 +356,7 @@ public class RouteJournalIndex implements Index, INotificationConsumer
             {
                 long size = memtableIndexManager.index(key, row, memtable);
                 if (size > 0)
-                    memtable.markExtraOnHeapUsed(size, CassandraWriteContext.fromContext(ctx).getGroup());
+                    memtable.markExtraOnHeapUsed(size);
             }
 
             @Override

@@ -360,7 +360,7 @@ public class AccordKeyspace
                 ColumnFamilyStore cfs = AccordColumnFamilyStores.commandsForKey;
                 try (OpOrder.Group group = Keyspace.writeOrder.start())
                 {
-                    cfs.getCurrentMemtable().put(upd, UpdateTransaction.NO_OP, group, true);
+                    cfs.getCurrentMemtable().checkSpaceAndPut(upd, UpdateTransaction.NO_OP, group, true);
                 }
             };
         }
