@@ -112,7 +112,7 @@ replication factor independently for each data-center. The rest of the
 sub-options are key-value pairs, with a key set to a data-center name and
 its value set to the associated replication factor. Options:
 
-[cols=",,,",options="header",]
+[cols=",,",options="header",]
 |===
 |sub-option |type |description
 |`'<datacenter>'` | int | The number of replicas to store per range in the provided datacenter.

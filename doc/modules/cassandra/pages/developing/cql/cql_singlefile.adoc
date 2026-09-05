@@ -1809,7 +1809,7 @@ doing'', you can force the execution of this query by using
 SELECT firstname, lastname FROM users WHERE birth_year = 1981 AND
 country = 'FR' ALLOW FILTERING;
 
-include::security.adoc[]
+include::security.adoc[leveloffset=+1]
 
 [[types]]
 === Data Types
@@ -2979,4 +2979,4 @@ names as their name.
 |`macaddr`
 |===
 
-include::changes.adoc[]
+include::changes.adoc[leveloffset=+1]
