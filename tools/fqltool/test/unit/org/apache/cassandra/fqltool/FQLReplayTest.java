@@ -578,6 +578,125 @@ public class FQLReplayTest
         assertEquals(9042, pth.port );
         assertEquals("aaa", pth.user);
         assertEquals("bbb", pth.password);
+
+        pth = fromString("user:p@ssword@127.0.0.1:9042");
+        assertEquals("127.0.0.1", pth.host);
+        assertEquals(9042, pth.port);
+        assertEquals("user", pth.user);
+        assertEquals("p@ssword", pth.password);
+    }
+
+    @Test
+    public void testInvalidAuthProviderClassThrows()
+    {
+        try
+        {
+            ConnectionOptions.builder().withAuthProviderClass("com.not.a.real.AuthProviderClass").build();
+            throw new AssertionError("Expected RuntimeException for invalid auth provider class");
+        }
+        catch (RuntimeException e)
+        {
+            assertTrue(e.getMessage().contains("com.not.a.real.AuthProviderClass"));
+        }
+    }
+
+    @Test
+    public void testMaskPassword()
+    {
+        assertEquals("aaa:*****@127.0.0.1:9042", QueryReplayer.ParsedTargetHost.maskPassword("aaa:bbb@127.0.0.1:9042"));
+        assertEquals("127.0.0.1:9042", QueryReplayer.ParsedTargetHost.maskPassword("127.0.0.1:9042"));
+        assertEquals("127.0.0.1", QueryReplayer.ParsedTargetHost.maskPassword("127.0.0.1"));
+        assertEquals("user:*****@host:9042", QueryReplayer.ParsedTargetHost.maskPassword("user:p@ssword@host:9042"));
+        assertEquals("cassandra:*****@127.0.0.1", QueryReplayer.ParsedTargetHost.maskPassword("cassandra:p@ss@w@rd@127.0.0.1"));
+    }
+
+    @Test
+    public void testInvalidTruststorePathThrows()
+    {
+        try
+        {
+            ConnectionOptions.builder().withSsl(true).withTruststore("/path/does/not/exist.jks").withTruststorePassword("password").build();
+            throw new AssertionError("Expected RuntimeException for a bad truststore path");
+        }
+        catch (RuntimeException e)
+        {
+            assertTrue(e.getMessage().contains("SSL"));
+        }
+    }
+
+    @Test
+    public void testImplicitSslEnableWithTruststoreOnly()
+    {
+        // no --ssl flag given, but a truststore path should still turn SSL on rather than being ignored
+        try
+        {
+            ConnectionOptions.builder().withTruststore("/path/does/not/exist.jks").build();
+            throw new AssertionError("Expected RuntimeException since SSL should be implicitly enabled");
+        }
+        catch (RuntimeException e)
+        {
+            assertTrue(e.getMessage().contains("SSL"));
+        }
+    }
+
+    @Test
+    public void testTruststorePasswordWithoutPathThrows()
+    {
+        try
+        {
+            ConnectionOptions.builder().withTruststorePassword("somepassword").build();
+            throw new AssertionError("Expected IllegalArgumentException when truststore password is given without a path");
+        }
+        catch (IllegalArgumentException e)
+        {
+            assertTrue(e.getMessage().contains("--ssl-truststore-password requires --ssl-truststore"));
+        }
+    }
+
+    @Test
+    public void testKeystorePasswordWithoutPathThrows()
+    {
+        try
+        {
+            ConnectionOptions.builder().withKeystorePassword("somepassword").build();
+            throw new AssertionError("Expected IllegalArgumentException when keystore password is given without a path");
+        }
+        catch (IllegalArgumentException e)
+        {
+            assertTrue(e.getMessage().contains("--ssl-keystore-password requires --ssl-keystore"));
+        }
+    }
+
+    public static class NoArgOnlyAuthProvider implements com.datastax.driver.core.AuthProvider
+    {
+        public NoArgOnlyAuthProvider() { }
+
+        public com.datastax.driver.core.Authenticator newAuthenticator(java.net.InetSocketAddress host, String authenticator)
+        {
+            throw new UnsupportedOperationException("not needed for this test");
+        }
+    }
+
+    @Test
+    public void testAuthProviderWithoutCredentialsConstructorThrows()
+    {
+        ConnectionOptions connectionOptions = ConnectionOptions.builder()
+                                                                .withAuthProviderClass(NoArgOnlyAuthProvider.class.getName())
+                                                                .build();
+        try
+        {
+            new QueryReplayer(Collections.emptyIterator(),
+                              Lists.newArrayList("aaa:bbb@127.0.0.1:9999"),
+                              null,
+                              new ArrayList<>(),
+                              null,
+                              connectionOptions);
+            throw new AssertionError("Expected RuntimeException when auth provider lacks a (String,String) constructor");
+        }
+        catch (RuntimeException e)
+        {
+            assertTrue(e.getMessage().contains("does not support plain text credentials"));
+        }
     }
 
     @Test(expected = RuntimeException.class)
