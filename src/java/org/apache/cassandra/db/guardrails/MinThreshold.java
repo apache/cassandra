@@ -57,14 +57,14 @@ public class MinThreshold extends Threshold
     protected long failValue(ClientState state)
     {
         long failValue = failThreshold.applyAsLong(state);
-        return failValue <= 0 ? Long.MIN_VALUE : failValue;
+        return failValue < 0 ? Long.MIN_VALUE : failValue;
     }
 
     @Override
     protected long warnValue(ClientState state)
     {
         long warnValue = warnThreshold.applyAsLong(state);
-        return warnValue <= 0 ? Long.MIN_VALUE : warnValue;
+        return warnValue < 0 ? Long.MIN_VALUE : warnValue;
     }
 
 }

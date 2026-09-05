@@ -83,7 +83,9 @@ public abstract class Threshold extends Guardrail
         if (!super.enabled(state))
             return false;
 
-        return failThreshold.applyAsLong(state) > 0 || warnThreshold.applyAsLong(state) > 0;
+        // A negative threshold is the disabled marker. Zero is a real threshold, meaning "any value above zero
+        // triggers", so a guardrail with either threshold set to zero is enabled.
+        return failThreshold.applyAsLong(state) >= 0 || warnThreshold.applyAsLong(state) >= 0;
     }
 
     /**

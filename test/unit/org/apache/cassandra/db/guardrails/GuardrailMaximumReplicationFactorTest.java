@@ -51,6 +51,14 @@ public class GuardrailMaximumReplicationFactorTest extends ThresholdTester
               Guardrails::getMaximumReplicationFactorFailThreshold);
     }
 
+    @Override
+    protected boolean zeroIsValid()
+    {
+        // a maximum replication factor of zero would be lower than default_keyspace_rf, which is rejected
+        // by validateMaxRFThreshold rather than by the threshold validation itself
+        return false;
+    }
+
     @After
     public void cleanupTest() throws Throwable
     {
