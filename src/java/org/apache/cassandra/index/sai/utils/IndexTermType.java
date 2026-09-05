@@ -670,9 +670,9 @@ public class IndexTermType
 
     public boolean supports(Operator operator)
     {
-        if (operator == Operator.LIKE ||
-            operator == Operator.LIKE_CONTAINS ||
-            operator == Operator.LIKE_PREFIX ||
+        if (operator == Operator.LIKE || operator == Operator.LIKE_PREFIX)
+            return true;
+        if (operator == Operator.LIKE_CONTAINS ||
             operator == Operator.LIKE_MATCHES ||
             operator == Operator.LIKE_SUFFIX ||
             operator == Operator.IN) return false;

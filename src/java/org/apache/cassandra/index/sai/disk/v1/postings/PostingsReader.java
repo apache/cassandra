@@ -33,6 +33,7 @@ import org.apache.cassandra.index.sai.disk.io.SeekingRandomAccessInput;
 import org.apache.cassandra.index.sai.disk.v1.DirectReaders;
 import org.apache.cassandra.index.sai.disk.v1.LongArray;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
+import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.postings.OrdinalPostingList;
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.io.util.FileUtils;
@@ -52,6 +53,9 @@ public class PostingsReader implements OrdinalPostingList
     private final QueryEventListener.PostingListEventListener listener;
     private final BlocksSummary summary;
 
+    // The effective number of postings this reader will return (may be less than summary.numPostings for scoped readers)
+    private final int effectiveNumPostings;
+
     // Current block index
     private int blockIndex;
     // Current posting index within block
@@ -70,12 +74,46 @@ public class PostingsReader implements OrdinalPostingList
 
     public PostingsReader(IndexInput input, BlocksSummary summary, QueryEventListener.PostingListEventListener listener) throws IOException
     {
+        this(input, summary, summary.numPostings, listener);
+    }
+
+    private PostingsReader(IndexInput input, BlocksSummary summary, int effectiveNumPostings, QueryEventListener.PostingListEventListener listener) throws IOException
+    {
         this.input = input;
         this.seekingInput = new SeekingRandomAccessInput(input);
         this.listener = listener;
         this.summary = summary;
+        this.effectiveNumPostings = effectiveNumPostings;
 
         reBuffer();
+    }
+
+    /**
+     * Creates a PostingsReader that only reads exactMatch postings (up to prefixStartIndex).
+     */
+    public static PostingsReader forExactMatch(IndexInput input, BlocksSummary summary, QueryEventListener.PostingListEventListener listener) throws IOException
+    {
+        int exactMatchCount = summary.typeStartIndices.length > 1 ? summary.typeStartIndices[1] : summary.numPostings;
+        return new PostingsReader(input, summary, exactMatchCount, listener);
+    }
+
+    /**
+     * Creates a PostingsReader scoped to the appropriate postings for the given operator.
+     * <ul>
+     *   <li>LIKE_PREFIX → all postings (exactMatch + prefix)</li>
+     *   <li>Everything else → exactMatch postings only</li>
+     * </ul>
+     * Extensible for LIKE_SUFFIX and other operators in the future.
+     */
+    public static PostingsReader forOperator(IndexInput input, BlocksSummary summary, Expression.IndexOperator operator, QueryEventListener.PostingListEventListener listener) throws IOException
+    {
+        switch (operator)
+        {
+            case LIKE_PREFIX:
+                return new PostingsReader(input, summary, listener);
+            default:
+                return forExactMatch(input, summary, listener);
+        }
     }
 
     @Override
@@ -89,6 +127,8 @@ public class PostingsReader implements OrdinalPostingList
         private final IndexInput input;
         final int blockSize;
         final int numPostings;
+        final int filterTypes;
+        final int[] typeStartIndices;
         final LongArray offsets;
         final LongArray maxValues;
 
@@ -99,6 +139,12 @@ public class PostingsReader implements OrdinalPostingList
             this.blockSize = input.readVInt();
             //TODO This should need to change because we can potentially end up with postings of more than Integer.MAX_VALUE?
             this.numPostings = input.readVInt();
+            this.filterTypes = input.readVInt();
+            this.typeStartIndices = new int[filterTypes];
+            for (int i = 0; i < filterTypes; i++)
+            {
+                typeStartIndices[i] = input.readVInt();
+            }
 
             SeekingRandomAccessInput randomAccessInput = new SeekingRandomAccessInput(input);
             int numBlocks = input.readVInt();
@@ -115,6 +161,21 @@ public class PostingsReader implements OrdinalPostingList
             DirectReaders.checkBitsPerValue(valuesBitsPerValue, input, () -> "Postings list header");
             LongValues lvValues = valuesBitsPerValue == 0 ? LongValues.ZEROES : DirectReader.getInstance(randomAccessInput, valuesBitsPerValue, input.getFilePointer());
             this.maxValues = new LongArrayReader(lvValues, numBlocks);
+        }
+
+        /**
+         * Returns true if the given block index is a restart block (i.e., the first block of a filter type
+         * other than the first). At restart blocks, a fresh firstPosting VLong is written.
+         */
+        boolean isRestartBlock(int blockIdx)
+        {
+            for (int i = 1; i < filterTypes; i++)
+            {
+                if (typeStartIndices[i] > 0 && typeStartIndices[i] < numPostings
+                    && blockIdx == (typeStartIndices[i] + blockSize - 1) / blockSize)
+                    return true;
+            }
+            return false;
         }
 
         void close()
@@ -164,7 +225,7 @@ public class PostingsReader implements OrdinalPostingList
     @Override
     public long size()
     {
-        return summary.numPostings;
+        return effectiveNumPostings;
     }
 
     /**
@@ -206,7 +267,7 @@ public class PostingsReader implements OrdinalPostingList
 
     private long slowAdvance(long targetRowID) throws IOException
     {
-        while (totalPostingsRead < summary.numPostings)
+        while (totalPostingsRead < effectiveNumPostings)
         {
             long segmentRowId = peekNext();
 
@@ -293,10 +354,28 @@ public class PostingsReader implements OrdinalPostingList
 
     private long peekNext() throws IOException
     {
-        if (totalPostingsRead >= summary.numPostings)
+        if (totalPostingsRead >= effectiveNumPostings)
         {
             return END_OF_STREAM;
         }
+
+        // At a type boundary, skip padding entries and jump to the restart block
+        if (summary.filterTypes > 1)
+        {
+            for (int i = 1; i < summary.filterTypes; i++)
+            {
+                if (summary.typeStartIndices[i] > 0
+                    && summary.typeStartIndices[i] < summary.numPostings
+                    && totalPostingsRead == summary.typeStartIndices[i])
+                {
+                    int restartBlock = (summary.typeStartIndices[i] + summary.blockSize - 1) / summary.blockSize;
+                    blockIndex = restartBlock;
+                    postingIndex = summary.blockSize; // force reBuffer
+                    break;
+                }
+            }
+        }
+
         if (postingIndex == summary.blockSize)
         {
             reBuffer();
@@ -329,7 +408,7 @@ public class PostingsReader implements OrdinalPostingList
         }
         input.seek(pointer);
 
-        long left = summary.numPostings - totalPostingsRead;
+        long left = effectiveNumPostings - totalPostingsRead;
         assert left > 0;
 
         readFoRBlock(input);
@@ -340,7 +419,7 @@ public class PostingsReader implements OrdinalPostingList
 
     private void readFoRBlock(IndexInput in) throws IOException
     {
-        if (blockIndex == 0)
+        if (blockIndex == 0 || summary.isRestartBlock(blockIndex))
             actualPosting = in.readVLong();
 
         byte bitsPerValue = in.readByte();

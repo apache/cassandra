@@ -93,6 +93,7 @@ public class TrieMemoryIndex extends MemoryIndex
     @Override
     public synchronized long add(DecoratedKey key, Clustering<?> clustering, ByteBuffer value)
     {
+        //pranav: this one
         value = index.termType().asIndexBytes(value);
         final PrimaryKey primaryKey = index.hasClustering() ? index.keyFactory().create(key, clustering)
                                                             : index.keyFactory().create(key);
@@ -150,6 +151,9 @@ public class TrieMemoryIndex extends MemoryIndex
             case CONTAINS_KEY:
             case CONTAINS_VALUE:
                 return exactMatch(expression, keyRange);
+            case LIKE_PREFIX:
+                //TODO: this needs to be handled cleaner way
+                expression.upper = null;
             case RANGE:
                 KeyRangeIterator keyIterator = rangeMatch(expression, keyRange);
                 int keyCount = (int) keyIterator.getMaxKeys();
