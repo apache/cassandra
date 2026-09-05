@@ -68,7 +68,11 @@ cat >${DIST_DIR}/ci_summary.html <<EOL
 ...
 EOL
 
+# Unguarded, and this script is `sh -e`: a summary the parser could not write is a failure.
 ${CASSANDRA_DIR}/.build/ci/ci_parser.py --mute --input ${DIST_DIR}/test/output/ --output ${DIST_DIR}/ci_summary.html
 
-exit $?
+# How evenly each target's splits divided, and which came near their cell deadline.
+${CASSANDRA_DIR}/.build/ci/cell_balance.py --input ${DIST_DIR}/test --output ${DIST_DIR}/ci_summary.html || echo "failed cell_balance.py"
+
+exit 0
 
