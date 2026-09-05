@@ -35,9 +35,13 @@ import org.apache.cassandra.index.SecondaryIndexBuilder;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableStreamRebuildState;
 
 class StorageAttachedIndexBuildingSupport implements Index.IndexBuildingSupport
 {
+    /** Maximum number of blocked sstable names to log when a rebuild is rejected, to keep the message bounded. */
+    private static final int MAX_LOGGED_SSTABLES = 16;
+
     @Override
     public SecondaryIndexBuilder getIndexBuildTask(ColumnFamilyStore cfs,
                                                    Set<Index> indexes,
@@ -89,9 +93,20 @@ class StorageAttachedIndexBuildingSupport implements Index.IndexBuildingSupport
                 else
                 {
                     reserved.forEach(s -> s.streamRebuildState().endRebuild());
+
+                    // For debugging, list the sstables that are blocking this rebuild because they are not in a
+                    // NORMAL state (an entire-sstable zero-copy stream is in flight). Cap the list so the message
+                    // stays bounded even when a large number of sstables are affected.
+                    String blockedSSTables = targets.values().stream()
+                                            .flatMap(Collection::stream)
+                                            .distinct()
+                                            .filter(s -> s.streamRebuildState().state() != SSTableStreamRebuildState.State.NORMAL)
+                                            .map(s -> s.descriptor.toString())
+                                            .limit(MAX_LOGGED_SSTABLES)
+                                            .collect(Collectors.joining(", "));
                     throw new RuntimeException(String.format(
-                        "Cannot build SAI index on %s while entire-sstable (zero-copy) streaming is in progress.",
-                        sstable.descriptor));
+                        "Cannot build SAI index while entire-sstable (zero-copy) streaming is in progress. " +
+                        "Blocked sstable(s) (up to %d shown): %s", MAX_LOGGED_SSTABLES, blockedSSTables));
                 }
             }
         }
