@@ -654,6 +654,19 @@ public class CassandraDaemon
         // before that virtual table was instantiated.
         // In general, there is no need to do same treatment for slow queries as by the time queries are processed
         // the logging framework if fully setup already but for the sake of it and to be sure, just do it as well.
+
+//
+//        UserType guardrailsThresholdSettings = VirtualTypesDefinitions.getGuardrailsThresholdSettings(VIRTUAL_GUARDRAILS);
+//
+//        VirtualKeyspace guardrailsKeyspace = new VirtualKeyspace(VIRTUAL_GUARDRAILS,
+//                                                                 List.of(new GuardrailValuesTable(),
+//                                                                         new GuardrailEnableFlagsTable(),
+//                                                                         new GuardrailThresholdsTable(guardrailsThresholdSettings)),
+//                                                                 Types.of(guardrailsThresholdSettings));
+//        VirtualKeyspaceRegistry.instance.register(guardrailsKeyspace);
+
+        // flush log messages to system_views.system_logs virtual table as there were messages already logged
+        // before that virtual table was instantiated
         LoggingSupportFactory.getLoggingSupport()
                              .getAppender(VirtualTableAppender.class, VirtualTableAppender.APPENDER_NAME)
                              .ifPresent(appender -> appender.flushBuffer(LogMessagesTable.class, LogMessagesTable.TABLE_NAME));
