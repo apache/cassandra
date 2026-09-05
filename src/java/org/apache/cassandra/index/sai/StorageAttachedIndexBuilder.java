@@ -83,6 +83,11 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
     // (CASSANDRA-21520). When true, this builder is responsible for releasing that status when it finishes.
     private final boolean ownsStreamRebuildStatus;
 
+    // The reserved sstables whose rebuild status this builder still owns and must release. Starts as every reserved
+    // sstable and shrinks as each one finishes, so a completed sstable's status is released immediately (unblocking
+    // its entire-sstable streaming) and the finally safety net only releases what is left (CASSANDRA-21520).
+    private final Set<SSTableReader> outstandingReservations;
+
     private final SortedMap<SSTableReader, Set<StorageAttachedIndex>> sstables;
 
     private long bytesProcessed = 0;
@@ -109,6 +114,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
         this.isFullRebuild = isFullRebuild;
         this.isInitialBuild = isInitialBuild;
         this.ownsStreamRebuildStatus = ownsStreamRebuildStatus;
+        this.outstandingReservations = ownsStreamRebuildStatus ? new HashSet<>(sstables.keySet()) : new HashSet<>();
         this.totalSizeInBytes = sstables.keySet().stream().mapToLong(SSTableReader::uncompressedLength).sum();
     }
 
@@ -130,17 +136,23 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
                 if (existing.isEmpty())
                 {
                     logger.debug(logMessage("{} dropped during index build"), indexes);
+                    // Nothing to build for this sstable, so release its reserved status right away.
+                    releaseStreamRebuildStatus(sstable);
                     continue;
                 }
 
                 if (indexSSTable(sstable, existing))
                     return;
+
+                // This sstable's index build completed, so unblock entire-sstable streaming of it immediately
+                // instead of waiting for the remaining sstables to finish (CASSANDRA-21520).
+                releaseStreamRebuildStatus(sstable);
             }
         }
         finally
         {
-            // Release the rebuild status reserved by the caller (see ownsStreamRebuildStatus), so entire-sstable
-            // streaming of these sstables is unblocked once the rebuild completes or aborts (CASSANDRA-21520).
+            // Safety net: release the rebuild status for any sstables not already released above (e.g. when the
+            // build was interrupted or threw), so entire-sstable streaming of them is unblocked (CASSANDRA-21520).
             releaseStreamRebuildStatus();
         }
     }
@@ -155,8 +167,19 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
 
     private void releaseStreamRebuildStatus()
     {
-        if (ownsStreamRebuildStatus)
-            sstables.keySet().forEach(sstable -> sstable.streamRebuildState().endRebuild());
+        if (!ownsStreamRebuildStatus)
+            return;
+
+        outstandingReservations.forEach(sstable -> sstable.streamRebuildState().endRebuild());
+        outstandingReservations.clear();
+    }
+
+    private void releaseStreamRebuildStatus(SSTableReader sstable)
+    {
+        // Only release a status this builder actually still owns, so we never clear a reservation that was
+        // released earlier and possibly re-taken by another rebuild or stream.
+        if (ownsStreamRebuildStatus && outstandingReservations.remove(sstable))
+            sstable.streamRebuildState().endRebuild();
     }
 
     private String logMessage(String message)

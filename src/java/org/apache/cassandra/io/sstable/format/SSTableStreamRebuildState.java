@@ -89,7 +89,10 @@ public class SSTableStreamRebuildState
             state = State.NORMAL;
     }
 
-    @VisibleForTesting
+    /**
+     * @return the current coordination state. Useful for diagnostics/logging (for example, to report which
+     *         sstables are blocking a rebuild because they are being streamed).
+     */
     public synchronized State state()
     {
         return state;
