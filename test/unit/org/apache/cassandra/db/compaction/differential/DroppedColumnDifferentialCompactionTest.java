@@ -24,7 +24,17 @@ import org.junit.Test;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.ReadCommandVerbHandler;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -98,6 +108,55 @@ public class DroppedColumnDifferentialCompactionTest extends DifferentialCompact
         flush();
 
         assertCursorMatchesIterator(cfs);
+    }
+
+    @Test
+    public void complexCellsNewerThanDropRetained() throws Exception
+    {
+        createTable("CREATE TABLE %s (pk bigint PRIMARY KEY, m map<text, bigint>)");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+        TableMetadata metadataBeforeDrop = cfs.metadata();
+
+        execute("UPDATE %s USING TIMESTAMP " + FUTURE_TS + " SET m['a'] = 1 WHERE pk = 0");
+        flush();
+        execute("UPDATE %s USING TIMESTAMP " + FUTURE_TS + " SET m['b'] = 2 WHERE pk = 0");
+        flush();
+
+        alterTable("ALTER TABLE %s DROP m");
+
+        SinglePartitionReadCommand commandDeserializedBeforeDrop =
+            SinglePartitionReadCommand.create(metadataBeforeDrop,
+                                              FBUtilities.nowInSeconds(),
+                                              ColumnFilter.all(cfs.metadata()),
+                                              RowFilter.none(),
+                                              DataLimits.NONE,
+                                              metadataBeforeDrop.partitioner.decorateKey(ByteBufferUtil.bytes(0L)),
+                                              new ClusteringIndexSliceFilter(Slices.ALL, false));
+        ReadCommandVerbHandler.instance.doRead(commandDeserializedBeforeDrop, false);
+        assertTrue(executeNet("SELECT * FROM %s").all().isEmpty());
+        commitCompaction(cfs, cfs.getLiveSSTables(), false, cfs.getDefaultGcBefore(FBUtilities.nowInSeconds()));
+        assertTrue(executeNet("SELECT * FROM %s").all().isEmpty());
+
+        alterTable("ALTER TABLE %s ADD m map<text, bigint>");
+        assertRows(execute("SELECT m FROM %s WHERE pk = 0"), row(map("a", 1L, "b", 2L)));
+    }
+
+    @Test
+    public void droppedComplexCellsDoNotConsumeReadLimit() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk bigint, ck bigint, v bigint, m map<text, bigint>, PRIMARY KEY (pk, ck))");
+
+        execute("UPDATE %s USING TIMESTAMP " + FUTURE_TS + " SET m['a'] = 1 WHERE pk = 0 AND ck = 0");
+        execute("UPDATE %s USING TIMESTAMP " + FUTURE_TS + " SET m['a'] = 1 WHERE pk = 0 AND ck = 2");
+        execute("UPDATE %s SET v = 7 WHERE pk = 0 AND ck = 1");
+        flush();
+
+        alterTable("ALTER TABLE %s DROP m");
+
+        assertRowsNet(executeNet("SELECT * FROM %s WHERE pk = 0 LIMIT 1"), row(0L, 1L, 7L));
+        assertRowsNet(executeNet("SELECT * FROM %s WHERE pk = 0 ORDER BY ck DESC LIMIT 1"), row(0L, 1L, 7L));
+        assertRowsNet(executeNetWithPaging("SELECT * FROM %s WHERE pk = 0", 1), row(0L, 1L, 7L));
     }
 
     /** DROP then ADD: pre-drop cells are filtered, post-re-add cells survive — the resurrection shape. */
