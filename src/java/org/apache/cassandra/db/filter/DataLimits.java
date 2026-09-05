@@ -720,7 +720,7 @@ public abstract class DataLimits
 
         public DataLimits forShortReadRetry(int toFetch)
         {
-            return new CQLLimits(toFetch);
+            return new CQLGroupByLimits(toFetch, groupPerPartitionLimit, rowLimit, groupBySpec, state);
         }
 
         @Override

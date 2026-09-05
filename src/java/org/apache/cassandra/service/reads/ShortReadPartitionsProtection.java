@@ -150,7 +150,7 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
          * then future ShortReadRowsProtection.moreContents() calls will fetch the missing ones.
          */
         int toQuery = command.limits().count() != DataLimits.NO_LIMIT
-                      ? command.limits().count() - mergedResultCounter.rowsCounted()
+                      ? Math.max(0, command.limits().count() - mergedResultCounter.counted())
                       : command.limits().perPartitionCount();
 
         ColumnFamilyStore.metricsFor(command.metadata().id).shortReadProtectionRequests.mark();
