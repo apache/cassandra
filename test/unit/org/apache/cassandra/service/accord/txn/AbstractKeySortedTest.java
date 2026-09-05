@@ -28,15 +28,19 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import accord.primitives.Routable.Domain;
 import accord.primitives.Seekable;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static accord.utils.Property.qt;
+import static org.junit.Assert.assertEquals;
 
 public class AbstractKeySortedTest
 {
@@ -48,24 +52,24 @@ public class AbstractKeySortedTest
         SchemaLoader.prepareServer();
     }
 
-    static class Item
+    static class Item<K extends Seekable>
     {
-        final PartitionKey key;
+        final K key;
         final int value;
 
-        public Item(PartitionKey key, int value)
+        public Item(K key, int value)
         {
             this.key = key;
             this.value = value;
         }
-
+        
         @Override
         public boolean equals(Object o)
         {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Item item = (Item) o;
-            return value == item.value && key.equals(item.key);
+            Item<?> item = (Item<?>) o;
+            return value == ((Item<?>) o).value && key.equals(item.key);
         }
 
         @Override
@@ -84,26 +88,27 @@ public class AbstractKeySortedTest
         }
     }
 
-    static class SortedItems extends AbstractKeySorted<Item>
+    static class SortedItems<K extends Seekable> extends AbstractKeySorted<Item<K>>
     {
-        public SortedItems(Item... items)
+        @SafeVarargs
+        public SortedItems(Item<K>... items)
         {
-            super(items, Domain.Key);
+            super(items, items[0].key.domain());
         }
 
-        public SortedItems(List<Item> items)
+        public SortedItems(List<Item<K>> items)
         {
-            super(items, Domain.Key);
+            super(items, items.get(0).key.domain());
         }
 
         @Override
-        int compareNonKeyFields(Item left, Item right)
+        int compareNonKeyFields(Item<K> left, Item<K> right)
         {
             return Integer.compare(left.value, right.value);
         }
 
         @Override
-        Seekable getKey(Item item)
+        Seekable getKey(Item<K> item)
         {
             return item.key;
         }
@@ -121,12 +126,25 @@ public class AbstractKeySortedTest
         return new PartitionKey(TABLE1, dk);
     }
 
-    private static Item item(int k, int v)
+    private static TokenRange range(int start, int end)
     {
-        return new Item(key(k), v);
+        Token startToken = ByteOrderedPartitioner.instance.decorateKey(ByteBufferUtil.bytes(start)).getToken();
+        Token endToken = ByteOrderedPartitioner.instance.decorateKey(ByteBufferUtil.bytes(end)).getToken();
+        return TokenRange.create(TABLE1, startToken, endToken);
     }
 
-    private static List<Item> itemList(Item... items)
+    private static Item<PartitionKey> item(int k, int v)
+    {
+        return new Item<>(key(k), v);
+    }
+
+    private static Item<TokenRange> item(int s, int e, int v)
+    {
+        return new Item<>(range(s, e), v);
+    }
+
+    @SafeVarargs
+    private static List<Item<PartitionKey>> itemList(Item<PartitionKey>... items)
     {
         return Lists.newArrayList(items);
     }
@@ -134,29 +152,137 @@ public class AbstractKeySortedTest
     @Test
     public void checkInitialSorting()
     {
-        List<Item> initial = itemList(item(5, 4), item(3, 3), item(3, 1), item(6, 5));
-        SortedItems expected = new SortedItems(item(3, 1), item(3, 3), item(5, 4), item(6, 5));
+        List<Item<PartitionKey>> initial = itemList(item(5, 4), item(3, 3), item(3, 1), item(6, 5));
+        SortedItems<PartitionKey> expected = new SortedItems<>(item(3, 1), item(3, 3), item(5, 4), item(6, 5));
         expected.validateOrder();
-        SortedItems actual = new SortedItems(initial);
+        SortedItems<PartitionKey> actual = new SortedItems<>(initial);
         actual.validateOrder();
-        Assert.assertEquals(expected, actual);
+        assertEquals(expected, actual);
     }
 
     @Test
     public void checkIterationForKey()
     {
-        SortedItems source = new SortedItems(item(1, 5), item(3, 1), item(3, 3), item(5, 4), item(6, 5));
+        SortedItems<PartitionKey> source = new SortedItems<>(item(1, 5), item(3, 1), item(3, 3), item(5, 4), item(6, 5));
         source.validateOrder();
 
-        source.forEachWithKey(key(0), i -> Assert.fail());
-        source.forEachWithKey(key(1), i -> Assert.assertEquals(item(1, 5), i));
-        source.forEachWithKey(key(2), i -> Assert.fail());
-        List<Item> actual = new ArrayList<>();
+        List<Item<?>> actual = new ArrayList<>();
+        source.forEachWithKey(key(0), actual::add);
+        assertEquals(List.of(), actual);
+
+        actual.clear();
+        source.forEachWithKey(key(1), actual::add);
+        assertEquals(List.of(item(1, 5)), actual);
+
+        actual.clear();
+        source.forEachWithKey(key(2), actual::add);
+        assertEquals(List.of(), actual);
+
+        actual.clear();
         source.forEachWithKey(key(3), actual::add);
-        Assert.assertEquals(itemList(item(3, 1), item(3, 3)), actual);
+        assertEquals(itemList(item(3, 1), item(3, 3)), actual);
+
+        actual.clear();
         source.forEachWithKey(key(4), i -> Assert.fail());
-        source.forEachWithKey(key(5), i -> Assert.assertEquals(item(5, 4), i));
-        source.forEachWithKey(key(6), i -> Assert.assertEquals(item(6, 5), i));
+        assertEquals(List.of(), actual);
+
+        actual.clear();
+        source.forEachWithKey(key(5), actual::add);
+        assertEquals(itemList(item(5, 4)), actual);
+
+        actual.clear();
+        source.forEachWithKey(key(6), actual::add);
+        assertEquals(itemList(item(6, 5)), actual);
+
+        actual.clear();
         source.forEachWithKey(key(7), i -> Assert.fail());
+        assertEquals(List.of(), actual);
+    }
+
+    @Test
+    public void forEachWithKeyRegressionTest()
+    {
+        SortedItems<TokenRange> source = new SortedItems<>(item(1, 2, 3), item(2, 6,3));
+        source.validateOrder();
+
+        List<Item<?>> actual = new ArrayList<>();
+        source.forEachWithKey(range(2, 6), actual::add);
+        assertEquals(List.of(item(2, 6, 3)), actual);
+    }
+
+    @Test
+    public void forEachWithKeyTest()
+    {
+        qt().check(rs -> {
+            int numberOfSortedItems = rs.nextInt(1, 20);
+
+            int[] starts = new int[numberOfSortedItems];
+            int[] ends = new int[numberOfSortedItems];
+            List<Item<TokenRange>> items = new ArrayList<>();
+            int minimum = rs.nextInt(0, 10);
+
+            for (int i = 0; i < numberOfSortedItems; i++)
+            {
+                starts[i] = minimum + rs.nextInt(1, 20);
+                ends[i] = starts[i] + rs.nextInt(10, 25);
+                items.add(item(starts[i], ends[i], rs.nextInt()));
+                minimum = ends[i];
+            }
+
+            SortedItems<TokenRange> source = new SortedItems<>(items);
+            source.validateOrder();
+
+            // 1 - no match
+            // 2 - overlaps on the left end
+            // 3 - overlaps on the right end
+            // 4 - subset of range
+            // 5 - superset of range
+            // 6 - exact match
+            // 7 - spans several ranges
+            for (int kind = 1; kind < 8; kind++)
+            {
+                int idx = rs.nextInt(numberOfSortedItems);
+                int start = starts[idx];
+                int end = ends[idx];
+                TokenRange query;
+
+                switch (kind)
+                {
+                    case 1:
+                        query = range(minimum, minimum + rs.nextInt(1, 10));
+                        break;
+                    case 2:
+                        query = range(start - 1, start);
+                        break;
+                    case 3:
+                        query = range(end - 1, end + 1);
+                        break;
+                    case 4:
+                        query = range(start + 1, end - 1);
+                        break;
+                    case 5:
+                        query = range(start - 1, end + 1);
+                        break;
+                    case 6:
+                        query = range(start, end);
+                        break;
+                    case 7:
+                        query = range(start - 1, ends[rs.nextInt(idx, numberOfSortedItems)] + 1);
+                        break;
+                    default:
+                        throw new IllegalStateException("Unhandled kind " + kind);
+                }
+
+                List<Item<TokenRange>> expected = new ArrayList<>();
+                for (Item<TokenRange> candidate : items)
+                    if (query.compareIntersecting(candidate.key) == 0)
+                        expected.add(candidate);
+
+                List<Item<TokenRange>> actual = new ArrayList<>();
+                source.forEachWithKey(query, actual::add);
+
+                assertEquals(expected, actual);
+            }
+        });
     }
 }
