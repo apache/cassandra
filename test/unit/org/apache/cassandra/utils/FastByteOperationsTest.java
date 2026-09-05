@@ -20,6 +20,7 @@ package org.apache.cassandra.utils;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.Test;
 
@@ -49,6 +50,60 @@ public class FastByteOperationsTest
         testCopy(bytes1, wrap1(bytes1, false), wrap2(empty, true), UO);
         testCopy(bytes1, wrap1(bytes1, false), wrap2(empty, false), UO);
     }
+
+    @Test
+    public void testFastByteCopyReadOnly()
+    {
+        byte[] bytes1 = new byte[128];
+        byte[] empty = new byte[128];
+        rand.nextBytes(bytes1);
+        testCopy(bytes1, wrap1(bytes1, true).asReadOnlyBuffer(), wrap2(empty, true), PJO);
+        testCopy(bytes1, wrap1(bytes1, true).asReadOnlyBuffer(), wrap2(empty, false), PJO);
+        testCopy(bytes1, wrap1(bytes1, false).asReadOnlyBuffer(), wrap2(empty, true), PJO);
+        testCopy(bytes1, wrap1(bytes1, false).asReadOnlyBuffer(), wrap2(empty, false), PJO);
+        testCopy(bytes1, wrap1(bytes1, true).asReadOnlyBuffer(), wrap2(empty, true), UO);
+        testCopy(bytes1, wrap1(bytes1, true).asReadOnlyBuffer(), wrap2(empty, false), UO);
+        testCopy(bytes1, wrap1(bytes1, false).asReadOnlyBuffer(), wrap2(empty, true), UO);
+        testCopy(bytes1, wrap1(bytes1, false).asReadOnlyBuffer(), wrap2(empty, false), UO);
+    }
+
+    @Test
+    public void testFastByteCopyWithPoistion()
+    {
+        byte[] bytes1 = new byte[128];
+        byte[] empty = new byte[128];
+        rand.nextBytes(bytes1);
+
+        int randomPos = ThreadLocalRandom.current().nextInt(0, 101);
+
+        testCopyWithPosition(bytes1, wrapR(bytes1, true, randomPos).asReadOnlyBuffer(), wrapR1(empty, true, randomPos), PJO, randomPos);
+        randomPos = ThreadLocalRandom.current().nextInt(0, 101);
+        testCopyWithPosition(bytes1, wrapR(bytes1, true, randomPos).asReadOnlyBuffer(), wrapR1(empty, false, randomPos), PJO, randomPos);
+        randomPos = ThreadLocalRandom.current().nextInt(0, 101);
+        testCopyWithPosition(bytes1, wrapR(bytes1, false, randomPos).asReadOnlyBuffer(), wrapR1(empty, true, randomPos), PJO, randomPos);
+        randomPos = ThreadLocalRandom.current().nextInt(0, 101);
+        testCopyWithPosition(bytes1, wrapR(bytes1, false, randomPos).asReadOnlyBuffer(), wrapR1(empty, false, randomPos), PJO, randomPos);
+        randomPos = ThreadLocalRandom.current().nextInt(0, 101);
+        testCopyWithPosition(bytes1, wrapR(bytes1, true, randomPos).asReadOnlyBuffer(), wrapR1(empty, true, randomPos), UO, randomPos);
+        randomPos = ThreadLocalRandom.current().nextInt(0, 101);
+        testCopyWithPosition(bytes1, wrapR(bytes1, true, randomPos).asReadOnlyBuffer(), wrapR1(empty, false, randomPos), UO, randomPos);
+        randomPos = ThreadLocalRandom.current().nextInt(0, 101);
+        testCopyWithPosition(bytes1, wrapR(bytes1, false, randomPos).asReadOnlyBuffer(), wrapR1(empty, true, randomPos), UO, randomPos);
+        randomPos = ThreadLocalRandom.current().nextInt(0, 101);
+        testCopyWithPosition(bytes1, wrapR(bytes1, false, randomPos).asReadOnlyBuffer(), wrapR1(empty, false, randomPos), UO, randomPos);
+
+    }
+
+
+    private void testCopyWithPosition(byte[] canon, ByteBuffer src, ByteBuffer trg, FastByteOperations.ByteOperations ops, int position)
+    {
+        byte[] result = new byte[src.remaining()];
+        byte[] canonSubArray = Arrays.copyOfRange(canon, position, canon.length);
+        ops.copy(src, src.position(), trg, trg.position(), src.remaining());
+        ops.copy(trg, trg.position(), result, 0, trg.remaining());
+        assert firstdiff(canonSubArray, result) < 0;
+    }
+
 
     private void testCopy(byte[] canon, ByteBuffer src, ByteBuffer trg, FastByteOperations.ByteOperations ops)
     {
@@ -86,6 +141,38 @@ public class FastByteOperationsTest
         }
     }
 
+    @Test
+    public void testFastByteCompareRandomRead()
+    {
+        byte[] bytes1 = new byte[128];
+        for (int i = 0 ; i < 1000 ; i++)
+        {
+            rand.nextBytes(bytes1);
+            for (int j = 0 ; j < 16 ; j++)
+            {
+                byte[] bytes2 = Arrays.copyOf(bytes1, bytes1.length - j);
+                testTwiddleOneByteComparisonsReadOnly(bytes1, bytes2, 16, true, 1);
+                testTwiddleOneByteComparisonsReadOnly(bytes1, bytes2, 16, true, -1);
+                testTwiddleOneByteComparisonsReadOnly(bytes1, bytes2, 16, false, 1);
+                testTwiddleOneByteComparisonsReadOnly(bytes1, bytes2, 16, false, -1);
+                testTwiddleOneByteComparisonsReadOnly(bytes1, bytes2, 16, true, 128);
+                testTwiddleOneByteComparisonsReadOnly(bytes1, bytes2, 16, false, 128);
+            }
+        }
+    }
+
+
+    private void testTwiddleOneByteComparisonsReadOnly(byte[] bytes1, byte[] bytes2, int count, boolean start, int inc)
+    {
+        for (int j = 0 ; j < count ; j++)
+        {
+            int index = start ? j : bytes2.length - (j + 1);
+            bytes2[index] += inc;
+            testComparisonsReadOnly(bytes1, bytes2);
+            bytes2[index] -= inc;
+        }
+    }
+
     private void testTwiddleOneByteComparisons(byte[] bytes1, byte[] bytes2, int count, boolean start, int inc)
     {
         for (int j = 0 ; j < count ; j++)
@@ -114,6 +201,45 @@ public class FastByteOperationsTest
         buf.limit(buf.position() + bytes.length);
         buf.duplicate().put(bytes);
         return buf;
+    }
+
+    private static ByteBuffer wrapR(byte[] bytes, boolean direct, int position)
+    {
+        return sliceR(bytes, direct ? dbuf1 : hbuf1, position);
+    }
+
+    private static ByteBuffer wrapR1(byte[] bytes, boolean direct, int position)
+    {
+        return sliceR(bytes, direct ? dbuf2 : hbuf2, position);
+    }
+
+    private static ByteBuffer sliceR(byte[] bytes, ByteBuffer buf, int position)
+    {
+        buf = buf.duplicate();
+        buf.put(bytes);
+        buf.position(position);
+        buf = buf.slice();
+
+        return buf;
+
+    }
+
+    private void testComparisonsReadOnly(byte[] bytes1, byte[] bytes2)
+    {
+        testComparison(bytes1, bytes2);
+        testComparison(bytes2, bytes1);
+        testComparison(wrap1(bytes1, false).asReadOnlyBuffer(), bytes2);
+        testComparison(wrap2(bytes2, false).asReadOnlyBuffer(), bytes1);
+        testComparison(wrap1(bytes1, false).asReadOnlyBuffer(), wrap2(bytes2, false));
+        testComparison(wrap2(bytes2, false).asReadOnlyBuffer(), wrap1(bytes1, false));
+        testComparison(wrap1(bytes1, true).asReadOnlyBuffer(), bytes2);
+        testComparison(wrap2(bytes2, true).asReadOnlyBuffer(), bytes1);
+        testComparison(wrap1(bytes1, true).asReadOnlyBuffer(), wrap2(bytes2, true));
+        testComparison(wrap2(bytes2, true).asReadOnlyBuffer(), wrap1(bytes1, true));
+        testComparison(wrap1(bytes1, true).asReadOnlyBuffer(), wrap2(bytes2, false));
+        testComparison(wrap1(bytes1, false).asReadOnlyBuffer(), wrap2(bytes2, true));
+        testComparison(wrap2(bytes2, true).asReadOnlyBuffer(), wrap1(bytes1, false));
+        testComparison(wrap2(bytes2, false).asReadOnlyBuffer(), wrap1(bytes1, true));
     }
 
     private void testComparisons(byte[] bytes1, byte[] bytes2)
