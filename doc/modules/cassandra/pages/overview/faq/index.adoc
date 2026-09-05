@@ -18,7 +18,7 @@ dns, etc).
 One exception to this process is JMX, which by default binds to 0.0.0.0
 (Java bug 6425769).
 
-See `256` and `43` for more gory details.
+See https://issues.apache.org/jira/browse/CASSANDRA-256[CASSANDRA-256] and https://issues.apache.org/jira/browse/CASSANDRA-43[CASSANDRA-43] for more gory details.
 
 [[what-ports]]
 == What ports does Cassandra use?
@@ -34,7 +34,7 @@ the `cassandra-yaml`. The JMX port is configurable in `cassandra-env.sh`
 
 When a new nodes joins a cluster, it will automatically contact the
 other nodes in the cluster and copy the right data to itself. See
-`topology-changes`.
+xref:managing/operating/topo_changes.adoc[topology changes].
 
 [[asynch-deletes]]
 == I delete data from Cassandra, but disk usage stays the same. What gives?
@@ -45,7 +45,7 @@ delete, instead, a marker (also called a "tombstone") is written to
 indicate the value's new status. Never fear though, on the first
 compaction that occurs between the data and the tombstone, the data will
 be expunged completely and the corresponding disk space recovered. See
-`compaction` for more detail.
+xref:managing/operating/compaction/index.adoc[compaction] for more detail.
 
 [[one-entry-ring]]
 == Why does nodetool ring only show one entry, even though my nodes logged that they see each other joining the ring?
@@ -68,7 +68,7 @@ restart.
 Yes, but it will require running a full repair (or cleanup) to change
 the replica count of existing data:
 
-* `Alter <alter-keyspace-statement>` the replication factor for desired
+* xref:developing/cql/ddl.adoc#alter-keyspace-statement[Alter] the replication factor for desired
 keyspace (using cqlsh for instance).
 * If you're reducing the replication factor, run `nodetool cleanup` on
 the cluster to remove surplus replicated data. Cleanup runs on a
@@ -118,7 +118,7 @@ machine.
 == Will batching my operations speed up my bulk load?
 
 No. Using batches to load data will generally just add "spikes" of
-latency. Use asynchronous INSERTs instead, or use true `bulk-loading`.
+latency. Use asynchronous INSERTs instead, or use true xref:managing/operating/bulk_loading.adoc[bulk loading].
 
 An exception is batching updates to a single partition, which can be a
 Good Thing (as long as the size of a single batch stay reasonable). But
@@ -169,7 +169,7 @@ Seeds are used during startup to discover the cluster.
 
 If you configure your nodes to refer some node as seed, nodes in your
 ring tend to send Gossip message to seeds more often (also see the
-`section on gossip <gossip>`) than to non-seeds. In other words, seeds
+xref:architecture/dynamo.adoc[section on gossip]) than to non-seeds. In other words, seeds
 are worked as hubs of Gossip network. With seeds, each node can detect
 status changes of other nodes quickly.
 
