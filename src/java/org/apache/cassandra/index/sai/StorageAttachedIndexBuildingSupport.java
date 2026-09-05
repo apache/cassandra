@@ -21,6 +21,9 @@ package org.apache.cassandra.index.sai;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
@@ -32,9 +35,13 @@ import org.apache.cassandra.index.SecondaryIndexBuilder;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableStreamRebuildState;
 
 class StorageAttachedIndexBuildingSupport implements Index.IndexBuildingSupport
 {
+    /** Maximum number of blocked sstable names to log when a rebuild is rejected, to keep the message bounded. */
+    private static final int MAX_LOGGED_SSTABLES = 16;
+
     @Override
     public SecondaryIndexBuilder getIndexBuildTask(ColumnFamilyStore cfs,
                                                    Set<Index> indexes,
@@ -46,6 +53,8 @@ class StorageAttachedIndexBuildingSupport implements Index.IndexBuildingSupport
 
         assert group != null : "Index group does not exist for table " + cfs.keyspace + '.' + cfs.name;
 
+        // First resolve, without mutating anything, which sstables each index will rebuild.
+        Map<StorageAttachedIndex, Collection<SSTableReader>> targets = new LinkedHashMap<>();
         indexes.stream()
                .filter((i) -> i instanceof StorageAttachedIndex)
                .forEach((i) ->
@@ -62,11 +71,61 @@ class StorageAttachedIndexBuildingSupport implements Index.IndexBuildingSupport
                                                       .collect(Collectors.toList());
                             }
 
-                            group.dropIndexSSTables(ss, sai);
-
-                            ss.forEach(sstable -> sstables.computeIfAbsent(sstable, ignore -> new HashSet<>()).add(sai));
+                            targets.put(sai, ss);
                         });
 
-        return new StorageAttachedIndexBuilder(group, sstables, isFullRebuild, false);
+        // Reserve the per-sstable rebuild status for every unique target sstable BEFORE deleting any index
+        // components. An entire-sstable (zero-copy) stream reserves the same status when its outgoing file is
+        // constructed, so this ensures a rebuild cannot delete/rewrite SAI components underneath an in-flight
+        // stream (and vice versa the stream degrades to legacy). See CASSANDRA-21520. The returned builder owns
+        // these reservations and releases them when it finishes.
+        Set<SSTableReader> reserved = new LinkedHashSet<>();
+        for (Collection<SSTableReader> ss : targets.values())
+        {
+            for (SSTableReader sstable : ss)
+            {
+                if (reserved.contains(sstable))
+                    continue;
+                if (sstable.streamRebuildState().tryBeginRebuild())
+                {
+                    reserved.add(sstable);
+                }
+                else
+                {
+                    reserved.forEach(s -> s.streamRebuildState().endRebuild());
+
+                    // For debugging, list the sstables that are blocking this rebuild because they are not in a
+                    // NORMAL state (an entire-sstable zero-copy stream is in flight). Cap the list so the message
+                    // stays bounded even when a large number of sstables are affected.
+                    String blockedSSTables = targets.values().stream()
+                                            .flatMap(Collection::stream)
+                                            .distinct()
+                                            .filter(s -> s.streamRebuildState().state() != SSTableStreamRebuildState.State.NORMAL)
+                                            .map(s -> s.descriptor.toString())
+                                            .limit(MAX_LOGGED_SSTABLES)
+                                            .collect(Collectors.joining(", "));
+                    throw new RuntimeException(String.format(
+                        "Cannot build SAI index while entire-sstable (zero-copy) streaming is in progress. " +
+                        "Blocked sstable(s) (up to %d shown): %s", MAX_LOGGED_SSTABLES, blockedSSTables));
+                }
+            }
+        }
+
+        // Now it is safe to drop existing components and assemble the build map.
+        try
+        {
+            targets.forEach((sai, ss) ->
+                            {
+                                group.dropIndexSSTables(ss, sai);
+                                ss.forEach(sstable -> sstables.computeIfAbsent(sstable, ignore -> new HashSet<>()).add(sai));
+                            });
+        }
+        catch (RuntimeException | Error e)
+        {
+            reserved.forEach(s -> s.streamRebuildState().endRebuild());
+            throw e;
+        }
+
+        return new StorageAttachedIndexBuilder(group, sstables, isFullRebuild, false, true);
     }
 }

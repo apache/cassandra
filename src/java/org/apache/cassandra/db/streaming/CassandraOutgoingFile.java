@@ -50,6 +50,8 @@ public class CassandraOutgoingFile implements OutgoingStream
     private final StreamOperation operation;
     private final CassandraStreamHeader header;
     private final List<Range<Token>> ranges;
+    // guards against releasing the entire-sstable streaming status more than once (CASSANDRA-21520)
+    private boolean streamRebuildStatusReleased = false;
 
     public CassandraOutgoingFile(StreamOperation operation, Ref<SSTableReader> ref,
                                  List<SSTableReader.PartitionPositionBounds> sections, List<Range<Token>> normalizedRanges,
@@ -66,9 +68,24 @@ public class CassandraOutgoingFile implements OutgoingStream
         SSTableReader sstable = ref.get();
 
         this.filename = sstable.getFilename();
-        this.shouldStreamEntireSSTable = computeShouldStreamEntireSSTables();
-        ComponentManifest manifest = ComponentManifest.create(sstable);
-        this.header = makeHeader(sstable, operation, sections, estimatedKeys, shouldStreamEntireSSTable, manifest);
+        // Decide the streaming mode here (not at write() time): getNumFiles()/the manifest are advertised to the
+        // receiver at plan time, and the receiver only completes once it has received exactly that many files. If
+        // an SAI rebuild is in progress we must fall back to legacy streaming now, so the advertised count matches
+        // what is actually sent. See CASSANDRA-21520.
+        boolean entire = computeShouldStreamEntireSSTables() && sstable.streamRebuildState().tryBeginStreaming();
+        this.shouldStreamEntireSSTable = entire;
+        try
+        {
+            ComponentManifest manifest = ComponentManifest.create(sstable);
+            this.header = makeHeader(sstable, operation, sections, estimatedKeys, entire, manifest);
+        }
+        catch (RuntimeException | Error e)
+        {
+            // The stream will never be finish()ed if construction fails, so release the status we just acquired.
+            if (entire)
+                sstable.streamRebuildState().endStreaming();
+            throw e;
+        }
     }
 
     private static CassandraStreamHeader makeHeader(SSTableReader sstable,
@@ -212,7 +229,23 @@ public class CassandraOutgoingFile implements OutgoingStream
     @Override
     public void finish()
     {
+        releaseStreamRebuildStatus();
         ref.release();
+    }
+
+    /**
+     * Releases the entire-sstable streaming status this stream reserved at construction, exactly once, without
+     * releasing the sstable reference. Used both by {@link #finish()} and by callers that must clean up a
+     * constructed-but-never-transferred stream (e.g. an error while planning outgoing streams) so the status
+     * cannot leak. See CASSANDRA-21520.
+     */
+    public void releaseStreamRebuildStatus()
+    {
+        if (shouldStreamEntireSSTable && !streamRebuildStatusReleased)
+        {
+            streamRebuildStatusReleased = true;
+            ref.get().streamRebuildState().endStreaming();
+        }
     }
 
     public boolean equals(Object o)
