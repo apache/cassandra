@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -34,15 +35,23 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.ColumnData;
+import org.apache.cassandra.db.rows.ComplexColumnData;
+import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.db.rows.WrappingUnfilteredRowIterator;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
@@ -55,6 +64,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -66,6 +76,7 @@ public class ReadResponseTest
     private TableMetadata metadata;
     private TableMetadata metadataWithClustering;
     private TableMetadata metadataWithStatic;
+    private TableMetadata metadataWithCollection;
 
     @BeforeClass
     public static void beforeClass()
@@ -88,6 +99,16 @@ public class ReadResponseTest
                                               .addPartitionKeyColumn("p", Int32Type.instance)
                                               .addClusteringColumn("c", Int32Type.instance)
                                               .addRegularColumn("v", Int32Type.instance)
+                                              .partitioner(Murmur3Partitioner.instance)
+                                              .build();
+
+        metadataWithCollection = TableMetadata.builder("ks", "t4")
+                                              .offline()
+                                              .addPartitionKeyColumn("p", Int32Type.instance)
+                                              .addStaticColumn("s", Int32Type.instance)
+                                              .addClusteringColumn("c", Int32Type.instance)
+                                              .addRegularColumn("v", Int32Type.instance)
+                                              .addRegularColumn("coll", SetType.getInstance(Int32Type.instance, true))
                                               .partitioner(Murmur3Partitioner.instance)
                                               .build();
 
@@ -306,6 +327,234 @@ public class ReadResponseTest
 
         assertEquals(ByteBufferUtil.bytesToHex(localResponse.digest(command)),
                      ByteBufferUtil.bytesToHex(inMemoryResponse.digest(command)));
+    }
+
+    @Test
+    public void inMemoryResponseKeepsColumnsOfAReadThatSelectedNoRows()
+    {
+        // A read whose clustering filter selects nothing (paging past the last slice of the page) returns
+        // noRowsIterator, whose columns() are those of the static row alone and not the ones the filter fetches.
+        // The digest covers columns().regulars, so the in-memory response has to report the very same columns.
+        int key = key();
+        ReadCommand command = command(key, metadataWithStatic);
+        StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
+
+        Row staticRow = staticRow(metadataWithStatic, 7);
+        ReadResponse localResponse = command.createResponse(noRowsIterator(command, key, staticRow), rdi);
+        ReadResponse inMemoryResponse = command.createLocalObjectResponse(noRowsIterator(command, key, staticRow), rdi, true);
+
+        assertEquals(columnsOf(command, localResponse), columnsOf(command, inMemoryResponse));
+        assertEquals(ByteBufferUtil.bytesToHex(localResponse.digest(command)),
+                     ByteBufferUtil.bytesToHex(inMemoryResponse.digest(command)));
+    }
+
+    @Test
+    public void inMemoryResponseDropsCellsShadowedByARowDeletion()
+    {
+        // A row deletion and a cell of the very same timestamp survive side by side in a memtable, neither
+        // superseding the other. Serializing the response drops the cell when the row is rebuilt on read back, so a
+        // response kept in memory has to drop it as well.
+        int key = key();
+        ReadCommand command = command(key, metadataWithClustering);
+        StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
+        Row row = deletedRowWithShadowedCell(metadataWithClustering, 1);
+
+        ReadResponse localResponse = command.createResponse(singlePartitionIterator(rowIterator(command, key, row)), rdi);
+        ReadResponse inMemoryResponse = command.createLocalObjectResponse(singlePartitionIterator(rowIterator(command, key, row)), rdi, true);
+
+        assertIteratorsEqual(command, localResponse, inMemoryResponse);
+        assertEquals(ByteBufferUtil.bytesToHex(localResponse.digest(command)),
+                     ByteBufferUtil.bytesToHex(inMemoryResponse.digest(command)));
+    }
+
+    @Test
+    public void inMemoryResponseMatchesSerializedResponseForAnEmptyPartition()
+    {
+        // A partition that is returned but holds nothing is serialized as a flag on its own and read back without
+        // columns, so the in-memory response must present it that way and not with the columns the read fetched.
+        int key = key();
+        ReadCommand command = command(key, metadataWithStatic);
+        StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
+
+        ReadResponse localResponse = command.createResponse(emptyPartitionIterator(command, key), rdi);
+        ReadResponse inMemoryResponse = command.createLocalObjectResponse(emptyPartitionIterator(command, key), rdi, true);
+
+        assertEquals(columnsOf(command, localResponse), columnsOf(command, inMemoryResponse));
+        assertEquals(ByteBufferUtil.bytesToHex(localResponse.digest(command)),
+                     ByteBufferUtil.bytesToHex(inMemoryResponse.digest(command)));
+    }
+
+    @Test
+    public void inMemoryResponseMatchesSerializedResponseForRandomPartitions()
+    {
+        // Whatever the read produced, a response kept in memory has to be indistinguishable from the same response
+        // put through the serializer, both in what it returns and in its digest, since that digest is compared
+        // against the one every other replica computes from the serialized form.
+        long seed = nanoTime();
+        Random rnd = new Random(seed);
+
+        for (int i = 0; i < 300; i++)
+        {
+            RandomPartition partition = randomPartition(rnd);
+            ReadCommand command = command(partition.key, metadataWithCollection, partition.reversed);
+            StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
+            String context = "seed " + seed + ", iteration " + i;
+
+            String serialized = describe(command, command.createResponse(partition.iterator(command), rdi));
+            // both limits disabled: the response is kept as an object graph
+            String inMemory = describe(command, ReadResponse.createInMemoryDataResponse(partition.iterator(command), command, rdi, 0, 0));
+            // a row limit of one: anything longer overflows and is serialized in full
+            String overflowed = describe(command, ReadResponse.createInMemoryDataResponse(partition.iterator(command), command, rdi, 1, 0));
+
+            assertEquals(context, serialized, inMemory);
+            assertEquals(context, serialized, overflowed);
+        }
+    }
+
+    private RandomPartition randomPartition(Random rnd)
+    {
+        return new RandomPartition(rnd);
+    }
+
+    private class RandomPartition
+    {
+        private static final long ROW_TIMESTAMP = 10;
+
+        final int key;
+        final boolean reversed;
+
+        private final PartitionUpdate update;
+        private final Row staticRow;
+        // report the columns of the content rather than the ones the filter fetches
+        private final boolean contentColumns;
+        // > 0: give every row a deletion of that timestamp, added after its cells so they survive in the row
+        private final long shadowingTimestamp;
+
+        RandomPartition(Random rnd)
+        {
+            key = key();
+            reversed = rnd.nextBoolean();
+            contentColumns = rnd.nextBoolean();
+            shadowingTimestamp = rnd.nextInt(3) == 0 ? ROW_TIMESTAMP + rnd.nextInt(2) * 10 : 0;
+
+            switch (rnd.nextInt(3))
+            {
+                case 0:
+                    // no static row at all
+                    staticRow = Rows.EMPTY_STATIC_ROW;
+                    break;
+                case 1:
+                    // a partition without static data still carries an empty static row, see readIterator
+                    staticRow = BTreeRow.emptyRow(Clustering.STATIC_CLUSTERING);
+                    break;
+                default:
+                    staticRow = staticRow(metadataWithCollection, rnd.nextInt(100));
+            }
+
+            PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(metadataWithCollection, ByteBufferUtil.bytes(key));
+            if (rnd.nextInt(6) == 0)
+                builder.timestamp(1).delete();  // older than the rows below, so it does not shadow them
+            builder.timestamp(ROW_TIMESTAMP);
+
+            int rows = rnd.nextInt(5);
+            for (int c = 0; c < rows; c++)
+            {
+                Row.SimpleBuilder row = builder.row(c);
+                if (rnd.nextInt(5) == 0)
+                    row.delete();
+                else
+                {
+                    row.add("v", rnd.nextInt(100));
+                    if (rnd.nextBoolean())
+                        row.add("coll", Set.of(rnd.nextInt(10), 10 + rnd.nextInt(10)));
+                }
+            }
+
+            for (int t = rnd.nextInt(3); t > 0; t--)
+            {
+                int start = rnd.nextInt(8);
+                Slice slice = Slice.make(Clustering.make(ByteBufferUtil.bytes(start)),
+                                         Clustering.make(ByteBufferUtil.bytes(start + 1 + rnd.nextInt(3))));
+                builder.addRangeTombstone(new RangeTombstone(slice, DeletionTime.build(ROW_TIMESTAMP + 1, FBUtilities.nowInSeconds())));
+            }
+
+            update = builder.build();
+        }
+
+        UnfilteredPartitionIterator iterator(ReadCommand command)
+        {
+            UnfilteredRowIterator rowIter = update.unfilteredIterator(command.columnFilter(), Slices.ALL, reversed);
+            RegularAndStaticColumns columns = contentColumns
+                                              ? new RegularAndStaticColumns(Columns.from(staticRow), update.columns().regulars)
+                                              : command.columnFilter().fetchedColumns();
+
+            return singlePartitionIterator(new WrappingUnfilteredRowIterator()
+            {
+                public UnfilteredRowIterator wrapped() { return rowIter; }
+
+                @Override
+                public RegularAndStaticColumns columns() { return columns; }
+
+                @Override
+                public Row staticRow() { return staticRow; }
+
+                @Override
+                public Unfiltered next()
+                {
+                    Unfiltered next = rowIter.next();
+                    return next.isRow() ? withShadowedCells((Row) next) : next;
+                }
+            });
+        }
+
+        private Row withShadowedCells(Row row)
+        {
+            if (shadowingTimestamp == 0 || row.isEmpty())
+                return row;
+
+            Row.Builder builder = BTreeRow.unsortedBuilder();
+            builder.newRow(row.clustering());
+            builder.addPrimaryKeyLivenessInfo(row.primaryKeyLivenessInfo());
+            for (ColumnData cd : row)
+            {
+                if (cd.column().isSimple())
+                {
+                    builder.addCell((Cell<?>) cd);
+                }
+                else
+                {
+                    ComplexColumnData complexData = (ComplexColumnData) cd;
+                    if (!complexData.complexDeletion().isLive())
+                        builder.addComplexDeletion(complexData.column(), complexData.complexDeletion());
+                    for (Cell<?> cell : complexData)
+                        builder.addCell(cell);
+                }
+            }
+            // added last, so the cells above are kept even where it covers them
+            builder.addRowDeletion(Row.Deletion.regular(DeletionTime.build(shadowingTimestamp, FBUtilities.nowInSeconds())));
+            return builder.build();
+        }
+    }
+
+    private String describe(ReadCommand command, ReadResponse response)
+    {
+        StringBuilder description = new StringBuilder();
+        try (UnfilteredPartitionIterator iter = response.makeIterator(command))
+        {
+            while (iter.hasNext())
+            {
+                try (UnfilteredRowIterator partition = iter.next())
+                {
+                    description.append("columns=").append(partition.columns())
+                               .append(" partitionDeletion=").append(partition.partitionLevelDeletion())
+                               .append(" reversed=").append(partition.isReverseOrder())
+                               .append(" static=").append(partition.staticRow().toString(partition.metadata(), true));
+                    while (partition.hasNext())
+                        description.append("\n  ").append(partition.next().toString(partition.metadata(), true));
+                }
+            }
+        }
+        return description.append("\ndigest=").append(ByteBufferUtil.bytesToHex(response.digest(command))).toString();
     }
 
     @Test(expected = UnsupportedOperationException.class)
@@ -897,6 +1146,73 @@ public class ReadResponseTest
             @Override
             public Row staticRow() { return staticRow; }
         });
+    }
+
+    /**
+     * The iterator a read returns when its clustering filter selects no clustering at all, as produced by
+     * {@code AbstractBTreePartition} for {@link Slices#NONE}. Its columns are those of the static row it carries.
+     */
+    private UnfilteredPartitionIterator noRowsIterator(ReadCommand command, int key, Row staticRow)
+    {
+        DecoratedKey dk = command.metadata().partitioner.decorateKey(ByteBufferUtil.bytes(key));
+        return singlePartitionIterator(UnfilteredRowIterators.noRowsIterator(command.metadata(), dk, staticRow,
+                                                                             DeletionTime.LIVE, command.isReversed()));
+    }
+
+    /**
+     * A partition that is returned by the read but holds nothing at all, still reporting the columns the filter
+     * fetches, as an {@code AbstractBTreePartition} slice iterator does for a slice that matches no row.
+     */
+    private UnfilteredPartitionIterator emptyPartitionIterator(ReadCommand command, int key)
+    {
+        DecoratedKey dk = command.metadata().partitioner.decorateKey(ByteBufferUtil.bytes(key));
+        return singlePartitionIterator(new AbstractUnfilteredRowIterator(command.metadata(), dk, DeletionTime.LIVE,
+                                                                         command.columnFilter().fetchedColumns(),
+                                                                         Rows.EMPTY_STATIC_ROW, command.isReversed(),
+                                                                         EncodingStats.NO_STATS)
+        {
+            protected Unfiltered computeNext()
+            {
+                return endOfData();
+            }
+        });
+    }
+
+    private String columnsOf(ReadCommand command, ReadResponse response)
+    {
+        try (UnfilteredPartitionIterator iter = response.makeIterator(command))
+        {
+            StringBuilder columns = new StringBuilder();
+            while (iter.hasNext())
+            {
+                try (UnfilteredRowIterator partition = iter.next())
+                {
+                    columns.append(partition.columns());
+                }
+            }
+            return columns.toString();
+        }
+    }
+
+    private Row deletedRowWithShadowedCell(TableMetadata metadata, int clusteringValue)
+    {
+        long timestamp = 25;
+        long nowInSec = FBUtilities.nowInSeconds();
+        ColumnMetadata col = metadata.getColumn(ByteBufferUtil.bytes("v"));
+
+        Row.Builder builder = BTreeRow.unsortedBuilder();
+        builder.newRow(Clustering.make(ByteBufferUtil.bytes(clusteringValue)));
+        builder.addCell(BufferCell.tombstone(col, timestamp, nowInSec));
+        builder.addRowDeletion(Row.Deletion.regular(DeletionTime.build(timestamp, nowInSec)));
+        return builder.build();
+    }
+
+    private UnfilteredRowIterator rowIterator(ReadCommand command, int key, Row row)
+    {
+        DecoratedKey dk = command.metadata().partitioner.decorateKey(ByteBufferUtil.bytes(key));
+        return UnfilteredRowIterators.singleton(row, command.metadata(), dk, DeletionTime.LIVE,
+                                                command.columnFilter().fetchedColumns(), Rows.EMPTY_STATIC_ROW,
+                                                command.isReversed(), EncodingStats.NO_STATS);
     }
 
     private Row staticRow(TableMetadata metadata, int value)

@@ -33,6 +33,9 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
 import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.ColumnData;
+import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Row;
@@ -473,7 +476,7 @@ public abstract class ReadResponse
         // buffer in the intra-node partition format, so it can be read back like any other serialized DataResponse.
         private static ByteBuffer serialize(ReadCommand command, ImmutableBTreePartition prefix, UnfilteredRowIterator suffix)
         {
-            UnfilteredRowIterator prefixIter = unfilteredIteratorWithStaticRow(prefix, command.columnFilter(), suffix.isReverseOrder());
+            UnfilteredRowIterator prefixIter = unfilteredIteratorAsRead(prefix, command.columnFilter(), suffix.isReverseOrder());
             UnfilteredRowIterator combined = UnfilteredRowIterators.concat(prefixIter, suffix);
             UnfilteredPartitionIterator partitionIter = new SingletonUnfilteredPartitionIterator(command.metadata(), combined);
             return LocalDataResponse.build(partitionIter, command.columnFilter());
@@ -558,11 +561,45 @@ public abstract class ReadResponse
                     RangeTombstoneMarker marker = (RangeTombstoneMarker) next;
                     insideOpenMarker = marker.isOpen(isReverseOrder);
                 }
+                else
+                {
+                    next = withoutShadowedData((Row) next);
+                }
                 unfilteredCount++;
                 // Compute the heap size only when the size limit is enabled to avoid overheads if it is not needed
                 if (inMemoryMaxHeapSize > 0)
                     accumulatedHeapSize += unsharedHeapSize(next);
                 return next;
+            }
+
+            // A row read back from a buffer is rebuilt cell by cell on top of its row deletion using BTreeRow.Builder.
+            // The builder silently drops whatever that deletion covers.
+            // So, we rebuild here the row in the same way, to avoid a digest mismatch.
+            private static Row withoutShadowedData(Row row)
+            {
+                if (row.deletion().isLive())
+                    return row;
+
+                Row.Builder builder = BTreeRow.sortedBuilder();
+                builder.newRow(row.clustering());
+                builder.addPrimaryKeyLivenessInfo(row.primaryKeyLivenessInfo());
+                builder.addRowDeletion(row.deletion());
+                for (ColumnData cd : row)
+                {
+                    if (cd.column().isSimple())
+                    {
+                        builder.addCell((Cell<?>) cd);
+                    }
+                    else
+                    {
+                        ComplexColumnData complexData = (ComplexColumnData) cd;
+                        if (!complexData.complexDeletion().isLive())
+                            builder.addComplexDeletion(complexData.column(), complexData.complexDeletion());
+                        for (Cell<?> cell : complexData)
+                            builder.addCell(cell);
+                    }
+                }
+                return builder.build();
             }
 
             private Unfiltered overflow(boolean byRowLimit)
@@ -586,18 +623,32 @@ public abstract class ReadResponse
             if (partition == null)
                 return EmptyIterators.unfilteredPartition(command.metadata());
 
-            UnfilteredRowIterator inMemoryIter = unfilteredIteratorWithStaticRow(partition, command.columnFilter(), command.isReversed());
+            UnfilteredRowIterator inMemoryIter = unfilteredIteratorAsRead(partition, command.columnFilter(), command.isReversed());
             return new SingletonUnfilteredPartitionIterator(command.metadata(), inMemoryIter);
         }
 
-        // Iterating a partition turns an empty static row into the Rows.EMPTY_STATIC_ROW singleton.
-        // EMPTY_STATIC_ROW identity is used to decide if the static columns join the digest (UnfilteredRowIterators.digest) and
-        // the static row is serialized at all (UnfilteredRowIteratorSerializer).
-        // So, we use PRESENT_EMPTY_STATIC_ROW here to preserve the original behavior.
-        private static UnfilteredRowIterator unfilteredIteratorWithStaticRow(ImmutableBTreePartition partition, ColumnFilter columnFilter, boolean reversed)
+        // Iterating an ImmutableBTreePartition partition does not give back the iterator the buffer deserialized read produced.
+        // The method adjusts the iterator to produce results in the same way as the deserialized path, to avoid a digest mismatch.
+        private static UnfilteredRowIterator unfilteredIteratorAsRead(ImmutableBTreePartition partition, ColumnFilter columnFilter, boolean reversed)
         {
             UnfilteredRowIterator iter = partition.unfilteredIterator(columnFilter, Slices.ALL, reversed);
-            if (iter.staticRow() != Rows.EMPTY_STATIC_ROW || partition.staticRow() == Rows.EMPTY_STATIC_ROW)
+
+            // A partition with nothing in it is serialized as a flag and read back without columns and without a static row
+            if (iter.isEmpty())
+            {
+                iter.close();
+                return EmptyIterators.unfilteredRow(partition.metadata(), partition.partitionKey(), reversed);
+            }
+
+            Row staticRow = iter.staticRow() == Rows.EMPTY_STATIC_ROW && partition.staticRow() != Rows.EMPTY_STATIC_ROW
+                            ? PRESENT_EMPTY_STATIC_ROW
+                            : iter.staticRow();
+            // the static columns are serialized together with a static row only
+            RegularAndStaticColumns columns = staticRow == Rows.EMPTY_STATIC_ROW
+                                              ? new RegularAndStaticColumns(Columns.NONE, partition.columns().regulars)
+                                              : partition.columns();
+
+            if (staticRow == iter.staticRow() && columns.equals(iter.columns()))
                 return iter;
 
             return new WrappingUnfilteredRowIterator()
@@ -608,9 +659,15 @@ public abstract class ReadResponse
                 }
 
                 @Override
+                public RegularAndStaticColumns columns()
+                {
+                    return columns;
+                }
+
+                @Override
                 public Row staticRow()
                 {
-                    return PRESENT_EMPTY_STATIC_ROW;
+                    return staticRow;
                 }
             };
         }
