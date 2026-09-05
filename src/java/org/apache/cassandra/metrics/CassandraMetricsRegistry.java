@@ -159,6 +159,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
                                    .add(TrieMemtableMetricsView.TYPE_NAME)
                                    .add(UnweightedCacheMetrics.TYPE_NAME)
                                    .add(AutoRepairMetrics.TYPE_NAME)
+                                   .add(LogbackMetrics.TYPE_NAME)
                                    .build();
     }
 
