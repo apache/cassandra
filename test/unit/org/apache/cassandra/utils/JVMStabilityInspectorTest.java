@@ -195,10 +195,13 @@ public class JVMStabilityInspectorTest
     @Test
     public void testForceHeapSpaceOomExclude()
     {
-        OutOfMemoryError error = new OutOfMemoryError("Java heap space");
-        Assertions.assertThatThrownBy(() -> JVMStabilityInspector.inspectThrowable(error))
-                  .isInstanceOf(OutOfMemoryError.class)
-                  .isEqualTo(error);
+        for (OutOfMemoryError error : asList(new OutOfMemoryError("Java heap space"),
+                                             new OutOfMemoryError("GC overhead limit exceeded")))
+        {
+            Assertions.assertThatThrownBy(() -> JVMStabilityInspector.inspectThrowable(error))
+                      .isInstanceOf(OutOfMemoryError.class)
+                      .isEqualTo(error);
+        }
     }
 
     @Test
