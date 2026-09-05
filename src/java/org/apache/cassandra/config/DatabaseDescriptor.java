@@ -730,18 +730,7 @@ public class DatabaseDescriptor
         if (conf.file_cache_round_up == null)
             conf.file_cache_round_up = conf.disk_optimization_strategy == Config.DiskOptimizationStrategy.spinning;
 
-        if (conf.memtable_offheap_space == null)
-            conf.memtable_offheap_space = new DataStorageSpec.IntMebibytesBound((int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)));
-        // for the moment, we default to twice as much on-heap space as off-heap, as heap overhead is very large
-        if (conf.memtable_heap_space == null)
-            conf.memtable_heap_space = new DataStorageSpec.IntMebibytesBound((int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)));
-        if (conf.memtable_heap_space.toMebibytes() == 0)
-            throw new ConfigurationException("memtable_heap_space must be positive, but was " + conf.memtable_heap_space, false);
-        logger.info("Global memtable on-heap threshold is enabled at {}", conf.memtable_heap_space);
-        if (conf.memtable_offheap_space.toMebibytes() == 0)
-            logger.info("Global memtable off-heap threshold is disabled, HeapAllocator will be used instead");
-        else
-            logger.info("Global memtable off-heap threshold is enabled at {}", conf.memtable_offheap_space);
+        applyMemtableSpace(conf);
 
         if (conf.repair_session_max_tree_depth != null)
         {
@@ -1306,6 +1295,36 @@ public class DatabaseDescriptor
         if (conf.compaction_throughput.toMebibytesPerSecond() >= Integer.MAX_VALUE)
         {
             throw new ConfigurationException("Invalid value of compaction_throughput: " + conf.compaction_throughput.toString(), false);
+        }
+    }
+
+    @VisibleForTesting
+    static void applyMemtableSpace(Config conf)
+    {
+        if (conf.memtable_offheap_space == null)
+            conf.memtable_offheap_space = new DataStorageSpec.IntMebibytesBound((int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)));
+        // for the moment, we default to twice as much on-heap space as off-heap, as heap overhead is very large
+        if (conf.memtable_heap_space == null)
+            conf.memtable_heap_space = new DataStorageSpec.IntMebibytesBound((int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)));
+        if (conf.memtable_heap_space.toMebibytes() == 0)
+            throw new ConfigurationException("memtable_heap_space must be positive, but was " + conf.memtable_heap_space, false);
+        logger.info("Global memtable on-heap threshold is enabled at {}", conf.memtable_heap_space);
+
+        if (conf.memtable_offheap_space.toMebibytes() != 0)
+        {
+            logger.info("Global memtable off-heap threshold is enabled at {}", conf.memtable_offheap_space);
+        }
+        else
+        {
+            // offheap_buffers and offheap_objects with a limit of 0 would leave that usage unbounded
+            if (conf.memtable_allocation_type == Config.MemtableAllocationType.offheap_buffers
+                    || conf.memtable_allocation_type == Config.MemtableAllocationType.offheap_objects)
+                throw new ConfigurationException("memtable_offheap_space must be positive when memtable_allocation_type is "
+                                                 + conf.memtable_allocation_type
+                                                 + ", otherwise off-heap memtable memory is not limited", false);
+
+            logger.info("Global memtable off-heap threshold is 0; memtable_allocation_type {} does not allocate off-heap",
+                        conf.memtable_allocation_type);
         }
     }
 
