@@ -225,7 +225,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
                     if (b == SENTINEL)
                         return;
 
-                    try (SSTableTxnWriter writer = createWriter(null))
+                    try (SSTableTxnWriter writer = createWriter(null, b.size()))
                     {
                         for (Map.Entry<DecoratedKey, PartitionUpdate.Builder> entry : b.entrySet())
                             writer.append(entry.getValue().build().unfilteredIterator());
