@@ -471,6 +471,94 @@ public class TxnConditionTest
         });
     }
 
+    @Test
+    public void reference()
+    {
+        Gen<AbstractType<?>> typeGen = toGen(new AbstractTypeGenerators.TypeGenBuilder()
+                                             .withoutUnsafeEquality()
+                                             .build());
+        qt().check(rs -> {
+            AbstractType<?> type = typeGen.next(rs);
+            TableMetadata metadata = TableMetadata.builder("ks", "tbl")
+                                                  .addPartitionKeyColumn("pk", type.freeze())
+                                                  .addClusteringColumn("ck", type.freeze())
+                                                  .addRegularColumn("r", type)
+                                                  .addStaticColumn("s", type)
+                                                  .partitioner(Murmur3Partitioner.instance)
+                                                  .build();
+
+            ByteBuffer valueLHS = toGen(AbstractTypeGenerators.getTypeSupport(type).bytesGen()).next(rs);
+            List<ByteBuffer> complexValueLHS = type.isMultiCell() ? split(type, valueLHS) : null;
+            Clustering<?> clusteringLHS = BufferClustering.make(valueLHS);
+            SimplePartition partitionLHS = new SimplePartition(metadata, metadata.partitioner.decorateKey(valueLHS));
+
+            ByteBuffer valueRHS = toGen(AbstractTypeGenerators.getTypeSupport(type).bytesGen()).next(rs);
+            List<ByteBuffer> complexValueRHS = type.isMultiCell() ? split(type, valueRHS) : null;
+            Clustering<?> clusteringRHS = BufferClustering.make(valueRHS);
+            SimplePartition partitionRHS = new SimplePartition(metadata, metadata.partitioner.decorateKey(valueRHS));
+
+            for (TxnCondition.Kind kind : TxnCondition.Reference.supported())
+            {
+                for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
+                {
+                    for (ColumnMetadata column : metadata.columns())
+                    {
+                        TxnReference refLHS = TxnReference.column(0, metadata, column);
+                        TxnReference refRHS = TxnReference.column(1, metadata, column);
+
+                        TxnCondition.Value value = new TxnCondition.Value(refLHS.asColumn(), kind, valueRHS, version);
+                        TxnCondition.Reference condition = new TxnCondition.Reference(refLHS.asColumn(), kind, refRHS.asColumn(), version);
+
+                        partitionLHS.clear().addEmptyAndLive(clusteringLHS);
+                        partitionRHS.clear().addEmptyAndLive(clusteringRHS);
+
+                        TxnData dataLHS = TxnData.of(0, new TxnDataKeyValue(partitionLHS.filtered()));
+                        TxnData data = dataLHS.merge(TxnData.of(1, new TxnDataKeyValue(partitionRHS.filtered())));
+
+                        Assertions.assertThat(condition.applies(data))
+                                  .describedAs("column=%s, type=%s, kind=%s", column.name, type.asCQL3Type(), kind.name())
+                                  .isEqualTo(value.applies(dataLHS));
+
+                        if (column.isPrimaryKeyColumn()) continue;
+
+                        // with value
+                        if (type.isMultiCell())
+                        {
+                            partitionLHS.clear()
+                                     .add(column.isStatic() ? Clustering.STATIC_CLUSTERING : clusteringLHS)
+                                     .addComplex(column, complexValueLHS)
+                                     .build();
+
+                            partitionRHS.clear()
+                                        .add(column.isStatic() ? Clustering.STATIC_CLUSTERING : clusteringRHS)
+                                        .addComplex(column, complexValueRHS)
+                                        .build();
+                        }
+                        else
+                        {
+                            partitionLHS.clear()
+                                     .add(column.isStatic() ? Clustering.STATIC_CLUSTERING : clusteringLHS)
+                                     .add(column, valueLHS)
+                                     .build();
+
+                            partitionRHS.clear()
+                                        .add(column.isStatic() ? Clustering.STATIC_CLUSTERING : clusteringRHS)
+                                        .add(column, valueRHS)
+                                        .build();
+                        }
+
+                        dataLHS = TxnData.of(0, new TxnDataKeyValue(partitionLHS.filtered()));
+                        data = dataLHS.merge(TxnData.of(1, new TxnDataKeyValue(partitionRHS.filtered())));
+
+                        Assertions.assertThat(condition.applies(data))
+                                  .describedAs("column=%s, type=%s, kind=%s", column.name, type.asCQL3Type(), kind.name())
+                                  .isEqualTo(value.applies(dataLHS));
+                    }
+                }
+            }
+        });
+    }
+
     private static List<ByteBuffer> split(AbstractType<?> type, ByteBuffer value)
     {
         type = type.unwrap();
@@ -494,13 +582,14 @@ public class TxnConditionTest
     private Gen<TxnCondition> txnConditionGen()
     {
         return rs -> {
-            switch (rs.nextInt(1, 5))
+            switch (rs.nextInt(1, 6))
             {
                 case 0: return TxnCondition.none();
                 case 1: return new TxnCondition.Exists(TXN_REF_GEN.next(rs), EXISTS_KIND_GEN.next(rs));
                 case 2: return new TxnCondition.Value(TXN_REF_GEN.next(rs).asColumn(), VALUE_KIND_GEN.next(rs), BYTES_GEN.next(rs), PROTOCOL_VERSION_GEN.next(rs));
-                case 3: return new TxnCondition.ColumnConditionsAdapter(CLUSTERING_GEN.next(rs), Gens.lists(BOUND_GEN).ofSizeBetween(0, 3).next(rs));
-                case 4: return new TxnCondition.BooleanGroup(BOOLEAN_KIND_GEN.next(rs), Gens.lists(txnConditionGen()).ofSizeBetween(0, 3).next(rs));
+                case 3: return new TxnCondition.Reference(TXN_REF_GEN.next(rs).asColumn(), VALUE_KIND_GEN.next(rs), TXN_REF_GEN.next(rs).asColumn(), PROTOCOL_VERSION_GEN.next(rs));
+                case 4: return new TxnCondition.ColumnConditionsAdapter(CLUSTERING_GEN.next(rs), Gens.lists(BOUND_GEN).ofSizeBetween(0, 3).next(rs));
+                case 5: return new TxnCondition.BooleanGroup(BOOLEAN_KIND_GEN.next(rs), Gens.lists(txnConditionGen()).ofSizeBetween(0, 3).next(rs));
                 default: throw new AssertionError();
             }
         };

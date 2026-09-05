@@ -24,6 +24,8 @@ import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.terms.Term;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnReference;
 
@@ -41,7 +43,7 @@ public class ConditionStatement
         GTE(TxnCondition.Kind.GREATER_THAN_OR_EQUAL, TxnCondition.Kind.LESS_THAN_OR_EQUAL),
         LT(TxnCondition.Kind.LESS_THAN, TxnCondition.Kind.GREATER_THAN),
         LTE(TxnCondition.Kind.LESS_THAN_OR_EQUAL, TxnCondition.Kind.GREATER_THAN_OR_EQUAL);
-        
+
         // TODO: Support for IN, CONTAINS, CONTAINS KEY
 
         private final TxnCondition.Kind kind;
@@ -100,11 +102,33 @@ public class ConditionStatement
             RowDataReference reference;
             Term value;
             boolean reversed = false;
-            
-            if (lhs instanceof RowDataReference.Raw)
+
+            if (lhs instanceof RowDataReference.Raw && rhs instanceof RowDataReference.Raw)
+            {
+                RowDataReference.Raw rowDataReferenceLHS = ((RowDataReference.Raw) lhs);
+                RowDataReference.Raw rowDataReferenceRHS = ((RowDataReference.Raw) rhs);
+
+                if (rowDataReferenceLHS.column() == null)
+                    throw new InvalidRequestException(String.format("Row reference (%s) can only be used with IS NULL/IS NOT NULL conditions", lhs.getText()));
+                if (rowDataReferenceRHS.column() == null)
+                    throw new InvalidRequestException(String.format("Row reference (%s) can only be used with IS NULL/IS NOT NULL conditions", rhs.getText()));
+                reference = rowDataReferenceLHS.prepareAsReceiver();
+                value = rowDataReferenceRHS.prepareAsReceiver();
+
+                // Done for validation of element selection
+                reference.getValueReceiver();
+                ((RowDataReference) value).getValueReceiver();
+
+                AbstractType<?> lhsType = reference.toResultMetadata().type.unwrap();
+                AbstractType<?> rhsType = ((RowDataReference) value).toResultMetadata().type.unwrap();
+
+                if (!lhsType.unwrap().equals(rhsType.unwrap()))
+                    throw new InvalidRequestException(String.format("Row reference (%s) must have the same type as row reference (%s)", lhs.getText(), rhs.getText()));
+            }
+            else if (lhs instanceof RowDataReference.Raw)
             {
                 if (((RowDataReference.Raw) lhs).column() == null)
-                    throw new IllegalStateException(String.format("Row reference (%s) can only be used with IS NULL/IS NOT NULL conditions", lhs.getText()));
+                    throw new InvalidRequestException(String.format("Row reference (%s) can only be used with IS NULL/IS NOT NULL conditions", lhs.getText()));
                 reference = ((RowDataReference.Raw) lhs).prepareAsReceiver();
                 ColumnSpecification receiver = reference.getValueReceiver();
                 value = rhs.prepare(keyspace, receiver);
@@ -112,7 +136,7 @@ public class ConditionStatement
             else if (rhs instanceof RowDataReference.Raw)
             {
                 if (((RowDataReference.Raw) rhs).column() == null)
-                    throw new IllegalStateException(String.format("Row reference (%s) can only be used with IS NULL/IS NOT NULL conditions", rhs.getText()));
+                    throw new InvalidRequestException(String.format("Row reference (%s) can only be used with IS NULL/IS NOT NULL conditions", rhs.getText()));
                 reference = ((RowDataReference.Raw) rhs).prepareAsReceiver();
                 ColumnSpecification receiver = reference.getValueReceiver();
                 value = lhs.prepare(keyspace, receiver);
@@ -143,10 +167,19 @@ public class ConditionStatement
             case GTE:
             case LT:
             case LTE:
-                // TODO: Support for references on LHS and RHS
-                TxnReference ref = reference.toTxnReference(options);
-                checkTrue(ref.kind == TxnReference.Kind.COLUMN, "Condition %s requires COLUMN reference but given %s", kind, ref.kind);
-                return new TxnCondition.Value(ref.asColumn(),
+                TxnReference refLHS = reference.toTxnReference(options);
+                checkTrue(refLHS.kind == TxnReference.Kind.COLUMN, "Condition %s requires COLUMN reference but given %s", kind, refLHS.kind);
+                if (value instanceof RowDataReference)
+                {
+                    TxnReference refRHS = ((RowDataReference) value).toTxnReference(options);
+                    checkTrue(refRHS.kind == TxnReference.Kind.COLUMN, "Condition %s requires COLUMN reference but given %s", kind, refRHS.kind);
+                    return new TxnCondition.Reference(refLHS.asColumn(),
+                                                      kind.toTxnKind(reversed),
+                                                      refRHS.asColumn(),
+                                                      options.getProtocolVersion());
+                }
+
+                return new TxnCondition.Value(refLHS.asColumn(),
                                               kind.toTxnKind(reversed),
                                               value.bindAndGet(options),
                                               options.getProtocolVersion());
