@@ -37,6 +37,9 @@
 ; version = None
 
 [ui]
+;; The format of the output. Valid values are tabular, csv, and json.
+; mode = tabular
+
 ;; Whether or not to display query results with colors
 ; color = on
 

@@ -98,6 +98,14 @@ Options:
   Collect coverage data
 `--encoding=ENCODING`::
   Specify a non-default encoding for output. (Default: utf-8)
+`--mode=MODE`::
+  Specify the output display format. Valid values are `tabular` (default), `csv`, and `json`.
+  +
+  * `tabular` - Human-readable table format with aligned columns (default)
+  * `csv` - Machine-readable CSV format. Null values are represented as empty fields (matching `COPY TO` behavior).
+  * `json` - Machine-readable JSON array format. Each row is a JSON object with column names as keys.
+  +
+  NOTE: When using `json` mode, if a query returns multiple columns with the same name (e.g., `SELECT id, id FROM table`), only the last value will be included in the output JSON object. This is a known limitation of the JSON object format. CSV mode does not have this limitation.
 `--cqlshrc=CQLSHRC`::
   Specify an alternative cqlshrc file location.
 `--credentials=CREDENTIALS`::
