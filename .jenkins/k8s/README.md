@@ -40,6 +40,10 @@ gcloud container node-pools create agents-large --cluster ${CLUSTER_NAME} --mach
 # Remember to allow a buffer for gke/eks pods deployed on each node.
 ```
 
+### AWS
+
+See eks_cassandra_jenkins_ci_setup.md
+
 
 ## Manual Jenkins Helm Installation
 
