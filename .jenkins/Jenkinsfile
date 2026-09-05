@@ -340,6 +340,22 @@ def isJdkEnabled(jdk) {
 }
 
 /**
+ * Noisy (but harmless) output lines, filtered from the in-memory console log.
+ * The full output is still saved in the archived stage log (build/*.log.xz),
+ * so this only trims what the controller holds in memory / renders in the UI.
+ **/
+def consoleNoiseFilters() {
+  return [
+    "Forking using command" // ant echoes the full forked classpath before every maven forked run
+  ]
+}
+
+// append a sed filter that drops lines matching consoleNoiseFilters() from a step's output
+def filterConsoleOutput(String script) {
+  return "${script} | sed -e " + consoleNoiseFilters().collect { "/${it}/d" }.join(" -e ")
+}
+
+/**
  * Renders build script into pipeline steps
  **/
 def build(command, cell) {
@@ -366,7 +382,7 @@ def build(command, cell) {
             script_vars = "${script_vars} m2_dir=\'${WORKSPACE}/build/m2\'"
             timeout(time: 1, unit: 'HOURS') {
               try {
-                def status = sh label: "RUNNING ${cell.step}...", script: "${script_vars} ${build_script} ${cell.jdk} 2>&1 | tee >( xz -c > build/${logfile} )", returnStatus: true
+                def status = sh label: "RUNNING ${cell.step}...", script: filterConsoleOutput("${script_vars} ${build_script} ${cell.jdk} 2>&1 | tee >( xz -c > build/${logfile} )"), returnStatus: true
                 dir("build") {
                   archiveArtifacts artifacts: "${logfile}", fingerprint: true
                   copyToNightlies("${logfile}", "${cell.step}/jdk${cell.jdk}/${cell.arch}/")
@@ -428,7 +444,7 @@ def test(command, cell) {
               try {
                 buildJVMDTestJars(cell, script_vars, logfile)
                 script_vars = "${script_vars} docker_timeout_hours=\"${command.timeout_hours}\""
-                def status = sh label: "RUNNING TESTS ${cell.step}...", script: "${script_vars} .build/docker/run-tests.sh -a ${cell.step} -c '${cell.split}/${splits}' -j ${cell.jdk} 2>&1 | tee >( xz -c > build/${logfile} )", returnStatus: true
+                def status = sh label: "RUNNING TESTS ${cell.step}...", script: filterConsoleOutput("${script_vars} .build/docker/run-tests.sh -a ${cell.step} -c '${cell.split}/${splits}' -j ${cell.jdk} 2>&1 | tee >( xz -c > build/${logfile} )"), returnStatus: true
                 dir("build") {
                   archiveArtifacts artifacts: "${logfile}", fingerprint: true
                 }
@@ -495,7 +511,7 @@ def buildJVMDTestJars(cell, script_vars, logfile) {
     try {
       unstash name: "jvm_dtests_${cell.arch}_${cell.jdk}"
     } catch (error) {
-      sh label: "RUNNING build_dtest_jars...", script: "${script_vars} .build/docker/run-tests.sh -a build_dtest_jars -j ${cell.jdk} 2>&1 | tee >( xz -c > build/${logfile} )"
+      sh label: "RUNNING build_dtest_jars...", script: filterConsoleOutput("${script_vars} .build/docker/run-tests.sh -a build_dtest_jars -j ${cell.jdk} 2>&1 | tee >( xz -c > build/${logfile} )")
       stash name: "jvm_dtests_${cell.arch}_${cell.jdk}", includes: '**/dtest*.jar'
     }
   }
