@@ -68,6 +68,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -81,6 +82,9 @@ public class PartitionIndexTest
 
     private final static long SEED = System.nanoTime();
     private final static Random random = new Random(SEED);
+    private static final String S390X = "s390x";
+    private static final long DEFAULT_TEST_THREAD_STACK_SIZE = 32L * 1024;
+    private static final long S390X_TEST_THREAD_STACK_SIZE = 256L * 1024;
 
     static final ByteComparable.Version VERSION = Walker.BYTE_COMPARABLE_VERSION;
 
@@ -535,10 +539,15 @@ public class PartitionIndexTest
             {
                 future.completeExceptionally(err);
             }
-        }, "testThread", 32 * 1024);
+        }, "testThread", testThreadStackSize());
 
         t.start();
         future.join();
+    }
+
+    private static long testThreadStackSize()
+    {
+        return S390X.equals(OS_ARCH.getString()) ? S390X_TEST_THREAD_STACK_SIZE : DEFAULT_TEST_THREAD_STACK_SIZE;
     }
 
     class JumpingFile extends SequentialWriter
@@ -887,3 +896,4 @@ public class PartitionIndexTest
         return PartitionIndex.load(fhBuilder, partitioner, false);
     }
 }
+
