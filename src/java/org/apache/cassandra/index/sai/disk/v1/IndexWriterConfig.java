@@ -52,13 +52,15 @@ public class IndexWriterConfig
 
     public static final String OPTIMIZE_FOR = "optimize_for";
     private static final OptimizeFor DEFAULT_OPTIMIZE_FOR = OptimizeFor.LATENCY;
+
+    public static final String ENABLE_LITERAL_PREFIX_SAI = "enable_literal_prefix_sai";
     private static final String validOptimizeFor = Arrays.stream(OptimizeFor.values())
                                                          .map(Enum::name)
                                                          .collect(Collectors.joining(", "));
 
     public static final int MAX_TOP_K = SAI_VECTOR_SEARCH_MAX_TOP_K.getInt();
 
-    private static final IndexWriterConfig EMPTY_CONFIG = new IndexWriterConfig(-1, -1, null, null);
+    private static final IndexWriterConfig EMPTY_CONFIG = new IndexWriterConfig(-1, -1, null, null, false);
 
     // The maximum number of outgoing connections a node can have in a graph.
     private final int maximumNodeConnections;
@@ -71,15 +73,19 @@ public class IndexWriterConfig
 
     private final OptimizeFor optimizeFor;
 
+    private final boolean literalPrefixEnabled;
+
     public IndexWriterConfig(int maximumNodeConnections,
                              int constructionBeamWidth,
                              VectorSimilarityFunction similarityFunction,
-                             OptimizeFor optimizerFor)
+                             OptimizeFor optimizerFor,
+                             boolean literalPrefixEnabled)
     {
         this.maximumNodeConnections = maximumNodeConnections;
         this.constructionBeamWidth = constructionBeamWidth;
         this.similarityFunction = similarityFunction;
         this.optimizeFor = optimizerFor;
+        this.literalPrefixEnabled = literalPrefixEnabled;
     }
 
     public int getMaximumNodeConnections()
@@ -100,6 +106,11 @@ public class IndexWriterConfig
     public OptimizeFor getOptimizeFor()
     {
         return optimizeFor;
+    }
+
+    public boolean isLiteralPrefixEnabled()
+    {
+        return literalPrefixEnabled;
     }
 
     public static IndexWriterConfig fromOptions(String indexName, IndexTermType indexTermType, Map<String, String> options)
@@ -178,7 +189,8 @@ public class IndexWriterConfig
                 }
             }
         }
-        return new IndexWriterConfig(maximumNodeConnections, queueSize, similarityFunction, optimizeFor);
+        boolean literalPrefixEnabled = "true".equalsIgnoreCase(options.get(ENABLE_LITERAL_PREFIX_SAI));
+        return new IndexWriterConfig(maximumNodeConnections, queueSize, similarityFunction, optimizeFor, literalPrefixEnabled);
     }
 
     public static IndexWriterConfig emptyConfig()
