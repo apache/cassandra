@@ -38,7 +38,7 @@
   <properties>
     <bytebuddy.version>1.17.8</bytebuddy.version>
     <byteman.version>4.0.26</byteman.version>
-    <netty.version>4.1.130.Final</netty.version>
+    <netty.version>4.2.17.Final</netty.version>
     <ohc.version>0.5.1</ohc.version>
     <async-profiler.version>4.2</async-profiler.version>
 
@@ -813,7 +813,15 @@
           </exclusion>
           <exclusion>
             <groupId>io.netty</groupId>
+            <artifactId>netty-codec-http3</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>io.netty</groupId>
             <artifactId>netty-codec-http</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-codec-marshalling</artifactId>
           </exclusion>
           <exclusion>
             <groupId>io.netty</groupId>
@@ -822,6 +830,18 @@
           <exclusion>
             <groupId>io.netty</groupId>
             <artifactId>netty-codec-mqtt</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-codec-protobuf</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-codec-classes-quic</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-codec-native-quic</artifactId>
           </exclusion>
           <exclusion>
             <groupId>io.netty</groupId>
@@ -857,6 +877,14 @@
           </exclusion>
           <exclusion>
             <groupId>io.netty</groupId>
+            <artifactId>netty-transport-classes-io_uring</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-transport-native-io_uring</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>io.netty</groupId>
             <artifactId>netty-resolver-dns</artifactId>
           </exclusion>
           <exclusion>
@@ -868,7 +896,7 @@
       <dependency>
         <groupId>io.netty</groupId>
         <artifactId>netty-tcnative-boringssl-static</artifactId>
-        <version>2.0.70.Final</version>
+        <version>2.0.81.Final</version>
       </dependency>
       <dependency>
         <groupId>org.bouncycastle</groupId>
