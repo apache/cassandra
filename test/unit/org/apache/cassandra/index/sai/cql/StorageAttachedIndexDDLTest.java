@@ -270,6 +270,59 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
+    public void shouldRejectShardsOptionOnVectorIndex()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val vector<float, 3>)");
+
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'shards' : '4' }"))
+        .isInstanceOf(InvalidQueryException.class)
+        .hasMessageContaining("vector column does not support sharding");
+    }
+
+    @Test
+    public void shouldCreateIndexWithValidShardsOption()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val1 text, val2 text)");
+        createIndex("CREATE INDEX ON %s(val1) USING 'sai' WITH OPTIONS = { 'shards' : '1' }");
+        createIndex("CREATE INDEX ON %s(val2) USING 'sai' WITH OPTIONS = { 'shards' : '4' }");
+        assertEquals(2, saiCreationCounter.get());
+    }
+
+    @Test
+    public void shouldRejectNonIntegerShardsOption()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'shards' : 'abc' }"))
+        .isInstanceOf(InvalidQueryException.class)
+        .hasMessageContaining("Shard count for a storage-attached index must be a valid integer");
+    }
+
+    @Test
+    public void shouldRejectNonPositiveShardsOption()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'shards' : '0' }"))
+        .isInstanceOf(InvalidQueryException.class)
+        .hasMessageContaining("Shard count for a storage-attached index must be a positive integer");
+
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'shards' : '-5' }"))
+        .isInstanceOf(InvalidQueryException.class)
+        .hasMessageContaining("Shard count for a storage-attached index must be a positive integer");
+    }
+
+    @Test
+    public void shouldRejectShardsOptionGreaterThanMaxShardCount()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'shards' : '257' }"))
+        .isInstanceOf(InvalidQueryException.class)
+        .hasMessageContaining("Shard count for a storage-attached index must not exceed");
+    }
+
+    @Test
     public void shouldCreateIndexIfExists()
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");

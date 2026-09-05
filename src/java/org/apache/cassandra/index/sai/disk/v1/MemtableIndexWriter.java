@@ -145,7 +145,7 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
             }
             else
             {
-                final Iterator<Pair<ByteComparable, LongArrayList>> iterator = rowMapping.merge(memtable);
+                final Iterator<Pair<ByteComparable, LongArrayList>> iterator = rowMapping.merge(memtable, minKey, maxKey);
 
                 long cellCount = 0;
                 if (iterator.hasNext())

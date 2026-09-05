@@ -88,6 +88,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.memory.MemtableIndexManager;
+import org.apache.cassandra.index.sai.memory.ShardedMemtableIndex;
 import org.apache.cassandra.index.sai.metrics.ColumnQueryMetrics;
 import org.apache.cassandra.index.sai.metrics.IndexMetrics;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
@@ -159,7 +160,8 @@ public class StorageAttachedIndex implements Index
                                                                      IndexWriterConfig.OPTIMIZE_FOR,
                                                                      NonTokenizingOptions.CASE_SENSITIVE,
                                                                      NonTokenizingOptions.NORMALIZE,
-                                                                     NonTokenizingOptions.ASCII);
+                                                                     NonTokenizingOptions.ASCII,
+                                                                     ShardedMemtableIndex.SHARDS_OPTION);
 
     public static final Set<CQL3Type> SUPPORTED_TYPES = ImmutableSet.of(CQL3Type.Native.ASCII, CQL3Type.Native.BIGINT, CQL3Type.Native.DATE,
                                                                         CQL3Type.Native.DOUBLE, CQL3Type.Native.FLOAT, CQL3Type.Native.INT,
@@ -168,6 +170,9 @@ public class StorageAttachedIndex implements Index
                                                                         CQL3Type.Native.UUID, CQL3Type.Native.VARCHAR, CQL3Type.Native.INET,
                                                                         CQL3Type.Native.VARINT, CQL3Type.Native.DECIMAL, CQL3Type.Native.BOOLEAN,
                                                                         CQL3Type.Native.BLOB);
+
+    // Upper bound on the shards option to prevent runaway per-shard allocations at first-write.
+    public static final int MAX_SHARD_COUNT = 256;
 
     private static final Set<Class<? extends IPartitioner>> ILLEGAL_PARTITIONERS =
             ImmutableSet.of(OrderPreservingPartitioner.class, LocalPartitioner.class, ByteOrderedPartitioner.class, RandomPartitioner.class);
@@ -281,6 +286,25 @@ public class StorageAttachedIndex implements Index
         }
 
         IndexTermType indexTermType = IndexTermType.create(target.left, metadata.partitionKeyColumns(), target.right);
+        String shardsOption = options.get(ShardedMemtableIndex.SHARDS_OPTION);
+        if (shardsOption != null)
+        {
+            if (indexTermType.isVector())
+                throw new InvalidRequestException("A storage-attached index on a vector column does not support sharding");
+
+            try
+            {
+                int shardCount = Integer.parseInt(shardsOption);
+                if (shardCount <= 0)
+                    throw new InvalidRequestException("Shard count for a storage-attached index must be a positive integer, was " + shardCount);
+                if (shardCount > MAX_SHARD_COUNT)
+                    throw new InvalidRequestException("Shard count for a storage-attached index must not exceed " + MAX_SHARD_COUNT + ", was " + shardCount);
+            }
+            catch (NumberFormatException e)
+            {
+                throw new InvalidRequestException("Shard count for a storage-attached index must be a valid integer, got '" + shardsOption + "'");
+            }
+        }
         AbstractAnalyzer.fromOptions(indexTermType, analysisOptions);
         IndexWriterConfig config = IndexWriterConfig.fromOptions(null, indexTermType, options);
 

@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Optional;
 import java.util.TreeMap;
@@ -95,6 +96,14 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                                                                                                          .stream()
                                                                                                                          .filter(t -> !AbstractTypeGenerators.isUnsafeEquality(t))
                                                                                                                          .collect(Collectors.toList()));
+    private static final String SHARDS = "shards";
+    @SuppressWarnings("unchecked")
+    private static final Map<String, String>[] SHARD_OPTIONS = new Map[] {
+        Collections.emptyMap(),
+        Collections.singletonMap(SHARDS, "1"),
+        Collections.singletonMap(SHARDS, "4"),
+        Collections.singletonMap(SHARDS, "8")
+    };
     private static final Logger logger = LoggerFactory.getLogger(SingleNodeTableWalkTest.class);
 
     protected static boolean READ_AFTER_WRITE = false;
@@ -695,12 +704,18 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                     colExpression = new CreateIndexDDL.CollectionReference(CreateIndexDDL.CollectionReference.Kind.FULL, colExpression);
 
                 String name = "tbl_" + col.name;
+
+                Map<String, String> indexOptions = Collections.emptyMap();
+                // If indexer is of Kind SAI, we want to randomize shards for testing the ShardedMemtableIndex implementation.
+                if (indexer.kind() == CreateIndexDDL.Indexer.Kind.sai )
+                    indexOptions = rs.pick(SHARD_OPTIONS);
+
                 CreateIndexDDL ddl = new CreateIndexDDL(rs.pick(CreateIndexDDL.Version.values()),
                                                         indexer,
                                                         Optional.of(new Symbol(name, UTF8Type.instance)),
                                                         TableReference.from(metadata),
                                                         Collections.singletonList(colExpression),
-                                                        Collections.emptyMap());
+                                                        indexOptions);
                 String stmt = ddl.toCQL();
                 logger.info(stmt);
                 cluster.schemaChange(stmt);
