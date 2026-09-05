@@ -162,7 +162,7 @@ public class Info extends AbstractCommand
         try
         {
             out.printf("%-23s: size %s, overflow size: %s, capacity %s%n", "Network Cache",
-                       FileUtils.stringifyFileSize((long) probe.getBufferPoolMetric("networking", "Size")),
+                       FileUtils.stringifyFileSize((long) probe.getBufferPoolMetric("networking", "UsedSize")),
                        FileUtils.stringifyFileSize((long) probe.getBufferPoolMetric("networking", "OverflowSize")),
                        FileUtils.stringifyFileSize((long) probe.getBufferPoolMetric("networking", "Capacity")));
         }
