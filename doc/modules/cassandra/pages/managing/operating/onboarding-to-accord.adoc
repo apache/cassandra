@@ -196,6 +196,12 @@ manually or via `nodetool finish-migration`, and once that completes
 non-SERIAL operations will run using the usual eventually consistent
 path and `SERIAL` operations will execute on Paxos.
 
+During the duration between altering the table's `transactional++_++mode` to `off` and
+performing Accord repair, Cassandra may upgrade the consistency level of single parition
+read requests to quorum if the supplied consistency level does not intersect with a quorum of nodes.
+This is done to prevent inconsistent reads when migrating off of Accord.
+Once Accord repair has finished, the supplied consistency level will then be used.
+
 == Migration commands
 
 All the `nodetool` migration commands are based on new
@@ -234,8 +240,8 @@ specified keyspace and tables. If the entire range is marked migrating it is
 only necessary to invoke `begin-migration` on one node.
 
 This is only needed if
-`accord.default++_++transactional++_++mode=explicit` is set in
-`cassandra.yaml` otherwise all the ranges will already have been marked
+`accord.range++_++migration=explicit` is set,
+otherwise all the ranges will already have been marked
 migrating when the alter occurred.
 
 Ranges that are migrating will require at least an extra WAN roundtrip
