@@ -34,6 +34,7 @@ import org.apache.cassandra.utils.IntegerInterval.Set;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class IntegerIntervalsTest
@@ -342,5 +343,15 @@ public class IntegerIntervalsTest
 
         testSetCovers(4, 5, false);
         testSetCovers(4, Integer.MAX_VALUE, false);
+    }
+
+    @Test
+    public void testSetCoversRegression()
+    {
+        Set s = new Set();
+        s.add(0, 1);
+        s.add(2, 3);
+
+        assertTrue(s.covers(new IntegerInterval(0, 3)));
     }
 }
