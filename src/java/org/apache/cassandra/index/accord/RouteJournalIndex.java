@@ -369,6 +369,12 @@ public class RouteJournalIndex implements Index, INotificationConsumer
     }
 
     @Override
+    public boolean notifyIndexerAboutRowsInFullyExpiredSSTables()
+    {
+        return false;
+    }
+
+    @Override
     public boolean supportsExpression(ColumnMetadata column, Operator operator)
     {
         // disallow all queries, in order to interact with this index you must bypass CQL
