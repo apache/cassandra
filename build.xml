@@ -1675,6 +1675,34 @@
     </testmacro>
   </target>
 
+  <!--
+    ant testpackage -Dtest.package=org.apache.cassandra.cache
+    ant testpackage -Dtest.package=org.apache.cassandra.streaming
+  -->
+  <target name="testpackage" depends="maybe-build-test" description="Execute unit tests with dot-separated package names">
+    <!-- Replace dots in the package name with slashes -->
+    <loadresource property="test.package.dir">
+      <propertyresource name="test.package"/>
+      <filterchain>
+        <tokenfilter>
+          <replaceregex pattern="\." replace="/" flags="g"/>
+        </tokenfilter>
+      </filterchain>
+    </loadresource>
+    <!-- Print the package being tested -->
+    <echo message="Running tests under package: ${test.package}"/>
+    <!-- Collect all test classes -->
+    <path id="all-test-classes-path">
+      <fileset dir="${test.unit.src}" includes="${test.package.dir}/**/*Test.java"/>
+    </path>
+    <pathconvert property="all-test-classes" pathsep=",">
+      <path refid="all-test-classes-path"/>
+    </pathconvert>
+    <!-- Set the test file list and call the test helper -->
+    <property name="test.file.list" value="${all-test-classes}"/>
+    <testhelper testdelegate="testlist"/>
+  </target>
+
   <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
     ant long-testsome -Dtest.name=org.apache.cassandra.cql3.ManyRowsTest
     ant long-testsome -Dtest.name=org.apache.cassandra.cql3.ManyRowsTest -Dtest.methods=testLargeCount
