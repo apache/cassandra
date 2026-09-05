@@ -126,8 +126,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
         return (int)Math.min(MAX_ARRAY_SIZE, size);
     }
 
-    @VisibleForTesting
-    static int checkedArraySizeCast(long size)
+    public static int checkedArraySizeCast(long size)
     {
         Preconditions.checkArgument(size >= 0);
         Preconditions.checkArgument(size <= MAX_ARRAY_SIZE);
