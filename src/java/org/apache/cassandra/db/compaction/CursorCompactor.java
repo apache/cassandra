@@ -353,6 +353,9 @@ public class CursorCompactor extends CompactionInfo.Holder
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CursorCompactor.class.getName());
 
+    /** Merged unfiltereds between progress refreshes, as {@link CompactionIterator} uses. */
+    private static final long UNFILTERED_TO_UPDATE_PROGRESS = 128;
+
     private final OperationType type;
     private final AbstractCompactionController controller;
     private final ActiveCompactionsTracker activeCompactions;
@@ -405,6 +408,8 @@ public class CursorCompactor extends CompactionInfo.Holder
     private long totalBytesRead = 0;
     private long totalSourceCQLRows;
     private long totalDataBytesWritten;
+    /** Merged unfiltereds since the last progress refresh; see {@link #UNFILTERED_TO_UPDATE_PROGRESS}. */
+    private long compactedUnfiltered = 0;
 
     // state
     final Purger purger;
@@ -673,6 +678,9 @@ public class CursorCompactor extends CompactionInfo.Holder
             }
             // move along
             continueReadingAfterMerge(unfilteredMergeLimit, UNFILTERED_END);
+
+            if (++compactedUnfiltered % UNFILTERED_TO_UPDATE_PROGRESS == 0)
+                updateTotalBytesRead();
         }
     }
 
@@ -1789,6 +1797,12 @@ public class CursorCompactor extends CompactionInfo.Holder
             ssTableCursorWriter = new SSTableCursorWriter((SortedTableWriter) newWriter);
             ssTableCursorWriter.setFirst(partitionDescriptor.keyBuffer());
         }
+        else
+        {
+            // The switch already opens the finished sstable early; this covers the interval between switches,
+            // where the legacy path gets it from SSTableRewriter.append.
+            writerProvider.maybeReopenEarly(partitionDescriptor.key());
+        }
         assert ssTableCursorWriter != null;
     }
 
@@ -2239,9 +2253,13 @@ public class CursorCompactor extends CompactionInfo.Holder
         this.targetDirectory = targetDirectory;
     }
 
+    /**
+     * Counts partitions, not rows, to match {@link CompactionIterator#getMergedRowCounts()}, which feeds
+     * {@code compaction_history.rows_merged}.
+     */
     public long[] getMergedRowsCounts()
     {
-        return rowMergeCounters;
+        return partitionMergeCounters;
     }
 
     public long getTotalSourceCQLRows()
@@ -2257,6 +2275,17 @@ public class CursorCompactor extends CompactionInfo.Holder
     private void updateTotalBytesRead(StatefulCursor cursor)
     {
         totalBytesRead += cursor.bytesReadSinceSnapshot();
+    }
+
+    /**
+     * Refreshes progress from every cursor, so that a large partition moves
+     * {@code nodetool compactionstats} while it is being merged. Matches
+     * {@link CompactionIterator}, which refreshes on the same cadence.
+     */
+    private void updateTotalBytesRead()
+    {
+        for (StatefulCursor cursor : sstableCursors)
+            updateTotalBytesRead(cursor);
     }
 
     public String toString()

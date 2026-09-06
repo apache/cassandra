@@ -156,6 +156,16 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
         return sstableDirectoryPath;
     }
 
+    /**
+     * Publishes an early-opened partial sstable once enough has been written since the last one.
+     * {@link #append} gets this from {@link SSTableRewriter#append}; the cursor path, which does not append,
+     * calls it directly on each partition boundary.
+     */
+    public final void maybeReopenEarly(DecoratedKey key)
+    {
+        sstableWriter.maybeReopenEarly(key);
+    }
+
     @Override
     protected Throwable doPostCleanup(Throwable accumulate)
     {

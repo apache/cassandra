@@ -91,7 +91,45 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
     @Override
     public CursorIndexWriter newCursorIndexWriter(SerializationHeader header)
     {
-        return new BigCursorIndexWriter(indexWriter, DeletionTime.getSerializer(descriptor.version));
+        return new BigCursorIndexWriter(this, indexWriter, DeletionTime.getSerializer(descriptor.version));
+    }
+
+    /**
+     * Carries a key that is hot in the originals into this sstable's key cache, as
+     * {@link #createRowIndexEntry} does on the iterator path.
+     *
+     * <p>The cursor path serialises the promoted index straight into Index.db and never builds the
+     * IndexInfo list, so a multi-block partition caches a shallow entry where the iterator path
+     * would cache a full one. Both find the same rows; the shallow one reads its index blocks from
+     * Index.db on a hit.
+     */
+    public void maybeCacheKey(DecoratedKey key, long dataFilePosition, long indexFilePosition,
+                              DeletionTime partitionLevelDeletion, long headerLength,
+                              int columnIndexCount, int indexedPartSize)
+    {
+        if (!shouldMigrateKeyCache)
+            return;
+
+        for (SSTableReader reader : txn.originals())
+        {
+            if (reader instanceof KeyCacheSupport<?> && ((KeyCacheSupport<?>) reader).getCachedPosition(key, false) != null)
+            {
+                // The cursor path hands in its reusable key, which the next partition overwrites; the map
+                // must hold a copy. The lookup above is safe with the reusable one.
+                DecoratedKey cacheKey = getPartitioner().decorateKey(ByteBufferUtil.clone(key.getKey()));
+                cachedKeys.put(cacheKey, RowIndexEntry.create(dataFilePosition,
+                                                         indexFilePosition,
+                                                         partitionLevelDeletion,
+                                                         headerLength,
+                                                         columnIndexCount,
+                                                         indexedPartSize,
+                                                         null,
+                                                         null,
+                                                         rowIndexEntrySerializer.indexInfoSerializer(),
+                                                         descriptor.version));
+                break;
+            }
+        }
     }
 
     @Override

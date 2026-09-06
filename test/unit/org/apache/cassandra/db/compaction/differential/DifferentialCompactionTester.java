@@ -442,6 +442,29 @@ public abstract class DifferentialCompactionTester extends CQLTester
     }
 
     /**
+     * Commits one compaction over the whole live set through the given task factory and path,
+     * WITHOUT restore: the live set genuinely becomes the outputs.
+     * <p>
+     * {@link #assertCursorMatchesIterator} restores the originals, so a scenario asserting on a
+     * committed output — its level, its bounds, its key cache — cannot use it. The factory must
+     * build its writer with keepOriginals false here.
+     */
+    protected void commitThroughFactory(ColumnFamilyStore cfs, boolean cursor, TaskFactory taskFactory) throws Exception
+    {
+        DatabaseDescriptor.setCursorCompactionEnabled(cursor);
+        long gcBefore = cfs.getDefaultGcBefore(FBUtilities.nowInSeconds());
+        Set<SSTableReader> inputs = cfs.getLiveSSTables();
+        assertFalse("scenario produced no input sstables", inputs.isEmpty());
+        if (cursor)
+            assertCursorPathWillRun(cfs, inputs, gcBefore);
+        LifecycleTransaction txn = cfs.getTracker().tryModify(inputs, OperationType.COMPACTION);
+        assertNotNull("unable to mark inputs compacting for commit", txn);
+        CompactionPipelineCounts before = CompactionPipelineCounts.mark();
+        taskFactory.create(cfs, txn, gcBefore).execute(ActiveCompactionsTracker.NOOP);
+        CompactionPipelineCounts.assertPipelineRan(cursor, before);
+    }
+
+    /**
      * Commits one compaction over the given inputs through the selected path WITHOUT restore:
      * the live set genuinely becomes the outputs. Used by the cross-generation rung so the
      * second differential reads cursor-produced sstables.
@@ -1055,8 +1078,14 @@ public abstract class DifferentialCompactionTester extends CQLTester
                               " totalColumnsSet=" + stats.totalColumnsSet +
                               " encodingStats=" + sstable.header.stats() +
                               " metaEncodingStats=" + stats.encodingStats.minTimestamp + "/" + stats.encodingStats.minLocalDeletionTime + "/" + stats.encodingStats.minTTL +
-                              " tombstoneHist=" + stats.estimatedTombstoneDropTime +
-                              " cellsPerPartition=" + stats.estimatedCellPerPartitionCount.mean() + "/" + stats.estimatedCellPerPartitionCount.count();
+                              " tombstoneHist=" + tombstoneHistogram(stats) +
+                              " cellsPerPartition=" + stats.estimatedCellPerPartitionCount.mean() + "/" + stats.estimatedCellPerPartitionCount.count() +
+                              " partitionSize=" + stats.estimatedPartitionSize.mean() + "/" + stats.estimatedPartitionSize.count() +
+                              " sstableLevel=" + stats.sstableLevel +
+                              " coveredClustering=" + stats.coveredClustering.toString(sstable.metadata().comparator) +
+                              " tokenSpaceCoverage=" + stats.tokenSpaceCoverage +
+                              " minTTL=" + stats.minTTL + " maxTTL=" + stats.maxTTL +
+                              " hasPartitionLevelDeletions=" + stats.hasPartitionLevelDeletions;
 
         // 6. copy components for byte comparison
         Files.createDirectories(dir);
@@ -1069,6 +1098,18 @@ public abstract class DifferentialCompactionTester extends CQLTester
             captured.componentSizes.put(c.name(), Files.size(target));
         }
         return captured;
+    }
+
+    /**
+     * The histogram's CONTENT. TombstoneHistogram has no toString, and its hashCode covers the
+     * backing array's capacity, so two logically equal empty histograms print differently
+     * depending on whether they were built or defaulted. The exact serialized bins are still
+     * pinned, by the byte comparison of Statistics.db.
+     */
+    private static String tombstoneHistogram(StatsMetadata stats)
+    {
+        return "size=" + stats.estimatedTombstoneDropTime.size() +
+               ",sum=" + stats.estimatedTombstoneDropTime.sum(Integer.MAX_VALUE);
     }
 
     protected void assertEquivalentOutputs(CapturedOutput iterator, CapturedOutput cursor)
@@ -1089,7 +1130,9 @@ public abstract class DifferentialCompactionTester extends CQLTester
             fail("LOGICAL divergence in output sstable " + i + " (iterator vs cursor):\n" + firstJsonDiff(it.json, cu.json) +
                  "\niterator stats: " + it.statsSummary + "\ncursor stats:   " + cu.statsSummary);
 
-        assertEquals("stats summary divergence in output sstable " + i, it.statsSummary, cu.statsSummary);
+        assertEquals("stats summary divergence in output sstable " + i +
+                     "\n  iterator: " + it.statsSummary + "\n  cursor:   " + cu.statsSummary,
+                     it.statsSummary, cu.statsSummary);
 
         List<String> divergences = componentDivergences(it, cu);
         if (!divergences.isEmpty())

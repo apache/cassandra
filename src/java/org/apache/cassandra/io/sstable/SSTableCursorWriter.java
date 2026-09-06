@@ -233,13 +233,14 @@ public class SSTableCursorWriter implements AutoCloseable
         long partitionSize = partitionEnd - partitionStart;
         addPartitionMetadata(partitionKey, partitionKeyLength, partitionSize, partitionDeletionTime);
 
+        // Per partition, not once at rollover: BigTableWriter.openInternal reads this field, so an sstable
+        // opened early at a writer switch would otherwise carry a stale last. The key must be copied:
+        // decoratedKey is the cursor's reusable instance, and every reader opened from this writer keeps
+        // whatever it is handed.
+        setLast(ByteBuffer.wrap(partitionKey, 0, partitionKeyLength));
+
         /** {@link SortedTableWriter#endPartition(DecoratedKey, DeletionTime)}
          lastWrittenKey = key; // tracked for verification, see {@link SortedTableWriter#verifyPartition(DecoratedKey)}, checking the key size and sorting
-         // first/last are retained for metadata {@link org.apache.cassandra.io.sstable.format.SSTableWriter#finalizeMetadata()}. They are also exposed via
-         // getters from the writer, but usage is unclear.
-         last = lastWrittenKey;
-         if (first == null)
-         first = lastWrittenKey;
          // this is implemented differently for BIG/BTI
          createRowIndexEntry(key, partitionLevelDeletion, partitionEnd - 1);
          */
@@ -255,13 +256,16 @@ public class SSTableCursorWriter implements AutoCloseable
      */
     private void addPartitionMetadata(byte[] partitionKey, int partitionKeyLength, long partitionSize, DeletionTime partitionDeletionTime)
     {
+        // Before the guardrail check: SortedTableWriter counts the partition deletion in startPartition, so it
+        // is already in totalTombstones by the time the guardrail runs at partition end.
+        metadataCollector.updatePartitionDeletion(partitionDeletionTime);
+
         if (partitionSize > guardrailsPartitionSizeWarning)
             guardPartitionThreshold(Guardrails.partitionSize, partitionKey, partitionKeyLength, partitionSize);
 
         if (metadataCollector.totalTombstones > guardrailsPartitionTombstonesWarning)
             guardPartitionThreshold(Guardrails.partitionTombstones, partitionKey, partitionKeyLength, metadataCollector.totalTombstones);
 
-        metadataCollector.updatePartitionDeletion(partitionDeletionTime);
         metadataCollector.addPartitionSizeInBytes(partitionSize);
         metadataCollector.addKey(partitionKey, 0, partitionKeyLength);
         metadataCollector.addCellPerPartitionCount();
