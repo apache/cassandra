@@ -30,6 +30,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -1384,7 +1385,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         }
     }
 
-    public Index getIndex(IndexMetadata metadata)
+    public Index getIndex(@Nonnull IndexMetadata metadata)
     {
         return indexes.get(metadata.name);
     }
@@ -1413,7 +1414,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * associated to any group
      */
     @Nullable
-    public Index.Group getIndexGroup(IndexMetadata metadata)
+    public Index.Group getIndexGroup(@Nonnull IndexMetadata metadata)
     {
         Index index = getIndex(metadata);
         return index == null ? null : getIndexGroup(index);
