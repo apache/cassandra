@@ -518,6 +518,18 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         channelPayloadBytesInFlight -= header.bodySizeInBytes;
     }
 
+    @Override
+    protected void onCapacityAcquired(int bytes)
+    {
+        ClientMetrics.instance.requestBytesAcquired(bytes);
+    }
+
+    @Override
+    protected void onCapacityReleased(int bytes)
+    {
+        ClientMetrics.instance.requestBytesReleased(bytes);
+    }
+
     /*
      * Handling of multi-frame large messages
      */

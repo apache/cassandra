@@ -425,6 +425,7 @@ public abstract class AbstractMessageHandler extends ChannelInboundHandlerAdapte
         if (currentQueueSize + bytes <= queueCapacity)
         {
             queueSizeUpdater.addAndGet(this, bytes);
+            onCapacityAcquired(bytes);
             return ResourceLimits.Outcome.SUCCESS;
         }
 
@@ -461,6 +462,7 @@ public abstract class AbstractMessageHandler extends ChannelInboundHandlerAdapte
             globalWaitQueue.signal();
         }
 
+        onCapacityAcquired(bytes);
         return ResourceLimits.Outcome.SUCCESS;
     }
 
@@ -477,6 +479,15 @@ public abstract class AbstractMessageHandler extends ChannelInboundHandlerAdapte
             endpointWaitQueue.signal();
             globalWaitQueue.signal();
         }
+        onCapacityReleased(bytes);
+    }
+
+    protected void onCapacityAcquired(int bytes)
+    {
+    }
+
+    protected void onCapacityReleased(int bytes)
+    {
     }
 
     /**
