@@ -42,6 +42,7 @@ import static org.apache.cassandra.db.rows.Cell.NO_TTL;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_END;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_HEADER_START;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_VALUE_START;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.DONE;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.UNFILTERED_END;
 import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.isState;
 
@@ -87,6 +88,12 @@ class StatefulCursor extends SSTableCursorReader
 
     public int readPartitionHeader()
     {
+        // Rejected here rather than in readPartitionHeader(PartitionDescriptor), which is past the
+        // swap below: a DONE cursor has no next partition, and rotating the descriptors on a call
+        // that cannot succeed leaves prev holding content the write side never wrote.
+        if (state() == DONE)
+            throw new IllegalStateException("readPartitionHeader() on a cursor that is DONE");
+
         // A range never spans a partition, so one left open belongs to the partition that ended.
         // Reporting it here names that partition; carrying the flag forward would blame the next
         // partition's first start bound instead, and would hide an unmatched close in it.
