@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.tools;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -25,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.assertj.core.api.Assertions;
 import org.junit.After;
@@ -112,9 +116,7 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
     @Test
     public void testSnapshotFailureDoesNotSplitSSTable() throws Throwable
     {
-        Set<String> originalFiles = Arrays.stream(sstablesDir.tryList())
-                                          .map(File::name)
-                                          .collect(Collectors.toSet());
+        Set<String> originalTree = treeEntries(sstablesDir);
         StandaloneSplitter.setFailSnapshotForTesting(true);
         try
         {
@@ -122,10 +124,8 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
             assertEquals(1, tool.getExitCode());
             Assertions.assertThat(tool.getCleanedStderr()).contains("Error Snapshotting");
             Assertions.assertThat(tool.getStdout()).doesNotContain("snapshotted into");
-            assertEquals(originalFiles,
-                         Arrays.stream(sstablesDir.tryList())
-                               .map(File::name)
-                               .collect(Collectors.toSet()));
+            assertEquals("a failed snapshot must remove partial links and directories",
+                         originalTree, treeEntries(sstablesDir));
         }
         finally
         {
@@ -215,7 +215,8 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
         ToolResult tool = ToolRunner.invokeClass(StandaloneSplitter.class,
                                                  "-s", "1", "--zero-copy", "--no-snapshot", sstableFileName);
 
-        assertTrue(tool.getCleanedStderr(), tool.getCleanedStderr().isEmpty());
+        Assertions.assertThat(tool.getCleanedStderr())
+                  .contains("--zero-copy --no-snapshot", "without a rollback copy", "cannot open the children");
         assertEquals(0, tool.getExitCode());
         assertTrue("expected split children after reconstructing the missing TOC",
                    Arrays.stream(sstablesDir.tryList())
@@ -321,5 +322,17 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
         sstablesDir = new File(sstableFileName).parent();
         origSstables = Arrays.asList(sstablesDir.tryList());
         TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.setBoolean(true);
+    }
+
+    private static Set<String> treeEntries(File root) throws IOException
+    {
+        Path rootPath = root.toPath();
+        try (Stream<Path> paths = Files.walk(rootPath))
+        {
+            return paths.skip(1)
+                        .map(rootPath::relativize)
+                        .map(Path::toString)
+                        .collect(Collectors.toSet());
+        }
     }
 }

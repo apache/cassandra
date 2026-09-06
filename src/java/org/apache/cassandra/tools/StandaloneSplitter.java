@@ -195,6 +195,9 @@ public class StandaloneSplitter
             }
             if (options.snapshot)
                 System.out.printf("Pre-split %d sstable(s) snapshotted into snapshot %s%n", snapshotted, snapshotName);
+            else if (options.zeroCopy)
+                System.err.println("WARNING: --zero-copy --no-snapshot creates qa SSTables without a rollback copy; " +
+                                   "pre-7.0 binaries cannot open the children.");
 
             for (SSTableReader sstable : sstables)
             {
@@ -207,7 +210,7 @@ public class StandaloneSplitter
                         System.out.printf("Zero-copy split committed: children=%d, bytes cloned=%d, bytes written=%d, " +
                                           "reflink used=%s%n",
                                           result.children.size(), result.totalBytesCloned, bytesWritten,
-                                          result.totalBytesCloned > 0 ? "yes" : "no");
+                                          reflinkStatus(result.totalBytesCloned));
                     }
                     else
                         new SSTableSplitter(cfs, transaction, options.sizeInMB).split();
@@ -275,6 +278,12 @@ public class StandaloneSplitter
                 result.children.get(i).reader.selfRef().release();
             throw t;
         }
+    }
+
+    @VisibleForTesting
+    static String reflinkStatus(long clonedBytes)
+    {
+        return clonedBytes > 0 ? "yes" : "no (WARNING: all Data.db ranges were copied)";
     }
 
     private static void createSnapshotLinks(SSTableReader sstable, File snapshotDirectory, List<File> createdLinks)

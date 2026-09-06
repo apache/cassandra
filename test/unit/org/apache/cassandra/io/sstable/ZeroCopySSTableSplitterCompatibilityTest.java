@@ -20,6 +20,8 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -28,12 +30,14 @@ import java.util.stream.Stream;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.TestDatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.StatsComponent;
@@ -41,6 +45,7 @@ import org.apache.cassandra.io.sstable.format.TOCComponent;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.utils.OutputHandler;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
@@ -50,6 +55,8 @@ import static org.junit.Assert.assertTrue;
 
 public class ZeroCopySSTableSplitterCompatibilityTest extends CQLTester
 {
+    private static final Path QA_SPLIT_FIXTURE = Paths.get("test", "data", "zero-copy-sstable", "qa");
+
     private SSTableFormat<?, ?> originalFormat;
 
     @Before
@@ -159,6 +166,111 @@ public class ZeroCopySSTableSplitterCompatibilityTest extends CQLTester
         {
             for (Component component : components)
                 paDescriptor.fileFor(component).deleteIfExists();
+        }
+    }
+
+    @Ignore("Regenerates test/data/zero-copy-sstable/qa when the qa fixture intentionally changes")
+    @Test
+    public void generateQaSplitChildFixture() throws Throwable
+    {
+        TestDatabaseDescriptor.setUnsafeSelectedSSTableFormat(BigFormat.NAME);
+        createTable("CREATE TABLE %s (pk text, ck int, val text, PRIMARY KEY (pk, ck)) " +
+                    "WITH compression = {'class': 'LZ4Compressor', 'chunk_length_in_kb': '4'}");
+        disableCompaction();
+        String value = String.join("", java.util.Collections.nCopies(480, "x"));
+        for (int partition = 0; partition < 120; partition++)
+        {
+            for (int clustering = 0; clustering < 3; clustering++)
+                execute("INSERT INTO %s (pk, ck, val) VALUES (?, ?, ?)",
+                        String.format("k%06d", partition), clustering, value);
+        }
+        flush();
+
+        SSTableReader parent = getCurrentColumnFamilyStore().getLiveSSTables().iterator().next();
+        ZeroCopySSTableSplitter.Result split = ZeroCopySSTableSplitter.splitForTesting(parent, 3);
+        try
+        {
+            ZeroCopySSTableSplitter.Child child = split.children.stream()
+                                                                 .filter(candidate -> candidate.deadPrefixBytes > 0)
+                                                                 .findFirst()
+                                                                 .orElseThrow(() -> new AssertionError("no prefixed child"));
+            Files.createDirectories(QA_SPLIT_FIXTURE);
+            Descriptor fixture = new Descriptor("qa",
+                                                new File(QA_SPLIT_FIXTURE),
+                                                "fixture",
+                                                "fixture",
+                                                new SequenceBasedSSTableId(1),
+                                                BigFormat.getInstance());
+            for (Component component : child.components)
+                Files.copy(child.descriptor.fileFor(component).toPath(), fixture.fileFor(component).toPath());
+        }
+        finally
+        {
+            for (ZeroCopySSTableSplitter.Child child : split.children)
+                child.reader.selfRef().release();
+        }
+    }
+
+    @Test
+    public void frozenQaSplitChildIsReadable() throws Throwable
+    {
+        TestDatabaseDescriptor.setUnsafeSelectedSSTableFormat(BigFormat.NAME);
+        createTable("CREATE TABLE %s (pk text, ck int, val text, PRIMARY KEY (pk, ck)) " +
+                    "WITH compression = {'class': 'LZ4Compressor', 'chunk_length_in_kb': '4'}");
+        disableCompaction();
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        Descriptor fixture = new Descriptor("qa",
+                                            new File(QA_SPLIT_FIXTURE),
+                                            "fixture",
+                                            "fixture",
+                                            new SequenceBasedSSTableId(1),
+                                            BigFormat.getInstance());
+        Set<Component> components = fixture.discoverComponents();
+        assertTrue("frozen qa split fixture is missing components", components.containsAll(Arrays.asList(
+            SSTableFormat.Components.DATA,
+            BigFormat.Components.PRIMARY_INDEX,
+            SSTableFormat.Components.STATS,
+            SSTableFormat.Components.COMPRESSION_INFO)));
+
+        Descriptor target = cfs.newSSTableDescriptor(cfs.getDirectories().getDirectoryForNewSSTables(),
+                                                     BigFormat.getInstance().getVersion("qa"));
+        SSTableReader reader = null;
+        try
+        {
+            for (Component component : components)
+                Files.copy(fixture.fileFor(component).toPath(), target.fileFor(component).toPath());
+            reader = SSTableReader.open(cfs, target, components, cfs.metadata);
+            assertTrue("fixture must retain a prefix", reader.hasSplitPrefix());
+            assertTrue(reader.firstPartitionPosition() > 0);
+
+            int partitions = 0;
+            try (ISSTableScanner scanner = reader.getScanner())
+            {
+                while (scanner.hasNext())
+                {
+                    try (UnfilteredRowIterator ignored = scanner.next())
+                    {
+                        partitions++;
+                    }
+                }
+            }
+            assertTrue("frozen split fixture is empty", partitions > 0);
+
+            try (IVerifier verifier = reader.getVerifier(cfs,
+                                                         new OutputHandler.LogOutput(),
+                                                         false,
+                                                         IVerifier.options().extendedVerification(true).build()))
+            {
+                verifier.verify();
+            }
+        }
+        finally
+        {
+            if (reader != null)
+                reader.selfRef().release();
+            for (Component component : components)
+                target.fileFor(component).deleteIfExists();
         }
     }
 

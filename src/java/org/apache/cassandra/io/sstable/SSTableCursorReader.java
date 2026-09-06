@@ -730,12 +730,16 @@ public class SSTableCursorReader implements AutoCloseable
 
     public int seekPartition(long position)
     {
+        validateSeekPosition(position);
+        return seekPartitionInRange(position);
+    }
+
+    private void validateSeekPosition(long position)
+    {
         long endPosition = uncompressedLength();
         if (position < firstPartitionPosition || position > endPosition)
             throw new IllegalArgumentException("Cannot seek outside cursor range [" + firstPartitionPosition +
                                                ", " + endPosition + "]: " + position);
-
-        return seekPartitionInRange(position);
     }
 
     private int seekPartitionInRange(long position)
@@ -784,6 +788,24 @@ public class SSTableCursorReader implements AutoCloseable
         if (marker != UnfilteredSerializer.END_OF_PARTITION)
             throw new IOException("Seeking to a partition at: " + position + " did not land after an end-of-partition marker; found 0x"
                                   + Integer.toHexString(marker));
+    }
+
+    public int seekUnfiltered(long position)
+    {
+        validateSeekPosition(position);
+        // partition elements (Unfiltered) have flags
+        dataReader.seek(position);
+        int state;
+        try
+        {
+            state = checkNextFlagsAfterStaticRowOrUnfilteredStart(false);
+        }
+        catch (IOException e)
+        {
+            return corruptSSTable(e);
+        }
+        if (!isState(state, ROW_START | TOMBSTONE_START | DONE)) throw new IllegalStateException();
+        return state;
     }
 
     // struct partition {

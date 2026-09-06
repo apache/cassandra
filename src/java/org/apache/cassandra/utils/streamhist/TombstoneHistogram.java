@@ -18,6 +18,7 @@
 package org.apache.cassandra.utils.streamhist;
 
 import java.io.IOException;
+import java.util.function.IntUnaryOperator;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.rows.Cell;
@@ -67,6 +68,22 @@ public class TombstoneHistogram
     public <E extends Exception> void forEach(HistogramDataConsumer<E> histogramDataConsumer) throws E
     {
         this.bin.forEach(histogramDataConsumer);
+    }
+
+    /**
+     * Return a histogram with the same points and transformed bin counts. A zero count removes the bin.
+     */
+    public TombstoneHistogram mapCounts(IntUnaryOperator transform)
+    {
+        DataHolder mapped = new DataHolder(size(), 1);
+        bin.forEach((point, value) -> {
+            int count = transform.applyAsInt(value);
+            if (count < 0)
+                throw new IllegalArgumentException("histogram count must be non-negative, got " + count);
+            if (count > 0)
+                mapped.addValue(point, count);
+        });
+        return new TombstoneHistogram(mapped);
     }
 
     public static HistogramSerializer getSerializer(Version version)

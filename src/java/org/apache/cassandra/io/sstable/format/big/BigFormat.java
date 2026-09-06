@@ -509,8 +509,10 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
             hasKeyRange = version.compareTo("oa") >= 0;
             hasUintDeletionTime = version.compareTo("oa") >= 0;
             hasTokenSpaceCoverage = version.compareTo("oa") >= 0;
-            // Keep reading development pb children, while qa is the first released version with this field.
-            hasSplitPrefixMarker = version.equals("pb") || version.compareTo("qa") >= 0;
+            // pb introduced the field during development and qa is its first released writer version. Format feature
+            // predicates remain monotonic so an older minor can read metadata written by a newer minor; the splitter's
+            // exact input allowlist is deliberately separate in supportsZeroCopySplitInput().
+            hasSplitPrefixMarker = version.compareTo("pb") >= 0;
         }
 
         @Override

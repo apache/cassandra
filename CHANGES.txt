@@ -1,4 +1,5 @@
 7.0
+ * Add zero-copy splitting for compressed BIG SSTables (CASSANDRA-21550)
  * Reject LIKE patterns with a wildcard (%) anywhere other than the start or end (CASSANDRA-21068)
  * Support pluggable default role initialization (CASSANDRA-21546)
  * Add prepared statement cache stats to nodetool info (CASSANDRA-14366)
@@ -8726,4 +8727,3 @@ Full list of issues resolved in 0.4 is at https://issues.apache.org/jira/secure/
  * Combined blocking and non-blocking versions of insert APIs
  * Added FlushPeriodInMinutes configuration parameter to force
    flushing of infrequently-updated ColumnFamilies
-

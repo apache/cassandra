@@ -32,6 +32,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertArrayEquals;
@@ -96,6 +97,13 @@ public class ReflinkTest
         else
         {
             assertArrayEquals("a refused clone must not change the destination", prefix, readAll(dst));
+            if (FBUtilities.isLinux)
+            {
+                assertEquals("a valid same-filesystem FICLONERANGE should fail only because extent sharing is " +
+                             "unsupported; null indicates descriptor marshalling failed and ENOTTY indicates an " +
+                             "incorrect ioctl request",
+                             Integer.valueOf(EOPNOTSUPP), Reflink.unsupportedErrno(dst.parent()));
+            }
         }
     }
 

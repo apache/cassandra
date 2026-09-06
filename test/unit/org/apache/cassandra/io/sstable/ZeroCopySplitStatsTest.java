@@ -19,7 +19,9 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -38,6 +40,7 @@ import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
+import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -49,6 +52,23 @@ public class ZeroCopySplitStatsTest extends CQLTester
 {
     private static final long REPAIRED_AT = 8675309L;
     private static final double SOURCE_TOKEN_COVERAGE = 0.375d;
+
+    @Test
+    public void statisticsScalingConservesCountsWithoutLongOverflow()
+    {
+        EstimatedHistogram huge = new EstimatedHistogram(new long[]{ 1 },
+                                                          new long[]{ Long.MAX_VALUE, Long.MAX_VALUE });
+        EstimatedHistogram scaled = ZeroCopySSTableSplitter.resampleEstimatedHistogram(huge, 3);
+        assertArrayEquals(new long[]{ 2, 1 }, scaled.getBuckets(false));
+        assertEquals(3, scaled.count());
+
+        long first = ZeroCopySSTableSplitter.apportion(Long.MAX_VALUE, 0, 1, 3);
+        long second = ZeroCopySSTableSplitter.apportion(Long.MAX_VALUE, 1, 2, 3);
+        long third = ZeroCopySSTableSplitter.apportion(Long.MAX_VALUE, 2, 3, 3);
+        assertEquals(Long.MAX_VALUE, Math.addExact(Math.addExact(first, second), third));
+
+        assertEquals(0, ZeroCopySSTableSplitter.apportion(2, 1, 2, 4));
+    }
 
     @Test
     public void splitChildrenPersistExactStatistics() throws Throwable
@@ -72,6 +92,8 @@ public class ZeroCopySplitStatsTest extends CQLTester
         assertEquals(REPAIRED_AT, parentStats.repairedAt);
         assertEquals(SOURCE_TOKEN_COVERAGE, parentStats.tokenSpaceCoverage, 0.0d);
         assertTrue(parentStats.totalRows > 0);
+        assertTrue("fixture must exercise tombstone-bin apportionment",
+                   parentStats.estimatedTombstoneDropTime.size() > 0);
         assertTrue(parentStats.minTimestamp < parentStats.maxTimestamp);
         assertFalse("an ordinary flushed sstable must not claim a retained split prefix",
                     parent.hasSplitPrefix());
@@ -90,6 +112,10 @@ public class ZeroCopySplitStatsTest extends CQLTester
 
             boolean foundPrefixedChild = false;
             long partitionCount = 0;
+            long cellHistogramCount = 0;
+            long totalRows = 0;
+            long totalColumnsSet = 0;
+            Map<Long, Long> tombstoneBins = new HashMap<>();
             for (Child child : children)
             {
                 StatsMetadata persisted = StatsComponent.load(child.descriptor).statsMetadata();
@@ -99,10 +125,21 @@ public class ZeroCopySplitStatsTest extends CQLTester
 
                 foundPrefixedChild |= persisted.firstPartitionPosition > 0;
                 partitionCount += child.partitionCount;
+                cellHistogramCount += persisted.estimatedCellPerPartitionCount.count();
+                totalRows += persisted.totalRows;
+                totalColumnsSet += persisted.totalColumnsSet;
+                mergeTombstoneBins(tombstoneBins, persisted.estimatedTombstoneDropTime);
             }
             assertTrue("the test must exercise a child whose first live partition is inside a retained chunk",
                        foundPrefixedChild);
             assertEquals(parentStats.estimatedPartitionSize.count(), partitionCount);
+            assertEquals("cell-count observations must neither be duplicated nor lost",
+                         parentStats.estimatedCellPerPartitionCount.count(), cellHistogramCount);
+            assertEquals("apportioned row totals must sum to the parent", parentStats.totalRows, totalRows);
+            assertEquals("apportioned column totals must sum to the parent",
+                         parentStats.totalColumnsSet, totalColumnsSet);
+            assertEquals("apportioned tombstone bins must sum to the parent",
+                         tombstoneBins(parentStats.estimatedTombstoneDropTime), tombstoneBins);
         }
         finally
         {
@@ -178,7 +215,9 @@ public class ZeroCopySplitStatsTest extends CQLTester
         assertEquals(child.last.getKey(), childStats.lastKey);
         assertEquals((double) child.onDiskLength() / child.dataLength, childStats.compressionRatio, 0.0d);
 
-        assertEquals(parentStats.estimatedCellPerPartitionCount, childStats.estimatedCellPerPartitionCount);
+        assertEquals("cell and partition histograms must describe the same number of partitions",
+                     childStats.estimatedPartitionSize.count(),
+                     childStats.estimatedCellPerPartitionCount.count());
         assertEquals(parentStats.commitLogIntervals, childStats.commitLogIntervals);
         assertEquals(parentStats.minTimestamp, childStats.minTimestamp);
         assertEquals(parentStats.maxTimestamp, childStats.maxTimestamp);
@@ -186,13 +225,10 @@ public class ZeroCopySplitStatsTest extends CQLTester
         assertEquals(parentStats.maxLocalDeletionTime, childStats.maxLocalDeletionTime);
         assertEquals(parentStats.minTTL, childStats.minTTL);
         assertEquals(parentStats.maxTTL, childStats.maxTTL);
-        assertEquals(parentStats.estimatedTombstoneDropTime, childStats.estimatedTombstoneDropTime);
         assertEquals(parentStats.sstableLevel, childStats.sstableLevel);
         assertEquals(parentStats.coveredClustering, childStats.coveredClustering);
         assertEquals(parentStats.hasLegacyCounterShards, childStats.hasLegacyCounterShards);
         assertEquals(parentStats.repairedAt, childStats.repairedAt);
-        assertEquals(parentStats.totalColumnsSet, childStats.totalColumnsSet);
-        assertEquals(parentStats.totalRows, childStats.totalRows);
         assertEquals(parentStats.originatingHostId, childStats.originatingHostId);
         assertEquals(parentStats.pendingRepair, childStats.pendingRepair);
         assertEquals(parentStats.isTransient, childStats.isTransient);
@@ -201,6 +237,18 @@ public class ZeroCopySplitStatsTest extends CQLTester
 
         assertTrue("a parent's token coverage cannot be assigned to each disjoint child",
                    Double.isNaN(childStats.tokenSpaceCoverage));
+    }
+
+    private static Map<Long, Long> tombstoneBins(TombstoneHistogram histogram)
+    {
+        Map<Long, Long> bins = new HashMap<>();
+        mergeTombstoneBins(bins, histogram);
+        return bins;
+    }
+
+    private static void mergeTombstoneBins(Map<Long, Long> bins, TombstoneHistogram histogram)
+    {
+        histogram.forEach((point, value) -> bins.merge(point, (long) value, Long::sum));
     }
 
     private static void assertExactPartitionHistogram(StatsMetadata parentStats,

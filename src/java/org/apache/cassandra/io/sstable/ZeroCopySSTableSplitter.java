@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.lang.management.ManagementFactory;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
@@ -93,6 +94,7 @@ import org.apache.cassandra.utils.StorageCompatibilityMode;
 import org.apache.cassandra.utils.SyncUtil;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
 
 /**
  * Splits one compressed BIG SSTable into K children by copying verbatim compression-chunk runs of Data.db and
@@ -171,14 +173,20 @@ import org.apache.cassandra.utils.Throwables;
  * first child would be cut at a position covering partitions the parent no longer claims.
  *
  * <h2>Accepted imprecision in the children's Statistics.db</h2>
- * Absolute per-sstable <em>totals</em> and min/max bounds cannot be recomputed without deserialising rows -- the
- * entire cost this class exists to avoid -- so every child inherits the PARENT-WIDE value. The full inherited-verbatim
- * set is:
- * {@code estimatedCellPerPartitionCount}, {@code estimatedTombstoneDropTime}, {@code totalRows},
- * {@code totalColumnsSet}, {@code minTimestamp}, {@code maxTimestamp}, {@code minLocalDeletionTime},
+ * Min/max bounds cannot be recomputed without deserialising rows -- the entire cost this class exists to avoid -- so
+ * every child inherits the PARENT-WIDE value. The full inherited-verbatim set is:
+ * {@code minTimestamp}, {@code maxTimestamp}, {@code minLocalDeletionTime},
  * {@code maxLocalDeletionTime}, {@code minTTL}, {@code maxTTL}, {@code coveredClustering},
  * {@code hasPartitionLevelDeletions}, {@code hasLegacyCounterShards}, {@code commitLogIntervals},
  * {@code originatingHostId} and {@code sstableLevel}.
+ * <p>
+ * Parent-wide totals are apportioned by each child's exact partition-index interval. The children's
+ * {@code totalRows}, {@code totalColumnsSet}, and every {@code estimatedTombstoneDropTime} bin therefore sum exactly
+ * to the parent's values. {@code estimatedCellPerPartitionCount} retains the parent's bucket distribution but is
+ * resampled to the child's exact partition count, so its count agrees with {@code estimatedPartitionSize.count()}.
+ * This assumes rows, cells, and tombstones are distributed uniformly by partition ordinal; it cannot describe skew
+ * between children, but it neither multiplies the table-wide totals nor suppresses single-sstable tombstone
+ * compaction by roughly the number of children.
  * <p>
  * Re-derived exactly per child: {@code estimatedPartitionSize} (and hence {@code SSTableReader.estimatedKeys()}),
  * {@code compressionRatio}, and first/last key. NOT inherited: {@code tokenSpaceCoverage}, which is written as
@@ -188,17 +196,12 @@ import org.apache.cassandra.utils.Throwables;
  * leaves it {@code NaN}: {@code SSTableWriter.setTokenSpaceCoverage}'s only caller is {@code ShardTracker}, on the UCS
  * sharded-writer path, which {@code createWriterForAntiCompaction} does not go through.
  * <p>
- * Every inherited value is at least as wide or large as the truth, so nothing can be lost or resurrected, and the
- * resulting error is ACCEPTED:
+ * Every inherited bound is at least as wide as the truth, so nothing can be lost or resurrected, and the resulting
+ * error is ACCEPTED:
  * <ul>
- *   <li>Per-table aggregates that sum across sstables ({@code getMeanRowCount},
- *       {@code estimatedColumnCountHistogram}, the droppable-tombstone ratio) over-report by roughly K until the
- *       children are compacted normally.</li>
- *   <li>{@code AbstractCompactionStrategy.worthDroppingTombstones} divides the child's exact key count by the
- *       parent-wide cell count, so a child's effective {@code tombstone_threshold} is about K times the configured
- *       one. As this path also purges no tombstones, a child retains more droppable tombstones than a rewrite would
- *       have left AND is less likely to be picked for the compaction that would drop them: set
- *       {@code unchecked_tombstone_compaction} or lower {@code tombstone_threshold} where that matters.</li>
+ *   <li>Per-child row, cell, and tombstone estimates can be high or low when those values are skewed across the
+ *       parent's key range, although their aggregate remains the parent's value. As this path also purges no
+ *       tombstones, a child can retain more droppable tombstones than a rewrite would have left.</li>
  *   <li>Inherited {@code maxTimestamp} puts every child in the parent's TWCS window, and inherited
  *       {@code minLocalDeletionTime} keeps a fully-expired child from being dropped whole by
  *       {@code getFullyExpiredSSTables}. Note it is {@code minLocalDeletionTime} that does this and not
@@ -1957,7 +1960,7 @@ public final class ZeroCopySSTableSplitter
         // plan.childLength, not physicalBytes: compressionRatio is compressed-over-uncompressed for the file, and
         // the alignment pad is on disk.
         writeStatistics(child, metadata, parentMetadata, parentStats, childIndex.partitionSizes,
-                        childIndex.cardinality, plan.childLength, range.dataLength, first, last,
+                        childIndex.cardinality, from, to, plan.childLength, range.dataLength, first, last,
                         range.deadPrefixBytes, repairState);
 
         // ---------- Digest.crc32: CRC32 over EVERY physical byte of the child Data.db ----------
@@ -2154,6 +2157,8 @@ public final class ZeroCopySSTableSplitter
                                 StatsMetadata parentStats,
                                 EstimatedHistogram partitionSizes,
                                 ICardinality cardinality,
+                                int from,
+                                int to,
                                 long onDiskLength,
                                 long dataLength,
                                 DecoratedKey childFirst,
@@ -2161,11 +2166,13 @@ public final class ZeroCopySSTableSplitter
                                 long firstPartitionPosition,
                                 RepairState repairState) throws IOException
     {
-        // The four ACCEPTED absolute TOTALS below are parent-wide in every child, so per-table aggregates
-        // over-report by ~K and worthDroppingTombstones under-fires by ~K. Conservative in direction; see the class
-        // javadoc under "Accepted imprecision in the children's Statistics.db".
+        long parentPartitions = parentStats.estimatedPartitionSize.count();
+        EstimatedHistogram cellCounts = resampleEstimatedHistogram(parentStats.estimatedCellPerPartitionCount,
+                                                                   to - from);
+        TombstoneHistogram tombstoneDropTimes = apportionTombstoneHistogram(parentStats.estimatedTombstoneDropTime,
+                                                                            from, to, parentPartitions);
         StatsMetadata childStats = new StatsMetadata(partitionSizes,                              // DERIVED, exact
-                                                     parentStats.estimatedCellPerPartitionCount,  // ACCEPTED: parent-wide
+                                                     cellCounts,                                  // ESTIMATED, exact count
                                                      parentStats.commitLogIntervals,              // atomic pair, see javadoc
                                                      parentStats.minTimestamp,
                                                      parentStats.maxTimestamp,
@@ -2174,7 +2181,7 @@ public final class ZeroCopySSTableSplitter
                                                      parentStats.minTTL,
                                                      parentStats.maxTTL,
                                                      (double) onDiskLength / dataLength,          // DERIVED, exact
-                                                     parentStats.estimatedTombstoneDropTime,      // ACCEPTED: parent-wide
+                                                     tombstoneDropTimes,                          // ESTIMATED, apportioned
                                                      parentStats.sstableLevel,
                                                      // What MetadataCollector.finalizeMetadata passes; correct
                                                      // because CQL cannot add a clustering column, so the comparator
@@ -2184,8 +2191,10 @@ public final class ZeroCopySSTableSplitter
                                                      parentStats.coveredClustering,               // inherit: a superset of the child's
                                                      parentStats.hasLegacyCounterShards,
                                                      repairState.repairedAt,                      // inherited verbatim
-                                                     parentStats.totalColumnsSet,                 // ACCEPTED: parent-wide
-                                                     parentStats.totalRows,                       // ACCEPTED: parent-wide
+                                                     apportion(parentStats.totalColumnsSet,
+                                                               from, to, parentPartitions),       // ESTIMATED, apportioned
+                                                     apportion(parentStats.totalRows,
+                                                               from, to, parentPartitions),       // ESTIMATED, apportioned
                                                      // NOT inherited: the parent's coverage is its whole token
                                                      // range, so giving it to K children would multiply the table's
                                                      // apparent coverage and mislead the density calculations that
@@ -2220,6 +2229,80 @@ public final class ZeroCopySSTableSplitter
         // directory on create, so both are durable before COMMIT unlinks the parent.
         new StatsComponent(components).save(child);
         requireNonEmpty(child, Components.STATS);
+    }
+
+    /** Resample a histogram's cumulative distribution to exactly {@code count} observations. */
+    @VisibleForTesting
+    static EstimatedHistogram resampleEstimatedHistogram(EstimatedHistogram parent, long count)
+    {
+        Preconditions.checkArgument(count >= 0, "histogram count must be non-negative, got %s", count);
+        long[] source = parent.getBuckets(false);
+        long[] scaled = new long[source.length];
+        BigInteger sourceCount = BigInteger.ZERO;
+        for (long bucketCount : source)
+        {
+            Preconditions.checkArgument(bucketCount >= 0,
+                                        "histogram bucket count must be non-negative, got %s", bucketCount);
+            sourceCount = sourceCount.add(BigInteger.valueOf(bucketCount));
+        }
+
+        if (sourceCount.signum() == 0)
+        {
+            // A non-empty SSTable should have one cell-count observation per partition. Preserve a usable count if
+            // old or damaged metadata omitted them; the first bucket is the writer's rounded representation for zero
+            // or one cells.
+            if (count > 0)
+                scaled[0] = count;
+        }
+        else
+        {
+            BigInteger desired = BigInteger.valueOf(count);
+            BigInteger half = sourceCount.shiftRight(1);
+            BigInteger cumulative = BigInteger.ZERO;
+            long allocated = 0;
+            for (int i = 0; i < source.length; i++)
+            {
+                cumulative = cumulative.add(BigInteger.valueOf(source[i]));
+                long through = cumulative.multiply(desired)
+                                         .add(half)
+                                         .divide(sourceCount)
+                                         .longValueExact();
+                scaled[i] = through - allocated;
+                allocated = through;
+            }
+        }
+        return new EstimatedHistogram(parent.getBucketOffsets().clone(), scaled);
+    }
+
+    /** Apportion every tombstone-time bin over the child's contiguous partition-ordinal interval. */
+    private static TombstoneHistogram apportionTombstoneHistogram(TombstoneHistogram parent,
+                                                                  int from,
+                                                                  int to,
+                                                                  long parentPartitions)
+    {
+        return parent.mapCounts(value -> (int) apportion(value, from, to, parentPartitions));
+    }
+
+    /**
+     * Return this interval's share of {@code total}. Using differences between rounded cumulative shares makes the
+     * values for adjacent intervals telescope, so all children sum exactly to the parent without multiplication
+     * overflow.
+     */
+    @VisibleForTesting
+    static long apportion(long total, long from, long to, long parentPartitions)
+    {
+        Preconditions.checkArgument(total >= 0, "total must be non-negative, got %s", total);
+        Preconditions.checkArgument(parentPartitions > 0, "parent partition count must be positive, got %s",
+                                    parentPartitions);
+        Preconditions.checkArgument(0 <= from && from <= to && to <= parentPartitions,
+                                    "invalid partition interval [%s, %s) for %s partitions",
+                                    from, to, parentPartitions);
+        BigInteger denominator = BigInteger.valueOf(parentPartitions);
+        BigInteger half = denominator.shiftRight(1);
+        BigInteger value = BigInteger.valueOf(total);
+        long before = value.multiply(BigInteger.valueOf(from)).add(half).divide(denominator).longValueExact();
+        long after = value.multiply(BigInteger.valueOf(to)).add(half).divide(denominator).longValueExact();
+        return after - before;
     }
 
     /** {@code FilterComponent.save} fsyncs and propagates. {@code deleteOnFailure} false: {@link #cleanUp} does it. */

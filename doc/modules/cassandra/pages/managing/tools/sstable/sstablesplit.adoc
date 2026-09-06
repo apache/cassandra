@@ -114,7 +114,8 @@ not understand the retained-prefix layout reject these children as an incompatib
 major version instead of attempting to read them. Do not use this option while a
 rolling upgrade is in progress. A rollback to software that supports only `p`-era
 sstables requires restoring the pre-split snapshot, when one was created; using
-`--no-snapshot` leaves no rollback copy. Older software cannot open `qa` children.
+`--no-snapshot` leaves no rollback copy and makes the tool print a warning. Older
+software cannot open `qa` children.
 
 The requested size remains a maximum unless one partition's compression-chunk
 span is itself larger than that size.
@@ -126,24 +127,31 @@ chunk. A later normal compaction rewrites the children and reclaims the retained
 bytes.
 
 The splitter rebuilds the partition-size estimate, compression ratio, key range,
-index summary, and Bloom filter for each child. Statistics that require decoding
-the rows cannot be recovered without giving up the zero-copy algorithm, so each
-child inherits these parent-wide values: cell-count and tombstone histograms,
-total rows and columns, timestamp, TTL and deletion-time bounds, covered
-clustering bounds, partition-deletion and legacy-counter flags, commit-log
-intervals, originating host, and sstable level.
+index summary, and Bloom filter for each child. It apportions total rows, total
+columns, and tombstone histogram bins by the child's exact share of parent
+partitions, so those values sum to the parent's values instead of being
+duplicated. The cell-count histogram retains the parent's distribution and is
+resampled to each child's exact partition count.
 
-Consequently, totals that are summed across sstables can be over-reported until
-the children are compacted, and single-sstable tombstone compaction can be less
-likely to select a child. Zero-copy splitting also does not purge tombstones.
-Where prompt tombstone reclamation matters, run a normal compaction after the
-split or temporarily adjust the table's tombstone-compaction settings. A normal
-compaction rewrites the rows and computes exact per-child statistics.
+Statistics that require decoding rows remain estimates. Timestamp, TTL,
+deletion-time, and covered-clustering bounds are inherited from the parent and
+can be wider than a child's contents. Apportionment assumes that rows, cells,
+and tombstones are distributed uniformly across the parent, so an individual
+child can still be over- or under-estimated when the data is skewed. Zero-copy
+splitting also does not purge tombstones. Where prompt tombstone reclamation
+matters, run a normal compaction after the split. A normal compaction rewrites
+the rows and computes exact per-child statistics.
 
 After committing each input, the tool reports the number of children, bytes
 reflinked, bytes written, and whether any reflink was used. `reflink used=no`
-means the Data.db ranges were copied and should be budgeted as ordinary read,
-write, and temporary disk traffic.
+is reported as a warning because every Data.db range was copied and should be
+budgeted as ordinary read, write, and temporary disk traffic.
+
+Extent sharing removes the Data.db write, not all reads. The splitter validates
+each primary-index position through the normal decompressing data reader and
+reads every child Data.db again to generate its digest. With narrow partitions,
+budget roughly two full data reads plus one full decompression pass even when
+reflinks succeed.
 
 Example:
 

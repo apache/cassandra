@@ -75,6 +75,13 @@ public class StandaloneSplitterTest extends OfflineToolUtils
     }
 
     @Test
+    public void testReflinkFallbackStatusIsAnExplicitWarning()
+    {
+        assertEquals("yes", StandaloneSplitter.reflinkStatus(1));
+        assertEquals("no (WARNING: all Data.db ranges were copied)", StandaloneSplitter.reflinkStatus(0));
+    }
+
+    @Test
     public void testWrongFilename()
     {
         ToolResult tool = ToolRunner.invokeClass(StandaloneSplitter.class, "mockFile");

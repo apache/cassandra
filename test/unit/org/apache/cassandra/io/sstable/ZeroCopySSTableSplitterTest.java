@@ -74,6 +74,7 @@ import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.OutputHandler;
 
 import static org.apache.cassandra.io.sstable.SSTableReadsListener.NOOP_LISTENER;
 import static org.junit.Assert.assertArrayEquals;
@@ -471,6 +472,8 @@ public class ZeroCopySSTableSplitterTest extends CQLTester
                                                                                                 NOOP_LISTENER);
                     assertNotNull(childEntry);
                     assertTrue("child lost the promoted row index for " + child.first, childEntry.isIndexed());
+                    assertFalse("zero cache size must exercise the shallow promoted-index path",
+                                childEntry.indexOnHeap());
                     Slices slices = Slices.with(cfs.getComparator(),
                                                 Slice.make(Clustering.make(ByteBufferUtil.bytes(10)),
                                                            Clustering.make(ByteBufferUtil.bytes(29))));
@@ -488,9 +491,29 @@ public class ZeroCopySSTableSplitterTest extends CQLTester
                         assertTrue("rebased promoted index returned different rows for " + child.first,
                                    Util.sameContent(expected, actual));
                     }
+                    try (IVerifier verifier = child.reader.getVerifier(cfs,
+                                                                       new OutputHandler.LogOutput(),
+                                                                       false,
+                                                                       IVerifier.options()
+                                                                                .extendedVerification(true)
+                                                                                .build()))
+                    {
+                        verifier.verify();
+                    }
                     partitions += scan(child.reader);
                 }
                 assertEquals(12, partitions);
+
+                DatabaseDescriptor.setColumnIndexCacheSize(1024);
+                Child materializedChild = result.children.get(0);
+                RowIndexEntry materialized = ((BigTableReader) materializedChild.reader)
+                                             .getRowIndexEntry(materializedChild.first,
+                                                               SSTableReader.Operator.EQ,
+                                                               false,
+                                                               NOOP_LISTENER);
+                assertNotNull(materialized);
+                assertTrue("non-zero cache size did not materialize the copied promoted index",
+                           materialized.indexOnHeap());
             }
             finally
             {
@@ -889,6 +912,14 @@ public class ZeroCopySSTableSplitterTest extends CQLTester
             {
                 cursor.seekPartition(0);
                 fail("an empty MOVED_START cursor must not seek into the hidden physical file");
+            }
+            catch (IllegalArgumentException expected)
+            {
+            }
+            try
+            {
+                cursor.seekUnfiltered(0);
+                fail("an empty MOVED_START cursor must not seek into hidden unfiltered data");
             }
             catch (IllegalArgumentException expected)
             {

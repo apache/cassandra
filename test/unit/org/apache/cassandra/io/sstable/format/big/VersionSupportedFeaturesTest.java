@@ -91,7 +91,7 @@ public class VersionSupportedFeaturesTest extends AbstractTestVersionSupportedFe
     @Override
     protected Stream<String> getSplitPrefixMarkerSupportedVersions()
     {
-        return Stream.concat(Stream.of("pb"), range("qa", "zz"));
+        return range("pb", "zz");
     }
 
     @Override
