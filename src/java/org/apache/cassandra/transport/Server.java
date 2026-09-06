@@ -57,6 +57,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.group.ChannelGroup;
@@ -160,6 +161,24 @@ public class Server implements CassandraDaemon.Server
     public int countConnectedClients()
     {
         return connectionTracker.countConnectedClients();
+    }
+
+    /**
+     * @return the number of bytes of client requests currently in flight, across all protocol versions.
+     * The shared reserve holds every pre-V5 request plus whatever V5+ connections have queued beyond their own
+     * queue budget; what each V5+ connection holds within its own budget is added on top.
+     */
+    public long requestsSizeInFlight()
+    {
+        long withinOwnBudget = 0;
+        // Channels leave allChannels when they close, so nothing here outlives its connection
+        for (Channel c : connectionTracker.allChannels)
+        {
+            ChannelHandler handler = c.pipeline().get(PipelineConfigurator.MESSAGE_PROCESSOR);
+            if (handler instanceof CQLMessageHandler)
+                withinOwnBudget += ((CQLMessageHandler<?>) handler).localQueueUsage();
+        }
+        return ClientResourceLimits.getCurrentGlobalUsage() + withinOwnBudget;
     }
 
     public Map<String, Integer> countConnectedClientsByUser()
