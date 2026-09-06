@@ -46,6 +46,7 @@ final class GossipInfoTable extends AbstractVirtualTable
 
     static final String ADDRESS = "address";
     static final String PORT = "port";
+    static final String HOSTNAME = "hostname";
     static final String GENERATION = "generation";
     static final String HEARTBEAT = "heartbeat";
 
@@ -95,6 +96,7 @@ final class GossipInfoTable extends AbstractVirtualTable
             EndpointState localState = new EndpointState(entry.getValue());
 
             SimpleDataSet dataSet = result.row(endpoint.getAddress(), endpoint.getPort())
+                                          .column(HOSTNAME, endpoint.getHostString())
                                           .column(GENERATION, getGeneration(localState))
                                           .column(HEARTBEAT, getHeartBeat(localState));
 
@@ -171,6 +173,7 @@ final class GossipInfoTable extends AbstractVirtualTable
                                                      .partitioner(new LocalPartitioner(InetAddressType.instance))
                                                      .addPartitionKeyColumn(ADDRESS, InetAddressType.instance)
                                                      .addClusteringColumn(PORT, Int32Type.instance)
+                                                     .addRegularColumn(HOSTNAME, UTF8Type.instance)
                                                      .addRegularColumn(GENERATION, Int32Type.instance)
                                                      .addRegularColumn(HEARTBEAT, Int32Type.instance);
 
