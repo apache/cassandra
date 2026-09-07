@@ -538,6 +538,14 @@ public enum CassandraRelevantProperties
     /** Controls the maximum top-k limit for vector search */
     SAI_VECTOR_SEARCH_MAX_TOP_K("cassandra.sai.vector_search.max_top_k", "1000"),
 
+    /**
+     * Controls how the {@code system_schema} tables are flushed to disk after a schema change is applied.
+     * {@code -1} restores the legacy behaviour: a synchronous, blocking flush of every {@code system_schema}
+     * table on every schema change. {@code 0} makes the flush asynchronous, scheduling it immediately.
+     * Any value {@code > 0} makes the flush asynchronous and coalesced: at most one flush is scheduled per
+     * that many milliseconds, so a burst of DDL statements pays for a single flush instead of one per statement.
+     */
+    SCHEMA_FLUSH_COALESCE_MS("cassandra.schema_flush_coalesce_ms", "1000"),
     SCHEMA_PULL_INTERVAL_MS("cassandra.schema_pull_interval_ms", "60000"),
     SCHEMA_UPDATE_HANDLER_FACTORY_CLASS("cassandra.schema.update_handler_factory.class"),
     SEARCH_CONCURRENCY_FACTOR("cassandra.search_concurrency_factor", "1"),
