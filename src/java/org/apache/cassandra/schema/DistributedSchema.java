@@ -75,17 +75,30 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
 
     public DistributedSchema(Keyspaces keyspaces, Epoch epoch)
     {
+        this(keyspaces, epoch, null);
+    }
+
+    /**
+     * As {@link #DistributedSchema(Keyspaces, Epoch)}, but additionally takes the {@link DistributedSchema} this one
+     * is derived from, if any. {@link KeyspaceMetadata} instances are immutable and only ever replaced wholesale
+     * (see {@link Keyspaces#withAddedOrUpdated}), so when {@code previous} is given, a keyspace whose instance is
+     * reference-identical to the one already validated in {@code previous} cannot have changed and is skipped;
+     * every other keyspace - new, altered, or when {@code previous} is {@code null} - is validated in full. This
+     * cannot weaken validation, only avoid repeating a check whose result cannot have changed.
+     */
+    public DistributedSchema(Keyspaces keyspaces, Epoch epoch, DistributedSchema previous)
+    {
         Objects.requireNonNull(keyspaces);
         this.keyspaces = keyspaces;
         this.epoch = epoch;
         this.version = new UUID(0, epoch.getEpoch());
-        validate();
+        validate(previous);
     }
 
     @Override
     public DistributedSchema withLastModified(Epoch epoch)
     {
-        return new DistributedSchema(keyspaces, epoch);
+        return new DistributedSchema(keyspaces, epoch, this);
     }
 
     @Override
@@ -437,9 +450,16 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
         return Objects.hash(keyspaces, version);
     }
 
-    private void validate()
+    /**
+     * @param previous when non-null, keyspaces whose {@link KeyspaceMetadata} instance is unchanged from
+     *                 {@code previous} are skipped - they were already validated when {@code previous} was built.
+     */
+    private void validate(DistributedSchema previous)
     {
         keyspaces.forEach(ksm -> {
+            if (previous != null && previous.keyspaces.getNullable(ksm.name) == ksm)
+                return;
+
             ksm.tables.forEach(tm -> Preconditions.checkArgument(tm.keyspace.equals(ksm.name), "Table %s metadata points to keyspace %s while defined in keyspace %s", tm.name, tm.keyspace, ksm.name));
             ksm.views.forEach(vm -> Preconditions.checkArgument(vm.keyspace().equals(ksm.name), "View %s metadata points to keyspace %s while defined in keyspace %s", vm.name(), vm.keyspace(), ksm.name));
             ksm.types.forEach(ut -> Preconditions.checkArgument(ut.keyspace.equals(ksm.name), "Type %s points to keyspace %s while defined in keyspace %s", ut.name, ut.keyspace, ksm.name));

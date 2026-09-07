@@ -29,9 +29,13 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.cql3.WhereClause;
 import org.apache.cassandra.db.marshal.Int32Type;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -158,6 +162,131 @@ public class KeyspacesDiffScalingTest
         assertEquals("no tables created", 0, size(ks.tables.created));
         assertEquals("no tables dropped", 0, size(ks.tables.dropped));
         assertEquals("exactly one table altered", 1, ks.tables.altered.size());
+    }
+
+    // ------------------------------------------------------- Keyspaces#withAddedOrUpdated
+
+    /**
+     * {@link Keyspaces#withAddedOrUpdated} used to be a {@code without(name)} followed by {@code with(keyspace)}:
+     * every table and view of the keyspace removed from the by-{@link TableId} map one at a time, then every one
+     * re-added. Adding table n+1 must not cost more than adding table 2.
+     */
+    @Test
+    public void withAddedOrUpdatedDoesNotScaleWithExistingTablesInSameKeyspace()
+    {
+        long small = bytesPerWithAddedOrUpdated(oneKeyspaceWithTableAdded(SMALL));
+        long large = bytesPerWithAddedOrUpdated(oneKeyspaceWithTableAdded(LARGE));
+
+        assertGrowthIsFlat("adding one table via withAddedOrUpdated to a keyspace already holding", small, large);
+    }
+
+    /** The added table must be findable by id and by name, and the keyspace entry itself is the new instance. */
+    @Test
+    public void withAddedOrUpdatedAddedTableFindableByIdAndName()
+    {
+        Keyspaces[] pair = oneKeyspaceWithTableAdded(50);
+        KeyspaceMetadata after = pair[1].getNullable("ks");
+
+        Keyspaces updated = pair[0].withAddedOrUpdated(after);
+
+        TableMetadata added = after.getTableNullable("table_50");
+        assertNotNull("fixture sanity: the added table is present in the target definition", added);
+        assertSame("found by id", added, updated.getTableOrViewNullable(added.id));
+        assertSame("the keyspace entry is the new definition", after, updated.getNullable("ks"));
+    }
+
+    /** A table dropped from the new definition must no longer be resolvable by id. */
+    @Test
+    public void withAddedOrUpdatedRemovedTableIsGone()
+    {
+        List<TableMetadata> tables = tables("ks", 50);
+        Keyspaces before = keyspaces(Tables.of(tables), ImmutableList.of());
+        TableMetadata removed = tables.get(10);
+
+        List<TableMetadata> remaining = new ArrayList<>(tables);
+        remaining.remove(10);
+        KeyspaceMetadata after = KeyspaceMetadata.create("ks", KeyspaceParams.simple(1), Tables.of(remaining));
+
+        Keyspaces updated = before.withAddedOrUpdated(after);
+
+        assertNull("the removed table is no longer resolvable by id", updated.getTableOrViewNullable(removed.id));
+        assertSame("a table that survived is still resolvable",
+                  remaining.get(0), updated.getTableOrViewNullable(remaining.get(0).id));
+    }
+
+    /** A table replaced by a new instance must resolve to the new instance, not the old one. */
+    @Test
+    public void withAddedOrUpdatedReplacedTableReturnsNewInstance()
+    {
+        List<TableMetadata> tables = tables("ks", 50);
+        Keyspaces before = keyspaces(Tables.of(tables), ImmutableList.of());
+
+        TableMetadata replaced = tables.get(10).unbuild().comment("changed").build();
+        List<TableMetadata> after = new ArrayList<>(tables);
+        after.set(10, replaced);
+        KeyspaceMetadata afterKsm = KeyspaceMetadata.create("ks", KeyspaceParams.simple(1), Tables.of(after));
+
+        Keyspaces updated = before.withAddedOrUpdated(afterKsm);
+
+        assertSame("resolves to the new instance, not the old one",
+                  replaced, updated.getTableOrViewNullable(replaced.id));
+    }
+
+    /** Views must be reachable by their own id, distinct from the base table's id. */
+    @Test
+    public void withAddedOrUpdatedViewsByOwnId()
+    {
+        TableMetadata base = table("ks", 0);
+        TableMetadata viewTable = table("ks", 1);
+        ViewMetadata view = new ViewMetadata(base.id, base.name, true, WhereClause.empty(), viewTable);
+
+        Keyspaces before = Keyspaces.of(KeyspaceMetadata.create("ks", KeyspaceParams.simple(1), Tables.of(base)));
+        KeyspaceMetadata after = KeyspaceMetadata.create("ks", KeyspaceParams.simple(1),
+                                                         Tables.of(base), Views.builder().put(view).build(),
+                                                         Types.none(), UserFunctions.none());
+
+        Keyspaces updated = before.withAddedOrUpdated(after);
+
+        assertSame("the view, looked up by its own id", viewTable, updated.getTableOrViewNullable(viewTable.id));
+        assertSame("the base table is still reachable", base, updated.getTableOrViewNullable(base.id));
+    }
+
+    /** Other keyspaces, and every table in them, must be completely untouched by reference. */
+    @Test
+    public void withAddedOrUpdatedOtherKeyspacesUntouched()
+    {
+        Keyspaces[] pair = manyKeyspacesWithTableAdded(50);
+        KeyspaceMetadata after = pair[1].getNullable("ks");
+
+        Keyspaces updated = pair[0].withAddedOrUpdated(after);
+
+        for (KeyspaceMetadata other : pair[0])
+        {
+            if (other.name.equals("ks"))
+                continue;
+            assertSame("keyspace " + other.name + " is untouched", other, updated.getNullable(other.name));
+            for (TableMetadata table : other.tables)
+                assertSame("table " + table + " is untouched", table, updated.getTableOrViewNullable(table.id));
+        }
+    }
+
+    /**
+     * Allocation attributable to one {@link Keyspaces#withAddedOrUpdated} call, warmed up so lazy initialisation is
+     * not counted.
+     */
+    private static long bytesPerWithAddedOrUpdated(Keyspaces[] beforeAfter)
+    {
+        Keyspaces before = beforeAfter[0];
+        KeyspaceMetadata after = beforeAfter[1].getNullable("ks");
+
+        for (int i = 0; i < WARMUP; i++)
+            sink = before.withAddedOrUpdated(after);
+
+        long id = Thread.currentThread().getId();
+        long start = THREADS.getThreadAllocatedBytes(id);
+        for (int i = 0; i < ITERATIONS; i++)
+            sink = before.withAddedOrUpdated(after);
+        return (THREADS.getThreadAllocatedBytes(id) - start) / ITERATIONS;
     }
 
     // ---------------------------------------------------------------- helpers
