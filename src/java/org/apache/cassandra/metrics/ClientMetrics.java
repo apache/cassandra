@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Predicate;
 
 import com.codahale.metrics.Gauge;
@@ -84,6 +85,7 @@ public final class ClientMetrics
     final Map<AuthenticationMode, Gauge<Integer>> connectedNativeClientsByAuthMode = new HashMap<>();
 
     private AtomicInteger pausedConnections;
+    private final LongAdder requestsSize = new LongAdder();
 
     @SuppressWarnings({ "unused", "FieldCanBeLocal" })
     private Gauge<Integer> pausedConnectionsGauge;
@@ -195,7 +197,7 @@ public final class ClientMetrics
         connectedNativeClientsByUser = registerGauge("ConnectedNativeClientsByUser", "connectedNativeClientsByUser", this::countConnectedClientsByUser);
         registerGauge("Connections", "connections", this::connectedClients);
         registerGauge("ClientsByProtocolVersion", "clientsByProtocolVersion", this::recentClientStats);
-        registerGauge("RequestsSize", ClientResourceLimits::getCurrentGlobalUsage);
+        registerGauge("RequestsSize", this::currentRequestsSize);
 
         CassandraReservoir ipUsageReservoir = ClientResourceLimits.ipUsageReservoir();
         Metrics.register(factory.createMetricName("RequestsSizeByIpDistribution"),
@@ -334,5 +336,18 @@ public final class ClientMetrics
     public void queueTime(long value, TimeUnit unit)
     {
         queueTime.update(value, unit);
+    }
+
+    public void requestBytesAcquired(long bytes)
+    {
+        requestsSize.add(bytes);
+    }
+    public void requestBytesReleased(long bytes)
+    {
+        requestsSize.add(-bytes);
+    }
+    public long currentRequestsSize()
+    {
+        return requestsSize.sum();
     }
 }

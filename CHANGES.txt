@@ -1,4 +1,5 @@
 7.0
+ * Fix Client RequestsSize metric always reporting 0 for native protocol v5+ connections (CASSANDRA-21091)
  * Reject LIKE patterns with a wildcard (%) anywhere other than the start or end (CASSANDRA-21068)
  * Support pluggable default role initialization (CASSANDRA-21546)
  * Add prepared statement cache stats to nodetool info (CASSANDRA-14366)

@@ -95,6 +95,7 @@ public class PreV5Handlers
             // The only reason we won't process this message is if checkLimits() throws an OverloadedException.
             // (i.e. Even if backpressure is applied, the current request is allowed to finish.)
             checkLimits(ctx, request);
+            ClientMetrics.instance.requestBytesAcquired(request.getSource().header.bodySizeInBytes);
             dispatcher.dispatch(ctx.channel(), request, this::toFlushItem, ctx, backpressure);
         }
 
@@ -115,6 +116,8 @@ public class PreV5Handlers
             // releasing them is handled by the pipeline itself.
             long itemSize = item.requestEnvelope.header.bodySizeInBytes;
             item.requestEnvelope.release();
+
+            ClientMetrics.instance.requestBytesReleased(itemSize);
 
             // since the request has been processed, decrement inflight payload at channel, endpoint and global levels
             channelPayloadBytesInFlight -= itemSize;

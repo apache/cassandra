@@ -363,6 +363,95 @@ public class CQLConnectionTest
     }
 
     @Test
+    public void testRequestsSizeMetricPopulatedWithoutTouchingReserves() throws Throwable
+    {
+        // CASSANDRA-21091: for V5+ connections, a request is only allocated from the shared endpoint/global
+        // reserves once a connection's own private queue budget (native_transport_receive_queue_capacity_in_bytes)
+        // is exceeded. setup() sets that budget to 0 for the other (reserve-focused) tests in this class; restore
+        // a realistic, non-zero value here so that our single small request is satisfied entirely from the
+        // connection's private budget, and never touches the reserves at all.
+        DatabaseDescriptor.setNativeTransportReceiveQueueCapacityInBytes(1024 * 1024);
+
+        long baseline = ClientMetrics.instance.currentRequestsSize();
+
+        Condition requestReceived = newOneTimeCondition();
+        Condition releaseRequest = newOneTimeCondition();
+        AllocationObserver observer = new AllocationObserver(false);
+        Codec codec = Codec.crc(alloc);
+
+        // A consumer which pauses on the event loop after the request has been "accepted" (i.e. capacity
+        // has been acquired for it) but before it has been processed/released, giving the test a window in
+        // which to observe the RequestsSize metric while the request is genuinely in flight.
+        MessageConsumer<Message.Request> consumer = new MessageConsumer<Message.Request>()
+        {
+            public <P> void dispatch(Channel channel, Message.Request message, Dispatcher.FlushItemConverter<P> toFlushItem, P param, Overload backpressure)
+            {
+                requestReceived.signalAll();
+                releaseRequest.awaitUninterruptibly();
+
+                Message.Response fixedResponse = new ResultMessage.Void();
+                Envelope response = fixedResponse.encode(ProtocolVersion.V5, message.getSource().header.streamId);
+                SimpleClient.SimpleFlusher flusher = new SimpleClient.SimpleFlusher(codec.encoder);
+                flusher.enqueue(response);
+                flusher.schedule(channel.pipeline().lastContext());
+
+                // this simulates the release of the allocated resources that a real flusher would do
+                Flusher.FlushItem.Framed item = (Flusher.FlushItem.Framed) toFlushItem.toFlushItem(param, channel, message, fixedResponse);
+                item.release();
+            }
+
+            public boolean hasQueueCapacity() { return true; }
+        };
+
+        Message.Decoder<Message.Request> decoder = new FixedDecoder();
+        Predicate<Envelope.Header> responseMatcher = h -> h.type == Message.Type.RESULT;
+        ServerConfigurator configurator = ServerConfigurator.builder()
+                                                            .withConsumer(consumer)
+                                                            .withAllocationObserver(observer)
+                                                            .withDecoder(decoder)
+                                                            .build();
+
+        Server server = server(configurator);
+        Client client = new Client(codec, 1);
+        try
+        {
+            server.start();
+            client.connect(address, port);
+            assertTrue(configurator.waitUntilReady());
+
+            Envelope request = randomEnvelope(0, Message.Type.OPTIONS, 4096, 4096);
+            int requestSize = request.body.readableBytes();
+            client.send(request);
+            client.awaitFlushed();
+
+            assertTrue("timed out waiting for the request to be dispatched",
+                       requestReceived.await(10, TimeUnit.SECONDS));
+
+            // The request is now in flight on the server, but small enough to be satisfied entirely by this
+            // connection's private queue budget - so the shared endpoint/global reserves were never touched...
+            assertThat(observer.globalAllocationTotal()).isEqualTo(0);
+            // ...yet the client-facing RequestsSize metric must still reflect it.
+            assertThat(ClientMetrics.instance.currentRequestsSize() - baseline).isEqualTo(requestSize);
+
+            releaseRequest.signalAll();
+
+            client.awaitResponses();
+            Envelope response = client.pollResponses();
+            assertNotNull(response);
+            assertThat(response.header).matches(responseMatcher);
+            response.release();
+
+            // Once the request has completed, the metric must fall back to its baseline.
+            assertThat(ClientMetrics.instance.currentRequestsSize()).isEqualTo(baseline);
+        }
+        finally
+        {
+            client.stop();
+            server.stop();
+        }
+    }
+
+    @Test
     public void testRecoverableEnvelopeDecodingErrors()
     {
         // If an error is encountered while decoding an Envelope header,
