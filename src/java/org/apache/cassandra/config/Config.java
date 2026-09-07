@@ -945,6 +945,15 @@ public class Config
     public boolean uuid_sstable_identifiers_enabled = false;
 
     /**
+     * Controls how the {@code system_schema} tables are flushed to disk after a schema change is applied.
+     * {@code 0ms} restores the legacy behaviour: a synchronous, blocking flush of every {@code system_schema}
+     * table on every schema change. Any positive value makes the flush asynchronous and coalesced: at most one
+     * flush is scheduled per that many milliseconds, so a burst of DDL statements pays for a single flush
+     * instead of one per statement.
+     */
+    public volatile DurationSpec.IntMillisecondsBound schema_flush_coalescing_window = new DurationSpec.IntMillisecondsBound("1000ms");
+
+    /**
      * Client mode means that the process is a pure client, that uses C* code base but does
      * not read or write local C* database files.
      *
