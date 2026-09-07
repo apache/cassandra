@@ -53,6 +53,7 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.Output;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 import static java.lang.String.format;
@@ -223,6 +224,7 @@ public class CommandInvokerService implements CommandInvokerServiceMBean
         }
         catch (Throwable e)
         {
+            JVMStabilityInspector.inspectThrowable(e);
             record.failed(Clock.Global.currentTimeMillis(), e);
             logger.error("Command '{}' (execution ID: {}) unexpected error", fullCommandName, executionId, e);
             throw new CommandExecutionException(format("Unexpected error while executing '%s': %s",

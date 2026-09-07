@@ -187,6 +187,20 @@ public class CommandServiceTest extends CQLTester
             .hasMessageContaining("Error decoding JSON string");
     }
 
+    @Test
+    public void testCommandNotFoundReportedAsIllegalArgumentViaMBean()
+    {
+        CommandInvokerService service = CommandInvokerService.instance;
+        Command<?> command = service.getRegistry().command("version");
+        CommandMBeanAdapter adapter = new CommandMBeanAdapter("nonexistentcommand", command, service::invokeCommand);
+
+        assertThatThrownBy(() -> adapter.invoke(CommandMBeanAdapter.INVOKE_METHOD,
+                                                new Object[]{ "{}" },
+                                                new String[]{ String.class.getName() }))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("Command not found");
+    }
+
     private static CommandExecutionArgs emptyArgs()
     {
         return new SimpleCommandExecutionArgs(Collections.emptyMap(), Collections.emptyMap());

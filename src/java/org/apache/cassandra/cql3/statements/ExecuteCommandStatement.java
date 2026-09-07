@@ -22,6 +22,8 @@ import java.util.Map;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
+import org.apache.cassandra.auth.CommandResource;
+import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -87,12 +89,18 @@ public class ExecuteCommandStatement
             {
                 throw new UnauthorizedException("Command execution via management port is currently only supported " +
                                                 "when authentication is disabled (AllowAllAuthenticator). " +
-                                                "Full authentication and authorization support will be added in a " +
-                                                "future release.");
+                                                "Full authentication support will be added in a future release.");
             }
 
             // Validate login (will succeed with AllowAllAuthenticator)
             state.validateLogin();
+
+            // TODO CASSANDRA-XXXXX Commands invoked via JMX are guarded by JMXResource grants against the command's
+            //  MBean. CommandResource is the CQL-side equivalent, but has no GRANT/REVOKE grammar yet. No grant is
+            //  needed today.
+            Command<?> command = findRegistryCommand(commandName, CommandInvokerService.instance.getRegistry());
+            if (command != null)
+                state.ensurePermission(Permission.EXECUTE, CommandResource.command(commandName));
         }
 
         @Override
@@ -138,6 +146,14 @@ public class ExecuteCommandStatement
                 throw new CommandRequestExecutionException(e.getExecutionId(),
                                                            causeMessages(e),
                                                            e.getCause());
+            }
+            catch (InvalidRequestException | UnauthorizedException e)
+            {
+                throw e;
+            }
+            catch (Exception e)
+            {
+                throw new InvalidRequestException("Unexpected error executing command: " + e.getMessage());
             }
         }
 
