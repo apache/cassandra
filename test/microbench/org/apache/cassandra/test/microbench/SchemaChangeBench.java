@@ -70,7 +70,7 @@ import org.apache.cassandra.tcm.Epoch;
 public class SchemaChangeBench
 {
     /** Tables held by the single keyspace under test before the change being measured is applied. */
-    @Param({ "400", "3200" })
+    @Param({ "400", "3200", "10000", "100000" })
     int tableCount;
 
     /** {@code before} and {@code after} of a CREATE TABLE against a keyspace already holding {@link #tableCount}. */
@@ -84,6 +84,7 @@ public class SchemaChangeBench
     private String removedTableName;
 
     /** A schema over the same keyspace, and the epoch a DDL transformation would stamp onto it. */
+    private KeyspaceMetadata updatedKeyspace;
     private DistributedSchema schema;
     private Epoch nextEpoch;
 
@@ -104,6 +105,7 @@ public class SchemaChangeBench
         diffBefore = Keyspaces.of(KeyspaceMetadata.create("ks", KeyspaceParams.simple(1), tables));
         diffAfter = Keyspaces.of(KeyspaceMetadata.create("ks", KeyspaceParams.simple(1), tables.with(addedTable)));
 
+        updatedKeyspace = KeyspaceMetadata.create("ks", KeyspaceParams.simple(1), tables.with(addedTable));
         schema = new DistributedSchema(diffBefore, Epoch.FIRST);
         nextEpoch = Epoch.FIRST.nextEpoch();
     }
@@ -134,6 +136,17 @@ public class SchemaChangeBench
     public Tables tablesWithout()
     {
         return tables.without(removedTableName);
+    }
+
+    /**
+     * The operation CreateTableStatement.apply actually performs, which no earlier benchmark covered:
+     * Keyspaces.withAddedOrUpdated removes every table of the keyspace from the by-TableId map one at a
+     * time and then re-adds them all, so a CREATE TABLE costs ~2N BTreeMap mutations rather than one.
+     */
+    @Benchmark
+    public Keyspaces keyspacesWithAddedOrUpdated()
+    {
+        return diffBefore.withAddedOrUpdated(updatedKeyspace);
     }
 
     /** CASSANDRA-21661: stamping the new epoch onto the schema a DDL transformation produced. */

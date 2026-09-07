@@ -44,7 +44,9 @@ tenuring threshold of 6
 
 == Schema Size
 
-Cassandra has been tested with clusters carrying on the order of 10,000 tables.
+Cassandra has been tested with schemas on the order of 10,000 tables; other
+distributed databases that replicate schema through a consensus log document
+limits in the same range.
 Each table retains roughly 290KiB of heap on every node, most of it metrics, so
 10,000 tables costs about 3GiB of heap before accounting for any data. Factor
 this into capacity planning for clusters with large numbers of tables.
