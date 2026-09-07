@@ -1,4 +1,5 @@
 5.0.10
+ * Failed force repair should clear force repair flag (CASSANDRA-21663)
  * A read on a replica that does not know the index yet fails with a NullPointerException (CASSANDRA-21658)
  * Release hints write buffer when the write executor shuts down (CASSANDRA-21657)
  * Fix concurrent SAI vector inserts failing once jvector's per-graph pool limit is exceeded (CASSANDRA-21644)
