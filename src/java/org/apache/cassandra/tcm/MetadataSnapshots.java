@@ -22,15 +22,19 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 public interface MetadataSnapshots
 {
@@ -93,6 +97,11 @@ public interface MetadataSnapshots
 
     class SystemKeyspaceMetadataSnapshots implements MetadataSnapshots
     {
+        // Once the serialised ClusterMetadata reaches this fraction of max_mutation_size, warn the operator
+        // that snapshots are approaching the point where storeSnapshot's single-mutation write will start
+        // failing with MutationExceededMaxSizeException.
+        private static final double SNAPSHOT_SIZE_WARNING_THRESHOLD = 0.75;
+
         @Override
         public ClusterMetadata getSnapshot(Epoch epoch)
         {
@@ -148,11 +157,39 @@ public interface MetadataSnapshots
         {
             try
             {
-                SystemKeyspace.storeSnapshot(metadata.epoch, toBytes(metadata));
+                ByteBuffer bytes = toBytes(metadata);
+                maybeWarnOnSize(metadata, bytes);
+                SystemKeyspace.storeSnapshot(metadata.epoch, bytes);
             }
             catch (IOException e)
             {
                 throw new RuntimeException(e);
+            }
+        }
+
+        /**
+         * Logs a rate-limited WARN once the serialised snapshot approaches max_mutation_size, since
+         * SystemKeyspace.storeSnapshot writes the whole blob as a single mutation and will start throwing
+         * MutationExceededMaxSizeException (silently dropping snapshots, absent this warning) once it's exceeded.
+         */
+        private void maybeWarnOnSize(ClusterMetadata metadata, ByteBuffer bytes)
+        {
+            int maxMutationSize = DatabaseDescriptor.getMaxMutationSize();
+            int serializedSize = bytes.remaining();
+            TCMMetrics.instance.recordSnapshotSize(serializedSize);
+            if (serializedSize > maxMutationSize * SNAPSHOT_SIZE_WARNING_THRESHOLD)
+            {
+                int tableCount = metadata.schema.getKeyspaces()
+                                                 .stream()
+                                                 .mapToInt(ksm -> ksm.tables.size())
+                                                 .sum();
+                NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 5, TimeUnit.MINUTES,
+                                  "Serialised cluster metadata snapshot at epoch {} is {} bytes, which is at least " +
+                                  "{}% of the max_mutation_size limit of {} bytes ({} tables in schema). Snapshots " +
+                                  "will start silently failing to store once the serialised size exceeds " +
+                                  "max_mutation_size; consider raising max_mutation_size or reducing the number of tables.",
+                                  metadata.epoch, serializedSize, (int) (SNAPSHOT_SIZE_WARNING_THRESHOLD * 100),
+                                  maxMutationSize, tableCount);
             }
         }
     }
