@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -64,18 +63,10 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
         return new DistributedSchema(Keyspaces.none(), Epoch.EMPTY);
     }
 
-    private static ImmutableMap<TableId, TableMetadata> keyspacesToTableMap(Keyspaces keyspaces)
-    {
-        ImmutableMap.Builder<TableId, TableMetadata> builder = ImmutableMap.builder();
-        keyspaces.forEach(ksm -> ksm.tablesAndViews().forEach(tbl -> builder.put(tbl.id, tbl)));
-        return builder.build();
-    }
-
     private final Keyspaces keyspaces;
     private final Epoch epoch;
     private final UUID version;
     private final Map<String, Keyspace> keyspaceInstances = new HashMap<>();
-    private final transient ImmutableMap<TableId, TableMetadata> tables;
 
     public DistributedSchema(Keyspaces keyspaces)
     {
@@ -88,7 +79,6 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
         this.keyspaces = keyspaces;
         this.epoch = epoch;
         this.version = new UUID(0, epoch.getEpoch());
-        this.tables = keyspacesToTableMap(keyspaces);
         validate();
     }
 
@@ -121,7 +111,7 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
 
     public TableMetadata getTableMetadata(TableId id)
     {
-        return tables.get(id);
+        return keyspaces.getTableOrViewNullable(id);
     }
 
     public TableMetadata getTableMetadata(String keyspace, String cf)
