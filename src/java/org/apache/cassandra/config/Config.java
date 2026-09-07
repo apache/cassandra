@@ -975,7 +975,7 @@ public class Config
     public volatile int keyspaces_warn_threshold = -1;
     public volatile int keyspaces_fail_threshold = -1;
     @Replaces(oldName = "table_count_warn_threshold", converter = Converters.TABLE_COUNT_THRESHOLD_TO_GUARDRAIL, deprecated = true)
-    public volatile int tables_warn_threshold = -1;
+    public volatile int tables_warn_threshold = 1000;
     public volatile int tables_fail_threshold = -1;
     public volatile int columns_per_table_warn_threshold = -1;
     public volatile int columns_per_table_fail_threshold = -1;
