@@ -20,6 +20,7 @@ package org.apache.cassandra.gms;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
@@ -34,7 +35,9 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
 
+import static java.nio.charset.StandardCharsets.ISO_8859_1;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class EndpointStateTest
@@ -164,5 +167,51 @@ public class EndpointStateTest
         assertTrue(values.containsKey(ApplicationState.TOKENS));
         assertTrue(values.containsKey(ApplicationState.INTERNAL_IP));
         assertTrue(values.containsKey(ApplicationState.HOST_ID));
+    }
+
+    /**
+     * TOKENS is stored as a serialized token collection wrapped in an ISO-8859-1 string purely to round-trip
+     * the raw bytes losslessly, and toString() must not print that raw data (see CASSANDRA-21417).
+     */
+    @Test
+    public void testToStringDoesNotLeakRawTokenBytes()
+    {
+        List<Token> tokens = new ArrayList<>();
+        for (int i = 0; i < 16; i++)
+            tokens.add(DatabaseDescriptor.getPartitioner().getRandomToken());
+
+        HeartBeatState hb = new HeartBeatState(0);
+        EndpointState state = new EndpointState(hb);
+        VersionedValue tokensValue = valueFactory.tokens(tokens);
+        state.addApplicationState(ApplicationState.TOKENS, tokensValue);
+        state.addApplicationState(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
+
+        String rendered = state.toString();
+
+        assertTrue(rendered.contains("TOKENS=Value(<16 tokens>," + tokensValue.version + ')'));
+        assertFalse(rendered.contains(tokensValue.value));
+        // other states still render normally
+        assertTrue(rendered.contains("RELEASE_VERSION=Value("));
+    }
+
+    /**
+     * If the TOKENS value can't be deserialized for some reason, toString() must still avoid printing the
+     * raw bytes rather than throwing. Uses a truncated-but-otherwise-valid length-prefixed token blob (claims
+     * a 5 byte token but only supplies 2) so deserialization fails with a plain EOFException, rather than
+     * arbitrary garbage bytes whose first 4 bytes can decode to a huge length prefix and make
+     * TokenSerializer attempt a multi-gigabyte array allocation (see CASSANDRA-21417 discussion).
+     */
+    @Test
+    public void testToStringHandlesUndecodableTokensValue()
+    {
+        HeartBeatState hb = new HeartBeatState(0);
+        EndpointState state = new EndpointState(hb);
+        byte[] truncatedTokenBytes = { 0, 0, 0, 5, 'a', 'b' }; // claims a 5-byte token, only 2 bytes follow
+        String truncatedTokenBlob = new String(truncatedTokenBytes, ISO_8859_1);
+        state.addApplicationState(ApplicationState.TOKENS, VersionedValue.unsafeMakeVersionedValue(truncatedTokenBlob, 1));
+
+        String rendered = state.toString();
+
+        assertTrue(rendered.contains("TOKENS=Value(<6 undecodable bytes>,1)"));
     }
 }
