@@ -806,10 +806,9 @@ public class CQLSSTableWriter implements Closeable
                 ModificationStatement preparedModificationStatement = prepareModificationStatement();
 
                 TableMetadataRef ref = tableMetadata.ref;
-                SSTableId.Builder<? extends SSTableId> effectiveIdBuilder = idBuilder != null ? idBuilder : SSTableIdFactory.instance.defaultBuilder();
                 AbstractSSTableSimpleWriter writer = sorted
-                                                     ? new SSTableSimpleWriter(cfs, directory, ref, preparedModificationStatement.updatedColumns(), maxSSTableSizeInMiB, effectiveIdBuilder)
-                                                     : new SSTableSimpleUnsortedWriter(cfs, directory, ref, preparedModificationStatement.updatedColumns(), maxSSTableSizeInMiB, effectiveIdBuilder);
+                                                     ? new SSTableSimpleWriter(cfs, directory, ref, preparedModificationStatement.updatedColumns(), maxSSTableSizeInMiB, idBuilder)
+                                                     : new SSTableSimpleUnsortedWriter(cfs, directory, ref, preparedModificationStatement.updatedColumns(), maxSSTableSizeInMiB, idBuilder);
 
                 if (format != null)
                     writer.setSSTableFormatType(format);
