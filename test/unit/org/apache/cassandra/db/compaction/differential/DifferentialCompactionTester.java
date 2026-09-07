@@ -1009,13 +1009,11 @@ public abstract class DifferentialCompactionTester extends CQLTester
         // 1. the output really is in the format this scenario selected
         assertOutputFormatIsSelected(sstable);
 
-        // 2. structural verification of the output. In scale mode the verifier's debug
-        // stream must be silenced: the extended index walk debug-logs EVERY index block
-        // (~560K lines for a >2GiB partition), and ant's junit formatter buffers all test
-        // output in memory — the log volume, not the verification, OOMs the fork.
-        OutputHandler verifyOutput = scaleCapture()
-            ? new OutputHandler.LogOutput() { @Override public void debug(String msg) {} }
-            : new OutputHandler.LogOutput();
+        // 2. structural verification of the output. The verifier's debug stream is always
+        // silenced: the extended index walk debug-logs EVERY index block, and ant's junit
+        // formatter buffers all test output in memory, so the log volume OOMs the fork.
+        // Verification is unaffected; a failure arrives as an exception, not as narration.
+        OutputHandler verifyOutput = new OutputHandler.LogOutput() { @Override public void debug(String msg) {} };
         try (IVerifier verifier = sstable.getVerifier(cfs, verifyOutput, false,
                                                       IVerifier.options().invokeDiskFailurePolicy(true)
                                                                          .extendedVerification(true).build()))
