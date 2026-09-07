@@ -17,8 +17,10 @@
  */
 package org.apache.cassandra.schema;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -50,6 +52,18 @@ public final class Keyspaces implements Iterable<KeyspaceMetadata>
     public static Keyspaces none()
     {
         return NONE;
+    }
+
+    public static Keyspaces of(Iterable<KeyspaceMetadata> keyspaces)
+    {
+        BTreeMap<String, KeyspaceMetadata> newKeyspaces = BTreeMap.empty();
+        BTreeMap<TableId, TableMetadata> newTables = BTreeMap.empty();
+        for (KeyspaceMetadata ks : keyspaces)
+        {
+            newKeyspaces = newKeyspaces.with(ks.name, ks);
+            newTables = withTablesViews(newTables, ks);
+        }
+        return new Keyspaces(newKeyspaces, newTables);
     }
 
     public static Keyspaces of(KeyspaceMetadata... keyspaces)
@@ -281,18 +295,43 @@ public final class Keyspaces implements Iterable<KeyspaceMetadata>
             if (before == after)
                 return NONE;
 
-            Keyspaces created = after.filter(k -> !before.containsKeyspace(k.name));
-            Keyspaces dropped = before.filter(k -> !after.containsKeyspace(k.name));
-
+            // Collect created and dropped keyspaces directly. filter() removes non-matching keyspaces from a copy of
+            // the by-TableId map one table at a time, so building these by filtering costs one BTreeMap removal per
+            // table in the cluster - on every diff, and several diffs are performed per schema change.
+            List<KeyspaceMetadata> created = null;
+            List<KeyspaceMetadata> dropped = null;
             ImmutableList.Builder<KeyspaceDiff> altered = ImmutableList.builder();
-            before.forEach(keyspaceBefore ->
+
+            for (KeyspaceMetadata keyspaceAfter : after)
+            {
+                if (!before.containsKeyspace(keyspaceAfter.name))
+                {
+                    if (created == null)
+                        created = new ArrayList<>();
+                    created.add(keyspaceAfter);
+                }
+            }
+
+            for (KeyspaceMetadata keyspaceBefore : before)
             {
                 KeyspaceMetadata keyspaceAfter = after.getNullable(keyspaceBefore.name);
-                if (null != keyspaceAfter)
+                if (null == keyspaceAfter)
+                {
+                    if (dropped == null)
+                        dropped = new ArrayList<>();
+                    dropped.add(keyspaceBefore);
+                }
+                else if (keyspaceAfter != keyspaceBefore)
+                {
+                    // Identity means nothing in this keyspace changed; KeyspaceDiff.diff would reach the same
+                    // conclusion, but only after walking the keyspace.
                     KeyspaceMetadata.diff(keyspaceBefore, keyspaceAfter).ifPresent(altered::add);
-            });
+                }
+            }
 
-            return new KeyspacesDiff(created, dropped, altered.build());
+            return new KeyspacesDiff(created == null ? Keyspaces.none() : Keyspaces.of(created),
+                                     dropped == null ? Keyspaces.none() : Keyspaces.of(dropped),
+                                     altered.build());
         }
 
         public boolean isEmpty()

@@ -284,18 +284,48 @@ public final class Tables implements Iterable<TableMetadata>
             if (before == after)
                 return NONE;
 
-            Tables created = after.filter(t -> !before.containsTable(t.id));
-            Tables dropped = before.filter(t -> !after.containsTable(t.id));
-
+            // Collect the differences directly instead of filtering whole collections: a schema change touches a
+            // handful of tables, so allocating only for those keeps the cost of a diff proportional to what actually
+            // changed rather than to the size of the schema.
+            Builder created = null;
+            Builder dropped = null;
             ImmutableList.Builder<Altered<TableMetadata>> altered = ImmutableList.builder();
-            before.forEach(tableBefore ->
+
+            for (TableMetadata tableAfter : after)
+            {
+                if (!before.containsTable(tableAfter.id))
+                {
+                    if (created == null)
+                        created = builder();
+                    created.add(tableAfter);
+                }
+            }
+
+            for (TableMetadata tableBefore : before)
             {
                 TableMetadata tableAfter = after.getNullable(tableBefore.id);
-                if (null != tableAfter)
+                if (null == tableAfter)
+                {
+                    if (dropped == null)
+                        dropped = builder();
+                    dropped.add(tableBefore);
+                }
+                else if (tableAfter != tableBefore)
+                {
+                    // Untouched tables are carried over by reference (Builder.add stores the instance verbatim), and
+                    // compare() of an instance against itself is empty by construction, so identity is a sound and
+                    // exact substitute for the comparison here.
                     tableBefore.compare(tableAfter).ifPresent(kind -> altered.add(new Altered<>(tableBefore, tableAfter, kind)));
-            });
+                }
+            }
 
-            return new TablesDiff(created, dropped, altered.build());
+            ImmutableList<Altered<TableMetadata>> alteredTables = altered.build();
+            if (created == null && dropped == null && alteredTables.isEmpty())
+                return NONE;
+
+            return new TablesDiff(created == null ? Tables.none() : created.build(),
+                                  dropped == null ? Tables.none() : dropped.build(),
+                                  alteredTables);
         }
     }
 
