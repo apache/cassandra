@@ -6222,6 +6222,17 @@ public class DatabaseDescriptor
         return conf.cms_default_max_retry_backoff;
     }
 
+    public static DurationSpec.IntMillisecondsBound getSchemaFlushCoalescingWindow()
+    {
+        return conf.schema_flush_coalescing_window;
+    }
+
+    @VisibleForTesting
+    public static void setSchemaFlushCoalescingWindow(DurationSpec.IntMillisecondsBound window)
+    {
+        conf.schema_flush_coalescing_window = window;
+    }
+
     public static String getCMSRetryDelay()
     {
         return conf.cms_retry_delay;

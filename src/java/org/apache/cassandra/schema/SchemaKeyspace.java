@@ -97,7 +97,6 @@ import static java.lang.String.format;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_CORRUPTED_SCHEMA_TABLES;
-import static org.apache.cassandra.config.CassandraRelevantProperties.SCHEMA_FLUSH_COALESCE_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_FLUSH_LOCAL_SCHEMA_CHANGES;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
@@ -416,8 +415,8 @@ public final class SchemaKeyspace
 
     /**
      * Flushes every {@code system_schema} table to disk, blocking until all flushes complete.
-     * Called synchronously on every schema change when {@link CassandraRelevantProperties#SCHEMA_FLUSH_COALESCE_MS}
-     * is set to {@code -1} (legacy behaviour), and always on drain/shutdown.
+     * Called synchronously on every schema change when {@link DatabaseDescriptor#getSchemaFlushCoalescingWindow()}
+     * is set to {@code 0ms} (legacy behaviour), and always on drain/shutdown.
      */
     public static void flushBlocking()
     {
@@ -433,9 +432,9 @@ public final class SchemaKeyspace
 
     /**
      * Flushes {@code system_schema} following the policy configured by
-     * {@link CassandraRelevantProperties#SCHEMA_FLUSH_COALESCE_MS}: synchronously if set to a negative value
+     * {@link DatabaseDescriptor#getSchemaFlushCoalescingWindow()}: synchronously if the window is {@code 0ms}
      * (legacy behaviour), otherwise asynchronously, coalescing any schema changes that arrive while a flush is
-     * scheduled or in flight into a single flush.
+     * scheduled or in flight into a single flush, at most one per window.
      *
      * Package-private (rather than private) so it can be exercised directly by SchemaFlushCoalesceTest,
      * independently of the {@link #FLUSH_SCHEMA_TABLES} gate applied at the {@link #applyChanges} call site.
@@ -443,8 +442,8 @@ public final class SchemaKeyspace
     @VisibleForTesting
     static void scheduleFlush()
     {
-        int coalesceMs = SCHEMA_FLUSH_COALESCE_MS.getInt();
-        if (coalesceMs < 0)
+        int coalesceMs = DatabaseDescriptor.getSchemaFlushCoalescingWindow().toMilliseconds();
+        if (coalesceMs == 0)
         {
             flushBlocking();
             return;

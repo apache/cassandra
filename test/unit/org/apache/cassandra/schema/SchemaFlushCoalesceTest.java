@@ -23,11 +23,12 @@ import org.junit.After;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.SCHEMA_FLUSH_COALESCE_MS;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.Assert.assertEquals;
 
@@ -36,25 +37,25 @@ import static org.junit.Assert.assertEquals;
  * {@code cassandra.test.flush_local_schema_changes} gate at the {@link SchemaKeyspace#applyChanges} call site
  * (build.xml sets that property to false for the unit test suite, so ordinary CQLTester-driven DDL never reaches
  * scheduleFlush() in this test run; scheduleFlush() itself has no such gate, so calling it directly still
- * exercises the real coalescing/async/sync behaviour under test).
+ * exercises the real coalescing/sync behaviour under test).
  */
 public class SchemaFlushCoalesceTest extends CQLTester
 {
     @After
-    public void resetCoalesceProperty()
+    public void resetCoalesceWindow()
     {
         // restore the documented default
-        SCHEMA_FLUSH_COALESCE_MS.setInt(1000);
+        DatabaseDescriptor.setSchemaFlushCoalescingWindow(new DurationSpec.IntMillisecondsBound("1000ms"));
     }
 
     /**
-     * coalesceMs >= 0: scheduleFlush() must not block the calling thread, and repeated rapid calls (as would
+     * window > 0: scheduleFlush() must not block the calling thread, and repeated rapid calls (as would
      * happen for a burst of DDL statements) must be coalesced into a single scheduled flush, not one per call.
      */
     @Test
     public void testAsynchronousCoalescedFlush() throws Throwable
     {
-        SCHEMA_FLUSH_COALESCE_MS.setInt(50);
+        DatabaseDescriptor.setSchemaFlushCoalescingWindow(new DurationSpec.IntMillisecondsBound("50ms"));
 
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
 
@@ -87,34 +88,13 @@ public class SchemaFlushCoalesceTest extends CQLTester
     }
 
     /**
-     * coalesceMs == 0: still asynchronous (scheduled with a zero delay), not a direct synchronous call.
-     */
-    @Test
-    public void testZeroCoalesceIsStillAsynchronous() throws Throwable
-    {
-        SCHEMA_FLUSH_COALESCE_MS.setInt(0);
-
-        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
-
-        ColumnFamilyStore tablesCfs = schemaCfs(SchemaKeyspaceTables.TABLES);
-        long switchesBefore = tablesCfs.metric.memtableSwitchCount.getCount();
-
-        SchemaKeyspace.scheduleFlush();
-
-        Util.spinAssert("system_schema tables flush completes promptly with coalesce=0",
-                         greaterThan(switchesBefore),
-                         () -> tablesCfs.metric.memtableSwitchCount.getCount(),
-                         5, TimeUnit.SECONDS);
-    }
-
-    /**
-     * coalesceMs == -1: legacy behaviour. scheduleFlush() must flush synchronously, so the flush is visible
+     * window == 0ms: legacy behaviour. scheduleFlush() must flush synchronously, so the flush is visible
      * immediately after the call returns, with no polling required.
      */
     @Test
-    public void testLegacySynchronousFlush() throws Throwable
+    public void testZeroWindowIsSynchronousFlush() throws Throwable
     {
-        SCHEMA_FLUSH_COALESCE_MS.setInt(-1);
+        DatabaseDescriptor.setSchemaFlushCoalescingWindow(new DurationSpec.IntMillisecondsBound("0ms"));
 
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
 
