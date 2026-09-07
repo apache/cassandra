@@ -67,7 +67,7 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
         this.metadata = metadata;
         this.directory = directory;
         this.columns = columns;
-        this.idBuilder = idBuilder;
+        this.idBuilder = idBuilder != null ? idBuilder : SSTableIdFactory.instance.defaultBuilder();
         indexGroups = new ArrayList<>();
     }
 
