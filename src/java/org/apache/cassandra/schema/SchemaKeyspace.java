@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -43,6 +44,7 @@ import org.antlr.runtime.RecognitionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -95,6 +97,7 @@ import static java.lang.String.format;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_CORRUPTED_SCHEMA_TABLES;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SCHEMA_FLUSH_COALESCE_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_FLUSH_LOCAL_SCHEMA_CHANGES;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
@@ -411,10 +414,59 @@ public final class SchemaKeyspace
         ALL.reverse().forEach(table -> getSchemaCFS(table).truncateBlocking());
     }
 
-    private static void flush()
+    /**
+     * Flushes every {@code system_schema} table to disk, blocking until all flushes complete.
+     * Called synchronously on every schema change when {@link CassandraRelevantProperties#SCHEMA_FLUSH_COALESCE_MS}
+     * is set to {@code -1} (legacy behaviour), and always on drain/shutdown.
+     */
+    public static void flushBlocking()
     {
         if (!DatabaseDescriptor.isUnsafeSystem())
             ALL.forEach(table -> FBUtilities.waitOnFuture(getSchemaCFS(table).forceFlush(ColumnFamilyStore.FlushReason.INTERNALLY_FORCED)));
+    }
+
+    /**
+     * Tracks whether a coalesced flush is currently scheduled, so that concurrent/rapid schema changes do not
+     * each schedule their own task on {@link ScheduledExecutors#nonPeriodicTasks}.
+     */
+    private static final AtomicBoolean flushScheduled = new AtomicBoolean(false);
+
+    /**
+     * Flushes {@code system_schema} following the policy configured by
+     * {@link CassandraRelevantProperties#SCHEMA_FLUSH_COALESCE_MS}: synchronously if set to a negative value
+     * (legacy behaviour), otherwise asynchronously, coalescing any schema changes that arrive while a flush is
+     * scheduled or in flight into a single flush.
+     *
+     * Package-private (rather than private) so it can be exercised directly by SchemaFlushCoalesceTest,
+     * independently of the {@link #FLUSH_SCHEMA_TABLES} gate applied at the {@link #applyChanges} call site.
+     */
+    @VisibleForTesting
+    static void scheduleFlush()
+    {
+        int coalesceMs = SCHEMA_FLUSH_COALESCE_MS.getInt();
+        if (coalesceMs < 0)
+        {
+            flushBlocking();
+            return;
+        }
+
+        if (flushScheduled.compareAndSet(false, true))
+        {
+            ScheduledExecutors.nonPeriodicTasks.schedule(() -> {
+                // Reset before flushing, not after, so that schema changes which arrive while this flush is
+                // running schedule the next flush rather than being folded (silently) into this one.
+                flushScheduled.set(false);
+                try
+                {
+                    if (!DatabaseDescriptor.isUnsafeSystem())
+                        flushBlocking();
+                }
+                catch (Throwable t)
+                {
+                    logger.warn("Failed to flush system_schema tables", t);
+                }
+            }, coalesceMs, TimeUnit.MILLISECONDS);
+        }
     }
 
     /**
@@ -1490,7 +1542,7 @@ public final class SchemaKeyspace
     {
         mutations.forEach(Mutation::apply);
         if (SchemaKeyspace.FLUSH_SCHEMA_TABLES)
-            SchemaKeyspace.flush();
+            SchemaKeyspace.scheduleFlush();
     }
 
     static Keyspaces fetchKeyspaces(Set<String> toFetch)
