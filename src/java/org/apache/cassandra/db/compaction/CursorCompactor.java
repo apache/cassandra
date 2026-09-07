@@ -372,8 +372,8 @@ public class CursorCompactor extends CompactionInfo.Holder
     /**
      * Scratch for {@link #anyMergedCellDeadAtNow}, which walks a row's cells and then puts the
      * cursors back. The arrays hold the cursor ORDER and the equals-next flags that its sorts
-     * overwrite, and the per-cursor state that tells it which cursors to rewind. All three are
-     * null unless the table enforces strict liveness.
+     * overwrite, and the per-cursor state that tells it which cursors to rewind. Only a table
+     * that enforces strict liveness ever reads them.
      */
     private final StatefulCursor[] probeCursorOrder;
     private final boolean[] probeEqualsNext;
@@ -462,25 +462,11 @@ public class CursorCompactor extends CompactionInfo.Holder
     {
         this.controller = controller;
         this.type = type;
-        // mirror CompactionIterator.purger(): accord-enabled (and accord-migrating) tables
-        // purge and expire relative to gcBefore — derived from accord's durability bounds by
-        // CompactionTask.getCompactionController — retaining data accord may still read at
-        // earlier timestamps; every nowInSec use below is a purge/expiry decision
-        TableMetadata tableMetadata = controller.cfs.metadata();
-        this.nowInSec = tableMetadata.isAccordEnabled() || tableMetadata.migratingFromAccord()
-                        ? controller.gcBefore
-                        : nowInSec;
+        this.nowInSec = purgeTimestamp(controller, nowInSec);
         this.compactionId = compactionId;
 
-        long inputBytes = 0;
-        long compressedInputBytes = 0;
-        for (ISSTableScanner scanner : scanners)
-        {
-            inputBytes += scanner.getLengthInBytes();
-            compressedInputBytes += scanner.getCompressedLengthInBytes();
-        }
-        this.totalInputBytes = inputBytes;
-        this.totalCompressedInputBytes = compressedInputBytes;
+        this.totalInputBytes = sumLength(scanners);
+        this.totalCompressedInputBytes = sumCompressedLength(scanners);
         this.partitionMergeCounters = new long[scanners.size()];
         this.staticRowMergeCounters = new long[partitionMergeCounters.length];
         this.rowMergeCounters = new long[partitionMergeCounters.length];
@@ -494,14 +480,7 @@ public class CursorCompactor extends CompactionInfo.Holder
         this.activeCompactions.beginCompaction(this); // note that CompactionTask also calls this, but CT only creates CompactionIterator with a NOOP ActiveCompactions
 
         TableMetadata metadata = metadata();
-        // the INPUT headers decide whether static rows can occur in this merge (and the output
-        // header, SerializationHeader.make, is their union): after ALTER TABLE ... DROP of the
-        // last static column, current metadata has no static columns but older sstables
-        // legitimately still carry static rows
-        boolean anyStaticColumns = false;
-        for (SSTableReader sstable : this.sstables)
-            anyStaticColumns |= sstable.header.hasStatic();
-        this.hasStaticColumns = anyStaticColumns;
+        this.hasStaticColumns = anyStaticColumns(this.sstables);
         /**
          * Pipeline should end up similar to the one in {@link CompactionIterator}:
          * [MERGED -> ?TopPartitionTracker -> GarbageSkipper -> Purger -> org.apache.cassandra.db.transform.DuplicateRowChecker -> Abortable] -> next()
@@ -518,10 +497,10 @@ public class CursorCompactor extends CompactionInfo.Holder
         this.sstableCursors = convertScannersToCursors(scanners, sstables, DatabaseDescriptor.getCompactionReadDiskAccessMode());
         this.sstableCursorsEqualsNext = new boolean[sstables.size()];
         this.enforceStrictLiveness = controller.cfs.metadata.get().enforceStrictLiveness();
-        this.probeCursorOrder = enforceStrictLiveness ? new StatefulCursor[sstableCursors.length] : null;
-        this.probeEqualsNext = enforceStrictLiveness ? new boolean[sstableCursors.length] : null;
-        this.probeCursorState = enforceStrictLiveness ? new int[sstableCursors.length] : null;
-        this.probeComplexDeletion = enforceStrictLiveness ? DeletionTime.ReusableDeletionTime.live() : null;
+        this.probeCursorOrder = new StatefulCursor[sstableCursors.length];
+        this.probeEqualsNext = new boolean[sstableCursors.length];
+        this.probeCursorState = new int[sstableCursors.length];
+        this.probeComplexDeletion = DeletionTime.ReusableDeletionTime.live();
 
         purger = new Purger(type, controller);
 
@@ -531,6 +510,48 @@ public class CursorCompactor extends CompactionInfo.Holder
         // the table comparator above. Each parses a clustering with its own clusteringTypes, so
         // all of them must parse identically.
         assert clusteringParsingAgrees() : "the cursors disagree on how to parse a clustering: " + metadata;
+    }
+
+    /**
+     * Mirrors {@link CompactionIterator}'s purger: accord-enabled (and accord-migrating) tables
+     * purge and expire relative to gcBefore — derived from accord's durability bounds by
+     * CompactionTask.getCompactionController — retaining data accord may still read at earlier
+     * timestamps. Every nowInSec use in this class is a purge/expiry decision.
+     */
+    private static long purgeTimestamp(AbstractCompactionController controller, long nowInSec)
+    {
+        TableMetadata metadata = controller.cfs.metadata();
+        return metadata.isAccordEnabled() || metadata.migratingFromAccord() ? controller.gcBefore : nowInSec;
+    }
+
+    private static long sumLength(List<ISSTableScanner> scanners)
+    {
+        long bytes = 0;
+        for (ISSTableScanner scanner : scanners)
+            bytes += scanner.getLengthInBytes();
+        return bytes;
+    }
+
+    private static long sumCompressedLength(List<ISSTableScanner> scanners)
+    {
+        long bytes = 0;
+        for (ISSTableScanner scanner : scanners)
+            bytes += scanner.getCompressedLengthInBytes();
+        return bytes;
+    }
+
+    /**
+     * The INPUT headers decide whether static rows can occur in this merge, and the output header,
+     * SerializationHeader.make, is their union. After ALTER TABLE ... DROP of the last static
+     * column, current metadata has no static columns but older sstables legitimately still carry
+     * static rows.
+     */
+    private static boolean anyStaticColumns(Iterable<SSTableReader> sstables)
+    {
+        for (SSTableReader sstable : sstables)
+            if (sstable.header.hasStatic())
+                return true;
+        return false;
     }
 
     /** @see #lastWrittenUnfiltered */
