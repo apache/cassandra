@@ -35,7 +35,7 @@ public class TypeConverterRegistry
 
     static
     {
-        register(boolean.class, (TypeConverter<Boolean>) Boolean::parseBoolean);
+        register(boolean.class, (TypeConverter<Boolean>) TypeConverterRegistry::parseStrictBoolean);
         register(int.class, (TypeConverter<Integer>) Integer::parseInt);
         register(long.class, (TypeConverter<Long>) Long::parseLong);
         register(double.class, (TypeConverter<Double>) Double::parseDouble);
@@ -47,7 +47,7 @@ public class TypeConverterRegistry
                 throw new IllegalArgumentException("Cannot convert to char: " + value);
             return value.charAt(0);
         });
-        register(Boolean.class, (TypeConverter<Boolean>) Boolean::parseBoolean);
+        register(Boolean.class, (TypeConverter<Boolean>) TypeConverterRegistry::parseStrictBoolean);
         register(Integer.class, (TypeConverter<Integer>) Integer::parseInt);
         register(Long.class, (TypeConverter<Long>) Long::parseLong);
         register(Double.class, (TypeConverter<Double>) Double::parseDouble);
@@ -66,6 +66,15 @@ public class TypeConverterRegistry
     private static void register(Class<?> type, TypeConverter<?> converter)
     {
         converters.put(type, converter);
+    }
+
+    private static boolean parseStrictBoolean(String value)
+    {
+        if ("true".equalsIgnoreCase(value))
+            return true;
+        if ("false".equalsIgnoreCase(value))
+            return false;
+        throw new IllegalArgumentException("Cannot convert to boolean: " + value);
     }
 
     public static <T> Object convertValueBasic(Object value, Class<T> targetType) throws Exception

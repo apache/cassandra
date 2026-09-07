@@ -176,6 +176,11 @@ public class CommandMBeanAdapter implements DynamicMBean
                 logger.error("Error executing command: {}", metadata.name(), e);
                 throw new RuntimeException(ManagementUtils.causeMessages(e));
             }
+            catch (IllegalArgumentException | IllegalStateException e)
+            {
+                logger.error("Bad usage for command: {}", metadata.name(), e);
+                throw e;
+            }
             catch (Exception e)
             {
                 logger.error("Unexpected error executing command: {}", metadata.name(), e);

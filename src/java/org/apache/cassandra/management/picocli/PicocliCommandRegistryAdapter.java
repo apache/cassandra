@@ -83,7 +83,7 @@ public class PicocliCommandRegistryAdapter implements CommandRegistry
 
         if (!subcommandSpec.subcommands().isEmpty())
         {
-            adaptedCommand = new PicocliCommandRegistryAdapter(command.getCommand());
+            adaptedCommand = new PicocliCommandRegistryAdapter((Class<? extends AbstractCommand>) command.getCommand().getClass());
         }
         else
         {
