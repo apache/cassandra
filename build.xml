@@ -549,6 +549,7 @@
 
     <target name="clean" description="Remove all locally created artifacts">
         <delete dir="${build.test.dir}" />
+        <delete dir="${autocomplete.dir}"/>
         <delete dir="${build.dir}/tmp" />
         <delete dir="${build.classes}" />
         <delete dir="${build.src.gen-java}" />
@@ -1047,7 +1048,7 @@
     </target>
 
     <target name="jar"
-            depends="_main-jar,build-test,stress-jar,fqltool-jar,simulator-jars,sstableloader-jar,write-poms"
+            depends="_main-jar,build-test,stress-jar,fqltool-jar,simulator-jars,sstableloader-jar,write-poms,gen-autocomplete"
             description="Assemble Cassandra JAR files">
     </target>
 
@@ -1122,6 +1123,7 @@
           <include name=".snyk" />
         </fileset>
       </copy>
+      <copy file="${autocomplete.dir}/nodetool" tofile="${dist.dir}/tools/autocomplete/nodetool"/>
       <copy todir="${dist.dir}/tools/bin">
         <fileset dir="${basedir}/tools/bin"/>
       </copy>
@@ -2435,4 +2437,5 @@
   <import file="${build.helpers.dir}/build-sonar.xml"/>
   <import file="${build.helpers.dir}/build-accord.xml" />
   <import file="${basedir}/tools/sstableloader/build.xml"/>
+  <import file="${build.helpers.dir}/build-autocomplete.xml"/>
 </project>
