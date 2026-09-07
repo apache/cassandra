@@ -138,6 +138,20 @@ public class DroppedColumnDifferentialCompactionTest extends DifferentialCompact
     }
 
     @Test
+    public void droppedComplexCellsExcludedFromReadResponse() throws Exception
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, v int, m map<text, int>, PRIMARY KEY (pk, ck))");
+
+        execute("UPDATE %s USING TIMESTAMP " + FUTURE_TS + " SET v = 5, m['a'] = 1 WHERE pk = 0 AND ck = 0");
+        flush();
+        alterTable("ALTER TABLE %s DROP m");
+
+        SinglePartitionReadCommand command = parseReadCommandGroupQueries("SELECT v FROM %s WHERE pk = 0").get(0);
+        ReadCommandVerbHandler.instance.doRead(command, false);
+        assertRows(execute("SELECT v FROM %s WHERE pk = 0"), row(5));
+    }
+
+    @Test
     public void droppedComplexCellsDoNotConsumeReadLimit() throws Throwable
     {
         createTable("CREATE TABLE %s (pk bigint, ck bigint, v bigint, m map<text, bigint>, PRIMARY KEY (pk, ck))");

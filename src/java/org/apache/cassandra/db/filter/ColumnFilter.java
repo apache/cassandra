@@ -760,7 +760,7 @@ public abstract class ColumnFilter
         @Override
         public boolean fetches(ColumnMetadata column)
         {
-            return fetchingStrategy.fetchesAllColumns(column.isStatic()) || fetched.contains(column);
+            return fetched.contains(column);
         }
 
         /**
