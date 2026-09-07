@@ -851,18 +851,26 @@ public class CursorCompactor extends CompactionInfo.Holder
             skipRowsOnStrictLiveness(rowMergeLimit, isStatic);
         }
         else
-        {
-            isRowDropped = mergeRowCells(rowMergeLimit, rowActiveDeletion, isRowDropped, isStatic);
-            if (!isRowDropped)
-                ssTableCursorWriter.writeRowEnd(sstableCursors[0].unfiltered(), isFirstUnfiltered);
-        }
-        if (isRowDropped && isStatic &&
-            isPartitionStarted())
-            // if the partition write has not started, keep delaying it, might be an empty partition (purged+no data)
-        {
-            ssTableCursorWriter.writeEmptyStaticRow();
-        }
+            isRowDropped = mergeAndWriteRow(rowMergeLimit, rowActiveDeletion, isRowDropped, isStatic, isFirstUnfiltered);
+
+        maybeWriteEmptyStaticRow(isRowDropped, isStatic);
         return !isRowDropped;
+    }
+
+    /** @return true if the cell merge dropped the row, in which case nothing was written. */
+    private boolean mergeAndWriteRow(int rowMergeLimit, DeletionTime rowActiveDeletion, boolean isRowDropped, boolean isStatic, boolean isFirstUnfiltered) throws IOException
+    {
+        isRowDropped = mergeRowCells(rowMergeLimit, rowActiveDeletion, isRowDropped, isStatic);
+        if (!isRowDropped)
+            ssTableCursorWriter.writeRowEnd(sstableCursors[0].unfiltered(), isFirstUnfiltered);
+        return isRowDropped;
+    }
+
+    private void maybeWriteEmptyStaticRow(boolean isRowDropped, boolean isStatic) throws IOException
+    {
+        // if the partition write has not started, keep delaying it, might be an empty partition (purged+no data)
+        if (isRowDropped && isStatic && isPartitionStarted())
+            ssTableCursorWriter.writeEmptyStaticRow();
     }
 
     /**
