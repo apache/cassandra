@@ -142,7 +142,10 @@ public final class JsonUtils
     {
         try
         {
-            return JSON_OBJECT_MAPPER.readValue(json, Map.class);
+            Map<String, T> result = JSON_OBJECT_MAPPER.readValue(json, Map.class);
+            if (result == null)
+                throw new MarshalException("Error decoding JSON string: expected an object, got null");
+            return result;
         }
         catch (IOException ex)
         {
@@ -154,7 +157,10 @@ public final class JsonUtils
     {
         try
         {
-            return JSON_OBJECT_MAPPER.readValue(bytes, Map.class);
+            Map<String, T> result = JSON_OBJECT_MAPPER.readValue(bytes, Map.class);
+            if (result == null)
+                throw new MarshalException("Error decoding JSON: expected an object, got null");
+            return result;
         }
         catch (IOException ex)
         {
