@@ -15,6 +15,7 @@ debian/cassandra-sysctl.conf etc/sysctl.d
 bin/cassandra.in.sh usr/share/cassandra
 bin/cassandra usr/sbin
 bin/nodetool usr/bin
+tools/autocomplete/nodetool usr/share/bash-completion/completions
 bin/sstableutil usr/bin
 bin/cqlsh usr/bin
 bin/cqlsh.py usr/bin
