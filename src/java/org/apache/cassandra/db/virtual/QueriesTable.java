@@ -25,8 +25,8 @@ import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.AccordExecutor;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
 
 import static java.lang.Long.max;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;

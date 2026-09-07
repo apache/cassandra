@@ -467,7 +467,7 @@ public class RepairOption
 
     public boolean permitNoQuorum()
     {
-        return repairAccord;
+        return permitNoQuorum;
     }
 
     public boolean dontPurgeTombstones()

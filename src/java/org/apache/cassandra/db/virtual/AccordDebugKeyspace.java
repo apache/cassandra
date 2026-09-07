@@ -71,9 +71,9 @@ import accord.local.CommandStores.LatentStoreSelector;
 import accord.local.Commands;
 import accord.local.Commands.NotifyWaitingOnPlus;
 import accord.local.DurableBefore;
+import accord.local.ExecutionContext;
 import accord.local.MaxConflicts;
 import accord.local.Node;
-import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.StoreParticipants;
@@ -132,11 +132,8 @@ import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.AccordCache;
-import org.apache.cassandra.service.accord.AccordCacheEntry;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandStores;
-import org.apache.cassandra.service.accord.AccordExecutor;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordOperations;
 import org.apache.cassandra.service.accord.AccordService;
@@ -154,6 +151,10 @@ import org.apache.cassandra.service.accord.debug.DebugTxnDepsAll;
 import org.apache.cassandra.service.accord.debug.DebugTxnDepsOrdered;
 import org.apache.cassandra.service.accord.debug.DebugTxnGraph;
 import org.apache.cassandra.service.accord.debug.TxnKindsAndDomains;
+import org.apache.cassandra.service.accord.execution.AccordCache;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
+import org.apache.cassandra.service.accord.execution.TaskInfo;
 import org.apache.cassandra.service.accord.journal.AccordJournal;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.service.consensus.migration.TableMigrationState;
@@ -331,22 +332,22 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 int executorId = executor.executorId();
                 collector.partition(executorId).collect(rows -> {
                     int uniquePos = 0;
-                    AccordExecutor.TaskInfo prev = null;
-                    for (AccordExecutor.TaskInfo info : executor.taskSnapshot())
+                    TaskInfo prev = null;
+                    for (TaskInfo info : executor.taskSnapshot())
                     {
                         if (prev != null && info.status() == prev.status() && info.position() == prev.position()) ++uniquePos;
                         else uniquePos = 0;
                         prev = info;
-                        PreLoadContext preLoadContext = info.preLoadContext();
+                        ExecutionContext executionContext = info.preLoadContext();
                         rows.add(info.status().name(), info.position(), uniquePos)
                                  .lazyCollect(columns -> {
                                      columns.add("description", info.describe())
                                             .add("command_store_id", info.commandStoreId())
-                                            .add("txn_id", preLoadContext, PreLoadContext::primaryTxnId, TO_STRING)
-                                            .add("txn_id_additional", preLoadContext, PreLoadContext::additionalTxnId, TO_STRING)
-                                            .add("keys", preLoadContext, PreLoadContext::keys, TO_STRING)
-                                            .add("keys_loading", preLoadContext, PreLoadContext::loadKeys, TO_STRING)
-                                            .add("keys_loading_for", preLoadContext, PreLoadContext::loadKeysFor, TO_STRING);
+                                            .add("txn_id", executionContext, ExecutionContext::primaryTxnId, TO_STRING)
+                                            .add("txn_id_additional", executionContext, ExecutionContext::additionalTxnId, TO_STRING)
+                                            .add("keys", executionContext, ExecutionContext::keys, TO_STRING)
+                                            .add("keys_loading", executionContext, ExecutionContext::loadKeys, TO_STRING)
+                                            .add("keys_loading_for", executionContext, ExecutionContext::loadKeysFor, TO_STRING);
                         });
                     }
                 });
@@ -740,7 +741,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             collector.partition(commandStore.id())
                      .collect(rows -> {
                          // TODO (desired): support maybe execute immediately with safeStore
-                         Future<?> future = toFuture(commandStore.chain((PreLoadContext.Empty) metadata::toString, safeStore -> { addRows(safeStore, rows); }));
+                         Future<?> future = toFuture(commandStore.chain((ExecutionContext.Empty) metadata::toString, safeStore -> { addRows(safeStore, rows); }));
                          if (!future.awaitUntilThrowUncheckedOnInterrupt(collector.deadlineNanos()))
                              throw new InternalTimeoutException();
                      });
@@ -1650,7 +1651,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         {
             try (AccordCommandStore.ExclusiveCaches caches = commandStore.lockCaches())
             {
-                AccordCacheEntry<TxnId, Command> entry = caches.commands().getUnsafe(txnId);
+                AccordCacheEntry<TxnId, Command, ?> entry = caches.commands().getUnsafe(txnId);
                 return entry == null ? null : entry.getExclusive();
             }
         }
@@ -1794,7 +1795,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         SafeCommand safeCommand = safeStore.unsafeGet(txnId);
                         Command command = safeCommand.current();
                         if (command.saveStatus() == SaveStatus.Applying)
-                            return Commands.applyChain(safeStore, command);
+                            return Commands.applyChain(safeStore, command.asExecuted());
                         Commands.maybeExecute(safeStore, safeCommand, command, true, true, NotifyWaitingOnPlus.adapter(ignore -> {}, true, true));
                         return AsyncChains.success(null);
                     });
@@ -1875,7 +1876,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             Node node = AccordService.unsafeInstance().node();
             if (Route.isFullRoute(route))
             {
-                PrepareRecovery.recover(node, node.someSequentialExecutor(), txnId, NotKnownToBeInvalid, (FullRoute<?>) route, null, LatentStoreSelector.standard(), (success, fail) -> {
+                PrepareRecovery.recover(node, node.someExclusiveExecutor(), txnId, NotKnownToBeInvalid, (FullRoute<?>) route, null, LatentStoreSelector.standard(), (success, fail) -> {
                     if (fail != null) result.setFailure(fail);
                     else result.setSuccess(null);
                 });
@@ -1895,7 +1896,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             AccordService.getBlocking(accord.node()
                                             .commandStores()
                                             .forId(commandStoreId)
-                                            .chain(PreLoadContext.contextFor(txnId, TXN_OPS), apply)
+                                            .chain(ExecutionContext.unsequenced(txnId, TXN_OPS), apply)
                                             .flatMap(i -> i));
         }
 

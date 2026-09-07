@@ -24,6 +24,7 @@ import java.util.function.Function;
 import org.junit.Test;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
 import org.apache.cassandra.utils.concurrent.Semaphore;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 

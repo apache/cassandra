@@ -19,13 +19,12 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 
@@ -35,120 +34,135 @@ import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
 
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.snapshot.ClearSnapshotTask;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
-import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.fail;
 
 public class ClearSnapshotTest extends TestBaseImpl
 {
-    private static final Logger logger = LoggerFactory.getLogger(ClearSnapshotTest.class);
-
+    /**
+     * This test has been authored entirely by Claude.
+     *
+     * Clearing the snapshots taken by a repair must not be done while holding the {@link ActiveRepairService} monitor.
+     * That monitor is taken by every {@code synchronized} method of {@link ActiveRepairService}, including the
+     * gossip-facing path ({@code FailureDetector} convict -&gt; {@code abort} -&gt; {@code removeParentRepairSession}),
+     * so clearing snapshots inline - as {@code removeParentRepairSession} used to - stalls the gossip stage for as long
+     * as the deletions take. See CASSANDRA-17168.
+     * <p>
+     * This replaces an earlier version of this test, which drove twenty concurrent repairs and waited for ten
+     * simultaneous parent repair sessions before killing a node. That had become vacuous: the delay it injected was
+     * into {@code Directories.snapshotExists}, deleted when snapshot management was consolidated into
+     * {@code SnapshotManager}, and {@code repair -full} is {@code PARALLEL}, for which no snapshot is taken at all - so
+     * the whole scenario reduced to a race on how many repairs happened to be in flight.
+     */
     @Test
-    public void clearSnapshotSlowTest() throws IOException, InterruptedException, ExecutionException
+    public void clearSnapshotDoesNotHoldActiveRepairServiceLock() throws IOException, ExecutionException, InterruptedException, TimeoutException
     {
-        try (Cluster cluster = init(Cluster.build(3).withConfig(config ->
-                                                                config.with(GOSSIP)
+        // two nodes, so that the keyspace has a neighbour to repair with - a single node has nothing to repair, and so
+        // never takes (or clears) a snapshot
+        try (Cluster cluster = init(Cluster.build(2)
+                                          .withConfig(config -> config.with(GOSSIP)
                                                                       .with(NETWORK))
                                           .withInstanceInitializer(BB::install)
                                           .start()))
         {
-            int tableCount = 20;
-            for (int i = 0; i < tableCount; i++)
-            {
-                String ksname = "ks"+i;
-                cluster.schemaChange("create keyspace "+ksname+" with replication = {'class': 'SimpleStrategy', 'replication_factor': 3}");
-                cluster.schemaChange("create table "+ksname+".tbl (id int primary key, t int)");
-                cluster.get(1).executeInternal("insert into "+ksname+".tbl (id , t) values (?, ?)", i, i);
-                cluster.forEach((node) -> node.flush(ksname));
-            }
-            List<Thread> repairThreads = new ArrayList<>();
-            for (int i = 0; i < tableCount; i++)
-            {
-                String ksname = "ks"+i;
-                Thread t = new Thread(() -> cluster.get(1).nodetoolResult("repair", "-full", ksname).asserts().success());
-                t.start();
-                repairThreads.add(t);
-            }
-            AtomicBoolean gotExc = new AtomicBoolean(false);
-            AtomicBoolean exit = new AtomicBoolean(false);
-            Thread reads = new Thread(() -> {
-                while (!exit.get())
-                {
-                    try
-                    {
-                        cluster.coordinator(1).execute("select * from ks1.tbl where id = 5", ConsistencyLevel.QUORUM);
-                        Uninterruptibles.sleepUninterruptibly(10, TimeUnit.MILLISECONDS);
-                    }
-                    catch (Exception e)
-                    {
-                        if (!gotExc.get())
-                            logger.error("Unexpected exception querying table ks1.tbl", e);
-                        gotExc.set(true);
-                    }
-                }
-            });
+            cluster.schemaChange(withKeyspace("create table %s.tbl (id int primary key, t int)"));
+            cluster.get(1).executeInternal(withKeyspace("insert into %s.tbl (id, t) values (?, ?)"), 1, 1);
+            cluster.forEach(node -> node.flush(KEYSPACE));
 
-            reads.start();
-            long activeRepairs;
-            do
-            {
-                activeRepairs = cluster.get(1).callOnInstance(() -> ActiveRepairService.instance().parentRepairSessionCount());
-                Thread.sleep(50);
-            }
-            while (activeRepairs < 10);
+            // -seq, because only a non-PARALLEL repair snapshots its replicas, and therefore only a non-PARALLEL repair
+            // has snapshots to clear when its parent session is removed
+            cluster.get(1).nodetoolResult("repair", "-seq", "-full", KEYSPACE).asserts().success();
 
-            cluster.setUncaughtExceptionsFilter((t) -> t.getMessage() != null && t.getMessage().contains("Parent repair session with id") );
-            cluster.get(2).shutdown().get();
-            repairThreads.forEach(t -> {
+            // BB.clearSnapshot blocks the repair's clear until we release it, so from here until the finally below the
+            // node is inside ClearSnapshotTask on behalf of ActiveRepairService
+            cluster.get(1).runOnInstance(BB::awaitClearingRepairSnapshots);
+            try
+            {
+                Future<?> monitor = cluster.get(1).asyncRunsOnInstance(() -> {
+                    //noinspection EmptySynchronizedStatement,SynchronizationOnLocalVariableOrMethodParameter
+                    synchronized (ActiveRepairService.instance()) { }
+                }).call();
+
                 try
                 {
-                    t.join();
+                    monitor.get(30, TimeUnit.SECONDS);
                 }
-                catch (InterruptedException e)
+                catch (TimeoutException e)
                 {
-                    throw new RuntimeException(e);
+                    fail("The ActiveRepairService monitor was held while clearing a repair's snapshots, which stalls " +
+                         "the gossip stage - see CASSANDRA-17168");
                 }
-            });
-            exit.set(true);
-            reads.join();
+            }
+            finally
+            {
+                cluster.get(1).runOnInstance(BB::releaseClearingRepairSnapshots);
+            }
 
-            assertFalse(gotExc.get());
+            // and the snapshot is still cleared, once we stop holding it up
+            cluster.get(1).logs().watchFor("Cleared snapshots in");
         }
     }
 
     public static class BB
     {
+        private static final CountDownLatch clearing = new CountDownLatch(1);
+        private static final CountDownLatch release = new CountDownLatch(1);
+
         public static void install(ClassLoader classLoader, Integer num)
         {
-            new ByteBuddy().rebase(Directories.class)
-                           .method(named("snapshotExists"))
+            // node1 only: it is the repair coordinator and a replica, so it performs a clear of its own, and holding up
+            // the other replica's clear would only delay its shutdown
+            if (num != 1)
+                return;
+
+            new ByteBuddy().rebase(ClearSnapshotTask.class)
+                           .method(named("call"))
                            .intercept(MethodDelegation.to(BB.class))
                            .make()
                            .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
-
         }
 
         @SuppressWarnings("unused")
-        public static boolean snapshotExists(String name, @SuperCall Callable<Boolean> zuper)
+        public static Void call(@SuperCall Callable<Void> zuper) throws Exception
         {
-            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
-            try
+            // only hold up the clear that a finished repair triggers; ephemeral/expired snapshot clearing runs on
+            // startup and on a timer, and blocking those would simply prevent the node from starting.
+            // NOTE: identified by the stack and not by the executing thread, because which thread runs it is precisely
+            // what is under test
+            if (isClearingRepairSnapshots())
             {
-                return zuper.call();
+                clearing.countDown();
+                Uninterruptibles.awaitUninterruptibly(release, 30, TimeUnit.SECONDS);
             }
-            catch (Exception e)
+            return zuper.call();
+        }
+
+        private static boolean isClearingRepairSnapshots()
+        {
+            for (StackTraceElement element : Thread.currentThread().getStackTrace())
             {
-                throw new RuntimeException(e);
+                if (element.getClassName().startsWith(ActiveRepairService.class.getName()))
+                    return true;
             }
+            return false;
+        }
+
+        public static void awaitClearingRepairSnapshots()
+        {
+            if (!Uninterruptibles.awaitUninterruptibly(clearing, 1, TimeUnit.MINUTES))
+                throw new AssertionError("Repair did not clear its snapshots");
+        }
+
+        public static void releaseClearingRepairSnapshots()
+        {
+            release.countDown();
         }
     }
 

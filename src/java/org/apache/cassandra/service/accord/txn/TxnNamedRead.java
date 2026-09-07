@@ -58,10 +58,10 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.accord.AccordExecutor;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.serializers.Version;
@@ -404,7 +404,8 @@ public class TxnNamedRead extends AbstractParameterisedVersionedSerialized<ReadC
 
     private AsyncChain<Data> submit(AccordExecutor executor, Callable<Data> readCallable, Object describe)
     {
-        return executor.buildDebuggable(readCallable, describe);
+        // a local read "continues" the work of its submitting task, so should be abandoned if that task fails
+        return executor.buildDebuggableContinuation(readCallable, describe);
     }
 
     static final ParameterisedVersionedSerializer<TxnNamedRead, TableMetadatasAndKeys, Version> serializer = new ParameterisedVersionedSerializer<>()

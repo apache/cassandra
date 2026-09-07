@@ -245,7 +245,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
                     logger.info("Reporting failure of plan {} for bootstrap of {} from {}", planId, range, from, fail);
                     fail(from, Ranges.of(range), fail);
                 }
-            }, ((AccordCommandStore) commandStore()).taskExecutor());
+            }, ((AccordCommandStore) commandStore()).exclusiveExecutor());
         }
     }
 
@@ -397,7 +397,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
 
     public AccordFetchCoordinator(Node node, Ranges ranges, SyncPoint syncPoint, DataStore.FetchRanges fetchRanges, CommandStore commandStore) throws TopologyException
     {
-        super(node, node.someSequentialExecutor(), ranges, syncPoint, fetchRanges, commandStore);
+        super(node, node.someExclusiveExecutor(), ranges, syncPoint, fetchRanges, commandStore);
     }
 
     @Override

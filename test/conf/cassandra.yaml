@@ -79,6 +79,9 @@ accord:
     queue_shard_count: 2
     command_store_shard_count: 4
     shutdown_grace_period: 120s
+    # tests are near-idle, so nothing else flushes system_accord.commands_for_key; without a short interval here any
+    # operation that waits for local durability (e.g. DROP TABLE of an accord table) waits for an incidental flush
+    durability_flush_interval: 5s
 
 memtable:
     configurations:
