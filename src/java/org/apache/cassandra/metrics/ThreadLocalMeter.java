@@ -121,6 +121,10 @@ public class ThreadLocalMeter extends com.codahale.metrics.Meter implements Mete
     private static volatile double[] rates = new double[RATES_COUNT * 16];
     static final AtomicInteger rateGroupIdGenerator = new AtomicInteger();
 
+    /** Counts reallocations of {@link #rates}; test-only, to assert growth is sub-linear in the number of meters. */
+    @VisibleForTesting
+    static final AtomicInteger ratesArrayReallocationCount = new AtomicInteger();
+
     // we recycle and reuse rate group IDs
     // a set bit means the correspondent rate group id is available to use
     private static final BitSet freeRateGroupIdSet = new BitSet();
@@ -140,11 +144,15 @@ public class ThreadLocalMeter extends com.codahale.metrics.Meter implements Mete
         }
         synchronized (ratesArrayGuard)
         {
-            if (rates.length < rateGroupId + RATES_COUNT)
+            int needed = rateGroupId + RATES_COUNT;
+            if (rates.length < needed)
             {
-                double[] newRates = new double[rateGroupId + RATES_COUNT];
+                // Geometric growth, mirroring ThreadLocalMetrics.calculateNewCapacity: otherwise every meter created
+                // beyond the initial capacity copies the whole array, making total copying quadratic in meter count.
+                double[] newRates = new double[Math.max(needed, rates.length + rates.length / 2)];
                 System.arraycopy(rates, 0, newRates, 0, rates.length);
                 rates = newRates;
+                ratesArrayReallocationCount.incrementAndGet();
             }
             rates[rateGroupId +  M1_RATE_OFFSET] = NON_INITIALIZED;
             rates[rateGroupId +  M5_RATE_OFFSET] = NON_INITIALIZED;
