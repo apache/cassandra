@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
@@ -328,7 +329,22 @@ public class EndpointState
     public String toString()
     {
         View view = ref.get();
-        return "EndpointState: HeartBeatState = " + view.hbState + ", AppStateMap = " + view.applicationState + ", isAlive = " + isAlive;
+        return "EndpointState: HeartBeatState = " + view.hbState + ", AppStateMap = " + formatAppStateMapForLogging(view.applicationState) + ", isAlive = " + isAlive;
+    }
+
+    /**
+     * TOKENS is stored as an ISO-8859-1 string just to hold raw bytes, so printing it as-is dumps unreadable
+     * control characters into the logs. Hide it entirely instead, matching how nodetool gossipinfo already
+     * treats TOKENS (see CASSANDRA-10330, CASSANDRA-21417).
+     */
+    static String formatAppStateMapForLogging(Map<ApplicationState, VersionedValue> applicationState)
+    {
+        Stream<String> otherStates = applicationState.entrySet()
+                                                     .stream()
+                                                     .filter(entry -> entry.getKey() != ApplicationState.TOKENS)
+                                                     .map(entry -> entry.getKey() + "=" + entry.getValue());
+        String tokensState = ApplicationState.TOKENS.name() + '=' + (applicationState.containsKey(ApplicationState.TOKENS) ? "Value(<hidden>)" : "not present");
+        return Stream.concat(otherStates, Stream.of(tokensState)).collect(Collectors.joining(", ", "{", "}"));
     }
 
     public boolean isSupersededBy(EndpointState that)

@@ -35,6 +35,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class EndpointStateTest
@@ -164,5 +165,31 @@ public class EndpointStateTest
         assertTrue(values.containsKey(ApplicationState.TOKENS));
         assertTrue(values.containsKey(ApplicationState.INTERNAL_IP));
         assertTrue(values.containsKey(ApplicationState.HOST_ID));
+    }
+
+    @Test
+    public void testFormatAppStateMapForLoggingHidesTokensValue()
+    {
+        Map<ApplicationState, VersionedValue> states = new EnumMap<>(ApplicationState.class);
+        VersionedValue tokensValue = VersionedValue.unsafeMakeVersionedValue("does-not-matter", 5);
+        states.put(ApplicationState.TOKENS, tokensValue);
+        states.put(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
+
+        String rendered = EndpointState.formatAppStateMapForLogging(states);
+
+        assertTrue(rendered.contains("TOKENS=Value(<hidden>)"));
+        assertFalse(rendered.contains(tokensValue.value));
+        assertTrue(rendered.contains("RELEASE_VERSION=Value("));
+    }
+
+    @Test
+    public void testFormatAppStateMapForLoggingShowsTokensNotPresentWhenMissing()
+    {
+        Map<ApplicationState, VersionedValue> states = new EnumMap<>(ApplicationState.class);
+        states.put(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
+
+        String rendered = EndpointState.formatAppStateMapForLogging(states);
+
+        assertTrue(rendered.contains("TOKENS=not present"));
     }
 }
