@@ -19,7 +19,9 @@
 package org.apache.cassandra.metrics;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
@@ -67,6 +69,10 @@ public class TCMMetrics
     public final Meter coordinatorBehindPlacements;
     public final Gauge<Long> epochAwareDebounceTrackerSize;
     public final Meter reconstructLogStateCall;
+    public final Counter snapshotStoreFailures;
+    public final Gauge<Long> lastSnapshotSize;
+
+    private final AtomicLong lastSnapshotSizeValue = new AtomicLong(0);
 
     private TCMMetrics()
     {
@@ -129,6 +135,18 @@ public class TCMMetrics
         coordinatorBehindSchema = Metrics.meter(factory.createMetricName("CoordinatorBehindSchema"));
         coordinatorBehindPlacements = Metrics.meter(factory.createMetricName("CoordinatorBehindPlacements"));
         reconstructLogStateCall = Metrics.meter(factory.createMetricName("ReconstructLogStateCall"));
+
+        snapshotStoreFailures = Metrics.counter(factory.createMetricName("SnapshotStoreFailures"));
+        lastSnapshotSize = Metrics.register(factory.createMetricName("LastSnapshotSize"), lastSnapshotSizeValue::get);
+    }
+
+    /**
+     * Records the size, in bytes, of the most recently serialised cluster metadata snapshot, whether or not
+     * storing it subsequently succeeded.
+     */
+    public void recordSnapshotSize(long bytes)
+    {
+        lastSnapshotSizeValue.set(bytes);
     }
 
     public void recordCommitFailureLatency(long latency, TimeUnit timeUnit, boolean isRejection)
