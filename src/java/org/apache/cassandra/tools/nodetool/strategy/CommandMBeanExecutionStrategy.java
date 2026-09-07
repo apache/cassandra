@@ -74,6 +74,7 @@ public class CommandMBeanExecutionStrategy implements CommandExecutionStrategy
             if (command.shouldConnect())
                 connect.run();
             probe = connect.probe();
+            command.probe(probe);
         }
 
         // Local command execution with no JMX connection.

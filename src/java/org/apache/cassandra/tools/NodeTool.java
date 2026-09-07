@@ -218,6 +218,9 @@ public class NodeTool
     public static CommandLine createCommandLine(CommandLine.IFactory factory) throws Exception
     {
         CommandLine commandLine = new CommandLine(new NodetoolCommand(), factory);
+        // Match the case-insensitive enum matching of the CQL/JSON management path
+        // (see TypeConverterRegistry's enum converter).
+        commandLine.setCaseInsensitiveEnumValuesAllowed(true);
         CommandExecutionStrategy.Type strategyType = ProtocolAwareExecutionStrategy.getExecutionStrategyTypeFromEnvAndSys();
         switch (strategyType)
         {

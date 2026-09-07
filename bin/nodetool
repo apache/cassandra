@@ -65,9 +65,17 @@ done
 # Parse port from config files based on protocol
 CONNECTION_PORT=""
 if [ "$PROTOCOL_IS_CQL" = "true" ]; then
-    # For CQL, parse native_transport_management_port from cassandra.yaml
-    if [ -f "$CASSANDRA_CONF/cassandra.yaml" ]; then
-        CONNECTION_PORT=$(grep native_transport_management_port "$CASSANDRA_CONF/cassandra.yaml" | cut -d ':' -f 2 | tr -d '[[:space:]]')
+    if [ -f "$CASSANDRA_CONF/jvm-server.options" ]; then
+        sysprop_override=$(grep "^-Dcassandra\.native_transport_management_port=" "$CASSANDRA_CONF/jvm-server.options")
+        if [ ! "x${sysprop_override}" = "x" ]; then
+            CONNECTION_PORT=$(echo "${sysprop_override}" | cut -d '=' -f 2 | tr -d '[[:space:]]')
+        fi
+    fi
+
+    if [ "x$CONNECTION_PORT" = "x" ]; then
+        if [ -f "$CASSANDRA_CONF/cassandra.yaml" ]; then
+            CONNECTION_PORT=$(grep native_transport_management_port "$CASSANDRA_CONF/cassandra.yaml" | cut -d ':' -f 2 | tr -d '[[:space:]]')
+        fi
     fi
 else
     # For JMX, parse port from configure_jmx method call, when not commented out
