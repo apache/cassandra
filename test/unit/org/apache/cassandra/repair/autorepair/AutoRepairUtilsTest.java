@@ -455,6 +455,37 @@ public class AutoRepairUtilsTest extends CQLTester
         assertEquals(123, result.one().getLong(COL_REPAIR_FINISH_TS, 0));
     }
 
+    /**
+     * A normal repair finish records repair_finish_ts but must NOT clear a pending force_repair flag.
+     * The flag is consumed only by clearForceRepair, and only for runs triggered by a force repair, so
+     * a force repair requested while a normal repair is running is still honored on the next cycle.
+     */
+    @Test
+    public void testUpdateFinishAutoRepairHistoryPreservesForceRepair()
+    {
+        QueryProcessor.executeInternal(String.format(
+        "INSERT INTO %s.%s (repair_type, host_id, force_repair) VALUES ('%s', %s, true)",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType.toString(), hostId));
+
+        assertTrue(AutoRepairUtils.isForceRepairSetForNode(repairType, hostId));
+
+        AutoRepairUtils.updateFinishAutoRepairHistory(repairType, hostId, 123);
+
+        // repair_finish_ts is advanced ...
+        UntypedResultSet result = QueryProcessor.executeInternal(String.format(
+        "SELECT repair_finish_ts FROM %s.%s WHERE repair_type = '%s' AND host_id = %s",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType.toString(), hostId));
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertEquals(123, result.one().getLong(COL_REPAIR_FINISH_TS, 0));
+
+        // ... but the pending force_repair flag is left untouched.
+        assertTrue("normal repair finish must not clear a pending force_repair flag",
+                   AutoRepairUtils.isForceRepairSetForNode(repairType, hostId));
+    }
+
     @Test
     public void testAddHostIdToDeleteHosts()
     {

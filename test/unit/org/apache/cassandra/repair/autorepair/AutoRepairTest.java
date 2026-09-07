@@ -300,7 +300,51 @@ public class AutoRepairTest extends CQLTester
                    finishTimeAfter > finishTimeBefore);
         assertTrue(AutoRepair.instance.shouldSkipRepairDueToInterval(repairType, repairState, config, myId));
 
+        // The force repair is one-shot: after a run, force_repair must be cleared so the node
+        // resumes honoring min_repair_interval instead of force-repairing every cycle.
+        assertFalse("force_repair must be cleared after a forced repair run",
+                    AutoRepairUtils.isForceRepairSetForNode(repairType, myId));
+
         // Restore original value
         DatabaseDescriptor.getAutoRepairConfig().setRepairTaskMinDuration(repairTaskMinDuration.toString());
+    }
+
+    /**
+     * clearForceRepair (invoked from the finally around a repair run) must consume the flag on both
+     * success and failure, without advancing repair_finish_ts. This is what prevents a failed force
+     * repair from wedging force_repair=true and bypassing min_repair_interval on every subsequent cycle.
+     */
+    @Test
+    public void testClearForceRepairClearsFlagWithoutAdvancingFinishTs()
+    {
+        RepairType repairType = RepairType.FULL;
+        UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
+        long now = System.currentTimeMillis();
+
+        // Truncate history table to start fresh
+        QueryProcessor.executeInternal(String.format(
+            "TRUNCATE %s.%s",
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
+
+        // A node with force_repair=true and a known repair_finish_ts.
+        QueryProcessor.executeInternal(String.format(
+            "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, repair_finish_ts, force_repair) VALUES (?, ?, ?, ?, true)",
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY),
+            repairType.toString(), myId, new java.util.Date(now - 1000), new java.util.Date(now));
+
+        assertTrue(AutoRepairUtils.isForceRepairSetForNode(repairType, myId));
+        long finishBefore = AutoRepairUtils.getLastRepairTimeForNode(repairType, myId);
+
+        // Simulate the end-of-run consumption of the flag (as the finally in AutoRepair.repair does).
+        AutoRepairUtils.clearForceRepair(repairType, myId);
+
+        // The force_repair flag is cleared ...
+        assertFalse(AutoRepairUtils.isForceRepairSetForNode(repairType, myId));
+        // ... but repair_finish_ts is left untouched. That column records when a repair last finished
+        // SUCCESSFULLY and is what min_repair_interval measures against. Advancing it here would make a
+        // failed forced repair look like a completed one and wrongly throttle the next real repair, so
+        // clearForceRepair writes only force_repair and the timestamp keeps its previous value.
+        assertEquals("clearForceRepair must not advance repair_finish_ts",
+                     finishBefore, AutoRepairUtils.getLastRepairTimeForNode(repairType, myId));
     }
 }
