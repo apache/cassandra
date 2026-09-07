@@ -1,4 +1,5 @@
 6.0-alpha3
+ * Generate autocompletion scripts for the nodetool command during the build (CASSANDRA-20794)
  * Implement Zstd compression level guardrail (CASSANDRA-21021)
  * Fix Compression dictionary distribution silently leaving a node on a stale dictionary (CASSANDRA-21681)
  * ZstdCompressionDictionary reference leak when opening dictionary-compressed SSTables concurrently (CASSANDRA-21680)
