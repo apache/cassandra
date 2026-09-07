@@ -851,6 +851,9 @@ memtable:
 # accepting writes when the limit is exceeded until a flush completes,
 # and will trigger a flush based on memtable_cleanup_threshold
 # If omitted, Cassandra will set both to 1/4 the size of the heap.
+# memtable_heap_space must be positive. memtable_offheap_space may be 0
+# only for the memtable_allocation_type values that never allocate
+# off-heap: heap_buffers and unslabbed_heap_buffers.
 # Min unit: MiB
 # memtable_heap_space: 2048MiB
 # Min unit: MiB

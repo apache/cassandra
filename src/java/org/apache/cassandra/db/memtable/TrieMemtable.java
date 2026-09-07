@@ -573,8 +573,8 @@ public class TrieMemtable extends AbstractShardedMemtable
                                       update,
                                       updater::mergePartitions,
                                       key.getKeyLength() < MAX_RECURSIVE_KEY_LENGTH);
-                    allocator.offHeap().adjust(data.sizeOffHeap() - offHeap, opGroup);
-                    allocator.onHeap().adjust(data.sizeOnHeap() - onHeap, opGroup);
+                    allocator.offHeap().adjust(data.sizeOffHeap() - offHeap);
+                    allocator.onHeap().adjust(data.sizeOnHeap() - onHeap);
                 }
                 finally
                 {

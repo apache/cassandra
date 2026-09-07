@@ -139,6 +139,7 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
      *
      * commitLogSegmentPosition should only be null if this is a secondary index, in which case it is *expected* to be null
      */
+    @Override
     public long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
     {
         DecoratedKey key = update.partitionKey();
@@ -394,7 +395,7 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
                     // allocate the row overhead after the fact; this saves over allocating and having to free after, but
                     // means we can overshoot our declared limit.
                     int overhead = (int) (cloneKey.getToken().getHeapSize() + SkipListMemtable.ROW_OVERHEAD_HEAP_SIZE);
-                    allocator.onHeap().allocate(overhead, opGroup);
+                    allocator.onHeap().allocate(overhead);
                     initialSize = 8;
                 }
             }
@@ -514,6 +515,7 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
          *
          * commitLogSegmentPosition should only be null if this is a secondary index, in which case it is *expected* to be null
          */
+        @Override
         public long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
         {
             DecoratedKey key = update.partitionKey();

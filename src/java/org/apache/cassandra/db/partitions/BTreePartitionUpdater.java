@@ -214,7 +214,7 @@ public class BTreePartitionUpdater implements UpdateFunction<Row, Row>, ColumnDa
 
     public void reportAllocatedMemory()
     {
-        allocator.onHeap().adjust(heapSize, writeOp);
+        allocator.onHeap().adjust(heapSize);
         if (contextCloner != null && contextCloner != cloner)
             contextCloner.adjustUnused();
     }

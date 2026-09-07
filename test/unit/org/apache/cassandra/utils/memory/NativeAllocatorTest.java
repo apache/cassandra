@@ -99,17 +99,17 @@ public class NativeAllocatorTest
             verifyUsedReclaiming(10, 0);
 
             // confirm adjustment works
-            allocator.offHeap().adjust(-10, group);
+            allocator.offHeap().adjust(-10);
             verifyUsedReclaiming(0, 0);
 
-            allocator.offHeap().adjust(10, group);
+            allocator.offHeap().adjust(10);
             verifyUsedReclaiming(10, 0);
 
             // confirm we cannot allocate negative
             boolean success = false;
             try
             {
-                allocator.offHeap().allocate(-10, group);
+                allocator.offHeap().allocate(-10);
             }
             catch (AssertionError e)
             {
@@ -146,9 +146,16 @@ public class NativeAllocatorTest
             allocator.allocate(50, group);
             verifyUsedReclaiming(80, 80);
 
-            // allocate above limit, check we block until "marked blocking"
-            exec.schedule(markBlocking, 10L, TimeUnit.MILLISECONDS);
+            // CASSANDRA-21019: allocations above the limit no longer block -- they only
+            // track usage; the limit is enforced before a mutation starts, in awaitRoom()
             allocator.allocate(30, group);
+            Assert.assertNull(barrier.get());
+            verifyUsedReclaiming(110, 110);
+
+            // the wait moved to awaitRoom(): above the limit it blocks until the pool has
+            // room or the group is "marked blocking", exactly as allocate() used to
+            exec.schedule(markBlocking, 10L, TimeUnit.MILLISECONDS);
+            allocator.offHeap().awaitRoom(group);
             Assert.assertNotNull(barrier.get());
             verifyUsedReclaiming(110, 110);
 
