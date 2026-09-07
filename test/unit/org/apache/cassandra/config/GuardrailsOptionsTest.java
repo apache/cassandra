@@ -41,6 +41,9 @@ public class GuardrailsOptionsTest
     public void testZeroThresholdsAreAccepted()
     {
         Config config = new Config();
+        // tables_warn_threshold defaults to 1000 (non-disabled), so it must be pulled down to (or below)
+        // the fail threshold under test here, or validation rejects warn > fail.
+        config.tables_warn_threshold = 0;
         config.tables_fail_threshold = 0;
         config.keyspaces_warn_threshold = 0;
         config.partition_tombstones_fail_threshold = 0;
@@ -50,6 +53,7 @@ public class GuardrailsOptionsTest
 
         GuardrailsOptions options = new GuardrailsOptions(config);
 
+        assertEquals(0, options.getTablesWarnThreshold());
         assertEquals(0, options.getTablesFailThreshold());
         assertEquals(0, options.getKeyspacesWarnThreshold());
         assertEquals(0, options.getPartitionTombstonesFailThreshold());
