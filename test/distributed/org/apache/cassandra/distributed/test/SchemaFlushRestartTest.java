@@ -26,9 +26,7 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.distributed.shared.WithProperties;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.SCHEMA_FLUSH_COALESCE_MS;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
 import static org.junit.Assert.assertEquals;
 
@@ -47,13 +45,12 @@ public class SchemaFlushRestartTest extends TestBaseImpl
     @Test
     public void schemaSurvivesRestartWithoutDrainUnderCoalescedFlush() throws IOException
     {
-        try (WithProperties properties = new WithProperties();
-             Cluster cluster = init(Cluster.build(1).start()))
+        // Set a long coalesce window (60s) before startup, so none of the CREATE TABLEs below get a chance
+        // to actually trigger a system_schema flush before the node is killed.
+        try (Cluster cluster = init(Cluster.build(1)
+                                            .withConfig(c -> c.set("schema_flush_coalescing_window", "60s"))
+                                            .start()))
         {
-            // Set a long coalesce window (60s) before any DDL below, so none of the CREATE TABLEs below
-            // get a chance to actually trigger a system_schema flush before the node is killed.
-            properties.set(SCHEMA_FLUSH_COALESCE_MS, "60000");
-
             List<String> tableNames = new ArrayList<>(TABLE_COUNT);
             for (int i = 0; i < TABLE_COUNT; i++)
             {
