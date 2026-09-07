@@ -1,4 +1,5 @@
 7.0
+ * Serialise local metadata proposals so concurrent DDL keeps its retry budget (CASSANDRA-21537)
  * Reject LIKE patterns with a wildcard (%) anywhere other than the start or end (CASSANDRA-21068)
  * Support pluggable default role initialization (CASSANDRA-21546)
  * Add prepared statement cache stats to nodetool info (CASSANDRA-14366)
