@@ -276,6 +276,28 @@ public class NodetoolClassHierarchyTest extends CQLTester
     }
 
     /**
+     * Top-level commands must not declare aliases.
+     */
+    @Test
+    public void testNoTopLevelCommandDeclaresAlias()
+    {
+        CommandLine root = new CommandLine(NodetoolCommand.class);
+        Map<String, List<String>> affected = new TreeMap<>();
+
+        for (CommandLine cmd : root.getSubcommands().values())
+        {
+            String[] aliases = cmd.getCommandSpec().aliases();
+            if (aliases.length > 0)
+                affected.put(fullCommandName(cmd), Arrays.asList(aliases));
+        }
+
+        assertTrue("Top-level commands must not declare aliases, otherwise it should be explicitly " +
+                   "supported by  PicocliCommandsProvider.commands() " +
+                   buildAffectedCommandMessage(affected),
+                   affected.isEmpty());
+    }
+
+    /**
      * Commands must not declare custom picocli {@code converters} on options or parameters.
      * <p>
      * Instead, options and parameters must use plain strings, lists of strings, or the built-in Java
