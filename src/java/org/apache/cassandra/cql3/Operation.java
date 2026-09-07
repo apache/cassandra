@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.apache.cassandra.cql3.functions.Function;
@@ -119,6 +120,11 @@ public abstract class Operation
      * @param builder      parameters of the update.
      */
     public abstract void execute(DecoratedKey partitionKey, RowUpdateBuilder builder) throws InvalidRequestException;
+
+    public void execute(DecoratedKey partitionKey, RowUpdateBuilder builder, ByteBuffer term) throws InvalidRequestException
+    {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * A parsed raw UPDATE operation.

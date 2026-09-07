@@ -21,6 +21,8 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 
+import accord.utils.Invariants;
+
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -550,6 +552,30 @@ public abstract class Constants
                 builder.addCell(column, newValue);
             }
         }
+
+        public void execute(DecoratedKey partitionKey, RowUpdateBuilder builder, ByteBuffer constant) throws InvalidRequestException
+        {
+            Invariants.require(constant != null);
+            if (column.type instanceof NumberType<?>)
+            {
+                @SuppressWarnings("unchecked") NumberType<Number> type = (NumberType<Number>) column.type;
+                ByteBuffer increment = type.sanitize(t.bindAndGet(builder));
+                if (increment == null)
+                    return;
+                ByteBuffer newValue = type.add(type.compose(constant), type.compose(increment));
+                builder.addCell(column, newValue);
+            }
+            else if (column.type instanceof StringType)
+            {
+                ByteBuffer left = t.bindAndGet(builder);
+                if (left == null)
+                    return;
+                ByteBuffer newValue = ByteBuffer.allocate(left.remaining() + constant.remaining());
+                FastByteOperations.copy(left, left.position(), newValue, newValue.position(), left.remaining());
+                FastByteOperations.copy(constant, constant.position(), newValue, newValue.position() + left.remaining(), constant.remaining());
+                builder.addCell(column, newValue);
+            }
+        }
     }
 
     public static class Substracter extends Operation
@@ -591,6 +617,20 @@ public abstract class Constants
                 if (current == null)
                     return;
                 ByteBuffer newValue = type.substract(type.compose(current), type.compose(increment));
+                builder.addCell(column, newValue);
+            }
+        }
+
+        public void execute(DecoratedKey partitionKey, RowUpdateBuilder builder, ByteBuffer constant) throws InvalidRequestException
+        {
+            Invariants.require(constant != null);
+            if (column.type instanceof NumberType<?>)
+            {
+                @SuppressWarnings("unchecked") NumberType<Number> type = (NumberType<Number>) column.type;
+                ByteBuffer increment = type.sanitize(t.bindAndGet(builder));
+                if (increment == null)
+                    return;
+                ByteBuffer newValue = type.substract(type.compose(increment), type.compose(constant));
                 builder.addCell(column, newValue);
             }
         }

@@ -33,6 +33,8 @@ public abstract class ReferenceValue
 {
     public abstract TxnReferenceValue bindAndGet(FunctionContext context);
 
+    public abstract Term getTerm();
+
     public static abstract class Raw extends Term.Raw
     {
         public abstract ReferenceValue prepare(ColumnMetadata receiver, VariableSpecifications bindVariables);
@@ -51,6 +53,12 @@ public abstract class ReferenceValue
         public TxnReferenceValue bindAndGet(FunctionContext context)
         {
             return new TxnReferenceValue.Constant(term.bindAndGet(context));
+        }
+
+        @Override
+        public Term getTerm()
+        {
+            return term;
         }
 
         public static class Raw extends ReferenceValue.Raw
@@ -107,6 +115,12 @@ public abstract class ReferenceValue
         public TxnReferenceValue bindAndGet(FunctionContext context)
         {
             return new TxnReferenceValue.Substitution(reference.toTxnReference(context).asColumn());
+        }
+
+        @Override
+        public Term getTerm()
+        {
+            return reference;
         }
 
         public static class Raw extends ReferenceValue.Raw

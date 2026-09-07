@@ -123,6 +123,7 @@ public class TxnReferenceOperationTest
             TableMetadata table;
             @Nullable ByteBuffer keyOrIndex = null;
             @Nullable ByteBuffer field = null;
+            @Nullable ByteBuffer constant = null;
             TxnReferenceValue value;
             Group group = rs.pick(Group.values());
             switch (group)
@@ -195,6 +196,8 @@ public class TxnReferenceOperationTest
                         table = table(type);
                         receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
                         value = valueGen(type).next(rs);
+                        if (rs.nextBoolean())
+                            constant = Generators.toGen(AbstractTypeGenerators.getTypeSupport(type).bytesGen()).next(rs);
                         kind = group == Group.Adder ? TxnReferenceOperation.Kind.ConstantAdder : TxnReferenceOperation.Kind.ConstantSubtracter;
                     }
                 }
@@ -276,7 +279,8 @@ public class TxnReferenceOperationTest
                 default:
                     throw new UnsupportedOperationException();
             }
-            return new TxnReferenceOperation(kind, receiver, table, keyOrIndex, field, value);
+
+            return new TxnReferenceOperation(kind, receiver, table, keyOrIndex, field, constant, value);
         };
     }
 
