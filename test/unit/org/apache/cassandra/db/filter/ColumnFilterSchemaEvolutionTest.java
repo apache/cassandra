@@ -34,10 +34,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
-public class SelectionColumnFilterTest
+public class ColumnFilterSchemaEvolutionTest
 {
     @Test
     public void fixedFetchedColumnsSurviveSchemaChangeAndSerialization() throws IOException
@@ -88,7 +86,7 @@ public class SelectionColumnFilterTest
         {
             ColumnFilter filter = ColumnFilter.selection(current, queried, fetchAllStatics);
             assertFetchedSet(filter, fetchAllStatics, alwaysFetched, fetchedOnlyWithAllStatics, neverFetched);
-            assertFetchedSet(roundTrip(filter, current),
+            assertFetchedSet(roundTrip(filter, beforeDrop),
                              fetchAllStatics,
                              alwaysFetched,
                              fetchedOnlyWithAllStatics,
@@ -97,7 +95,7 @@ public class SelectionColumnFilterTest
     }
 
     @Test
-    public void allEverFetchesDroppedColumns()
+    public void allEverFetchesDroppedColumns() throws IOException
     {
         TableMetadata beforeDrop = metadata();
         ColumnMetadata staleRegularSimple = column(beforeDrop, "stale_regular_simple");
@@ -110,11 +108,11 @@ public class SelectionColumnFilterTest
                                      staleStaticSimple,
                                      staleStaticComplex);
 
-        ColumnFilter currentColumns = ColumnFilter.all(current);
+        ColumnFilter currentColumns = roundTrip(ColumnFilter.all(current), beforeDrop);
         assertFetches(currentColumns, false,
                       staleRegularSimple, staleRegularComplex, staleStaticSimple, staleStaticComplex);
 
-        ColumnFilter currentAndDroppedColumns = ColumnFilter.allEver(current);
+        ColumnFilter currentAndDroppedColumns = roundTrip(ColumnFilter.allEver(current), beforeDrop);
         assertFetches(currentAndDroppedColumns, true,
                       staleRegularSimple, staleRegularComplex, staleStaticSimple, staleStaticComplex);
     }
