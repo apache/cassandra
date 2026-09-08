@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -38,11 +39,19 @@ import org.apache.cassandra.db.compression.CompressionDictionary;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.io.sstable.format.FilterComponent;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReaderLoadingBuilder;
+import org.apache.cassandra.io.sstable.format.SSTableReaderWithFilter;
+import org.apache.cassandra.io.sstable.format.StatsComponent;
+import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.FilterFactory;
+import org.apache.cassandra.utils.IFilter;
 
 /**
  * Base class for the sstable writers used by CQLSSTableWriter.
@@ -115,12 +124,59 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
         sstableProducedListener.accept(sstables);
     }
 
-    protected SSTableTxnWriter createWriter(SSTable.Owner owner) throws IOException
+    /**
+     * Rebuilds the Bloom filter of a finished SSTable at the correct size and swaps it into any opened readers.
+     */
+    protected Collection<SSTableReader> rebuildBloomFilter(SSTableTxnWriter writer, Collection<SSTableReader> produced) throws IOException
+    {
+        TableMetadata tableMetadata = metadata.getLocal();
+        double fpChance = tableMetadata.params.bloomFilterFpChance;
+        if (!FilterComponent.shouldUseBloomFilter(fpChance))
+            return produced;
+
+        // output directory does not have to follow the keyspace/table layout, so do not validate it
+        Descriptor descriptor = Descriptor.fromFileWithComponent(new File(writer.getFilename()), false).left;
+        long partitionCount = StatsComponent.load(descriptor, MetadataType.STATS).statsMetadata().estimatedPartitionSize.count();
+        SSTableReaderLoadingBuilder<?, ?> loader = descriptor.getFormat().getReaderFactory().loadingBuilder(descriptor, metadata, null);
+
+        try (IFilter filter = FilterFactory.getFilter(partitionCount, fpChance);
+             KeyReader keys = loader.buildKeyReader(null))
+        {
+            while (!keys.isExhausted())
+            {
+                filter.add(tableMetadata.partitioner.decorateKey(keys.key())); // token is unused
+                keys.advance();
+            }
+            FilterComponent.save(filter, descriptor, true);
+
+            List<SSTableReader> result = new ArrayList<>(produced.size());
+            for (SSTableReader reader : produced)
+            {
+                if (reader instanceof SSTableReaderWithFilter)
+                {
+                    result.add(((SSTableReaderWithFilter) reader).cloneAndReplace(filter.sharedCopy()));
+                    reader.selfRef().release();
+                }
+                else
+                {
+                    result.add(reader);
+                }
+            }
+            return result;
+        }
+        catch (IOException | RuntimeException | Error e)
+        {
+            descriptor.fileFor(SSTableFormat.Components.FILTER).deleteIfExists();
+            throw e;
+        }
+    }
+
+    protected SSTableTxnWriter createWriter(SSTable.Owner owner, long keyCount) throws IOException
     {
         SerializationHeader header = new SerializationHeader(true, metadata.get(), columns, EncodingStats.NO_STATS);
 
         if (makeRangeAware)
-            return SSTableTxnWriter.createRangeAware(metadata, 0, ActiveRepairService.UNREPAIRED_SSTABLE, ActiveRepairService.NO_PENDING_REPAIR, false, format, header);
+            return SSTableTxnWriter.createRangeAware(metadata, keyCount, ActiveRepairService.UNREPAIRED_SSTABLE, ActiveRepairService.NO_PENDING_REPAIR, false, format, header);
 
 
         SSTable.Owner effectiveOwner;
@@ -138,7 +194,7 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
 
         return SSTableTxnWriter.create(metadata,
                                        createDescriptor(directory, metadata.keyspace, metadata.name, format),
-                                       0,
+                                       keyCount,
                                        ActiveRepairService.UNREPAIRED_SSTABLE,
                                        ActiveRepairService.NO_PENDING_REPAIR,
                                        false,

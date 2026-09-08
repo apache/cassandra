@@ -63,11 +63,13 @@ import org.apache.cassandra.cql3.functions.types.LocalDate;
 import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.cql3.functions.types.UDTValue;
 import org.apache.cassandra.cql3.functions.types.UserType;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.compression.CompressionDictionary;
 import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 import org.apache.cassandra.db.compression.ZstdCompressionDictionary;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.FloatType;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.SimpleDateType;
 import org.apache.cassandra.db.marshal.TimeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -78,8 +80,10 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
+import org.apache.cassandra.io.sstable.format.FilterComponent;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReaderWithFilter;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
 import org.apache.cassandra.io.util.File;
@@ -94,6 +98,8 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CompressionDictionaryHelper;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.FilterFactory;
+import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.JavaDriverUtils;
 import org.apache.cassandra.utils.OutputHandler;
 
@@ -201,6 +207,150 @@ public abstract class CQLSSTableWriterTest
                 assertEquals(12, row.getInt("v2"));
             }
         }
+    }
+
+    @Test
+    public void testBloomFilterSizedForKeyCountUnsortedBig() throws Exception
+    {
+        assertBloomFilterSizedForKeyCount(BigFormat.getInstance(), false);
+    }
+
+    @Test
+    public void testBloomFilterSizedForKeyCountUnsortedBti() throws Exception
+    {
+        assertBloomFilterSizedForKeyCount(new BtiFormat.BtiFormatFactory().getInstance(Collections.emptyMap()), false);
+    }
+
+    @Test
+    public void testBloomFilterSizedForKeyCountSortedBig() throws Exception
+    {
+        assertBloomFilterSizedForKeyCount(BigFormat.getInstance(), true);
+    }
+
+    @Test
+    public void testBloomFilterSizedForKeyCountSortedBti() throws Exception
+    {
+        assertBloomFilterSizedForKeyCount(new BtiFormat.BtiFormatFactory().getInstance(Collections.emptyMap()), true);
+    }
+
+    private void assertBloomFilterSizedForKeyCount(SSTableFormat<?, ?> format, boolean sorted) throws Exception
+    {
+        // Check the filter is sized for the real partition count, on disk and in the opened reader (CASSANDRA-21423)
+        int keyCount = 10_000;
+        double fpChance = 0.01;
+        List<SSTableReader> produced = new ArrayList<>();
+        String schema = "CREATE TABLE " + qualifiedTable + " (k int PRIMARY KEY, v int) WITH bloom_filter_fp_chance = " + fpChance;
+        String insert = "INSERT INTO " + qualifiedTable + " (k, v) VALUES (?, ?)";
+        CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
+                                                           .inDirectory(dataDir)
+                                                           .forTable(schema)
+                                                           .withFormat(format)
+                                                           .using(insert)
+                                                           .openSSTableOnProduced()
+                                                           .withSSTableProducedListener(produced::addAll);
+        if (sorted)
+            builder.sorted();
+        try (CQLSSTableWriter writer = builder.build())
+        {
+            for (int i = 0; i < keyCount; i++)
+                writer.addRow(i, i);
+        }
+
+        long expectedSize;
+        try (IFilter expected = FilterFactory.getFilter(keyCount, fpChance))
+        {
+            expectedSize = expected.offHeapSize();
+        }
+
+        List<Descriptor> descriptors = sstableDescriptors();
+        assertEquals(1, descriptors.size());
+        try (IFilter filter = FilterComponent.load(descriptors.get(0)))
+        {
+            assertEquals(expectedSize, filter.offHeapSize());
+            for (int i = 0; i < keyCount; i++)
+                assertTrue("key " + i + " should be present in the Bloom filter", filter.isPresent(key(i)));
+            assertNotSaturated(filter, keyCount, 2 * keyCount);
+        }
+
+        assertEquals(1, produced.size());
+        assertEquals(expectedSize, ((SSTableReaderWithFilter) produced.get(0)).getFilterOffHeapSize());
+        produced.forEach(reader -> reader.selfRef().release());
+    }
+
+    @Test
+    public void testNoBloomFilterWhenDisabled() throws Exception
+    {
+        String schema = "CREATE TABLE " + qualifiedTable + " (k int PRIMARY KEY, v int) WITH bloom_filter_fp_chance = 1.0";
+        String insert = "INSERT INTO " + qualifiedTable + " (k, v) VALUES (?, ?)";
+        try (CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                       .inDirectory(dataDir)
+                                                       .forTable(schema)
+                                                       .using(insert)
+                                                       .sorted()
+                                                       .build())
+        {
+            for (int i = 0; i < 1_000; i++)
+                writer.addRow(i, i);
+        }
+
+        // bloom_filter_fp_chance = 1.0 disables the filter, so there must be no Filter.db to rebuild
+        List<Descriptor> descriptors = sstableDescriptors();
+        assertEquals(1, descriptors.size());
+        assertFalse(descriptors.get(0).fileFor(SSTableFormat.Components.FILTER).exists());
+    }
+
+    @Test
+    public void testBloomFilterSizedForEachRotatedSSTable() throws Exception
+    {
+        // Each rotated sstable is finished on its own, so each filter must be sized for its own partition count.
+        // Compression is disabled so the ~5 MiB payload crosses the 1 MiB cap several times.
+        int keyCount = 10_000;
+        String schema = "CREATE TABLE " + qualifiedTable + " (k int PRIMARY KEY, v text) WITH compression = {'enabled': 'false'}";
+        String insert = "INSERT INTO " + qualifiedTable + " (k, v) VALUES (?, ?)";
+        String value = "x".repeat(512);
+        try (CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                       .inDirectory(dataDir)
+                                                       .forTable(schema)
+                                                       .using(insert)
+                                                       .sorted()
+                                                       .withMaxSSTableSizeInMiB(1)
+                                                       .build())
+        {
+            for (int i = 0; i < keyCount; i++)
+                writer.addRow(i, value);
+        }
+
+        List<Descriptor> descriptors = sstableDescriptors();
+        assertThat(descriptors.size()).as("expected the writer to roll over into multiple sstables").isGreaterThan(1);
+        for (Descriptor descriptor : descriptors)
+        {
+            try (IFilter filter = FilterComponent.load(descriptor))
+            {
+                assertNotSaturated(filter, keyCount, 2 * keyCount);
+            }
+        }
+    }
+
+    private List<Descriptor> sstableDescriptors() throws IOException
+    {
+        return Arrays.stream(dataDir.list(f -> f.name().endsWith(SSTableFormat.Components.DATA.type.repr)))
+                     .map(f -> Descriptor.fromFileWithComponent(f, false).left)
+                     .collect(Collectors.toList());
+    }
+
+    private static DecoratedKey key(int k)
+    {
+        return ByteOrderedPartitioner.instance.decorateKey(Int32Type.instance.decompose(k));
+    }
+
+    private static void assertNotSaturated(IFilter filter, int from, int to)
+    {
+        // a filter sized for 0 keys reports every key as present
+        int falsePositives = 0;
+        for (int i = from; i < to; i++)
+            if (filter.isPresent(key(i)))
+                falsePositives++;
+        assertThat(falsePositives).isLessThan((to - from) / 10);
     }
 
     @Test

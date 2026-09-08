@@ -25,7 +25,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
@@ -392,7 +391,6 @@ public class BtiTableReader extends SSTableReaderWithFilter
             return new SSTableIterator(this, dataFileInput, key, indexEntry, slices, selectedColumns, rowIndexFile);
     }
 
-    @VisibleForTesting
     @Override
     public BtiTableReader cloneAndReplace(IFilter filter)
     {

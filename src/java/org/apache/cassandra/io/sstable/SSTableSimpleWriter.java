@@ -109,7 +109,7 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
     }
 
     @Override
-    public void close()
+    public void close() throws IOException
     {
         writeLastPartitionUpdate(update);
         maybeCloseWriter(writer);
@@ -132,7 +132,7 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
         if (shouldSwitchToNewWriter())
         {
             maybeCloseWriter(writer);
-            writer = createWriter(null);
+            writer = createWriter(null, 0); // partition count unknown upfront
         }
 
         return writer;
@@ -153,15 +153,15 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
         }
     }
 
-    private void maybeCloseWriter(SSTableTxnWriter writer)
+    private void maybeCloseWriter(SSTableTxnWriter writer) throws IOException
     {
+        if (writer == null)
+            return;
+
+        Collection<SSTableReader> finished;
         try
         {
-            if (writer == null)
-                return;
-
-            Collection<SSTableReader> finished = writer.finish(shouldOpenSSTables());
-            notifySSTableProduced(finished);
+            finished = writer.finish(shouldOpenSSTables());
         }
         catch (Throwable t)
         {
@@ -169,6 +169,9 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
             Throwables.throwIfUnchecked(e);
             throw new RuntimeException(e);
         }
+
+        // the sstable is committed at this point, so a failure here must not attempt to abort the writer
+        notifySSTableProduced(rebuildBloomFilter(writer, finished));
     }
 
     private void writePartition(PartitionUpdate update) throws IOException

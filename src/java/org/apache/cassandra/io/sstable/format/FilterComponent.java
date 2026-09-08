@@ -134,7 +134,7 @@ public class FilterComponent
         return filter;
     }
 
-    static boolean shouldUseBloomFilter(double fpChance)
+    public static boolean shouldUseBloomFilter(double fpChance)
     {
         return !(Math.abs(1 - fpChance) <= filterFPChanceTolerance);
     }
