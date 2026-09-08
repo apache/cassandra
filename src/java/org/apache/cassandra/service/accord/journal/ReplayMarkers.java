@@ -88,6 +88,7 @@ public class ReplayMarkers
             out.writeLong(lastUniqueTimeStamp);
             crc.update(Longs.toByteArray(lastUniqueTimeStamp));
             out.writeInt((int) crc.getValue());
+            out.sync();
         }
         catch (IOException e)
         {
