@@ -524,6 +524,11 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
             }
         }
 
+        @Override
+        public boolean limitsConcurrentWritesTo(int maxWriters)
+        {
+            return boundaries.shardCount() <= maxWriters;
+        }
     }
 
     public static Factory factory(Map<String, String> optionsCopy)
