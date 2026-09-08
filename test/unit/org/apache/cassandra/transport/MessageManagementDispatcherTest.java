@@ -32,6 +32,9 @@ import org.mockito.Mockito;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.QueryMessage;
@@ -42,6 +45,8 @@ import io.netty.channel.Channel;
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class MessageManagementDispatcherTest
@@ -169,6 +174,14 @@ public class MessageManagementDispatcherTest
     }
 
     @Test
+    public void testQuotedDottedCommandNameAllowed()
+    {
+        assertNull("Quoted dotted command names should parse as INVOKE COMMAND",
+                   Dispatcher.checkManagementRequest(
+                   queryMessage("INVOKE COMMAND \"profile.start\" WITH event = ['alloc'] AND duration = '1m';")));
+    }
+
+    @Test
     public void testSelectSystemLocalAllowed()
     {
         assertTrue("SELECT from system.local should be allowed",
@@ -245,9 +258,12 @@ public class MessageManagementDispatcherTest
     @Test
     public void testInsertRejected()
     {
-        assertFalse("INSERT should be rejected",
-                    Dispatcher.isManagementRequestAllowed(queryMessage(
-                    "INSERT INTO system.local (key) VALUES ('test');")));
+        RequestValidationException rejection = Dispatcher.checkManagementRequest(queryMessage(
+                    "INSERT INTO system.local (key) VALUES ('test');"));
+        assertNotNull("INSERT should be rejected", rejection);
+        assertTrue(rejection instanceof InvalidRequestException);
+        assertEquals("Only executions of the INVOKE COMMAND statements are allowed on the management port.",
+                     rejection.getMessage());
     }
 
     @Test
@@ -268,8 +284,22 @@ public class MessageManagementDispatcherTest
     @Test
     public void testInvalidSyntaxRejected()
     {
-        assertFalse("Invalid syntax should be rejected",
-                    Dispatcher.isManagementRequestAllowed(queryMessage("NOT VALID CQL AT ALL;")));
+        RequestValidationException rejection = Dispatcher.checkManagementRequest(queryMessage("NOT VALID CQL AT ALL;"));
+        assertNotNull(rejection);
+        assertTrue("Invalid syntax should be reported as a syntax error, not a statement-type rejection",
+                   rejection instanceof SyntaxException);
+        assertFalse(rejection.getMessage().contains("INVOKE COMMAND"));
+    }
+
+    @Test
+    public void testMalformedInvokeCommandReturnsSyntaxError()
+    {
+        RequestValidationException rejection = Dispatcher.checkManagementRequest(
+            queryMessage("INVOKE COMMAND \"profile.start\" WITH event = ['alloc'] AND AND duration = '1m';"));
+        assertNotNull(rejection);
+        assertTrue("A mistyped INVOKE COMMAND should surface the parse error",
+                   rejection instanceof SyntaxException);
+        assertFalse(rejection.getMessage().contains("Only executions of the INVOKE COMMAND"));
     }
 
     @Test

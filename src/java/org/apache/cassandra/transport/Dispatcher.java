@@ -40,6 +40,8 @@ import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.cql3.statements.UseStatement;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.OverloadedException;
+import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -433,12 +435,11 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
             if (connection instanceof ServerConnection) {
                 ServerConnection serverConnection = (ServerConnection) connection;
                 if (serverConnection.isManagementConnection()) {
-                    if (!isManagementRequestAllowed(request)) {
+                    RequestValidationException rejection = checkManagementRequest(request);
+                    if (rejection != null) {
                         // The flush pipeline takes the stream id from the request envelope, so the
                         // response must not carry one of its own.
-                        Message.Response response = ErrorMessage.fromExceptionNoStreamId(
-                        new InvalidRequestException(
-                            "Only executions of the INVOKE COMMAND statements are allowed on the management port."));
+                        Message.Response response = ErrorMessage.fromExceptionNoStreamId(rejection);
                         response.attach(connection);
                         FlushItem<?> toFlush = forFlusher.toFlushItem(flusherParam, channel, request, response);
                         flush(toFlush);
@@ -459,56 +460,84 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
     @VisibleForTesting
     static boolean isManagementRequestAllowed(Message.Request request)
     {
+        return checkManagementRequest(request) == null;
+    }
+
+    /**
+     * {@code null} if the request may run on the management port; otherwise the exception to return to the client.
+     * Syntax errors stay {@link SyntaxException} so a mistyped {@code INVOKE COMMAND} is not reported as a
+     * statement-type rejection.
+     */
+    @VisibleForTesting
+    static RequestValidationException checkManagementRequest(Message.Request request)
+    {
         switch (request.type)
         {
             case QUERY:
+            {
+                if (!(request instanceof QueryMessage))
+                    return managementRequestNotAllowed();
+
+                CQLStatement.Raw rawStatement;
                 try
                 {
                     // Early parse the query to check if it's an INVOKE COMMAND statement.
                     // For management non-intensive operations double parsing is probably acceptable.
-                    CQLStatement.Raw rawStatement = QueryProcessor.parseStatement(((QueryMessage) request).query);
-                    if (rawStatement instanceof ExecuteCommandStatement.Raw)
-                        return true;
-
-                    // Allow read-only SELECT queries on system keyspaces (needed for driver metadata
-                    // discovery), except system_auth (see isManagementReadableSystemKeyspace).
-                    if (rawStatement instanceof SelectStatement.RawStatement)
-                    {
-                        SelectStatement.RawStatement selectRaw = (SelectStatement.RawStatement) rawStatement;
-                        return selectRaw.isFullyQualified()
-                               && isManagementReadableSystemKeyspace(selectRaw.keyspace());
-                    }
-
-                    // This is also a corner case for the driver's behavior on the management port.
-                    // When connecting, the driver sends a USE statement for the keyspace provided
-                    // in driver.connect("system_schema").
-                    if (rawStatement instanceof UseStatement)
-                    {
-                        UseStatement useStatement = (UseStatement) rawStatement;
-                        return isManagementReadableSystemKeyspace(useStatement.keyspace());
-                    }
-
-                    return false;
+                    rawStatement = QueryProcessor.parseStatement(((QueryMessage) request).query);
+                }
+                catch (SyntaxException e)
+                {
+                    return e;
                 }
                 catch (Exception e)
                 {
                     logger.warn("The command request parsing failed. The command will not be executed: {}", e.getMessage());
-                    // If parsing fails (syntax error, etc.), it's not a valid command statement;
-                    // this is expected for non-command queries.
-                    return false;
+                    return new InvalidRequestException("Failed to parse query on the management port: " + e.getMessage(), e);
                 }
+
+                if (rawStatement instanceof ExecuteCommandStatement.Raw)
+                    return null;
+
+                // Allow read-only SELECT queries on system keyspaces (needed for driver metadata
+                // discovery), except system_auth (see isManagementReadableSystemKeyspace).
+                if (rawStatement instanceof SelectStatement.RawStatement)
+                {
+                    SelectStatement.RawStatement selectRaw = (SelectStatement.RawStatement) rawStatement;
+                    return selectRaw.isFullyQualified()
+                           && isManagementReadableSystemKeyspace(selectRaw.keyspace())
+                           ? null : managementRequestNotAllowed();
+                }
+
+                // This is also a corner case for the driver's behavior on the management port.
+                // When connecting, the driver sends a USE statement for the keyspace provided
+                // in driver.connect("system_schema").
+                if (rawStatement instanceof UseStatement)
+                {
+                    UseStatement useStatement = (UseStatement) rawStatement;
+                    return isManagementReadableSystemKeyspace(useStatement.keyspace())
+                           ? null : managementRequestNotAllowed();
+                }
+
+                return managementRequestNotAllowed();
+            }
             case STARTUP:
             case CREDENTIALS:
             case AUTH_RESPONSE:
             case OPTIONS:
             case REGISTER:
-                return true; // Protocol messages are always allowed.
+                return null; // Protocol messages are always allowed.
             case EXECUTE:
             case PREPARE:
             case BATCH:
             default:
-                return false; // Not supported and not allowed on management connections.
+                return managementRequestNotAllowed();
         }
+    }
+
+    private static InvalidRequestException managementRequestNotAllowed()
+    {
+        return new InvalidRequestException(
+            "Only executions of the INVOKE COMMAND statements are allowed on the management port.");
     }
 
     /**
