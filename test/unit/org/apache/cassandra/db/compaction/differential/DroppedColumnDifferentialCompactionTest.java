@@ -24,6 +24,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommandVerbHandler;
+import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
@@ -31,11 +32,20 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -141,14 +151,39 @@ public class DroppedColumnDifferentialCompactionTest extends DifferentialCompact
     public void droppedComplexCellsExcludedFromReadResponse() throws Exception
     {
         createTable("CREATE TABLE %s (pk int, ck int, v int, m map<text, int>, PRIMARY KEY (pk, ck))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        ColumnMetadata valueColumn = cfs.metadata().getColumn(ByteBufferUtil.bytes("v"));
+        ColumnMetadata mapColumn = cfs.metadata().getColumn(ByteBufferUtil.bytes("m"));
 
         execute("UPDATE %s USING TIMESTAMP " + FUTURE_TS + " SET v = 5, m['a'] = 1 WHERE pk = 0 AND ck = 0");
         flush();
         alterTable("ALTER TABLE %s DROP m");
 
         SinglePartitionReadCommand command = parseReadCommandGroupQueries("SELECT v FROM %s WHERE pk = 0").get(0);
-        ReadCommandVerbHandler.instance.doRead(command, false);
-        assertRows(execute("SELECT v FROM %s WHERE pk = 0"), row(5));
+        ReadResponse response = ReadCommandVerbHandler.instance.doRead(command, false);
+        int version = MessagingService.current_version;
+        DataOutputBuffer output = new DataOutputBuffer((int) ReadResponse.serializer.serializedSize(response, version));
+        ReadResponse.serializer.serialize(response, output, version);
+        DataInputBuffer input = new DataInputBuffer(output.buffer(), false);
+        ReadResponse deserialized = ReadResponse.serializer.deserialize(input, version);
+
+        try (UnfilteredPartitionIterator partitions = deserialized.makeIterator(command))
+        {
+            assertTrue(partitions.hasNext());
+            try (UnfilteredRowIterator rows = partitions.next())
+            {
+                assertTrue(rows.hasNext());
+                Unfiltered unfiltered = rows.next();
+                assertTrue(unfiltered.isRow());
+                Row row = (Row) unfiltered;
+                assertEquals(5, ByteBufferUtil.toInt(row.getCell(valueColumn).buffer()));
+                assertFalse(row.columns().contains(mapColumn));
+                assertFalse(rows.hasNext());
+            }
+            assertFalse(partitions.hasNext());
+        }
+
+        assertRowsNet(executeNet("SELECT v FROM %s WHERE pk = 0"), row(5));
     }
 
     @Test
