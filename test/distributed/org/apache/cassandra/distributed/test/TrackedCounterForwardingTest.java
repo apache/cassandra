@@ -35,6 +35,8 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
  *
  * With 6 nodes and RF=3, we can pick a coordinator that is definitely
  * not a replica for a specific partition.
+ *
+ * For a keyspace with witnesses, see {@link TrackedCounterWitnessForwardingTest}.
  */
 public class TrackedCounterForwardingTest extends TestBaseImpl
 {

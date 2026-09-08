@@ -245,12 +245,8 @@ data. Configure it by specifying replication factor as
 `<total_replicas>/<transient_replicas` Both `SimpleStrategy` and
 `NetworkTopologyStrategy` support configuring transient replication.
 
-Transiently replicated keyspaces only support tables created with
-`read_repair` set to `NONE`; monotonic reads are not currently
-supported. You also can't use `LWT`, logged batches, or counters in {40_version}.
-You will possibly never be able to use materialized views with
-transiently replicated keyspaces and probably never be able to use
-secondary indices with them.
+Transient replication requires mutation tracking, so a transiently replicated
+keyspace must set `replication_type = 'tracked'`.
 
 Transient replication is an experimental feature that is not ready
 for production use. The expected audience is experienced users of

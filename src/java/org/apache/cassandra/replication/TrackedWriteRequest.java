@@ -195,7 +195,14 @@ public class TrackedWriteRequest
         ReplicaPlan.ForWrite plan = ReplicaPlans.forWrite(keyspace, consistencyLevel, token, ReplicaPlans.writeAll);
         AbstractReplicationStrategy rs = plan.replicationStrategy();
 
-        if (plan.lookup(FBUtilities.getBroadcastAddressAndPort()) == null)
+        Replica localReplica = plan.lookup(FBUtilities.getBroadcastAddressAndPort());
+
+        // A counter leader resolves the increment against its local data, so we can't use transient replicas as data replicas.
+        boolean witnessForCounter = localReplica != null
+                                    && localReplica.isTransient()
+                                    && mutation instanceof CounterMutation;
+
+        if (localReplica == null || witnessForCounter)
         {
             logger.trace("Remote tracked request {} {}", mutation, plan);
             writeMetrics.remoteRequests.mark();
