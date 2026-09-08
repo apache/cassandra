@@ -164,35 +164,25 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
             return;
         }
 
-        // Count every request accepted for dispatch. This runs on the connection's Netty event loop.
-        ((ServerConnection) request.connection()).incrementRequests();
+        Connection connection = request.connection();
+        if (connection instanceof ServerConnection)
+            ((ServerConnection) connection).incrementRequests();
 
-        // if native_transport_max_auth_threads is < 1, don't delegate to new pool on auth messages
         boolean isAuthQuery = DatabaseDescriptor.getNativeTransportMaxAuthThreads() > 0 &&
                               (request.type == Message.Type.AUTH_RESPONSE || request.type == Message.Type.CREDENTIALS);
 
         if (isAuthQuery)
         {
-            // Importantly, the authExecutor will handle the AUTHENTICATE message which may be CPU intensive.
             authExecutor.submit(new RequestProcessor<>(channel, request, forFlusher, param, backpressure));
             ClientMetrics.instance.markRequestDispatched();
             return;
         }
 
-        // Check the connection object rather than the channel attributes, which should be cheaper on every
-        // request. Management connections are routed to the management executor.
-        Connection connection = request.connection();
-        if (connection instanceof ServerConnection)
+        if (connection instanceof ServerConnection && ((ServerConnection) connection).isManagementConnection())
         {
-            ServerConnection serverConnection = (ServerConnection) connection;
-            if (serverConnection.isManagementConnection())
-            {
-                // Intentionally skipping ClientMetrics calls here: that meter tracks regular client request
-                // dispatch, and management API requests have their own metrics rather than being mixed
-                // into the client request rate.
-                managementExecutor.submit(new ManagementRequestProcessor<>(channel, request, forFlusher, param, backpressure));
-                return;
-            }
+            // Intentionally skipping ClientMetrics calls here
+            managementExecutor.submit(new ManagementRequestProcessor<>(channel, request, forFlusher, param, backpressure));
+            return;
         }
 
         requestExecutor.submit(new RequestProcessor<>(channel, request, forFlusher, param, backpressure));
