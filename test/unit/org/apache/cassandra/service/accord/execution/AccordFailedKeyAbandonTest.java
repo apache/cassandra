@@ -31,9 +31,8 @@ import org.junit.Test;
 
 import accord.api.RoutingKey;
 import accord.local.ExecutionContext;
-import accord.local.ExecutionContext.ExecutionSequence;
+import accord.local.FindKeys;
 import accord.local.LoadKeys;
-import accord.local.LoadKeysFor;
 import accord.local.Node.Id;
 import accord.local.SafeCommandStore;
 import accord.primitives.RoutingKeys;
@@ -190,7 +189,7 @@ public class AccordFailedKeyAbandonTest
                 // the txnId is marked too, so a later task on that command must be told promptly rather than queue
                 // behind a HOLD_QUEUE lock nothing will release
                 store.execute(ExecutionContext.contextFor(txnId, null, RoutingKeys.of(key(tableId, partitioner, 100)),
-                                                          LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "same txn"),
+                                                          LoadKeys.SYNC, FindKeys.CONFLICTS, "same txn"),
                               (Consumer<? super SafeCommandStore>) ignore -> {},
                               (success, fail) -> { sameTxn.set(fail); sameTxnDone.signal(); });
                 sameTxnRan = sameTxnDone.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -250,7 +249,7 @@ public class AccordFailedKeyAbandonTest
     private static ExecutionContext fanOut(TxnId txnId, RoutingKey... keys)
     {
         ExecutionContext wrapped = ExecutionContext.contextFor(txnId, null, RoutingKeys.of(keys), LoadKeys.INCR,
-                                                               LoadKeysFor.READ_WRITE, "fanout");
+                                                               FindKeys.CONFLICTS, "fanout");
         return new ExecutionContext.Wrapped()
         {
             @Override public ExecutionSequence executionSequence() { return ExecutionSequence.ATOMIC; }

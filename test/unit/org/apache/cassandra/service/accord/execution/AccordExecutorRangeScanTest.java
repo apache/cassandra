@@ -43,8 +43,8 @@ import accord.impl.basic.InMemoryJournal;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
 import accord.local.ExecutionContext;
+import accord.local.FindKeys;
 import accord.local.LoadKeys;
-import accord.local.LoadKeysFor;
 import accord.local.Node.Id;
 import accord.local.NodeCommandStoreService;
 import accord.local.SafeCommandStore;
@@ -80,7 +80,7 @@ import static org.junit.Assert.assertTrue;
  *
  * The range-scan half of a task's lifecycle, driven deterministically.
  *
- * <p>A task that declares {@link LoadKeysFor#RECOVERY} starts a {@code SafeTask.RangeTxnScanner} before it sets its keys
+ * <p>A task that declares {@link FindKeys#SUPERSEDING} starts a {@code SafeTask.RangeTxnScanner} before it sets its keys
  * up: it passes through {@code SCANNING_RANGES}, and setup <em>re-enters</em> {@code onSetupOrScannedExclusive} when the
  * scan completes. That gives two things nothing else in the lifecycle does: a second setup pass, and a window in which
  * the task is neither loading nor waiting in the ordinary sense.
@@ -207,7 +207,7 @@ public class AccordExecutorRangeScanTest
             Condition secondDone = Condition.newOneTimeCondition();
             AtomicReference<Throwable> secondFailure = new AtomicReference<>();
             ExecutionContext context = ExecutionContext.contextFor(TxnId.fromValues(1, 2, 0, new Id(1)), null, RoutingKeys.of(f.key),
-                                                                  LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "after");
+                                                                   LoadKeys.SYNC, FindKeys.CONFLICTS, "after");
             f.store.execute(context, (Consumer<? super SafeCommandStore>) ignore -> {},
                             (success, fail) -> { secondFailure.set(fail); secondDone.signal(); });
             assertTrue("a task on the same key never ran after a failed scan - the failed task kept its positions",
@@ -302,7 +302,7 @@ public class AccordExecutorRangeScanTest
         void submitRecoveryTask(LoadKeys loadKeys, RoutingKey... keys)
         {
             ExecutionContext context = ExecutionContext.contextFor(txnId, null, RoutingKeys.of(keys),
-                                                                   loadKeys, LoadKeysFor.RECOVERY, "scanning");
+                                                                   loadKeys, FindKeys.SUPERSEDING, "scanning");
             store.execute(context, (Consumer<? super SafeCommandStore>) ignore -> {},
                           (success, fail) -> { failure.set(fail); done.signal(); });
         }

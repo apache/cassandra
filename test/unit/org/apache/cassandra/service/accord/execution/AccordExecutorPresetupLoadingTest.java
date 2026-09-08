@@ -42,8 +42,8 @@ import accord.impl.basic.InMemoryJournal;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
 import accord.local.ExecutionContext;
+import accord.local.FindKeys;
 import accord.local.LoadKeys;
-import accord.local.LoadKeysFor;
 import accord.local.Node.Id;
 import accord.local.NodeCommandStoreService;
 import accord.local.SafeCommandStore;
@@ -146,13 +146,13 @@ public class AccordExecutorPresetupLoadingTest
         try
         {
             ExecutionContext parentContext = ExecutionContext.contextFor(TxnId.fromValues(1, 1, 0, new Id(1)), null, RoutingKeys.of(ready, slow),
-                                                                        LoadKeys.ASYNC, LoadKeysFor.READ_WRITE, "parent");
+                                                                         LoadKeys.ASYNC, FindKeys.CONFLICTS, "parent");
             store.execute(parentContext, (Consumer<? super SafeCommandStore>) safeStore -> {
                 SafeTask<?> parent = ((SaferCommandStore) safeStore).task;
                 if (parent.nonSync().active.contains(slow))
                     return; // we are running with the slow key, so it is loaded and there is nothing to test
 
-                ExecutionContext nested = ExecutionContext.contextFor(null, null, RoutingKeys.of(slow), nestedLoadKeys, LoadKeysFor.READ_WRITE, "nested");
+                ExecutionContext nested = ExecutionContext.contextFor(null, null, RoutingKeys.of(slow), nestedLoadKeys, FindKeys.CONFLICTS, "nested");
                 nestedTask.set((SafeTask<?>) store.execute(nested, (Consumer<? super SafeCommandStore>) ignore -> {},
                                                           (success, fail) -> {
                                                               nestedFailure.set(fail);
