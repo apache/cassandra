@@ -211,7 +211,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         BufferedReader in = new BufferedReader(new FileReader(cdcIndexFile));
         String input = in.readLine();
         input = in.readLine();
-        Assert.assertTrue("Expected COMPLETED in index file, got: " + input, input.equals("COMPLETED"));
+        Assert.assertEquals("Expected COMPLETED in index file, got: " + input, "COMPLETED", input);
         in.close();
     }
 
@@ -313,6 +313,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
                 {
                     Assert.assertTrue("New CDC index file expected to have >= offset in old.", ncid.offset >= cid.offset);
                     found = true;
+                    break;
                 }
             }
             if (!found)
@@ -333,7 +334,10 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
             for (CDCIndexData cid : oldData)
             {
                 if (cid.fileName.equals(ncid.fileName))
+                {
                     found = true;
+                    break;
+                }
             }
             if (!found)
                 Assert.fail(String.format("Unexpected new CDCIndexData found after replay: %s\n", ncid));
@@ -365,14 +369,10 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
 
         CDCIndexData(File f) throws IOException
         {
-            String line = "";
+            String line;
             try (BufferedReader br = new BufferedReader(new FileReader(f)))
             {
                 line = br.readLine();
-            }
-            catch (Exception e)
-            {
-                throw e;
             }
             fileName = f.name();
             offset = Integer.parseInt(line);
@@ -387,6 +387,8 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         @Override
         public boolean equals(Object other)
         {
+            if (!(other instanceof CDCIndexData))
+                return false;
             CDCIndexData cid = (CDCIndexData)other;
             return fileName.equals(cid.fileName) && offset == cid.offset;
         }
