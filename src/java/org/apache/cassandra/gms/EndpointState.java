@@ -39,6 +39,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -340,15 +341,15 @@ public class EndpointState
      */
     static String formatAppStateMapForLogging(Map<ApplicationState, VersionedValue> applicationState)
     {
+        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
         return applicationState.entrySet().stream().map(entry -> {
             if (entry.getKey() != ApplicationState.TOKENS)
                 return entry.getKey() + "=" + entry.getValue();
 
-            VersionedValue value = entry.getValue();
+            final VersionedValue value = entry.getValue();
             try
             {
-                int numTokens = TokenSerializer.deserialize(DatabaseDescriptor.getPartitioner(),
-                                                              new DataInputStream(new ByteArrayInputStream(value.toBytes())))
+                int numTokens = TokenSerializer.deserialize(partitioner, new DataInputStream(new ByteArrayInputStream(value.toBytes())))
                                                 .size();
                 return entry.getKey() + "=Value(<" + numTokens + " tokens>," + value.version + ')';
             }
