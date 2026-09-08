@@ -196,6 +196,10 @@ public class ShardedMemtableIndex implements MemtableIndex
         int minSubrange = min == null ? 0 : boundaries.getShardForKey(min);
         int maxSubrange = max == null ? shards.length - 1 : boundaries.getShardForKey(max);
 
+        Preconditions.checkArgument(minSubrange <= maxSubrange,
+                                    "iterator(min, max) requires min <= max but got min shard %s > max shard %s",
+                                    minSubrange, maxSubrange);
+
         List<Iterator<Pair<ByteComparable, PrimaryKeys>>> rangeIterators = new ArrayList<>(maxSubrange - minSubrange + 1);
 
         for (int i = minSubrange; i <= maxSubrange; i++)

@@ -65,13 +65,9 @@ public class MemtableIndexManager
         // call to computeIfAbsent() if it's not. (see https://bugs.openjdk.java.net/browse/JDK-8161372)
         return current != null ? current
                                : liveMemtableIndexMap.computeIfAbsent(mt, memtable -> {
-            String shardsOption = index.getIndexMetadata().options.get(ShardedMemtableIndex.SHARDS_OPTION);
-            if (shardsOption != null)
-            {
-                Integer shardCount = Integer.parseInt(shardsOption);
-                if (shardCount > 1)
-                    return new ShardedMemtableIndex(index, index.baseCfs(), shardCount, memtable);
-            }
+            int shardCount = index.shardCount();
+            if (shardCount > 1)
+                return new ShardedMemtableIndex(index, index.baseCfs(), shardCount, memtable);
             return new UnshardedMemtableIndex(index, memtable);
         });
     }

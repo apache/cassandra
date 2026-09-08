@@ -189,6 +189,7 @@ public class StorageAttachedIndex implements Index
     private final MemtableIndexManager memtableIndexManager;
     private final IndexMetrics indexMetrics;
     private final MaxThreshold maxTermSizeGuardrail;
+    private final int shardCount;
 
     // Tracks whether we've started the index build on initialization.
     private volatile boolean initBuildStarted = false;
@@ -220,6 +221,8 @@ public class StorageAttachedIndex implements Index
             maxTermSizeGuardrail = Guardrails.saiBlobTermSize;
         else
             maxTermSizeGuardrail = Guardrails.saiStringTermSize;
+        String shardsOption = indexMetadata.options.get(ShardedMemtableIndex.SHARDS_OPTION);
+        shardCount = shardsOption == null ? 1 : Integer.parseInt(shardsOption);
     }
 
     /**
@@ -356,6 +359,11 @@ public class StorageAttachedIndex implements Index
     public IndexMetadata getIndexMetadata()
     {
         return indexMetadata;
+    }
+
+    public int shardCount()
+    {
+        return shardCount;
     }
 
     @Override
