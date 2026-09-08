@@ -34,6 +34,8 @@ import org.apache.cassandra.streaming.OutgoingStream;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamingDataOutputPlus;
+import org.apache.cassandra.utils.CassandraVersion;
+import org.apache.cassandra.utils.StorageCompatibilityMode;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Ref;
 
@@ -42,6 +44,8 @@ import org.apache.cassandra.utils.concurrent.Ref;
  */
 public class CassandraOutgoingFile implements OutgoingStream
 {
+    private static final int SPLIT_PREFIX_CAPABLE_MAJOR = 7;
+
     private final Ref<SSTableReader> ref;
     private final long estimatedKeys;
     private final List<SSTableReader.PartitionPositionBounds> sections;
@@ -50,10 +54,18 @@ public class CassandraOutgoingFile implements OutgoingStream
     private final StreamOperation operation;
     private final CassandraStreamHeader header;
     private final List<Range<Token>> ranges;
+    private final boolean peerSupportsSplitPrefix;
 
     public CassandraOutgoingFile(StreamOperation operation, Ref<SSTableReader> ref,
                                  List<SSTableReader.PartitionPositionBounds> sections, List<Range<Token>> normalizedRanges,
                                  long estimatedKeys)
+    {
+        this(operation, ref, sections, normalizedRanges, estimatedKeys, null);
+    }
+
+    public CassandraOutgoingFile(StreamOperation operation, Ref<SSTableReader> ref,
+                                 List<SSTableReader.PartitionPositionBounds> sections, List<Range<Token>> normalizedRanges,
+                                 long estimatedKeys, CassandraVersion peerVersion)
     {
         Preconditions.checkNotNull(ref.get());
         Range.assertNormalized(normalizedRanges);
@@ -62,6 +74,7 @@ public class CassandraOutgoingFile implements OutgoingStream
         this.estimatedKeys = estimatedKeys;
         this.sections = sections;
         this.ranges = normalizedRanges;
+        this.peerSupportsSplitPrefix = peerVersion != null && peerVersion.major >= SPLIT_PREFIX_CAPABLE_MAJOR;
 
         SSTableReader sstable = ref.get();
 
@@ -188,11 +201,14 @@ public class CassandraOutgoingFile implements OutgoingStream
     @VisibleForTesting
     public boolean computeShouldStreamEntireSSTables()
     {
-        // don't stream if full sstable transfers are disabled, legacy counter shards are present,
-        // or sstable uses old bloom filter format (pre-4.0) which is incompatible with zero-copy streaming
+        // A pre-7.0 reader does not understand the split-prefix position or the qa descriptor that protects it. Fall
+        // back to partition streaming, which rewrites rows in the peer's format, unless the peer advertises support.
         if (!DatabaseDescriptor.streamEntireSSTables() ||
             ref.get().getSSTableMetadata().hasLegacyCounterShards ||
-            ref.get().descriptor.version.hasOldBfFormat())
+            ref.get().descriptor.version.hasOldBfFormat() ||
+            (ref.get().descriptor.version.hasSplitPrefixMarker()
+             && (DatabaseDescriptor.getStorageCompatibilityMode() != StorageCompatibilityMode.NONE
+                 || !peerSupportsSplitPrefix)))
             return false;
 
         return contained(sections, ref.get());
@@ -204,9 +220,19 @@ public class CassandraOutgoingFile implements OutgoingStream
         if (sections == null || sections.isEmpty())
             return false;
 
-        // if transfer sections contain entire sstable
+        // MOVED_START hides an already-compacted prefix without removing it from the physical components. Sending
+        // those components whole would restore data this reader no longer owns on the receiving node.
+        if (sstable.openReason == SSTableReader.OpenReason.MOVED_START)
+            return false;
+
         long transferLength = sections.stream().mapToLong(p -> p.upperPosition - p.lowerPosition).sum();
-        return transferLength == sstable.uncompressedLength();
+        if (!sstable.hasSplitPrefix())
+            return transferLength == sstable.uncompressedLength();
+
+        // A split child may retain a dead prefix from its first compression chunk. Compare with the full live span
+        // rather than the physical data length so that such a child remains eligible for entire-SSTable streaming.
+        SSTableReader.PartitionPositionBounds fullRange = sstable.getPositionsForFullRange();
+        return fullRange != null && transferLength == fullRange.upperPosition - fullRange.lowerPosition;
     }
 
     @Override

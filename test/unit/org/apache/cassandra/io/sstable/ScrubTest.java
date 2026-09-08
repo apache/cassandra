@@ -21,10 +21,12 @@ import java.io.IOError;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -59,6 +61,7 @@ import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.TestDatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -80,6 +83,7 @@ import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -89,6 +93,7 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.CompressionInfoComponent;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
@@ -97,10 +102,13 @@ import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static org.apache.cassandra.SchemaLoader.counterCFMD;
 import static org.apache.cassandra.SchemaLoader.createKeyspace;
@@ -111,6 +119,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_INVAL
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -129,6 +138,7 @@ public class ScrubTest
     public static final String CF_INDEX2 = "Indexed2";
     public static final String CF_INDEX1_BYTEORDERED = "Indexed1_ordered";
     public static final String CF_INDEX2_BYTEORDERED = "Indexed2_ordered";
+    public static final String CF_COMPRESSED_BIG = "Standard_compressed_big";
     public static final String COL_INDEX = "birthdate";
     public static final String COL_NON_INDEX = "notbirthdate";
 
@@ -158,6 +168,9 @@ public class ScrubTest
                        KeyspaceParams.simple(1),
                        standardCFMD(ksName, CF),
                        counterCFMD(ksName, COUNTER_CF).compression(getCompressionParameters(COMPRESSION_CHUNK_LENGTH)),
+                       standardCFMD(ksName, CF_COMPRESSED_BIG)
+                           .compression(CompressionParams.lz4(COMPRESSION_CHUNK_LENGTH))
+                           .partitioner(Murmur3Partitioner.instance),
                        standardCFMD(ksName, CF_UUID, 0, UUIDType.instance),
                        SchemaLoader.keysIndexCFMD(ksName, CF_INDEX1, true),
                        SchemaLoader.compositeIndexCFMD(ksName, CF_INDEX2, true),
@@ -343,6 +356,514 @@ public class ScrubTest
                                   },
                                   false,
                                   2);   // corrupt after the second partition, no way to resync
+    }
+
+    @Test
+    public void testScrubShiftedIndexHeadDoesNotDropPartitions() throws Throwable
+    {
+        SSTableFormat<?, ?> originalFormat = DatabaseDescriptor.getSelectedSSTableFormat();
+        try
+        {
+            TestDatabaseDescriptor.setUnsafeSelectedSSTableFormat(BigFormat.NAME);
+            doTestScrubShiftedIndexHeadDoesNotDropPartitions();
+        }
+        finally
+        {
+            TestDatabaseDescriptor.setUnsafeSelectedSSTableFormat(originalFormat);
+        }
+    }
+
+    private void doTestScrubShiftedIndexHeadDoesNotDropPartitions() throws Throwable
+    {
+        int partitionCount = 100;
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_COMPRESSED_BIG);
+        cfs.clearUnsafe();
+        fillCF(cfs, partitionCount);
+        assertOrderedAll(cfs, partitionCount);
+
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+        assertTrue(sstable.compression);
+        assertTrue(sstable.descriptor.version.hasKeyRange());
+        assertTrue(sstable.descriptor.version.hasSplitPrefixMarker());
+        assertFalse(sstable.hasSplitPrefix());
+
+        sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor,
+                                                                       1,
+                                                                       sstable.getPendingRepair(),
+                                                                       sstable.isTransient());
+        sstable.reloadSSTableMetadata();
+        assertTrue(sstable.isRepaired());
+
+        List<IndexPartition> index = readIndexPartitions(sstable);
+        assertEquals(partitionCount, index.size());
+        IndexPartition keepFrom = index.get(1);
+        assertTrue(keepFrom.dataPosition > 0);
+        assertTrue("the shifted head must still look like a possible split prefix",
+                   keepFrom.dataPosition < sstable.getCompressionMetadata().chunkLength());
+
+        SSTableReader corrupted = reopenWithIndexSuffix(cfs, sstable, index, 1);
+        assertTrue(corrupted.isRepaired());
+        assertTrue(BigFormat.is(corrupted.descriptor.getFormat()));
+        assertFalse(corrupted.hasSplitPrefix());
+        assertFalse("an ordinary SSTable retains the existing summary-rebuild behavior",
+                    corrupted.getSSTableMetadata().firstKey.equals(corrupted.getFirst().getKey()));
+
+        assertEquals(0, corrupted.getPositionsForFullRange().lowerPosition);
+        PartitionDescriptor firstPartition = new PartitionDescriptor(corrupted.getPartitioner().createReusableKey(0));
+        try (SSTableCursorReader cursor = new SSTableCursorReader(corrupted))
+        {
+            assertEquals(0, cursor.position());
+            cursor.readPartitionHeader(firstPartition);
+        }
+        assertEquals(corrupted.decorateKey(corrupted.getSSTableMetadata().firstKey), firstPartition.key());
+
+        int scannedPartitions = 0;
+        try (ISSTableScanner scanner = corrupted.getScanner())
+        {
+            while (scanner.hasNext())
+            {
+                try (UnfilteredRowIterator ignored = scanner.next())
+                {
+                    scannedPartitions++;
+                }
+            }
+        }
+        assertEquals(partitionCount, scannedPartitions);
+
+        try (IVerifier verifier = corrupted.getVerifier(cfs,
+                                                        new OutputHandler.LogOutput(),
+                                                        false,
+                                                        IVerifier.options()
+                                                                 .mutateRepairStatus(false)
+                                                                 .invokeDiskFailurePolicy(true)
+                                                                 .build()))
+        {
+            verifier.verify();
+        }
+        assertTrue(corrupted.isRepaired());
+
+        IScrubber.ScrubResult scrubResult;
+        try (LifecycleTransaction txn = cfs.getTracker().tryModify(Collections.singletonList(corrupted),
+                                                                  OperationType.SCRUB);
+             IScrubber scrubber = corrupted.descriptor.getFormat().getScrubber(cfs,
+                                                                                txn,
+                                                                                new OutputHandler.LogOutput(),
+                                                                                new IScrubber.Options.Builder().checkData().build()))
+        {
+            scrubResult = scrubber.scrubWithResult();
+        }
+
+        assertEquals(partitionCount, scrubResult.goodPartitions);
+        assertEquals(0, scrubResult.badPartitions);
+        assertEquals(0, scrubResult.emptyPartitions);
+        assertEquals(1, cfs.getLiveSSTables().size());
+        assertTrue(cfs.getLiveSSTables().iterator().next().isRepaired());
+        assertOrderedAll(cfs, partitionCount);
+    }
+
+    @Test
+    public void testScrubZeroCopyChildWithDeadPrefix() throws Throwable
+    {
+        SSTableFormat<?, ?> originalFormat = DatabaseDescriptor.getSelectedSSTableFormat();
+        try
+        {
+            TestDatabaseDescriptor.setUnsafeSelectedSSTableFormat(BigFormat.NAME);
+            doTestScrubZeroCopyChildWithDeadPrefix();
+        }
+        finally
+        {
+            TestDatabaseDescriptor.setUnsafeSelectedSSTableFormat(originalFormat);
+        }
+    }
+
+    private void doTestScrubZeroCopyChildWithDeadPrefix() throws Throwable
+    {
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_COMPRESSED_BIG);
+        fillCF(cfs, 1000);
+
+        SSTableReader parent = cfs.getLiveSSTables().iterator().next();
+        assertTrue(ZeroCopySSTableSplitter.isSupported(parent));
+        assertTrue(parent.uncompressedLength() > 4L * COMPRESSION_CHUNK_LENGTH);
+
+        ZeroCopySSTableSplitter.Result split = ZeroCopySSTableSplitter.splitForTesting(parent, 3);
+        SSTableReader consumedByTransaction = null;
+        try
+        {
+            ZeroCopySSTableSplitter.Child childWithPrefix = childWithDeadPrefix(split);
+            assertNotNull("expected a child whose first partition starts inside a compression chunk", childWithPrefix);
+            assertTrue(childWithPrefix.reader.hasSplitPrefix());
+            assertEquals(childWithPrefix.deadPrefixBytes,
+                         childWithPrefix.reader.getSSTableMetadata().firstPartitionPosition);
+            assertTrue(childWithPrefix.deadPrefixBytes < COMPRESSION_CHUNK_LENGTH);
+            assertEquals(childWithPrefix.deadPrefixBytes,
+                         childWithPrefix.reader.getPosition(childWithPrefix.first, SSTableReader.Operator.EQ));
+
+            assertQuickVerifyDoesNotReadData(cfs, childWithPrefix.reader);
+
+            try (SSTableCursorReader cursor = new SSTableCursorReader(childWithPrefix.reader))
+            {
+                assertEquals(childWithPrefix.deadPrefixBytes, cursor.position());
+                try
+                {
+                    cursor.seekPartition(0);
+                    fail("A cursor must not seek into a retained compression-chunk prefix");
+                }
+                catch (IllegalArgumentException expected)
+                {
+                }
+            }
+
+            try (IVerifier verifier = childWithPrefix.reader.getVerifier(cfs,
+                                                                         new OutputHandler.LogOutput(),
+                                                                         false,
+                                                                         IVerifier.options()
+                                                                                  .extendedVerification(true)
+                                                                                  .invokeDiskFailurePolicy(true)
+                                                                                  .build()))
+            {
+                verifier.verify();
+            }
+
+            consumedByTransaction = childWithPrefix.reader;
+            IScrubber.ScrubResult scrubResult;
+            try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.SCRUB,
+                                                                          childWithPrefix.reader);
+                 IScrubber scrubber = childWithPrefix.descriptor.getFormat().getScrubber(cfs,
+                                                                                         txn,
+                                                                                         new OutputHandler.LogOutput(),
+                                                                                         new IScrubber.Options.Builder().checkData().build()))
+            {
+                scrubResult = scrubber.scrubWithResult();
+            }
+
+            assertEquals(childWithPrefix.partitionCount, scrubResult.goodPartitions);
+            assertEquals(0, scrubResult.badPartitions);
+            assertEquals(0, scrubResult.emptyPartitions);
+        }
+        finally
+        {
+            for (ZeroCopySSTableSplitter.Child child : split.children)
+            {
+                if (child.reader != consumedByTransaction)
+                    child.reader.selfRef().release();
+            }
+            LifecycleTransaction.waitForDeletions();
+        }
+    }
+
+    @Test
+    public void testSkipCorruptedZeroCopyChildFirstChunk() throws Throwable
+    {
+        SSTableFormat<?, ?> originalFormat = DatabaseDescriptor.getSelectedSSTableFormat();
+        try
+        {
+            TestDatabaseDescriptor.setUnsafeSelectedSSTableFormat(BigFormat.NAME);
+            doTestSkipCorruptedZeroCopyChildFirstChunk();
+        }
+        finally
+        {
+            TestDatabaseDescriptor.setUnsafeSelectedSSTableFormat(originalFormat);
+        }
+    }
+
+    private void doTestSkipCorruptedZeroCopyChildFirstChunk() throws Throwable
+    {
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_COMPRESSED_BIG);
+        fillCF(cfs, 1000);
+
+        SSTableReader parent = cfs.getLiveSSTables().iterator().next();
+        ZeroCopySSTableSplitter.Result split = ZeroCopySSTableSplitter.splitForTesting(parent, 3);
+        SSTableReader consumedByTransaction = null;
+        try
+        {
+            ZeroCopySSTableSplitter.Child child = childWithDeadPrefix(split);
+            assertNotNull("expected a child whose first partition starts inside a compression chunk", child);
+            assertTrue(child.reader.hasSplitPrefix());
+
+            File dataFile = child.descriptor.fileFor(Components.DATA);
+            long firstChunkOffset = child.reader.getCompressionMetadata().chunkFor(0).offset;
+            try (FileChannel channel = dataFile.newReadWriteChannel())
+            {
+                ByteBuffer byteBuffer = ByteBuffer.allocate(1);
+                assertEquals(1, channel.read(byteBuffer, firstChunkOffset));
+                byteBuffer.flip();
+                byteBuffer.put(0, (byte) (byteBuffer.get(0) ^ 1));
+                assertEquals(1, channel.write(byteBuffer, firstChunkOffset));
+                channel.force(true);
+            }
+            if (ChunkCache.instance != null)
+                ChunkCache.instance.invalidateFile(dataFile.toString());
+
+            consumedByTransaction = child.reader;
+            IScrubber.ScrubResult scrubResult;
+            IScrubber.Options options = new IScrubber.Options.Builder().checkData().skipCorrupted().build();
+            List<String> warnings = new ArrayList<>();
+            OutputHandler output = new OutputHandler.NullOutput()
+            {
+                @Override
+                public void warn(Throwable th, String msg)
+                {
+                    warnings.add(msg);
+                }
+            };
+            try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.SCRUB, child.reader);
+                 IScrubber scrubber = child.descriptor.getFormat().getScrubber(cfs,
+                                                                               txn,
+                                                                               output,
+                                                                               options))
+            {
+                scrubResult = scrubber.scrubWithResult();
+            }
+
+            assertTrue("scrub should report why it skipped the unreadable first partition",
+                       warnings.contains("First partition is unreadable; skipping to the next readable index position"));
+            assertTrue("scrub should skip at least the corrupted first partition", scrubResult.badPartitions > 0);
+            assertTrue("scrub should resynchronize after the corrupted first chunk", scrubResult.goodPartitions > 0);
+        }
+        finally
+        {
+            for (ZeroCopySSTableSplitter.Child child : split.children)
+            {
+                if (child.reader != consumedByTransaction)
+                    child.reader.selfRef().release();
+            }
+            LifecycleTransaction.waitForDeletions();
+        }
+    }
+
+    @Test
+    public void testScrubIgnoresReadableWrongFirstPosition() throws Throwable
+    {
+        SSTableFormat<?, ?> originalFormat = DatabaseDescriptor.getSelectedSSTableFormat();
+        try
+        {
+            TestDatabaseDescriptor.setUnsafeSelectedSSTableFormat(BigFormat.NAME);
+            doTestScrubIgnoresReadableWrongFirstPosition();
+        }
+        finally
+        {
+            TestDatabaseDescriptor.setUnsafeSelectedSSTableFormat(originalFormat);
+        }
+    }
+
+    private void doTestScrubIgnoresReadableWrongFirstPosition() throws Throwable
+    {
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_COMPRESSED_BIG);
+        fillCF(cfs, 1000);
+
+        SSTableReader parent = cfs.getLiveSSTables().iterator().next();
+        ZeroCopySSTableSplitter.Result split = ZeroCopySSTableSplitter.splitForTesting(parent, 3);
+        SSTableReader releasedChild = null;
+        SSTableReader reopened = null;
+        boolean consumedByTransaction = false;
+        try
+        {
+            ZeroCopySSTableSplitter.Child child = childWithDeadPrefix(split);
+            assertNotNull("expected a child whose first partition starts inside a compression chunk", child);
+            assertTrue(child.reader.hasSplitPrefix());
+
+            List<IndexPartition> index = readIndexPartitions(child.reader);
+            assertTrue(index.size() > 1);
+            IndexPartition wrongPartition = null;
+            long firstChunkEnd = child.reader.getCompressionMetadata().chunkLength();
+            for (int i = 1; i < index.size() && index.get(i).dataPosition < firstChunkEnd; i++)
+            {
+                wrongPartition = index.get(i);
+                break;
+            }
+            assertNotNull("expected another complete partition in the child's first compression chunk", wrongPartition);
+
+            try (RandomAccessReader data = child.reader.openDataReader())
+            {
+                data.seek(wrongPartition.dataPosition);
+                ByteBuffer wrongKey = ByteBufferUtil.readWithShortLength(data);
+                assertFalse("the replacement position must contain a readable, different partition key",
+                            child.reader.getSSTableMetadata().firstKey.equals(wrongKey));
+            }
+
+            releasedChild = child.reader;
+            releasedChild.selfRef().release();
+            replaceIndexPosition(child.descriptor, index.get(0), wrongPartition.dataPosition);
+
+            reopened = SSTableReader.open(cfs, child.descriptor, cfs.metadata);
+            IScrubber.ScrubResult scrubResult;
+            try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.SCRUB, reopened);
+                 IScrubber scrubber = reopened.descriptor.getFormat().getScrubber(cfs,
+                                                                                  txn,
+                                                                                  new OutputHandler.LogOutput(),
+                                                                                  new IScrubber.Options.Builder()
+                                                                                               .checkData()
+                                                                                               .skipCorrupted()
+                                                                                               .build()))
+            {
+                scrubResult = scrubber.scrubWithResult();
+                consumedByTransaction = true;
+            }
+
+            assertEquals(child.partitionCount, scrubResult.goodPartitions);
+            assertEquals(0, scrubResult.badPartitions);
+        }
+        finally
+        {
+            if (reopened != null && !consumedByTransaction)
+                reopened.selfRef().release();
+            for (ZeroCopySSTableSplitter.Child child : split.children)
+            {
+                if (child.reader != releasedChild)
+                    child.reader.selfRef().release();
+            }
+            LifecycleTransaction.waitForDeletions();
+        }
+    }
+
+    @Test
+    public void testCorruptZeroCopyChildIndexCanBeScrubbedWithoutIndex() throws Throwable
+    {
+        SSTableFormat<?, ?> originalFormat = DatabaseDescriptor.getSelectedSSTableFormat();
+        try
+        {
+            TestDatabaseDescriptor.setUnsafeSelectedSSTableFormat(BigFormat.NAME);
+            doTestCorruptZeroCopyChildIndexCanBeScrubbedWithoutIndex();
+        }
+        finally
+        {
+            TestDatabaseDescriptor.setUnsafeSelectedSSTableFormat(originalFormat);
+        }
+    }
+
+    private void doTestCorruptZeroCopyChildIndexCanBeScrubbedWithoutIndex() throws Throwable
+    {
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_COMPRESSED_BIG);
+        fillCF(cfs, 1000);
+
+        SSTableReader parent = cfs.getLiveSSTables().iterator().next();
+        parent.descriptor.getMetadataSerializer().mutateRepairMetadata(parent.descriptor,
+                                                                      1,
+                                                                      parent.getPendingRepair(),
+                                                                      parent.isTransient());
+        parent.reloadSSTableMetadata();
+
+        ZeroCopySSTableSplitter.Result split = ZeroCopySSTableSplitter.splitForTesting(parent, 3);
+        SSTableReader releasedChild = null;
+        SSTableReader reopened = null;
+        boolean consumedByTransaction = false;
+        try
+        {
+            ZeroCopySSTableSplitter.Child child = childWithDeadPrefix(split);
+            assertNotNull("expected a child whose first partition starts inside a compression chunk", child);
+            assertTrue(child.reader.hasSplitPrefix());
+            assertTrue(child.reader.isRepaired());
+
+            List<IndexPartition> index = readIndexPartitions(child.reader);
+            assertTrue(index.size() > 1);
+            releasedChild = child.reader;
+            releasedChild.selfRef().release();
+            replaceIndexWithSuffix(child.descriptor, index, 0, true);
+
+            reopened = SSTableReader.open(cfs, child.descriptor, cfs.metadata);
+            assertTrue(reopened.isRepaired());
+            assertEquals(child.deadPrefixBytes, reopened.getPositionsForFullRange().lowerPosition);
+            PartitionDescriptor firstPartition = new PartitionDescriptor(reopened.getPartitioner().createReusableKey(0));
+            try (SSTableCursorReader cursor = new SSTableCursorReader(reopened))
+            {
+                cursor.readPartitionHeader(firstPartition);
+            }
+            assertEquals(reopened.getFirst(), firstPartition.key());
+
+            try (IVerifier verifier = reopened.getVerifier(cfs,
+                                                            new OutputHandler.LogOutput(),
+                                                            false,
+                                                            IVerifier.options()
+                                                                     .mutateRepairStatus(false)
+                                                                     .invokeDiskFailurePolicy(true)
+                                                                     .build()))
+            {
+                verifier.verify();
+                fail("Expected verify to reject the corrupt primary index");
+            }
+            catch (CorruptSSTableException expected)
+            {
+            }
+
+            IScrubber.ScrubResult scrubResult;
+            try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.SCRUB, reopened);
+                 IScrubber scrubber = reopened.descriptor.getFormat().getScrubber(cfs,
+                                                                                  txn,
+                                                                                  new OutputHandler.LogOutput(),
+                                                                                  new IScrubber.Options.Builder().checkData().build()))
+            {
+                scrubResult = scrubber.scrubWithResult();
+                consumedByTransaction = true;
+            }
+            assertEquals(child.partitionCount, scrubResult.goodPartitions);
+            assertEquals(0, scrubResult.badPartitions);
+        }
+        finally
+        {
+            if (reopened != null && !consumedByTransaction)
+                reopened.selfRef().release();
+            for (ZeroCopySSTableSplitter.Child child : split.children)
+            {
+                if (child.reader != releasedChild)
+                    child.reader.selfRef().release();
+            }
+            LifecycleTransaction.waitForDeletions();
+        }
+    }
+
+    private static ZeroCopySSTableSplitter.Child childWithDeadPrefix(ZeroCopySSTableSplitter.Result split)
+    {
+        for (ZeroCopySSTableSplitter.Child child : split.children)
+        {
+            if (child.deadPrefixBytes > 0)
+                return child;
+        }
+        return null;
+    }
+
+    private static void assertQuickVerifyDoesNotReadData(ColumnFamilyStore cfs, SSTableReader child) throws IOException
+    {
+        File dataFile = child.descriptor.fileFor(Components.DATA);
+        long firstChunkOffset = child.getCompressionMetadata().chunkFor(0).offset;
+        ByteBuffer byteBuffer = ByteBuffer.allocate(1);
+        byte original;
+        try (FileChannel channel = dataFile.newReadWriteChannel())
+        {
+            assertEquals(1, channel.read(byteBuffer, firstChunkOffset));
+            original = byteBuffer.array()[0];
+            byteBuffer.clear();
+            byteBuffer.put((byte) (original ^ 1)).flip();
+            assertEquals(1, channel.write(byteBuffer, firstChunkOffset));
+            channel.force(true);
+        }
+        if (ChunkCache.instance != null)
+            ChunkCache.instance.invalidateFile(dataFile.toString());
+
+        try
+        {
+            try (IVerifier verifier = child.getVerifier(cfs,
+                                                        new OutputHandler.LogOutput(),
+                                                        false,
+                                                        IVerifier.options()
+                                                                 .quick(true)
+                                                                 .invokeDiskFailurePolicy(true)
+                                                                 .build()))
+            {
+                verifier.verify();
+            }
+        }
+        finally
+        {
+            byteBuffer.clear();
+            byteBuffer.put(original).flip();
+            try (FileChannel channel = dataFile.newReadWriteChannel())
+            {
+                assertEquals(1, channel.write(byteBuffer, firstChunkOffset));
+                channel.force(true);
+            }
+            if (ChunkCache.instance != null)
+                ChunkCache.instance.invalidateFile(dataFile.toString());
+        }
     }
 
     public void testCorruptionInSmallFile(ThrowingBiConsumer<SSTableReader, String[], IOException> corrupt, boolean isFullyRecoverable, int expectedPartitions) throws IOException, WriteTimeoutException
@@ -606,6 +1127,143 @@ public class ScrubTest
         }
         if (ChunkCache.instance != null)
             ChunkCache.instance.invalidateFile(path.toString());
+    }
+
+    private static final class IndexPartition
+    {
+        private final long dataPosition;
+        private final long indexOffset;
+        private final long indexPositionOffset;
+        private final long indexPositionEndOffset;
+
+        private IndexPartition(long dataPosition,
+                               long indexOffset,
+                               long indexPositionOffset,
+                               long indexPositionEndOffset)
+        {
+            this.dataPosition = dataPosition;
+            this.indexOffset = indexOffset;
+            this.indexPositionOffset = indexPositionOffset;
+            this.indexPositionEndOffset = indexPositionEndOffset;
+        }
+    }
+
+    private static List<IndexPartition> readIndexPartitions(SSTableReader sstable) throws IOException
+    {
+        assertTrue(BigFormat.is(sstable.descriptor.getFormat()));
+        List<IndexPartition> partitions = new ArrayList<>();
+        try (RandomAccessReader index = RandomAccessReader.open(sstable.descriptor.fileFor(Components.PRIMARY_INDEX)))
+        {
+            while (!index.isEOF())
+            {
+                long indexOffset = index.getFilePointer();
+                ByteBufferUtil.readWithShortLength(index);
+                long indexPositionOffset = index.getFilePointer();
+                long dataPosition = index.readUnsignedVInt();
+                long indexPositionEndOffset = index.getFilePointer();
+                int promotedIndexSize = index.readUnsignedVInt32();
+                if (promotedIndexSize > 0)
+                    index.skipBytesFully(promotedIndexSize);
+                partitions.add(new IndexPartition(dataPosition,
+                                                  indexOffset,
+                                                  indexPositionOffset,
+                                                  indexPositionEndOffset));
+            }
+        }
+        return partitions;
+    }
+
+    private static SSTableReader reopenWithIndexSuffix(ColumnFamilyStore cfs,
+                                                       SSTableReader sstable,
+                                                       List<IndexPartition> index,
+                                                       int firstEntry) throws IOException
+    {
+        Descriptor descriptor = sstable.descriptor;
+
+        cfs.clearUnsafe();
+        sstable.selfRef().release();
+        replaceIndexWithSuffix(descriptor, index, firstEntry, false);
+
+        SSTableReader reopened = SSTableReader.open(cfs, descriptor, cfs.metadata);
+        boolean incrementalBackups = DatabaseDescriptor.isIncrementalBackupsEnabled();
+        DatabaseDescriptor.setIncrementalBackupsEnabled(false);
+        try
+        {
+            cfs.addSSTable(reopened);
+        }
+        finally
+        {
+            DatabaseDescriptor.setIncrementalBackupsEnabled(incrementalBackups);
+        }
+        return reopened;
+    }
+
+    private static void replaceIndexWithSuffix(Descriptor descriptor,
+                                               List<IndexPartition> index,
+                                               int firstEntry,
+                                               boolean rebaseFirstPosition) throws IOException
+    {
+        assertTrue(BigFormat.is(descriptor.getFormat()));
+        File indexFile = descriptor.fileFor(Components.PRIMARY_INDEX);
+        byte[] bigIndex = Files.readAllBytes(indexFile.toPath());
+        IndexPartition first = index.get(firstEntry);
+        long offset = first.indexOffset;
+        assertTrue(offset >= 0 && offset < bigIndex.length);
+        byte[] suffix = Arrays.copyOfRange(bigIndex, (int) offset, bigIndex.length);
+        if (rebaseFirstPosition)
+        {
+            int positionOffset = (int) (first.indexPositionOffset - offset);
+            int positionEndOffset = (int) (first.indexPositionEndOffset - offset);
+            byte[] rebased = new byte[positionOffset + 1 + suffix.length - positionEndOffset];
+            System.arraycopy(suffix, 0, rebased, 0, positionOffset);
+            System.arraycopy(suffix,
+                             positionEndOffset,
+                             rebased,
+                             positionOffset + 1,
+                             suffix.length - positionEndOffset);
+            suffix = rebased;
+        }
+        Files.write(indexFile.toPath(),
+                    suffix,
+                    StandardOpenOption.TRUNCATE_EXISTING,
+                    StandardOpenOption.WRITE);
+
+        // Force BIG to rebuild Summary.db from the shifted index. Statistics.db must remain authoritative for
+        // the reader's range and for the independent first-key witness used by scrub and verify.
+        assertTrue(descriptor.fileFor(Components.SUMMARY).tryDelete());
+
+        if (ChunkCache.instance != null)
+            ChunkCache.instance.invalidateFile(indexFile.toString());
+    }
+
+    private static void replaceIndexPosition(Descriptor descriptor,
+                                             IndexPartition partition,
+                                             long replacementPosition) throws IOException
+    {
+        assertTrue(BigFormat.is(descriptor.getFormat()));
+        File indexFile = descriptor.fileFor(Components.PRIMARY_INDEX);
+        byte[] index = Files.readAllBytes(indexFile.toPath());
+        int positionOffset = (int) partition.indexPositionOffset;
+        int positionEndOffset = (int) partition.indexPositionEndOffset;
+        ByteBuffer replacement = ByteBuffer.allocate(VIntCoding.computeUnsignedVIntSize(replacementPosition));
+        VIntCoding.writeUnsignedVInt(replacementPosition, replacement);
+
+        byte[] modified = new byte[positionOffset + replacement.position() + index.length - positionEndOffset];
+        System.arraycopy(index, 0, modified, 0, positionOffset);
+        System.arraycopy(replacement.array(), 0, modified, positionOffset, replacement.position());
+        System.arraycopy(index,
+                         positionEndOffset,
+                         modified,
+                         positionOffset + replacement.position(),
+                         index.length - positionEndOffset);
+        Files.write(indexFile.toPath(),
+                    modified,
+                    StandardOpenOption.TRUNCATE_EXISTING,
+                    StandardOpenOption.WRITE);
+
+        assertTrue(descriptor.fileFor(Components.SUMMARY).tryDelete());
+        if (ChunkCache.instance != null)
+            ChunkCache.instance.invalidateFile(indexFile.toString());
     }
 
     public static void assertOrderedAll(ColumnFamilyStore cfs, int expectedSize)

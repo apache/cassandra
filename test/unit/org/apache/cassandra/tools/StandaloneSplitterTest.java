@@ -60,7 +60,8 @@ public class StandaloneSplitterTest extends OfflineToolUtils
                       " -h,--help          display this help message\n" + 
                       "    --no-snapshot   don't snapshot the sstables before splitting\n" + 
                       " -s,--size <size>   maximum size in MB for the output sstables (default:\n" + 
-                      "                    50)\n";
+                      "                    50)\n" +
+                      "    --zero-copy     copy compressed chunks instead of rewriting partitions\n";
         Assertions.assertThat(tool.getStdout()).isEqualTo(help);
     }
 
@@ -71,6 +72,13 @@ public class StandaloneSplitterTest extends OfflineToolUtils
         assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
         assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Unrecognized option"));
         assertEquals(1, tool.getExitCode());
+    }
+
+    @Test
+    public void testReflinkFallbackStatusIsAnExplicitWarning()
+    {
+        assertEquals("yes", StandaloneSplitter.reflinkStatus(1));
+        assertEquals("no (WARNING: all Data.db ranges were copied)", StandaloneSplitter.reflinkStatus(0));
     }
 
     @Test

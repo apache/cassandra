@@ -45,6 +45,7 @@ import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
@@ -55,6 +56,7 @@ import org.apache.cassandra.utils.Throwables;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 public class MetadataSerializerTest
@@ -118,6 +120,80 @@ public class MetadataSerializerTest
             assertFalse(deserializedStats.estimatedCellPerPartitionCount.isOverflowed());
             assertFalse(deserializedStats.estimatedPartitionSize.isOverflowed());
         }
+    }
+
+    @Test
+    public void testSplitPrefixMarker() throws IOException
+    {
+        Map<MetadataType, MetadataComponent> metadata = constructMetadata(false);
+        StatsMetadata ordinary = (StatsMetadata) metadata.get(MetadataType.STATS);
+        assertEquals(0, ordinary.firstPartitionPosition);
+
+        StatsMetadata marked = withFirstPartitionPosition(ordinary, 123);
+        assertEquals(123, marked.firstPartitionPosition);
+        assertEquals(123, marked.mutateLevel(marked.sstableLevel + 1).firstPartitionPosition);
+        assertEquals(123, marked.mutateRepairedMetadata(marked.repairedAt,
+                                                        marked.pendingRepair,
+                                                        marked.isTransient).firstPartitionPosition);
+        assertNotEquals(ordinary, marked);
+        assertNotEquals(ordinary.hashCode(), marked.hashCode());
+        metadata.put(MetadataType.STATS, marked);
+
+        MetadataSerializer serializer = new MetadataSerializer();
+        Version qa = BigFormat.getInstance().getVersion("qa");
+        File qaFile = serialize(metadata, serializer, qa);
+        Descriptor qaDescriptor = new Descriptor(qa, qaFile.parent(), "", "", new SequenceBasedSSTableId(0));
+        try (RandomAccessReader in = RandomAccessReader.open(qaFile))
+        {
+            StatsMetadata deserialized = (StatsMetadata) serializer.deserialize(qaDescriptor,
+                                                                                in,
+                                                                                EnumSet.of(MetadataType.STATS))
+                                                                    .get(MetadataType.STATS);
+            assertEquals(123, deserialized.firstPartitionPosition);
+        }
+
+        // qa is a new major so older pa readers reject the descriptor before attempting to deserialize it.
+        Version pa = BigFormat.getInstance().getVersion("pa");
+        File paFile = serialize(metadata, serializer, pa);
+        Descriptor paDescriptor = new Descriptor(pa, paFile.parent(), "", "", new SequenceBasedSSTableId(0));
+        try (RandomAccessReader in = RandomAccessReader.open(paFile))
+        {
+            StatsMetadata deserialized = (StatsMetadata) serializer.deserialize(paDescriptor,
+                                                                                in,
+                                                                                EnumSet.of(MetadataType.STATS))
+                                                                    .get(MetadataType.STATS);
+            assertEquals(0, deserialized.firstPartitionPosition);
+        }
+    }
+
+    private static StatsMetadata withFirstPartitionPosition(StatsMetadata stats, long firstPartitionPosition)
+    {
+        return new StatsMetadata(stats.estimatedPartitionSize,
+                                 stats.estimatedCellPerPartitionCount,
+                                 stats.commitLogIntervals,
+                                 stats.minTimestamp,
+                                 stats.maxTimestamp,
+                                 stats.minLocalDeletionTime,
+                                 stats.maxLocalDeletionTime,
+                                 stats.minTTL,
+                                 stats.maxTTL,
+                                 stats.compressionRatio,
+                                 stats.estimatedTombstoneDropTime,
+                                 stats.sstableLevel,
+                                 List.of(UTF8Type.instance, Int32Type.instance),
+                                 stats.coveredClustering,
+                                 stats.hasLegacyCounterShards,
+                                 stats.repairedAt,
+                                 stats.totalColumnsSet,
+                                 stats.totalRows,
+                                 stats.tokenSpaceCoverage,
+                                 stats.originatingHostId,
+                                 stats.pendingRepair,
+                                 stats.isTransient,
+                                 stats.hasPartitionLevelDeletions,
+                                 stats.firstKey,
+                                 stats.lastKey,
+                                 firstPartitionPosition);
     }
 
     public File serialize(Map<MetadataType, MetadataComponent> metadata, MetadataSerializer serializer, Version version)

@@ -80,6 +80,12 @@ using the provided 'sstableupgrade' tool.
 New features
 ------------
 
+    - `sstablesplit --zero-copy` can split compressed BIG SSTables without
+      deserializing or recompressing rows. On reflink-capable filesystems it
+      shares Data.db extents with the children; otherwise it copies compressed
+      chunks. Split children use the 7.0-only `qa` format and require restoring
+      the pre-split snapshot before rolling back to an older Cassandra binary.
+      See CASSANDRA-21550.
     - CEP-49 - it is possible to implement custom compression providers, e.g.
       integrating with a specialized hardware which makes de/compression faster.
       See CASSANDRA-20975 for more information.

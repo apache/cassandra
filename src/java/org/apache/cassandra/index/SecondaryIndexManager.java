@@ -579,6 +579,24 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     }
 
     /**
+     * Returns whether this table has an index that declares itself SSTable-attached through
+     * {@link Index#isSSTableAttached()}.
+     * <p>
+     * This is intentionally a table-level check rather than an inspection of an SSTable's components. It remains
+     * true while an index build is in progress, before the index components exist on every SSTable.
+     */
+    public boolean hasSSTableAttachedIndexes()
+    {
+        for (Index.Group group : indexGroups.values())
+        {
+            if (group.getIndexes().stream().anyMatch(Index::isSSTableAttached))
+                return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Incrementally builds indexes for the specified SSTables in a blocking fashion.
      * <p>
      * This is similar to {@link #buildIndexesBlocking}, but it is designed to be used in cases where failure will

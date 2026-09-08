@@ -162,7 +162,6 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     private static final Logger logger = LoggerFactory.getLogger(SSTableReader.class);
 
     private static final boolean TRACK_ACTIVITY = CassandraRelevantProperties.DISABLE_SSTABLE_ACTIVITY_TRACKING.getBoolean();
-
     private static final ScheduledExecutorPlus syncExecutor = initSyncExecutor();
 
     private static ScheduledExecutorPlus initSyncExecutor()
@@ -796,7 +795,13 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      */
     public PartitionPositionBounds getPositionsForBounds(AbstractBounds<PartitionPosition> bounds)
     {
-        long left = getPosition(bounds.left, bounds.inclusiveLeft() ? Operator.GE : Operator.GT);
+        // Range scanners and partition streaming do not call getPositionsForFullRange(). If their bounds include a
+        // marked child's first key, use the independently checksummed Statistics.db position or a shifted-but-valid
+        // index head could silently omit the child's leading partitions. MOVED_START must still go through
+        // getPosition(), which applies the reader's logical start.
+        long left = openReason != OpenReason.MOVED_START && hasSplitPrefix() && bounds.contains(getFirst())
+                    ? firstPartitionPosition()
+                    : getPosition(bounds.left, bounds.inclusiveLeft() ? Operator.GE : Operator.GT);
         // Note: getPosition will apply a moved start if the sstable is in MOVED_START state.
         if (left < 0) // empty range
             return null;
@@ -820,13 +825,37 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     public PartitionPositionBounds getPositionsForFullRange()
     {
         if (openReason != OpenReason.MOVED_START)
-            return new PartitionPositionBounds(0, uncompressedLength());
+            return new PartitionPositionBounds(firstPartitionPosition(), uncompressedLength());
         else
         {
             // query a full range, so that the required adjustments can be applied
             PartitionPosition minToken = getPartitioner().getMinimumToken().minKeyBound();
             return getPositionsForBounds(new Range<>(minToken, minToken));
         }
+    }
+
+    /** Logical Data.db position at which this SSTable's first partition begins. */
+    public long firstPartitionPosition()
+    {
+        if (!descriptor.version.hasSplitPrefixMarker())
+            return 0;
+
+        if (sstableMetadata == null)
+            throw invalidFirstPartitionPosition("Statistics.db is unavailable");
+
+        long position = sstableMetadata.firstPartitionPosition;
+        if (position < 0 || position > uncompressedLength())
+            throw invalidFirstPartitionPosition("position " + position + " is outside Data.db length " +
+                                                uncompressedLength());
+        return position;
+    }
+
+    private CorruptSSTableException invalidFirstPartitionPosition(String reason)
+    {
+        markSuspect();
+        return new CorruptSSTableException(new IOException("Invalid first partition position for " + this +
+                                                           ": " + reason),
+                                           descriptor.baseFile());
     }
 
     /**
@@ -1417,6 +1446,12 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     public StatsMetadata getSSTableMetadata()
     {
         return sstableMetadata;
+    }
+
+    /** Whether this SSTable actually retains bytes before its first indexed partition. */
+    public boolean hasSplitPrefix()
+    {
+        return firstPartitionPosition() > 0;
     }
 
     public RandomAccessReader openDataReader()

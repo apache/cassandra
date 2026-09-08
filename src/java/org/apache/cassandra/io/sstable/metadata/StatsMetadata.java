@@ -98,6 +98,8 @@ public class StatsMetadata extends MetadataComponent
 
     public final ByteBuffer firstKey;
     public final ByteBuffer lastKey;
+    /** Logical Data.db position of the first partition represented by the primary index. */
+    public final long firstPartitionPosition;
 
     public StatsMetadata(EstimatedHistogram estimatedPartitionSize,
                          EstimatedHistogram estimatedCellPerPartitionCount,
@@ -125,6 +127,61 @@ public class StatsMetadata extends MetadataComponent
                          ByteBuffer firstKey,
                          ByteBuffer lastKey)
     {
+        this(estimatedPartitionSize,
+             estimatedCellPerPartitionCount,
+             commitLogIntervals,
+             minTimestamp,
+             maxTimestamp,
+             minLocalDeletionTime,
+             maxLocalDeletionTime,
+             minTTL,
+             maxTTL,
+             compressionRatio,
+             estimatedTombstoneDropTime,
+             sstableLevel,
+             clusteringTypes,
+             coveredClustering,
+             hasLegacyCounterShards,
+             repairedAt,
+             totalColumnsSet,
+             totalRows,
+             tokenSpaceCoverage,
+             originatingHostId,
+             pendingRepair,
+             isTransient,
+             hasPartitionLevelDeletions,
+             firstKey,
+             lastKey,
+             0);
+    }
+
+    public StatsMetadata(EstimatedHistogram estimatedPartitionSize,
+                         EstimatedHistogram estimatedCellPerPartitionCount,
+                         IntervalSet<CommitLogPosition> commitLogIntervals,
+                         long minTimestamp,
+                         long maxTimestamp,
+                         long minLocalDeletionTime,
+                         long maxLocalDeletionTime,
+                         int minTTL,
+                         int maxTTL,
+                         double compressionRatio,
+                         TombstoneHistogram estimatedTombstoneDropTime,
+                         int sstableLevel,
+                         List<AbstractType<?>> clusteringTypes,
+                         Slice coveredClustering,
+                         boolean hasLegacyCounterShards,
+                         long repairedAt,
+                         long totalColumnsSet,
+                         long totalRows,
+                         double tokenSpaceCoverage,
+                         UUID originatingHostId,
+                         TimeUUID pendingRepair,
+                         boolean isTransient,
+                         boolean hasPartitionLevelDeletions,
+                         ByteBuffer firstKey,
+                         ByteBuffer lastKey,
+                         long firstPartitionPosition)
+    {
         this.estimatedPartitionSize = estimatedPartitionSize;
         this.estimatedCellPerPartitionCount = estimatedCellPerPartitionCount;
         this.commitLogIntervals = commitLogIntervals;
@@ -151,6 +208,7 @@ public class StatsMetadata extends MetadataComponent
         this.hasPartitionLevelDeletions = hasPartitionLevelDeletions;
         this.firstKey = firstKey;
         this.lastKey = lastKey;
+        this.firstPartitionPosition = firstPartitionPosition;
     }
 
     public MetadataType getType()
@@ -208,7 +266,8 @@ public class StatsMetadata extends MetadataComponent
                                  isTransient,
                                  hasPartitionLevelDeletions,
                                  firstKey,
-                                 lastKey);
+                                 lastKey,
+                                 firstPartitionPosition);
     }
 
     public StatsMetadata mutateRepairedMetadata(long newRepairedAt, TimeUUID newPendingRepair, boolean newIsTransient)
@@ -237,7 +296,8 @@ public class StatsMetadata extends MetadataComponent
                                  newIsTransient,
                                  hasPartitionLevelDeletions,
                                  firstKey,
-                                 lastKey);
+                                 lastKey,
+                                 firstPartitionPosition);
     }
 
     @Override
@@ -271,6 +331,7 @@ public class StatsMetadata extends MetadataComponent
                        .append(hasPartitionLevelDeletions, that.hasPartitionLevelDeletions)
                        .append(firstKey, that.firstKey)
                        .append(lastKey, that.lastKey)
+                       .append(firstPartitionPosition, that.firstPartitionPosition)
                        .build();
     }
 
@@ -301,6 +362,7 @@ public class StatsMetadata extends MetadataComponent
                        .append(hasPartitionLevelDeletions)
                        .append(firstKey)
                        .append(lastKey)
+                       .append(firstPartitionPosition)
                        .build();
     }
 
@@ -384,6 +446,11 @@ public class StatsMetadata extends MetadataComponent
             if (version.hasTokenSpaceCoverage())
             {
                 size += Double.BYTES;
+            }
+
+            if (version.hasSplitPrefixMarker())
+            {
+                size += TypeSizes.sizeofUnsignedVInt(component.firstPartitionPosition);
             }
 
             return size;
@@ -508,6 +575,11 @@ public class StatsMetadata extends MetadataComponent
             if (version.hasTokenSpaceCoverage())
             {
                 out.writeDouble(component.tokenSpaceCoverage);
+            }
+
+            if (version.hasSplitPrefixMarker())
+            {
+                out.writeUnsignedVInt(component.firstPartitionPosition);
             }
         }
 
@@ -654,6 +726,8 @@ public class StatsMetadata extends MetadataComponent
                 tokenSpaceCoverage = in.readDouble();
             }
 
+            long firstPartitionPosition = version.hasSplitPrefixMarker() ? in.readUnsignedVInt() : 0;
+
             return new StatsMetadata(partitionSizes,
                                      columnCounts,
                                      commitLogIntervals,
@@ -678,7 +752,8 @@ public class StatsMetadata extends MetadataComponent
                                      isTransient,
                                      hasPartitionLevelDeletions,
                                      firstKey,
-                                     lastKey);
+                                     lastKey,
+                                     firstPartitionPosition);
         }
 
         private int countUntilNull(ByteBuffer[] bufferArray)

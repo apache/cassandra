@@ -529,6 +529,7 @@ public class SSTableCursorReader implements AutoCloseable
     private final SSTableReader ssTableReader;
     private final RandomAccessReader dataReader;
     private final DeletionTime.Serializer deletionTimeSerializer;
+    private final long firstPartitionPosition;
 
     private final CellCursor staticRowCellCursor = new CellCursor();
     private final CellCursor rowCellCursor = new CellCursor();
@@ -564,7 +565,16 @@ public class SSTableCursorReader implements AutoCloseable
     {
         TableMetadata metadata = Util.metadataFromSSTable(desc);
         SSTableReader reader = SSTableReader.openNoValidation(null, desc, TableMetadataRef.forOfflineTools(metadata));
-        return new SSTableCursorReader(reader, metadata, reader.ref(), null, null);
+        Ref<SSTableReader> ref = reader.ref();
+        try
+        {
+            return new SSTableCursorReader(reader, metadata, ref, null, null);
+        }
+        catch (RuntimeException | Error e)
+        {
+            ref.close();
+            throw e;
+        }
     }
 
     public SSTableCursorReader(SSTableReader reader)
@@ -608,14 +618,28 @@ public class SSTableCursorReader implements AutoCloseable
         serializationHeader = reader.header;
         sstableHasDroppedColumns = anyDroppedColumn(deserializationHelper, serializationHeader);
 
+        SSTableReader.PartitionPositionBounds fullRange = reader.getPositionsForFullRange();
+        // A null range means MOVED_START has consumed the whole logical reader. Pin its only legal seek to physical
+        // EOF so a caller cannot move a DONE cursor back into bytes this reader no longer owns.
+        firstPartitionPosition = fullRange == null ? reader.uncompressedLength() : fullRange.lowerPosition;
         dataReader = reader.openDataReaderForScan(diskAccessMode);
+        try
+        {
+            if (fullRange == null || firstPartitionPosition > 0 || reader.uncompressedLength() == 0)
+                seekPartitionInRange(firstPartitionPosition);
+        }
+        catch (RuntimeException | Error e)
+        {
+            dataReader.close();
+            throw e;
+        }
         // the HEADER decides whether this sstable can contain static rows: after
         // ALTER TABLE ... DROP of the last static column, current metadata has no static
         // columns but older sstables legitimately still carry static rows
         hasStaticColumns = serializationHeader.hasStatic();
 
         segments = bounds == null
-                   ? new PartitionPositionBounds[]{ new PartitionPositionBounds(0, dataReader.length()) }
+                   ? new PartitionPositionBounds[]{ new PartitionPositionBounds(firstPartitionPosition, dataReader.length()) }
                    : bounds.toArray(new PartitionPositionBounds[0]);
         try
         {
@@ -693,7 +717,7 @@ public class SSTableCursorReader implements AutoCloseable
             segmentEnd = next.upperPosition;
             try
             {
-                seekPartition(segmentStart);
+                seekPartitionAfterMarker(segmentStart);
             }
             catch (IOException e)
             {
@@ -704,11 +728,51 @@ public class SSTableCursorReader implements AutoCloseable
         return DONE;
     }
 
+    public int seekPartition(long position)
+    {
+        validateSeekPosition(position);
+        return seekPartitionInRange(position);
+    }
+
+    private void validateSeekPosition(long position)
+    {
+        long endPosition = uncompressedLength();
+        if (position < firstPartitionPosition || position > endPosition)
+            throw new IllegalArgumentException("Cannot seek outside cursor range [" + firstPartitionPosition +
+                                               ", " + endPosition + "]: " + position);
+    }
+
+    private int seekPartitionInRange(long position)
+    {
+        if (position == uncompressedLength())
+        {
+            dataReader.seek(position);
+            state = DONE;
+            resetOnPartitionStart();
+            return state;
+        }
+
+        try
+        {
+            seekPartitionAfterMarker(position);
+        }
+        catch (IOException e)
+        {
+            if (position == firstPartitionPosition)
+                return corruptSSTable("Authenticated first partition at " + position +
+                                      " is not preceded by an end-of-partition marker");
+            return corruptSSTable(e);
+        }
+        state = dataReader.isEOF() ? DONE : PARTITION_START;
+        resetOnPartitionStart();
+        return state;
+    }
+
     /**
      * Seeks to the start of a partition. Every partition but the file's first follows an
      * end-of-partition marker, and reading that byte leaves the reader at the partition start.
      */
-    private void seekPartition(long position) throws IOException
+    private void seekPartitionAfterMarker(long position) throws IOException
     {
         if (position == 0)
         {
@@ -724,6 +788,24 @@ public class SSTableCursorReader implements AutoCloseable
         if (marker != UnfilteredSerializer.END_OF_PARTITION)
             throw new IOException("Seeking to a partition at: " + position + " did not land after an end-of-partition marker; found 0x"
                                   + Integer.toHexString(marker));
+    }
+
+    public int seekUnfiltered(long position)
+    {
+        validateSeekPosition(position);
+        // partition elements (Unfiltered) have flags
+        dataReader.seek(position);
+        int state;
+        try
+        {
+            state = checkNextFlagsAfterStaticRowOrUnfilteredStart(false);
+        }
+        catch (IOException e)
+        {
+            return corruptSSTable(e);
+        }
+        if (!isState(state, ROW_START | TOMBSTONE_START | DONE)) throw new IllegalStateException();
+        return state;
     }
 
     // struct partition {

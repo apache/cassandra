@@ -85,14 +85,15 @@ public class BigTableScrubber extends SortedTableScrubber<BigTableReader> implem
     @Override
     protected void scrubInternal(SSTableRewriter writer) throws IOException
     {
+        boolean initializedIndex = false;
+        long firstPartitionPositionFromIndex = 0;
         try
         {
             nextIndexKey = indexAvailable() ? ByteBufferUtil.readWithShortLength(indexFile) : null;
             if (indexAvailable())
             {
-                // throw away variable, so we don't have a side effect in the assertion
-                long firstRowPositionFromIndex = rowIndexEntrySerializer.deserializePositionAndSkip(indexFile);
-                assert firstRowPositionFromIndex == 0 : firstRowPositionFromIndex;
+                firstPartitionPositionFromIndex = rowIndexEntrySerializer.deserializePositionAndSkip(indexFile);
+                initializedIndex = true;
             }
         }
         catch (Throwable ex)
@@ -102,6 +103,38 @@ public class BigTableScrubber extends SortedTableScrubber<BigTableReader> implem
             nextPartitionPositionFromIndex = dataFile.length();
             if (indexFile != null)
                 indexFile.seek(indexFile.length());
+        }
+
+        if (initializedIndex && validateFirstIndexPosition(firstPartitionPositionFromIndex))
+        {
+            nextPartitionPositionFromIndex = firstPartitionPositionFromIndex;
+            try
+            {
+                dataFile.seek(firstPartitionPositionFromIndex);
+            }
+            catch (Throwable t)
+            {
+                throwIfFatal(t);
+                DecoratedKey key = sstable.decorateKey(nextIndexKey);
+                throwIfCannotContinue(key, t);
+
+                outputHandler.warn(t, "First partition is unreadable; skipping to the next readable index position");
+                badPartitions++;
+                updateIndexKey();
+                if (!seekToNextPartition())
+                    return;
+            }
+        }
+        else if (!initializedIndex)
+        {
+            seekToDataStartWithoutIndex();
+        }
+        else
+        {
+            nextIndexKey = null;
+            nextPartitionPositionFromIndex = dataFile.length();
+            indexFile.seek(indexFile.length());
+            seekToDataStartWithoutIndex();
         }
 
         DecoratedKey prevKey = null;

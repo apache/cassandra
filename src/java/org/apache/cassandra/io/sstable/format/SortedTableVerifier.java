@@ -274,8 +274,23 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
         try (VerifyController verifyController = new VerifyController(cfs);
              KeyReader indexIterator = sstable.keyReader())
         {
-            if (indexIterator.dataPosition() != 0)
-                markAndThrow(new RuntimeException("First row position from index != 0: " + indexIterator.dataPosition()));
+            long firstPosition = indexIterator.dataPosition();
+            try
+            {
+                firstPosition = verifyFirstIndexEntry(indexIterator, true);
+            }
+            catch (Throwable t)
+            {
+                markAndThrow(t);
+            }
+            try
+            {
+                dataFile.seek(firstPosition);
+            }
+            catch (Throwable t)
+            {
+                markAndThrow(t);
+            }
 
             List<Range<Token>> ownedRanges = isOffline ? Collections.emptyList() : Range.normalize(tokenLookup.apply(cfs.metadata().keyspace));
             RangeOwnHelper rangeOwnHelper = new RangeOwnHelper(ownedRanges);
@@ -392,11 +407,50 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
     {
         try (KeyReader it = sstable.keyReader())
         {
+            if (sstable.hasSplitPrefix())
+                verifyFirstIndexEntry(it, false);
+
             ByteBuffer last = it.key();
             while (it.advance()) last = it.key(); // no-op, just check if index is readable
             if (!Objects.equals(last, sstable.getLast().getKey()))
                 throw new CorruptSSTableException(new IOException("Failed to read partition index"), it.toString());
         }
+    }
+
+    /** Verify the first index entry against independently checksummed Statistics.db. */
+    protected long verifyFirstIndexEntry(KeyReader index, boolean verifyData) throws IOException
+    {
+        if (index.isExhausted())
+            throw invalidFirstIndex(index, "partition index is empty");
+
+        long position = index.dataPosition();
+        long expectedPosition = sstable.firstPartitionPosition();
+        ByteBuffer expectedKey = sstable.getSSTableMetadata().firstKey;
+        if (position != expectedPosition || !Objects.equals(index.key(), expectedKey))
+            throw invalidFirstIndex(index, "index key or data position does not match the first partition");
+
+        if (verifyData && !Objects.equals(readDataKey(position), expectedKey))
+            throw invalidFirstIndex(index, "data key at the first index position does not match the first partition");
+        return position;
+    }
+
+    private ByteBuffer readDataKey(long position) throws IOException
+    {
+        long previousPosition = dataFile.getFilePointer();
+        try
+        {
+            dataFile.seek(position);
+            return ByteBufferUtil.readWithShortLength(dataFile);
+        }
+        finally
+        {
+            dataFile.seek(previousPosition);
+        }
+    }
+
+    private CorruptSSTableException invalidFirstIndex(KeyReader index, String reason)
+    {
+        return new CorruptSSTableException(new IOException(reason), index.toString());
     }
 
     @Override
