@@ -174,6 +174,13 @@ public class TrieMemtable extends AbstractShardedMemtable
         }
     }
 
+    @Override
+    public boolean limitsConcurrentWritesTo(int maxWriters)
+    {
+        // each shard applies one update at a time under its write lock
+        return boundaries.shardCount() <= maxWriters;
+    }
+
     /**
      * Should only be called by ColumnFamilyStore.apply via Keyspace.apply, which supplies the appropriate
      * OpOrdering.
