@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.gms;
 
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -27,6 +25,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
@@ -37,9 +36,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -337,28 +334,17 @@ public class EndpointState
 
     /**
      * TOKENS is stored as an ISO-8859-1 string just to hold raw bytes, so printing it as-is dumps unreadable
-     * control characters into the logs. This renders it as a token count instead (see CASSANDRA-21417).
+     * control characters into the logs. Hide it entirely instead, matching how nodetool gossipinfo already
+     * treats TOKENS (see CASSANDRA-10330, CASSANDRA-21417).
      */
     static String formatAppStateMapForLogging(Map<ApplicationState, VersionedValue> applicationState)
     {
-        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
-        return applicationState.entrySet().stream().map(entry -> {
-            if (entry.getKey() != ApplicationState.TOKENS)
-                return entry.getKey() + "=" + entry.getValue();
-
-            final VersionedValue value = entry.getValue();
-            try
-            {
-                int numTokens = TokenSerializer.deserialize(partitioner, new DataInputStream(new ByteArrayInputStream(value.toBytes())))
-                                                .size();
-                return entry.getKey() + "=Value(<" + numTokens + " tokens>," + value.version + ')';
-            }
-            catch (Throwable t)
-            {
-                // catches OutOfMemoryError too, since a corrupt length prefix can trigger a huge allocation
-                return entry.getKey() + "=Value(<" + value.toBytes().length + " undecodable bytes>," + value.version + ')';
-            }
-        }).collect(Collectors.joining(", ", "{", "}"));
+        Stream<String> otherStates = applicationState.entrySet()
+                                                       .stream()
+                                                       .filter(entry -> entry.getKey() != ApplicationState.TOKENS)
+                                                       .map(entry -> entry.getKey() + "=" + entry.getValue());
+        String tokensState = "TOKENS=" + (applicationState.containsKey(ApplicationState.TOKENS) ? "Value(<hidden>)" : "not present");
+        return Stream.concat(otherStates, Stream.of(tokensState)).collect(Collectors.joining(", ", "{", "}"));
     }
 
     public boolean isSupersededBy(EndpointState that)

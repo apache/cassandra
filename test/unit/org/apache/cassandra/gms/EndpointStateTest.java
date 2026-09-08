@@ -20,7 +20,6 @@ package org.apache.cassandra.gms;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
@@ -35,7 +34,6 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
 
-import static java.nio.charset.StandardCharsets.ISO_8859_1;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -170,35 +168,28 @@ public class EndpointStateTest
     }
 
     @Test
-    public void testFormatAppStateMapForLoggingSummarizesTokensInsteadOfPrintingRawBinaryData()
+    public void testFormatAppStateMapForLoggingHidesTokensValue()
     {
-        List<Token> tokens = new ArrayList<>();
-        for (int i = 0; i < 16; i++)
-            tokens.add(DatabaseDescriptor.getPartitioner().getRandomToken());
-
         Map<ApplicationState, VersionedValue> states = new EnumMap<>(ApplicationState.class);
-        VersionedValue tokensValue = valueFactory.tokens(tokens);
+        VersionedValue tokensValue = VersionedValue.unsafeMakeVersionedValue("does-not-matter", 5);
         states.put(ApplicationState.TOKENS, tokensValue);
         states.put(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
 
         String rendered = EndpointState.formatAppStateMapForLogging(states);
 
-        assertTrue(rendered.contains("TOKENS=Value(<16 tokens>," + tokensValue.version + ')'));
+        assertTrue(rendered.contains("TOKENS=Value(<hidden>)"));
         assertFalse(rendered.contains(tokensValue.value));
         assertTrue(rendered.contains("RELEASE_VERSION=Value("));
     }
 
     @Test
-    public void testFormatAppStateMapForLoggingHandlesUndecodableTokensValue()
+    public void testFormatAppStateMapForLoggingShowsTokensNotPresentWhenMissing()
     {
         Map<ApplicationState, VersionedValue> states = new EnumMap<>(ApplicationState.class);
-        // claims a 5-byte token but only 2 follow, so this fails cleanly instead of via a huge allocation
-        byte[] truncatedTokenBytes = { 0, 0, 0, 5, 'a', 'b' };
-        String truncatedTokenBlob = new String(truncatedTokenBytes, ISO_8859_1);
-        states.put(ApplicationState.TOKENS, VersionedValue.unsafeMakeVersionedValue(truncatedTokenBlob, 1));
+        states.put(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
 
         String rendered = EndpointState.formatAppStateMapForLogging(states);
 
-        assertTrue(rendered.contains("TOKENS=Value(<6 undecodable bytes>,1)"));
+        assertTrue(rendered.contains("TOKENS=not present"));
     }
 }
