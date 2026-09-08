@@ -47,8 +47,8 @@ import accord.impl.basic.InMemoryJournal;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
 import accord.local.ExecutionContext;
+import accord.local.FindKeys;
 import accord.local.LoadKeys;
-import accord.local.LoadKeysFor;
 import accord.local.Node.Id;
 import accord.local.NodeCommandStoreService;
 import accord.local.SafeCommandStore;
@@ -209,7 +209,7 @@ public class AccordExecutorLoadFailureTest
         {
             ExecutionContext context = AccordExecutionTestUtils.idempotent(
                 ExecutionContext.contextFor(TxnId.fromValues(1, 1, 0, new Id(1)), null, RoutingKeys.of(ready, failing),
-                                            loadKeys, LoadKeysFor.READ_WRITE, "batched"));
+                                            loadKeys, FindKeys.CONFLICTS, "batched"));
             store.execute(context, (Consumer<? super SafeCommandStore>) safeStore -> {
                 running.signal();
                 // hold the reference to the failing key until its load has failed
@@ -246,7 +246,7 @@ public class AccordExecutorLoadFailureTest
             // after the previous one has released, so a later task completing means the fan-out has finished releasing.
             Condition fenceDone = Condition.newOneTimeCondition();
             store.execute(ExecutionContext.contextFor(TxnId.fromValues(1, 2, 0, new Id(1)), null, RoutingKeys.of(ready),
-                                                      LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "fence"),
+                                                      LoadKeys.SYNC, FindKeys.CONFLICTS, "fence"),
                           (Consumer<? super SafeCommandStore>) ignore -> {}, (success, fail) -> fenceDone.signal());
             assertTrue("the fence task never completed, so the fan-out may not have released yet",
                        fenceDone.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
@@ -340,7 +340,7 @@ public class AccordExecutorLoadFailureTest
             AtomicReference<Throwable> failure = new AtomicReference<>();
             Condition done = Condition.newOneTimeCondition();
             ExecutionContext context = ExecutionContext.contextFor(TxnId.fromValues(1, 1, 0, new Id(1)), null, RoutingKeys.of(keys),
-                                                                   LoadKeys.ASYNC, LoadKeysFor.READ_WRITE, "batched");
+                                                                   LoadKeys.ASYNC, FindKeys.CONFLICTS, "batched");
             store.execute(context, (Consumer<? super SafeCommandStore>) safeStore -> {
                 SafeTask<?> task = ((SaferCommandStore) safeStore).task;
                 failed.set(task);
@@ -385,7 +385,7 @@ public class AccordExecutorLoadFailureTest
             Condition afterDone = Condition.newOneTimeCondition();
             AtomicReference<Throwable> afterFailure = new AtomicReference<>();
             ExecutionContext after = ExecutionContext.contextFor(TxnId.fromValues(1, 2, 0, new Id(1)), null, RoutingKeys.of(kept),
-                                                                 LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "after");
+                                                                 LoadKeys.SYNC, FindKeys.CONFLICTS, "after");
             store.execute(after, (Consumer<? super SafeCommandStore>) ignore -> {},
                           (success, fail) -> { afterFailure.set(fail); afterDone.signal(); });
             assertTrue("a task on " + kept + " was never run or notified: the task whose completion threw is FAILED and "
@@ -407,7 +407,7 @@ public class AccordExecutorLoadFailureTest
     {
         Condition ready = Condition.newOneTimeCondition();
         ExecutionContext context = ExecutionContext.contextFor(TxnId.fromValues(1, 100, 0, new Id(1)), null, RoutingKeys.of(key),
-                                                               LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "preload");
+                                                               LoadKeys.SYNC, FindKeys.CONFLICTS, "preload");
         store.execute(context, (Consumer<? super SafeCommandStore>) ignore -> {}, (success, fail) -> ready.signal());
         assertTrue("preloading " + key + " never completed", ready.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
         AtomicReference<Boolean> loaded = new AtomicReference<>(false);

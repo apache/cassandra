@@ -44,8 +44,8 @@ import accord.impl.basic.InMemoryJournal;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
 import accord.local.ExecutionContext;
+import accord.local.FindKeys;
 import accord.local.LoadKeys;
-import accord.local.LoadKeysFor;
 import accord.local.Node.Id;
 import accord.local.NodeCommandStoreService;
 import accord.local.SafeCommandStore;
@@ -207,7 +207,7 @@ public class AccordExecutorContinuationCancellationTest
         withStore(store -> {
             TxnId txnId = TxnId.fromValues(1, 1, 0, new Id(1));
             RoutingKey key = new TokenKey(TABLE_ID, DatabaseDescriptor.getPartitioner().getToken(Int32Type.instance.decompose(0)));
-            ExecutionContext parentContext = ExecutionContext.contextFor(txnId, null, RoutingKeys.of(key), LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "parent");
+            ExecutionContext parentContext = ExecutionContext.contextFor(txnId, null, RoutingKeys.of(key), LoadKeys.SYNC, FindKeys.CONFLICTS, "parent");
             store.execute(parentContext, (Consumer<? super SafeCommandStore>) safeStore -> {
                 store.continuationChain(() -> ran.set(true))
                      .begin((success, fail) -> { failure.set(fail); continuationDone.signal(); });
@@ -250,7 +250,7 @@ public class AccordExecutorContinuationCancellationTest
         withStore(store -> {
             TxnId txnId = TxnId.fromValues(1, 1, 0, new Id(1));
             RoutingKey key = new TokenKey(TABLE_ID, DatabaseDescriptor.getPartitioner().getToken(Int32Type.instance.decompose(0)));
-            ExecutionContext parentContext = ExecutionContext.contextFor(txnId, null, RoutingKeys.of(key), LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "parent");
+            ExecutionContext parentContext = ExecutionContext.contextFor(txnId, null, RoutingKeys.of(key), LoadKeys.SYNC, FindKeys.CONFLICTS, "parent");
             store.execute(parentContext, (Consumer<? super SafeCommandStore>) safeStore -> {
                 Runnable run = () -> ran.set(true);
                 // submitted from within the parent's run, on the parent's own executor, so it is attached to the parent
