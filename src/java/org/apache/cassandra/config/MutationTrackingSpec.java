@@ -30,4 +30,10 @@ public class MutationTrackingSpec
      * The interval in which the backgroun reconciliation process runs
      */
     public volatile DurationSpec.LongMillisecondsBound background_reconciliation_interval = new DurationSpec.LongMillisecondsBound("1s");
+    /**
+     * Minimum time to wait before re-issuing a pull request for the same coordinator log
+     * during background reconciliation. Decoupled from {@link #background_reconciliation_interval}
+     * so that suppression spans multiple scheduler ticks.
+     */
+    public volatile DurationSpec.LongMillisecondsBound background_reconciliation_request_cooldown = new DurationSpec.LongMillisecondsBound("3s");
 }

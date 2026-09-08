@@ -65,13 +65,17 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailure;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.MutationTrackingMetrics;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.NoPayload;
+import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.SyncTask;
 import org.apache.cassandra.repair.SyncTasks;
@@ -89,6 +93,7 @@ import org.apache.cassandra.tcm.listeners.ChangeListener;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 
@@ -255,6 +260,8 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         if (!keyspaceShards.isEmpty() && !config.background_reconciliation_enabled)
             logBackgroundReconciliationDisabledWarning(keyspaceShards.keySet());
 
+        warnIfCooldownBelowInterval();
+
         offsetsBroadcaster.start();
         offsetsPersister.start();
         backgroundReconciler.start();
@@ -290,6 +297,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             logger.info("Setting mutation tracking background reconciliation interval from {} to {}",
                         config.background_reconciliation_interval, backgroundReconciliationInterval);
             config.background_reconciliation_interval = backgroundReconciliationInterval;
+            warnIfCooldownBelowInterval();
         }
     }
 
@@ -297,6 +305,26 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     public long getMutationTrackingBackgroundReconciliationIntervalMilliseconds()
     {
         return config.background_reconciliation_interval.toMilliseconds();
+    }
+
+    @Override
+    public void setMutationTrackingBackgroundReconciliationRequestCooldownMilliseconds(long cooldownMilliseconds)
+    {
+        if (cooldownMilliseconds != config.background_reconciliation_request_cooldown.toMilliseconds())
+        {
+            DurationSpec.LongMillisecondsBound backgroundReconciliationRequestCooldown =
+                new DurationSpec.LongMillisecondsBound(cooldownMilliseconds, TimeUnit.MILLISECONDS);
+            logger.info("Setting mutation tracking background reconciliation request cooldown from {} to {}",
+                        config.background_reconciliation_request_cooldown, backgroundReconciliationRequestCooldown);
+            config.background_reconciliation_request_cooldown = backgroundReconciliationRequestCooldown;
+            warnIfCooldownBelowInterval();
+        }
+    }
+
+    @Override
+    public long getMutationTrackingBackgroundReconciliationRequestCooldownMilliseconds()
+    {
+        return config.background_reconciliation_request_cooldown.toMilliseconds();
     }
 
     public void pauseOffsetBroadcast(boolean pause)
@@ -1465,8 +1493,21 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         return rows.one().getInt("host_log_id");
     }
 
+    static void warnIfCooldownBelowInterval()
+    {
+        long cooldownMs = config.background_reconciliation_request_cooldown.toMilliseconds();
+        long intervalMs = config.background_reconciliation_interval.toMilliseconds();
+        if (cooldownMs < intervalMs)
+            logger.warn("Mutation tracking background reconciliation request cooldown ({} ms) is less than the " +
+                        "scheduling interval ({} ms); per-coordinator-log request suppression will not span " +
+                        "consecutive scheduler ticks.",
+                        cooldownMs, intervalMs);
+    }
+
     private static class BackgroundReconciler
     {
+        private final Map<CoordinatorLogId, Long> lastRequestedAt = new ConcurrentHashMap<>();
+
         void start()
         {
             scheduleNext();
@@ -1492,16 +1533,28 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
         void run()
         {
-            MutationTrackingService.instance().forEachKeyspace(this::run);
-        }
+            long now = Clock.Global.nanoTime();
+            long cooldownNanos = TimeUnit.MILLISECONDS.toNanos(config.background_reconciliation_request_cooldown.toMilliseconds());
 
-        private void run(KeyspaceShards shards)
-        {
             if (config.background_reconciliation_enabled)
-                shards.forEachShard(this::run);
+            {
+                MutationTrackingService.instance()
+                                       .forEachKeyspace(shards -> shards.forEachShard(shard -> run(shard, now, cooldownNanos)));
+            }
+            else if (!lastRequestedAt.isEmpty())
+            {
+                // When the background reconciliation is disabled, we clean up any pending
+                // requests being tracked for the cool down period
+                lastRequestedAt.clear();
+            }
+
+            if (!lastRequestedAt.isEmpty())
+            {
+                lastRequestedAt.values().removeIf(timestamp -> now - timestamp > cooldownNanos);
+            }
         }
 
-        private void run(Shard shard)
+        private void run(Shard shard, long now, long cooldownNanos)
         {
             try
             {
@@ -1510,8 +1563,16 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
                 for (Offsets.Immutable offsets : missing)
                 {
-                    // Prefer pulling from the coordinator
-                    int coordinatorHostId = offsets.logId().hostId();
+                    CoordinatorLogId logId = offsets.logId();
+
+                    Long lastRequested = lastRequestedAt.get(logId);
+                    if (lastRequested != null && now - lastRequested < cooldownNanos)
+                    {
+                        MutationTrackingMetrics.instance().backgroundPullRequestsSuppressed.inc();
+                        continue;
+                    }
+
+                    int coordinatorHostId = logId.hostId();
                     InetAddressAndPort coordinator = ClusterMetadata.current().directory.endpoint(new NodeId(coordinatorHostId));
                     InetAddressAndPort pullFrom = FailureDetector.instance.isAlive(coordinator)
                                                   ? coordinator
@@ -1523,10 +1584,12 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
                         continue; // No reachable source
                     }
 
-                    // TODO (expected): backoff, rate limits, per host and total
                     PullMutationsRequest request = new PullMutationsRequest(offsets, ActiveLogReconciler.Priority.REGULAR);
                     logger.trace("Requesting pull mutation request from replica {} for missing offset {}", pullFrom, offsets);
-                    MessagingService.instance().send(Message.out(Verb.MT_PULL_MUTATIONS_REQ, request), pullFrom);
+                    Message<PullMutationsRequest> message = Message.outWithFlag(Verb.MT_PULL_MUTATIONS_REQ, request, MessageFlag.CALL_BACK_ON_FAILURE);
+                    MessagingService.instance().sendWithCallback(message, pullFrom, new PullRequestFailureCallback(logId, now));
+                    lastRequestedAt.put(logId, now);
+                    MutationTrackingMetrics.instance().backgroundPullRequestsSent.inc();
                 }
             }
             catch (Throwable throwable)
@@ -1549,6 +1612,49 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
                 }
             }
             return null;
+        }
+
+        /**
+         * MT_PULL_MUTATIONS_REQ is a one-way verb (no response). The callback registered with
+         * {@link MessagingService#sendWithCallback} fires on send-layer failures (queue overload,
+         * serialization error, closed connection) and on the eventual TIMEOUT after
+         * {@code readTimeout} expires. We treat TIMEOUT as benign (a one-way verb never produces
+         * a response) and only react to genuine send failures by clearing the cooldown entry,
+         * so the next reconciliation tick can retry without waiting for the cooldown to expire.
+         */
+        private final class PullRequestFailureCallback implements RequestCallback<NoPayload>
+        {
+            private final CoordinatorLogId logId;
+            private final long sentAt;
+
+            PullRequestFailureCallback(CoordinatorLogId logId, long sentAt)
+            {
+                this.logId = logId;
+                this.sentAt = sentAt;
+            }
+
+            @Override
+            public void onResponse(Message<NoPayload> msg)
+            {
+                // MT_PULL_MUTATIONS_REQ is one-way; no response is expected.
+            }
+
+            @Override
+            public boolean invokeOnFailure()
+            {
+                return true;
+            }
+
+            @Override
+            public void onFailure(InetAddressAndPort from, RequestFailure failure)
+            {
+                if (failure.reason == RequestFailureReason.TIMEOUT)
+                    return; // expected for a one-way verb
+                // Only remove if our entry is still the one in place; a newer reconcile may have
+                // already overwritten it.
+                lastRequestedAt.remove(logId, sentAt);
+                MutationTrackingMetrics.instance().backgroundPullRequestsFailed.inc();
+            }
         }
     }
 
