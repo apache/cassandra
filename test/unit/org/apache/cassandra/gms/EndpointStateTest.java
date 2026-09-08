@@ -169,48 +169,35 @@ public class EndpointStateTest
         assertTrue(values.containsKey(ApplicationState.HOST_ID));
     }
 
-    /**
-     * TOKENS is stored as a serialized token collection wrapped in an ISO-8859-1 string purely to round-trip
-     * the raw bytes losslessly, and toString() must not print that raw data (see CASSANDRA-21417).
-     */
     @Test
-    public void testToStringDoesNotLeakRawTokenBytes()
+    public void testFormatAppStateMapForLoggingSummarizesTokensInsteadOfPrintingRawBinaryData()
     {
         List<Token> tokens = new ArrayList<>();
         for (int i = 0; i < 16; i++)
             tokens.add(DatabaseDescriptor.getPartitioner().getRandomToken());
 
-        HeartBeatState hb = new HeartBeatState(0);
-        EndpointState state = new EndpointState(hb);
+        Map<ApplicationState, VersionedValue> states = new EnumMap<>(ApplicationState.class);
         VersionedValue tokensValue = valueFactory.tokens(tokens);
-        state.addApplicationState(ApplicationState.TOKENS, tokensValue);
-        state.addApplicationState(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
+        states.put(ApplicationState.TOKENS, tokensValue);
+        states.put(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
 
-        String rendered = state.toString();
+        String rendered = EndpointState.formatAppStateMapForLogging(states);
 
         assertTrue(rendered.contains("TOKENS=Value(<16 tokens>," + tokensValue.version + ')'));
         assertFalse(rendered.contains(tokensValue.value));
-        // other states still render normally
         assertTrue(rendered.contains("RELEASE_VERSION=Value("));
     }
 
-    /**
-     * If the TOKENS value can't be deserialized for some reason, toString() must still avoid printing the
-     * raw bytes rather than throwing. Uses a truncated-but-otherwise-valid length-prefixed token blob (claims
-     * a 5 byte token but only supplies 2) so deserialization fails with a plain EOFException, rather than
-     * arbitrary garbage bytes whose first 4 bytes can decode to a huge length prefix and make
-     * TokenSerializer attempt a multi-gigabyte array allocation (see CASSANDRA-21417 discussion).
-     */
     @Test
-    public void testToStringHandlesUndecodableTokensValue()
+    public void testFormatAppStateMapForLoggingHandlesUndecodableTokensValue()
     {
-        HeartBeatState hb = new HeartBeatState(0);
-        EndpointState state = new EndpointState(hb);
-        byte[] truncatedTokenBytes = { 0, 0, 0, 5, 'a', 'b' }; // claims a 5-byte token, only 2 bytes follow
+        Map<ApplicationState, VersionedValue> states = new EnumMap<>(ApplicationState.class);
+        // claims a 5-byte token but only 2 follow, so this fails cleanly instead of via a huge allocation
+        byte[] truncatedTokenBytes = { 0, 0, 0, 5, 'a', 'b' };
         String truncatedTokenBlob = new String(truncatedTokenBytes, ISO_8859_1);
-        state.addApplicationState(ApplicationState.TOKENS, VersionedValue.unsafeMakeVersionedValue(truncatedTokenBlob, 1));
+        states.put(ApplicationState.TOKENS, VersionedValue.unsafeMakeVersionedValue(truncatedTokenBlob, 1));
 
-        String rendered = state.toString();
+        String rendered = EndpointState.formatAppStateMapForLogging(states);
 
         assertTrue(rendered.contains("TOKENS=Value(<6 undecodable bytes>,1)"));
     }

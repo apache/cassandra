@@ -331,51 +331,33 @@ public class EndpointState
     public String toString()
     {
         View view = ref.get();
-        return "EndpointState: HeartBeatState = " + view.hbState + ", AppStateMap = " + appStateMapToString(view.applicationState) + ", isAlive = " + isAlive;
+        return "EndpointState: HeartBeatState = " + view.hbState + ", AppStateMap = " + formatAppStateMapForLogging(view.applicationState) + ", isAlive = " + isAlive;
     }
 
     /**
-     * Renders the application state map for logging/debugging purposes. This differs from the map's default
-     * toString() only in how it handles {@link ApplicationState#TOKENS}: that value is a serialized token
-     * collection stored as an ISO-8859-1-encoded string purely to round-trip the raw bytes losslessly, and is
-     * never meant to be printed as text - doing so produces unreadable, control-character-laden output
-     * (see CASSANDRA-21417). All other states are rendered normally.
+     * TOKENS is stored as an ISO-8859-1 string just to hold raw bytes, so printing it as-is dumps unreadable
+     * control characters into the logs. This renders it as a token count instead (see CASSANDRA-21417).
      */
-    private static String appStateMapToString(Map<ApplicationState, VersionedValue> applicationState)
+    static String formatAppStateMapForLogging(Map<ApplicationState, VersionedValue> applicationState)
     {
-        StringBuilder sb = new StringBuilder("{");
-        boolean first = true;
-        for (Map.Entry<ApplicationState, VersionedValue> entry : applicationState.entrySet())
-        {
-            if (!first)
-                sb.append(", ");
-            first = false;
+        return applicationState.entrySet().stream().map(entry -> {
+            if (entry.getKey() != ApplicationState.TOKENS)
+                return entry.getKey() + "=" + entry.getValue();
 
-            sb.append(entry.getKey()).append('=');
-            if (entry.getKey() == ApplicationState.TOKENS)
-                sb.append(tokensValueToString(entry.getValue()));
-            else
-                sb.append(entry.getValue());
-        }
-        return sb.append('}').toString();
-    }
-
-    private static String tokensValueToString(VersionedValue value)
-    {
-        try
-        {
-            int numTokens = TokenSerializer.deserialize(DatabaseDescriptor.getPartitioner(),
-                                                          new DataInputStream(new ByteArrayInputStream(value.toBytes())))
-                                            .size();
-            return "Value(<" + numTokens + " tokens>," + value.version + ')';
-        }
-        catch (Throwable t)
-        {
-            // Still avoid printing the raw bytes if we can't deserialize them for some reason. A corrupt
-            // length prefix can make TokenSerializer try to allocate an absurdly large array, so this must
-            // catch Throwable rather than just Exception to guard against OutOfMemoryError as well.
-            return "Value(<" + value.toBytes().length + " undecodable bytes>," + value.version + ')';
-        }
+            VersionedValue value = entry.getValue();
+            try
+            {
+                int numTokens = TokenSerializer.deserialize(DatabaseDescriptor.getPartitioner(),
+                                                              new DataInputStream(new ByteArrayInputStream(value.toBytes())))
+                                                .size();
+                return entry.getKey() + "=Value(<" + numTokens + " tokens>," + value.version + ')';
+            }
+            catch (Throwable t)
+            {
+                // catches OutOfMemoryError too, since a corrupt length prefix can trigger a huge allocation
+                return entry.getKey() + "=Value(<" + value.toBytes().length + " undecodable bytes>," + value.version + ')';
+            }
+        }).collect(Collectors.joining(", ", "{", "}"));
     }
 
     public boolean isSupersededBy(EndpointState that)
