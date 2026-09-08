@@ -878,7 +878,7 @@ class FilesReader(object):
         self.max_rows = options.copy['maxrows']
         self.skip_rows = options.copy['skiprows']
         self.fname = fname
-        self.sources = None  # might be initialised directly here? (see CASSANDRA-17350)
+        self.sources = None  # created lazily in start(): a generator can't be pickled for spawn (CASSANDRA-11053)
         self.num_sources = 0
         self.current_source = None
         self.num_read = 0
@@ -1294,9 +1294,9 @@ class FeedingProcess(mp.Process):
         self.inpipe = inpipe
         self.outpipe = outpipe
         self.worker_pipes = worker_pipes
-        self.inmsg = None  # might be initialised directly here? (see CASSANDRA-17350)
-        self.outmsg = None  # might be initialised directly here? (see CASSANDRA-17350)
-        self.worker_channels = None  # might be initialised directly here? (see CASSANDRA-17350)
+        self.inmsg = None  # created in on_fork(): must run in the child, after start(), not here
+        self.outmsg = None  # created in on_fork(): must run in the child, after start(), not here
+        self.worker_channels = None  # created in on_fork(): must run in the child, after start(), not here
         self.reader = FilesReader(fname, options) if fname else PipeReader(inpipe, options)
         self.send_meter = RateMeter(log_fcn=None, update_interval=1)
         self.ingest_rate = options.copy['ingestrate']
@@ -1306,8 +1306,10 @@ class FeedingProcess(mp.Process):
 
     def on_fork(self):
         """
-        Create the channels and release any parent connections after forking,
-        see CASSANDRA-11749 for details.
+        Create the channels here, not in __init__, since __init__ runs in the
+        parent before start(). Threads don't survive fork and aren't picklable
+        for spawn, and creating the feeding thread lazily once caused a race
+        between senders (CASSANDRA-11701). See CASSANDRA-17350 for details.
         """
         self.inmsg = ReceivingChannel(self.inpipe)
         self.outmsg = SendingChannel(self.outpipe)
@@ -1402,8 +1404,8 @@ class ChildProcess(mp.Process):
         super(ChildProcess, self).__init__(target=target)
         self.inpipe = params['inpipe']
         self.outpipe = params['outpipe']
-        self.inmsg = None  # might be initialised directly here? (see CASSANDRA-17350)
-        self.outmsg = None  # might be initialised directly here? (see CASSANDRA-17350)
+        self.inmsg = None  # created in on_fork(): must run in the child, after start(), not here
+        self.outmsg = None  # created in on_fork(): must run in the child, after start(), not here
         self.ks = params['ks']
         self.table = params['table']
         self.local_dc = params['local_dc']
@@ -1440,7 +1442,10 @@ class ChildProcess(mp.Process):
 
     def on_fork(self):
         """
-        Create the channels and release any parent connections after forking, see CASSANDRA-11749 for details.
+        Create the channels here, not in __init__, since __init__ runs in the
+        parent before start(). Threads don't survive fork and aren't picklable
+        for spawn, and creating the feeding thread lazily once caused a race
+        between senders (CASSANDRA-11701). See CASSANDRA-17350 for details.
         """
         self.inmsg = ReceivingChannel(self.inpipe)
         self.outmsg = SendingChannel(self.outpipe)
