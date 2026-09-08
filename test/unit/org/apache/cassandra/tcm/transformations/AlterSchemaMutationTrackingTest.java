@@ -38,6 +38,7 @@ import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.replication.migration.KeyspaceMigrationInfo;
 import org.apache.cassandra.service.replication.migration.MutationTrackingMigrationState;
+import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 
@@ -373,6 +374,40 @@ public class AlterSchemaMutationTrackingTest
             KeyspaceMigrationInfo actualInfo = actual.getKeyspaceInfo(keyspace);
             assertEquals(expectedInfo, actualInfo);
         }
+    }
+
+    @Test
+    public void testReadRepairAllowedOnWitnessKeyspace()
+    {
+        String ksName = nextKsName();
+        schemaChange("CREATE KEYSPACE " + ksName +
+                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3/1'}" +
+                     " AND replication_type = 'tracked'");
+
+        // CREATE TABLE with a repairing strategy
+        schemaChange(String.format("CREATE TABLE %s.created (pk int PRIMARY KEY, val int)" +
+                                   " WITH read_repair = 'BLOCKING'", ksName));
+        assertEquals(ReadRepairStrategy.BLOCKING, readRepairOf(ksName, "created"));
+
+        // ALTER TABLE from NONE to a repairing strategy
+        schemaChange(String.format("CREATE TABLE %s.altered (pk int PRIMARY KEY, val int)" +
+                                   " WITH read_repair = 'NONE'", ksName));
+        schemaChange(String.format("ALTER TABLE %s.altered WITH read_repair = 'BLOCKING'", ksName));
+        assertEquals(ReadRepairStrategy.BLOCKING, readRepairOf(ksName, "altered"));
+
+        // CREATE TABLE LIKE a source whose strategy is repairing
+        schemaChange(String.format("CREATE TABLE %s.copied LIKE %s.created", ksName, ksName));
+        assertEquals(ReadRepairStrategy.BLOCKING, readRepairOf(ksName, "copied"));
+    }
+
+    private static ReadRepairStrategy readRepairOf(String keyspace, String table)
+    {
+        return ClusterMetadata.current()
+                              .schema
+                              .getKeyspaceMetadata(keyspace)
+                              .getTableOrViewNullable(table)
+                              .params
+                              .readRepair;
     }
 
     /**
