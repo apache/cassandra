@@ -85,7 +85,7 @@ public final class InMarker extends Terms.NonTerminals
         }
         catch (MarshalException e)
         {
-            throw new InvalidRequestException(e.getMessage());
+            throw new InvalidRequestException(e.getMessage(), e);
         }
         List<Term.Terminal> terminals = new ArrayList<>(elements.size());
         for (T element : elements)

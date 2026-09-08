@@ -34,18 +34,18 @@ import static org.junit.Assert.fail;
 public class InMarkerTest extends CQLTester
 {
     @Test
-    public void testNotEnoughBytesThrowsInvalidRequest() throws Throwable
+    public void testNotEnoughBytesThrowsInvalidRequest()
     {
         assertInMarkerRejectsMalformedValue(new byte[]{ 0, 0, 0, 1 });
     }
 
     @Test
-    public void testExtraneousBytesThrowsInvalidRequest() throws Throwable
+    public void testExtraneousBytesThrowsInvalidRequest()
     {
         assertInMarkerRejectsMalformedValue(new byte[]{ 0, 0, 0, 0, 9, 9 });
     }
 
-    private void assertInMarkerRejectsMalformedValue(byte[] malformedListBytes) throws Throwable
+    private void assertInMarkerRejectsMalformedValue(byte[] malformedListBytes)
     {
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int)");
         SelectStatement select = (SelectStatement) parseStatement("SELECT * FROM " + KEYSPACE + '.' + currentTable() + " WHERE pk IN ?");
