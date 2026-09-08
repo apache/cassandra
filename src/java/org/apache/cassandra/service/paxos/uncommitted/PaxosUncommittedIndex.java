@@ -243,6 +243,12 @@ public class PaxosUncommittedIndex implements Index, PaxosUncommittedTracker.Upd
         return null;
     }
 
+    @Override
+    public boolean notifyIndexerAboutRowsInFullyExpiredSSTables()
+    {
+        return false;
+    }
+
     public Searcher searcherFor(ReadCommand command)
     {
         throw new UnsupportedOperationException();
