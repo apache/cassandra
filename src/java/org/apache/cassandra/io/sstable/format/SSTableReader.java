@@ -1626,6 +1626,47 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         }
     }
 
+    /**
+     * Copies all component files of this SSTable to the given directory.
+     * Alternative to {@link #createLinks(String, RateLimiter)} for when the
+     * target is on a different filesystem/mount where hardlinks cannot work.
+     */
+    public void copyToDirectory(String targetDirectoryPath, RateLimiter rateLimiter)
+    {
+        for (Component component : components)
+        {
+            File sourceFile = new File(descriptor.filenameFor(component));
+            if (!sourceFile.exists())
+            {
+                logger.error("Can't copy SSTable component {} (path: {})", component, sourceFile);
+                continue;
+            }
+
+            File targetFile = new File(targetDirectoryPath, sourceFile.name());
+            if (targetFile.exists())
+            {
+                logger.debug("SSTable component {} already at target, skipping", targetFile);
+                continue;
+            }
+
+            if (rateLimiter != null)
+                rateLimiter.acquire();
+
+            try
+            {
+                java.nio.file.Files.copy(sourceFile.toPath(), targetFile.toPath(),
+                                         java.nio.file.StandardCopyOption.COPY_ATTRIBUTES);
+            }
+            catch (java.io.IOException e)
+            {
+                throw new org.apache.cassandra.io.FSWriteError(e, targetFile.toString());
+            }
+
+            if (logger.isTraceEnabled())
+                logger.trace("Copied SSTable component {} -> {}", sourceFile, targetFile);
+        }
+    }
+
     public boolean isRepaired()
     {
         return sstableMetadata.repairedAt != ActiveRepairService.UNREPAIRED_SSTABLE;

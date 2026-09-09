@@ -25,6 +25,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -60,7 +61,21 @@ public class SnapshotLoader
 
     public SnapshotLoader()
     {
-        this(DatabaseDescriptor.getAllDataFileLocations());
+        this(addSnapshotDirectory(DatabaseDescriptor.getAllDataFileLocations()));
+    }
+
+    /**
+     * If a separate snapshot_directory is configured, append it to the
+     * data directories so that SnapshotLoader discovers snapshots stored there.
+     */
+    private static String[] addSnapshotDirectory(String[] dataDirs)
+    {
+        if (!DatabaseDescriptor.hasSnapshotDirectory())
+            return dataDirs;
+
+        ArrayList<String> all = new ArrayList<>(Arrays.asList(dataDirs));
+        all.add(DatabaseDescriptor.getSnapshotDirectory());
+        return all.toArray(new String[0]);
     }
 
     public SnapshotLoader(String[] dataDirectories)
