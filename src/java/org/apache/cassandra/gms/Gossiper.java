@@ -1426,11 +1426,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     /**
      * This method is called whenever there is a "big" change in ep state (a generation change for a known node).
+     * It is public as the state change simulation is needed in testing, otherwise should not be used directly.
      *
      * @param ep      endpoint
      * @param epState EndpointState for the endpoint
      */
-    private void handleMajorStateChange(InetAddressAndPort ep, EndpointState epState)
+    @VisibleForTesting
+    public void handleMajorStateChange(InetAddressAndPort ep, EndpointState epState)
     {
         checkProperThreadForStateMutation();
         EndpointState localEpState = endpointStateMap.get(ep);
@@ -2092,18 +2094,27 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         EndpointState mystate = endpointStateMap.get(FBUtilities.getBroadcastAddressAndPort());
         if (mystate != null && !isSilentShutdownState(mystate) && StorageService.instance.isJoined())
         {
-            logger.info("Announcing shutdown");
-            addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.shutdown(true));
-            addLocalApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.shutdown(true));
-            Message message = Message.out(Verb.GOSSIP_SHUTDOWN, noPayload);
-            for (InetAddressAndPort ep : liveEndpoints)
-                MessagingService.instance().send(message, ep);
-            Uninterruptibles.sleepUninterruptibly(Integer.getInteger("cassandra.shutdown_announce_in_ms", 2000), TimeUnit.MILLISECONDS);
+            announceShutdown();
         }
         else
             logger.warn("No local state, state is in silent shutdown, or node hasn't joined, not announcing shutdown");
         if (scheduledGossipTask != null)
             scheduledGossipTask.cancel(false);
+    }
+
+    /**
+     * This method sends the node shutdown status to all live endpoints.
+     * It does not close the gossiper itself.
+     */
+    public void announceShutdown()
+    {
+        logger.info("Announcing shutdown");
+        addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.shutdown(true));
+        addLocalApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.shutdown(true));
+        Message message = Message.out(Verb.GOSSIP_SHUTDOWN, noPayload);
+        for (InetAddressAndPort ep : liveEndpoints)
+            MessagingService.instance().send(message, ep);
+        Uninterruptibles.sleepUninterruptibly(Integer.getInteger("cassandra.shutdown_announce_in_ms", 2000), TimeUnit.MILLISECONDS);
     }
 
     public boolean isEnabled()
