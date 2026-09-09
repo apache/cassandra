@@ -75,7 +75,6 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
 
     private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
     private final Map<DecoratedKey, AbstractRowIndexEntry> cachedKeys = new HashMap<>();
-    private final boolean shouldMigrateKeyCache;
     private final SSTableReader[] originals;
 
     public BigTableWriter(Builder builder, ILifecycleTransaction txn, SSTable.Owner owner)
@@ -85,13 +84,13 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
         this.rowIndexEntrySerializer = builder.getRowIndexEntrySerializer();
         checkNotNull(this.rowIndexEntrySerializer);
 
-        this.shouldMigrateKeyCache = DatabaseDescriptor.shouldMigrateKeycacheOnCompaction()
-                                     && !txn.isOffline();
-        // LifecycleTransaction.originals() wraps a fresh set on each call, and
-        // BigTableWriter.shouldCacheKey scans this per partition. Safe to snapshot: the only cancel
-        // that drops a compaction's originals runs in CompactionTask.runMayThrow before this writer.
-        this.originals = shouldMigrateKeyCache ? txn.originals().toArray(new SSTableReader[0])
-                                               : new SSTableReader[0];
+        boolean migrateKeyCache = DatabaseDescriptor.shouldMigrateKeycacheOnCompaction() && !txn.isOffline();
+        // Empty unless the key cache is being migrated, so shouldCacheKey needs no second guard.
+        // LifecycleTransaction.originals() wraps a fresh set on each call, and shouldCacheKey scans
+        // this per partition. Safe to snapshot: the only cancel that drops a compaction's originals
+        // runs in CompactionTask.runMayThrow before this writer.
+        this.originals = migrateKeyCache ? txn.originals().toArray(new SSTableReader[0])
+                                         : new SSTableReader[0];
     }
 
     @Override
@@ -134,14 +133,11 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
     }
 
     /**
-     * True when key cache migration is on and one of the transaction's originals has a cached
-     * position for this key.
+     * True when one of the transaction's originals has a cached position for this key. The array is
+     * empty unless key cache migration is on, so that setting is already folded in.
      */
     private boolean shouldCacheKey(DecoratedKey key)
     {
-        if (!shouldMigrateKeyCache)
-            return false;
-
         for (SSTableReader reader : originals)
             if (reader instanceof KeyCacheSupport<?> && ((KeyCacheSupport<?>) reader).getCachedPosition(key, false) != null)
                 return true;

@@ -176,8 +176,6 @@ public class CursorEarlyOpenBoundaryTest extends DifferentialCompactionTester
     {
         private final SSTableReader reader;
         private final ByteBuffer keyAtPublication;
-        private final Token tokenAtPublication;
-        private final IPartitioner partitioner;
         /** False for the reader openFinalEarly publishes at prepare time, which never reopens. */
         private final boolean midStream;
         /** Where the reader could find its own last key when it was published; negative is a miss. */
@@ -190,10 +188,8 @@ public class CursorEarlyOpenBoundaryTest extends DifferentialCompactionTester
         {
             this.reader = reader;
             this.midStream = midStream;
-            this.partitioner = reader.getPartitioner();
             DecoratedKey last = reader.getLast();
             this.keyAtPublication = ByteBufferUtil.clone(last.getKey());
-            this.tokenAtPublication = partitioner.getToken(keyAtPublication);
             // Taken here, one line before SSTableRewriter.maybeReopenEarly hands this same key to
             // moveStarts. updateStats false so the probe does not warm the key cache.
             this.positionOfLast = reader.getPosition(last, SSTableReader.Operator.EQ, false);
@@ -226,16 +222,13 @@ public class CursorEarlyOpenBoundaryTest extends DifferentialCompactionTester
             assertEquals("the early-opened sstable's last key carries a token that does not belong to " +
                          "its own bytes, so it was built from a reusable token that has since moved; " +
                          "moveStarts trimmed the originals past partitions this sstable cannot serve",
-                         partitioner.getToken(last.getKey()), last.getToken());
+                         reader.getPartitioner().getToken(last.getKey()), last.getToken());
 
             // Catches a retained reusable key buffer, where bytes and token move together and so
             // agree with each other while both describe the wrong partition.
             assertEquals("the early-opened sstable's last key changed after publication, so the " +
                          "boundary retained the writer's reusable key rather than a copy",
                          keyAtPublication, last.getKey());
-            assertEquals("the early-opened sstable's last token changed after publication, so the " +
-                         "boundary retained the writer's reusable token rather than a copy",
-                         tokenAtPublication, last.getToken());
         }
     }
 
@@ -257,30 +250,26 @@ public class CursorEarlyOpenBoundaryTest extends DifferentialCompactionTester
         };
     }
 
+    // Both files must outgrow a buffer, not just Data.db. IndexSummaryBuilder.refreshReadableBoundary
+    // takes the lower of the boundaries below the data and the index sync positions, and a sync
+    // position only advances when that writer flushes a buffer. A table with short partition keys
+    // writes an Index.db smaller than one buffer however large Data.db grows, so the index sync
+    // position stays at zero, no boundary is ever readable, and openEarly publishes nothing on
+    // either path. Padding the partition key is what makes this scenario exercise the reopen at all.
     /** Partitions per flushed sstable. Two rounds, so the compaction has two inputs. */
     private static final int PARTITIONS_PER_ROUND = 4000;
     /** Long enough that Index.db outgrows the index writer's buffer several times over. */
     private static final int KEY_PADDING = 200;
+    private static final String KEY_PREFIX = "k".repeat(KEY_PADDING);
     /** Long enough that Data.db outgrows the preemptive open interval several times over. */
     private static final int VALUE_PADDING = 300;
 
-    /**
-     * Both files must outgrow a buffer, not just Data.db.
-     * <p>
-     * {@code IndexSummaryBuilder.refreshReadableBoundary} takes the lower of the boundaries below
-     * the data and the index sync positions, and a sync position only advances when that writer
-     * flushes a buffer. A table with short partition keys writes a Index.db smaller than one
-     * buffer however large Data.db grows, so the index sync position stays at zero, no boundary is
-     * ever readable, and {@code openEarly} publishes nothing on either path. Padding the partition
-     * key is what makes this scenario exercise the reopen at all.
-     */
     /** Every partition key the fixture wrote, decorated for comparison. */
     private List<DecoratedKey> everyKeyWritten(ColumnFamilyStore cfs)
     {
-        String keyPadding = "k".repeat(KEY_PADDING);
         List<DecoratedKey> keys = new ArrayList<>(PARTITIONS_PER_ROUND);
         for (long pk = 0; pk < PARTITIONS_PER_ROUND; pk++)
-            keys.add(cfs.getPartitioner().decorateKey(ByteBufferUtil.bytes(keyPadding + pk)));
+            keys.add(cfs.getPartitioner().decorateKey(ByteBufferUtil.bytes(KEY_PREFIX + pk)));
         return keys;
     }
 
@@ -291,13 +280,12 @@ public class CursorEarlyOpenBoundaryTest extends DifferentialCompactionTester
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();
 
-        String keyPadding = "k".repeat(KEY_PADDING);
         String valuePadding = "x".repeat(VALUE_PADDING);
         for (int round = 0; round < 2; round++)
         {
             for (long pk = 0; pk < PARTITIONS_PER_ROUND; pk++)
                 execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)",
-                        keyPadding + pk, 0L, valuePadding + round);
+                        KEY_PREFIX + pk, 0L, valuePadding + round);
             flush();
         }
         assertTrue("the fixture needs inputs", cfs.getLiveSSTables().size() >= 2);
