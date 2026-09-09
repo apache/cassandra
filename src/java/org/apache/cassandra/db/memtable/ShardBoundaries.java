@@ -25,10 +25,10 @@ import java.util.stream.IntStream;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.tcm.Epoch;
@@ -73,9 +73,10 @@ public class ShardBoundaries
         if (boundaries.length == 0)
             return EMPTY_RANGE_ARRAY;
 
+        IPartitioner partitioner = boundaries[0].getPartitioner();
         Range<PartitionPosition>[]  ranges = new Range[boundaries.length + 1];
         int rangeIndex = 0;
-        PartitionPosition minimum = DatabaseDescriptor.getPartitioner().getMinimumToken().minKeyBound();
+        PartitionPosition minimum = partitioner.getMinimumToken().minKeyBound();
 
         for (Token boundary : boundaries)
         {
@@ -84,7 +85,7 @@ public class ShardBoundaries
             minimum = boundaryPosition;
         }
 
-        ranges[rangeIndex] = new Range<>(minimum, DatabaseDescriptor.getPartitioner().getMaximumTokenForSplitting().maxKeyBound());
+        ranges[rangeIndex] = new Range<>(minimum, partitioner.getMaximumTokenForSplitting().maxKeyBound());
 
         return ranges;
     }
