@@ -66,25 +66,32 @@ public class ListPendingHints extends NodeTool.NodeToolCmd
                                               .atZone(ZoneId.of("UTC"))
                                               .toLocalDateTime();
                 String address = endpointMap.get(endpoint);
-                String rack = null;
-                String dc = null;
-                String status = null;
-                try
+                String rack = "Unknown";
+                String dc = "Unknown";
+                String status = "Unknown";
+                // The address can be null when a hint is still pending for a host id that is no
+                // longer part of the ring (e.g. the node was removed, decommissioned or replaced).
+                // Skip the snitch/gossip lookups in that case, otherwise they would fail with an
+                // (uncaught) NullPointerException while resolving the null address.
+                if (address != null)
                 {
-                    rack = epSnitchInfo.getRack(address);
-                    dc = epSnitchInfo.getDatacenter(address);
-                    status = simpleStates.getOrDefault(InetAddressAndPort.getByName(address).toString(),
-                                                       "Unknown");
-                }
-                catch (UnknownHostException e)
-                {
-                    rack = rack != null ? rack : "Unknown";
-                    dc = dc != null ? dc : "Unknown";
-                    status = "Unknown";
+                    try
+                    {
+                        rack = epSnitchInfo.getRack(address);
+                        dc = epSnitchInfo.getDatacenter(address);
+                        status = simpleStates.getOrDefault(InetAddressAndPort.getByName(address).toString(),
+                                                           "Unknown");
+                    }
+                    catch (UnknownHostException e)
+                    {
+                        rack = rack != null ? rack : "Unknown";
+                        dc = dc != null ? dc : "Unknown";
+                        status = "Unknown";
+                    }
                 }
 
                 tableBuilder.add(endpoint,
-                                 address,
+                                 address != null ? address : "Unknown",
                                  rack,
                                  dc,
                                  status,
