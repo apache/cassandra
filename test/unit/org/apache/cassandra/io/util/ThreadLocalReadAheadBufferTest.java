@@ -146,6 +146,47 @@ public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
         }
     }
 
+    @Test
+    public void testReusedSliceIsFreedByBaseInstance() throws CorruptBlockException
+    {
+        // The shared per-thread, per-path Block cache is used by instances with different
+        // buffer ownership. A DirectThreadLocalReadAheadBuffer stores an aligned slice
+        // (no cleaner; attachment = backing DirectByteBuffer) in the Block. A base
+        // ThreadLocalReadAheadBuffer over the same path reuses that slice and, on close,
+        // frees it through the base cleanup path. If that path assumes the buffer owns its
+        // memory it calls MemoryUtil.clean(slice), which throws.
+        File file = files[0];
+        int blockSize = FileUtils.getFileBlockSize(file);
+        int bufferSize = blockSize * 64;
+        try (ChannelProxy directChannel = new ChannelProxy(file, ChannelProxy.IOMode.DIRECT);
+             ChannelProxy standardChannel = new ChannelProxy(file))
+        {
+            // Instance A (Direct) puts an aligned slice into the shared cached Block.
+            DirectThreadLocalReadAheadBuffer a = new DirectThreadLocalReadAheadBuffer(directChannel, bufferSize, blockSize);
+            ThreadLocalReadAheadBuffer b = new ThreadLocalReadAheadBuffer(standardChannel, bufferSize, BufferType.OFF_HEAP);
+            try
+            {
+                a.allocateBuffer();
+                a.fill(0);
+
+                // Instance B (base) reuses A's slice and frees it via the base cleanup path.
+                // Before the fix this throws IllegalArgumentException from MemoryUtil.clean.
+                b.close();
+
+                // B.close() must have freed the slice AND removed the shared Block from the
+                // map. A therefore sees no cached buffer, which makes A.close() below a
+                // genuine no-op rather than a silent second free of the same slice.
+                Assert.assertFalse("base close must free and remove the shared Block", a.hasBuffer());
+            }
+            finally
+            {
+                // B.close() removed the shared Block from the map, so this is a safe no-op
+                // and must not double-free or throw.
+                a.close();
+            }
+        }
+    }
+
     protected void testReads(InputData propertyInputs)
     {
         try (ChannelProxy channel = new ChannelProxy(propertyInputs.file);

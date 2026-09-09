@@ -31,6 +31,7 @@ import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.netty.util.concurrent.FastThreadLocal;
+import sun.nio.ch.DirectBuffer;
 
 public class ThreadLocalReadAheadBuffer implements Closeable
 {
@@ -178,6 +179,21 @@ public class ThreadLocalReadAheadBuffer implements Closeable
 
     protected void cleanBuffer(ByteBuffer buffer)
     {
+        // Block objects are cached in a static thread-local map keyed by file path and shared
+        // across instances. A DirectThreadLocalReadAheadBuffer stores an aligned SLICE (no
+        // cleaner; attachment = the backing DirectByteBuffer) in the shared Block. A base
+        // instance that reuses that Block for the same path must not free the slice as if it
+        // owned its memory; MemoryUtil.clean() rejects that and it is a latent double-free.
+        // Resolve to the root allocation here so any instance frees any buffer correctly.
+        if (buffer != null && buffer.isDirect())
+        {
+            DirectBuffer db = (DirectBuffer) buffer;
+            if (db.cleaner() == null && db.attachment() instanceof ByteBuffer)
+            {
+                MemoryUtil.clean((ByteBuffer) db.attachment());
+                return;
+            }
+        }
         MemoryUtil.clean(buffer);
     }
 
