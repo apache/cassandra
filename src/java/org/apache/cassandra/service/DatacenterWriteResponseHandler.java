@@ -17,11 +17,13 @@
  */
 package org.apache.cassandra.service;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.locator.InOurDc;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.transport.Dispatcher;
 
@@ -63,6 +65,10 @@ public class DatacenterWriteResponseHandler<T> extends WriteResponseHandler<T>
     @Override
     protected boolean waitingFor(InetAddressAndPort from)
     {
-        return waitingFor.test(from);
+        // First check if it's in our local DC
+        if (!waitingFor.test(from))
+            return false;
+        
+        return super.waitingFor(from);
     }
 }

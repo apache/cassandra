@@ -845,6 +845,12 @@ public class Config
     public volatile Set<ConsistencyLevel> read_consistency_levels_disallowed = Collections.emptySet();
     public volatile Set<ConsistencyLevel> write_consistency_levels_warned = Collections.emptySet();
     public volatile Set<ConsistencyLevel> write_consistency_levels_disallowed = Collections.emptySet();
+    // During node replacement, exclude the replacement pending replica from write blockFor calculation
+    // Default: false (keeps current behavior where all pending replicas are included in blockFor)
+    // When enabled: only consistency level of natural replicas is required for writes during node replacement
+    // For normal bootstrap (non-replacement), pending replicas are still included
+    public volatile boolean write_requests_not_wait_on_pending_replacements = false;
+
     public volatile boolean user_timestamps_enabled = true;
     public volatile boolean group_by_enabled = true;
     public volatile boolean drop_truncate_table_enabled = true;
