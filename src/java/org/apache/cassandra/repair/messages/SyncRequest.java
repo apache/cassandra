@@ -114,7 +114,7 @@ public class SyncRequest extends RepairMessage
             out.writeInt(message.previewKind.getSerializationVal());
             out.writeBoolean(message.asymmetric);
 
-            if (version >= MessagingService.Version.VERSION_61.value)
+            if (version >= MessagingService.Version.MIN_MUTATION_TRACKING_VERSION.value)
             {
                 out.writeBoolean(message.transferId != null);
                 if (message.transferId != null)
@@ -136,7 +136,7 @@ public class SyncRequest extends RepairMessage
             PreviewKind previewKind = PreviewKind.deserialize(in.readInt());
             boolean asymmetric = in.readBoolean();
 
-            ShortMutationId transferId = version >= MessagingService.Version.VERSION_61.value && in.readBoolean()
+            ShortMutationId transferId = version >= MessagingService.Version.MIN_MUTATION_TRACKING_VERSION.value && in.readBoolean()
                                          ? ShortMutationId.serializer.deserialize(in)
                                          : null;
 
@@ -155,7 +155,7 @@ public class SyncRequest extends RepairMessage
             size += TypeSizes.sizeof(message.previewKind.getSerializationVal());
             size += TypeSizes.sizeof(message.asymmetric);
 
-            if (version >= MessagingService.Version.VERSION_61.value)
+            if (version >= MessagingService.Version.MIN_MUTATION_TRACKING_VERSION.value)
             {
                 size += TypeSizes.sizeof(false);
                 if (message.transferId != null)

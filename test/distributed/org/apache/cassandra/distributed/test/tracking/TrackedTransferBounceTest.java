@@ -179,6 +179,57 @@ public class TrackedTransferBounceTest extends TrackedTransferTestBase
         }
     }
 
+    @Test
+    public void testIncrementalRepairDuringMigrationDoesNotUsePendingDirZeroCopy() throws IOException
+    {
+        testIncrementalRepairDuringMigrationDoesNotUsePendingDir(ZCS_CONFIG);
+    }
+
+    @Test
+    public void testIncrementalRepairDuringMigrationDoesNotUsePendingDirNonZeroCopy() throws IOException
+    {
+        testIncrementalRepairDuringMigrationDoesNotUsePendingDir(NON_ZCS_CONFIG);
+    }
+
+    private static void testIncrementalRepairDuringMigrationDoesNotUsePendingDir(Consumer<IInstanceConfig> config) throws IOException
+    {
+        String migrationKeyspace = "migration_incremental_test";
+        try (Cluster cluster = cluster(config))
+        {
+            cluster.schemaChange("CREATE KEYSPACE " + migrationKeyspace + " WITH replication = " +
+                                  "{'class': 'SimpleStrategy', 'replication_factor': 3} AND replication_type='untracked'");
+            cluster.schemaChange("CREATE TABLE " + tableWithKeyspace(migrationKeyspace) + " (pk BLOB PRIMARY KEY, v INT)");
+            waitForEpochOf(cluster, 1);
+
+            // Data only on node2, so the repair has to stream it to the other replicas.
+            cluster.get(2).executeInternal("INSERT INTO " + tableWithKeyspace(migrationKeyspace) + " (pk, v) VALUES (?, 7)", KEY_201);
+
+            assertRows(cluster.get(1).executeInternal("SELECT * FROM " + tableWithKeyspace(migrationKeyspace) + " WHERE pk = ?", KEY_201));
+            assertRows(cluster.get(2).executeInternal("SELECT * FROM " + tableWithKeyspace(migrationKeyspace) + " WHERE pk = ?", KEY_201), row(KEY_201, 7));
+            assertRows(cluster.get(3).executeInternal("SELECT * FROM " + tableWithKeyspace(migrationKeyspace) + " WHERE pk = ?", KEY_201));
+
+            cluster.schemaChange("ALTER KEYSPACE " + migrationKeyspace + " WITH replication_type='tracked'");
+            waitForEpochOf(cluster, 1);
+
+            boolean migrating = cluster.get(1).callOnInstance(() -> ClusterMetadata.current().mutationTrackingMigrationState.isMigrating(migrationKeyspace));
+            assertTrue("Keyspace should be migrating before the incremental repair", migrating);
+
+            // trigger an incremental repair session while the keyspace is migrating
+            cluster.get(1).nodetoolResult("repair", migrationKeyspace).asserts().success();
+
+            // The row was streamed to node1, and none of the repair output is treated as a tracked transfer
+            assertRows(cluster.get(1).executeInternal("SELECT * FROM " + tableWithKeyspace(migrationKeyspace) + " WHERE pk = ?", KEY_201), row(KEY_201, 7));
+            for (int node = 1; node <= NODES; node++)
+                assertTrue("Incremental repair during migration should not stream into the pending directory on node" + node,
+                           getPendingSSTableDirs(cluster.get(node), migrationKeyspace).isEmpty());
+
+            bounce(cluster);
+
+            // Data survives the bounce because it was made live
+            assertRows(cluster.get(1).executeInternal("SELECT * FROM " + tableWithKeyspace(migrationKeyspace) + " WHERE pk = ?", KEY_201), row(KEY_201, 7));
+        }
+    }
+
     private static List<String> getPendingSSTableDirs(IInvokableInstance instance, String keyspace)
     {
         return instance.callOnInstance(() -> {

@@ -108,6 +108,7 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
         InetAddressAndPort remote =  nodePair.peer;
 
         StreamPlan plan = new StreamPlan(StreamOperation.REPAIR, 1, false, pendingRepair, previewKind)
+                          .transferId(transferId)
                           .listeners(this)
                           .flushBeforeTransfer(pendingRepair == null);
 

@@ -22,6 +22,8 @@ import java.io.IOException;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamResultFuture;
@@ -48,8 +50,16 @@ public class StreamInitMessage extends StreamMessage
     public final TimeUUID pendingRepair;
     public final PreviewKind previewKind;
 
+    public final ShortMutationId transferId;
+
     public StreamInitMessage(InetAddressAndPort from, int sessionIndex, TimeUUID planId, StreamOperation streamOperation,
                              TimeUUID pendingRepair, PreviewKind previewKind)
+    {
+        this(from, sessionIndex, planId, streamOperation, pendingRepair, previewKind, null);
+    }
+
+    public StreamInitMessage(InetAddressAndPort from, int sessionIndex, TimeUUID planId, StreamOperation streamOperation,
+                             TimeUUID pendingRepair, PreviewKind previewKind, ShortMutationId transferId)
     {
         super(Type.STREAM_INIT);
         this.from = from;
@@ -58,12 +68,13 @@ public class StreamInitMessage extends StreamMessage
         this.streamOperation = streamOperation;
         this.pendingRepair = pendingRepair;
         this.previewKind = previewKind;
+        this.transferId = transferId;
     }
 
     @Override
     public StreamSession getOrCreateAndAttachInboundSession(StreamingChannel channel, int messagingVersion)
     {
-        StreamSession session = StreamResultFuture.createFollower(sessionIndex, planId, streamOperation, from, channel, messagingVersion, pendingRepair, previewKind)
+        StreamSession session = StreamResultFuture.createFollower(sessionIndex, planId, streamOperation, from, channel, messagingVersion, pendingRepair, previewKind, transferId)
                                  .getSession(from, sessionIndex);
         session.attachInbound(channel);
         return session;
@@ -91,6 +102,13 @@ public class StreamInitMessage extends StreamMessage
             if (message.pendingRepair != null)
                 message.pendingRepair.serialize(out);
             out.writeInt(message.previewKind.getSerializationVal());
+
+            if (version >= MessagingService.Version.MIN_MUTATION_TRACKING_VERSION.value)
+            {
+                out.writeBoolean(message.transferId != null);
+                if (message.transferId != null)
+                    ShortMutationId.serializer.serialize(message.transferId, out);
+            }
         }
 
         public StreamInitMessage deserialize(DataInputPlus in, int version) throws IOException
@@ -102,8 +120,13 @@ public class StreamInitMessage extends StreamMessage
 
             TimeUUID pendingRepair = in.readBoolean() ? TimeUUID.deserialize(in) : null;
             PreviewKind previewKind = PreviewKind.deserialize(in.readInt());
+
+            ShortMutationId transferId = version >= MessagingService.Version.MIN_MUTATION_TRACKING_VERSION.value && in.readBoolean()
+                                         ? ShortMutationId.serializer.deserialize(in)
+                                         : null;
+
             return new StreamInitMessage(from, sessionIndex, planId, StreamOperation.fromString(description),
-                                         pendingRepair, previewKind);
+                                         pendingRepair, previewKind, transferId);
         }
 
         public long serializedSize(StreamInitMessage message, int version)
@@ -116,6 +139,13 @@ public class StreamInitMessage extends StreamMessage
             if (message.pendingRepair != null)
                 size += TimeUUID.sizeInBytes();
             size += TypeSizes.sizeof(message.previewKind.getSerializationVal());
+
+            if (version >= MessagingService.Version.MIN_MUTATION_TRACKING_VERSION.value)
+            {
+                size += TypeSizes.sizeof(message.transferId != null);
+                if (message.transferId != null)
+                    size += ShortMutationId.serializer.serializedSize(message.transferId);
+            }
 
             return size;
         }

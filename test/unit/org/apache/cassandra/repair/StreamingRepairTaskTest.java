@@ -28,12 +28,14 @@ import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.repair.messages.SyncRequest;
 import org.apache.cassandra.repair.state.SyncState;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamPlan;
+import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -87,5 +89,39 @@ public class StreamingRepairTaskTest extends AbstractRepairTest
 
         StreamPlan plan = task.createStreamPlan(request.dst);
         Assert.assertTrue(plan.getFlushBeforeTransfer());
+    }
+
+    @Test
+    public void trackedTransferStreamPlan() throws Exception
+    {
+        Assert.assertTrue(isTrackedTransferPlanFor(new ShortMutationId(1, 1)));
+    }
+
+    @Test
+    public void untrackedTransferStreamPlan() throws Exception
+    {
+        Assert.assertFalse(isTrackedTransferPlanFor(null));
+    }
+
+    private boolean isTrackedTransferPlanFor(ShortMutationId transferId) throws Exception
+    {
+        TimeUUID sessionID = registerSession(cfs, true, true);
+        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance().getParentRepairSession(sessionID);
+        RepairJobDesc desc = new RepairJobDesc(sessionID, nextTimeUUID(), ks, tbl, prs.getRanges());
+
+        SyncRequest request = new SyncRequest(desc, PARTICIPANT1, PARTICIPANT2, PARTICIPANT3, prs.getRanges(), PreviewKind.NONE, false, transferId);
+        StreamingRepairTask task = new StreamingRepairTask(SharedContext.Global.instance, new SyncState(Clock.Global.clock(), desc, PARTICIPANT1, PARTICIPANT2, PARTICIPANT3, null), desc,
+                                                          request.initiator, request.src, request.dst, request.ranges, desc.sessionId, PreviewKind.NONE, false, request.transferId);
+
+        StreamPlan plan = task.createStreamPlan(request.dst);
+
+        // every session of the plan must carry the coordinator's transfer id
+        for (StreamSession session : plan.getCoordinator().getAllStreamSessions())
+        {
+            Assert.assertEquals(transferId, session.transferId());
+            Assert.assertEquals(plan.isTrackedTransfer(), session.isTrackedTransfer());
+        }
+
+        return plan.isTrackedTransfer();
     }
 }

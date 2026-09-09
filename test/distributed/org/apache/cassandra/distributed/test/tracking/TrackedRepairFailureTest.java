@@ -50,6 +50,7 @@ import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.replication.ActivationRequest;
+import org.apache.cassandra.service.replication.migration.KeyspaceMigrationInfo;
 
 import static net.bytebuddy.implementation.MethodDelegation.to;
 import static net.bytebuddy.matcher.ElementMatchers.named;
@@ -257,6 +258,41 @@ public class TrackedRepairFailureTest extends TrackedRepairTransferTestBase
     }
 
     @Test
+    public void testUntrackedTransferForTrackedNonMigratingRangesIsRejected() throws IOException
+    {
+        try (Cluster cluster = cluster(StaleMigrationViewHelper::installOnCoordinator))
+        {
+            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3} AND replication_type='tracked';");
+            cluster.schemaChange("CREATE TABLE " + tableWithKeyspace(KEYSPACE) + " (pk BLOB PRIMARY KEY, v INT)");
+
+            IInvokableInstance coordinator = cluster.get(1);
+            IInvokableInstance receiver = cluster.get(2);
+
+            coordinator.executeInternal("INSERT INTO " + tableWithKeyspace(KEYSPACE) + " (pk, v) VALUES (?, 1)", KEY_100);
+            coordinator.flush(KEYSPACE);
+
+            for (int node = 2; node <= NODES; node++)
+                assertRows(cluster.get(node).executeInternal("SELECT * FROM " + tableWithKeyspace(KEYSPACE) + " WHERE pk = ?", KEY_100));
+
+            StaleMigrationViewHelper.enable(coordinator);
+
+            long mark = receiver.logs().mark();
+            coordinator.nodetoolResult("repair", "--full", KEYSPACE).asserts().failure();
+
+            assertThat(receiver.logs().grep(mark, "would be stranded in the unrepaired data silo").getResult()).isNotEmpty();
+
+            for (int node = 2; node <= NODES; node++)
+            {
+                Object[][] rows = cluster.get(node).executeInternal("SELECT * FROM " + tableWithKeyspace(KEYSPACE) + " WHERE pk = ?", KEY_100);
+                assertThat(rows).describedAs("node%d made a rejected transfer live", node).isEmpty();
+                assertThat(getPendingSSTablePaths(cluster.get(node))).describedAs("node%d staged a pending transfer", node).isEmpty();
+            }
+
+            assertRows(coordinator.executeInternal("SELECT * FROM " + tableWithKeyspace(KEYSPACE) + " WHERE pk = ?", KEY_100), row(KEY_100, 1));
+        }
+    }
+
+    @Test
     public void testRepairFailsOnMissedActivation() throws IOException
     {
         try (Cluster cluster = disableBackgroundReconciler(cluster(ByteBuddyInjections.SkipActivation.install(2, 3))))
@@ -344,6 +380,42 @@ public class TrackedRepairFailureTest extends TrackedRepairTransferTestBase
             }
             return pendingUuidDirs;
         });
+    }
+
+    public static class StaleMigrationViewHelper
+    {
+        private static final Logger logger = LoggerFactory.getLogger(StaleMigrationViewHelper.class);
+
+        static final AtomicBoolean enabled = new AtomicBoolean(false);
+
+        @SuppressWarnings("resource")
+        public static void installOnCoordinator(ClassLoader classLoader, Integer instanceNum)
+        {
+            if (instanceNum != 1)
+                return;
+
+            new ByteBuddy().rebase(KeyspaceMigrationInfo.class)
+                           .method(named("shouldUseTrackedTransfers"))
+                           .intercept(to(StaleMigrationViewHelper.class))
+                           .make()
+                           .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
+        }
+
+        public static void enable(IInvokableInstance instance)
+        {
+            instance.runOnInstance(() -> StaleMigrationViewHelper.enabled.set(true));
+        }
+
+        @SuppressWarnings("unused")
+        public static boolean shouldUseTrackedTransfers(@SuperCall Callable<Boolean> zuper) throws Exception
+        {
+            if (enabled.get())
+            {
+                logger.info("Test: simulating tracked transfers should not be used");
+                return false;
+            }
+            return zuper.call();
+        }
     }
 
     public static class StreamReceiverFailureHelper
