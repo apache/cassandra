@@ -505,6 +505,27 @@ public class IndexAvailabilityTest extends TestBaseImpl
         }
     }
 
+    @Test
+    public void allIndexStatusesQuietWhenInterrupted() throws Exception
+    {
+        try (Cluster cluster = init(Cluster.build(1)
+                .withConfig(config -> config.with(GOSSIP).with(NETWORK))
+                .start()))
+        {
+            LogAction logs = cluster.get(1).logs();
+            long mark = logs.mark();
+
+            cluster.get(1).runOnInstance(() -> {
+                Thread.currentThread().interrupt();
+                SystemDistributedKeyspace.allIndexStatuses();
+                Thread.interrupted();
+            });
+
+            assertTrue("index-status read must not WARN when interrupted",
+                    logs.grep(mark, "Unable to load index statuses from system table").getResult().isEmpty());
+        }
+    }
+
     public static class MixedMajorVersionHelper
     {
         @SuppressWarnings({ "unused", "resource" })

@@ -66,6 +66,7 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -492,11 +493,20 @@ public final class SystemDistributedKeyspace
             {
                 results = QueryProcessor.execute(query, ConsistencyLevel.QUORUM);
             }
+            catch (UncheckedInterruptedException e)
+            {
+                throw e;
+            }
             catch (Exception e)
             {
                 logger.warn("Failed to load index statuses with QUORUM, retrying with ONE");
                 results = QueryProcessor.execute(query, ConsistencyLevel.ONE);
             }
+        }
+        catch (UncheckedInterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            return Collections.emptyMap();
         }
         catch (Exception e)
         {
