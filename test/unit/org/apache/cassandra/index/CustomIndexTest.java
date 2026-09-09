@@ -33,7 +33,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.junit.Assume;
-import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -64,6 +64,7 @@ import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableFlushObserver;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
@@ -688,17 +689,16 @@ public class CustomIndexTest extends CQLTester
         StubIndex index1  = (StubIndex1)cfs.indexManager.getIndexByName("row_ttl_test_index_1");
         StubIndex index2  = (StubIndex2)cfs.indexManager.getIndexByName("row_ttl_test_index_2");
 
-        execute("INSERT INTO %s (id, col1) VALUES (?, ?) USING TTL 20", 0, 0);
-        execute("INSERT INTO %s (id, col1) VALUES (?, ?) USING TTL 20", 1, 1);
-        execute("INSERT INTO %s (id, col1) VALUES (?, ?) USING TTL 20", 2, 2);
+        execute("INSERT INTO %s (id, col1) VALUES (?, ?) USING TTL 2", 0, 0);
+        execute("INSERT INTO %s (id, col1) VALUES (?, ?) USING TTL 2", 1, 1);
+        execute("INSERT INTO %s (id, col1) VALUES (?, ?) USING TTL 2", 2, 2);
 
-        execute("INSERT INTO %s (id, col2) VALUES (?, ?) USING TTL 20", 0, 0);
-        execute("INSERT INTO %s (id, col2) VALUES (?, ?) USING TTL 20", 1, 1);
-        execute("INSERT INTO %s (id, col2) VALUES (?, ?) USING TTL 20", 2, 2);
+        execute("INSERT INTO %s (id, col2) VALUES (?, ?) USING TTL 2", 0, 0);
+        execute("INSERT INTO %s (id, col2) VALUES (?, ?) USING TTL 2", 1, 1);
+        execute("INSERT INTO %s (id, col2) VALUES (?, ?) USING TTL 2", 2, 2);
 
         flush();
-
-        Uninterruptibles.sleepUninterruptibly(60, TimeUnit.SECONDS);
+        awaitFullyExpired(cfs);
 
         compact();
 
@@ -707,6 +707,69 @@ public class CustomIndexTest extends CQLTester
 
         Assert.assertFalse(index2.rowsDeleted.isEmpty());
         Assert.assertEquals(3, index2.rowsDeleted.size());
+    }
+
+    @Test
+    public void indexerFailureDoesNotBlockDroppingFullyExpiredSSTables()
+    {
+        createTable("CREATE TABLE %s (id int primary key, col1 int) " +
+                    "WITH compaction = {'class': 'TimeWindowCompactionStrategy', " +
+                    "                   'compaction_window_size': 1," +
+                    "                   'compaction_window_unit': 'MINUTES'," +
+                    "                   'expired_sstable_check_frequency_seconds': 10} " +
+                    "AND gc_grace_seconds = 0");
+
+        createIndex(String.format("CREATE CUSTOM INDEX throwing_expired_index ON %%s(col1) USING '%s'", ThrowingStubIndex.class.getName()));
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+
+        execute("INSERT INTO %s (id, col1) VALUES (?, ?) USING TTL 2", 0, 0);
+        execute("INSERT INTO %s (id, col1) VALUES (?, ?) USING TTL 2", 1, 1);
+        execute("INSERT INTO %s (id, col1) VALUES (?, ?) USING TTL 2", 2, 2);
+
+        flush();
+        Assert.assertFalse(cfs.getLiveSSTables().isEmpty());
+        awaitFullyExpired(cfs);
+
+        // The indexer throws while being notified, but compaction must complete and still drop the expired SSTables.
+        compact();
+
+        Assert.assertTrue("Fully expired SSTables should have been dropped despite the indexer throwing",
+                          cfs.getLiveSSTables().isEmpty());
+    }
+
+    @Test
+    public void notifyIndexesOfStaticRowsInFullyExpiredSSTablesDuringCompaction()
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, s int static, v int, PRIMARY KEY (pk, ck)) " +
+                    "WITH compaction = {'class': 'TimeWindowCompactionStrategy', " +
+                    "                   'compaction_window_size': 1," +
+                    "                   'compaction_window_unit': 'MINUTES'," +
+                    "                   'expired_sstable_check_frequency_seconds': 10} " +
+                    "AND gc_grace_seconds = 0");
+
+        createIndex(String.format("CREATE CUSTOM INDEX static_expired_index ON %%s(s) USING '%s'", StubIndex.class.getName()));
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        StubIndex index = (StubIndex) cfs.indexManager.getIndexByName("static_expired_index");
+        Assert.assertNotNull(index);
+
+        // Static-only writes: each partition gets a static row and no clustering rows, so removeRow would never be
+        // invoked for these partitions unless the static row is handled explicitly.
+        execute("INSERT INTO %s (pk, s) VALUES (?, ?) USING TTL 2", 0, 100);
+        execute("INSERT INTO %s (pk, s) VALUES (?, ?) USING TTL 2", 1, 200);
+
+        flush();
+        Assert.assertFalse(cfs.getLiveSSTables().isEmpty());
+        awaitFullyExpired(cfs);
+
+        // Ignore anything recorded during index build/flush; only care about the compaction-time notifications.
+        index.reset();
+        compact();
+
+        Assert.assertEquals("Static rows in fully-expired SSTables should be forwarded to the indexer",
+                            2, index.rowsDeleted.size());
+        Assert.assertTrue(cfs.getLiveSSTables().isEmpty());
     }
 
     @Test
@@ -930,6 +993,21 @@ public class CustomIndexTest extends CQLTester
         assertEquals(index.rangeTombstones, index2.rangeTombstones);
     }
 
+    /**
+     * wait until all sstables are fully expired for the given {@code cfs}
+     */
+    private void awaitFullyExpired(ColumnFamilyStore cfs)
+    {
+        long maxLocalDeletionTime = cfs.getLiveSSTables().stream()
+                                       .mapToLong(SSTableReader::getMaxLocalDeletionTime)
+                                       .max()
+                                       .orElseThrow(AssertionError::new);
+
+        waitForAssert(() -> assertTrue("Timed out waiting for the SSTables to become fully expired",
+                                      FBUtilities.nowInSeconds() > maxLocalDeletionTime),
+                      30, TimeUnit.SECONDS);
+    }
+
 
     // Used for index creation above
     @SuppressWarnings("unused")
@@ -983,6 +1061,39 @@ public class CustomIndexTest extends CQLTester
     private static IndexTarget indexTarget(String name, IndexTarget.Type type)
     {
         return new IndexTarget(ColumnIdentifier.getInterned(name, true), type);
+    }
+
+    // A stub index whose Indexer throws while removing rows, to simulate a misbehaving custom index (or a read error)
+    // while being notified about rows in a fully-expired SSTable during compaction.
+    public static class ThrowingStubIndex extends StubIndex
+    {
+        public ThrowingStubIndex(ColumnFamilyStore baseCfs, IndexMetadata metadata)
+        {
+            super(baseCfs, metadata);
+        }
+
+        @Override
+        public Indexer indexerFor(DecoratedKey key,
+                                  RegularAndStaticColumns columns,
+                                  long nowInSec,
+                                  WriteContext ctx,
+                                  IndexTransaction.Type transactionType,
+                                  Memtable memtable)
+        {
+            return new Indexer()
+            {
+                public void begin() { }
+                public void partitionDelete(DeletionTime deletionTime) { }
+                public void rangeTombstone(RangeTombstone tombstone) { }
+                public void insertRow(Row row) { }
+                public void updateRow(Row oldRowData, Row newRowData) { }
+                public void removeRow(Row row)
+                {
+                    throw new RuntimeException("simulated indexer failure during fully-expired SSTable notification");
+                }
+                public void finish() { }
+            };
+        }
     }
 
     public static final class CountMetadataReloadsIndex extends StubIndex
