@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -13,25 +14,36 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-#
-#
-# See python driver docs: six have to be installed before
-# cythonizing the driver, perhaps only on old pips.
-# http://datastax.github.io/python-driver/installation.html#cython-based-extensions
-six>=1.12.0
-# 3.25.0 (2017) cannot be built with the current pip/setuptools in the shared CI test
-# image (its ez_setup.py path is broken); 3.29.0 is what the cassandra-5.0 CI pins.
--e git+https://github.com/apache/cassandra-python-driver.git@3.29.0#egg=cassandra-driver
-# Used ccm version is tracked by cassandra-test branch in ccm repo. Please create a PR there for fixes or upgrades to new releases.
--e git+https://github.com/apache/cassandra-ccm.git@cassandra-test#egg=ccm
-coverage
-decorator
-docopt
-enum34
-flaky
-mock
-pytest
-parse
-pycodestyle
-psutil
+
+
+source "logging.sh"
+
+skip_mypy=(
+    "./logging_helper.py"
+)
+
+failed=0
+log_progress "Linting ci_parser..."
+for i in `find . -maxdepth 1 -name "*.py"`; do
+    log_progress "Checking $i..."
+    flake8 "$i"
+    if [[ $? != 0 ]]; then
+        failed=1
+    fi
+
+    if [[ ! " ${skip_mypy[*]} " =~ ${i} ]]; then
+        mypy --ignore-missing-imports "$i"
+        if [[ $? != 0 ]]; then
+            failed=1
+        fi
+    fi
+done
+
+
+if [[ $failed -eq 1 ]]; then
+    log_error "Failed linting. See above errors; don't merge until clean."
+    exit 1
+else
+    log_progress "All scripts passed checks"
+    exit 0
+fi

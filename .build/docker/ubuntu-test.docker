@@ -1,0 +1,266 @@
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+#
+# This is a multi-stage build. The `base` stage holds all the system setup
+# (apt packages, JDKs, python, locales, alternatives and the build user) and is
+# shared by both other stages. The `builder` stage does the heavy, throw-away
+# work: it prepopulates the Maven cache and builds the five python virtualenvs
+# and the ccm repository. The `final` stage re-derives from `base` (so it gets a
+# clean system with no build cruft, apt caches, git caches or chmod copy-up
+# duplication) and only COPYies the generated caches across from `builder`. This
+# keeps the shipped image close to (system packages + generated caches) rather
+# than accumulating every intermediate layer.
+#
+
+####################################################################
+# base: system packages, JDKs, python, locales and the build user
+####################################################################
+
+FROM ubuntu:22.04 AS base
+LABEL org.opencontainers.image.authors="Apache Cassandra <dev@cassandra.apache.org>"
+
+# CONTEXT is expected to be cassandra/.build
+
+ENV BUILD_HOME=/home/cassandra
+ENV CASSANDRA_DIR=$BUILD_HOME/cassandra
+ENV DIST_DIR=$CASSANDRA_DIR/build
+ENV LANG=en_US.UTF-8
+ENV LC_CTYPE=en_US.UTF-8
+ENV PYTHONIOENCODING=utf-8
+ENV PYTHONUNBUFFERED=true
+
+LABEL org.cassandra.buildenv=ubuntu_test
+
+RUN echo "Building with arguments:" \
+    && echo " - DIST_DIR=${DIST_DIR}" \
+    && echo " - BUILD_HOME=${BUILD_HOME}" \
+    && echo " - CASSANDRA_DIR=${CASSANDRA_DIR}" \
+    && echo " - UID_ARG=${UID_ARG}" \
+    && echo " - GID_ARG=${GID_ARG}"
+
+# configure apt to retry downloads
+RUN echo 'APT::Acquire::Retries "99";' > /etc/apt/apt.conf.d/80-retries
+RUN echo 'Acquire::http::Timeout "60";' > /etc/apt/apt.conf.d/80proxy.conf
+RUN echo 'Acquire::ftp::Timeout "60";' >> /etc/apt/apt.conf.d/80proxy.conf
+
+# install our python dependencies and some other stuff we need
+# libev4 libev-dev are for the python driver
+
+RUN export DEBIAN_FRONTEND=noninteractive && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends software-properties-common apt-utils gnupg && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN export DEBIAN_FRONTEND=noninteractive && \
+    add-apt-repository -y ppa:deadsnakes/ppa && \
+    apt-get update && \
+    apt-get install -y curl git-core python3-pip \
+        python3.8 python3.8-venv python3.8-dev \
+        python3.10 python3.10-venv python3.10-dev \
+        python3.11 python3.11-venv python3.11-dev \
+        python3.12 python3.12-venv python3.12-dev \
+        python3.13 python3.13-venv python3.13-dev \
+        virtualenv net-tools libev4 libev-dev wget gcc libxml2 libxslt1-dev \
+        vim lsof sudo libjemalloc2 dumb-init locales rsync \
+        openjdk-8-jdk openjdk-11-jdk openjdk-17-jdk ant ant-optional && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN update-alternatives --remove java /usr/lib/jvm/java-8-openjdk-$(dpkg --print-architecture)/jre/bin/java
+RUN update-alternatives --install /usr/bin/java java /usr/lib/jvm/java-8-openjdk-$(dpkg --print-architecture)/bin/java 1081
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.8 1
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.13 1
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 1
+RUN python3.8 -m pip install --upgrade pip
+
+# generate locales for the standard en_US.UTF8 value we use for testing
+RUN locale-gen en_US.UTF-8
+
+# as we only need the requirements.txt file from the dtest repo, let's just get it from GitHub as a raw asset
+# so we can avoid needing to clone the entire repo just to get this file
+RUN curl https://raw.githubusercontent.com/apache/cassandra-dtest/trunk/requirements.txt --output /opt/requirements.txt
+RUN chmod 0644 /opt/requirements.txt
+
+# now setup python via virtualenv with all of the python dependencies we need according to requirements.txt
+RUN pip3 install virtualenv virtualenv-clone
+RUN pip3 install --upgrade wheel
+
+# make Java 8 the default executable (we use to run all tests against Java 8)
+RUN update-java-alternatives --set java-1.8.0-openjdk-$(dpkg --print-architecture)
+
+# enable legacy TLSv1 and TLSv1.1 (CASSANDRA-16848)
+RUN find /etc -type f -name java.security -exec sed -i 's/TLSv1, TLSv1.1//' {} \;
+RUN find /etc -type f -name java.security -exec sed -i 's/3DES_EDE_CBC$/3DES_EDE_CBC, TLSv1, TLSv1.1/' {} \;
+
+# create and change to cassandra-tmp user, use an rare uid to avoid collision later on
+RUN mkdir -p /home/image-cache && chmod -R a+rwx /home/image-cache
+RUN adduser --disabled-login --uid 901743 --lastuid 901743 --gecos cassandra cassandra-tmp
+RUN gpasswd -a cassandra-tmp sudo
+RUN echo "cassandra-tmp ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/build
+RUN chmod 0440 /etc/sudoers.d/build
+
+# switch to the cassandra user
+RUN mkdir -p ${BUILD_HOME} && chmod a+rwx ${BUILD_HOME}
+USER cassandra-tmp
+ENV HOME=${BUILD_HOME}
+WORKDIR ${BUILD_HOME}
+
+ENV ANT_HOME=/usr/share/ant
+
+##########################################################################################
+# builder: prepopulate local maven repo, build the python virtualenvs and ccm repository
+##########################################################################################
+
+FROM base AS builder
+
+# Prepopulate Maven repository with dependencies from all branches. see _create_user.sh
+COPY docker/_prepopulate_maven_deps.sh /tmp/_prepopulate_maven_deps.sh
+RUN bash /tmp/_prepopulate_maven_deps.sh /home/image-cache/.m2/repository
+RUN cp -a /home/cassandra-tmp/.gradle /home/image-cache/.gradle
+
+# run pip commands and setup virtualenv (note we do this after we switch to cassandra user so we
+# setup the virtualenv for the cassandra user, not root) for Python 3.8-3.13
+# Don't build cython extensions when installing cassandra-driver. During test execution the driver
+# dependency is refreshed via pip install --upgrade, so that driver changes can be pulled in without
+# requiring the image to be rebuilt. Rebuilding compiled extensions is costly and is disabled by
+# default in test jobs using the CASS_DRIVER_X env vars below. However, if the extensions are
+# included in the base image, the compiled objects are not updated by pip at run time, which can
+# cause errors if the tests rely on new driver functionality or bug fixes.
+
+# Build the virtualenv, remove the cassandra-driver .git (breaks virtualenv-clone) and fix
+# permissions for the runtime user (which has a different uid/gid), all in the same layer.
+RUN virtualenv --python=python3.8 ${BUILD_HOME}/env3.8 \
+    && chmod +x ${BUILD_HOME}/env3.8/bin/activate \
+    && /bin/bash -c "export CASS_DRIVER_NO_CYTHON=1 CASS_DRIVER_NO_EXTENSIONS=1 \
+        && source ${BUILD_HOME}/env3.8/bin/activate \
+        && pip3 install --upgrade pip \
+        && pip3 install -r /opt/requirements.txt \
+        && pip3 freeze --user" \
+    && rm -rf ${BUILD_HOME}/env3.8/src/cassandra-driver/.git \
+    && chmod -R og+wx ${BUILD_HOME}/env3.8
+
+RUN virtualenv --python=python3.10 ${BUILD_HOME}/env3.10 \
+    && chmod +x ${BUILD_HOME}/env3.10/bin/activate \
+    && /bin/bash -c "export CASS_DRIVER_NO_CYTHON=1 CASS_DRIVER_NO_EXTENSIONS=1 \
+        && source ${BUILD_HOME}/env3.10/bin/activate \
+        && curl -sS https://bootstrap.pypa.io/get-pip.py | python3.10 \
+        && pip3 install --upgrade \"pip<25.0\" \"setuptools==60.8.2\" wheel \
+        && pip3 install --no-build-isolation -r /opt/requirements.txt \
+        && pip3 freeze --user" \
+    && rm -rf ${BUILD_HOME}/env3.10/src/cassandra-driver/.git \
+    && chmod -R og+wx ${BUILD_HOME}/env3.10
+
+RUN python3.11 -m venv ${BUILD_HOME}/env3.11 \
+    && chmod +x ${BUILD_HOME}/env3.11/bin/activate \
+    && /bin/bash -c "export CASS_DRIVER_NO_CYTHON=1 CASS_DRIVER_NO_EXTENSIONS=1 \
+        && source ${BUILD_HOME}/env3.11/bin/activate \
+        && curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11 \
+        && pip3 install --upgrade \"pip<25.0\"  \"setuptools==60.8.2\" wheel \
+        && pip3 install --no-build-isolation -r /opt/requirements.txt \
+        && pip3 freeze --user" \
+    && rm -rf ${BUILD_HOME}/env3.11/src/cassandra-driver/.git \
+    && chmod -R og+wx ${BUILD_HOME}/env3.11
+
+RUN virtualenv --python=python3.12 ${BUILD_HOME}/env3.12 \
+    && chmod +x ${BUILD_HOME}/env3.12/bin/activate \
+    && /bin/bash -c "export CASS_DRIVER_NO_CYTHON=1 CASS_DRIVER_NO_EXTENSIONS=1 \
+        && source ${BUILD_HOME}/env3.12/bin/activate \
+        && curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12 \
+        && pip3 install --upgrade \"pip<25.0\" \"setuptools>=65.5.0,<70.0.0\" wheel \
+        && sed -i 's/pkgutil.ImpImporter/type(\"ImpImporter\", (object,), {})/g' ${BUILD_HOME}/env3.12/lib/python3.12/site-packages/pkg_resources/__init__.py \
+        && pip3 install --no-build-isolation -r /opt/requirements.txt \
+        && pip3 freeze --user" \
+    && rm -rf ${BUILD_HOME}/env3.12/src/cassandra-driver/.git \
+    && chmod -R og+wx ${BUILD_HOME}/env3.12
+
+RUN virtualenv --python=python3.13 ${BUILD_HOME}/env3.13 \
+    && chmod +x ${BUILD_HOME}/env3.13/bin/activate \
+    && /bin/bash -c "export CASS_DRIVER_NO_CYTHON=1 CASS_DRIVER_NO_EXTENSIONS=1 \
+        && source ${BUILD_HOME}/env3.13/bin/activate \
+        && curl -sS https://bootstrap.pypa.io/get-pip.py | python3.13 \
+        && pip3 install --upgrade \"pip<25.0\" \"setuptools>=65.5.0,<70.0.0\" wheel \
+        && sed -i 's/pkgutil.ImpImporter/type(\"ImpImporter\", (object,), {})/g' ${BUILD_HOME}/env3.13/lib/python3.13/site-packages/pkg_resources/__init__.py \
+        && pip3 install --no-build-isolation -r /opt/requirements.txt \
+        && pip3 freeze --user" \
+    && rm -rf ${BUILD_HOME}/env3.13/src/cassandra-driver/.git \
+    && chmod -R og+wx ${BUILD_HOME}/env3.13
+
+# 4* requires java8, sudo doesn't work on cross-platform builds
+USER root
+RUN update-alternatives --set java /usr/lib/jvm/java-8-openjdk-$(dpkg --print-architecture)/bin/java
+RUN update-alternatives --set javac /usr/lib/jvm/java-8-openjdk-$(dpkg --print-architecture)/bin/javac
+USER cassandra-tmp
+
+# Create ccm's git cache, using the same 'git clone --bare' ccm itself runs to build the cache
+RUN mkdir -p ${BUILD_HOME}/.ccm/repository \
+    && until git clone --bare https://github.com/apache/cassandra.git ${BUILD_HOME}/.ccm/repository/_git_cache_apache ; \
+       do echo "git clone failed… trying again in 10s… " ; sleep 10 ; done
+
+# Initialize ccm versions: the last two versions based off the latest version found on downloads.apache.org/cassandra
+RUN bash -c 'source ${BUILD_HOME}/env3.8/bin/activate && \
+    latest_4_0=$(curl -s https://downloads.apache.org/cassandra/ | grep -oP "(?<=href=\")4\.0\.[0-9]+" | sort -V | tail -1 | cut -d"." -f3) && \
+    for i in $(seq $((latest_4_0 -1)) $latest_4_0); do echo $i ; ccm create --quiet -n 1 -v binary:4.0.$i test && ccm remove test ; done && \
+    latest_4_1=$(curl -s https://downloads.apache.org/cassandra/ | grep -oP "(?<=href=\")4\.1\.[0-9]+" | sort -V | tail -1 | cut -d"." -f3) && \
+    for i in $(seq $((latest_4_1 -1)) $latest_4_1); do echo $i ; ccm create --quiet -n 1 -v binary:4.1.$i test && ccm remove test ; done'
+
+# 5+ requires java11, sudo doesn't work on cross-platform builds
+USER root
+RUN update-alternatives --set java /usr/lib/jvm/java-11-openjdk-$(dpkg --print-architecture)/bin/java
+RUN update-alternatives --set javac /usr/lib/jvm/java-11-openjdk-$(dpkg --print-architecture)/bin/javac
+USER cassandra-tmp
+
+# Initialize ccm versions: the last two versions based off the latest version found on downloads.apache.org/cassandra
+RUN /bin/bash -c 'source ${BUILD_HOME}/env3.8/bin/activate && \
+    latest_5_0=$(curl -s https://downloads.apache.org/cassandra/ | grep -oP "(?<=href=\")5\.0\.[0-9]+" | sort -V | tail -1 | cut -d"." -f3) && \
+    for i in $(seq $((latest_5_0 -1)) $latest_5_0); do echo $i ; ccm create --quiet -n 1 -v binary:5.0.$i test && ccm remove test ; done'
+    # TODO uncomment when 6.0.0 is released
+    #latest_6_0=$(curl -s https://downloads.apache.org/cassandra/ | grep -oP "(?<=href=\")6\.0\.[0-9]+" | sort -V | tail -1 | cut -d"." -f3) && \
+    #for i in $(seq $((latest_6_0 -1)) $latest_6_0); do echo $i ; ccm create --quiet -n 1 -v binary:6.0.$i test && ccm remove test ; done'
+
+# other directories we don't need in image (the cassandra-driver .git dirs, which break
+# virtualenv-clone, are removed per-env in the same layer that creates each env above)
+RUN rm -rf /home/cassandra-tmp/.m2 /tmp/ccm-*.tar.gz
+
+# fix permissions, runtime user has different uid/gid (env* permissions are set per-env above)
+RUN chmod -R og+wx ${BUILD_HOME}/.ccm ${BUILD_HOME}/.cache
+
+#####################################################################################
+# final: a clean base to avoid duplicating layer sizes above. copy in what's needed
+#####################################################################################
+
+FROM base AS final
+
+# the ccm repository, python virtualenvs and pip cache used directly by the runtime user
+COPY --from=builder --chown=cassandra-tmp:cassandra-tmp ${BUILD_HOME} ${BUILD_HOME}
+
+# the prepopulated maven repository and gradle wrapper, rsync'd/copied into the runtime user's home by _create_user.sh
+COPY --from=builder /home/image-cache /home/image-cache
+
+# make Java 11 the default, matching the state the single-stage image shipped with
+# (tests still select the java version explicitly at runtime via _set_java.sh)
+USER root
+RUN update-alternatives --set java /usr/lib/jvm/java-11-openjdk-$(dpkg --print-architecture)/bin/java
+RUN update-alternatives --set javac /usr/lib/jvm/java-11-openjdk-$(dpkg --print-architecture)/bin/javac
+USER cassandra-tmp
+
+# mark "/tmp" as a volume so it will get mounted as an ext4 mount and not
+# the stupid aufs/CoW stuff that the actual docker container mounts will have.
+# we've been seeing 3+ minute hangs when calling sync on an aufs backed mount
+# so it greatly makes tests flaky as things can hang basically anywhere
+VOLUME ["/tmp"]

@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -13,25 +14,31 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+
+if [ "$1" == "-h" ]; then
+   echo "$0 [-h] [rpm|noboolean] [<java_version>]"
+   echo " build redhat packages, specify noboolean for legacy (centos7) compatibility"
+   exit 1
+fi
+
+# arguments
+rpm_dist=$1
+java_version=$2
+
+
+echo
+echo "==="
+echo "WARNING: this script modifies local versioned files"
+echo "==="
+echo
+
 #
-#
-#
-# See python driver docs: six have to be installed before
-# cythonizing the driver, perhaps only on old pips.
-# http://datastax.github.io/python-driver/installation.html#cython-based-extensions
-six>=1.12.0
-# 3.25.0 (2017) cannot be built with the current pip/setuptools in the shared CI test
-# image (its ez_setup.py path is broken); 3.29.0 is what the cassandra-5.0 CI pins.
--e git+https://github.com/apache/cassandra-python-driver.git@3.29.0#egg=cassandra-driver
-# Used ccm version is tracked by cassandra-test branch in ccm repo. Please create a PR there for fixes or upgrades to new releases.
--e git+https://github.com/apache/cassandra-ccm.git@cassandra-test#egg=ccm
-coverage
-decorator
-docopt
-enum34
-flaky
-mock
-pytest
-parse
-pycodestyle
-psutil
+# Creates the redhat package
+
+# rpmbuild extracts the source tarball and its spec expects Ant output under that
+# source tree's build/. Do not globally redirect every nested Ant invocation to /dist;
+# _build-redhat.sh redirects only the initial artifacts build explicitly.
+CASSANDRA_DOCKER_USE_DEFAULT_BUILD_DIR=true \
+    $(dirname -- "$0")/_docker_run.sh almalinux-build.docker docker/_build-redhat.sh "${java_version}" "${rpm_dist}"
+exit $?
