@@ -18,6 +18,10 @@
 
 package org.apache.cassandra.db;
 
+import org.apache.cassandra.db.rows.EncodingStats;
+import java.io.IOException;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.concurrent.Callable;
@@ -321,6 +325,64 @@ public class SerializationHeaderTest
             if (readerWithRegular != null)
                 readerWithRegular.selfRef().close();
             FileUtils.deleteRecursive(dir);
+        }
+    }
+
+    @Test
+    public void testLiveDeletionTimeRoundTrip() throws IOException
+    {
+        long realisticTimestamp = System.currentTimeMillis() * 1000;
+        long realisticLocalDeletionTime = System.currentTimeMillis() / 1000;
+        EncodingStats stats = new EncodingStats(realisticTimestamp, realisticLocalDeletionTime, 0);
+
+        TableMetadata metadata = TableMetadata.builder("ks", "tab")
+                                              .addPartitionKeyColumn("k", Int32Type.instance)
+                                              .addRegularColumn("v", Int32Type.instance)
+                                              .build();
+        SerializationHeader header = new SerializationHeader(true, metadata, metadata.regularAndStaticColumns(), stats);
+
+        try (DataOutputBuffer out = new DataOutputBuffer())
+        {
+            header.writeDeletionTime(DeletionTime.LIVE, out);
+
+            try (DataInputBuffer in = new DataInputBuffer(out.getData(), 0, out.getLength()))
+            {
+                DeletionTime.ReusableDeletionTime reuse = DeletionTime.ReusableDeletionTime.live();
+                header.readDeletionTime(in, reuse);
+                Assert.assertTrue(reuse.isLive());
+            }
+        }
+    }
+
+    @Test
+    public void testLiveDeletionTimeReadBackwardCompatibility() throws IOException
+    {
+        long realisticTimestamp = System.currentTimeMillis() * 1000;
+        long realisticLocalDeletionTime = System.currentTimeMillis() / 1000;
+        EncodingStats stats = new EncodingStats(realisticTimestamp, realisticLocalDeletionTime, 0);
+
+        TableMetadata metadata = TableMetadata.builder("ks", "tab")
+                                              .addPartitionKeyColumn("k", Int32Type.instance)
+                                              .addRegularColumn("v", Int32Type.instance)
+                                              .build();
+        SerializationHeader header = new SerializationHeader(true, metadata, metadata.regularAndStaticColumns(), stats);
+
+        try (DataOutputBuffer out = new DataOutputBuffer())
+        {
+            header.writeTimestamp(Long.MIN_VALUE, out);
+            out.writeUnsignedVInt32(-1);
+
+            try (DataInputBuffer in = new DataInputBuffer(out.getData(), 0, out.getLength()))
+            {
+                DeletionTime result = header.readDeletionTime(in);
+                Assert.assertTrue(result.isLive());
+            }
+            try (DataInputBuffer in = new DataInputBuffer(out.getData(), 0, out.getLength()))
+            {
+                DeletionTime.ReusableDeletionTime reuse = DeletionTime.ReusableDeletionTime.live();
+                header.readDeletionTime(in, reuse);
+                Assert.assertTrue(reuse.isLive());
+            }
         }
     }
 
