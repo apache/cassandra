@@ -206,6 +206,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                                                           ? executorFactory().withJmxInternal().sequential("MemtablePostFlush")
                                                           : null;
 
+    // Dedicated post-flush executor for local system keyspaces to ensure system/gossip tasks are never blocked by slow user table flushes (CASSANDRA-19597)
+    private static final ExecutorPlus systemPostFlushExecutor = DatabaseDescriptor.isDaemonInitialized()
+                                                                ? executorFactory().withJmxInternal().sequential("SystemMemtablePostFlush")
+                                                                : null;
+
     private static final ExecutorPlus reclaimExecutor = DatabaseDescriptor.isDaemonInitialized()
                                                         ? executorFactory().withJmxInternal().sequential("MemtableReclaimMemory")
                                                         : null;
@@ -364,14 +369,25 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public static void shutdownPostFlushExecutor() throws InterruptedException
     {
-        postFlushExecutor.shutdown();
-        postFlushExecutor.awaitTermination(60, TimeUnit.SECONDS);
+        try
+        {
+            if (systemPostFlushExecutor != null)
+                ExecutorUtils.shutdownAndWait(60, TimeUnit.SECONDS, postFlushExecutor, systemPostFlushExecutor);
+            else
+                ExecutorUtils.shutdownAndWait(60, TimeUnit.SECONDS, postFlushExecutor);
+        }
+        catch (TimeoutException e)
+        {
+            logger.warn("Timeout shutting down post-flush executor(s): {}", e.getMessage());
+        }
     }
 
     public static void shutdownExecutorsAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
         List<ExecutorService> executors = new ArrayList<>();
         Collections.addAll(executors, reclaimExecutor, postFlushExecutor, flushExecutor);
+        if (systemPostFlushExecutor != null)
+            executors.add(systemPostFlushExecutor);
         perDiskflushExecutors.appendAllExecutors(executors);
         ExecutorUtils.shutdownAndWait(timeout, unit, executors);
     }
@@ -1080,7 +1096,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             logFlush(reason);
             Flush flush = new Flush(false);
             flushExecutor.execute(flush);
-            postFlushExecutor.execute(flush.postFlushTask);
+            postFlushExecutor().execute(flush.postFlushTask);
             return flush.postFlushTask;
         }
     }
@@ -1151,12 +1167,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         // we grab the current memtable; once any preceding memtables have flushed, we know its
         // commitLogLowerBound has been set (as this it is set with the upper bound of the preceding memtable)
         final Memtable current = data.getView().getCurrentMemtable();
-        return postFlushExecutor.submit(current::getCommitLogLowerBound);
+        return postFlushExecutor().submit(current::getCommitLogLowerBound);
     }
 
     public Future<Void> waitForPriorFlushes()
     {
-        return postFlushExecutor.submit(() -> null);
+        return postFlushExecutor().submit(() -> null);
     }
 
     public CommitLogPosition forceBlockingFlush(FlushReason reason)
@@ -2704,9 +2720,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         {
             final Flush flush = new Flush(true);
             flushExecutor.execute(flush);
-            postFlushExecutor.execute(flush.postFlushTask);
+            postFlushExecutor().execute(flush.postFlushTask);
             return flush.postFlushTask;
         }
+    }
+
+    private ExecutorPlus postFlushExecutor()
+    {
+        return SchemaConstants.isLocalSystemKeyspace(getKeyspaceName()) && systemPostFlushExecutor != null
+               ? systemPostFlushExecutor
+               : postFlushExecutor;
     }
 
     public void unloadCf()
