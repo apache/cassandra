@@ -260,7 +260,14 @@ public abstract class DifferentialCompactionTester extends CQLTester
         return max;
     }
 
-    /** Creates the CompactionTask for one differential run. MUST honor keepOriginals=true. */
+    /**
+     * Creates the CompactionTask for one differential run. MUST honor keepOriginals=true.
+     * <p>
+     * A factory that subclasses a CompactionTask to override getCompactionAwareWriter cannot name its
+     * own flag {@code keepOriginals}: inside the subclass that name resolves to CompactionTask's
+     * inherited field, which most task classes leave false, and the harness then loses the inputs it
+     * needs to restore. The failure reads as "input sstable lost during compaction".
+     */
     public interface TaskFactory
     {
         CompactionTask create(ColumnFamilyStore cfs, LifecycleTransaction txn, long gcBefore);

@@ -49,11 +49,7 @@ import static org.junit.Assert.assertTrue;
  */
 public class TimeWindowCompactionDifferentialTest extends DifferentialCompactionTester
 {
-    /**
-     * The parameter cannot be named keepOriginals: inside the subclass that name resolves to
-     * CompactionTask's inherited field, which {@link TimeWindowCompactionTask} always leaves false,
-     * and the harness then loses the inputs it needs to restore.
-     */
+    /** The parameter cannot be named keepOriginals; see {@link TaskFactory}. */
     private static TaskFactory timeWindow(boolean ignoreOverlaps, boolean retainOriginals)
     {
         return (cfs, txn, gcBefore) -> new TimeWindowCompactionTask(cfs, txn, gcBefore, ignoreOverlaps)

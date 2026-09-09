@@ -162,35 +162,28 @@ public class CursorDiskBoundaryDifferentialTest extends DifferentialCompactionTe
     /** A view of one table carrying its own data directories and its own disk boundaries. */
     private static final class BoundedCFS extends ColumnFamilyStore
     {
-        private final Directories.DataDirectory[] dirs;
-        private final List<PartitionPosition> positions;
+        private final DiskBoundaries boundaries;
 
         BoundedCFS(ColumnFamilyStore real, Directories directories,
                    Directories.DataDirectory[] dirs, List<PartitionPosition> positions)
         {
             super(real.keyspace, real.getTableName(), Util.newSeqGen(), real.metadata.get(),
                   directories, false, false);
-            this.dirs = dirs;
-            this.positions = positions;
+            this.boundaries = new DiskBoundaries(this, dirs, positions, Epoch.EMPTY, 0);
         }
 
         @Override
         public DiskBoundaries getDiskBoundaries()
         {
-            // ColumnFamilyStore's constructor reaches this override before the fields below are
-            // assigned, so the base answer stands until construction finishes.
-            if (positions == null)
-                return super.getDiskBoundaries();
-            return new DiskBoundaries(this, dirs, positions, Epoch.EMPTY, 0);
+            // ColumnFamilyStore's constructor reaches this override before the field is assigned.
+            return boundaries == null ? super.getDiskBoundaries() : boundaries;
         }
     }
 
     /**
-     * The writer is built over the bounded view so it sees several directories; the transaction stays
-     * on the real table, so the outputs are tracked and asserted there.
-     * <p>
-     * The parameter cannot be named keepOriginals: inside the subclass that name resolves to
-     * CompactionTask's inherited field rather than to this parameter.
+     * The writer is built over the bounded view so it sees several directories; the transaction
+     * stays on the real table, so the outputs are tracked and asserted there. The parameter cannot
+     * be named keepOriginals; see {@link TaskFactory}.
      */
     private static TaskFactory splitAcrossDirectories(ColumnFamilyStore bounded, boolean retainOriginals)
     {

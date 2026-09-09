@@ -55,8 +55,7 @@ public class UnifiedCompactionDifferentialTest extends DifferentialCompactionTes
     /**
      * The real task, with the writer's keepOriginals forced on: the harness compacts the same
      * inputs twice and needs them to survive, and {@link UnifiedCompactionTask} has no
-     * keepOriginals constructor. The parameter cannot be named keepOriginals: inside the subclass
-     * that name resolves to CompactionTask's inherited field, which is always false here.
+     * keepOriginals constructor. The parameter cannot be named keepOriginals; see {@link TaskFactory}.
      */
     private static TaskFactory sharded(ColumnFamilyStore cfs, int numShards, boolean retainOriginals)
     {

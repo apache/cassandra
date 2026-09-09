@@ -75,6 +75,7 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
 
     private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
     private final Map<DecoratedKey, AbstractRowIndexEntry> cachedKeys = new HashMap<>();
+    private static final SSTableReader[] NO_ORIGINALS = new SSTableReader[0];
     private final SSTableReader[] originals;
 
     public BigTableWriter(Builder builder, ILifecycleTransaction txn, SSTable.Owner owner)
@@ -89,8 +90,7 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
         // LifecycleTransaction.originals() wraps a fresh set on each call, and shouldCacheKey scans
         // this per partition. Safe to snapshot: the only cancel that drops a compaction's originals
         // runs in CompactionTask.runMayThrow before this writer.
-        this.originals = migrateKeyCache ? txn.originals().toArray(new SSTableReader[0])
-                                         : new SSTableReader[0];
+        this.originals = migrateKeyCache ? txn.originals().toArray(NO_ORIGINALS) : NO_ORIGINALS;
     }
 
     @Override

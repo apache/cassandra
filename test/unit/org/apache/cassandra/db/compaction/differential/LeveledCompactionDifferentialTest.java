@@ -42,10 +42,7 @@ import static org.junit.Assert.assertTrue;
  */
 public class LeveledCompactionDifferentialTest extends DifferentialCompactionTester
 {
-    /**
-     * The parameter cannot be named keepOriginals: inside the subclass that name resolves to
-     * CompactionTask's inherited field, which {@link LeveledCompactionTask} always leaves false.
-     */
+    /** The parameter cannot be named keepOriginals; see {@link TaskFactory}. */
     private static TaskFactory leveled(int level, long maxSSTableBytes, boolean major, boolean retainOriginals)
     {
         return (cfs, txn, gcBefore) -> new LeveledCompactionTask(cfs, txn, level, gcBefore, maxSSTableBytes, major)

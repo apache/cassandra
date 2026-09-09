@@ -235,7 +235,8 @@ public class SSTableCursorWriter implements AutoCloseable
 
         // Per partition, not once at rollover: BigTableWriter.openInternal reads this field, so an sstable
         // opened early at a writer switch would otherwise carry a stale last.
-        DecoratedKey detachedKey = setLast(ByteBuffer.wrap(partitionKey, 0, partitionKeyLength));
+        DecoratedKey detachedKey = detachKey(partitionKey, partitionKeyLength);
+        ssTableWriter.setLast(detachedKey);
 
         /** {@link SortedTableWriter#endPartition(DecoratedKey, DeletionTime)}
          lastWrittenKey = key; // tracked for verification, see {@link SortedTableWriter#verifyPartition(DecoratedKey)}, checking the key size and sorting
@@ -921,13 +922,19 @@ public class SSTableCursorWriter implements AutoCloseable
         }
     }
 
-    /** @return the last key, copied so a caller may retain it. */
-    public DecoratedKey setLast(ByteBuffer key)
+    public void setLast(ByteBuffer key)
     {
         IPartitioner partitioner = ssTableWriter.getPartitioner();
-        DecoratedKey last = partitioner.decorateKey(ByteBufferUtil.clone(key));
-        ssTableWriter.setLast(last);
-        return last;
+        ssTableWriter.setLast(partitioner.decorateKey(ByteBufferUtil.clone(key)));
+    }
+
+    /**
+     * @return a copy of the key, safe for anything that retains it. The array is the cursor's own,
+     *         and the next partition overwrites it.
+     */
+    private DecoratedKey detachKey(byte[] key, int length)
+    {
+        return ssTableWriter.getPartitioner().decorateKey(ByteBuffer.wrap(Arrays.copyOf(key, length)));
     }
 
     public void setFirst(ByteBuffer key)

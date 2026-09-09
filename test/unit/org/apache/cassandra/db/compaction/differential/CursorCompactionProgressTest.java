@@ -20,7 +20,6 @@ package org.apache.cassandra.db.compaction.differential;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.Test;
 
@@ -67,8 +66,8 @@ public class CursorCompactionProgressTest extends DifferentialCompactionTester
     @Test
     public void progressAdvancesWithinOnePartitionAsOftenAsTheIteratorPath() throws Throwable
     {
-        int iterator = distinctProgressValues(false);
-        int cursor = distinctProgressValues(true);
+        long iterator = distinctProgressValues(false);
+        long cursor = distinctProgressValues(true);
 
         assertTrue("the iterator path is the yardstick and it reported no progress inside the " +
                    "partition, so this scenario cannot judge the cursor path", iterator > 2);
@@ -80,7 +79,7 @@ public class CursorCompactionProgressTest extends DifferentialCompactionTester
                    cursor >= iterator / GRANULARITY_MARGIN);
     }
 
-    private int distinctProgressValues(boolean cursor) throws Throwable
+    private long distinctProgressValues(boolean cursor) throws Throwable
     {
         ColumnFamilyStore cfs = oneLargePartitionInTwoSSTables();
 
@@ -89,7 +88,7 @@ public class CursorCompactionProgressTest extends DifferentialCompactionTester
                              (store, txn, gcBefore) -> new CompactionTask(store, txn, gcBefore, false),
                              tracker);
 
-        return tracker.distinctIntermediateValues().size();
+        return tracker.distinctIntermediateValues();
     }
 
     private ColumnFamilyStore oneLargePartitionInTwoSSTables() throws Throwable
@@ -119,7 +118,7 @@ public class CursorCompactionProgressTest extends DifferentialCompactionTester
     private static final class SamplingTracker implements ActiveCompactionsTracker
     {
         private final List<Long> samples = new ArrayList<>();
-        private final AtomicBoolean running = new AtomicBoolean();
+        private volatile boolean running;
         private volatile long total;
         private Thread sampler;
 
@@ -127,9 +126,9 @@ public class CursorCompactionProgressTest extends DifferentialCompactionTester
         public void beginCompaction(CompactionInfo.Holder holder)
         {
             total = holder.getCompactionInfo().getTotal();
-            running.set(true);
+            running = true;
             sampler = new Thread(() -> {
-                while (running.get())
+                while (running)
                 {
                     long completed = holder.getCompactionInfo().getCompleted();
                     synchronized (samples)
@@ -146,7 +145,7 @@ public class CursorCompactionProgressTest extends DifferentialCompactionTester
         @Override
         public void finishCompaction(CompactionInfo.Holder holder)
         {
-            running.set(false);
+            running = false;
             try
             {
                 if (sampler != null)
@@ -158,15 +157,12 @@ public class CursorCompactionProgressTest extends DifferentialCompactionTester
             }
         }
 
-        List<Long> distinctIntermediateValues()
+        /** Sampling can outlive the join timeout, so the lock stays. */
+        long distinctIntermediateValues()
         {
             synchronized (samples)
             {
-                return samples.stream()
-                              .filter(v -> v > 0 && v < total)
-                              .distinct()
-                              .sorted()
-                              .collect(java.util.stream.Collectors.toList());
+                return samples.stream().filter(v -> v > 0 && v < total).distinct().count();
             }
         }
     }

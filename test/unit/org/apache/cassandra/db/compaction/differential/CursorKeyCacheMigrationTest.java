@@ -34,6 +34,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.keycache.KeyCacheSupport;
 import org.apache.cassandra.service.CacheService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -159,7 +160,7 @@ public class CursorKeyCacheMigrationTest extends DifferentialCompactionTester
         for (int pk = 0; pk < PARTITIONS; pk++)
         {
             execute("SELECT * FROM %s WHERE pk = ?", pk);
-            keys.add(cfs.getPartitioner().decorateKey(org.apache.cassandra.utils.ByteBufferUtil.bytes(pk)));
+            keys.add(cfs.getPartitioner().decorateKey(ByteBufferUtil.bytes(pk)));
         }
         return keys;
     }
