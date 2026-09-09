@@ -2019,8 +2019,9 @@ trace_type_repair_ttl: 7d
 
 # If unset, all GC Pauses greater than gc_log_threshold will log at
 # INFO level
-# UDFs (user defined functions) are disabled by default.
-# As of Cassandra 3.0 there is a sandbox in place that should prevent execution of evil code.
+# Cassandra disables user-defined functions (UDFs) by default.
+# Cassandra restricts UDF bytecode and class loading within its JVM.
+# These restrictions do not provide complete process isolation.
 user_defined_functions_enabled: false
 
 # Triggers are enabled by default.
