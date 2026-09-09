@@ -762,7 +762,7 @@ public class CursorCompactor extends CompactionInfo.Holder
             // clustering of the last unfiltered written here; a partition that wrote none has no trailing
             // block to cut, hence null.
             ClusteringDescriptor lastName = unfilteredsWrittenToPartition > 0 ? lastWrittenClustering() : null;
-            ssTableCursorWriter.writePartitionEnd(partitionDescriptor.key(), partitionDescriptor.keyBytes(), partitionDescriptor.keyLength(), toWritePartitionDeletion, partitionHeaderLength, lastName);
+            ssTableCursorWriter.writePartitionEnd(partitionDescriptor.keyBytes(), partitionDescriptor.keyLength(), toWritePartitionDeletion, partitionHeaderLength, lastName);
             // Update min/max clustering metadata. The count guard is required; see
             // unfilteredsWrittenToPartition.
             if (unfilteredsWrittenToPartition > 1) {

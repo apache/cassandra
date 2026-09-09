@@ -81,8 +81,10 @@ public abstract class CursorIndexWriter
     /**
      * The partition ends at partitionEnd, which is past its end-of-partition marker.
      *
-     * @param key the partition key. The caller reuses this instance, so an implementation that
-     *            retains it past the call must copy it.
+     * @param key the partition key, already a copy the caller does not reuse. An implementation may
+     *            retain it. Do not copy it again, and do not pass the cursor's own key here: the
+     *            index summary's readable boundary and the key cache both keep what they are given,
+     *            and a reusable key's token moves every partition.
      * @param lastName the clustering of the last non-static unfiltered written to this
      *                 partition, or null if the partition wrote none.
      */

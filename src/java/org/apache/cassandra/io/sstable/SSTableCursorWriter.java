@@ -224,7 +224,7 @@ public class SSTableCursorWriter implements AutoCloseable
      * @param lastName the clustering of the last non-static unfiltered written to this partition, needed as
      *                 the last name of a trailing index block; null if the partition wrote none.
      */
-    public void writePartitionEnd(org.apache.cassandra.db.DecoratedKey decoratedKey, byte[] partitionKey,
+    public void writePartitionEnd(byte[] partitionKey,
                                   int partitionKeyLength, DeletionTime partitionDeletionTime,
                                   int headerLength, ClusteringDescriptor lastName) throws IOException
     {
@@ -234,17 +234,18 @@ public class SSTableCursorWriter implements AutoCloseable
         addPartitionMetadata(partitionKey, partitionKeyLength, partitionSize, partitionDeletionTime);
 
         // Per partition, not once at rollover: BigTableWriter.openInternal reads this field, so an sstable
-        // opened early at a writer switch would otherwise carry a stale last. The key must be copied:
-        // decoratedKey is the cursor's reusable instance, and every reader opened from this writer keeps
-        // whatever it is handed.
-        setLast(ByteBuffer.wrap(partitionKey, 0, partitionKeyLength));
+        // opened early at a writer switch would otherwise carry a stale last.
+        DecoratedKey detachedKey = setLast(ByteBuffer.wrap(partitionKey, 0, partitionKeyLength));
 
         /** {@link SortedTableWriter#endPartition(DecoratedKey, DeletionTime)}
          lastWrittenKey = key; // tracked for verification, see {@link SortedTableWriter#verifyPartition(DecoratedKey)}, checking the key size and sorting
          // this is implemented differently for BIG/BTI
          createRowIndexEntry(key, partitionLevelDeletion, partitionEnd - 1);
          */
-        cursorIndexWriter.endPartition(decoratedKey, partitionKey, partitionKeyLength, headerLength, partitionDeletionTime, partitionEnd, lastName);
+        // IndexSummaryBuilder.maybeAddEntry calls DecoratedKey.retainable(), which copies the key bytes
+        // but keeps the caller's Token. ReusableDecoratedKey.recalculateToken moves that token every
+        // partition.
+        cursorIndexWriter.endPartition(detachedKey, partitionKey, partitionKeyLength, headerLength, partitionDeletionTime, partitionEnd, lastName);
     }
 
 
@@ -920,11 +921,13 @@ public class SSTableCursorWriter implements AutoCloseable
         }
     }
 
-    public void setLast(ByteBuffer key)
+    /** @return the last key, copied so a caller may retain it. */
+    public DecoratedKey setLast(ByteBuffer key)
     {
         IPartitioner partitioner = ssTableWriter.getPartitioner();
         DecoratedKey last = partitioner.decorateKey(ByteBufferUtil.clone(key));
         ssTableWriter.setLast(last);
+        return last;
     }
 
     public void setFirst(ByteBuffer key)

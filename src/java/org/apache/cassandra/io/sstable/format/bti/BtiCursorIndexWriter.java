@@ -42,7 +42,6 @@ import org.apache.cassandra.io.sstable.format.bti.RowIndexReader.IndexInfo;
 public class BtiCursorIndexWriter extends CursorIndexWriter
 {
     private final BtiTableWriter.IndexWriter indexWriter;
-    private final org.apache.cassandra.dht.IPartitioner partitioner;
     private final RowIndexWriter rowTrie;
     private final int rowIndexBlockSize;
 
@@ -58,7 +57,6 @@ public class BtiCursorIndexWriter extends CursorIndexWriter
                                 AbstractType<?>[] clusteringTypes)
     {
         this.indexWriter = writer.indexWriter;
-        this.partitioner = writer.metadata().partitioner;
         this.rowTrie = new RowIndexWriter(comparator, indexWriter.rowIndexWriter, writer.descriptor.version);
         this.rowIndexBlockSize = DatabaseDescriptor.getColumnIndexSize(BtiFormatPartitionWriter.DEFAULT_GRANULARITY);
         this.firstClustering = new ClusteringDescriptor(clusteringTypes);
@@ -126,11 +124,9 @@ public class BtiCursorIndexWriter extends CursorIndexWriter
         long trieRoot = rowIndexBlockCount > 1 ? rowTrie.complete(partitionEnd - 1 - partitionStart) : -1;
         TrieIndexEntry entry = TrieIndexEntry.create(partitionStart, trieRoot,
                                                      partitionDeletionTime, rowIndexBlockCount);
-        // copy: PartitionIndexBuilder keeps the previous key to compute the next separator, and
-        // the caller's key is reusable. Its token is reused too (see
-        // ReusableDecoratedKey.recalculateToken), so decorate the copy to get a fresh token
-        java.nio.ByteBuffer keyCopy = org.apache.cassandra.utils.ByteBufferUtil.clone(key.getKey());
-        indexWriter.append(partitioner.decorateKey(keyCopy), entry);
+        // PartitionIndexBuilder keeps the previous key to compute the next separator, so the key must be
+        // a copy. SSTableCursorWriter.writePartitionEnd passes one.
+        indexWriter.append(key, entry);
     }
 
     @Override

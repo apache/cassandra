@@ -76,6 +76,7 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
     private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
     private final Map<DecoratedKey, AbstractRowIndexEntry> cachedKeys = new HashMap<>();
     private final boolean shouldMigrateKeyCache;
+    private final SSTableReader[] originals;
 
     public BigTableWriter(Builder builder, ILifecycleTransaction txn, SSTable.Owner owner)
     {
@@ -86,6 +87,11 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
 
         this.shouldMigrateKeyCache = DatabaseDescriptor.shouldMigrateKeycacheOnCompaction()
                                      && !txn.isOffline();
+        // LifecycleTransaction.originals() wraps a fresh set on each call, and
+        // BigTableWriter.shouldCacheKey scans this per partition. Safe to snapshot: the only cancel
+        // that drops a compaction's originals runs in CompactionTask.runMayThrow before this writer.
+        this.originals = shouldMigrateKeyCache ? txn.originals().toArray(new SSTableReader[0])
+                                               : new SSTableReader[0];
     }
 
     @Override
@@ -102,34 +108,45 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
      * IndexInfo list, so a multi-block partition caches a shallow entry where the iterator path
      * would cache a full one. Both find the same rows; the shallow one reads its index blocks from
      * Index.db on a hit.
+     *
+     * @param key a key the caller does not reuse. It becomes a key of this sstable's key cache, so a
+     *            key whose bytes are later overwritten resolves a hit to another partition's data.
      */
     public void maybeCacheKey(DecoratedKey key, long dataFilePosition, long indexFilePosition,
                               DeletionTime partitionLevelDeletion, long headerLength,
                               int columnIndexCount, int indexedPartSize)
     {
-        if (!shouldMigrateKeyCache)
+        if (!shouldCacheKey(key))
             return;
 
-        for (SSTableReader reader : txn.originals())
-        {
+        // cachedKeys retains the key, so it must be a copy.
+        // SSTableCursorWriter.writePartitionEnd passes one.
+        cachedKeys.put(key, RowIndexEntry.create(dataFilePosition,
+                                                 indexFilePosition,
+                                                 partitionLevelDeletion,
+                                                 headerLength,
+                                                 columnIndexCount,
+                                                 indexedPartSize,
+                                                 null,
+                                                 null,
+                                                 rowIndexEntrySerializer.indexInfoSerializer(),
+                                                 descriptor.version));
+    }
+
+    /**
+     * True when key cache migration is on and one of the transaction's originals has a cached
+     * position for this key.
+     */
+    private boolean shouldCacheKey(DecoratedKey key)
+    {
+        if (!shouldMigrateKeyCache)
+            return false;
+
+        for (SSTableReader reader : originals)
             if (reader instanceof KeyCacheSupport<?> && ((KeyCacheSupport<?>) reader).getCachedPosition(key, false) != null)
-            {
-                // The cursor path hands in its reusable key, which the next partition overwrites; the map
-                // must hold a copy. The lookup above is safe with the reusable one.
-                DecoratedKey cacheKey = getPartitioner().decorateKey(ByteBufferUtil.clone(key.getKey()));
-                cachedKeys.put(cacheKey, RowIndexEntry.create(dataFilePosition,
-                                                         indexFilePosition,
-                                                         partitionLevelDeletion,
-                                                         headerLength,
-                                                         columnIndexCount,
-                                                         indexedPartSize,
-                                                         null,
-                                                         null,
-                                                         rowIndexEntrySerializer.indexInfoSerializer(),
-                                                         descriptor.version));
-                break;
-            }
-        }
+                return true;
+
+        return false;
     }
 
     @Override
@@ -158,17 +175,8 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
 
         indexWriter.append(key, entry, dataWriter.position(), partitionWriter.buffer());
 
-        if (shouldMigrateKeyCache)
-        {
-            for (SSTableReader reader : txn.originals())
-            {
-                if (reader instanceof KeyCacheSupport<?> && ((KeyCacheSupport<?>) reader).getCachedPosition(key, false) != null)
-                {
-                    cachedKeys.put(key, entry);
-                    break;
-                }
-            }
-        }
+        if (shouldCacheKey(key))
+            cachedKeys.put(key, entry);
 
         return entry;
     }

@@ -54,6 +54,7 @@ import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.ActiveCompactionsTracker;
 import org.apache.cassandra.db.compaction.CompactionController;
 import org.apache.cassandra.db.compaction.CompactionPipelineCounts;
+import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionTask;
 import org.apache.cassandra.db.compaction.CursorCompactor;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -451,6 +452,16 @@ public abstract class DifferentialCompactionTester extends CQLTester
      */
     protected void commitThroughFactory(ColumnFamilyStore cfs, boolean cursor, TaskFactory taskFactory) throws Exception
     {
+        commitThroughFactory(cfs, cursor, taskFactory, ActiveCompactionsTracker.NOOP);
+    }
+
+    /**
+     * As above, with a tracker of the caller's choosing, for a scenario that asserts on what
+     * {@link CompactionInfo} reports while the compaction runs rather than on its output.
+     */
+    protected void commitThroughFactory(ColumnFamilyStore cfs, boolean cursor, TaskFactory taskFactory,
+                                        ActiveCompactionsTracker tracker) throws Exception
+    {
         DatabaseDescriptor.setCursorCompactionEnabled(cursor);
         long gcBefore = cfs.getDefaultGcBefore(FBUtilities.nowInSeconds());
         Set<SSTableReader> inputs = cfs.getLiveSSTables();
@@ -460,7 +471,7 @@ public abstract class DifferentialCompactionTester extends CQLTester
         LifecycleTransaction txn = cfs.getTracker().tryModify(inputs, OperationType.COMPACTION);
         assertNotNull("unable to mark inputs compacting for commit", txn);
         CompactionPipelineCounts before = CompactionPipelineCounts.mark();
-        taskFactory.create(cfs, txn, gcBefore).execute(ActiveCompactionsTracker.NOOP);
+        taskFactory.create(cfs, txn, gcBefore).execute(tracker);
         CompactionPipelineCounts.assertPipelineRan(cursor, before);
     }
 
