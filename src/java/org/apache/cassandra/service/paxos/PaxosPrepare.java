@@ -31,6 +31,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -447,24 +449,10 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         Message<R> selfMessage = null;
         Message<R> summaryMessage = null;
         Id readId = Id.nextId();
-        Replica localReplica = participants.lookup(FBUtilities.getBroadcastAddressAndPort());
-        Replica dataNode = localReplica != null && localReplica.isFull()
-                           ? localReplica
-                           : null;
+        Replica dataNode = selectDataNode(participants, FBUtilities.getBroadcastAddressAndPort());
         int[] summaryHostIds = new int[participants.sizeOfPoll() - 1]; // all nodes except data node
         int summaryIndex = 0;
         ClusterMetadata metadata = ClusterMetadata.current();
-        if (dataNode == null)
-        {
-            for (int i = 0, size = participants.sizeOfPoll() ; i < size ; i++)
-            {
-                Replica replica = participants.voterReplica(i);
-                if (!replica.isFull() || participants.electorate.isPending(replica.endpoint()))
-                    continue;
-                dataNode = replica;
-                break;
-            }
-        }
 
         checkState(dataNode != null, "Couldn't find a data node to use");
         int dataNodeId  = metadata.directory.peerId(dataNode.endpoint()).id();
@@ -504,6 +492,23 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             Message<R> selfMessageFinal = selfMessage;
             send.verb().stage.execute(() -> prepare.executeOnSelfAsync(selfMessageFinal.payload, new RequestTime(selfMessageFinal.createdAtNanos()), selfHandler));
         }
+    }
+
+    @VisibleForTesting
+    static Replica selectDataNode(Participants participants, InetAddressAndPort local)
+    {
+        Replica localReplica = participants.lookup(local);
+        if (localReplica != null && localReplica.isFull())
+            return localReplica;
+
+        for (int i = 0, size = participants.sizeOfPoll() ; i < size ; i++)
+        {
+            Replica replica = participants.voterReplica(i);
+            if (!replica.isFull() || participants.electorate.isPending(replica.endpoint()))
+                continue;
+            return replica;
+        }
+        return null;
     }
 
     private static <R extends AbstractRequest<R>> void startUntracked(PaxosPrepare prepare, Participants participants, Message<R> send, BiFunction<R, RequestTime, Future<Response>> selfHandler)
