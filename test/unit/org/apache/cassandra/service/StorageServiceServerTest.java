@@ -659,4 +659,17 @@ public class StorageServiceServerTest
             System.clearProperty("cassandra.replace_address");
         }
     }
+
+    @Test
+    public void testSnitchSettersUpdateConfig()
+    {
+        DatabaseDescriptor.setDynamicSnitch(false);
+        Assert.assertFalse(DatabaseDescriptor.isDynamicSnitch());
+        DatabaseDescriptor.setDynamicSnitch(true);
+        Assert.assertTrue(DatabaseDescriptor.isDynamicSnitch());
+
+        DatabaseDescriptor.setEndpointSnitchClassName("org.apache.cassandra.locator.SimpleSnitch");
+        Assert.assertEquals("org.apache.cassandra.locator.SimpleSnitch",
+                            DatabaseDescriptor.getRawConfig().endpoint_snitch);
+    }
 }
