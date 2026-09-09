@@ -45,6 +45,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.SlotResponseTracker;
 import org.apache.cassandra.metrics.PaxosMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -283,6 +284,10 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
     private Committed latestCommitted; // latest actually committed proposal
 
     private final Participants participants;
+    @Nullable
+    private final SlotResponseTracker allSlotsTracker;
+    @Nullable
+    private final SlotResponseTracker withLatestSlots;
 
     private final List<Message<ReadResponse>> readResponses;
     private boolean haveReadResponseWithLatest;
@@ -310,6 +315,8 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         this.withLatest = new ArrayList<>(participants.sizeOfConsensusQuorum);
         this.latestAccepted = this.latestCommitted = Committed.none(request.partitionKey, request.table);
         this.onDone = onDone;
+        this.allSlotsTracker = participants.newSlotTracker();
+        this.withLatestSlots = participants.newSlotTracker();
     }
 
     private boolean hasInProgressProposal()
@@ -512,8 +519,13 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             {
                 latestCommitted = Committed.none(request.partitionKey, request.table);
                 haveReadResponseWithLatest = !readResponses.isEmpty();
-                if (needLatest != null)
+                if (needLatest != null && !needLatest.isEmpty())
                 {
+                    if (withLatestSlots != null)
+                    {
+                        for (InetAddressAndPort endpoint : needLatest)
+                            withLatestSlots.recordSuccess(endpoint);
+                    }
                     withLatest.addAll(needLatest);
                     needLatest.clear();
                 }
@@ -534,12 +546,14 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 case WAS_REPROPOSED_BY:
                 case SAME:
                     withLatest.add(from);
+                    recordSlotResponse(from, true);
                     haveReadResponseWithLatest |= permitted.readResponse != null;
                     break;
                 case BEFORE:
                     if (needLatest == null)
                         needLatest = new ArrayList<>(participants.sizeOfPoll() - withLatest.size());
                     needLatest.add(from);
+                    recordSlotResponse(from, false);
                     break;
                 case AFTER:
                     // move with->need
@@ -557,7 +571,9 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                         }
                     }
 
+                    resetWithLatestSlots();
                     withLatest.add(from);
+                    recordSlotResponse(from, true);
                     haveReadResponseWithLatest = permitted.readResponse != null;
                     latestCommitted = permitted.latestCommitted;
             }
@@ -594,7 +610,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             }
         }
 
-        haveQuorumOfPermissions |= withLatest() + needLatest() >= participants.sizeOfConsensusQuorum;
+        haveQuorumOfPermissions |= effectiveTotalCount() >= participants.sizeOfConsensusQuorum;
         if (haveQuorumOfPermissions)
         {
             if (request.read != null && readResponses.size() < participants.sizeOfReadQuorum)
@@ -614,7 +630,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             else if (hasInProgressProposal())
                 signalDone(hasOnlyPromises ? FOUND_INCOMPLETE_ACCEPTED : SUPERSEDED);
 
-            else if (withLatest() >= participants.sizeOfConsensusQuorum)
+            else if (effectiveWithLatestCount() >= participants.sizeOfConsensusQuorum)
                 signalDone(hasOnlyPromises ? PROMISED : READ_PERMITTED);
 
             // otherwise if we have any read response with the latest commit,
@@ -799,7 +815,16 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         super.onFailureWithMutex(from, reason);
         ++failures;
 
-        if (failures + participants.sizeOfConsensusQuorum == 1 + participants.sizeOfPoll())
+        if (allSlotsTracker != null)
+            allSlotsTracker.recordFailure(from);
+
+        boolean cannotSucceed;
+        if (allSlotsTracker != null)
+            cannotSucceed = !allSlotsTracker.canSucceed(participants.sizeOfConsensusQuorum);
+        else
+            cannotSucceed = failures + participants.sizeOfConsensusQuorum == 1 + participants.sizeOfPoll();
+
+        if (cannotSucceed)
             signalDone(MAYBE_FAILURE);
     }
 
@@ -1265,5 +1290,29 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
     {
         assert onLinearizabilityViolation == null || runnable == null;
         onLinearizabilityViolation = runnable;
+    }
+
+    private void recordSlotResponse(InetAddressAndPort from, boolean isWithLatest)
+    {
+        if (allSlotsTracker != null)
+            allSlotsTracker.recordSuccess(from);
+        if (isWithLatest && withLatestSlots != null)
+            withLatestSlots.recordSuccess(from);
+    }
+
+    private void resetWithLatestSlots()
+    {
+        if (withLatestSlots != null)
+            withLatestSlots.reset();
+    }
+
+    private int effectiveTotalCount()
+    {
+        return allSlotsTracker != null ? allSlotsTracker.satisfiedCount() : withLatest() + needLatest();
+    }
+
+    private int effectiveWithLatestCount()
+    {
+        return withLatestSlots != null ? withLatestSlots.satisfiedCount() : withLatest();
     }
 }
