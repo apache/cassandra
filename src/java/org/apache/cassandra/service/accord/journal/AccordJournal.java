@@ -626,10 +626,10 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
         writeMarker(startMarker(), segments.peekSegmentId(), -1L);
     }
 
-    public void writeSafeStopMarker(long lastUniqueTimeStamp)
+    public void writeSafeStopMarker(long lastUniqueTimestamp)
     {
         segments.fsync();
-        writeMarker(safeStopMarker(), segments.peekSegmentId(), lastUniqueTimeStamp);
+        writeMarker(safeStopMarker(), segments.peekSegmentId(), lastUniqueTimestamp);
     }
 
     private static Runnable merge(Runnable first, Runnable second)

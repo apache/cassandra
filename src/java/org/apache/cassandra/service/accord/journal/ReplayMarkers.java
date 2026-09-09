@@ -22,11 +22,13 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.zip.CRC32;
 
-import com.google.common.primitives.Longs;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NativeLibrary;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordJournalDirectory;
@@ -34,25 +36,35 @@ import static org.apache.cassandra.utils.Crc.crc32;
 
 public class ReplayMarkers
 {
+    private static final Logger logger = LoggerFactory.getLogger(ReplayMarkers.class);
+    public static final String startMarkerCrc = "startedCrc.marker";
+    public static final String endMarkerCrc = "stoppedCrc.marker";
+    public static final String startMarker = "started.marker";
+    public static final String endMarker = "stopped.marker";
+
     public static File startMarker()
     {
-        return new File(getAccordJournalDirectory(), "start.crc");
+        return new File(getAccordJournalDirectory(), startMarkerCrc);
     }
 
     public static File safeStopMarker()
     {
-        return new File(getAccordJournalDirectory(), "stop.crc");
+        return new File(getAccordJournalDirectory(), endMarkerCrc);
     }
 
-    public static class ReplayMarkerMetadata
+    public static class ReplayMarkerData
     {
         public final long segmentId;
-        public final long lastUniqueTimeStamp;
+        public final long lastUniqueTimestamp;
 
-        public ReplayMarkerMetadata(long segmentId, long lastUniqueTimeStamp)
+        public ReplayMarkerData(long segmentId, long lastUniqueTimestamp)
         {
             this.segmentId = segmentId;
-            this.lastUniqueTimeStamp = lastUniqueTimeStamp;
+            this.lastUniqueTimestamp = lastUniqueTimestamp;
+        }
+
+        public static ReplayMarkerData invalidMarker() {
+            return new ReplayMarkerData(-1L, -1L);
         }
 
         public long getSegmentId()
@@ -60,33 +72,25 @@ public class ReplayMarkers
             return segmentId;
         }
 
-        public long getLastUniqueTimeStamp()
+        public long getLastUniqueTimestamp()
         {
-            return lastUniqueTimeStamp;
+            return lastUniqueTimestamp;
         }
 
-        @Override
-        public boolean equals(Object other)
-        {
-            if (other == this)
-                return true;
-            if (!(other instanceof ReplayMarkerMetadata))
-                return false;
-
-            ReplayMarkerMetadata that = (ReplayMarkerMetadata) other;
-            return this.getSegmentId() == that.getSegmentId() && this.getLastUniqueTimeStamp() == that.getLastUniqueTimeStamp();
+        public boolean isValid() {
+            return segmentId != -1L && lastUniqueTimestamp != -1L;
         }
     }
 
-    public static void writeMarker(File file, long timestamp, long lastUniqueTimeStamp)
+    public static void writeMarker(File file, long timestamp, long lastUniqueTimestamp)
     {
         try (FileOutputStreamPlus out = new FileOutputStreamPlus(file))
         {
             CRC32 crc = crc32();
             out.writeLong(timestamp);
-            crc.update(Longs.toByteArray(timestamp));
-            out.writeLong(lastUniqueTimeStamp);
-            crc.update(Longs.toByteArray(lastUniqueTimeStamp));
+            FBUtilities.updateChecksumLong(crc, timestamp);
+            out.writeLong(lastUniqueTimestamp);
+            FBUtilities.updateChecksumLong(crc, lastUniqueTimestamp);
             out.writeInt((int) crc.getValue());
             out.sync();
         }
@@ -97,63 +101,74 @@ public class ReplayMarkers
         trySyncJournalDirectory();
     }
 
-    public static ReplayMarkerMetadata readStartMarker()
+    public static ReplayMarkerData readStartMarker()
     {
-        File crcFile = new File(getAccordJournalDirectory(), "start.crc");
+        File crcFile = new File(getAccordJournalDirectory(), startMarkerCrc);
         if (crcFile.exists())
             return readCrcMarker(crcFile);
         else
-            return readMarker(new File(getAccordJournalDirectory(), "started"));
+            return readMarker(new File(getAccordJournalDirectory(), startMarker));
     }
 
-    public static ReplayMarkerMetadata readStopMarker()
+    public static ReplayMarkerData readStopMarker()
     {
-        File crcFile = new File(getAccordJournalDirectory(), "stop.crc");
+        File crcFile = new File(getAccordJournalDirectory(), endMarkerCrc);
         if (crcFile.exists())
             return readCrcMarker(crcFile);
         else
-            return readMarker(new File(getAccordJournalDirectory(), "stopped"));
+            return readMarker(new File(getAccordJournalDirectory(), endMarker));
     }
 
-    public static ReplayMarkerMetadata readCrcMarker(File file)
+    public static ReplayMarkerData readCrcMarker(File file)
     {
         if (!file.exists())
-            return new ReplayMarkerMetadata(-1L, -1L);
+        {
+            logger.debug("{} does not exist", file);
+            return ReplayMarkerData.invalidMarker();
+        }
 
         try (FileInputStreamPlus in = new FileInputStreamPlus(file))
         {
             CRC32 crc = crc32();
             long timestamp = in.readLong();
-            crc.update(Longs.toByteArray(timestamp));
-            long lastUniqueTimeStamp = in.readLong();
-            crc.update(Longs.toByteArray(lastUniqueTimeStamp));
+            FBUtilities.updateChecksumLong(crc, timestamp);
+            long lastUniqueTimestamp = in.readLong();
+            FBUtilities.updateChecksumLong(crc, lastUniqueTimestamp);
             int checksum = in.readInt();
             if (in.read() != -1 || (int) crc.getValue() != checksum)
-                throw new IOException("Stop.crc file corrupted");
+            {
+                logger.debug("{} is corrupted", file);
+                return ReplayMarkerData.invalidMarker();
+            }
 
-            return new ReplayMarkerMetadata(timestamp, lastUniqueTimeStamp);
+            return new ReplayMarkerData(timestamp, lastUniqueTimestamp);
         }
         catch (IOException e)
         {
-            throw new UncheckedIOException(e);
+            logger.debug("Encountered IO exception {}, while reading {}", e, file);
+            return ReplayMarkerData.invalidMarker();
         }
     }
 
-    public static ReplayMarkerMetadata readMarker(File file)
+    public static ReplayMarkerData readMarker(File file)
     {
         if (!file.exists())
-            return new ReplayMarkerMetadata(-1, -1);
+        {
+            logger.debug("{} does not exist", file);
+            return ReplayMarkerData.invalidMarker();
+        }
 
         try (FileInputStreamPlus in = new FileInputStreamPlus(file))
         {
             StringBuilder sb = new StringBuilder(8);
             for (int b = in.read(); b >= 0 ; b = in.read())
                 sb.append((char)b);
-            return  new ReplayMarkerMetadata(Long.parseLong(sb.toString()), -1L);
+            return new ReplayMarkerData(Long.parseLong(sb.toString()), -1L);
         }
         catch (IOException e)
         {
-            throw new UncheckedIOException(e);
+            logger.debug("Encountered IO exception {}, while reading {}", e, file);
+            return ReplayMarkerData.invalidMarker();
         }
     }
 

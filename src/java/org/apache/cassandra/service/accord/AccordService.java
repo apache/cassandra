@@ -534,11 +534,12 @@ public class AccordService implements IAccordService, Shutdownable
 
         boolean rebootstrap = false;
         {
-            ReplayMarkers.ReplayMarkerMetadata stopMarkerMetadata = ReplayMarkers.readStopMarker();
-            long startMarkerSegmentId = ReplayMarkers.readStartMarker().getSegmentId();
-            long stopMarkerSegmentId = stopMarkerMetadata.getSegmentId();
+            ReplayMarkers.ReplayMarkerData startMarker = ReplayMarkers.readStartMarker();
+            ReplayMarkers.ReplayMarkerData stopMarker = ReplayMarkers.readStopMarker();
+            long startMarkerSegmentId = startMarker.getSegmentId();
+            long stopMarkerSegmentId = stopMarker.getSegmentId();
 
-            if (stopMarkerSegmentId < startMarkerSegmentId)
+            if (startMarker.isValid() && stopMarker.isValid() && stopMarkerSegmentId < startMarkerSegmentId)
             {
                 switch (getAccord().journal.stopMarkerFailurePolicy)
                 {
@@ -557,7 +558,7 @@ public class AccordService implements IAccordService, Shutdownable
                 }
             }
 
-            node.uniqueNow(stopMarkerMetadata.getLastUniqueTimeStamp());
+            node.uniqueNow(stopMarker.getLastUniqueTimestamp());
         }
 
         logger.info("Starting background compaction of system_accord");
