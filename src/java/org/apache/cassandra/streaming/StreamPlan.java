@@ -29,6 +29,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.replication.ReconciledKeyspaceOffsets;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -235,6 +236,17 @@ public class StreamPlan
     public TimeUUID getPendingRepair()
     {
         return coordinator.getPendingRepair();
+    }
+
+    public StreamPlan transferId(ShortMutationId transferId)
+    {
+        coordinator.setTransferId(transferId);
+        return this;
+    }
+
+    public boolean isTrackedTransfer()
+    {
+        return coordinator.isTrackedTransfer();
     }
 
     public boolean getFlushBeforeTransfer()

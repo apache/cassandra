@@ -30,11 +30,13 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.net.MessagingService.current_version;
@@ -61,9 +63,17 @@ public class StreamCoordinator
     private Iterator<StreamSession> sessionsToConnect = null;
     private final TimeUUID pendingRepair;
     private final PreviewKind previewKind;
+    private ShortMutationId transferId;
 
     public StreamCoordinator(StreamOperation streamOperation, int connectionsPerHost, StreamingChannel.Factory factory,
                              boolean follower, boolean connectSequentially, TimeUUID pendingRepair, PreviewKind previewKind)
+    {
+        this(streamOperation, connectionsPerHost, factory, follower, connectSequentially, pendingRepair, previewKind, null);
+    }
+
+    public StreamCoordinator(StreamOperation streamOperation, int connectionsPerHost, StreamingChannel.Factory factory,
+                             boolean follower, boolean connectSequentially, TimeUUID pendingRepair, PreviewKind previewKind,
+                             ShortMutationId transferId)
     {
         this.streamOperation = streamOperation;
         this.connectionsPerHost = connectionsPerHost;
@@ -72,6 +82,7 @@ public class StreamCoordinator
         this.connectSequentially = connectSequentially;
         this.pendingRepair = pendingRepair;
         this.previewKind = previewKind;
+        this.transferId = transferId;
     }
 
     public void setConnectionFactory(StreamingChannel.Factory factory)
@@ -271,6 +282,20 @@ public class StreamCoordinator
         return pendingRepair;
     }
 
+    void setTransferId(ShortMutationId transferId)
+    {
+        Preconditions.checkState(!hasActiveSessions(), "Cannot change the transfer id once sessions have been created");
+        this.transferId = transferId;
+    }
+
+    /**
+     * @return true when the transfer is tracked (i.e. we have a transferId)
+     */
+    public boolean isTrackedTransfer()
+    {
+        return transferId != null;
+    }
+
     private void startSession(StreamSession session)
     {
         session.start();
@@ -300,7 +325,7 @@ public class StreamCoordinator
             if (streamSessions.size() < connectionsPerHost)
             {
                 StreamSession session = new StreamSession(streamOperation, peer, factory, null, current_version, isFollower(), streamSessions.size(),
-                                                          pendingRepair, previewKind);
+                                                          pendingRepair, previewKind, transferId);
                 streamSessions.put(++lastReturned, session);
                 sessionInfos.put(lastReturned, session.getSessionInfo());
                 return session;
@@ -333,7 +358,7 @@ public class StreamCoordinator
             StreamSession session = streamSessions.get(id);
             if (session == null)
             {
-                session = new StreamSession(streamOperation, from, factory, channel, messagingVersion, isFollower(), id, pendingRepair, previewKind);
+                session = new StreamSession(streamOperation, from, factory, channel, messagingVersion, isFollower(), id, pendingRepair, previewKind, transferId);
                 streamSessions.put(id, session);
                 sessionInfos.put(id, session.getSessionInfo());
             }

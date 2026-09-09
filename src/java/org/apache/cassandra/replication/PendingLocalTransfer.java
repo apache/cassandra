@@ -49,9 +49,9 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
  * Represents a bulk data transfer received on a replica, from completion of streaming into the pending location,
- * through activation when it's made visible to reads. Pending transfers are identified by their streaming plan ID,
- * and made live by {@link ActivationRequest} which associates the streaming plan with a transfer ID that can be
- * represented in mutation summaries.
+ * through activation when it's made visible to reads. Pending transfers are identified by their streaming plan ID and
+ * belong to the {@link CoordinatedTransfer} that streamed them, whose ID can be represented in mutation summaries;
+ * they are made live by an {@link ActivationRequest} from that same transfer.
  */
 public class PendingLocalTransfer
 {
@@ -59,11 +59,12 @@ public class PendingLocalTransfer
 
     private String logPrefix()
     {
-        return String.format("[PendingLocalTransfer #%s]", planId);
+        return String.format("[PendingLocalTransfer #%s transfer %s]", planId, transferId);
     }
 
     final TimeUUID planId;
     final TableId tableId;
+    final ShortMutationId transferId;
     final Collection<SSTableReader> sstables;
     final long createdAt = currentTimeMillis();
     transient String keyspace;
@@ -71,21 +72,23 @@ public class PendingLocalTransfer
 
     volatile boolean activated = false;
 
-    public PendingLocalTransfer(TableId tableId, TimeUUID planId, Collection<SSTableReader> sstables)
+    public PendingLocalTransfer(TableId tableId, TimeUUID planId, ShortMutationId transferId, Collection<SSTableReader> sstables)
     {
         Preconditions.checkState(!sstables.isEmpty());
         this.tableId = tableId;
         this.planId = planId;
+        this.transferId = Objects.requireNonNull(transferId, "A pending transfer must belong to a coordinated transfer");
         this.sstables = sstables;
         this.keyspace = Objects.requireNonNull(ColumnFamilyStore.getIfExists(tableId)).keyspace.getName();
         this.range = shardRange(keyspace, sstables);
     }
 
     @VisibleForTesting
-    PendingLocalTransfer(TimeUUID planId, Collection<SSTableReader> sstables)
+    PendingLocalTransfer(TimeUUID planId, ShortMutationId transferId, Collection<SSTableReader> sstables)
     {
         Preconditions.checkState(!sstables.isEmpty());
         this.planId = planId;
+        this.transferId = transferId;
         this.tableId = null;
         this.sstables = sstables;
         this.keyspace = null;
@@ -146,6 +149,9 @@ public class PendingLocalTransfer
         if (activated)
             return false;
 
+        Preconditions.checkState(transferId.equals(request.transferId),
+                                 "%s Cannot activate a transfer staged for %s with an activation for %s (%s)",
+                                 logPrefix(), transferId, request.transferId, request);
         Preconditions.checkState(isFullReplica());
 
         long startedActivation = currentTimeMillis();
@@ -219,6 +225,7 @@ public class PendingLocalTransfer
     {
         return "PendingLocalTransfer{" +
                "activated=" + activated +
+               ", transferId=" + transferId +
                ", range=" + range +
                ", keyspace='" + keyspace + '\'' +
                ", createdAt=" + createdAt +

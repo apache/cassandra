@@ -37,6 +37,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -315,7 +317,8 @@ public class TransferTrackingService
             PendingLocalTransfer pending = local.get(failed.planId);
             if (pending == null)
             {
-                logger.warn("Cannot purge unknown local pending transfer {}", failed);
+                logger.info("No local pending transfer for {}, discarding any pending SSTables left on disk", failed);
+                deletePendingDirectories(failed.planId);
                 return;
             }
             purge(pending);
@@ -423,6 +426,35 @@ public class TransferTrackingService
         {
             lock.readLock().unlock();
         }
+    }
+
+    private static void deletePendingDirectories(TimeUUID planId)
+    {
+        for (Keyspace keyspace : Keyspace.all())
+        {
+            for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+            {
+                for (File pendingLocation : cfs.getDirectories().getPendingLocations())
+                {
+                    File pendingDir = new File(pendingLocation, planId.toString());
+                    if (!pendingDir.exists())
+                        continue;
+
+                    logger.info("Deleting orphaned pending transfer directory: {}", pendingDir);
+                    pendingDir.deleteRecursive();
+                }
+            }
+        }
+    }
+
+    static boolean hasPendingDirectories(TimeUUID planId)
+    {
+        for (Keyspace keyspace : Keyspace.all())
+            for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+                for (File pendingLocation : cfs.getDirectories().getPendingLocations())
+                    if (new File(pendingLocation, planId.toString()).exists())
+                        return true;
+        return false;
     }
 
     public static IVerbHandler<TransferFailed> verbHandler = message -> {

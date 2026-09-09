@@ -70,6 +70,7 @@ import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.ReconciledKeyspaceOffsets;
 import org.apache.cassandra.replication.ReconciledLogSnapshot;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
@@ -232,6 +233,8 @@ public class StreamSession
     private final TimeUUID pendingRepair;
     private final PreviewKind previewKind;
 
+    private final ShortMutationId transferId;
+
     public String failureReason;
 
 /**
@@ -288,6 +291,13 @@ public class StreamSession
     public StreamSession(StreamOperation streamOperation, InetAddressAndPort peer, StreamingChannel.Factory factory, @Nullable StreamingChannel controlChannel, int messagingVersion,
                          boolean isFollower, int index, TimeUUID pendingRepair, PreviewKind previewKind)
     {
+        this(streamOperation, peer, factory, controlChannel, messagingVersion, isFollower, index, pendingRepair, previewKind, null);
+    }
+
+    public StreamSession(StreamOperation streamOperation, InetAddressAndPort peer, StreamingChannel.Factory factory, @Nullable StreamingChannel controlChannel, int messagingVersion,
+                         boolean isFollower, int index, TimeUUID pendingRepair, PreviewKind previewKind,
+                         ShortMutationId transferId)
+    {
         this.streamOperation = streamOperation;
         this.peer = peer;
         this.isFollower = isFollower;
@@ -297,6 +307,7 @@ public class StreamSession
         this.metrics = StreamingMetrics.get(peer);
         this.pendingRepair = pendingRepair;
         this.previewKind = previewKind;
+        this.transferId = transferId;
     }
 
     public boolean isFollower()
@@ -345,6 +356,21 @@ public class StreamSession
     public PreviewKind getPreviewKind()
     {
         return previewKind;
+    }
+
+    @Nullable
+    public ShortMutationId transferId()
+    {
+        return transferId;
+    }
+
+    /**
+     * @return whether SSTables received in this session are staged as a pending coordinated transfer, rather than
+     *         becoming live as soon as they are received
+     */
+    public boolean isTrackedTransfer()
+    {
+        return transferId != null;
     }
 
     public StreamReceiver getAggregator(TableId tableId)
@@ -423,7 +449,8 @@ public class StreamSession
                                                               planId(),
                                                               streamOperation(),
                                                               getPendingRepair(),
-                                                              getPreviewKind());
+                                                              getPreviewKind(),
+                                                              transferId());
 
             sendControlMessage(message).sync();
             onInitializationComplete();

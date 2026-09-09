@@ -232,6 +232,7 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         VERSION_61(15);
 
         public static final Version MIN_ACCORD_VERSION = Version.VERSION_60;
+        public static final Version MIN_MUTATION_TRACKING_VERSION = Version.VERSION_61;
 
         public final int value;
 

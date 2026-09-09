@@ -100,6 +100,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
     private final RepairSession session;
     private final RepairParallelism parallelismDegree;
     private final Executor taskExecutor;
+    private final boolean useTrackedTransfers;
 
     @VisibleForTesting
     final List<ValidationTask> validationTasks = new CopyOnWriteArrayList<>();
@@ -129,6 +130,8 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
 
         if ((!session.repairData && !session.repairPaxos) && !metadata.requiresAccordSupport())
             throw new IllegalArgumentException(String.format("Cannot run accord only repair on %s.%s, which isn't configured for accord operations", cfs.keyspace.getName(), cfs.name));
+
+        this.useTrackedTransfers = shouldUseTrackedTransfers();
     }
 
     public long getNowInSeconds()
@@ -267,8 +270,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                                                                             .flatMap(this::executeTasks, taskExecutor);
 
             // For tracked keyspaces, we need to ensure sync'd data is present in the log
-            boolean isTracked = useTrackedTransfers();
-            if (isTracked)
+            if (useTrackedTransfers)
                 syncResults = TransferTrackingService.instance().onRepairSyncCompletion(this, syncResults, taskExecutor);
         }
         else
@@ -353,7 +355,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
             else
                 syncTasks = createStandardSyncTasks(trees);
 
-            return useTrackedTransfers()
+            return useTrackedTransfers
                    ? SyncTasks.tracked(ks, syncTasks)
                    : SyncTasks.untracked(syncTasks);
         }, taskExecutor);
@@ -383,13 +385,19 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
      * streaming path because:
      * - The data being streamed is pre-migration data without mutation tracking offsets
      * - TrackedRepairTransfer does not support --force (dead node exclusion)
+     * Incremental repairs during a migration also use the untracked path.
      */
-    private boolean useTrackedTransfers()
+    private boolean shouldUseTrackedTransfers()
     {
         if (!cfs.metadata().replicationType().isTracked())
             return false;
 
-        return KeyspaceMigrationInfo.shouldUseTrackedTransfers(ClusterMetadata.current(), desc.keyspace, cfs.metadata().id, desc.ranges);
+        ClusterMetadata metadata = ClusterMetadata.current();
+
+        if (session.isIncremental && metadata.mutationTrackingMigrationState.isMigrating(desc.keyspace))
+            return false;
+
+        return KeyspaceMigrationInfo.shouldUseTrackedTransfers(metadata, desc.keyspace, cfs.metadata().id, desc.ranges);
     }
 
     private boolean isTransient(InetAddressAndPort ep)
@@ -488,7 +496,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
             if (!tasks.isEmpty())
                 state.phase.streamSubmitted();
 
-            if (useTrackedTransfers())
+            if (useTrackedTransfers)
                 TransferTrackingService.instance().onRepairSyncExecution(tasks);
 
             for (SyncTask task : tasks)
