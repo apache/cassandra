@@ -48,7 +48,6 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -233,10 +232,6 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
 
             if (!current.views.isEmpty())
                 throw new ConfigurationException("Cannot use transient replication on keyspaces using materialized views");
-
-            for (TableMetadata table : current.tables)
-                if (!table.indexes.isEmpty())
-                    throw new ConfigurationException("Cannot use transient replication on keyspaces using secondary indexes");
         }
 
         //This is true right now because the transition from transient -> full lacks the pending state

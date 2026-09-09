@@ -442,6 +442,35 @@ public class AlterSchemaMutationTrackingTest
     }
 
     @Test
+    public void testSecondaryIndexesAllowedWithWitnesses()
+    {
+        // index first, then witnesses
+        String indexFirstKs = nextKsName();
+        schemaChange("CREATE KEYSPACE " + indexFirstKs +
+                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3'}" +
+                     " AND replication_type = 'tracked'");
+        schemaChange(String.format("CREATE TABLE %s.tbl (pk int PRIMARY KEY, val int)", indexFirstKs));
+        schemaChange(String.format("CREATE INDEX ON %s.tbl (val)", indexFirstKs));
+
+        schemaChange("ALTER KEYSPACE " + indexFirstKs +
+                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3/1'}");
+
+        assertTrue(ClusterMetadata.current().schema.getKeyspaceMetadata(indexFirstKs)
+                                 .replicationStrategy.getReplicationFactor().hasTransientReplicas());
+
+        // witnesses first, then index
+        String witnessFirstKs = nextKsName();
+        schemaChange("CREATE KEYSPACE " + witnessFirstKs +
+                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3/1'}" +
+                     " AND replication_type = 'tracked'");
+        schemaChange(String.format("CREATE TABLE %s.tbl (pk int PRIMARY KEY, val int)", witnessFirstKs));
+        schemaChange(String.format("CREATE INDEX ON %s.tbl (val)", witnessFirstKs));
+
+        assertFalse(ClusterMetadata.current().schema.getKeyspaceMetadata(witnessFirstKs)
+                                  .getTableOrViewNullable("tbl").indexes.isEmpty());
+    }
+
+    @Test
     public void testWitnessPromotionSkippableAtRuntime()
     {
         String ksName = nextKsName();
