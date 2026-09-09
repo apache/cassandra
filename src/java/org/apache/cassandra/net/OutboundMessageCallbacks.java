@@ -18,11 +18,17 @@
 package org.apache.cassandra.net;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.ResourceLimits.Outcome;
 
 interface OutboundMessageCallbacks
 {
-    /** A message was not enqueued to the link because too many messages are already waiting to send */
-    void onOverloaded(Message<?> message, InetAddressAndPort peer);
+    /**
+     * A message was not enqueued to the link because too many messages are already waiting to send.
+     *
+     * {@code outcome} is {@link Outcome#INSUFFICIENT_ENDPOINT} when only this peer is out of capacity,
+     * and {@link Outcome#INSUFFICIENT_GLOBAL} when the node-wide reserve is exhausted.
+     */
+    void onOverloaded(Message<?> message, InetAddressAndPort peer, Outcome outcome);
 
     /** A message was not serialized to a frame because it had expired */
     void onExpired(Message<?> message, InetAddressAndPort peer);

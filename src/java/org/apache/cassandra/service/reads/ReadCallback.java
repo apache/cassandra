@@ -42,6 +42,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.net.ResourceLimits.Outcome;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
 import org.apache.cassandra.service.reads.thresholds.WarningContext;
@@ -51,6 +52,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.atomic.AtomicIntegerFieldUpdater.newUpdater;
+import static org.apache.cassandra.net.ResourceLimits.Outcome.INSUFFICIENT_ENDPOINT;
 import static org.apache.cassandra.tracing.Tracing.isTracing;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
@@ -73,6 +75,9 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     private volatile WarningContext warningContext;
     private static final AtomicReferenceFieldUpdater<ReadCallback, WarningContext> warningsUpdater
         = AtomicReferenceFieldUpdater.newUpdater(ReadCallback.class, WarningContext.class, "warningContext");
+    // set by AbstractReadExecutor before its first send. A range read, a read repair and the short read
+    // and replica filtering protections have no executor, and leave this null
+    private volatile AbstractReadExecutor executor;
 
     public ReadCallback(ResponseResolver<E, P> resolver, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
     {
@@ -92,6 +97,11 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     protected P replicaPlan()
     {
         return replicaPlan.get();
+    }
+
+    void setExecutor(AbstractReadExecutor executor)
+    {
+        this.executor = executor;
     }
 
     public boolean await(long commandTimeout, TimeUnit unit)
@@ -239,6 +249,27 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
         if (blockFor + failuresUpdater.incrementAndGet(this) > replicaPlan().contacts().size())
             condition.signalAll();
+    }
+
+    /**
+     * Try an additional replica when the connection to one peer is overloaded. Fails when we run out of possible
+     * candidates, and fails without trying at all once the node-wide reserve is exhausted, since no connection to
+     * any peer can be allocated from it.
+     */
+    @Override
+    public void onOverloaded(InetAddressAndPort from, Outcome outcome)
+    {
+        AbstractReadExecutor executor = this.executor;
+        if (executor != null && INSUFFICIENT_ENDPOINT == outcome)
+            executor.maybeTryAdditionalReplicasOnOverload();
+
+        onFailure(from, RequestFailureReason.TIMEOUT);
+    }
+
+    @Override
+    public boolean invokeOnOverloadedInline()
+    {
+        return DatabaseDescriptor.getReadFallbackOnOverloadedConnection();
     }
 
     @Override
