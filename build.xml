@@ -523,7 +523,7 @@
             description="Generate shell autocomplete script">
 
         <property name="autocomplete.dir"
-                  location="${basedir}/tools/autocomplete"/>
+                  location="${basedir}/debian/"/>
         <property name="autocomplete.tmp.dir"
                   location="${tmp.dir}/autocomplete"/>
         <property name="license.header"
@@ -564,7 +564,7 @@
         </concat>
 
         <copy file="${autocomplete.tmp.dir}/nodetool"
-              tofile="${autocomplete.dir}/nodetool"/>
+              tofile="${autocomplete.dir}/nodetool-completion"/>
 
         <delete dir="${autocomplete.tmp.dir}"/>
 
