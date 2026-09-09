@@ -119,6 +119,12 @@ public class NoOpIndex implements Index
     }
 
     @Override
+    public boolean notifyIndexerAboutRowsInFullyExpiredSSTables()
+    {
+        return false;
+    }
+
+    @Override
     public boolean supportsExpression(ColumnMetadata column, Operator operator)
     {
         return false;
