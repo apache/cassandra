@@ -94,6 +94,58 @@ public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
             .checkAssert(this::testReads);
     }
 
+    @Test
+    public void testReusedCachedBlockInitialisesBufferSize() throws CorruptBlockException
+    {
+        // Block objects are cached in a static thread-local map keyed by file path and
+        // shared across instances. A second instance on the same thread for the same path
+        // reuses the first instance's Block, so block.buffer is already non-null. If
+        // bufferSize is only initialised in the block.buffer == null branch, the second
+        // instance keeps bufferSize == -1 and fill() calls ByteBuffer.limit(-1).
+        try (ChannelProxy channel = new ChannelProxy(files[0]))
+        {
+            int bufferSize = new DataStorageSpec.IntKibibytesBound("256KiB").toBytes();
+
+            // Instance A allocates and populates the cached Block for this file path.
+            ThreadLocalReadAheadBuffer a = new ThreadLocalReadAheadBuffer(channel, bufferSize, BufferType.OFF_HEAP);
+            ThreadLocalReadAheadBuffer b = new ThreadLocalReadAheadBuffer(channel, bufferSize, BufferType.OFF_HEAP);
+            try
+            {
+                a.fill(0);
+
+                // B must see A's already-populated Block; this proves the shared-cache
+                // reuse that the bug depends on actually happens on this thread and path.
+                Assert.assertTrue("B should reuse A's cached Block", b.hasBuffer());
+
+                int readSize = 100;
+                ByteBuffer expected = ByteBuffer.allocate(readSize);
+                channel.read(expected, 0);
+                expected.flip();
+
+                // Instance B reuses A's cached Block without allocating first.
+                ByteBuffer actual = ByteBuffer.allocate(readSize);
+                b.fill(0);
+                b.read(actual, readSize);
+                actual.flip();
+
+                Assert.assertEquals(expected, actual);
+
+                // A reused Block self-corrects reads on each fill(), so byte equality alone
+                // passes for any positive bufferSize. Pin the exact invariant the fix
+                // restores: a reused instance initialises bufferSize from the buffer
+                // capacity, not -1 and not some other value.
+                Assert.assertEquals("reused instance must initialise bufferSize from capacity",
+                                    bufferSize, b.bufferSize());
+            }
+            finally
+            {
+                // Keep A open while B runs so the shared Block stays cached; close both here.
+                b.close();
+                a.close();
+            }
+        }
+    }
+
     protected void testReads(InputData propertyInputs)
     {
         try (ChannelProxy channel = new ChannelProxy(propertyInputs.file);

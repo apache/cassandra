@@ -29,6 +29,7 @@ import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.netty.util.concurrent.FastThreadLocal;
 
 public class ThreadLocalReadAheadBuffer implements Closeable
@@ -73,6 +74,12 @@ public class ThreadLocalReadAheadBuffer implements Closeable
         return block().buffer != null;
     }
 
+    @VisibleForTesting
+    int bufferSize()
+    {
+        return bufferSize;
+    }
+
     public int remaining()
     {
         return getBlock().buffer.remaining();
@@ -90,9 +97,14 @@ public class ThreadLocalReadAheadBuffer implements Closeable
         {
             block.buffer = bufferSupplier.get();
             block.buffer.clear();
-            if (bufferSize == -1)
-                bufferSize = block.buffer.capacity();
         }
+        // bufferSize is a per-instance field, but Block objects are cached in a static
+        // thread-local map keyed by file path and shared across instances. When this
+        // instance reuses a Block allocated by an earlier instance for the same path,
+        // block.buffer is already non-null, so bufferSize must still be initialised here;
+        // leaving it at -1 makes fill() call ByteBuffer.limit(-1) and abort compaction.
+        if (bufferSize == -1)
+            bufferSize = block.buffer.capacity();
         return block;
     }
 
