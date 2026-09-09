@@ -71,8 +71,8 @@ CREATE KEYSPACE some_keysopace WITH replication = {'class': 'NetworkTopologyStra
 'DC1' : '3/1'', 'DC2' : '5/2'};
 ....
 
-Transiently replicated keyspaces only support tables with `read_repair`
-set to `NONE`.
+Transient replication requires mutation tracking, so a transiently replicated
+keyspace must set `replication_type = 'tracked'`.
 
 Important Restrictions:
 
@@ -83,15 +83,78 @@ must first remove all transient replicas, then change the # of full
 replicas, then add back the transient replicas.
 * You can only safely increase number of transients one at a time with
 incremental repair run in between each time.
+* You can't add transient replicas to a keyspace whose mutation tracking
+migration is still in progress, nor enable mutation tracking and add
+transient replicas in the same statement. Set `replication_type = 'tracked'`
+first, wait for the migration to complete, then alter the replication
+factor.
+* You can't promote a transient replica to a full replica, because it holds
+no data for the range it witnessed. Either drop the transient replica from
+the replica set (`3/1` to `2`), or add a full replica before removing it
+(`3/1` to `4/1` to `3`) with a full repair run in between if the replica
+count must be preserved.
+
+Setting `-Dcassandra.allow_unsafe_transient_changes=true` skips every restriction
+above except the first, which is governed by
+`-Dcassandra.allow_alter_rf_during_range_movement`. Any alteration reached that
+way can leave a transient replica counted by reads it cannot answer, and needs a
+full repair afterwards to redistribute the data.
+
+Promotion is the one performed deliberately often enough to want it without a
+restart, so it also honours `AllowUnsafeWitnessPromotion` on the
+`StorageService` MBean, seeded from
+`-Dcassandra.allow_unsafe_witness_promotion`.
+
+=== Adding transient replicas to an existing keyspace
+
+A keyspace that is not already using mutation tracking adopts transient
+replication in two steps, because enabling mutation tracking starts a migration
+and reads for a range that has not yet migrated still take the untracked path.
+
+First enable mutation tracking:
+
+....
+ALTER KEYSPACE some_keyspace WITH replication_type = 'tracked';
+....
+
+The migration repairs each range so that a single-replica tracked read reflects
+every write made while the keyspace was untracked. Wait for it to complete, then
+set the replication factor:
+
+....
+ALTER KEYSPACE some_keyspace WITH replication = {'class': 'SimpleStrategy',
+'replication_factor' : '3/1'};
+....
+
+A keyspace created with both settings at once needs no migration, because it has
+no pre-tracking writes to repair.
+
+=== Removing transient replicas
+
+Dropping the transient replica from the replica set needs no data movement,
+because the remaining full replicas already hold everything:
+
+....
+ALTER KEYSPACE some_keyspace WITH replication = {'class': 'SimpleStrategy',
+'replication_factor' : '2'};
+....
+
+Where the range must keep the same number of full replicas, add one before
+removing the transient replica, and run a full repair in between so the added
+replica is populated:
+
+....
+ALTER KEYSPACE some_keyspace WITH replication = {'class': 'SimpleStrategy',
+'replication_factor' : '4/1'};
+nodetool repair -full some_keyspace
+ALTER KEYSPACE some_keyspace WITH replication = {'class': 'SimpleStrategy',
+'replication_factor' : '3'};
+....
 
 Additionally, transient replication cannot be used for:
 
-* Monotonic Reads
-* Lightweight Transactions (LWTs)
-* Logged Batches
-* Counters
-* Keyspaces using materialized views
-* Secondary indexes (2i)
+* Logged Batches.
+* Keyspaces using materialized views.
 
 == Cheap Quorums
 
