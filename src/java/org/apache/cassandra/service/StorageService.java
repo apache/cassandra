@@ -5623,10 +5623,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             // point snitch references to the new instance
             DatabaseDescriptor.setEndpointSnitch(newSnitch);
+            DatabaseDescriptor.setEndpointSnitchClassName(epSnitchClassName);
             for (String ks : Schema.instance.getKeyspaces())
             {
                 Keyspace.open(ks).getReplicationStrategy().snitch = newSnitch;
             }
+
+            if (dynamic != null)
+                DatabaseDescriptor.setDynamicSnitch(dynamic);
         }
         else
         {
