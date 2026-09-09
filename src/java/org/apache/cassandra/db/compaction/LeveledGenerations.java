@@ -27,6 +27,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.NavigableSet;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 
@@ -39,6 +40,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_STRICT_LCS_CHECKS;
@@ -243,6 +246,59 @@ class LeveledGenerations
         for (Set<SSTableReader> sstables : levels)
             builder.addAll(sstables);
         return builder.build();
+    }
+
+    /**
+     * Returns all SSTables in the given level that overlap with the provided sstable.
+     * For levels >= 1, SSTables are strictly disjoint and ordered in a TreeSet, enabling
+     * an O(log N + K) binary search instead of an O(N) linear scan across the entire generation.
+     */
+    Set<SSTableReader> getOverlapping(int level, SSTableReader sstable)
+    {
+        if (level >= levelCount() || level < 0)
+            throw new ArrayIndexOutOfBoundsException("Invalid generation " + level + " - maximum is " + (levelCount() - 1));
+
+        if (level == 0)
+        {
+            Set<SSTableReader> overlapped = new HashSet<>();
+            Bounds<Token> targetBounds = new Bounds<>(sstable.getFirst().getToken(), sstable.getLast().getToken());
+            for (SSTableReader candidate : l0)
+            {
+                Bounds<Token> candidateBounds = new Bounds<>(candidate.getFirst().getToken(), candidate.getLast().getToken());
+                if (candidateBounds.intersects(targetBounds))
+                    overlapped.add(candidate);
+            }
+            return overlapped;
+        }
+
+        TreeSet<SSTableReader> sortedLevel = levels[level - 1];
+        if (sortedLevel.isEmpty())
+            return Collections.emptySet();
+
+        Set<SSTableReader> overlapped = new HashSet<>();
+        Token start = sstable.getFirst().getToken();
+        Token end = sstable.getLast().getToken();
+        Bounds<Token> targetBounds = new Bounds<>(start, end);
+
+        SSTableReader floor = sortedLevel.floor(sstable);
+        if (floor != null)
+        {
+            Bounds<Token> floorBounds = new Bounds<>(floor.getFirst().getToken(), floor.getLast().getToken());
+            if (floorBounds.intersects(targetBounds))
+                overlapped.add(floor);
+        }
+
+        NavigableSet<SSTableReader> tail = floor != null ? sortedLevel.tailSet(floor, false) : sortedLevel;
+        for (SSTableReader candidate : tail)
+        {
+            if (candidate.getFirst().getToken().compareTo(end) > 0)
+                break;
+
+            Bounds<Token> candidateBounds = new Bounds<>(candidate.getFirst().getToken(), candidate.getLast().getToken());
+            if (candidateBounds.intersects(targetBounds))
+                overlapped.add(candidate);
+        }
+        return overlapped;
     }
 
     /**

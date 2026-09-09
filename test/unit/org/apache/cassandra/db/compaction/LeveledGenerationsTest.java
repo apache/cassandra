@@ -21,6 +21,7 @@ package org.apache.cassandra.db.compaction;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -41,6 +42,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
+import static org.junit.Assert.assertTrue;
 
 public class LeveledGenerationsTest extends CQLTester
 {
@@ -161,6 +163,65 @@ public class LeveledGenerationsTest extends CQLTester
         }
         catch (ArrayIndexOutOfBoundsException e)
         {}
+    }
+
+    @Test
+    public void testGetOverlapping()
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        LeveledGenerations gens = new LeveledGenerations();
+
+        // Populate Level 2 with disjoint sstables: [0, 10], [20, 30], [40, 50], [60, 70], [80, 90]
+        SSTableReader s1 = MockSchema.sstable(1, 5, true, 0, 10, 2, cfs);
+        SSTableReader s2 = MockSchema.sstable(2, 5, true, 20, 30, 2, cfs);
+        SSTableReader s3 = MockSchema.sstable(3, 5, true, 40, 50, 2, cfs);
+        SSTableReader s4 = MockSchema.sstable(4, 5, true, 60, 70, 2, cfs);
+        SSTableReader s5 = MockSchema.sstable(5, 5, true, 80, 90, 2, cfs);
+        gens.addAll(Lists.newArrayList(s1, s2, s3, s4, s5));
+
+        // 1. Overlap across multiple tables [25, 65]: should find s2 [20, 30], s3 [40, 50], s4 [60, 70]
+        SSTableReader targetMulti = MockSchema.sstable(10, 5, true, 25, 65, 1, cfs);
+        Set<SSTableReader> overlapping = gens.getOverlapping(2, targetMulti);
+        assertEquals(3, overlapping.size());
+        assertTrue(overlapping.contains(s2));
+        assertTrue(overlapping.contains(s3));
+        assertTrue(overlapping.contains(s4));
+        assertFalse(overlapping.contains(s1));
+        assertFalse(overlapping.contains(s5));
+
+        // 2. Exact match with s3 [40, 50]: should find only s3
+        SSTableReader targetExact = MockSchema.sstable(11, 5, true, 40, 50, 1, cfs);
+        overlapping = gens.getOverlapping(2, targetExact);
+        assertEquals(Collections.singleton(s3), overlapping);
+
+        // 3. In gap between s2 and s3 [32, 38]: should find 0
+        SSTableReader targetGap = MockSchema.sstable(12, 5, true, 32, 38, 1, cfs);
+        overlapping = gens.getOverlapping(2, targetGap);
+        assertTrue(overlapping.isEmpty());
+
+        // 4. Completely before all tables [-50, -10]: should find 0
+        SSTableReader targetBefore = MockSchema.sstable(13, 5, true, -50, -10, 1, cfs);
+        overlapping = gens.getOverlapping(2, targetBefore);
+        assertTrue(overlapping.isEmpty());
+
+        // 5. Completely after all tables [100, 150]: should find 0
+        SSTableReader targetAfter = MockSchema.sstable(14, 5, true, 100, 150, 1, cfs);
+        overlapping = gens.getOverlapping(2, targetAfter);
+        assertTrue(overlapping.isEmpty());
+
+        // 6. Overlap with predecessor floor only [-5, 5]: should find s1 [0, 10]
+        SSTableReader targetFloor = MockSchema.sstable(15, 5, true, -5, 5, 1, cfs);
+        overlapping = gens.getOverlapping(2, targetFloor);
+        assertEquals(Collections.singleton(s1), overlapping);
+
+        // 7. Overlap with successor only [85, 95]: should find s5 [80, 90]
+        SSTableReader targetSuccessor = MockSchema.sstable(16, 5, true, 85, 95, 1, cfs);
+        overlapping = gens.getOverlapping(2, targetSuccessor);
+        assertEquals(Collections.singleton(s5), overlapping);
+
+        // 8. Empty level: should return empty set
+        overlapping = gens.getOverlapping(3, targetExact);
+        assertTrue(overlapping.isEmpty());
     }
 
     private void assertIter(Iterator<SSTableReader> iter, long first, long last, int expectedCount)

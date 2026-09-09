@@ -575,12 +575,11 @@ public class LeveledManifest
 
         // look for a non-suspect keyspace to compact with, starting with where we left off last time,
         // and wrapping back to the beginning of the generation if necessary
-        Map<SSTableReader, Bounds<Token>> sstablesNextLevel = genBounds(generations.get(level + 1));
         Iterator<SSTableReader> levelIterator = generations.wrappingIterator(level, lastCompactedSSTables[level]);
         while (levelIterator.hasNext())
         {
             SSTableReader sstable = levelIterator.next();
-            Set<SSTableReader> candidates = Sets.union(Collections.singleton(sstable), overlappingWithBounds(sstable, sstablesNextLevel));
+            Set<SSTableReader> candidates = Sets.union(Collections.singleton(sstable), generations.getOverlapping(level + 1, sstable));
 
             if (Iterables.any(candidates, SSTableReader::isMarkedSuspect))
                 continue;
