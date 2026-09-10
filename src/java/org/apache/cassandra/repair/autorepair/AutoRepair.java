@@ -205,70 +205,94 @@ public class AutoRepair
             RepairTurn turn = AutoRepairUtils.myTurnToRunRepair(repairType, myId);
             if (turn == MY_TURN || turn == MY_TURN_DUE_TO_PRIORITY || turn == MY_TURN_FORCE_REPAIR)
             {
-                repairState.recordTurn(turn);
-                repairState.setBytesAlreadyRepaired(0L);
-                repairState.setKeyspaceRepairPlansAlreadyRepaired(0);
-                // For normal auto repair, we will use primary range only repairs (Repair with -pr option).
-                // For some cases, we may set the auto_repair_primary_token_range_only flag to false then we will do repair
-                // without -pr. We may also do force repair for certain node that we want to repair all the data on one node
-                // When doing force repair, we want to repair without -pr.
-                boolean primaryRangeOnly = config.getRepairPrimaryTokenRangeOnly(repairType)
-                                           && turn != MY_TURN_FORCE_REPAIR;
-
-                long startTimeInMillis = timeFunc.get();
-                logger.info("My host id: {}, my turn to run repair...repair primary-ranges only? {}", myId,
-                            config.getRepairPrimaryTokenRangeOnly(repairType));
-                AutoRepairUtils.updateStartAutoRepairHistory(repairType, myId, timeFunc.get(), turn);
-
-                repairState.setRepairKeyspaceCount(0);
-                repairState.setRepairInProgress(true);
-                repairState.setTotalTablesConsideredForRepair(0);
-                repairState.setTotalMVTablesConsideredForRepair(0);
-
-                CollectedRepairStats collectedRepairStats = new CollectedRepairStats();
-
-                List<Keyspace> keyspaces = new ArrayList<>();
-                Keyspace.all().forEach(keyspaces::add);
-                // Filter out keyspaces and tables to repair and group into a map by keyspace.
-                Map<String, List<String>> keyspacesAndTablesToRepair = new LinkedHashMap<>();
-                for (Keyspace keyspace : keyspaces)
+                // When this run was triggered by a force repair, consume the force-repair flag in the
+                // finally below, whether the repair succeeds or throws. Otherwise a failed force repair
+                // leaves force_repair=true and, because it bypasses min_repair_interval, the node would
+                // re-run repair on every subsequent cycle until it happens to succeed. A normal repair
+                // (MY_TURN / MY_TURN_DUE_TO_PRIORITY) must never clear the flag, so a force repair that
+                // was requested while a normal repair is running is still honored afterwards.
+                boolean forceRepairTurn = turn == MY_TURN_FORCE_REPAIR;
+                try
                 {
-                    if (!AutoRepairUtils.shouldConsiderKeyspace(keyspace))
+                    repairState.recordTurn(turn);
+                    repairState.setBytesAlreadyRepaired(0L);
+                    repairState.setKeyspaceRepairPlansAlreadyRepaired(0);
+                    // For normal auto repair, we will use primary range only repairs (Repair with -pr option).
+                    // For some cases, we may set the auto_repair_primary_token_range_only flag to false then we will do repair
+                    // without -pr. We may also do force repair for certain node that we want to repair all the data on one node
+                    // When doing force repair, we want to repair without -pr.
+                    boolean primaryRangeOnly = config.getRepairPrimaryTokenRangeOnly(repairType)
+                                               && turn != MY_TURN_FORCE_REPAIR;
+
+                    long startTimeInMillis = timeFunc.get();
+                    logger.info("My host id: {}, my turn to run repair...repair primary-ranges only? {}", myId,
+                                config.getRepairPrimaryTokenRangeOnly(repairType));
+                    AutoRepairUtils.updateStartAutoRepairHistory(repairType, myId, timeFunc.get(), turn);
+
+                    repairState.setRepairKeyspaceCount(0);
+                    repairState.setRepairInProgress(true);
+                    repairState.setTotalTablesConsideredForRepair(0);
+                    repairState.setTotalMVTablesConsideredForRepair(0);
+
+                    CollectedRepairStats collectedRepairStats = new CollectedRepairStats();
+
+                    List<Keyspace> keyspaces = new ArrayList<>();
+                    Keyspace.all().forEach(keyspaces::add);
+                    // Filter out keyspaces and tables to repair and group into a map by keyspace.
+                    Map<String, List<String>> keyspacesAndTablesToRepair = new LinkedHashMap<>();
+                    for (Keyspace keyspace : keyspaces)
                     {
-                        continue;
+                        if (!AutoRepairUtils.shouldConsiderKeyspace(keyspace))
+                        {
+                            continue;
+                        }
+                        List<String> tablesToBeRepairedList = retrieveTablesToBeRepaired(keyspace, config, repairType, repairState, collectedRepairStats);
+                        keyspacesAndTablesToRepair.put(keyspace.getName(), tablesToBeRepairedList);
                     }
-                    List<String> tablesToBeRepairedList = retrieveTablesToBeRepaired(keyspace, config, repairType, repairState, collectedRepairStats);
-                    keyspacesAndTablesToRepair.put(keyspace.getName(), tablesToBeRepairedList);
-                }
 
-                // Separate out the keyspaces and tables to repair based on their priority, with each repair plan representing a uniquely occuring priority.
-                List<PrioritizedRepairPlan> repairPlans = PrioritizedRepairPlan.build(keyspacesAndTablesToRepair, repairType, shuffleFunc, primaryRangeOnly);
-                repairState.updateRepairScheduleStatistics(repairPlans);
+                    // Separate out the keyspaces and tables to repair based on their priority, with each repair plan representing a uniquely occuring priority.
+                    List<PrioritizedRepairPlan> repairPlans = PrioritizedRepairPlan.build(keyspacesAndTablesToRepair, repairType, shuffleFunc, primaryRangeOnly);
+                    repairState.updateRepairScheduleStatistics(repairPlans);
 
-                // calculate the repair assignments for each priority:keyspace.
-                Iterator<KeyspaceRepairAssignments> repairAssignmentsIterator = config.getTokenRangeSplitterInstance(repairType).getRepairAssignments(primaryRangeOnly, repairPlans);
+                    // calculate the repair assignments for each priority:keyspace.
+                    Iterator<KeyspaceRepairAssignments> repairAssignmentsIterator = config.getTokenRangeSplitterInstance(repairType).getRepairAssignments(primaryRangeOnly, repairPlans);
 
-                int keyspaceRepairAssignmentsAlreadyRepaired = 0;
-                while (repairAssignmentsIterator.hasNext())
-                {
-                    KeyspaceRepairAssignments repairAssignments = repairAssignmentsIterator.next();
-                    List<RepairAssignment> assignments = repairAssignments.getRepairAssignments();
-                    if (assignments.isEmpty())
+                    int keyspaceRepairAssignmentsAlreadyRepaired = 0;
+                    while (repairAssignmentsIterator.hasNext())
                     {
+                        KeyspaceRepairAssignments repairAssignments = repairAssignmentsIterator.next();
+                        List<RepairAssignment> assignments = repairAssignments.getRepairAssignments();
+                        if (assignments.isEmpty())
+                        {
+                            keyspaceRepairAssignmentsAlreadyRepaired++;
+                            logger.info("Skipping repairs for priorityBucket={} for keyspace={} since it yielded no assignments", repairAssignments.getPriority(), repairAssignments.getKeyspaceName());
+                            continue;
+                        }
+
+                        logger.info("Submitting repairs for priorityBucket={} for keyspace={} with assignmentCount={} and keyspaceRepairAssignmentsAlreadyRepaired={}/{}",
+                                    repairAssignments.getPriority(), repairAssignments.getKeyspaceName(), repairAssignments.getRepairAssignments().size(),
+                                    keyspaceRepairAssignmentsAlreadyRepaired, repairState.getTotalKeyspaceRepairPlansToRepair());
+                        repairKeyspace(repairType, primaryRangeOnly, repairAssignments.getKeyspaceName(), repairAssignments.getRepairAssignments(), collectedRepairStats);
                         keyspaceRepairAssignmentsAlreadyRepaired++;
-                        logger.info("Skipping repairs for priorityBucket={} for keyspace={} since it yielded no assignments", repairAssignments.getPriority(), repairAssignments.getKeyspaceName());
-                        continue;
+                        repairState.setKeyspaceRepairPlansAlreadyRepaired(keyspaceRepairAssignmentsAlreadyRepaired);
                     }
 
-                    logger.info("Submitting repairs for priorityBucket={} for keyspace={} with assignmentCount={} and keyspaceRepairAssignmentsAlreadyRepaired={}/{}",
-                                repairAssignments.getPriority(), repairAssignments.getKeyspaceName(), repairAssignments.getRepairAssignments().size(),
-                                keyspaceRepairAssignmentsAlreadyRepaired, repairState.getTotalKeyspaceRepairPlansToRepair());
-                    repairKeyspace(repairType, primaryRangeOnly, repairAssignments.getKeyspaceName(), repairAssignments.getRepairAssignments(), collectedRepairStats);
-                    keyspaceRepairAssignmentsAlreadyRepaired++;
-                    repairState.setKeyspaceRepairPlansAlreadyRepaired(keyspaceRepairAssignmentsAlreadyRepaired);
+                    cleanupAndUpdateStats(turn, repairType, repairState, myId, startTimeInMillis, collectedRepairStats);
                 }
-
-                cleanupAndUpdateStats(turn, repairType, repairState, myId, startTimeInMillis, collectedRepairStats);
+                finally
+                {
+                    // Only consume the flag when this run was itself triggered by a force repair.
+                    // A normal repair must never clear it. clearForceRepair sets force_repair=false only;
+                    // unlike updateFinishAutoRepairHistory it deliberately does NOT advance repair_finish_ts
+                    // (the timestamp of the last SUCCESSFUL repair, which drives min_repair_interval). On
+                    // failure this releases the flag so the node stops bypassing min_repair_interval and
+                    // re-running repair every cycle, while the "last successful repair" time stays truthful
+                    // instead of being bumped to now.
+                    if (forceRepairTurn)
+                    {
+                        AutoRepairUtils.clearForceRepair(repairType, myId);
+                    }
+                }
             }
             else
             {
