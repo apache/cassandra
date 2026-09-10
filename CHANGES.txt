@@ -1,4 +1,5 @@
 6.0-alpha3
+ * Avoid ZstdDictionaryCompressor to allocate a native zstd context per chunk (CASSANDRA-21672)
  * Don't replicate transformations to LEFT nodes (CASSANDRA-21652)
  * Don't fail host specific repairs against system_cluster_metadata (CASSANDRA-21651)
  * During major upgrade, if a node has replacement arguments it attempts to bootstrap even if already bootstrapped (CASSANDRA-21634)
