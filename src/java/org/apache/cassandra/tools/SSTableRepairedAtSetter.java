@@ -29,6 +29,8 @@ import java.util.List;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.util.File;
+import java.io.File;
+import java.net.URI;
 
 public class SSTableRepairedAtSetter
 {
@@ -69,6 +71,8 @@ public class SSTableRepairedAtSetter
 
         for (String fname: fileNames)
         {
+            // Path Traversal issue fixed by Mobb:
+            ensurePathIsRelative(fname);
             Descriptor descriptor = Descriptor.fromFileWithComponent(new File(fname), false).left;
             if (!descriptor.version.isCompatible())
             {
@@ -86,5 +90,32 @@ public class SSTableRepairedAtSetter
                 descriptor.getMetadataSerializer().mutateRepairMetadata(descriptor, 0, null, false);
             }
         }
+    }
+    
+    private static void ensurePathIsRelative(String path) {
+         ensurePathIsRelative(new File(path));
+    }
+    private static void ensurePathIsRelative(URI uri) {
+         ensurePathIsRelative(new File(uri));
+    }
+    private static void ensurePathIsRelative(File file) {
+         // Based on https://stackoverflow.com/questions/2375903/whats-the-best-way-to-defend-against-a-path-traversal-attack/34658355#34658355
+         String canonicalPath;
+         String absolutePath;
+    
+         if (file.isAbsolute()) {
+              throw new RuntimeException("Potential directory traversal attempt - absolute path not allowed");
+         }
+    
+         try {
+              canonicalPath = file.getCanonicalPath();
+              absolutePath = file.getAbsolutePath();
+         } catch (IOException e) {
+              throw new RuntimeException("Potential directory traversal attempt", e);
+         }
+    
+         if (!canonicalPath.startsWith(absolutePath) || !canonicalPath.equals(absolutePath)) {
+              throw new RuntimeException("Potential directory traversal attempt");
+         }
     }
 }
