@@ -104,6 +104,7 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
 
         validateNoRangeMovements();
         validateTransientReplication(keyspace, newKeyspace);
+        validateWitnessesNotAddedDuringMigration(metadata, keyspace, newKeyspace);
 
         // Because we used to not properly validate unrecognized options, we only log a warning if we find one.
         try
@@ -245,6 +246,38 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         boolean numReplicasChanged = oldTrans + oldFull != newTrans + newFull;
         if (numReplicasChanged && (newTrans > oldTrans && newTrans != oldTrans + 1))
             throw new ConfigurationException("Can only safely increase number of transients one at a time with incremental repair run in between each time");
+    }
+
+    /**
+     * A keyspace migrating from untracked to tracked replication has pending ranges, and reads for a
+     * pending range take the untracked path (see MigrationRouter#shouldUseTrackedForReads). Those
+     * reads would contact a transient replica, which the untracked path rejects outright in
+     * RangeCommandIterator#executeNormal. Migration of a pending range also relies on blocking read
+     * repair to converge the replicas, and a witness cannot participate in read repair.
+     */
+    private void validateWitnessesNotAddedDuringMigration(ClusterMetadata metadata,
+                                                          KeyspaceMetadata current,
+                                                          KeyspaceMetadata proposed)
+    {
+        // Opt out alongside the other transient replication rules, see validateTransientReplication
+        if (allow_unsafe_transient_changes)
+            return;
+
+        if (!proposed.replicationStrategy.getReplicationFactor().hasTransientReplicas())
+            return;
+
+        if (metadata.mutationTrackingMigrationState.isMigrating(keyspaceName))
+            throw new ConfigurationException(String.format("Cannot add transient replicas to %s while its mutation " +
+                                                           "tracking migration is in progress. Wait for the migration " +
+                                                           "to complete, then alter the replication factor.",
+                                                           keyspaceName));
+
+        if (proposed.params.replicationType.isTracked() && !current.params.replicationType.isTracked())
+            throw new ConfigurationException(String.format("Cannot enable mutation tracking on %s and add transient " +
+                                                           "replicas in the same statement, because doing so starts a " +
+                                                           "migration. Set replication_type = 'tracked' first, wait for " +
+                                                           "the migration to complete, then alter the replication factor.",
+                                                           keyspaceName));
     }
 
     @Override

@@ -34,6 +34,7 @@ import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.ReplicationFactor;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.replication.migration.KeyspaceMigrationInfo;
