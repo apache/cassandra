@@ -37,13 +37,15 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.ReplicationFactor;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.service.replication.migration.KeyspaceMigrationInfo;
 import org.apache.cassandra.service.replication.migration.MutationTrackingMigrationState;
-import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 
 import static org.apache.cassandra.cql3.CQLTester.schemaChange;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -409,6 +411,71 @@ public class AlterSchemaMutationTrackingTest
                               .getTableOrViewNullable(table)
                               .params
                               .readRepair;
+    }
+
+    /**
+     * Adding a full replica before dropping the witness keeps the replica count while the data is
+     * redistributed. The full repair the client warning asks for after the first step is what
+     * populates the promoted replica.
+     */
+    @Test
+    public void testRemoveWitnessesByAddingAFullReplicaFirst()
+    {
+        String ksName = nextKsName();
+        schemaChange("CREATE KEYSPACE " + ksName +
+                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3/1'}" +
+                     " AND replication_type = 'tracked'");
+
+        schemaChange("ALTER KEYSPACE " + ksName +
+                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '4/1'}");
+        ReplicationFactor intermediate = ClusterMetadata.current().schema.getKeyspaceMetadata(ksName)
+                                                      .replicationStrategy.getReplicationFactor();
+        assertEquals(3, intermediate.fullReplicas);
+        assertEquals(1, intermediate.transientReplicas());
+
+        schemaChange("ALTER KEYSPACE " + ksName +
+                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3'}");
+        ReplicationFactor finalRf = ClusterMetadata.current().schema.getKeyspaceMetadata(ksName)
+                                                 .replicationStrategy.getReplicationFactor();
+        assertEquals(3, finalRf.fullReplicas);
+        assertFalse(finalRf.hasTransientReplicas());
+    }
+
+    @Test
+    public void testWitnessPromotionSkippableAtRuntime()
+    {
+        String ksName = nextKsName();
+        schemaChange("CREATE KEYSPACE " + ksName +
+                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3/1'}" +
+                     " AND replication_type = 'tracked'");
+        String promote = "ALTER KEYSPACE " + ksName +
+                         " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3'}";
+
+        assertThatThrownBy(() -> schemaChange(promote))
+            .hasRootCauseInstanceOf(ConfigurationException.class);
+
+        StorageService.instance.setAllowUnsafeWitnessPromotion(true);
+        try
+        {
+            assertTrue(StorageService.instance.getAllowUnsafeWitnessPromotion());
+            schemaChange(promote);
+            assertFalse(ClusterMetadata.current().schema.getKeyspaceMetadata(ksName)
+                                      .replicationStrategy.getReplicationFactor().hasTransientReplicas());
+        }
+        finally
+        {
+            StorageService.instance.setAllowUnsafeWitnessPromotion(false);
+        }
+
+        // Cleared again, so a second keyspace is still protected
+        String stillGuarded = nextKsName();
+        schemaChange("CREATE KEYSPACE " + stillGuarded +
+                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3/1'}" +
+                     " AND replication_type = 'tracked'");
+        assertThatThrownBy(() ->
+            schemaChange("ALTER KEYSPACE " + stillGuarded +
+                         " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3'}"))
+            .hasRootCauseInstanceOf(ConfigurationException.class);
     }
 
     /**

@@ -17,9 +17,12 @@
 
 package org.apache.cassandra.tcm.transformations;
 
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.BeforeClass;
@@ -30,86 +33,159 @@ import org.junit.runners.Parameterized;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.locator.ReplicationFactor;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.Location;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNSAFE_TRANSIENT_CHANGES;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNSAFE_WITNESS_PROMOTION;
 import static org.apache.cassandra.cql3.CQLTester.schemaChange;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Which replication factor and replication type transitions a keyspace with witnesses (transient
- * replicas) permits. Each rejected transition names the rule that rejects it, because several rules
- * overlap and a test asserting only that the statement failed can pass for the wrong reason.
+ * Which replication changes a keyspace with witnesses (transient replicas) permits.
+ *
+ * Each rejected transition asserts the whole rejection message rather than just that the statement
+ * failed. Several rules overlap here -- witness promotion, the migration guard, the pre-existing
+ * replica-count rules, and the requirement that transient replication implies mutation tracking -- so a
+ * test asserting only failure can pass because the wrong rule fired.
+ *
+ * Datacenter-aware rows are present because {@link org.apache.cassandra.locator.NetworkTopologyStrategy}
+ * reports the sum of its per-datacenter factors: comparing aggregates both misses a promotion in one
+ * datacenter offset by a reduction in another, and rejects two independently legal per-datacenter
+ * changes whose aggregates resemble a promotion.
  */
 @RunWith(Parameterized.class)
 public class AlterKeyspaceWitnessTransitionTest
 {
+    private static final String SIMPLE_3 = "{'class': 'SimpleStrategy', 'replication_factor': '3'}";
+    private static final String SIMPLE_3_1 = "{'class': 'SimpleStrategy', 'replication_factor': '3/1'}";
+    private static final String NTS_3_1_AND_3 = "{'class': 'NetworkTopologyStrategy', 'DC1': '3/1', 'DC2': '3'}";
+    private static final String NTS_3_1_AND_2 = "{'class': 'NetworkTopologyStrategy', 'DC1': '3/1', 'DC2': '2'}";
+
     private static final AtomicInteger ksCounter = new AtomicInteger();
 
-    /** The state a keyspace starts in, including whether a mutation tracking migration is in flight. */
-    enum Start
+    private static final String TRACKED = "tracked";
+    private static final String UNTRACKED = "untracked";
+    private static final boolean MIGRATING = true;
+    private static final boolean NO_MIGRATION = false;
+
+    @Parameterized.Parameter(0)
+    public String startReplication;
+
+    /** The replication type the keyspace is created with. */
+    @Parameterized.Parameter(1)
+    public String startReplicationType;
+
+    /** Whether to leave a mutation tracking migration in flight before the alteration under test. */
+    @Parameterized.Parameter(2)
+    public boolean startMigration;
+
+    @Parameterized.Parameter(3)
+    public String proposedReplication;
+
+    /** The replication type to propose, or null to leave it unchanged. */
+    @Parameterized.Parameter(4)
+    public String proposedReplicationType;
+
+    /** The rejection this change must produce, or null when it is permitted. */
+    @Parameterized.Parameter(5)
+    public Rejection expectedRejection;
+
+    @Parameterized.Parameter(6)
+    public String description;
+
+    enum Rejection
     {
-        TRACKED_3("3", "tracked", false),
-        TRACKED_3_1("3/1", "tracked", false),
-        UNTRACKED_3("3", "untracked", false),
-        MIGRATING_3("3", "untracked", true);
+        WITNESS_PROMOTION("Cannot promote a transient replica of %s to a full replica: it holds no data for the " +
+                          "range it witnessed. Set " + ALLOW_UNSAFE_WITNESS_PROMOTION.getKey() + "=true over JMX, " +
+                          "or " + ALLOW_UNSAFE_TRANSIENT_CHANGES.getKey() + "=true at startup, to allow it, then " +
+                          "run a full repair to distribute the data."),
+        MIGRATION_IN_FLIGHT("Cannot add transient replicas to %s while its mutation tracking migration is in " +
+                            "progress. Wait for the migration to complete, then alter the replication factor."),
+        WOULD_START_MIGRATION("Cannot enable mutation tracking on %s and add transient replicas in the same " +
+                              "statement, because doing so starts a migration. Set replication_type = 'tracked' " +
+                              "first, wait for the migration to complete, then alter the replication factor."),
+        NEEDS_MUTATION_TRACKING("Transient replication requires mutation tracking"),
+        REPLICA_COUNT_RULE("Can't add full replicas if there are any transient replicas. You must first remove all " +
+                           "transient replicas, then change the # of full replicas, then add back the transient " +
+                           "replicas");
 
-        final String replicationFactor;
-        final String replicationType;
-        final boolean startMigration;
+        private final String template;
 
-        Start(String replicationFactor, String replicationType, boolean startMigration)
+        Rejection(String template)
         {
-            this.replicationFactor = replicationFactor;
-            this.replicationType = replicationType;
-            this.startMigration = startMigration;
+            this.template = template;
+        }
+
+        String message(String keyspace)
+        {
+            return template.contains("%s") ? String.format(template, keyspace) : template;
         }
     }
 
-    @Parameterized.Parameter(0)
-    public Start start;
-
-    @Parameterized.Parameter(1)
-    public String proposedReplicationFactor;
-
-    @Parameterized.Parameter(2)
-    public String proposedReplicationType;
-
-    /** The rejection this transition must produce, or null when it is permitted. */
-    @Parameterized.Parameter(3)
-    public String expectedRejection;
-
-    @Parameterized.Parameter(4)
-    public String description;
-
-    @Parameterized.Parameters(name = "{4}")
+    @Parameterized.Parameters(name = "{6}")
     public static Collection<Object[]> transitions()
     {
         List<Object[]> rows = new ArrayList<>();
 
-        // A settled tracked keyspace accepts witnesses: the guard is on the migration, not on transient
-        // replicas as such
-        rows.add(row(Start.TRACKED_3, "3/1", null, null, "settled tracked keyspace accepts witnesses"));
-
-        // Enabling tracking and adding witnesses at once starts a migration, so the migration state
-        // cannot yet show it and the transition itself has to be recognised
-        rows.add(row(Start.UNTRACKED_3, "3/1", "tracked", "Cannot enable mutation tracking on",
+        // The migration guard is on the migration, not on transient replicas as such
+        rows.add(row(SIMPLE_3, TRACKED, NO_MIGRATION, "3/1", null, null,
+                     "settled tracked keyspace accepts witnesses"));
+        rows.add(row(SIMPLE_3, UNTRACKED, MIGRATING, "3/1", null, Rejection.MIGRATION_IN_FLIGHT,
+                     "adding witnesses while a migration is in flight"));
+        rows.add(row(SIMPLE_3, UNTRACKED, NO_MIGRATION, "3/1", TRACKED, Rejection.WOULD_START_MIGRATION,
                      "enabling tracking and adding witnesses at once"));
 
-        // Reads for a pending range take the untracked path and would contact a transient replica
-        rows.add(row(Start.MIGRATING_3, "3/1", null, "Cannot add transient replicas to",
-                     "adding witnesses while a migration is in flight"));
+        // Dropping a witness needs no data movement: replica ordering puts the transient replica last, so
+        // lowering the factor removes it from the replica set rather than promoting it
+        rows.add(row(SIMPLE_3_1, TRACKED, NO_MIGRATION, "2", null, null, "dropping a witness"));
+        rows.add(row(SIMPLE_3_1, TRACKED, NO_MIGRATION, "2", UNTRACKED, null,
+                     "dropping a witness and tracking at once"));
+        rows.add(row(SIMPLE_3, TRACKED, NO_MIGRATION, "3", UNTRACKED, null,
+                     "leaving tracked replication without witnesses"));
+        rows.add(row(SIMPLE_3_1, TRACKED, NO_MIGRATION, "3/1", UNTRACKED, Rejection.NEEDS_MUTATION_TRACKING,
+                     "retaining witnesses while leaving tracked replication"));
+
+        // A promoted witness holds no data for the range it witnessed, and quorum reads would count it
+        rows.add(row(SIMPLE_3_1, TRACKED, NO_MIGRATION, "3", null, Rejection.WITNESS_PROMOTION,
+                     "promoting a witness to a full replica"));
+        rows.add(row(SIMPLE_3_1, TRACKED, NO_MIGRATION, "3", UNTRACKED, Rejection.WITNESS_PROMOTION,
+                     "promoting a witness while leaving tracked replication"));
+
+        // Per-datacenter comparison: the aggregate full replica count is 5 either side of this change
+        rows.add(row(NTS_3_1_AND_3, TRACKED, NO_MIGRATION,
+                     "{'class': 'NetworkTopologyStrategy', 'DC1': '3', 'DC2': '2'}", null,
+                     Rejection.WITNESS_PROMOTION, "promotion masked by a reduction in another datacenter"));
+        rows.add(row(NTS_3_1_AND_3, TRACKED, NO_MIGRATION,
+                     "{'class': 'NetworkTopologyStrategy', 'DC1': '3', 'DC2': '3'}", null,
+                     Rejection.WITNESS_PROMOTION, "promotion in a single datacenter"));
+        // Dropping a witness in one datacenter and adding a full replica in another are legal alone; their
+        // aggregates resemble a promotion
+        rows.add(row(NTS_3_1_AND_2, TRACKED, NO_MIGRATION,
+                     "{'class': 'NetworkTopologyStrategy', 'DC1': '2', 'DC2': '3'}", null, null,
+                     "legal changes in separate datacenters"));
+        // Not the promotion guard: removing a datacenter drops the aggregate full count while a transient
+        // replica remains, which the pre-existing replica-count rule rejects
+        rows.add(row(NTS_3_1_AND_3, TRACKED, NO_MIGRATION,
+                     "{'class': 'NetworkTopologyStrategy', 'DC2': '3'}", null,
+                     Rejection.REPLICA_COUNT_RULE, "removing a witness datacenter entirely"));
 
         return rows;
     }
 
-    private static Object[] row(Start start, String rf, String type, String rejection, String description)
+    private static Object[] row(String startReplication, String startType, boolean startMigration,
+                                String proposedReplication, String proposedType, Rejection rejection,
+                                String description)
     {
-        return new Object[]{ start, rf, type, rejection, description };
+        return new Object[]{ startReplication, startType, startMigration, proposedReplication, proposedType,
+                             rejection, description };
     }
 
     @BeforeClass
@@ -119,88 +195,88 @@ public class AlterKeyspaceWitnessTransitionTest
         ServerTestUtils.daemonInitialization();
         ServerTestUtils.prepareServer();
         MutationJournal.start();
+
+        // Datacenter-aware rows need endpoints in both datacenters for their options to be recognised
+        addEndpoints(new byte[]{ 10, 0, 0 }, new Location("DC1", "Rack1"));
+        addEndpoints(new byte[]{ 10, 20, 114 }, new Location("DC2", "Rack1"));
+    }
+
+    private static void addEndpoints(byte[] prefix, Location location) throws UnknownHostException
+    {
+        for (byte last = 10; last < 14; last++)
+        {
+            InetAddressAndPort addr = InetAddressAndPort.getByAddress(new byte[]{ prefix[0], prefix[1], prefix[2], last });
+            ClusterMetadataTestHelper.addEndpoint(addr, Murmur3Partitioner.instance.getRandomToken(), location);
+        }
     }
 
     @Test
     public void testTransition()
     {
         String ksName = "ks" + ksCounter.incrementAndGet();
-        schemaChange("CREATE KEYSPACE " + ksName +
-                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '" + start.replicationFactor + "'}" +
-                     " AND replication_type = '" + start.replicationType + "'");
+        schemaChange("CREATE KEYSPACE " + ksName + " WITH replication = " + startReplication +
+                     " AND replication_type = '" + startReplicationType + "'");
 
-        if (start.startMigration)
+        if (startMigration)
         {
             schemaChange(String.format("CREATE TABLE %s.tbl (pk int PRIMARY KEY, val int)", ksName));
             schemaChange(String.format("ALTER KEYSPACE %s WITH replication_type = 'tracked'", ksName));
             assertThat(ClusterMetadata.current().mutationTrackingMigrationState.isMigrating(ksName)).isTrue();
         }
 
-        String alter = "ALTER KEYSPACE " + ksName +
-                       " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '" + proposedReplicationFactor + "'}" +
+        Map<String, String> before = replicationOf(ksName);
+        String proposed = proposedReplication.startsWith("{")
+                          ? proposedReplication
+                          : "{'class': 'SimpleStrategy', 'replication_factor': '" + proposedReplication + "'}";
+        String alter = "ALTER KEYSPACE " + ksName + " WITH replication = " + proposed +
                        (proposedReplicationType == null ? "" : " AND replication_type = '" + proposedReplicationType + "'");
 
         if (expectedRejection != null)
         {
             assertThatThrownBy(() -> schemaChange(alter))
                 .hasRootCauseInstanceOf(ConfigurationException.class)
-                .hasRootCauseMessage(rejectionMessage(ksName));
-            assertUnchanged(ksName);
+                .hasRootCauseMessage(expectedRejection.message(ksName));
+            assertThat(replicationOf(ksName)).isEqualTo(before);
+            assertThat(trackedOf(ksName)).isEqualTo(TRACKED.equals(startReplicationType) || startMigration);
         }
         else
         {
             schemaChange(alter);
-            assertProposedStateApplied(ksName);
+            assertThat(replicationOf(ksName)).isEqualTo(optionsOf(proposed));
+            if (proposedReplicationType != null)
+                assertThat(trackedOf(ksName)).isEqualTo("tracked".equals(proposedReplicationType));
         }
     }
 
     /**
-     * The rules name the keyspace, so the expected message is completed here rather than in the table.
-     * Matching the whole message keeps overlapping rules distinguishable: several of these transitions
-     * are rejected by more than one rule in principle, and only one of them should fire.
+     * The options in a CQL replication map, in the form {@link ReplicationParams#asMap} returns them:
+     * the strategy class is fully qualified there.
      */
-    private String rejectionMessage(String ksName)
+    private static Map<String, String> optionsOf(String cqlReplicationMap)
     {
-        switch (expectedRejection)
+        Map<String, String> options = new HashMap<>();
+        for (String entry : cqlReplicationMap.replaceAll("[{}']", "").split(","))
         {
-            case "Cannot enable mutation tracking on":
-                return String.format("Cannot enable mutation tracking on %s and add transient replicas in the same " +
-                                     "statement, because doing so starts a migration. Set replication_type = " +
-                                     "'tracked' first, wait for the migration to complete, then alter the " +
-                                     "replication factor.", ksName);
-            case "Cannot add transient replicas to":
-                return String.format("Cannot add transient replicas to %s while its mutation tracking migration is " +
-                                     "in progress. Wait for the migration to complete, then alter the replication " +
-                                     "factor.", ksName);
-            default:
-                throw new AssertionError("unhandled rejection: " + expectedRejection);
+            String[] keyAndValue = entry.split(":");
+            String key = keyAndValue[0].trim();
+            String value = keyAndValue[1].trim();
+            options.put(key, ReplicationParams.CLASS.equals(key) ? "org.apache.cassandra.locator." + value : value);
         }
+        return options;
     }
 
-    private void assertUnchanged(String ksName)
+    private static Map<String, String> replicationOf(String ksName)
     {
-        KeyspaceMetadata ksm = ClusterMetadata.current().schema.getKeyspaceMetadata(ksName);
-        ReplicationFactor rf = ksm.replicationStrategy.getReplicationFactor();
-        assertThat(rf.toString()).isEqualTo(expectedReplicationFactor(start.replicationFactor).toString());
-        assertThat(ksm.params.replicationType.isTracked()).isEqualTo(startedTracked());
+        return keyspace(ksName).params.replication.asMap();
     }
 
-    private void assertProposedStateApplied(String ksName)
+    private static boolean trackedOf(String ksName)
     {
-        KeyspaceMetadata ksm = ClusterMetadata.current().schema.getKeyspaceMetadata(ksName);
-        ReplicationFactor rf = ksm.replicationStrategy.getReplicationFactor();
-        assertThat(rf.toString()).isEqualTo(expectedReplicationFactor(proposedReplicationFactor).toString());
-        if (proposedReplicationType != null)
-            assertThat(ksm.params.replicationType.isTracked()).isEqualTo("tracked".equals(proposedReplicationType));
+        return keyspace(ksName).params.replicationType.isTracked();
     }
 
-    private boolean startedTracked()
+    private static KeyspaceMetadata keyspace(String ksName)
     {
-        return "tracked".equals(start.replicationType) || start.startMigration;
-    }
-
-    private static ReplicationFactor expectedReplicationFactor(String spec)
-    {
-        return ReplicationFactor.fromString(spec);
+        return ClusterMetadata.current().schema.getKeyspaceMetadata(ksName);
     }
 }

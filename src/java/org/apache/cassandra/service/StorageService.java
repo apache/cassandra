@@ -98,6 +98,7 @@ import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.statements.schema.AlterKeyspaceStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
@@ -5597,6 +5598,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public boolean getSkipPaxosRepairCompatibilityCheck()
     {
         return PaxosRepair.getSkipPaxosRepairCompatibilityCheck();
+    }
+
+    public void setAllowUnsafeWitnessPromotion(boolean allow)
+    {
+        AlterKeyspaceStatement.setAllowUnsafeWitnessPromotion(allow);
+        logger.info("AllowUnsafeWitnessPromotion set to {} via jmx", allow);
+    }
+
+    public boolean getAllowUnsafeWitnessPromotion()
+    {
+        return AlterKeyspaceStatement.getAllowUnsafeWitnessPromotion();
     }
 
     @Override

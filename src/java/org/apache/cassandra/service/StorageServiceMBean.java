@@ -1366,6 +1366,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setSkipPaxosRepairCompatibilityCheck(boolean v);
     public boolean getSkipPaxosRepairCompatibilityCheck();
 
+    public void setAllowUnsafeWitnessPromotion(boolean allow);
+    public boolean getAllowUnsafeWitnessPromotion();
+
     String getToken(String keyspaceName, String table, String partitionKey);
     public boolean topPartitionsEnabled();
     public int getMaxTopSizePartitionCount();

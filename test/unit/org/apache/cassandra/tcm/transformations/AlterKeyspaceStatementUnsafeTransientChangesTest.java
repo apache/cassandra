@@ -25,14 +25,11 @@ import org.junit.Test;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.locator.ReplicationFactor;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.tcm.ClusterMetadata;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNSAFE_TRANSIENT_CHANGES;
 import static org.apache.cassandra.cql3.CQLTester.schemaChange;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
