@@ -18,14 +18,21 @@
 
 package org.apache.cassandra.fqltool;
 
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.CertificateException;
+import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
 
 import com.datastax.driver.core.AuthProvider;
 import com.datastax.driver.core.RemoteEndpointAwareJdkSSLOptions;
 import com.datastax.driver.core.SSLOptions;
-
-import org.apache.cassandra.config.EncryptionOptions;
-import org.apache.cassandra.security.SSLFactory;
 
 /**
  * Holds the SSL and authentication settings used to connect to target hosts during fqltool replay.
@@ -59,7 +66,7 @@ public class ConnectionOptions
         return authProviderClass;
     }
 
-    /** 
+    /**
      * Builds the configured AuthProvider: a (String,String) constructor when credentials are present, otherwise a no-arg constructor.
      */
     @SuppressWarnings("unchecked")
@@ -170,34 +177,59 @@ public class ConnectionOptions
         {
             try
             {
-                EncryptionOptions.ClientEncryptionOptions.Builder encBuilder = new EncryptionOptions.ClientEncryptionOptions.Builder();
-                encBuilder.withEnabled(true);
+                TrustManagerFactory tmf = buildTrustManagerFactory();
+                KeyManagerFactory kmf = keystorePath != null ? buildKeyManagerFactory() : null;
 
-                if (truststorePath != null)
-                    encBuilder.withTrustStore(truststorePath);
-                if (truststorePassword != null)
-                    encBuilder.withTrustStorePassword(truststorePassword);
-
-                EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth = EncryptionOptions.ClientEncryptionOptions.ClientAuth.NOT_REQUIRED;
-                if (keystorePath != null)
-                {
-                    encBuilder.withKeyStore(keystorePath);
-                    clientAuth = EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
-                }
-                if (keystorePassword != null)
-                    encBuilder.withKeyStorePassword(keystorePassword);
-
-                EncryptionOptions.ClientEncryptionOptions clientEncOptions = encBuilder.build();
-                SSLContext sslContext = SSLFactory.createSSLContext(clientEncOptions, clientAuth);
+                SSLContext sslContext = SSLContext.getInstance("TLS");
+                sslContext.init(kmf != null ? kmf.getKeyManagers() : null,
+                                tmf.getTrustManagers(),
+                                null);
 
                 return RemoteEndpointAwareJdkSSLOptions.builder()
                                                         .withSSLContext(sslContext)
                                                         .build();
             }
-            catch (Exception e)
+            catch (NoSuchAlgorithmException | KeyManagementException | KeyStoreException | CertificateException | IOException | UnrecoverableKeyException e)
             {
                 throw new RuntimeException("Could not configure SSL for fqltool replay", e);
             }
+        }
+
+        private TrustManagerFactory buildTrustManagerFactory() throws NoSuchAlgorithmException, KeyStoreException, CertificateException, IOException
+        {
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+
+            if (truststorePath != null)
+            {
+                KeyStore ts = KeyStore.getInstance("JKS");
+                char[] password = truststorePassword != null ? truststorePassword.toCharArray() : null;
+                try (FileInputStream fis = new FileInputStream(truststorePath))
+                {
+                    ts.load(fis, password);
+                }
+                tmf.init(ts);
+            }
+            else
+            {
+                tmf.init((KeyStore) null);
+            }
+
+            return tmf;
+        }
+
+        private KeyManagerFactory buildKeyManagerFactory() throws NoSuchAlgorithmException, KeyStoreException, CertificateException, IOException, UnrecoverableKeyException
+        {
+            KeyStore ks = KeyStore.getInstance("JKS");
+            char[] password = keystorePassword != null ? keystorePassword.toCharArray() : null;
+            try (FileInputStream fis = new FileInputStream(keystorePath))
+            {
+                ks.load(fis, password);
+            }
+
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            kmf.init(ks, password);
+
+            return kmf;
         }
     }
 }

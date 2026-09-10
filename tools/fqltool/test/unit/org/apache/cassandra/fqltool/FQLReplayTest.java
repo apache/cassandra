@@ -699,6 +699,30 @@ public class FQLReplayTest
         }
     }
 
+    @Test
+    public void testOneWayTLSSucceeds()
+    {
+        ConnectionOptions connectionOptions = ConnectionOptions.builder()
+                                                                .withTruststore("test/conf/cassandra_ssl_test.truststore")
+                                                                .withTruststorePassword("cassandra")
+                                                                .build();
+        assertTrue(connectionOptions.ssl());
+        assertNotNull(connectionOptions.sslOptions());
+    }
+
+    @Test
+    public void testTwoWayTLSSucceeds()
+    {
+        ConnectionOptions connectionOptions = ConnectionOptions.builder()
+                                                                .withTruststore("test/conf/cassandra_ssl_test.truststore")
+                                                                .withTruststorePassword("cassandra")
+                                                                .withKeystore("test/conf/cassandra_ssl_test.keystore")
+                                                                .withKeystorePassword("cassandra")
+                                                                .build();
+        assertTrue(connectionOptions.ssl());
+        assertNotNull(connectionOptions.sslOptions());
+    }
+
     @Test(expected = RuntimeException.class)
     public void testNoPass()
     {
