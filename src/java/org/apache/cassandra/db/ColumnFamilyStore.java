@@ -1307,15 +1307,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             }
             catch (Throwable t)
             {
-                JVMStabilityInspector.inspectThrowable(t);
                 postFlush.flushFailure = t;
+                JVMStabilityInspector.inspectThrowable(t);
             }
+            finally
+            {
+                if (logger.isTraceEnabled())
+                    logger.trace("Flush task {}@{} signaling post flush task", hashCode(), name);
 
-            if (logger.isTraceEnabled())
-                logger.trace("Flush task {}@{} signaling post flush task", hashCode(), name);
-
-            // signal the post-flush we've done our work
-            postFlush.latch.decrement();
+                // signal the post-flush we've done our work
+                postFlush.latch.decrement();
+            }
 
             if (logger.isTraceEnabled())
                 logger.trace("Flush task task {}@{} finished", hashCode(), name);
