@@ -37,28 +37,36 @@ public abstract class DataRateSpec
     /**
      * The Regexp used to parse the rate provided as String in cassandra.yaml.
      */
-    private static final Pattern UNITS_PATTERN = Pattern.compile("^(\\d+)(MiB/s|KiB/s|B/s)$");
+    private static final Pattern UNITS_PATTERN = Pattern.compile("^(\\d+)(MiB/s|KiB/s|B/s)?$");
 
     private final long quantity;
 
     private final DataRateUnit unit;
 
-    private DataRateSpec(String value)
+    private DataRateSpec(String value, DataRateUnit minUnit)
     {
         //parse the string field value
         Matcher matcher = UNITS_PATTERN.matcher(value);
+        IllegalArgumentException ex = new IllegalArgumentException("Invalid data rate: " + value + " Accepted units: MiB/s, KiB/s, B/s where " +
+                                                                   "case matters and only non-negative values are valid");
 
         if (!matcher.find())
-            throw new IllegalArgumentException("Invalid data rate: " + value + " Accepted units: MiB/s, KiB/s, B/s where " +
-                                                "case matters and " + "only non-negative values are valid");
+            throw ex;
 
         quantity = Long.parseLong(matcher.group(1));
-        unit = DataRateUnit.fromSymbol(matcher.group(2));
+
+        String symbol = matcher.group(2);
+        if (symbol != null)
+            unit = DataRateUnit.fromSymbol(symbol);
+        else if (quantity == 0L) // accept 0 if it's without a unit
+            unit = minUnit;
+        else
+            throw ex;
     }
 
     private DataRateSpec(String value, DataRateUnit minUnit, long max)
     {
-        this(value);
+        this(value, minUnit);
 
         validateQuantity(value, quantity(), unit(), minUnit, max);
     }
