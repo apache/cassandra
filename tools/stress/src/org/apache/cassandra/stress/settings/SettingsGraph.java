@@ -45,7 +45,7 @@ public class SettingsGraph implements Serializable
         file = options.file.value();
         revision = options.revision.value();
         title = options.revision.value() == null
-            ? "cassandra-stress - " + new SimpleDateFormat("yyyy-mm-dd hh:mm:ss").format(new Date())
+            ? "cassandra-stress - " + new SimpleDateFormat("yyyy-MM-dd hh:mm:ss").format(new Date())
             : options.title.value();
 
         operation = options.operation.value() == null
