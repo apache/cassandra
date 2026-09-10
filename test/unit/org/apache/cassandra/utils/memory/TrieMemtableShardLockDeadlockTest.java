@@ -84,10 +84,10 @@ public class TrieMemtableShardLockDeadlockTest
         try
         {
             OpOrder.Group g2 = order.start();      // W2's op: POST-barrier
-            Thread w2 = run("w2", () -> { mt.put(update(tm), UpdateTransaction.NO_OP, g2); g2.close(); });
+            Thread w2 = run("w2", () -> { mt.checkSpaceAndPut(update(tm), UpdateTransaction.NO_OP, g2); g2.close(); });
             waitUntilBlockedAtOrDone(w2, "SubAllocator"); // unpatched: lock holder in allocate(); patched: parked in awaitRoom() before the lock
 
-            Thread w1 = run("w1", () -> { mt.put(update(tm), UpdateTransaction.NO_OP, g1); g1.close(); });
+            Thread w1 = run("w1", () -> { mt.checkSpaceAndPut(update(tm), UpdateTransaction.NO_OP, g1); g1.close(); });
             waitUntilBlockedAtOrDone(w1, "MemtableShard", "ReentrantLock");
 
             Thread flush = run("flush", barrier::await);
