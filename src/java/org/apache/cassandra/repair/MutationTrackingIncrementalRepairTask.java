@@ -43,6 +43,12 @@ public class MutationTrackingIncrementalRepairTask extends AbstractRepairTask
     private final TimeUUID parentSession;
     private final String[] cfnames;
     private final ClusterMetadata metadata;
+    /**
+     * Populated during {@link #performUnsafe} and readable after the returned future
+     * completes; allows callers (notably {@link MutationTrackingPreviewRepairTask})
+     * to extract captured targets (the "offset") from each sync coordinator once IR is done.
+     */
+    private volatile List<MutationTrackingSyncCoordinator> syncCoordinators = List.of();
 
     protected MutationTrackingIncrementalRepairTask(RepairCoordinator coordinator,
                                                     TimeUUID parentSession,
@@ -53,6 +59,11 @@ public class MutationTrackingIncrementalRepairTask extends AbstractRepairTask
         this.parentSession = parentSession;
         this.cfnames = cfnames;
         this.metadata = coordinator.metadata;
+    }
+
+    public List<MutationTrackingSyncCoordinator> getSyncCoordinators()
+    {
+        return syncCoordinators;
     }
 
     @Override
@@ -85,6 +96,8 @@ public class MutationTrackingIncrementalRepairTask extends AbstractRepairTask
                 logger.info("Started mutation tracking sync for range {}", range);
             }
         }
+        // Publish coordinators so callers can extract captured targets after IR completes.
+        this.syncCoordinators = List.copyOf(syncCoordinators);
 
         coordinator.notifyProgress("Started mutation tracking sync for " + syncCoordinators.size() + " ranges");
 

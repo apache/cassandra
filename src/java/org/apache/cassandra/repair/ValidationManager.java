@@ -91,7 +91,7 @@ public class ValidationManager implements IValidationManager
     private static ValidationPartitionIterator getValidationIterator(TableRepairManager repairManager, Validator validator, TopPartitionTracker.Collector topPartitionCollector) throws IOException, NoSuchRepairSessionException
     {
         RepairJobDesc desc = validator.desc;
-        return repairManager.getValidationIterator(desc.ranges, desc.parentSessionId, desc.sessionId, validator.isIncremental, validator.nowInSec, validator.dontPurgeTombstones, topPartitionCollector);
+        return repairManager.getValidationIterator(desc.ranges, desc.parentSessionId, desc.sessionId, validator.isIncremental, validator.nowInSec, validator.dontPurgeTombstones, validator.validationOffsets(), topPartitionCollector);
     }
 
     /**
