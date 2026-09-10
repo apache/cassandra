@@ -136,7 +136,7 @@ public class Compact extends AbstractCommand
     public static class Keyspace extends AbstractCommand
     {
         @CassandraUsage(usage = "[<keyspace> <tables>...]",
-                        description = "The keyspace followed by one or many tables")
+                        description = "The keyspace followed by one or many comma separated tables")
         @Parameters(index = "0", description = "The keyspace name", arity = "0..1")
         private String keyspaceName;
 
