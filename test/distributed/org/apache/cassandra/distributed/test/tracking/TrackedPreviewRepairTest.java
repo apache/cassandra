@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test.tracking;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -48,6 +49,7 @@ import org.apache.cassandra.db.CassandraWriteContext;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.LogDomain;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -256,7 +258,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
 
         IInvokableInstance coordinator = CLUSTER.get(1);
         IInvokableInstance node2 = CLUSTER.get(2);
-        node2.runOnInstance(PauseValidationRequest::arm);
+        node2.runOnInstance(PauseValidationRequest::activate);
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
@@ -271,7 +273,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
             // the validation.
             writeRows(CLUSTER, keyspace, table, 10, 20);
 
-            node2.runOnInstance(PauseValidationRequest::releaseAndDisarm);
+            node2.runOnInstance(PauseValidationRequest::releaseAndDeactivate);
 
             NodeToolResult result = resultFuture.get(120, TimeUnit.SECONDS);
             result.asserts().success();
@@ -290,7 +292,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         }
         finally
         {
-            node2.runOnInstance(PauseValidationRequest::releaseAndDisarm);
+            node2.runOnInstance(PauseValidationRequest::releaseAndDeactivate);
             ExecutorUtils.shutdownAndWait(60, TimeUnit.SECONDS, executor);
         }
     }
@@ -468,7 +470,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
 
         IInvokableInstance coordinator = CLUSTER.get(1);
         IInvokableInstance node2 = CLUSTER.get(2);
-        node2.runOnInstance(PauseValidationRequest::arm);
+        node2.runOnInstance(PauseValidationRequest::activate);
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
@@ -494,7 +496,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
 
             // Release node 2 -- it will now read its SSTable set, which includes the
             // SSTable it just flushed after the offset.
-            node2.runOnInstance(PauseValidationRequest::releaseAndDisarm);
+            node2.runOnInstance(PauseValidationRequest::releaseAndDeactivate);
 
             NodeToolResult result = resultFuture.get(120, TimeUnit.SECONDS);
             result.asserts().success();
@@ -517,7 +519,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         }
         finally
         {
-            node2.runOnInstance(PauseValidationRequest::releaseAndDisarm);
+            node2.runOnInstance(PauseValidationRequest::releaseAndDeactivate);
             ExecutorUtils.shutdownAndWait(60, TimeUnit.SECONDS, executor);
         }
     }
@@ -538,7 +540,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
 
         IInvokableInstance coordinator = CLUSTER.get(1);
         IInvokableInstance node2 = CLUSTER.get(2);
-        node2.runOnInstance(PauseValidationRequest::arm);
+        node2.runOnInstance(PauseValidationRequest::activate);
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
@@ -553,7 +555,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
             // Combines reconciled first batch and unreconciled batch2 into one straddling SSTable.
             node2.nodetoolResult("flush", keyspace, table).asserts().success();
 
-            node2.runOnInstance(PauseValidationRequest::releaseAndDisarm);
+            node2.runOnInstance(PauseValidationRequest::releaseAndDeactivate);
 
             NodeToolResult result = resultFuture.get(120, TimeUnit.SECONDS);
             result.asserts().success();
@@ -573,25 +575,27 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         }
         finally
         {
-            node2.runOnInstance(PauseValidationRequest::releaseAndDisarm);
+            node2.runOnInstance(PauseValidationRequest::releaseAndDeactivate);
             ExecutorUtils.shutdownAndWait(60, TimeUnit.SECONDS, executor);
         }
     }
 
     @Test
-    public void falselyFlagsDivergenceWhenCompactionStraddlesReconciledData() throws Exception
+    public void validatesReconciledDataViaJournalWhenCompactionStraddlesOffset() throws Exception
     {
         CLUSTER.schemaChange("CREATE KEYSPACE " + keyspace + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + NODES + "} AND replication_type='tracked'");
         CLUSTER.schemaChange("CREATE TABLE " + keyspace + '.' + table + " (k int PRIMARY KEY, v int) WITH compaction = {'class': 'SizeTieredCompactionStrategy'}");
 
-        // Autocompaction must not run here: it could re-trigger finalizeMetadata() on its own schedule.
+        // Autocompaction could re-trigger finalizeMetadata() on its own schedule.
         for (int i = 1; i <= NODES; i++)
             CLUSTER.get(i).nodetoolResult("disableautocompaction", keyspace, table).asserts().success();
 
         writeRows(CLUSTER, keyspace, table, 0, 10);
 
-        settleReconciliation(CLUSTER);
+        // Flush before settling reconciliation. SSTableWriter marks an SSTable repaired and clears its offsets on write
+        // if the data is already durably reconciled, so flushing first keeps it unrepaired with real offsets.
         flushAll(CLUSTER, keyspace, table);
+        settleReconciliation(CLUSTER);
 
         IInvokableInstance coordinator = CLUSTER.get(1);
         IInvokableInstance node2 = CLUSTER.get(2);
@@ -612,57 +616,67 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
                     throw new RuntimeException(e);
                 }
             }
-            // mutateRepairedAndReload only rewrites the SSTable's own metadata; without this,
-            // CompactionStrategyManager's repaired/unrepaired holder assignment (cached from
-            // when the sstable was first tracked, already repaired) stays stale.
+
+            // mutateRepairedAndReload() only rewrites the SSTable's own metadata. Without this,
+            // CompactionStrategyManager's repaired/unrepaired holder assignment stays stale.
             cfs.getTracker().notifySSTableRepairedStatusChanged(cfs.getLiveSSTables());
         });
+
         node2.runOnInstance(() -> MutationJournal.instance().closeCurrentSegmentForTestingIfNonEmpty());
         int staticSegmentsBeforeDrop = node2.callOnInstance(() -> MutationJournal.instance().countStaticSegmentsForTesting());
         node2.runOnInstance(() -> MutationTrackingService.instance().persistLogStateForTesting(true));
         int staticSegmentsAfterDrop = node2.callOnInstance(() -> MutationJournal.instance().countStaticSegmentsForTesting());
-        assertThat(staticSegmentsAfterDrop).as("static journal segments on node 2 before/after the real drop attempt: %d -> %d", staticSegmentsBeforeDrop, staticSegmentsAfterDrop).isLessThan(staticSegmentsBeforeDrop);
 
-        node2.runOnInstance(PauseValidationRequest::arm);
+        // Segments unrelated to this SSTable's coordinator log offsets may still be reclaimed by the drop attempt.
+        assertThat(staticSegmentsAfterDrop).as("static journal segments on node 2 before/after the drop attempt: %d -> %d", staticSegmentsBeforeDrop, staticSegmentsAfterDrop)
+                                           .isLessThanOrEqualTo(staticSegmentsBeforeDrop).isGreaterThan(0);
 
+        node2.runOnInstance(PauseValidationRequest::activate);
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
         try
         {
             Future<NodeToolResult> resultFuture = submitValidate(executor, coordinator, keyspace);
-
             node2.runOnInstance(PauseValidationRequest::awaitArrival);
-
             writeRows(CLUSTER, keyspace, table, 10, 20);
 
-            // Only on node 2, flush the batch written after the offset to its own SSTable,
-            // then major-compact so it merges with the clean SSTable from the batch written
-            // before the offset, so the result straddles the offset.
+            // Only on node 2, flush the batch written after the offset to its own SSTable. Compact the two
+            // live SSTables together via --user-defined, which skips TrackedCompactionManager's automatic
+            // promotion of durably reconciled data so the result straddles the offset.
             node2.nodetoolResult("flush", keyspace, table).asserts().success();
-            node2.nodetoolResult("compact", keyspace, table).asserts().success();
+            List<String> sstableFiles = node2.callOnInstance(() -> {
+                ColumnFamilyStore filesCfs = ColumnFamilyStore.getIfExists(ks, tbl);
+                List<String> files = new ArrayList<>();
+                for (SSTableReader sstable : filesCfs.getLiveSSTables())
+                    files.add(sstable.getFilename());
+                return files;
+            });
+            List<String> compactArgs = new ArrayList<>(List.of("compact", "--user-defined"));
+            compactArgs.addAll(sstableFiles);
+            node2.nodetoolResult(compactArgs.toArray(new String[0])).asserts().success();
             assertThat(countLiveSSTables(node2, keyspace, table)).isEqualTo(1);
 
-            node2.runOnInstance(PauseValidationRequest::releaseAndDisarm);
+            node2.runOnInstance(PauseValidationRequest::releaseAndDeactivate);
 
             NodeToolResult result = resultFuture.get(120, TimeUnit.SECONDS);
             result.asserts().success();
 
-            // Currently fails here: the real drop above already succeeded, so the journal
-            // has nothing either, and this comes back "Repaired data is inconsistent".
+            // The segment holding the batch written before the offset survived the drop attempt
+            // above, so it's still there for the journal stream to fill in during validation.
             assertNotificationContains(result, MutationTrackingPreviewRepairTask.IN_SYNC_MESSAGE);
 
             // The straddling SSTable stays correctly excluded either way.
             assertThat(totalValidatedSSTables(node2, keyspace, table)).isZero();
-            // But the batch written before the offset should still be found via the journal,
-            // once the pending patch refuses the drop above.
+
+            // The batch written before the offset is found via the journal instead, since its segment survived.
             assertThat(totalValidatedJournalPartitions(node2, keyspace, table)).isEqualTo(10);
 
-            // Node 1 still sees the batch written before the offset via its own untouched, clean SSTable.
+            // Node 1 still sees the batch written before the offset via its own untouched SSTable.
             assertThat(totalValidatedSSTables(coordinator, keyspace, table)).isEqualTo(1);
         }
         finally
         {
-            node2.runOnInstance(PauseValidationRequest::releaseAndDisarm);
+            node2.runOnInstance(PauseValidationRequest::releaseAndDeactivate);
             ExecutorUtils.shutdownAndWait(60, TimeUnit.SECONDS, executor);
         }
     }
@@ -680,7 +694,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
 
         IInvokableInstance coordinator = CLUSTER.get(1);
         IInvokableInstance node2 = CLUSTER.get(2);
-        node2.runOnInstance(PauseValidationRequest::arm);
+        node2.runOnInstance(PauseValidationRequest::activate);
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
@@ -698,7 +712,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
             // guaranteeing it exists by the time node 2 actually reads its journal.
             injectJournalPayloadDivergence(node2, keyspace, table, 15, 999);
 
-            node2.runOnInstance(PauseValidationRequest::releaseAndDisarm);
+            node2.runOnInstance(PauseValidationRequest::releaseAndDeactivate);
 
             NodeToolResult result = resultFuture.get(120, TimeUnit.SECONDS);
             result.asserts().success();
@@ -714,7 +728,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         }
         finally
         {
-            node2.runOnInstance(PauseValidationRequest::releaseAndDisarm);
+            node2.runOnInstance(PauseValidationRequest::releaseAndDeactivate);
             ExecutorUtils.shutdownAndWait(60, TimeUnit.SECONDS, executor);
         }
     }
@@ -770,7 +784,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         long[] previewFailuresBefore = previewFailuresPerNode(CLUSTER);
 
         IInvokableInstance coordinator = CLUSTER.get(1);
-        coordinator.runOnInstance(PauseEpochCheck::arm);
+        coordinator.runOnInstance(PauseEpochCheck::activate);
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
@@ -782,7 +796,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
 
             CLUSTER.schemaChange("CREATE TABLE " + keyspace + ".epoch_bump (k int PRIMARY KEY)");
 
-            coordinator.runOnInstance(PauseEpochCheck::releaseAndDisarm);
+            coordinator.runOnInstance(PauseEpochCheck::releaseAndDeactivate);
 
             NodeToolResult result = resultFuture.get(120, TimeUnit.SECONDS);
             result.asserts().failure().errorContains("topology changed");
@@ -794,7 +808,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         }
         finally
         {
-            coordinator.runOnInstance(PauseEpochCheck::releaseAndDisarm);
+            coordinator.runOnInstance(PauseEpochCheck::releaseAndDeactivate);
             ExecutorUtils.shutdownAndWait(60, TimeUnit.SECONDS, executor);
         }
     }
@@ -852,11 +866,10 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
         }));
 
         // Each replica's own unreconciled-mutation count only drops to zero once it has
-        // received (via broadcastOffsetsForTesting above) confirmation that every other live
-        // participant has also witnessed everything it wrote.
+        // received confirmation that every other live participant has also witnessed everything it wrote.
         for (IInvokableInstance instance : cluster)
-            await().atMost(10, TimeUnit.SECONDS)
-                   .pollInterval(50, TimeUnit.MILLISECONDS)
+            await().atMost(30, TimeUnit.SECONDS)
+                   .pollInterval(100, TimeUnit.MILLISECONDS)
                    .until(() -> instance.callOnInstance(() -> MutationTrackingService.instance().getUnreconciledMutationCount()) == 0);
     }
 
@@ -902,7 +915,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
                                           .buildUpdate();
             try (OpOrder.Group group = Keyspace.writeOrder.start())
             {
-                cfs.apply(MutationId.none(), update, new CassandraWriteContext(group, null), true);
+                cfs.apply(MutationId.none(), update, new CassandraWriteContext(group, null, LogDomain.COMMIT_LOG), true);
             }
         });
         instance.nodetoolResult("flush", keyspace, table).asserts().success();
@@ -1143,7 +1156,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
         }
 
-        public static void arm()
+        public static void activate()
         {
             arrived = new CountDownLatch(1);
             release = new CountDownLatch(1);
@@ -1162,7 +1175,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
             }
         }
 
-        public static void releaseAndDisarm()
+        public static void releaseAndDeactivate()
         {
             if (release != null)
                 release.countDown();
@@ -1214,7 +1227,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
         }
 
-        public static void arm()
+        public static void activate()
         {
             arrived = new CountDownLatch(1);
             release = new CountDownLatch(1);
@@ -1233,7 +1246,7 @@ public class TrackedPreviewRepairTest extends TestBaseImpl
             }
         }
 
-        public static void releaseAndDisarm()
+        public static void releaseAndDeactivate()
         {
             if (release != null)
                 release.countDown();

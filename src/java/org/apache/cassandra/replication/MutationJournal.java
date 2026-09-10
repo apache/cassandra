@@ -1021,7 +1021,7 @@ public class MutationJournal
      */
 
     @VisibleForTesting
-    void truncateForTesting()
+    public void truncateForTesting()
     {
         journal.truncateForTesting();
         segmentStateTrackers.clear();
@@ -1057,12 +1057,6 @@ public class MutationJournal
     {
         return journal.countStaticSegmentsForTesting(
         segment -> !((StaticOffsetRanges) segment.keyStats()).isFullyCovered(durablyReconciled));
-    }
-
-    @VisibleForTesting
-    public void truncateForTesting()
-    {
-        journal.truncateForTesting();
     }
 
     public long getDiskSpaceUsed()
