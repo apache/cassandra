@@ -92,7 +92,7 @@ public class TermsScanner implements TermsIterator
     private PostingList postings()
     {
         assert entry != null;
-        final IndexInput input = IndexFileUtils.instance.openInput(postingsFile);
+        final IndexInput input = IndexFileUtils.instance().openInput(postingsFile);
         try
         {
             return new ScanningPostingsReader(input, new PostingsReader.BlocksSummary(input, entry.right));
