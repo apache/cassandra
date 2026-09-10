@@ -160,7 +160,7 @@ public class Compact extends AbstractCommand
         public void execute(NodeProbe probe)
         {
             if (splitOutput && !partitionKey.isEmpty())
-                throw new RuntimeException("Invalid option combination: Can not use split-output with --partition");
+                throw new RuntimeException("Invalid option combination: Can not use --split-output with --partition");
 
             List<String> args = concatArgs(keyspaceName, tableNames);
             List<String> keyspaces = parseOptionalKeyspace(args, probe);
