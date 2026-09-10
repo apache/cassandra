@@ -1,1 +1,1 @@
-$ sudo apt-get install cassandra
+$ sudo apt install cassandra

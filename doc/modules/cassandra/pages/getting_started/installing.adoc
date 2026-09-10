@@ -7,10 +7,10 @@ Apache Cassandra on Linux servers.
 Cassandra runs on a wide array of Linux distributions including (but not
 limited to):
 
-* Ubuntu, most notably LTS releases 16.04 to 18.04
+* Ubuntu, most notably LTS releases 16.04 to 22.04
 * CentOS & RedHat Enterprise Linux (RHEL) including 6.6 to 7.7
 * Amazon Linux AMIs including 2016.09 through to Linux 2
-* Debian versions 8 & 9
+* Debian versions 8 through 11
 * SUSE Enterprise Linux 12
 
 This is not an exhaustive list of operating system platforms, nor is it
@@ -43,7 +43,7 @@ There are three methods of installing Cassandra that are common:
 
 * Docker image
 * Tarball binary file
-* Package installation (RPM, YUM)
+* Package installation (APT, YUM)
 
 If you are a current Docker user, installing a Docker image is simple. 
 You'll need to install Docker Desktop for Mac, Docker Desktop for Windows,
