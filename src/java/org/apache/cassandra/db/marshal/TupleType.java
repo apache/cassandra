@@ -56,6 +56,10 @@ public class TupleType extends AbstractType<ByteBuffer>
     private static final Pattern AT_PAT = Pattern.compile(AT);
     private static final String ESCAPED_AT = "\\\\@";
     private static final Pattern ESCAPED_AT_PAT = Pattern.compile(ESCAPED_AT);
+    private static final String BACKSLASH = "\\\\";
+    private static final Pattern BACKSLASH_PAT = Pattern.compile(BACKSLASH);
+    private static final String ESCAPED_BACKSLASH = "\\\\\\$";
+    private static final Pattern ESCAPED_BACKSLASH_PAT = Pattern.compile(ESCAPED_BACKSLASH);
     
     protected final List<AbstractType<?>> types;
 
@@ -396,7 +400,8 @@ public class TupleType extends AbstractType<ByteBuffer>
             V field = accessor.slice(input, offset, size);
             offset += size;
             // We use ':' as delimiter, and @ to represent null, so escape them in the generated string
-            String fld = COLON_PAT.matcher(type.getString(field, accessor)).replaceAll(ESCAPED_COLON);
+            String fld = BACKSLASH_PAT.matcher(type.getString(field, accessor)).replaceAll(ESCAPED_BACKSLASH);
+            fld = COLON_PAT.matcher(fld).replaceAll(ESCAPED_COLON);
             fld = AT_PAT.matcher(fld).replaceAll(ESCAPED_AT);
             sb.append(fld);
         }
@@ -421,8 +426,10 @@ public class TupleType extends AbstractType<ByteBuffer>
                 continue;
 
             AbstractType<?> type = type(i);
+            fieldString = ESCAPED_BACKSLASH_PAT.matcher(fieldString).replaceAll(BACKSLASH);
             fieldString = ESCAPED_COLON_PAT.matcher(fieldString).replaceAll(COLON);
             fieldString = ESCAPED_AT_PAT.matcher(fieldString).replaceAll(AT);
+
             fields[i] = type.fromString(fieldString);
         }
         return buildValue(fields);
