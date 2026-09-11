@@ -66,6 +66,7 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.concurrent.Ref;
 
 import static com.google.common.base.Predicates.and;
 import static com.google.common.collect.ImmutableSet.copyOf;
@@ -487,8 +488,20 @@ public class Tracker
 
         for (SSTableReader sstable : sstables)
         {
-            File backupsDir = Directories.getBackupsDirectory(sstable.descriptor);
-            sstable.createLinks(FileUtils.getCanonicalPath(backupsDir));
+            // addSSTables publishes readers before backing them up, so compaction may already have
+            // released one. Skip only readers whose lifecycle has ended, never individual components.
+            Ref<SSTableReader> ref = sstable.tryRef();
+            if (ref == null)
+                continue;
+            try
+            {
+                File backupsDir = Directories.getBackupsDirectory(sstable.descriptor);
+                sstable.createLinks(FileUtils.getCanonicalPath(backupsDir));
+            }
+            finally
+            {
+                ref.release();
+            }
         }
     }
 

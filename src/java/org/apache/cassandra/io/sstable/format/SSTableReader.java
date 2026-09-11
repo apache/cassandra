@@ -19,7 +19,9 @@ package org.apache.cassandra.io.sstable.format;
 
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.ref.WeakReference;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -1172,7 +1174,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     }
 
     /**
-     * Create hardlinks for given set of components
+     * Create hardlinks for every supplied component. The caller must keep the SSTable alive until this returns.
      *
      * @param descriptor descriptor to use
      * @param components components to create links for
@@ -1186,7 +1188,11 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         {
             File sourceFile = descriptor.fileFor(component);
             if (!sourceFile.exists())
-                continue;
+            {
+                if (descriptor.getFormat().generatedOnLoadComponents().contains(component))
+                    continue;
+                throw new UncheckedIOException(new NoSuchFileException(sourceFile.path()));
+            }
             if (null != limiter)
                 limiter.acquire();
             File targetLink = new File(snapshotDirectoryPath, sourceFile.name());
