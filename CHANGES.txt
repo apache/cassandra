@@ -1,4 +1,5 @@
 6.0-alpha3
+ * Avoid ZstdDictionary to allocate a native zstd context per chunk (CASSANDRA-21677)
  * Avoid ZstdDictionaryCompressor to allocate a native zstd context per chunk (CASSANDRA-21672)
  * Throw InvalidRequestException instead of crashing on malformed IN marker values (CASSANDRA-21648)
  * Avoid serialization and deserialization for coordinator-local single partition data read (CASSANDRA-21354)
