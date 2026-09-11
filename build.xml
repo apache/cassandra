@@ -521,6 +521,59 @@
     <!--
         Setup the output directories.
     -->
+    <target name="gen-autocomplete"
+            depends="_main-jar"
+            description="Generate shell autocomplete script">
+
+        <property name="autocomplete.dir"
+                  location="${basedir}/debian/"/>
+        <property name="autocomplete.tmp.dir"
+                  location="${tmp.dir}/autocomplete"/>
+        <property name="license.header"
+                  location="${basedir}/.build/header.txt"/>
+
+        <mkdir dir="${autocomplete.dir}"/>
+        <mkdir dir="${autocomplete.tmp.dir}"/>
+
+        <java classname="picocli.AutoComplete"
+              fork="true"
+              failonerror="true">
+            <classpath>
+                <pathelement location="${build.dir}/${final.name}.jar"/>
+                <path refid="cassandra.classpath"/>
+                <fileset dir="${basedir}/lib">
+                    <include name="**/picocli-*.jar"/>
+                </fileset>
+            </classpath>
+            <arg value="-f"/>
+            <arg value="-n"/>
+            <arg value="nodetool"/>
+            <arg value="-o"/>
+            <arg value="${autocomplete.tmp.dir}/nodetool.tmp"/>
+            <arg value="org.apache.cassandra.tools.nodetool.NodetoolCommand"/>
+        </java>
+
+        <replaceregexp file="${autocomplete.tmp.dir}/nodetool.tmp"
+                       match="^#!/usr/bin/env bash\r?\n"
+                       replace=""
+                       byline="false"/>
+
+        <echo file="${autocomplete.tmp.dir}/nodetool"
+              message="#!/usr/bin/env bash&#10;"/>
+
+        <concat destfile="${autocomplete.tmp.dir}/nodetool"
+                append="true">
+            <filelist files="${license.header},${autocomplete.tmp.dir}/nodetool.tmp"/>
+        </concat>
+
+        <copy file="${autocomplete.tmp.dir}/nodetool"
+              tofile="${autocomplete.dir}/nodetool-completion"/>
+
+        <delete dir="${autocomplete.tmp.dir}"/>
+
+        <echo message="Nodetool autocomplete script generated in: ${autocomplete.dir}"/>
+    </target>
+
     <target name="init" >
         <fail unless="is.source.artifact"
             message="Not a source artifact, stopping here." />
@@ -787,7 +840,7 @@
         <copy todir="${basedir}/conf" file="${build.classes.main}/META-INF/hotspot_compiler"/>
     </target>
 
-    <target name="check" depends="_main-jar,build-test,gen-asciidoc" description="Verifies the source code and dependencies. This task is intended to run on pre-commit and locally. It should verify mostly modified files compared to the upstream base branch." unless="check.skip">
+    <target name="check" depends="_main-jar,gen-autocomplete,build-test,gen-asciidoc" description="Verifies the source code and dependencies. This task is intended to run on pre-commit and locally. It should verify mostly modified files compared to the upstream base branch." unless="check.skip">
         <antcall target="rat-check" inheritrefs="true"/>
         <antcall target="checkstyle" inheritrefs="true"/>
         <antcall target="checkstyle-test" inheritrefs="true"/>

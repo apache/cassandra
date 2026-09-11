@@ -90,6 +90,8 @@ mkdir -p %{buildroot}/usr/bin
 mkdir -p %{buildroot}/var/lib/%{username}
 mkdir -p %{buildroot}/var/run/%{username}
 mkdir -p %{buildroot}/var/log/%{username}
+mkdir -p %{buildroot}/usr/share/bash-completion/completions
+cp -p tools/autocomplete/nodetool %{buildroot}/usr/share/bash-completion/completions/nodetool
 ( cd pylib && %{__python} setup.py install --no-compile --root %{buildroot}; )
 
 # patches for data and log paths
@@ -150,6 +152,7 @@ exit 0
 %defattr(0644,root,root,0755)
 %doc CHANGES.txt LICENSE.txt README.asc NEWS.txt NOTICE.txt CASSANDRA-14092.txt .snyk
 /usr/share/doc/%{username}/html
+/usr/share/bash-completion/completions/nodetool
 /usr/share/man/man7/*.7.gz
 %attr(755,root,root) %{_bindir}/auditlogviewer
 %attr(755,root,root) %{_bindir}/jmxtool
