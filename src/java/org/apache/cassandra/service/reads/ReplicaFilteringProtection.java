@@ -114,8 +114,8 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
     private final int cachedRowsWarnThreshold;
     private final int cachedRowsFailThreshold;
 
-    /** Tracks whether or not we've already hit the warning threshold while evaluating a partition. */
-    private boolean hitWarningThreshold = false;
+    /** Tracks whether or not we've already hit the failure threshold while evaluating a partition. */
+    private boolean hitFailureThreshold = false;
 
     private int currentRowsCached = 0; // tracks the current number of cached rows
     private int maxRowsCached = 0; // tracks the high watermark for the number of cached rows
@@ -290,7 +290,23 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
         public void close()
         {
             // If we hit the failure threshold before consuming a single partition, record the current rows cached.
-            tableMetrics.rfpRowsCachedPerQuery.update(Math.max(currentRowsCached, maxRowsCached));
+            maxRowsCached = Math.max(currentRowsCached, maxRowsCached);
+            tableMetrics.rfpRowsCachedPerQuery.update(maxRowsCached);
+
+            // Check the cached rows warning threshold at the end of the query, so we can report the maximum number
+            // of cached rows we have had during the query.
+            if (!hitFailureThreshold && maxRowsCached > cachedRowsWarnThreshold)
+            {
+                String message =
+                    String.format("Replica filtering protection has cached up to %d rows during query %s, " +
+                                  "which is over the warning threshold of %d rows defined by " +
+                                  "'cached_replica_rows_warn_threshold' in cassandra.yaml.",
+                                  maxRowsCached, command.toCQLString(), cachedRowsWarnThreshold);
+
+                ClientWarn.instance.warn(message);
+                oneMinuteLogger.warn(message);
+                Tracing.trace(message);
+            }
         }
 
         @Override
@@ -326,25 +342,17 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
 
         if (currentRowsCached == cachedRowsFailThreshold + 1)
         {
-            String message = String.format("Replica filtering protection has cached over %d rows during query %s. " +
-                                           "(See 'cached_replica_rows_fail_threshold' in cassandra.yaml.)",
-                                           cachedRowsFailThreshold, command.toCQLString());
+            hitFailureThreshold = true;
+
+            String message =
+                String.format("Replica filtering protection has cached %d rows during query %s, " +
+                              "which is over the failure threshold of %d rows defined by " +
+                              "'cached_replica_rows_fail_threshold' in cassandra.yaml.",
+                              currentRowsCached, command.toCQLString(), cachedRowsFailThreshold);
 
             logger.error(message);
             Tracing.trace(message);
             throw new OverloadedException(message);
-        }
-        else if (currentRowsCached == cachedRowsWarnThreshold + 1 && !hitWarningThreshold)
-        {
-            hitWarningThreshold = true;
-
-            String message = String.format("Replica filtering protection has cached over %d rows during query %s. " +
-                                           "(See 'cached_replica_rows_warn_threshold' in cassandra.yaml.)",
-                                           cachedRowsWarnThreshold, command.toCQLString());
-
-            ClientWarn.instance.warn(message);
-            oneMinuteLogger.warn(message);
-            Tracing.trace(message);
         }
     }
 
