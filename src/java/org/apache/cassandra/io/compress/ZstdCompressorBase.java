@@ -22,9 +22,13 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import com.github.luben.zstd.Zstd;
+import com.github.luben.zstd.ZstdCompressCtx;
+import com.github.luben.zstd.ZstdDecompressCtx;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.slf4j.Logger;
@@ -48,6 +52,15 @@ public abstract class ZstdCompressorBase implements ICompressor
     private final int compressionLevel;
     private final Set<ICompressor.Uses> recommendedUses;
     private final Set<String> supportedOptions;
+
+    // Reusable native (de)compression contexts, pooled and borrowed per chunk.
+    //
+    // The static Zstd.compress / Zstd.decompress / Zstd.decompressByteArray helpers each allocate and free a fresh
+    // native ZSTD_CCtx / ZSTD_DCtx on EVERY call - i.e. once per chunk. At small chunk sizes that fixed per-chunk
+    // cost dominates, and it scales with chunk count rather than with data size. We keep a pool of contexts
+    // instead, each configured once, and reuse them across chunks.
+    private final Queue<ZstdCompressCtx> compressCtxPool = new ConcurrentLinkedQueue<>();
+    private final Queue<ZstdDecompressCtx> decompressCtxPool = new ConcurrentLinkedQueue<>();
 
     protected ZstdCompressorBase(int compressionLevel, Set<String> supportedOptions)
     {
@@ -108,21 +121,33 @@ public abstract class ZstdCompressorBase implements ICompressor
     public int uncompress(byte[] input, int inputOffset, int inputLength, byte[] output, int outputOffset)
     throws IOException
     {
-        long dsz;
+        ZstdDecompressCtx ctx = acquireDecompressCtx();
+        boolean ok = false;
         try
         {
-            dsz = Zstd.decompressByteArray(output, outputOffset, output.length - outputOffset,
-                                           input, inputOffset, inputLength);
+            int dsz = ctx.decompressByteArray(output, outputOffset, output.length - outputOffset,
+                                              input, inputOffset, inputLength);
+            if (Zstd.isError(dsz))
+                throw new IOException("Decompression failed due to " + Zstd.getErrorName(dsz));
+            ok = true;
+            return dsz;
+        }
+        catch (IOException e)
+        {
+            throw e;
         }
         catch (Exception e)
         {
             throw new IOException("Decompression failed", e);
         }
-
-        if (Zstd.isError(dsz))
-            throw new IOException("Decompression failed due to " + Zstd.getErrorName(dsz));
-
-        return (int) dsz;
+        finally
+        {
+            // success -> return to pool; failure -> close, so a context that errored is never reused
+            if (ok)
+                decompressCtxPool.offer(ctx);
+            else
+                ctx.close();
+        }
     }
 
     /**
@@ -135,12 +160,27 @@ public abstract class ZstdCompressorBase implements ICompressor
     @Override
     public void uncompress(ByteBuffer input, ByteBuffer output) throws IOException
     {
+        ZstdDecompressCtx ctx = acquireDecompressCtx();
+        boolean ok = false;
         try
         {
-            Zstd.decompress(output, input);
-        } catch (Exception e)
+            // Zstd compressors expect only direct bytebuffer. See preferredBufferType and supports.
+            int decompressedSize = ctx.decompressDirectByteBuffer(output, output.position(), output.limit() - output.position(),
+                                                                  input, input.position(), input.limit() - input.position());
+            output.position(output.position() + decompressedSize);
+            input.position(input.limit());
+            ok = true;
+        }
+        catch (Exception e)
         {
             throw new IOException("Decompression failed", e);
+        }
+        finally
+        {
+            if (ok)
+                decompressCtxPool.offer(ctx);
+            else
+                ctx.close();
         }
     }
 
@@ -154,13 +194,60 @@ public abstract class ZstdCompressorBase implements ICompressor
     @Override
     public void compress(ByteBuffer input, ByteBuffer output) throws IOException
     {
+        ZstdCompressCtx ctx = acquireCompressCtx();
+        boolean ok = false;
         try
         {
-            Zstd.compress(output, input, compressionLevel(), ENABLE_CHECKSUM_FLAG);
-        } catch (Exception e)
+            // Zstd compressors expect only direct bytebuffer. See preferredBufferType and supports.
+            int compressedSize = ctx.compressDirectByteBuffer(output, output.position(), output.limit() - output.position(),
+                                                              input, input.position(), input.limit() - input.position());
+            output.position(output.position() + compressedSize);
+            input.position(input.limit());
+            ok = true;
+        }
+        catch (Exception e)
         {
             throw new IOException("Compression failed", e);
         }
+        finally
+        {
+            if (ok)
+                compressCtxPool.offer(ctx);
+            else
+                ctx.close();
+        }
+    }
+
+    // ---- pooled native context management (see the compressCtxPool field comment) ----
+
+    private ZstdCompressCtx acquireCompressCtx()
+    {
+        ZstdCompressCtx ctx = compressCtxPool.poll();
+        if (ctx == null)
+        {
+            // Level and checksum are set once here, matching what the static Zstd.compress helper did per call, so
+            // the frames written are identical to those written before contexts were pooled.
+            ctx = new ZstdCompressCtx().setLevel(compressionLevel()).setChecksum(ENABLE_CHECKSUM_FLAG);
+        }
+        return ctx;
+    }
+
+    private ZstdDecompressCtx acquireDecompressCtx()
+    {
+        ZstdDecompressCtx ctx = decompressCtxPool.poll();
+        return ctx == null ? new ZstdDecompressCtx() : ctx;
+    }
+
+    @VisibleForTesting
+    int pooledCompressContexts()
+    {
+        return compressCtxPool.size();
+    }
+
+    @VisibleForTesting
+    int pooledDecompressContexts()
+    {
+        return decompressCtxPool.size();
     }
 
     /**
