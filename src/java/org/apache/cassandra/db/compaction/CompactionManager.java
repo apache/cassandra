@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -52,7 +51,6 @@ import com.google.common.collect.ConcurrentHashMultiset;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multiset;
 import com.google.common.collect.Sets;
@@ -1369,55 +1367,46 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
     @Override
     public void forceUserDefinedCleanup(String dataFiles)
     {
-        String[] filenames = dataFiles.split(",");
-        HashMap<ColumnFamilyStore, Descriptor> descriptors = Maps.newHashMap();
-
-        for (String filename : filenames)
-        {
-            // extract keyspace and columnfamily name from filename
-            Descriptor desc = Descriptor.fromFileWithComponent(new File(filename.trim()), false).left;
-            if (Schema.instance.getTableMetadataRef(desc) == null)
-            {
-                logger.warn("Schema does not exist for file {}. Skipping.", filename);
-                continue;
-            }
-            // group by keyspace/columnfamily
-            ColumnFamilyStore cfs = Keyspace.open(desc.ksname).getColumnFamilyStore(desc.cfname);
-            desc = cfs.getDirectories().find(new File(filename.trim()).name());
-            if (desc != null)
-                descriptors.put(cfs, desc);
-        }
-
         if (!StorageService.instance.isJoined())
         {
             logger.error("Cleanup cannot run before a node has joined the ring");
             return;
         }
 
-        for (Map.Entry<ColumnFamilyStore,Descriptor> entry : descriptors.entrySet())
+        Multimap<ColumnFamilyStore, Descriptor> descriptors = Descriptor.fromFilenamesGrouped(Arrays.asList(dataFiles.split(",")));
+
+        for (ColumnFamilyStore cfs : descriptors.keySet())
         {
-            ColumnFamilyStore cfs = entry.getKey();
             Keyspace keyspace = cfs.keyspace;
             final RangesAtEndpoint replicas = StorageService.instance.getLocalReplicas(keyspace.getName());
             final Set<Range<Token>> allRanges = replicas.ranges();
             final Set<Range<Token>> transientRanges = replicas.onlyTransient().ranges();
             boolean hasIndexes = cfs.indexManager.hasIndexes();
-            SSTableReader sstable = lookupSSTable(cfs, entry.getValue());
 
-            if (sstable == null)
+            for (Descriptor desc : descriptors.get(cfs))
             {
-                logger.warn("Will not clean {}, it is not an active sstable", entry.getValue());
-            }
-            else
-            {
-                CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfs, allRanges, transientRanges, sstable.isRepaired(), FBUtilities.nowInSeconds());
-                try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstable, OperationType.CLEANUP))
+                SSTableReader sstable = lookupSSTable(cfs, desc);
+
+                if (sstable == null)
                 {
-                    doCleanupOne(cfs, txn, cleanupStrategy, allRanges, hasIndexes);
+                    logger.warn("Will not clean {}, it is not an active sstable", desc);
                 }
-                catch (IOException e)
+                else
                 {
-                    logger.error("forceUserDefinedCleanup failed: {}", e.getLocalizedMessage());
+                    CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfs, allRanges, transientRanges, sstable.isRepaired(), FBUtilities.nowInSeconds());
+                    try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstable, OperationType.CLEANUP))
+                    {
+                        if (txn == null)
+                        {
+                            logger.warn("Unable to lock {} for cleanup (it may be involved in a concurrent compaction), skipping", sstable);
+                            continue;
+                        }
+                        doCleanupOne(cfs, txn, cleanupStrategy, allRanges, hasIndexes);
+                    }
+                    catch (IOException e)
+                    {
+                        logger.error("forceUserDefinedCleanup failed: {}", e.getLocalizedMessage());
+                    }
                 }
             }
         }
