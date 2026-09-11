@@ -111,6 +111,7 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
     {
         state.phase.planning();
         StreamPlan sp = new StreamPlan(StreamOperation.REPAIR, 1, false, pendingRepair, previewKind)
+               .transferId(transferId)
                .listeners(this)
                .flushBeforeTransfer(pendingRepair == null) // sstables are isolated at the beginning of an incremental repair session, so flushing isn't neccessary
                // see comment on RangesAtEndpoint.toDummyList for why we synthesize replicas here

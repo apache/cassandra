@@ -368,6 +368,7 @@ public class KeyspaceMigrationInfo
      * <p>
      * Returns false (use untracked) when:
      * - A migration is in progress AND the ranges overlap with pending ranges
+     * - There are no ranges to decide over
      *
      * @param metadata cluster metadata snapshot
      * @param keyspace keyspace name
@@ -380,6 +381,9 @@ public class KeyspaceMigrationInfo
                                                     @Nonnull TableId tableId,
                                                     @Nonnull Collection<Range<Token>> ranges)
     {
+        if (ranges.isEmpty())
+            return false;
+
         KeyspaceMigrationInfo migrationInfo = metadata.mutationTrackingMigrationState.getKeyspaceInfo(keyspace);
         if (migrationInfo == null)
             return true;

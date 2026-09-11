@@ -36,6 +36,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
@@ -165,6 +166,41 @@ public class LocalSyncTaskTest extends AbstractRepairTest
 
         assertEquals(NO_PENDING_REPAIR, plan.getPendingRepair());
         assertTrue(plan.getFlushBeforeTransfer());
+    }
+
+    @Test
+    public void trackedTransferStreamPlan() throws Exception
+    {
+        assertTrue(isTrackedTransferPlanFor(new ShortMutationId(1, 1)));
+    }
+
+    @Test
+    public void untrackedTransferStreamPlan() throws Exception
+    {
+        assertFalse(isTrackedTransferPlanFor(null));
+    }
+
+    private boolean isTrackedTransferPlanFor(ShortMutationId transferId) throws Exception
+    {
+        TimeUUID sessionID = registerSession(cfs, true, true);
+        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance().getParentRepairSession(sessionID);
+        RepairJobDesc desc = new RepairJobDesc(sessionID, nextTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
+
+        TreeResponse r1 = new TreeResponse(local, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
+        TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
+
+        LocalSyncTask task = new LocalSyncTask(SharedContext.Global.instance, desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
+                                               desc.parentSessionId, true, true, PreviewKind.NONE, transferId);
+        StreamPlan plan = task.createStreamPlan();
+
+        // every session of the plan must carry the coordinator's transfer id
+        for (StreamSession session : plan.getCoordinator().getAllStreamSessions())
+        {
+            assertEquals(transferId, session.transferId());
+            assertEquals(plan.isTrackedTransfer(), session.isTrackedTransfer());
+        }
+
+        return plan.isTrackedTransfer();
     }
 
     private static void assertNumInOut(StreamPlan plan, int expectedIncoming, int expectedOutgoing)

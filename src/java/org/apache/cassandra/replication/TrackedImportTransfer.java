@@ -356,7 +356,8 @@ public class TrackedImportTransfer extends CoordinatedTransfer
 
     private SingleTransferResult streamTask(InetAddressAndPort to) throws StreamException, ExecutionException, InterruptedException, TimeoutException
     {
-        StreamPlan plan = new StreamPlan(StreamOperation.IMPORT);
+        StreamPlan plan = new StreamPlan(StreamOperation.IMPORT)
+                          .transferId(id());
 
         // No need to flush, only using non-live SSTables already on disk
         plan.flushBeforeTransfer(false);

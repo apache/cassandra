@@ -50,6 +50,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.PendingLocalTransfer;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTopology;
 import org.apache.cassandra.service.accord.IAccordService;
@@ -93,6 +94,8 @@ public class CassandraStreamReceiver implements StreamReceiver
 
     private final List<Range<Token>> ranges;
 
+    @VisibleForTesting
+    final boolean expectsTrackedTransfer;
 
     public CassandraStreamReceiver(ColumnFamilyStore cfs, StreamSession session, List<Range<Token>> ranges, int totalFiles)
     {
@@ -104,19 +107,20 @@ public class CassandraStreamReceiver implements StreamReceiver
         this.ranges = ranges;
         this.sstables = new ArrayList<>(totalFiles);
         this.requiresWritePath = requiresWritePath(cfs);
+        this.expectsTrackedTransfer = expectsTrackedTransfer(cfs, session, ranges);
+
+        if (session.isTrackedTransfer() && !cfs.metadata().replicationType().isTracked())
+            throw new IllegalStateException(String.format("[Stream #%s] Received a tracked transfer for %s.%s, which does not use tracked replication here. " +
+                                                          "This indicates the sender and this node disagree about the replication type of the table.",
+                                                          session.planId(), cfs.getKeyspaceName(), cfs.getTableName()));
     }
 
     /**
-     * Whether this stream should use the tracked transfer path (pending until activation).
-     * Returns false during mutation tracking migration for ranges that are still pending,
-     * since migration repair uses the untracked streaming path for those ranges.
+     * @return whether this stream should use the tracked transfer path
      */
-    private boolean useTrackedTransferPath()
+    boolean useTrackedTransferPath()
     {
-        if (!cfs.metadata().replicationType().isTracked() || !session.streamOperation().isTrackable())
-            return false;
-
-        return KeyspaceMigrationInfo.shouldUseTrackedTransfers(ClusterMetadata.current(), cfs.getKeyspaceName(), cfs.metadata().id, ranges);
+        return session.isTrackedTransfer();
     }
 
     public static CassandraStreamReceiver fromReceiver(StreamReceiver receiver)
@@ -148,7 +152,23 @@ public class CassandraStreamReceiver implements StreamReceiver
         }
         txn.update(finished);
         sstables.addAll(finished);
-        receivedEntireSSTable = file.isEntireSSTable();
+        receivedEntireSSTable |= file.isEntireSSTable();
+        validateUntrackedTransferAllowed(finished);
+    }
+
+    private void validateUntrackedTransferAllowed(Collection<SSTableReader> readers)
+    {
+        if (session.isTrackedTransfer() || !expectsTrackedTransfer)
+            return;
+
+        for (SSTableReader reader : readers)
+        {
+            if (!reader.isRepaired())
+                throw new IllegalStateException(String.format("[Stream #%s] Received an untracked transfer carrying unrepaired SSTable %s for tracked, " +
+                                                              "non-migrating ranges %s of %s.%s; such data would be stranded in the unrepaired data silo. " +
+                                                              "This indicates the sender and receiver disagree about mutation tracking migration state.",
+                                                              session.planId(), reader.descriptor, ranges, cfs.getKeyspaceName(), cfs.getTableName()));
+        }
     }
 
     @Override
@@ -277,7 +297,7 @@ public class CassandraStreamReceiver implements StreamReceiver
                 // SSTables involved in a coordinated transfer become live when the transfer is activated
                 if (useTrackedTransferPath())
                 {
-                    PendingLocalTransfer transfer = new PendingLocalTransfer(cfs.metadata().id, session.planId(), sstables);
+                    PendingLocalTransfer transfer = new PendingLocalTransfer(cfs.metadata().id, session.planId(), session.transferId(), sstables);
                     MutationTrackingService.instance().received(transfer);
                     return;
                 }
@@ -316,5 +336,23 @@ public class CassandraStreamReceiver implements StreamReceiver
             cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.STREAMS_RECEIVED);
             abort();
         }
+    }
+
+    private static boolean expectsTrackedTransfer(ColumnFamilyStore cfs, StreamSession session, Collection<Range<Token>> ranges)
+    {
+        if (!cfs.metadata().replicationType().isTracked() || !session.getStreamOperation().isTrackable())
+            return false;
+
+        ClusterMetadata metadata = ClusterMetadata.current();
+
+        // incremental repair during a migration is streamed untracked
+        if (session.getPendingRepair() != ActiveRepairService.NO_PENDING_REPAIR
+            && metadata.mutationTrackingMigrationState.isMigrating(cfs.getKeyspaceName()))
+            return false;
+
+        if (ranges.isEmpty())
+            return true;
+
+        return KeyspaceMigrationInfo.shouldUseTrackedTransfers(metadata, cfs.getKeyspaceName(), cfs.metadata().id, ranges);
     }
 }

@@ -109,7 +109,7 @@ public class SyncResponse extends RepairMessage
                 SessionSummary.serializer.serialize(summary, out, version);
             }
 
-            if (version >= MessagingService.Version.VERSION_61.value)
+            if (version >= MessagingService.Version.MIN_MUTATION_TRACKING_VERSION.value)
             {
                 out.writeBoolean(message.planId != null);
                 if (message.planId != null)
@@ -135,10 +135,10 @@ public class SyncResponse extends RepairMessage
                 summaries.add(SessionSummary.serializer.deserialize(in, partitioner, version));
             }
 
-            TimeUUID planId = version >= MessagingService.Version.VERSION_61.value && in.readBoolean()
+            TimeUUID planId = version >= MessagingService.Version.MIN_MUTATION_TRACKING_VERSION.value && in.readBoolean()
                               ? TimeUUID.Serializer.instance.deserialize(in) : null;
 
-            ShortMutationId transferId = version >= MessagingService.Version.VERSION_61.value && in.readBoolean()
+            ShortMutationId transferId = version >= MessagingService.Version.MIN_MUTATION_TRACKING_VERSION.value && in.readBoolean()
                                          ? ShortMutationId.serializer.deserialize(in) : null;
 
             return new SyncResponse(desc, nodes, success, summaries, planId, transferId);
@@ -156,7 +156,7 @@ public class SyncResponse extends RepairMessage
                 size += SessionSummary.serializer.serializedSize(summary, version);
             }
 
-            if (version >= MessagingService.Version.VERSION_61.value)
+            if (version >= MessagingService.Version.MIN_MUTATION_TRACKING_VERSION.value)
             {
                 size += TypeSizes.sizeof(false);
                 if (message.planId != null)

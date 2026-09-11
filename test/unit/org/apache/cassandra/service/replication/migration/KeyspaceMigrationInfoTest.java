@@ -39,6 +39,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 
@@ -398,6 +399,18 @@ public class KeyspaceMigrationInfoTest
         // reads are always untracked
         assertFalse(migrationInfo.shouldUseTrackedForReads(false, testTableId, tokenInPending));
         assertFalse(migrationInfo.shouldUseTrackedForReads(false, testTableId, tokenOutsidePending));
+    }
+
+    @Test
+    public void testShouldUseTrackedTransfersWithNoRanges()
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+
+        // nothing to decide over, so don't claim the tracked path
+        assertFalse(KeyspaceMigrationInfo.shouldUseTrackedTransfers(metadata, "test_ks", testTableId, Collections.emptyList()));
+
+        // whereas real ranges of a keyspace that isn't migrating do use it
+        assertTrue(KeyspaceMigrationInfo.shouldUseTrackedTransfers(metadata, "test_ks", testTableId, createTestRanges()));
     }
 
     private List<Range<Token>> createTestRanges()

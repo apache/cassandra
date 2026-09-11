@@ -32,6 +32,7 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -186,6 +187,18 @@ public class MessageTest
                    .withParam(TRACE_SESSION, nextTimeUUID())
                    .build();
         testCycle(msg);
+    }
+
+    @Test
+    public void testNoPayloadVerbsDeclareEmptyPayload()
+    {
+        for (Verb verb : new Verb[]{ Verb.MT_TRANSFER_FAILED_RSP, Verb.REPAIR_RSP })
+        {
+            IVersionedAsymmetricSerializer<Object, ?> serializer = verb.serializer();
+
+            assertEquals(verb + " must treat NoPayload as an empty payload",
+                         0, serializer.serializedSize(noPayload, MessagingService.VERSION_61));
+        }
     }
 
     @Test

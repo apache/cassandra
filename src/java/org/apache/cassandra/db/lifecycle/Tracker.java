@@ -277,7 +277,10 @@ public class Tracker
         // Tracked tables may legitimately use this path during migration from untracked to tracked,
         // when incremental repair streams SSTables that were written before tracking was enabled.
         Preconditions.checkState(!cfstore.metadata().replicationType().isTracked()
-                                 || ClusterMetadata.current().mutationTrackingMigrationState.isMigrating(cfstore.metadata().keyspace));
+                                 || ClusterMetadata.current().mutationTrackingMigrationState.isMigrating(cfstore.metadata().keyspace),
+                                 "Cannot add SSTables to the live set of %s.%s. These tables are tracked and not migrating. " +
+                                 "Tracked transfers must be activated instead.",
+                                 cfstore.metadata().keyspace, cfstore.metadata().name);
         addSSTablesInternal(sstables, false, true, true);
     }
 
