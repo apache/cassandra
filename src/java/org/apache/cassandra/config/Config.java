@@ -898,13 +898,11 @@ public class Config
      */
     public ConsistencyLevel denylist_consistency_level = ConsistencyLevel.QUORUM;
 
-    /**
-     * The intial capacity for creating RangeTombstoneList.
-     */
+    /** @deprecated RangeTombstoneList is now backed by a persistent tree; this setting is ignored. */
+    @Deprecated(since = "7.0")
     public volatile int initial_range_tombstone_list_allocation_size = 1;
-    /**
-     * The growth factor to enlarge a RangeTombstoneList.
-     */
+    /** @deprecated RangeTombstoneList is now backed by a persistent tree; this setting is ignored. */
+    @Deprecated(since = "7.0")
     public volatile double range_tombstone_list_growth_factor = 1.5;
 
     public StorageAttachedIndexOptions sai_options = new StorageAttachedIndexOptions();

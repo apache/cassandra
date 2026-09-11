@@ -5392,26 +5392,6 @@ public class DatabaseDescriptor
         conf.reject_repair_compaction_threshold = value;
     }
 
-    public static int getInitialRangeTombstoneListAllocationSize()
-    {
-        return conf.initial_range_tombstone_list_allocation_size;
-    }
-
-    public static void setInitialRangeTombstoneListAllocationSize(int size)
-    {
-        conf.initial_range_tombstone_list_allocation_size = size;
-    }
-
-    public static double getRangeTombstoneListGrowthFactor()
-    {
-        return conf.range_tombstone_list_growth_factor;
-    }
-
-    public static void setRangeTombstoneListGrowthFactor(double resizeFactor)
-    {
-        conf.range_tombstone_list_growth_factor = resizeFactor;
-    }
-
     public static boolean getAutocompactionOnStartupEnabled()
     {
         return conf.autocompaction_on_startup_enabled;

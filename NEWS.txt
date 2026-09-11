@@ -94,6 +94,10 @@ New features
 Upgrading
 ---------
 
+    - Range tombstone snapshots now use persistent trees rather than resizable arrays.
+      initial_range_tombstone_list_allocation_size, range_tombstone_list_growth_factor, and the
+      corresponding StorageService JMX methods are now deprecated no-ops. Existing SSTable and
+      commitlog formats are unchanged. (CASSANDRA-21492)
     - trickle_fsync is by default set to "true" instead of "false" in cassandra.yaml (see CASSANDRA-21572)
     - Authorizing a batch or an Accord transaction now performs the table permission checks once per run of
       consecutive statements on the same table rather than once per statement. The permissions required are
