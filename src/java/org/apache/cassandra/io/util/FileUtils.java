@@ -772,11 +772,19 @@ public final class FileUtils
         }
     }
 
+    /** Block size of the filesystem backing an already-existing file; shares {@link #getBlockSize(File)}'s cache. */
     public static int getFileBlockSize(File file)
     {
+        File directory = file.parent();
+        String key = directory != null ? directory.absolutePath() : file.absolutePath();
+        Integer cached = blockSizeByDirectory.get(key);
+        if (cached != null)
+            return cached;
         try
         {
-            return blockSize(file);
+            int size = blockSize(file);
+            blockSizeByDirectory.put(key, size);
+            return size;
         }
         catch (IOException e)
         {

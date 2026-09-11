@@ -228,7 +228,7 @@ public class DatabaseDescriptor
 
     private static DiskAccessMode commitLogWriteDiskAccessMode;
 
-    private static DiskAccessMode compactionReadDiskAccessMode;
+    private static DiskAccessMode backgroundReadDiskAccessMode;
 
     private static DiskAccessMode backgroundWriteDiskAccessMode;
 
@@ -701,20 +701,20 @@ public class DatabaseDescriptor
         }
         logger.info("DiskAccessMode is {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
 
-        if (DiskAccessMode.auto == conf.compaction_read_disk_access_mode)
+        if (DiskAccessMode.auto == conf.background_read_disk_access_mode)
         {
-            compactionReadDiskAccessMode = conf.disk_access_mode;
+            backgroundReadDiskAccessMode = conf.disk_access_mode;
         }
-        else if (DiskAccessMode.direct == conf.compaction_read_disk_access_mode)
+        else if (DiskAccessMode.direct == conf.background_read_disk_access_mode)
         {
-            compactionReadDiskAccessMode = DiskAccessMode.direct;
+            backgroundReadDiskAccessMode = DiskAccessMode.direct;
         }
         else
         {
-            throw new IllegalArgumentException("Unsupported disk access mode for compaction_read_disk_access_mode " +
-                                               "(options: direct/auto) " + conf.compaction_read_disk_access_mode);
+            throw new IllegalArgumentException("Unsupported disk access mode for background_read_disk_access_mode " +
+                                               "(options: direct/auto) " + conf.background_read_disk_access_mode);
         }
-        logger.info("compaction_read_disk_access_mode resolved to: {}", compactionReadDiskAccessMode);
+        logger.info("background_read_disk_access_mode resolved to: {}", backgroundReadDiskAccessMode);
 
         /* phi convict threshold for FailureDetector */
         if (conf.phi_convict_threshold < 5 || conf.phi_convict_threshold > 16)
@@ -3459,16 +3459,16 @@ public class DatabaseDescriptor
         conf.commitlog_segment_size = new DataStorageSpec.IntMebibytesBound(sizeMebibytes);
     }
 
-    public static DiskAccessMode getCompactionReadDiskAccessMode()
+    public static DiskAccessMode getBackgroundReadDiskAccessMode()
     {
-        return compactionReadDiskAccessMode;
+        return backgroundReadDiskAccessMode;
     }
 
     @VisibleForTesting
-    public static void setCompactionReadDiskAccessMode(DiskAccessMode scanDiskAccessMode)
+    public static void setBackgroundReadDiskAccessMode(DiskAccessMode scanDiskAccessMode)
     {
-        compactionReadDiskAccessMode = scanDiskAccessMode;
-        conf.compaction_read_disk_access_mode = scanDiskAccessMode;
+        backgroundReadDiskAccessMode = scanDiskAccessMode;
+        conf.background_read_disk_access_mode = scanDiskAccessMode;
     }
 
     /**
