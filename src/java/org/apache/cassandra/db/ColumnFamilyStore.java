@@ -1289,7 +1289,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             // the other
             upperBounds.seal();
 
-            Preconditions.checkState(allSealed(upperBounds), "Unsealed bound %s for %d", upperBounds, memtables.values());
+            Preconditions.checkState(allSealed(upperBounds), "Unsealed bound %s for %s", upperBounds, memtables.values());
 
             // we then issue the barrier; this lets us wait for all operations started prior to the barrier to complete;
             // since this happens after wiring up the commitLogUpperBound, we also know all operations with earlier

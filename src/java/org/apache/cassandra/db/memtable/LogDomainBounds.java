@@ -130,6 +130,6 @@ public class LogDomainBounds
     @Override
     public String toString()
     {
-        return "DomainBounds(commitLog=" + commitLog.get() + ", journal=" + journal.get() + ')';
+        return "LogDomainBounds(commitLog=" + commitLog.get() + ", journal=" + journal.get() + ')';
     }
 }

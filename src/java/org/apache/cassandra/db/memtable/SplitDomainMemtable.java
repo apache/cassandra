@@ -467,6 +467,6 @@ public class SplitDomainMemtable implements Memtable
     @Override
     public String toString()
     {
-        return "DomainSplitMemtable(id=" + id + ", commitLog=" + commitLogInternal + ", journal=" + journalInternal + ')';
+        return "SplitDomainMemtable(id=" + id + ", commitLog=" + commitLogInternal + ", journal=" + journalInternal + ')';
     }
 }
