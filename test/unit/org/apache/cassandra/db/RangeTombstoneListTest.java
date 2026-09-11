@@ -629,6 +629,73 @@ public class RangeTombstoneListTest
         }
     }
 
+    @Test
+    public void testCopyIndependence()
+    {
+        RangeTombstoneList original = new RangeTombstoneList(cmp, 5);
+        original.add(rt(1, 5, 10));
+        original.add(rt(7, 10, 20));
+
+        RangeTombstoneList copy = original.copy();
+
+        original.add(rt(12, 15, 30));
+
+        assertEquals(3, original.size());
+        assertEquals(2, copy.size());
+
+        Iterator<RangeTombstone> origIter = original.iterator();
+        assertRT(rt(1, 5, 10), origIter.next());
+        assertRT(rt(7, 10, 20), origIter.next());
+        assertRT(rt(12, 15, 30), origIter.next());
+        assertFalse(origIter.hasNext());
+
+        Iterator<RangeTombstone> copyIter = copy.iterator();
+        assertRT(rt(1, 5, 10), copyIter.next());
+        assertRT(rt(7, 10, 20), copyIter.next());
+        assertFalse(copyIter.hasNext());
+
+        copy.add(rt(20, 25, 40));
+        assertEquals(3, original.size());
+        assertEquals(3, copy.size());
+
+        origIter = original.iterator();
+        assertRT(rt(1, 5, 10), origIter.next());
+        assertRT(rt(7, 10, 20), origIter.next());
+        assertRT(rt(12, 15, 30), origIter.next());
+        assertFalse(origIter.hasNext());
+
+        copyIter = copy.iterator();
+        assertRT(rt(1, 5, 10), copyIter.next());
+        assertRT(rt(7, 10, 20), copyIter.next());
+        assertRT(rt(20, 25, 40), copyIter.next());
+        assertFalse(copyIter.hasNext());
+
+        RangeTombstoneList other = new RangeTombstoneList(cmp, 1);
+        other.add(rt(30, 35, 50));
+        copy.addAll(other);
+        assertEquals(3, original.size());
+        assertEquals(4, copy.size());
+
+        copy.updateAllTimestamp(999);
+        origIter = original.iterator();
+        assertRT(rt(1, 5, 10), origIter.next());
+        assertRT(rt(7, 10, 20), origIter.next());
+        assertRT(rt(12, 15, 30), origIter.next());
+
+        copyIter = copy.iterator();
+        assertRT(rt(1, 5, 999), copyIter.next());
+        assertRT(rt(7, 10, 999), copyIter.next());
+        assertRT(rt(20, 25, 999), copyIter.next());
+        assertRT(rt(30, 35, 999), copyIter.next());
+
+        copy.updateAllTimestampAndLocalDeletionTime(888, 888);
+        origIter = original.iterator();
+        assertRT(rt(1, 5, 10), origIter.next());
+
+        copyIter = copy.iterator();
+        assertRT(rt(1, 5, 888, 888), copyIter.next());
+    }
+
     private void assertHasException(ThrowingRunnable block, Consumer<Throwable> verifier)
     {
         try
