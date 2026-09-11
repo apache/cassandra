@@ -19,11 +19,13 @@
 package org.apache.cassandra.io.sstable;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -31,7 +33,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.Util;
@@ -56,6 +61,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.util.File;
@@ -65,6 +71,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.apache.cassandra.db.compaction.OperationType.COMPACTION;
 import static org.apache.cassandra.utils.FBUtilities.nowInSeconds;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
@@ -75,8 +82,11 @@ import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@RunWith(BMUnitRunner.class)
 public class SSTableRewriterTest extends SSTableWriterTestBase
 {
+    private static final ThreadLocal<Map<String, List<Long>>> cacheSkipRequests = new ThreadLocal<>();
+
     @Test
     public void basicTest()
     {
@@ -954,5 +964,110 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
             }
         }
         return result;
+    }
+
+    @Test
+    @BMRule(name = "record offline rewriter cache skip ranges",
+            targetClass = "org.apache.cassandra.utils.NativeLibrary",
+            targetMethod = "trySkipCache(java.lang.String, long, long)",
+            targetLocation = "AT ENTRY",
+            action = "org.apache.cassandra.io.sstable.SSTableRewriterTest.recordCacheSkip($1, $2, $3)")
+    public void testOfflineCacheSkippingAcrossWriterSwitches() throws Exception
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF);
+        truncate(cfs);
+
+        int partitionsPerWriter = 16;
+        int writerCount = 3;
+        List<DecoratedKey> keys = new ArrayList<>();
+        for (int i = 0; i < partitionsPerWriter * writerCount; i++)
+            keys.add(cfs.decorateKey(ByteBufferUtil.bytes(Integer.toString(1000 + i))));
+        keys.sort(null);
+
+        File tempDir = new File(com.google.common.io.Files.createTempDir());
+        try
+        {
+            SSTableReader source;
+            Descriptor desc = cfs.newSSTableDescriptor(tempDir);
+            try (SSTableTxnWriter sstableWriter = SSTableTxnWriter.create(cfs, desc, 0, 0, null, false, new SerializationHeader(true, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS)))
+            {
+                for (DecoratedKey key : keys)
+                {
+                    UpdateBuilder builder = UpdateBuilder.create(cfs.metadata(), key.getKey()).withTimestamp(1);
+                    builder.newRow("0").add("val", ByteBufferUtil.bytes("value"));
+                    try (UnfilteredRowIterator partition = builder.build().unfilteredIterator())
+                    {
+                        sstableWriter.append(partition);
+                    }
+                }
+                source = sstableWriter.finish(true).iterator().next();
+            }
+
+            try
+            {
+                // Fixed-width keys and identical rows give equal-sized partitions in either SSTable format.
+                long partitionSize = source.getPosition(keys.get(1), SSTableReader.Operator.EQ);
+                assertTrue(partitionSize > 0);
+                for (int i = 0; i < keys.size(); i++)
+                    assertEquals(i * partitionSize, source.getPosition(keys.get(i), SSTableReader.Operator.EQ));
+
+                List<Long> actual = new ArrayList<>();
+                List<Long> expected = new ArrayList<>();
+                cacheSkipRequests.set(singletonMap(source.descriptor.fileFor(Components.DATA).absolutePath(), actual));
+                // Keep the input caller-owned on both commit and abort; release it in the finally block.
+                try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.UPGRADE_SSTABLES, source);
+                     SSTableRewriter rewriter = new SSTableRewriter(txn, 1000, 4 * partitionSize, true, true);
+                     ISSTableScanner scanner = source.getScanner())
+                {
+                    for (int w = 0; w < writerCount; w++)
+                    {
+                        rewriter.switchWriter(getWriter(cfs, tempDir, txn));
+                        assertEquals(expected, actual);
+                        for (int p = 0; p < partitionsPerWriter; p++)
+                        {
+                            int index = w * partitionsPerWriter + p;
+                            assertTrue(scanner.hasNext());
+                            try (UnfilteredRowIterator partition = scanner.next())
+                            {
+                                rewriter.append(partition);
+                            }
+
+                            // The check precedes append and is strictly greater than four partitions.
+                            // Expect skips before partitions 5, 10 and 15, then restart after each switch.
+                            if (p > 0 && p % 5 == 0)
+                                expected.add(index * partitionSize);
+                            assertEquals("cache skip ranges at writer " + w + ", partition " + p, expected, actual);
+                        }
+                    }
+                    assertFalse(scanner.hasNext());
+                    for (SSTableReader reader : rewriter.finish())
+                        reader.selfRef().release();
+                }
+            }
+            finally
+            {
+                cacheSkipRequests.remove();
+                source.selfRef().release();
+            }
+        }
+        finally
+        {
+            LifecycleTransaction.waitForDeletions();
+            FileUtils.deleteRecursive(tempDir);
+            truncate(cfs);
+        }
+    }
+
+    public static void recordCacheSkip(String path, long offset, long length)
+    {
+        Map<String, List<Long>> requests = cacheSkipRequests.get();
+        if (requests == null)
+            return;
+        List<Long> ranges = requests.get(path);
+        if (ranges != null)
+        {
+            assertEquals(0, offset);
+            ranges.add(length);
+        }
     }
 }
