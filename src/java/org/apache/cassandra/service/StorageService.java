@@ -4018,6 +4018,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             // Interrupt ongoing compactions and shutdown CM to prevent further compactions.
             CompactionManager.instance.forceShutdown();
+            SystemKeyspace.shutdownCompactionHistoryAndWait(DRAIN_EXECUTOR_TIMEOUT_MS.getInt(), TimeUnit.MILLISECONDS);
             // Flush the system tables after all other tables are flushed, just in case flushing modifies any system state
             // like CASSANDRA-5151. Don't bother with progress tracking since system data is tiny.
             // Flush system tables after stopping compactions since they modify

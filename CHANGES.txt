@@ -1,4 +1,5 @@
 7.0
+ * Isolate asynchronous best-effort compaction history writes with a bounded queue and drain them before system-table shutdown (CASSANDRA-19576)
  * Allow CQLSSTableWriter to specify SSTable id generator to use (CASSANDRA-21012)
  * Reject LIKE patterns with a wildcard (%) anywhere other than the start or end (CASSANDRA-21068)
  * Support pluggable default role initialization (CASSANDRA-21546)

@@ -977,6 +977,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             error = parallelRun(error, executor, SnapshotManager.instance::close);
 
             CompactionManager.instance.forceShutdown();
+            // This lifecycle bypasses StorageService.drain. Stop history writes before their
+            // memtable/commitlog dependencies, including shutdowns that skip on-exit threads.
+            error = parallelRun(error, executor, () -> SystemKeyspace.shutdownCompactionHistoryAndWait(1L, MINUTES));
 
             error = parallelRun(error, executor,
                     () -> StorageService.instance.setRpcReady(false),

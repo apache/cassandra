@@ -27,6 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -167,7 +168,7 @@ public class SystemKeyspaceTest
     }
 
     @Test
-    public void testCompactionHistory()
+    public void testCompactionHistory() throws Exception
     {
         String ks = "test_ks";
         String cf = "test_cf";
@@ -188,7 +189,7 @@ public class SystemKeyspaceTest
             500,
             rowsMerged,
             propertiesWithType
-        );
+        ).get(10, TimeUnit.SECONDS);
 
         UntypedResultSet result = executeInternal("SELECT compaction_properties FROM system.compaction_history WHERE keyspace_name=? AND columnfamily_name=? ALLOW FILTERING", ks, cf);
 
@@ -196,6 +197,29 @@ public class SystemKeyspaceTest
 
         Map<String, String> resProps = result.one().getMap("compaction_properties", org.apache.cassandra.db.marshal.UTF8Type.instance, org.apache.cassandra.db.marshal.UTF8Type.instance);
         assertEquals(compactionType, resProps.get("compaction_type"));
+    }
+
+    @Test(timeout = 30000)
+    public void testCompactionHistoryDefensiveCopy() throws Exception
+    {
+        TimeUUID id = TimeUUID.Generator.nextTimeUUID();
+        Map<Integer, Long> rows = new HashMap<>();
+        rows.put(1, 100L);
+        Map<String, String> properties = new HashMap<>();
+        properties.put("strategy", "STCS");
+
+        SystemKeyspace.updateCompactionHistory(id, "async_history_ks", "async_history_cf",
+                                              System.currentTimeMillis(), 1000, 500, rows, properties)
+                     .get(10, TimeUnit.SECONDS);
+        // Mutating the caller's maps after the call must not affect the stored record.
+        rows.clear();
+        properties.clear();
+
+        UntypedResultSet.Row stored = executeInternal("SELECT rows_merged, compaction_properties FROM system.compaction_history WHERE id=?", id).one();
+        assertEquals(Collections.singletonMap(1, 100L),
+                     stored.getMap("rows_merged", org.apache.cassandra.db.marshal.Int32Type.instance, org.apache.cassandra.db.marshal.LongType.instance));
+        assertEquals(Collections.singletonMap("strategy", "STCS"),
+                     stored.getMap("compaction_properties", org.apache.cassandra.db.marshal.UTF8Type.instance, org.apache.cassandra.db.marshal.UTF8Type.instance));
     }
 
     private String getOlderVersionString()

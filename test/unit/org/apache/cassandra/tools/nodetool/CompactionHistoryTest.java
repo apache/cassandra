@@ -36,6 +36,7 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -123,6 +124,11 @@ public class CompactionHistoryTest extends CQLTester
     {
         ToolResult toolCompact = invokeNodetool(cmds);
         toolCompact.assertOnCleanExit();
+
+        // Nodetool compaction completion no longer waits for diagnostic history insertion.
+        Util.spinAssertEquals(systemTableRecord, () -> org.apache.cassandra.cql3.QueryProcessor.executeInternal(
+            "SELECT id FROM system.compaction_history WHERE keyspace_name=? AND columnfamily_name=? ALLOW FILTERING",
+            keyspace, table).size());
 
         ToolResult toolHistory = invokeNodetool("compactionhistory");
         toolHistory.assertOnCleanExit();

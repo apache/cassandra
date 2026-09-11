@@ -113,6 +113,9 @@ public class CompactionTaskTest
             CompactionTask task = new CompactionTask(cfs, txn, 0);
             task.execute(CompactionManager.instance.active);
         }
+        // Compaction completion precedes visibility of its best-effort history record.
+        Util.spinAssertEquals(1, () -> QueryProcessor.executeInternal(format("SELECT id FROM system.%s WHERE id = %s",
+                                                                          SystemKeyspace.COMPACTION_HISTORY, id)).size());
 
         UntypedResultSet rows = QueryProcessor.executeInternal(format("SELECT id, compaction_properties FROM system.%s where id = %s",
                                                                       SystemKeyspace.COMPACTION_HISTORY,

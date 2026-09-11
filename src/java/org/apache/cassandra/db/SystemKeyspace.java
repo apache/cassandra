@@ -36,6 +36,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -132,11 +133,13 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.TriFunction;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
 import static org.apache.cassandra.cql3.QueryProcessor.PREPARED_STATEMENT_CACHE_SIZE_BYTES;
@@ -713,7 +716,18 @@ public final class SystemKeyspace
                             DatabaseDescriptor.getStoragePort());
     }
 
-    public static void updateCompactionHistory(TimeUUID taskId,
+    // Like tracing/sampling, history is diagnostic: cap pending records rather than backpressure compactions.
+    private static final int COMPACTION_HISTORY_QUEUE_LIMIT = 1000;
+    @VisibleForTesting
+    static final CompactionHistoryWriter compactionHistoryWriter =
+        new CompactionHistoryWriter(COMPACTION_HISTORY_QUEUE_LIMIT, executorFactory().withJmxInternal().configureSequential("CompactionHistory"));
+
+    /**
+     * Enqueues a best-effort history write. Compaction completion does not imply history visibility.
+     * The returned future completes after insertion, or exceptionally on write failure or rejection
+     * (queue full or shutdown). Rejection drops history, never the compacted data.
+     */
+    public static Future<Void> updateCompactionHistory(TimeUUID taskId,
                                                String ksname,
                                                String cfname,
                                                long compactedAt,
@@ -724,17 +738,27 @@ public final class SystemKeyspace
     {
         // don't write anything when the history table itself is compacted, since that would in turn cause new compactions
         if (ksname.equals("system") && cfname.equals(COMPACTION_HISTORY))
-            return;
-        String req = "INSERT INTO system.%s (id, keyspace_name, columnfamily_name, compacted_at, bytes_in, bytes_out, rows_merged, compaction_properties) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-        executeInternal(format(req, COMPACTION_HISTORY),
-                        taskId,
-                        ksname,
-                        cfname,
-                        ByteBufferUtil.bytes(compactedAt),
-                        bytesIn,
-                        bytesOut,
-                        rowsMerged,
-                        compactionProperties);
+            return ImmediateFuture.success(null);
+
+        Map<Integer, Long> rows = ImmutableMap.copyOf(rowsMerged);
+        Map<String, String> properties = ImmutableMap.copyOf(compactionProperties);
+        return compactionHistoryWriter.submit(() -> {
+            String req = "INSERT INTO system.%s (id, keyspace_name, columnfamily_name, compacted_at, bytes_in, bytes_out, rows_merged, compaction_properties) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+            executeInternal(format(req, COMPACTION_HISTORY),
+                            taskId,
+                            ksname,
+                            cfname,
+                            ByteBufferUtil.bytes(compactedAt),
+                            bytesIn,
+                            bytesOut,
+                            rows,
+                            properties);
+        });
+    }
+
+    public static void shutdownCompactionHistoryAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
+    {
+        compactionHistoryWriter.shutdownAndWait(timeout, unit);
     }
 
     public static TabularData getCompactionHistory() throws OpenDataException
