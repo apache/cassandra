@@ -91,6 +91,9 @@ public class CassandraStreamManager implements TableStreamManager
     public Collection<OutgoingStream> createOutgoingStreams(StreamSession session, RangesAtEndpoint replicas, TimeUUID pendingRepair, PreviewKind previewKind)
     {
         Refs<SSTableReader> refs = new Refs<>();
+        // Declared outside the try so the catch can release the entire-sstable streaming status reserved by any
+        // stream already constructed before a failure, without leaking it (CASSANDRA-21520).
+        List<OutgoingStream> streams = new ArrayList<>();
         try
         {
             final List<Range<PartitionPosition>> keyRanges = new ArrayList<>(replicas.size());
@@ -142,7 +145,6 @@ public class CassandraStreamManager implements TableStreamManager
             List<Range<Token>> normalizedFullRanges = Range.normalize(replicas.onlyFull().ranges());
             List<Range<Token>> normalizedAllRanges = Range.normalize(replicas.ranges());
             //Create outgoing file streams for ranges possibly skipping repaired ranges in sstables
-            List<OutgoingStream> streams = new ArrayList<>(refs.size());
             for (SSTableReader sstable : refs)
             {
                 List<Range<Token>> ranges = sstable.isRepaired() ? normalizedFullRanges : normalizedAllRanges;
@@ -162,6 +164,10 @@ public class CassandraStreamManager implements TableStreamManager
         }
         catch (Throwable t)
         {
+            // Release the entire-sstable streaming status held by any already-constructed stream (their refs are
+            // released below via refs.release()), so a planning failure cannot leak the status (CASSANDRA-21520).
+            for (OutgoingStream stream : streams)
+                ((CassandraOutgoingFile) stream).releaseStreamRebuildStatus();
             refs.release();
             throw t;
         }

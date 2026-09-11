@@ -580,6 +580,16 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         }
     }
 
+    /**
+     * @return the shared, per-descriptor coordination status between SAI index rebuilds and entire-sstable
+     * streaming. Lock-free to read (the field is {@code final} on the shared {@code GlobalTidy}); the returned
+     * object guards its own transitions.
+     */
+    public SSTableStreamRebuildState streamRebuildState()
+    {
+        return tidy.global.streamRebuildState;
+    }
+
     public void setReplaced()
     {
         synchronized (tidy.global)
@@ -1707,6 +1717,9 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         private WeakReference<ScheduledFuture<?>> readMeterSyncFuture = NULL;
         // shared state managing if the logical sstable has been compacted; this is used in cleanup
         private volatile Runnable obsoletion;
+        // in-memory coordination between SAI index rebuilds and entire-sstable streaming for this sstable.
+        // final -> safely published; the object carries its own monitor for transitions.
+        final SSTableStreamRebuildState streamRebuildState = new SSTableStreamRebuildState();
 
         GlobalTidy(final SSTableReader reader)
         {
