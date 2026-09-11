@@ -18,6 +18,8 @@
 package org.apache.cassandra.io.sstable.format.bti;
 
 import java.io.IOException;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -216,8 +218,11 @@ public class BtiFormat extends AbstractSSTableFormat<BtiTableReader, BtiTableWri
     {
         logger.info("Deleting sstable: {}", desc);
 
-        if (components.remove(SSTableFormat.Components.DATA))
-            components.add(0, SSTableFormat.Components.DATA); // DATA component should be first
+        // delete older files first so the overall SSTable timestamp stays the same on partial deletes
+        Map<Component, Long> lastModified = new HashMap<>();
+        for (Component c : components)
+            lastModified.put(c, desc.fileFor(c).lastModified());
+        components.sort(Comparator.comparingLong(lastModified::get));
 
         for (Component component : components)
         {
