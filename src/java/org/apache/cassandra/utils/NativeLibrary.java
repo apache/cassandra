@@ -273,6 +273,44 @@ public final class NativeLibrary
         }
     }
 
+    /**
+     * Advises the kernel that this descriptor will be read sequentially; affects the open file description,
+     * so advise only an exclusively owned read fd, never one shared with random readers.
+     */
+    public static void trySetSequential(int fd, String path)
+    {
+        if (fd < 0)
+            return;
+
+        try
+        {
+            if (osType == LINUX)
+            {
+                int result = wrappedLibrary.callPosixFadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL);
+                if (result != 0)
+                    NoSpamLogger.log(
+                            logger,
+                            NoSpamLogger.Level.WARN,
+                            10,
+                            TimeUnit.MINUTES,
+                            "Failed trySetSequential on file: {} Error: " + wrappedLibrary.callStrerror(result).getString(0),
+                            path);
+            }
+        }
+        catch (UnsatisfiedLinkError e)
+        {
+            // if JNA is unavailable just skipping
+        }
+        catch (RuntimeException e)
+        {
+            if (!(e instanceof LastErrorException))
+                throw e;
+
+            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 10, TimeUnit.MINUTES,
+                             "posix_fadvise({}, SEQUENTIAL) failed, errno ({}).", fd, errno(e));
+        }
+    }
+
     public static int tryFcntl(int fd, int command, int flags)
     {
         // fcntl return value may or may not be useful, depending on the command
