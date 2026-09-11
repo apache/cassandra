@@ -176,7 +176,7 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
             addAll(logOffsets.mutations());
             ActivatedTransfers newTransfers = logOffsets.transfers();
             if (transfers == null)
-                transfers = newTransfers;
+                transfers = ActivatedTransfers.copyOf(newTransfers);
             else
                 transfers.addAll(newTransfers);
             return this;
@@ -204,7 +204,7 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
             if (other.isEmpty())
                 return this;
             if (transfers == null)
-                transfers = other;
+                transfers = ActivatedTransfers.copyOf(other);
             else
                 transfers.addAll(other);
             return this;
