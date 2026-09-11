@@ -42,6 +42,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.SerializationHelper;
 import org.apache.cassandra.db.rows.UnfilteredSerializer;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.ReusableDecoratedKey;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SortedTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -148,6 +149,10 @@ public class SSTableCursorWriter implements AutoCloseable
     // Format-specific index production. BIG writes promoted blocks, Index.db, a bloom filter and a
     // summary.
     private final CursorIndexWriter cursorIndexWriter;
+    // The last key written, copied in per partition. It is the underlying writer's last key, so an
+    // sstable opened early at a writer switch carries real bounds. Whatever keeps it past the next
+    // partition takes retainable(), which copies it.
+    private final ReusableDecoratedKey lastKey;
 
     private SSTableCursorWriter(
         Descriptor desc,
@@ -167,6 +172,7 @@ public class SSTableCursorWriter implements AutoCloseable
         staticColumns = hasStaticColumns ? serializationHeader.columns(true).toArray(EMPTY_COL_META) : EMPTY_COL_META;
         regularColumns = serializationHeader.columns(false).toArray(EMPTY_COL_META);
         this.cursorIndexWriter = ssTableWriter.newCursorIndexWriter(serializationHeader);
+        this.lastKey = ssTableWriter.getPartitioner().createReusableKey(0);
         // Same two conditions SortedTableWriter settles once, in its own constructor and in
         // guardCollectionSize: both guardrails off, or a system keyspace.
         this.collectionGuardsDisabled =
@@ -234,19 +240,17 @@ public class SSTableCursorWriter implements AutoCloseable
         addPartitionMetadata(partitionKey, partitionKeyLength, partitionSize, partitionDeletionTime);
 
         // Per partition, not once at rollover: BigTableWriter.openInternal reads this field, so an sstable
-        // opened early at a writer switch would otherwise carry a stale last.
-        DecoratedKey detachedKey = detachKey(partitionKey, partitionKeyLength);
-        ssTableWriter.setLast(detachedKey);
+        // opened early at a writer switch would otherwise carry a stale last. The copy is into the
+        // reusable key, not a new one; the readers of last take retainable() when they keep it.
+        lastKey.copyKey(partitionKey, partitionKeyLength);
+        ssTableWriter.setLast(lastKey);
 
         /** {@link SortedTableWriter#endPartition(DecoratedKey, DeletionTime)}
          lastWrittenKey = key; // tracked for verification, see {@link SortedTableWriter#verifyPartition(DecoratedKey)}, checking the key size and sorting
          // this is implemented differently for BIG/BTI
          createRowIndexEntry(key, partitionLevelDeletion, partitionEnd - 1);
          */
-        // IndexSummaryBuilder.maybeAddEntry calls DecoratedKey.retainable(), which copies the key bytes
-        // but keeps the caller's Token. ReusableDecoratedKey.recalculateToken moves that token every
-        // partition.
-        cursorIndexWriter.endPartition(detachedKey, partitionKey, partitionKeyLength, headerLength, partitionDeletionTime, partitionEnd, lastName);
+        cursorIndexWriter.endPartition(lastKey, partitionKey, partitionKeyLength, headerLength, partitionDeletionTime, partitionEnd, lastName);
     }
 
 
@@ -926,15 +930,6 @@ public class SSTableCursorWriter implements AutoCloseable
     {
         IPartitioner partitioner = ssTableWriter.getPartitioner();
         ssTableWriter.setLast(partitioner.decorateKey(ByteBufferUtil.clone(key)));
-    }
-
-    /**
-     * @return a copy of the key, safe for anything that retains it. The array is the cursor's own,
-     *         and the next partition overwrites it.
-     */
-    private DecoratedKey detachKey(byte[] key, int length)
-    {
-        return ssTableWriter.getPartitioner().decorateKey(ByteBuffer.wrap(Arrays.copyOf(key, length)));
     }
 
     public void setFirst(ByteBuffer key)

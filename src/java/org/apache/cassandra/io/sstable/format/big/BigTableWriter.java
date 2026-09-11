@@ -108,8 +108,7 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
      * would cache a full one. Both find the same rows; the shallow one reads its index blocks from
      * Index.db on a hit.
      *
-     * @param key a key the caller does not reuse. It becomes a key of this sstable's key cache, so a
-     *            key whose bytes are later overwritten resolves a hit to another partition's data.
+     * @param key the partition's key; may be a reusable instance, the cache keeps a retainable copy
      */
     public void maybeCacheKey(DecoratedKey key, long dataFilePosition, long indexFilePosition,
                               DeletionTime partitionLevelDeletion, long headerLength,
@@ -118,9 +117,7 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
         if (!shouldCacheKey(key))
             return;
 
-        // cachedKeys retains the key, so it must be a copy.
-        // SSTableCursorWriter.writePartitionEnd passes one.
-        cachedKeys.put(key, RowIndexEntry.create(dataFilePosition,
+        cachedKeys.put(key.retainable(), RowIndexEntry.create(dataFilePosition,
                                                  indexFilePosition,
                                                  partitionLevelDeletion,
                                                  headerLength,

@@ -125,8 +125,8 @@ public class BtiCursorIndexWriter extends CursorIndexWriter
         TrieIndexEntry entry = TrieIndexEntry.create(partitionStart, trieRoot,
                                                      partitionDeletionTime, rowIndexBlockCount);
         // PartitionIndexBuilder keeps the previous key to compute the next separator, so the key must be
-        // a copy. SSTableCursorWriter.writePartitionEnd passes one.
-        indexWriter.append(key, entry);
+        // a copy. The iterator path pays the same one for its merge key.
+        indexWriter.append(key.retainable(), entry);
     }
 
     @Override
