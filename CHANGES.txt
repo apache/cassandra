@@ -27,6 +27,7 @@
  * Make cqlsh prompt to reset to no keyspace set by USE after dropping that keyspace (CASSANDRA-21548)
  * Implement CMS rediscovery and recovery protocol (CASSANDRA-20476)
 Merged from 5.0:
+ * Failed force repair should clear force repair flag (CASSANDRA-21663)
  * Fix concurrent SAI vector inserts failing once jvector's per-graph pool limit is exceeded (CASSANDRA-21644)
  * Let the commit log allocator observe the shutdown state (CASSANDRA-21616)
  * Unwrap LongType properly when calculating min/max terms in V1SSTableIndex (CASSANDRA-21635)
