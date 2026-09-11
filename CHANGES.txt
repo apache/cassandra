@@ -1,4 +1,5 @@
 7.0
+ * Clean all requested SSTables when user-defined cleanup targets multiple files in one table (CASSANDRA-16772)
  * Allow CQLSSTableWriter to specify SSTable id generator to use (CASSANDRA-21012)
  * Reject LIKE patterns with a wildcard (%) anywhere other than the start or end (CASSANDRA-21068)
  * Support pluggable default role initialization (CASSANDRA-21546)
