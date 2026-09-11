@@ -109,6 +109,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SIMULATOR_SEED;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.harry.model.TokenPlacementModel.constantLookup;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.UNLIMITED;
@@ -581,7 +582,8 @@ public class HarrySimulatorTest implements Runnable
             HarrySimulationBuilder factory = new HarrySimulationBuilder(instanceConfigUpdater);
 
             SimulationRunner.beforeAll();
-            long seed = SimulationRunner.parseHex(Optional.ofNullable(this.seed)).orElseGet(() -> new Random().nextLong());
+            long seed = SimulationRunner.parseHex(Optional.ofNullable(this.seed))
+                                        .orElseGet(() -> SIMULATOR_SEED.isPresent() ? SimulationRunner.parseSeed(SIMULATOR_SEED.getString()) : new Random().nextLong());
             logger.info("Seed 0x{}", Long.toHexString(seed));
             configure.accept(factory);
             try (ClusterSimulation<HarrySimulation> clusterSimulation = factory.create(seed))

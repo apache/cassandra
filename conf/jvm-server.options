@@ -25,7 +25,7 @@
 # - only static flags are accepted (no variables or parameters)           #
 # - dynamic flags will be appended to these on cassandra-env              #
 #                                                                         #
-# See jvm11-server.options and jvm17-server.options for Java version       #
+# See jvm11/jvm17/jvm21/jvm25-server.options for Java version              #
 # specific options.                                                       #
 ###########################################################################
 
@@ -95,6 +95,15 @@
 
 # Set the default location for the trigger JARs. (Default: conf/triggers)
 #-Dcassandra.triggers_dir=directory
+
+# Select the sandbox for user-defined functions (UDFs).
+# Valid values are auto (default), sandbox, and securitymanager.
+# The auto setting uses the Java security manager based sandbox before Java Development Kit (JDK) 24.
+# It uses the bytecode sandbox on JDK 24 and later.
+# The sandbox setting uses the bytecode sandbox on every supported JDK.
+# The securitymanager setting requires the Java security manager based sandbox.
+# Startup fails if the runtime cannot install the security manager.
+#-Dcassandra.udf.security_mechanism=auto
 
 # For testing new compaction and compression strategies. It allows you to experiment with different
 # strategies and benchmark write performance differences without affecting the production workload. 

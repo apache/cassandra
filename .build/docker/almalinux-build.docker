@@ -39,7 +39,7 @@ RUN echo "Building with arguments:" \
 # install deps
 RUN yum -y install \
     ant git make rpm-build sudo python3-pip procps \
-    java-11-openjdk-devel java-17-openjdk-devel java-21-openjdk-devel \
+    java-11-openjdk-devel java-17-openjdk-devel java-21-openjdk-devel java-25-openjdk-devel \
     rsync wget curl \
    && yum clean all && rm -rf /var/cache/yum /var/cache/dnf
 

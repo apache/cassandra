@@ -19,7 +19,6 @@
 package org.apache.cassandra.tools;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 
 import org.apache.cassandra.utils.ReflectionUtils;
 
@@ -40,13 +39,8 @@ public class FieldUtil
     private static void setInstanceUnsafeThrowing(Class<?> klass, Object v, String fieldName) throws Throwable
     {
         Field field = ReflectionUtils.getField(klass, fieldName);
-        field.setAccessible(true);
-
-        Field modifiers = ReflectionUtils.getModifiersField();
-        modifiers.setAccessible(true);
-        modifiers.setInt(field, field.getModifiers() & ~Modifier.FINAL);
-
-        field.set(null, v);
+        // JDK 22+ requires Unsafe to write a final static field.
+        ReflectionUtils.writeField(null, field, v);
     }
 
     public static void transferFields(Object sourceInstance, Class<?> klass)

@@ -35,8 +35,10 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.simulator.AlwaysDeliverNetworkScheduler;
 import org.apache.cassandra.simulator.ClusterSimulation;
 import org.apache.cassandra.simulator.FutureActionScheduler;
+import org.apache.cassandra.simulator.SimulationRunner;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SIMULATOR_SEED;
 
 /**
  * In order to run these tests in your IDE, you need to first build a simulator jara
@@ -125,21 +127,26 @@ public class SingleNodeSingleTableASTTest extends SimulationTestBase
     public void normal() throws IOException
     {
 //        testOne(SimulationRunner.parseHex("0x2fd91c2a2be59d7d"), SingleTableASTSimulation::new);
-        testOne(SeedProvider.instance.nextSeed(), SingleTableASTSimulation::new);
+        testOne(seed(),SingleTableASTSimulation::new);
     }
 
     @Test
     public void accordFull() throws IOException
     {
 //        testOne(SimulationRunner.parseHex("0xd72a3d79134c4dbb"), SingleTableASTSimulation.FullAccordSingleTableASTSimulation::new);
-        testOne(SeedProvider.instance.nextSeed(), SingleTableASTSimulation.FullAccordSingleTableASTSimulation::new);
+        testOne(seed(),SingleTableASTSimulation.FullAccordSingleTableASTSimulation::new);
     }
 
     @Test
     public void accordMixedReads() throws IOException
     {
 //        testOne(SimulationRunner.parseHex("0x2fd91c2a2be59d7d"), SingleTableASTSimulation.MixedReadsAccordSingleTableASTSimulation::new);
-        testOne(SeedProvider.instance.nextSeed(), SingleTableASTSimulation.MixedReadsAccordSingleTableASTSimulation::new);
+        testOne(seed(),SingleTableASTSimulation.MixedReadsAccordSingleTableASTSimulation::new);
+    }
+
+    private static long seed()
+    {
+        return SIMULATOR_SEED.isPresent() ? SimulationRunner.parseSeed(SIMULATOR_SEED.getString()) : SeedProvider.instance.nextSeed();
     }
 
     private void testOne(long seed, ClusterSimulation.SimulationFactory<SingleTableASTSimulation> factory) throws IOException

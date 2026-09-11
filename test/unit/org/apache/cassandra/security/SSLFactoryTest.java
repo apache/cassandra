@@ -84,7 +84,7 @@ public class SSLFactoryTest
         encryptionOptions = new Builder().withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PATH)
                                          .withTrustStorePassword(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD)
                                          .withRequireClientAuth(NOT_REQUIRED)
-                                         .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA")
+                                         .withCipherSuites("TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256")
                                          .withSslContextFactory(new ParameterizedClass(TestFileBasedSSLContextFactory.class.getName(),
                                                                                        new HashMap<>()))
                                          .build();
@@ -352,7 +352,7 @@ public class SSLFactoryTest
         EncryptionOptions.ClientEncryptionOptions encryptionOptions1 =
         new EncryptionOptions.ClientEncryptionOptions.Builder()
         .withSslContextFactory(new ParameterizedClass(DummySslContextFactoryImpl.class.getName(), parameters1))
-        .withProtocol("TLSv1.1")
+        .withProtocol("TLSv1.2")
         .withRequireClientAuth(REQUIRED)
         .withRequireEndpointVerification(false)
         .build();
@@ -366,7 +366,7 @@ public class SSLFactoryTest
         EncryptionOptions.ClientEncryptionOptions encryptionOptions2 =
         new EncryptionOptions.ClientEncryptionOptions.Builder()
         .withSslContextFactory(new ParameterizedClass(DummySslContextFactoryImpl.class.getName(), parameters2))
-        .withProtocol("TLSv1.1")
+        .withProtocol("TLSv1.2")
         .withRequireClientAuth(REQUIRED)
         .withRequireEndpointVerification(false)
         .build();
@@ -387,7 +387,7 @@ public class SSLFactoryTest
         EncryptionOptions.ClientEncryptionOptions encryptionOptions1 =
         new EncryptionOptions.ClientEncryptionOptions.Builder()
         .withSslContextFactory(new ParameterizedClass(DummySslContextFactoryImpl.class.getName(), parameters1))
-        .withProtocol("TLSv1.1")
+        .withProtocol("TLSv1.2")
         .build();
 
         SSLFactory.CacheKey cacheKey1 = new SSLFactory.CacheKey(encryptionOptions1, ISslContextFactory.SocketType.SERVER, "test"
@@ -399,7 +399,7 @@ public class SSLFactoryTest
         EncryptionOptions.ClientEncryptionOptions encryptionOptions2 =
         new EncryptionOptions.ClientEncryptionOptions.Builder()
         .withSslContextFactory(new ParameterizedClass(DummySslContextFactoryImpl.class.getName(), parameters2))
-        .withProtocol("TLSv1.1")
+        .withProtocol("TLSv1.2")
         .build();
 
         SSLFactory.CacheKey cacheKey2 = new SSLFactory.CacheKey(encryptionOptions2, ISslContextFactory.SocketType.SERVER, "test"

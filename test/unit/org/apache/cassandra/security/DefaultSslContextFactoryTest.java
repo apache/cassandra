@@ -53,7 +53,7 @@ public class DefaultSslContextFactoryTest
         commonConfig.put("truststore", TlsTestUtils.SERVER_TRUSTSTORE_PATH);
         commonConfig.put("truststore_password", TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD);
         commonConfig.put("require_client_auth", "false");
-        commonConfig.put("cipher_suites", Arrays.asList("TLS_RSA_WITH_AES_128_CBC_SHA"));
+        commonConfig.put("cipher_suites", Arrays.asList("TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"));
     }
 
     private void addKeystoreOptions(Map<String, Object> config)
@@ -80,7 +80,7 @@ public class DefaultSslContextFactoryTest
                                                             .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH)
                                                             .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
                                                             .withRequireClientAuth(NOT_REQUIRED)
-                                                            .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA")
+                                                            .withCipherSuites("TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256")
                                                             .build();
 
         SslContext sslContext = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");

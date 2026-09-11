@@ -99,6 +99,7 @@ import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.ReplicaGroups;
+import org.apache.cassandra.tools.SystemExitManager;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Isolated;
 import org.apache.cassandra.utils.Shared;
@@ -1653,7 +1654,12 @@ public class ClusterUtils
 
     public static void preventSystemExit()
     {
-        System.setSecurityManager(new PreventSystemExit());
+        SystemExitManager.blockExit();
+    }
+
+    public static void allowSystemExit()
+    {
+        SystemExitManager.reset();
     }
 
     public static void awaitInPeers(Cluster cluster, int[] nodes, IInstance expectedInPeers)

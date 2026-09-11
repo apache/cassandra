@@ -49,7 +49,7 @@ public class EncryptionOptionsEqualityTest
                .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
                .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PATH)
                .withTrustStorePassword(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD)
-               .withProtocol("TLSv1.1")
+               .withProtocol("TLSv1.2")
                .withRequireClientAuth(REQUIRED)
                .withRequireEndpointVerification(false)
                .build();
@@ -64,7 +64,7 @@ public class EncryptionOptionsEqualityTest
         .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
         .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PATH)
         .withTrustStorePassword(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD)
-        .withProtocol("TLSv1.1")
+        .withProtocol("TLSv1.2")
         .withRequireClientAuth(REQUIRED)
         .withRequireEndpointVerification(false)
         .build();
@@ -76,7 +76,7 @@ public class EncryptionOptionsEqualityTest
         .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
         .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PATH)
         .withTrustStorePassword(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD)
-        .withProtocol("TLSv1.1")
+        .withProtocol("TLSv1.2")
         .withRequireClientAuth(REQUIRED)
         .withRequireEndpointVerification(false)
         .build();
@@ -94,7 +94,7 @@ public class EncryptionOptionsEqualityTest
         .withKeyStorePasswordFile(TlsTestUtils.SERVER_KEYSTORE_PASSWORD_FILE)
         .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PATH)
         .withTrustStorePasswordFile(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD_FILE)
-        .withProtocol("TLSv1.1")
+        .withProtocol("TLSv1.2")
         .withRequireClientAuth(REQUIRED)
         .withRequireEndpointVerification(false)
         .build();
@@ -106,7 +106,7 @@ public class EncryptionOptionsEqualityTest
         .withKeyStorePasswordFile(TlsTestUtils.SERVER_KEYSTORE_PASSWORD_FILE)
         .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PATH)
         .withTrustStorePasswordFile(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD_FILE)
-        .withProtocol("TLSv1.1")
+        .withProtocol("TLSv1.2")
         .withRequireClientAuth(REQUIRED)
         .withRequireEndpointVerification(false)
         .build();
@@ -146,7 +146,7 @@ public class EncryptionOptionsEqualityTest
         EncryptionOptions.ClientEncryptionOptions encryptionOptions1 =
         new EncryptionOptions.ClientEncryptionOptions.Builder()
         .withSslContextFactory(new ParameterizedClass(DummySslContextFactoryImpl.class.getName(), parameters1))
-        .withProtocol("TLSv1.1")
+        .withProtocol("TLSv1.2")
         .withRequireClientAuth(REQUIRED)
         .withRequireEndpointVerification(false)
         .build();
@@ -157,7 +157,7 @@ public class EncryptionOptionsEqualityTest
         EncryptionOptions.ClientEncryptionOptions encryptionOptions2 =
         new EncryptionOptions.ClientEncryptionOptions.Builder()
         .withSslContextFactory(new ParameterizedClass(DummySslContextFactoryImpl.class.getName(), parameters2))
-        .withProtocol("TLSv1.1")
+        .withProtocol("TLSv1.2")
         .withRequireClientAuth(REQUIRED)
         .withRequireEndpointVerification(false)
         .build();
@@ -175,7 +175,7 @@ public class EncryptionOptionsEqualityTest
         EncryptionOptions.ClientEncryptionOptions encryptionOptions1 =
         new EncryptionOptions.ClientEncryptionOptions.Builder()
         .withSslContextFactory(new ParameterizedClass(DummySslContextFactoryImpl.class.getName(), parameters1))
-        .withProtocol("TLSv1.1")
+        .withProtocol("TLSv1.2")
         .withRequireClientAuth(NOT_REQUIRED)
         .withRequireEndpointVerification(true)
         .build();
@@ -186,7 +186,7 @@ public class EncryptionOptionsEqualityTest
         EncryptionOptions.ClientEncryptionOptions encryptionOptions2 =
         new EncryptionOptions.ClientEncryptionOptions.Builder()
         .withSslContextFactory(new ParameterizedClass(DefaultSslContextFactory.class.getName(), parameters2))
-        .withProtocol("TLSv1.1")
+        .withProtocol("TLSv1.2")
         .withRequireClientAuth(NOT_REQUIRED)
         .withRequireEndpointVerification(true)
         .build();
@@ -204,7 +204,7 @@ public class EncryptionOptionsEqualityTest
         EncryptionOptions.ClientEncryptionOptions encryptionOptions1 =
         new EncryptionOptions.ClientEncryptionOptions.Builder()
         .withSslContextFactory(new ParameterizedClass(DummySslContextFactoryImpl.class.getName(), parameters1))
-        .withProtocol("TLSv1.1")
+        .withProtocol("TLSv1.2")
         .build();
 
         Map<String,String> parameters2 = new HashMap<>();
@@ -213,7 +213,7 @@ public class EncryptionOptionsEqualityTest
         EncryptionOptions.ClientEncryptionOptions encryptionOptions2 =
         new EncryptionOptions.ClientEncryptionOptions.Builder()
         .withSslContextFactory(new ParameterizedClass(DummySslContextFactoryImpl.class.getName(), parameters2))
-        .withProtocol("TLSv1.1")
+        .withProtocol("TLSv1.2")
         .build();
 
         assertNotEquals(encryptionOptions1, encryptionOptions2);

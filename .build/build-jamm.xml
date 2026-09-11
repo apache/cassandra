@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one
+  or more contributor license agreements.  See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.  The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<project basedir=".." name="apache-cassandra-jamm-build"
+         xmlns:resolver="antlib:org.apache.maven.resolver.ant"
+         xmlns:if="ant:if">
+    <target name="_build-jamm" depends="resolver-init" unless="no-build-jamm">
+      <!-- modules/jamm provides JDK 25 memory sizing without the UseEmptySlotsInSupers VM option.
+           It is compiled with the JDK building Cassandra and installed in the local Maven repository as
+           org.apache.cassandra:cassandra-jamm:${version} for the parent POM. -->
+      <property name="jamm.build.dir" location="${basedir}/${jamm.dir}/build"/>
+      <property name="jamm.build.classes" location="${jamm.build.dir}/classes"/>
+      <delete dir="${jamm.build.dir}" quiet="true"/>
+      <mkdir dir="${jamm.build.classes}"/>
+      <javac srcdir="${basedir}/${jamm.dir}/src" destdir="${jamm.build.classes}"
+             includeantruntime="false" encoding="utf-8" debug="true"
+             source="${ant.java.version}" target="${ant.java.version}">
+        <!-- jamm references sun.misc.Unsafe; allow it like the main build does -->
+        <compilerarg value="-XDignore.symbol.file"/>
+        <compilerarg line="${jdk11plus-javac-exports}"/>
+        <!-- jamm has no annotation processors; do not require -proc:full on JDK 23+ -->
+        <compilerarg value="-proc:none"/>
+      </javac>
+      <jar destfile="${jamm.build.dir}/${jamm.final.name}.jar" basedir="${jamm.build.classes}">
+        <manifest>
+          <attribute name="Premain-Class" value="org.github.jamm.MemoryMeter"/>
+        </manifest>
+      </jar>
+      <!-- Minimal pom so the artifact installs under the Cassandra coordinates. jamm has no runtime deps. -->
+      <echo file="${jamm.build.dir}/${jamm.final.name}.pom">&lt;project xmlns="http://maven.apache.org/POM/4.0.0"&gt;
+  &lt;modelVersion&gt;4.0.0&lt;/modelVersion&gt;
+  &lt;groupId&gt;org.apache.cassandra&lt;/groupId&gt;
+  &lt;artifactId&gt;cassandra-jamm&lt;/artifactId&gt;
+  &lt;version&gt;${version}&lt;/version&gt;
+  &lt;packaging&gt;jar&lt;/packaging&gt;
+&lt;/project&gt;
+</echo>
+      <!-- install to the local Maven repository (aether install, no mvn needed; handles snapshot metadata) -->
+      <resolver:install>
+        <resolver:pom file="${jamm.build.dir}/${jamm.final.name}.pom"/>
+        <resolver:artifact file="${jamm.build.dir}/${jamm.final.name}.jar" type="jar"/>
+      </resolver:install>
+      <!-- Remove a resolved jamm jar so the resolver copies the installed jar. -->
+      <delete>
+        <fileset dir="${build.dir.lib}/jars" includes="cassandra-jamm-*.jar" erroronmissingdir="false"/>
+      </delete>
+    </target>
+</project>

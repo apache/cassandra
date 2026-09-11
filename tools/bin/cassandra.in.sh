@@ -85,7 +85,7 @@ if [ -z $JAVA ] ; then
 fi
 
 # Matches variable 'java.supported' in build.xml
-java_versions_supported="11 17 21"
+java_versions_supported="11 17 21 25"
 java_version_string=$(IFS=" "; echo "${java_versions_supported}")
 
 # Determine the sort of JVM we'll be running on.
@@ -113,7 +113,9 @@ fi
 
 # Read user-defined JVM options from jvm-server.options file
 JVM_OPTS_FILE=$CASSANDRA_CONF/jvm${jvmoptions_variant:--clients}.options
-if [ $JAVA_VERSION -ge 21 ] ; then
+if [ $JAVA_VERSION -ge 25 ] ; then
+    JVM_DEP_OPTS_FILE=$CASSANDRA_CONF/jvm25${jvmoptions_variant:--clients}.options
+elif [ $JAVA_VERSION -ge 21 ] ; then
     JVM_DEP_OPTS_FILE=$CASSANDRA_CONF/jvm21${jvmoptions_variant:--clients}.options
 elif [ $JAVA_VERSION -ge 17 ] ; then
     JVM_DEP_OPTS_FILE=$CASSANDRA_CONF/jvm17${jvmoptions_variant:--clients}.options

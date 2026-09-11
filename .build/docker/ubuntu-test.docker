@@ -75,6 +75,21 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
         openjdk-8-jdk openjdk-11-jdk openjdk-17-jdk openjdk-21-jdk ant ant-optional \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Ubuntu 22.04 does not provide OpenJDK 25. Install the GA tarball for x64 or aarch64 and verify its SHA256.
+RUN sh -c '\
+  set -ex ;\
+    JDK_OS=linux ;\
+    JDK_TAR="openjdk-25.0.2_${JDK_OS}-$(uname -m | sed "s/x86_64/x64/")_bin.tar.gz" ;\
+    JDK_VERSION_SHAS="555ce0821e4fe175ea50d54518cd6fbece9663c1998de529bc6ce429534457df 671208d205e70c9805da45a483f670d49dd64654990a7b7223ccffb2abb070dd" ;\
+    curl -L --fail --silent --retry 2 --retry-delay 5 --max-time 3600 "https://download.java.net/java/GA/jdk25.0.2/b1e0dfa218384cb9959bdcb897162d4e/10/GPL/${JDK_TAR}" -o $JDK_TAR ;\
+    JDK_SHA="$(sha256sum $JDK_TAR | cut -d" " -f1)" ;\
+    echo "$JDK_VERSION_SHAS" | sed "s/ /\n/g" | grep -q "$JDK_SHA" || { echo "SHA256 mismatch for $JDK_TAR $JDK_SHA"; exit 1; } ;\
+    mkdir -p /usr/lib/jvm/java-25-openjdk-$(dpkg --print-architecture) ;\
+    tar -C /usr/lib/jvm/java-25-openjdk-$(dpkg --print-architecture) --strip-components=1 -xzf $JDK_TAR ;\
+    rm $JDK_TAR'
+RUN update-alternatives --install /usr/bin/java java /usr/lib/jvm/java-25-openjdk-$(dpkg --print-architecture)/bin/java 1
+RUN update-alternatives --install /usr/bin/javac javac /usr/lib/jvm/java-25-openjdk-$(dpkg --print-architecture)/bin/javac 1
+
 RUN update-alternatives --remove java /usr/lib/jvm/java-8-openjdk-$(dpkg --print-architecture)/jre/bin/java
 RUN update-alternatives --install /usr/bin/java java /usr/lib/jvm/java-8-openjdk-$(dpkg --print-architecture)/bin/java 1081
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.8 1

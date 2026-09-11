@@ -18,7 +18,6 @@
 package org.apache.cassandra.net;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -546,11 +545,7 @@ public enum Verb
     {
         Supplier<? extends IVerbHandler<?>> original = this.handler;
         Field field = Verb.class.getDeclaredField("handler");
-        field.setAccessible(true);
-        Field modifiers = ReflectionUtils.getModifiersField();
-        modifiers.setAccessible(true);
-        modifiers.setInt(field, field.getModifiers() & ~Modifier.FINAL);
-        field.set(this, handler);
+        ReflectionUtils.writeField(this, field, handler);
         return original;
     }
 
@@ -559,11 +554,7 @@ public enum Verb
     {
         Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> original = this.serializer;
         Field field = Verb.class.getDeclaredField("serializer");
-        field.setAccessible(true);
-        Field modifiers = ReflectionUtils.getModifiersField();
-        modifiers.setAccessible(true);
-        modifiers.setInt(field, field.getModifiers() & ~Modifier.FINAL);
-        field.set(this, serializer);
+        ReflectionUtils.writeField(this, field, serializer);
         return original;
     }
 
@@ -572,11 +563,7 @@ public enum Verb
     {
         ToLongFunction<TimeUnit> original = this.expiration;
         Field field = Verb.class.getDeclaredField("expiration");
-        field.setAccessible(true);
-        Field modifiers = ReflectionUtils.getModifiersField();
-        modifiers.setAccessible(true);
-        modifiers.setInt(field, field.getModifiers() & ~Modifier.FINAL);
-        field.set(this, expiration);
+        ReflectionUtils.writeField(this, field, expiration);
         return original;
     }
 
