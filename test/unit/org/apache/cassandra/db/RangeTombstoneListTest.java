@@ -19,9 +19,11 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Random;
-import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -32,17 +34,15 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.distributed.shared.ThrowingRunnable;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class RangeTombstoneListTest
 {
@@ -51,20 +51,13 @@ public class RangeTombstoneListTest
     @BeforeClass
     public static void beforeClass()
     {
-        // Needed to initialize initial_range_tombstone_allocation_size and range_tombstone_resize_factor
         DatabaseDescriptor.daemonInitialization();
     }
 
     @Test
     public void sortedAdditionTest()
     {
-        sortedAdditionTest(0);
-        sortedAdditionTest(10);
-    }
-
-    private void sortedAdditionTest(int initialCapacity)
-    {
-        RangeTombstoneList l = new RangeTombstoneList(cmp, initialCapacity);
+        RangeTombstoneList l = new RangeTombstoneList(cmp);
         RangeTombstone rt1 = rt(1, 5, 3);
         RangeTombstone rt2 = rt(7, 10, 2);
         RangeTombstone rt3 = rt(10, 13, 1);
@@ -89,7 +82,7 @@ public class RangeTombstoneListTest
         assertFalse(dt.validate());
 
         // use the invalid deletion time for a range tombstone and aggregate it
-        RangeTombstoneList rtl = new RangeTombstoneList(null, 1);
+        RangeTombstoneList rtl = new RangeTombstoneList(null);
         rtl.add(new RangeTombstone(Slice.ALL, dt));
 
         // undo the aggregation and see if the deletion time is still invalid
@@ -101,13 +94,7 @@ public class RangeTombstoneListTest
     @Test
     public void nonSortedAdditionTest()
     {
-        nonSortedAdditionTest(0);
-        nonSortedAdditionTest(10);
-    }
-
-    private void nonSortedAdditionTest(int initialCapacity)
-    {
-        RangeTombstoneList l = new RangeTombstoneList(cmp, initialCapacity);
+        RangeTombstoneList l = new RangeTombstoneList(cmp);
         RangeTombstone rt1 = rt(1, 5, 3);
         RangeTombstone rt2 = rt(7, 10, 2);
         RangeTombstone rt3 = rt(10, 13, 1);
@@ -127,13 +114,7 @@ public class RangeTombstoneListTest
     @Test
     public void overlappingAdditionTest()
     {
-        overlappingAdditionTest(0);
-        overlappingAdditionTest(10);
-    }
-
-    private void overlappingAdditionTest(int initialCapacity)
-    {
-        RangeTombstoneList l = new RangeTombstoneList(cmp, initialCapacity);
+        RangeTombstoneList l = new RangeTombstoneList(cmp);
 
         l.add(rt(4, 10, 3));
         l.add(rt(1, 7, 2));
@@ -148,7 +129,7 @@ public class RangeTombstoneListTest
         assertRT(rtei(13, 15, 1), iter.next());
         assert !iter.hasNext();
 
-        RangeTombstoneList l2 = new RangeTombstoneList(cmp, initialCapacity);
+        RangeTombstoneList l2 = new RangeTombstoneList(cmp);
         l2.add(rt(4, 10, 12L));
         l2.add(rt(0, 8, 25L));
 
@@ -160,7 +141,7 @@ public class RangeTombstoneListTest
     {
         int N = 3000;
         // Test that the StackOverflow from #6181 is fixed
-        RangeTombstoneList l = new RangeTombstoneList(cmp, N);
+        RangeTombstoneList l = new RangeTombstoneList(cmp);
         for (int i = 0; i < N; i++)
             l.add(rt(2*i+1, 2*i+2, 1));
         assertEquals(l.size(), N);
@@ -171,7 +152,7 @@ public class RangeTombstoneListTest
     @Test
     public void simpleOverlapTest()
     {
-        RangeTombstoneList l1 = new RangeTombstoneList(cmp, 0);
+        RangeTombstoneList l1 = new RangeTombstoneList(cmp);
         l1.add(rt(0, 10, 3));
         l1.add(rt(3, 7, 5));
 
@@ -181,7 +162,7 @@ public class RangeTombstoneListTest
         assertRT(rtei(7, 10, 3), iter1.next());
         assert !iter1.hasNext();
 
-        RangeTombstoneList l2 = new RangeTombstoneList(cmp, 0);
+        RangeTombstoneList l2 = new RangeTombstoneList(cmp);
         l2.add(rt(0, 10, 3));
         l2.add(rt(3, 7, 2));
 
@@ -193,7 +174,7 @@ public class RangeTombstoneListTest
     @Test
     public void overlappingPreviousEndEqualsStartTest()
     {
-        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+        RangeTombstoneList l = new RangeTombstoneList(cmp);
         // add a RangeTombstone, so, last insert is not in insertion order
         l.add(rt(11, 12, 2));
         l.add(rt(1, 4, 2));
@@ -208,7 +189,7 @@ public class RangeTombstoneListTest
     @Test
     public void searchTest()
     {
-        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+        RangeTombstoneList l = new RangeTombstoneList(cmp);
         l.add(rt(0, 4, 5));
         l.add(rt(4, 6, 2));
         l.add(rt(9, 12, 1));
@@ -234,12 +215,12 @@ public class RangeTombstoneListTest
     @Test
     public void addAllTest()
     {
-        RangeTombstoneList l1 = new RangeTombstoneList(cmp, 0);
+        RangeTombstoneList l1 = new RangeTombstoneList(cmp);
         l1.add(rt(0, 4, 5));
         l1.add(rt(6, 10, 2));
         l1.add(rt(15, 17, 1));
 
-        RangeTombstoneList l2 = new RangeTombstoneList(cmp, 0);
+        RangeTombstoneList l2 = new RangeTombstoneList(cmp);
         l2.add(rt(3, 5, 7));
         l2.add(rt(7, 8, 3));
         l2.add(rt(8, 12, 1));
@@ -262,10 +243,10 @@ public class RangeTombstoneListTest
     @Test
     public void addAllSequentialTest()
     {
-        RangeTombstoneList l1 = new RangeTombstoneList(cmp, 0);
+        RangeTombstoneList l1 = new RangeTombstoneList(cmp);
         l1.add(rt(3, 5, 2));
 
-        RangeTombstoneList l2 = new RangeTombstoneList(cmp, 0);
+        RangeTombstoneList l2 = new RangeTombstoneList(cmp);
         l2.add(rt(5, 7, 7));
 
         l1.addAll(l2);
@@ -280,10 +261,10 @@ public class RangeTombstoneListTest
     @Test
     public void addAllIncludedTest()
     {
-        RangeTombstoneList l1 = new RangeTombstoneList(cmp, 0);
+        RangeTombstoneList l1 = new RangeTombstoneList(cmp);
         l1.add(rt(3, 10, 5));
 
-        RangeTombstoneList l2 = new RangeTombstoneList(cmp, 0);
+        RangeTombstoneList l2 = new RangeTombstoneList(cmp);
         l2.add(rt(4, 5, 2));
         l2.add(rt(5, 7, 3));
         l2.add(rt(7, 9, 4));
@@ -307,7 +288,7 @@ public class RangeTombstoneListTest
 
     private RangeTombstoneList makeRandom(Random rand, int size, int maxItSize, int maxItDistance, int maxMarkedAt)
     {
-        RangeTombstoneList l = new RangeTombstoneList(cmp, size);
+        RangeTombstoneList l = new RangeTombstoneList(cmp);
 
         int prevStart = -1;
         int prevEnd = 0;
@@ -384,13 +365,7 @@ public class RangeTombstoneListTest
     @Test
     public void nonSortedAdditionTestWithOneTombstoneWithEmptyEnd()
     {
-        nonSortedAdditionTestWithOneRangeWithEmptyEnd(0);
-        nonSortedAdditionTestWithOneRangeWithEmptyEnd(10);
-    }
-
-  private static void nonSortedAdditionTestWithOneRangeWithEmptyEnd(int initialCapacity)
-    {
-        RangeTombstoneList l = new RangeTombstoneList(cmp, initialCapacity);
+        RangeTombstoneList l = new RangeTombstoneList(cmp);
         RangeTombstone rt1 = rt(1, 5, 3);
         RangeTombstone rt2 = rt(7, 10, 2);
         RangeTombstone rt3 = atLeast(11, 1, 0);
@@ -411,7 +386,7 @@ public class RangeTombstoneListTest
     public void addRangeWithEmptyEndWitchIncludeExistingRange()
     {
 
-        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+        RangeTombstoneList l = new RangeTombstoneList(cmp);
 
         l.add(rt(4, 10, 3));
         l.add(atLeast(3, 4, 0));
@@ -425,7 +400,7 @@ public class RangeTombstoneListTest
     public void addRangeWithEmptyStartAndEnd()
     {
 
-        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+        RangeTombstoneList l = new RangeTombstoneList(cmp);
 
         l.add(rt(4, 10, 3));
         l.add(atMost(12, 4, 0));
@@ -439,7 +414,7 @@ public class RangeTombstoneListTest
     public void addRangeWithEmptyEndToRangeWithEmptyStartAndEnd()
     {
 
-        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+        RangeTombstoneList l = new RangeTombstoneList(cmp);
 
         l.add(new RangeTombstone(Slice.ALL, DeletionTime.build(2, 0)));
         l.add(atLeast(12, 4, 0));
@@ -454,7 +429,7 @@ public class RangeTombstoneListTest
     public void addRangeWithEmptyEndWitchIncludeExistingRangeWithEmptyEnd()
     {
 
-        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+        RangeTombstoneList l = new RangeTombstoneList(cmp);
 
         l.add(atLeast(5, 3, 0));
         l.add(atLeast(3, 4, 0));
@@ -468,7 +443,7 @@ public class RangeTombstoneListTest
     public void addIncludedRangeToRangeWithEmptyEnd()
     {
 
-        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+        RangeTombstoneList l = new RangeTombstoneList(cmp);
 
         l.add(atLeast(3, 3, 0));
         l.add(rt(4, 10, 4));
@@ -484,7 +459,7 @@ public class RangeTombstoneListTest
     public void addIncludedRangeWithEmptyEndToRangeWithEmptyEnd()
     {
 
-        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+        RangeTombstoneList l = new RangeTombstoneList(cmp);
 
         l.add(atLeast(3, 3, 0));
         l.add(atLeast(5, 4, 0));
@@ -499,7 +474,7 @@ public class RangeTombstoneListTest
     public void addRangeWithEmptyEndWitchOverlapExistingRange()
     {
 
-        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+        RangeTombstoneList l = new RangeTombstoneList(cmp);
 
         l.add(rt(4, 10, 3));
         l.add(atLeast(6, 4, 0));
@@ -514,7 +489,7 @@ public class RangeTombstoneListTest
     public void addOverlappingRangeToRangeWithEmptyEnd()
     {
 
-        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+        RangeTombstoneList l = new RangeTombstoneList(cmp);
 
         l.add(atLeast(3, 3, 0));
         l.add(rt(1, 10, 4));
@@ -528,7 +503,7 @@ public class RangeTombstoneListTest
     @Test
     public void searchTestWithEmptyStart()
     {
-        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+        RangeTombstoneList l = new RangeTombstoneList(cmp);
         l.add(atMost(4, 5, 0));
         l.add(rt(4, 6, 2));
         l.add(rt(9, 12, 1));
@@ -553,7 +528,7 @@ public class RangeTombstoneListTest
     @Test
     public void searchTestWithRangeWithEmptyEnd()
     {
-        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+        RangeTombstoneList l = new RangeTombstoneList(cmp);
         l.add(rt(0, 4, 5));
         l.add(rt(4, 6, 2));
         l.add(rt(9, 12, 1));
@@ -574,72 +549,6 @@ public class RangeTombstoneListTest
 
         assertEquals(6, l.searchDeletionTime(clustering(15)).markedForDeleteAt());
         assertEquals(6, l.searchDeletionTime(clustering(1000)).markedForDeleteAt());
-    }
-
-    @Test
-    public void testSetResizeFactor()
-    {
-        double original = DatabaseDescriptor.getRangeTombstoneListGrowthFactor();
-        final StorageService storageService = StorageService.instance;
-        final Consumer<Throwable> expectIllegalStateExceptio = exception -> {
-            assertSame(IllegalStateException.class, exception.getClass());
-            assertEquals("Not updating range_tombstone_resize_factor as growth factor must be in the range [1.2, 5.0] inclusive" , exception.getMessage());
-        };
-        try
-        {
-            // prevent bad ones
-            assertHasException(() -> storageService.setRangeTombstoneListResizeGrowthFactor(-1), expectIllegalStateExceptio);
-            assertHasException(() -> storageService.setRangeTombstoneListResizeGrowthFactor(0), expectIllegalStateExceptio);
-            assertHasException(() -> storageService.setRangeTombstoneListResizeGrowthFactor(1.1), expectIllegalStateExceptio);
-            assertHasException(() -> storageService.setRangeTombstoneListResizeGrowthFactor(5.1), expectIllegalStateExceptio);
-
-            // accept good ones
-            storageService.setRangeTombstoneListResizeGrowthFactor(1.2);
-            storageService.setRangeTombstoneListResizeGrowthFactor(2.0);
-            storageService.setRangeTombstoneListResizeGrowthFactor(5.0);
-        }
-        finally
-        {
-            storageService.setRangeTombstoneListResizeGrowthFactor(original);
-        }
-    }
-
-    @Test
-    public void testSetInitialAllocationSize()
-    {
-        int original = DatabaseDescriptor.getInitialRangeTombstoneListAllocationSize();
-        final StorageService storageService = StorageService.instance;
-        final Consumer<Throwable> expectIllegalStateExceptio = exception -> {
-            assertSame(String.format("The actual exception message:<%s>", exception.getMessage()), IllegalStateException.class, exception.getClass());
-            assertEquals("Not updating initial_range_tombstone_allocation_size as it must be in the range [0, 1024] inclusive" , exception.getMessage());
-        };
-        try
-        {
-            // prevent bad ones
-            assertHasException(() -> storageService.setInitialRangeTombstoneListAllocationSize(-1), expectIllegalStateExceptio);
-            assertHasException(() -> storageService.setInitialRangeTombstoneListAllocationSize(1025), expectIllegalStateExceptio);
-
-            // accept good ones
-            storageService.setInitialRangeTombstoneListAllocationSize(1);
-            storageService.setInitialRangeTombstoneListAllocationSize(1024);
-        }
-        finally
-        {
-            storageService.setInitialRangeTombstoneListAllocationSize(original);
-        }
-    }
-
-    private void assertHasException(ThrowingRunnable block, Consumer<Throwable> verifier)
-    {
-        try
-        {
-            block.run();
-            fail("Expect the code block to throw but not");
-        }
-        catch (Throwable throwable)
-        {
-            verifier.accept(throwable);
-        }
     }
 
     private static void assertRT(RangeTombstone expected, RangeTombstone actual)
@@ -699,7 +608,7 @@ public class RangeTombstoneListTest
     {
         str = str.trim();
         String[] ranges = str.substring(1, str.length() - 1).split("-", 0);
-        RangeTombstoneList l = new RangeTombstoneList(cmp, ranges.length);
+        RangeTombstoneList l = new RangeTombstoneList(cmp);
         for (String range : ranges)
             l.add(rangeFromString(range));
         return l;
@@ -769,5 +678,196 @@ public class RangeTombstoneListTest
     private static RangeTombstone greaterThan(int start, long tstamp, int delTime)
     {
         return new RangeTombstone(Slice.make(BufferClusteringBound.exclusiveStartOf(bb(start)), BufferClusteringBound.TOP), DeletionTime.build(tstamp, delTime));
+    }
+
+    @Test
+    public void wideOverlapRebuildMatchesNarrowInsertsTest()
+    {
+        // A tombstone covering hundreds of intervals takes the rebuild path; the same span added as pieces
+        // narrow enough for the per-interval path must leave every clustering with the same deletion time.
+        Random rand = new Random(42);
+        RangeTombstoneList base = makeRandom(rand, 2000, 5, 3, 10);
+        int end = ByteBufferUtil.toInt(base.iterator(true).next().deletedSlice().end().bufferAt(0));
+        for (long timestamp : new long[]{ 0, 5, 20 })
+        {
+            RangeTombstoneList wide = base.copy();
+            RangeTombstoneList narrow = base.copy();
+            RangeTombstoneList snapshot = base.copy();
+            int from = end / 4, to = 3 * end / 4;
+            wide.add(rt(from, to, timestamp));
+            for (int piece = from; piece < to; piece += 16)
+                narrow.add(rt(piece, Math.min(piece + 16, to), timestamp));
+            assertValid(wide);
+            assertEquals(toString(base), toString(snapshot));
+            for (int x = from - 1; x <= to + 1; x++)
+            {
+                DeletionTime expected = narrow.searchDeletionTime(clustering(x));
+                DeletionTime actual = wide.searchDeletionTime(clustering(x));
+                assertEquals("timestamp " + timestamp + " at " + x, expected == null ? null : expected.markedForDeleteAt(), actual == null ? null : actual.markedForDeleteAt());
+            }
+        }
+    }
+
+    @Test
+    public void copyOnWriteOverlappingSplitsTest()
+    {
+        RangeTombstone first = rt(0, 10, 10, 100);
+        RangeTombstone second = rt(20, 30, 20, 200);
+        RangeTombstoneList original = list(first, second);
+        RangeTombstoneList copy = original.copy();
+        RangeTombstoneList copyOfCopy = copy.copy();
+
+        copy.add(rt(3, 7, 30, 300));
+        assertSnapshot(original, first, second);
+        assertSnapshot(copyOfCopy, first, second);
+
+        original.add(rt(25, 35, 40, 400));
+        copyOfCopy.add(rt(8, 22, 50, 500));
+
+        assertSnapshot(original, first, rtie(20, 25, 20, 200), rt(25, 35, 40, 400));
+        assertSnapshot(copy, rtie(0, 3, 10, 100), rt(3, 7, 30, 300), rtei(7, 10, 10, 100), second);
+        assertSnapshot(copyOfCopy, rtie(0, 8, 10, 100), rt(8, 22, 50, 500), rtei(22, 30, 20, 200));
+    }
+
+    @Test
+    public void copyOnWriteAddAllIsolationTest()
+    {
+        RangeTombstone first = rt(0, 10, 10, 100);
+        RangeTombstoneList source = list(first);
+        RangeTombstoneList sourceSnapshot = source.copy();
+        RangeTombstoneList destination = list();
+        RangeTombstoneList emptySnapshot = destination.copy();
+
+        destination.addAll(source);
+        destination.addAll(destination);
+        destination.addAll(sourceSnapshot);
+        destination.addAll(emptySnapshot);
+        assertSnapshot(destination, first);
+        assertSnapshot(emptySnapshot);
+
+        destination.add(rt(3, 7, 30, 300));
+        source.add(rt(8, 12, 40, 400));
+        assertSnapshot(sourceSnapshot, first);
+        assertSnapshot(destination, rtie(0, 3, 10, 100), rt(3, 7, 30, 300), rtei(7, 10, 10, 100));
+        assertSnapshot(source, rtie(0, 8, 10, 100), rt(8, 12, 40, 400));
+
+        // Exercise both similarly sized inputs and a large destination with a singleton update.
+        for (int count : new int[]{ 1, 12 })
+        {
+            RangeTombstone[] before = new RangeTombstone[count];
+            RangeTombstone[] after = new RangeTombstone[count + 2];
+            for (int i = 0; i < count; ++i)
+            {
+                before[i] = rt(10 * i, 10 * i + 6, 10, 100);
+                if (i > 0)
+                    after[i + 2] = before[i];
+            }
+            after[0] = rtie(0, 2, 10, 100);
+            after[1] = rt(2, 4, 30, 300);
+            after[2] = rtei(4, 6, 10, 100);
+            RangeTombstoneList target = list(before);
+            RangeTombstoneList oldTarget = target.copy();
+            RangeTombstoneList update = list(after[1]);
+            RangeTombstoneList oldUpdate = update.copy();
+
+            target.addAll(update);
+            update.updateAllTimestampAndLocalDeletionTime(50, 500);
+            assertSnapshot(target, after);
+            assertSnapshot(oldTarget, before);
+            assertSnapshot(oldUpdate, after[1]);
+            assertSnapshot(update, rt(2, 4, 50, 500));
+        }
+    }
+
+    @Test
+    public void copyOnWriteTimestampMutationTest()
+    {
+        RangeTombstone first = rt(0, 10, 10, 100);
+        RangeTombstone second = rt(20, 30, 20, 200);
+        RangeTombstoneList original = list(first, second);
+        RangeTombstoneList snapshot = original.copy();
+        RangeTombstoneList copy = original.copy();
+
+        copy.updateAllTimestamp(30);
+        RangeTombstoneList copyOfCopy = copy.copy();
+        copyOfCopy.updateAllTimestampAndLocalDeletionTime(40, 400);
+        original.updateAllTimestampAndLocalDeletionTime(50, 500);
+
+        assertSnapshot(snapshot, first, second);
+        assertSnapshot(copy, rt(0, 10, 30, 100), rt(20, 30, 30, 200));
+        assertSnapshot(copyOfCopy, rt(0, 10, 40, 400), rt(20, 30, 40, 400));
+        assertSnapshot(original, rt(0, 10, 50, 500), rt(20, 30, 50, 500));
+    }
+
+    private static RangeTombstoneList list(RangeTombstone... ranges)
+    {
+        RangeTombstoneList list = new RangeTombstoneList(cmp);
+        for (RangeTombstone range : ranges)
+            list.add(range);
+        return list;
+    }
+
+    private static void assertSnapshot(RangeTombstoneList list, RangeTombstone... expected)
+    {
+        // Adjacent fragments with the same deletion time need not be coalesced by the list.
+        // Compare their exact coverage, without imposing a canonical fragmentation on either iterator.
+        for (boolean reversed : new boolean[]{ false, true })
+        {
+            List<RangeTombstone> actual = new ArrayList<>();
+            list.iterator(reversed).forEachRemaining(actual::add);
+            assertEquals(list.size(), actual.size());
+            if (reversed)
+                Collections.reverse(actual);
+
+            List<RangeTombstone> coalesced = new ArrayList<>();
+            for (RangeTombstone range : actual)
+            {
+                assertFalse(Slice.isEmpty(cmp, range.deletedSlice().start(), range.deletedSlice().end()));
+                if (!coalesced.isEmpty())
+                {
+                    int last = coalesced.size() - 1;
+                    RangeTombstone previous = coalesced.get(last);
+                    int order = cmp.compare(previous.deletedSlice().end(), range.deletedSlice().start());
+                    assertTrue("Iterator ranges must be ordered and non-overlapping", order <= 0);
+                    if (order == 0 && previous.deletionTime().equals(range.deletionTime()))
+                    {
+                        coalesced.set(last, new RangeTombstone(Slice.make(previous.deletedSlice().start(), range.deletedSlice().end()),
+                                                              range.deletionTime()));
+                        continue;
+                    }
+                }
+                coalesced.add(range);
+            }
+            assertEquals(expected.length, coalesced.size());
+            for (int i = 0; i < expected.length; ++i)
+                assertRT(expected[i], coalesced.get(i));
+        }
+
+        ColumnMetadata column = ColumnMetadata.regularColumn("ks", "tbl", "v", Int32Type.instance, ColumnMetadata.NO_UNIQUE_ID);
+        // Probe endpoints, split interiors and gaps independently of the list's search implementation.
+        for (int key = -1; key <= 130; ++key)
+        {
+            Clustering<?> clustering = clustering(key);
+            RangeTombstone covering = null;
+            for (RangeTombstone range : expected)
+                if (range.deletedSlice().includes(cmp, clustering))
+                    covering = range;
+            assertEquals(covering == null ? null : covering.deletionTime(), list.searchDeletionTime(clustering));
+            if (covering == null)
+                assertEquals(null, list.search(clustering));
+            else
+            {
+                RangeTombstone found = list.search(clustering);
+                assertNotNull(found);
+                assertTrue(found.deletedSlice().includes(cmp, clustering));
+                assertEquals(covering.deletionTime(), found.deletionTime());
+            }
+            // Boundary check only: covering.deletionTime() itself was already verified above via search().
+            long ts = covering == null ? 0 : covering.deletionTime().markedForDeleteAt();
+            for (long timestamp : new long[]{ ts, ts + 1 })
+                assertEquals("key=" + key + ", timestamp=" + timestamp,
+                             covering != null && ts >= timestamp,
+                             list.isDeleted(clustering, BufferCell.live(column, timestamp, bb(0))));
+        }
     }
 }
