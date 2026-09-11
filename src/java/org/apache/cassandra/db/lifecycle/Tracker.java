@@ -454,8 +454,7 @@ public class Tracker
 
         for (int attempt = 0; attempt < MAX_SPLIT_ATTEMPTS; attempt++)
         {
-            View current = this.view;
-            Memtable oldMemtable = current.getCurrentMemtable();
+            Memtable oldMemtable = view.getCurrentMemtable();
             SplitDomainMemtable splitMemtable;
 
             if (oldMemtable instanceof SplitDomainMemtable)
@@ -465,13 +464,18 @@ public class Tracker
             }
             else
             {
-                // The new internal takes the position this memtable generation's boundary holds for its domain, so
-                // its span begins exactly where the previous generation's ended.
-                Memtable newMemtable = cfstore.createMemtable(current.currentBounds.sealIfUnset(domain), domain);
-                splitMemtable = new SplitDomainMemtable(newMemtable, oldMemtable, oldMemtable.getMemtableId());
+                // Construct new memtable and split domain memtable inside the view mutation so it happens once, under
+                // the view lock after the permit has accepted the change
+                Pair<View, View> result = apply(View.canSplitMemtable(oldMemtable), view -> {
+                    Memtable newMemtable = cfstore.createMemtable(view.currentBounds.sealIfUnset(domain), domain);
+                    SplitDomainMemtable wrapper = new SplitDomainMemtable(newMemtable, oldMemtable, oldMemtable.getMemtableId());
+                    return View.splitMemtable(oldMemtable, wrapper).apply(view);
+                });
 
-                if (apply(View.canSplitMemtable(oldMemtable), View.splitMemtable(oldMemtable, splitMemtable)) == null)
+                if (result == null)
                     continue;
+
+                splitMemtable = (SplitDomainMemtable) result.right.getCurrentMemtable();
             }
 
             // Asked of the generation, which delegates to the internal holding the bounds this write is measured
