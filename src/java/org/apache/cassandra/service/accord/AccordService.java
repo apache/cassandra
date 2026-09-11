@@ -538,26 +538,31 @@ public class AccordService implements IAccordService, Shutdownable
 
         boolean rebootstrap = false;
         {
-            long startMarker = ReplayMarkers.readStartMarker();
-            long stopMarker = ReplayMarkers.readStopMarker();
-            if (stopMarker < startMarker)
+            ReplayMarkers.ReplayMarkerData startMarker = ReplayMarkers.readStartMarker();
+            ReplayMarkers.ReplayMarkerData stopMarker = ReplayMarkers.readStopMarker();
+            long startMarkerSegmentId = startMarker.getSegmentId();
+            long stopMarkerSegmentId = stopMarker.getSegmentId();
+
+            if (startMarker.isValid() && stopMarker.isValid() && stopMarkerSegmentId < startMarkerSegmentId)
             {
                 switch (getAccord().journal.stopMarkerFailurePolicy)
                 {
                     default: throw new UnhandledEnum(getAccord().journal.stopMarkerFailurePolicy);
                     case EXIT:
-                        throw new RuntimeException("Stop marker is older than start marker (" + stopMarker + '<' + startMarker + ") , so cannot assume we have a complete log of our votes in any consensus groups. Exiting.");
+                        throw new RuntimeException("Stop marker is older than start marker (" + stopMarkerSegmentId + '<' + startMarkerSegmentId + ") , so cannot assume we have a complete log of our votes in any consensus groups. Exiting.");
 
                     case ALLOW_UNSAFE_STARTUP:
                     case UNSAFE_STARTUP:
-                        logger.warn("Stop marker is older than start marker ({}<{}), so cannot assume we have a complete log of our votes in any consensus groups. Continuing to startup as configured.", stopMarker, startMarker);
+                        logger.warn("Stop marker is older than start marker ({}<{}), so cannot assume we have a complete log of our votes in any consensus groups. Continuing to startup as configured.", stopMarkerSegmentId, startMarkerSegmentId);
                         break;
 
                     case REBOOTSTRAP:
-                        logger.info("Stop marker is older than start marker ({}<{}). Rebootstrapping.", stopMarker, startMarker);
+                        logger.info("Stop marker is older than start marker ({}<{}). Rebootstrapping.", stopMarkerSegmentId, startMarkerSegmentId);
                         rebootstrap = true;
                 }
             }
+
+            node.uniqueNow(stopMarker.getLastUniqueTimestamp());
         }
 
         logger.info("Starting background compaction of system_accord");
@@ -1238,7 +1243,7 @@ public class AccordService implements IAccordService, Shutdownable
         AccordCommandStores commandStores = (AccordCommandStores)node.commandStores();
         Set<TableId> tableIds = commandStores.shutdownStores();
         commandStores.waitForQuiescence();
-        journal.writeSafeStopMarker();
+        journal.writeSafeStopMarker(node.uniqueNow());
         scheduler.shutdownNow();
         toFuture(flushCaches()).map(ignore -> {
             return AccordColumnFamilyStores.commandsForKey.forceFlush(DRAIN);
