@@ -230,12 +230,24 @@ public class SplitDomainMemtable implements Memtable
         return commitLogInternal.shouldSwitch(reason, latest) || journalInternal.shouldSwitch(reason, latest);
     }
 
+    /**
+     * This is used by external non memtable operations (ie: indexes) to report their memtable adjacent memory
+     * usage. Since there isn't a domain associated with these users, we just charge it to the commit log domain. This
+     * is arbitrary, but it doesn't matter, since operations looking at memtable sizes (ie: flushLargestMemtable) only
+     * look at the combined usage of both memtables.
+     */
     @Override
     public void markExtraOnHeapUsed(long additionalSpace, OpOrder.Group opGroup)
     {
         commitLogInternal.markExtraOnHeapUsed(additionalSpace, opGroup);
     }
 
+    /**
+     * This is used by external non memtable operations (ie: indexes) to report their memtable adjacent memory
+     * usage. Since there isn't a domain associated with these users, we just charge it to the commit log domain. This
+     * is arbitrary, but it doesn't matter, since operations looking at memtable sizes (ie: flushLargestMemtable) only
+     * look at the combined usage of both memtables.
+     */
     @Override
     public void markExtraOffHeapUsed(long additionalSpace, OpOrder.Group opGroup)
     {
