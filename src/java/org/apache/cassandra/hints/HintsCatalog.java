@@ -44,6 +44,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.SyncUtil;
+import org.apache.cassandra.utils.Throwables;
 
 import static java.util.stream.Collectors.groupingBy;
 
@@ -170,8 +171,10 @@ final class HintsCatalog
         {
             try
             {
-                SyncUtil.trySync(fd);
-                NativeLibrary.tryCloseFD(fd);
+                Throwables.maybeFail(() -> {
+                    if (!SyncUtil.SKIP_SYNC)
+                        NativeLibrary.trySyncDirectory(fd, hintsDirectory.absolutePath());
+                }, () -> NativeLibrary.tryCloseFD(fd));
             }
             catch (FSError e) // trySync failed
             {
