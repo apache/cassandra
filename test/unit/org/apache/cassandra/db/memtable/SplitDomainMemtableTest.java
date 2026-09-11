@@ -582,6 +582,34 @@ public class SplitDomainMemtableTest
     }
 
     /**
+     * A generation can be split after a listener is registered on it, which demotes the memtable holding the listener
+     * to an internal. Only the wrapper is notified on flush, so the internals have to be drained too or the
+     * registration is lost for the life of the generation.
+     */
+    @Test
+    public void flushListenerRegisteredBeforeSplitStillFires()
+    {
+        ColumnFamilyStore cfs = newTrackedTable();
+        Memtable beforeSplit = cfs.getTracker().getView().getCurrentMemtable();
+        assertFalse("a plain generation is the precondition for this test", beforeSplit instanceof SplitDomainMemtable);
+        write(cfs, beforeSplit, 1, LogDomain.MUTATION_JOURNAL);
+
+        AtomicInteger fired = new AtomicInteger();
+        assertNotNull(beforeSplit.ensureFlushListener("durability", () -> metadata -> fired.incrementAndGet()));
+
+        // A foreign-domain write installs the split, so the memtable carrying the listener becomes an internal.
+        Memtable generation = selectGenerationFor(cfs, LogDomain.COMMIT_LOG);
+        assertTrue(generation instanceof SplitDomainMemtable);
+        assertSame("the listener now sits on an internal, not on the current memtable",
+                   beforeSplit, ((SplitDomainMemtable) generation).internalFor(LogDomain.MUTATION_JOURNAL));
+        write(cfs, generation, 2, LogDomain.COMMIT_LOG);
+
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+
+        assertEquals("a listener registered before the split must still fire exactly once", 1, fired.get());
+    }
+
+    /**
      * For accord. Accord assumes a single active memtable and observes them directly when determining durability.
      * If the listener fired once per domain memtable, accord would think a memtable was durable before both parts
      * actually were

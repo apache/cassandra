@@ -57,7 +57,8 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  * compare against a bound from the other. Splitting at the memtable means each write is bounded, flushed and accounted
  * for against its own log, without any consumer of a bound having to ask which log it came from.
  *
- * The internal memtables always flush together and a common set of flush listeners are used.
+ * The internal memtables always flush together, and flushing the generation drains the listeners registered on the
+ * wrapper and on both internals.
  */
 public class SplitDomainMemtable implements Memtable
 {
@@ -279,10 +280,6 @@ public class SplitDomainMemtable implements Memtable
         return flushTransaction.getAndSet(transaction);
     }
 
-    /**
-     * Held here rather than on an internal, so one listener exists per logical generation and fires once both internals
-     * are durable. A listener registered on an internal would fire on a partial generation.
-     */
     @Override
     public <T extends Consumer<TableMetadata>> T ensureFlushListener(Object key, Supplier<T> factory)
     {
@@ -293,6 +290,11 @@ public class SplitDomainMemtable implements Memtable
     public void notifyFlushed()
     {
         listeners.notifyFlushed(metadata());
+
+        // A listener can be registered on a memtable before it splits, so we need to call notifyFlushed
+        // on the delegate memtables.
+        commitLogInternal.notifyFlushed();
+        journalInternal.notifyFlushed();
     }
 
     // Commit-log-only accessors
