@@ -1382,6 +1382,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                     // flush the memtable
                     ExecutorPlus[] executors = perDiskflushExecutors.getExecutorsFor(getKeyspaceName(), name);
                     flushRunnables = new ArrayList<>();
+
                     // One transaction over every log domain's output, so the generation's sstables become visible
                     // together and PostFlush can't run against a half-persisted memtable generation.
                     for (Memtable source : memtable.flushSources())
@@ -1391,9 +1392,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
                         List<Flushing.FlushRunnable> perDisk = Flushing.flushRunnables(cfs, source, txn);
                         flushRunnables.addAll(perDisk);
-                        for (int i = 0; i < perDisk.size(); i++)
-                            futures.add(executors[i].submit(perDisk.get(i)));
                     }
+
+                    for (int i=0, si=flushRunnables.size(); i<si; i++)
+                        futures.add(executors[i % executors.length].submit(flushRunnables.get(i)));
 
                     /**
                      * we can flush 2is as soon as the barrier completes, as they will be consistent with (or ahead of) the
