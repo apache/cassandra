@@ -204,6 +204,67 @@ public class PostingsWriter implements Closeable
         return totalPostings;
     }
 
+    /**
+     * Writes a V2 posting list with separate exact and prefix sections.
+     * <p>
+     * On-disk layout: {@code [exact FOR blocks][prefix FOR blocks][V2 BLOCK SUMMARY]}. Each section is
+     * block-aligned (its final partial block is flushed before the next section starts) and the first block
+     * of each section carries its own {@code firstPosting} VLong, so the sections can be read independently.
+     * The V2 block summary prepends {@code prefixIndex} (= number of exact postings) and {@code suffixIndex}
+     * (= exact + prefix postings) before the standard summary fields.
+     *
+     * @param exactPostings  ascending row IDs for the exact section; may be null/empty
+     * @param prefixPostings ascending row IDs for the prefix section; may be null/empty
+     * @return file offset to the V2 block summary
+     */
+    public long writeV2(PostingList exactPostings, PostingList prefixPostings) throws IOException
+    {
+        resetBlockCounters();
+        blockOffsets.clear();
+        blockMaximumPostings.clear();
+
+        int exactCount = writeSection(exactPostings);
+        int prefixCount = writeSection(prefixPostings);
+        int totalCount = exactCount + prefixCount;
+
+        assert totalCount > 0 : "V2 posting list must have at least one posting";
+
+        final long summaryOffset = dataOutput.getFilePointer();
+        // V2 header: prefixIndex (count of exact postings) then suffixIndex (exact + prefix), then standard summary.
+        dataOutput.writeVInt(exactCount);
+        dataOutput.writeVInt(totalCount);
+        writeSummary(totalCount);
+        return summaryOffset;
+    }
+
+    /**
+     * Writes one section's postings as a self-contained run of FOR blocks (the first block carries its own
+     * {@code firstPosting}). Returns the number of postings written.
+     */
+    private int writeSection(PostingList postings) throws IOException
+    {
+        if (postings == null)
+            return 0;
+
+        // Reset the delta base so this section starts fresh (its first block writes firstPosting).
+        lastPosting = Long.MIN_VALUE;
+        resetBlockCounters();
+
+        int count = 0;
+        long posting;
+        while ((posting = postings.nextPosting()) != PostingList.END_OF_STREAM)
+        {
+            writePosting(posting);
+            count++;
+            totalPostings++;
+        }
+
+        if (count > 0)
+            finish();
+
+        return count;
+    }
+
     private void writePosting(long posting) throws IOException
     {
         if (lastPosting == Long.MIN_VALUE)

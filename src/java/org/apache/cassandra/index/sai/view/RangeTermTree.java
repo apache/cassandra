@@ -54,7 +54,12 @@ public class RangeTermTree
     public List<SSTableIndex> search(Expression e)
     {
         ByteBuffer minTerm = e.lower() == null ? min : e.lower().value.encoded;
-        ByteBuffer maxTerm = e.upper() == null ? max : e.upper().value.encoded;
+        // For a prefix query lower == upper == the prefix, but a segment whose terms are all strictly greater than
+        // the prefix (e.g. maxTerm "apple" for prefix "app") still contains matches. Use the global max as the upper
+        // bound so such segments are not pruned.
+        ByteBuffer maxTerm = e.getIndexOperator() == Expression.IndexOperator.LIKE_PREFIX
+                             ? max
+                             : (e.upper() == null ? max : e.upper().value.encoded);
 
         return rangeTree.search(Interval.create(new Term(minTerm, indexTermType),
                                                 new Term(maxTerm, indexTermType),

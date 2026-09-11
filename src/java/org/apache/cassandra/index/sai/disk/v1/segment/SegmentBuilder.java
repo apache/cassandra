@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.disk.v1.segment;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntPredicate;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -28,6 +29,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.bbtree.NumericIndexWriter;
@@ -77,12 +79,22 @@ public abstract class SegmentBuilder
     public static class TrieSegmentBuilder extends SegmentBuilder
     {
         protected final SegmentTrieBuffer segmentTrieBuffer;
+        private final boolean prefixEnabled;
 
         public TrieSegmentBuilder(StorageAttachedIndex index, NamedMemoryLimiter limiter)
         {
             super(index, limiter);
 
-            segmentTrieBuffer = new SegmentTrieBuffer();
+            this.prefixEnabled = index.termType().isLiteral() && index.indexWriterConfig().isLiteralPrefixEnabled();
+
+            IntPredicate prefixAtDepth = null;
+            if (prefixEnabled)
+            {
+                int skip = CassandraRelevantProperties.SAI_POSTINGS_SKIP.getInt();
+                prefixAtDepth = depth -> depth % skip == 0;
+            }
+
+            segmentTrieBuffer = new SegmentTrieBuffer(prefixAtDepth);
             totalBytesAllocated = segmentTrieBuffer.memoryUsed();
         }
 
@@ -95,9 +107,13 @@ public abstract class SegmentBuilder
         @Override
         protected SegmentMetadata.ComponentMetadataMap flushInternal(IndexDescriptor indexDescriptor) throws IOException
         {
-            SegmentWriter writer = index.termType().isLiteral() ? new LiteralIndexWriter(indexDescriptor, index.identifier())
-                                                                : new NumericIndexWriter(indexDescriptor, index.identifier(), index.termType().fixedSizeOf());
+            if (index.termType().isLiteral())
+            {
+                LiteralIndexWriter writer = new LiteralIndexWriter(indexDescriptor, index.identifier());
+                return writer.writeCompleteSegment(segmentTrieBuffer.iterator(), prefixEnabled);
+            }
 
+            NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor, index.identifier(), index.termType().fixedSizeOf());
             return writer.writeCompleteSegment(segmentTrieBuffer.iterator());
         }
 

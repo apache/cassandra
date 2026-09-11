@@ -113,6 +113,11 @@ public class MemtableIndex implements MemtableOrdering
         return memoryIndex.iterator();
     }
 
+    public Iterator<Pair<ByteComparable, SectionedPrimaryKeys>> iteratorSectioned()
+    {
+        return memoryIndex.iteratorSectioned();
+    }
+
     public SegmentMetadata.ComponentMetadataMap writeDirect(IndexDescriptor indexDescriptor,
                                                             IndexIdentifier indexIdentifier,
                                                             Function<PrimaryKey, Integer> postingTransformer) throws IOException

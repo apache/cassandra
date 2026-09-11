@@ -35,23 +35,40 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
  */
 public class MemtableTermsIterator implements TermsIterator
 {
+    // Number of header longs prepended to each V2 posting list: [exactCount, totalCount].
+    // Mirrors org.apache.cassandra.index.sai.disk.v1.segment.PackedLongValuesList#FILTER_TYPES
+    // (which is package-private and not accessible from this package).
+    private static final int V2_HEADER_SIZE = 2;
+
     private final ByteBuffer minTerm;
     private final ByteBuffer maxTerm;
     private final Iterator<Pair<ByteComparable, LongArrayList>> iterator;
+    private final boolean isV2;
 
     private Pair<ByteComparable, LongArrayList> current;
 
     private long maxSSTableRowId = -1;
     private long minSSTableRowId = Long.MAX_VALUE;
 
+    /** V1 constructor: LongArrayList contains raw sorted row IDs only. */
     public MemtableTermsIterator(ByteBuffer minTerm,
                                  ByteBuffer maxTerm,
                                  Iterator<Pair<ByteComparable, LongArrayList>> iterator)
+    {
+        this(minTerm, maxTerm, iterator, false);
+    }
+
+    /** V2 constructor: LongArrayList contains [exactCount, totalCount, rowId...]. */
+    public MemtableTermsIterator(ByteBuffer minTerm,
+                                 ByteBuffer maxTerm,
+                                 Iterator<Pair<ByteComparable, LongArrayList>> iterator,
+                                 boolean isV2)
     {
         Preconditions.checkArgument(iterator != null);
         this.minTerm = minTerm;
         this.maxTerm = maxTerm;
         this.iterator = iterator;
+        this.isV2 = isV2;
     }
 
     @Override
@@ -98,11 +115,20 @@ public class MemtableTermsIterator implements TermsIterator
 
         assert list.size() > 0;
 
-        final long minSegmentRowID = list.get(0);
-        final long maxSegmentRowID = list.get(list.size() - 1);
-
-        minSSTableRowId = Math.min(minSSTableRowId, minSegmentRowID);
-        maxSSTableRowId = Math.max(maxSSTableRowId, maxSegmentRowID);
+        if (isV2)
+        {
+            for (int i = V2_HEADER_SIZE; i < list.size(); i++)
+            {
+                long rowId = list.get(i);
+                minSSTableRowId = Math.min(minSSTableRowId, rowId);
+                maxSSTableRowId = Math.max(maxSSTableRowId, rowId);
+            }
+        }
+        else
+        {
+            minSSTableRowId = Math.min(minSSTableRowId, list.get(0));
+            maxSSTableRowId = Math.max(maxSSTableRowId, list.get(list.size() - 1));
+        }
 
         final Iterator<LongCursor> it = list.iterator();
 
