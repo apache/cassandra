@@ -171,6 +171,50 @@ public class ThreadLocalMeterTest
 
     }
 
+    /**
+     * {@link ThreadLocalMeter#allocateRateGroupOffset} used to grow the shared {@code rates} array by exactly
+     * {@code RATES_COUNT} (3) slots per new meter, copying the whole array on every single growth once the initial
+     * capacity was exhausted - one reallocation per meter, and so ~M reallocations to create M meters. Growth is
+     * geometric now, so the number of reallocations needed is O(log(M)) instead: a handful, regardless of M.
+     *
+     * <p>This asserts an absolute bound rather than a ratio between an M and an 8M run: other tests in this class
+     * create and destroy meters too, leaving the shared static {@code rates} array at whatever size they left it,
+     * so the array's starting capacity here is not under this test's control. A bound comfortably above the
+     * worst case for geometric growth from an empty array (~17 reallocations to grow from 48 to 48,048 slots at
+     * 1.5x per step) but far below what fixed 3-slot growth would need (thousands) is what actually distinguishes
+     * the two, independent of residual capacity left by earlier tests.
+     */
+    @Test
+    public void ratesArrayGrowthIsSubLinearInMeterCount()
+    {
+        int small = 2_000;
+        int large = 16_000;
+
+        int reallocationsForSmall = reallocationsToCreate(small);
+        int reallocationsForLarge = reallocationsToCreate(large);
+
+        String detail = String.format("creating %,d meters took %,d reallocations of the shared rates array; " +
+                                      "creating a further %,d took %,d more. Fixed 3-slot growth needs one " +
+                                      "reallocation per meter (thousands, here); geometric growth needs a handful, " +
+                                      "regardless of the array's starting size.",
+                                      small, reallocationsForSmall, large, reallocationsForLarge);
+        Assert.assertTrue(detail, reallocationsForSmall <= 30);
+        Assert.assertTrue(detail, reallocationsForLarge <= 30);
+    }
+
+    /** Reallocations of the shared {@code rates} array attributable to creating {@code count} fresh meters. */
+    private static int reallocationsToCreate(int count)
+    {
+        List<ThreadLocalMeter> meters = new ArrayList<>(count);
+        int before = ThreadLocalMeter.ratesArrayReallocationCount.get();
+        for (int i = 0; i < count; i++)
+            meters.add(new ThreadLocalMeter());
+        int after = ThreadLocalMeter.ratesArrayReallocationCount.get();
+        // Keep the meters reachable until counted, so their rate group ids cannot be recycled mid-loop.
+        Assert.assertEquals(count, meters.size());
+        return after - before;
+    }
+
     private static class MeterPair
     {
         ThreadLocalMeter meter;

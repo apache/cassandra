@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -64,18 +63,10 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
         return new DistributedSchema(Keyspaces.none(), Epoch.EMPTY);
     }
 
-    private static ImmutableMap<TableId, TableMetadata> keyspacesToTableMap(Keyspaces keyspaces)
-    {
-        ImmutableMap.Builder<TableId, TableMetadata> builder = ImmutableMap.builder();
-        keyspaces.forEach(ksm -> ksm.tablesAndViews().forEach(tbl -> builder.put(tbl.id, tbl)));
-        return builder.build();
-    }
-
     private final Keyspaces keyspaces;
     private final Epoch epoch;
     private final UUID version;
     private final Map<String, Keyspace> keyspaceInstances = new HashMap<>();
-    private final transient ImmutableMap<TableId, TableMetadata> tables;
 
     public DistributedSchema(Keyspaces keyspaces)
     {
@@ -84,18 +75,30 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
 
     public DistributedSchema(Keyspaces keyspaces, Epoch epoch)
     {
+        this(keyspaces, epoch, null);
+    }
+
+    /**
+     * As {@link #DistributedSchema(Keyspaces, Epoch)}, but additionally takes the {@link DistributedSchema} this one
+     * is derived from, if any. {@link KeyspaceMetadata} instances are immutable and only ever replaced wholesale
+     * (see {@link Keyspaces#withAddedOrUpdated}), so when {@code previous} is given, a keyspace whose instance is
+     * reference-identical to the one already validated in {@code previous} cannot have changed and is skipped;
+     * every other keyspace - new, altered, or when {@code previous} is {@code null} - is validated in full. This
+     * cannot weaken validation, only avoid repeating a check whose result cannot have changed.
+     */
+    public DistributedSchema(Keyspaces keyspaces, Epoch epoch, DistributedSchema previous)
+    {
         Objects.requireNonNull(keyspaces);
         this.keyspaces = keyspaces;
         this.epoch = epoch;
         this.version = new UUID(0, epoch.getEpoch());
-        this.tables = keyspacesToTableMap(keyspaces);
-        validate();
+        validate(previous);
     }
 
     @Override
     public DistributedSchema withLastModified(Epoch epoch)
     {
-        return new DistributedSchema(keyspaces, epoch);
+        return new DistributedSchema(keyspaces, epoch, this);
     }
 
     @Override
@@ -121,7 +124,7 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
 
     public TableMetadata getTableMetadata(TableId id)
     {
-        return tables.get(id);
+        return keyspaces.getTableOrViewNullable(id);
     }
 
     public TableMetadata getTableMetadata(String keyspace, String cf)
@@ -447,9 +450,16 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
         return Objects.hash(keyspaces, version);
     }
 
-    private void validate()
+    /**
+     * @param previous when non-null, keyspaces whose {@link KeyspaceMetadata} instance is unchanged from
+     *                 {@code previous} are skipped - they were already validated when {@code previous} was built.
+     */
+    private void validate(DistributedSchema previous)
     {
         keyspaces.forEach(ksm -> {
+            if (previous != null && previous.keyspaces.getNullable(ksm.name) == ksm)
+                return;
+
             ksm.tables.forEach(tm -> Preconditions.checkArgument(tm.keyspace.equals(ksm.name), "Table %s metadata points to keyspace %s while defined in keyspace %s", tm.name, tm.keyspace, ksm.name));
             ksm.views.forEach(vm -> Preconditions.checkArgument(vm.keyspace().equals(ksm.name), "View %s metadata points to keyspace %s while defined in keyspace %s", vm.name(), vm.keyspace(), ksm.name));
             ksm.types.forEach(ut -> Preconditions.checkArgument(ut.keyspace.equals(ksm.name), "Type %s points to keyspace %s while defined in keyspace %s", ut.name, ut.keyspace, ksm.name));

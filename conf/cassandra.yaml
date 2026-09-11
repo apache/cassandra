@@ -2324,10 +2324,21 @@ drop_compact_storage_enabled: false
 # keyspaces_warn_threshold: -1
 # keyspaces_fail_threshold: -1
 #
-# Guardrail to warn or fail when creating more user tables than threshold.
-# The two thresholds default to -1 to disable.
-# tables_warn_threshold: -1
+# Guardrail to warn or fail when creating more user tables than threshold. tables_warn_threshold
+# defaults to 1000; each table retains roughly 290KiB of heap on every node, most of it metrics,
+# so unbounded table counts are a heap-pressure risk. tables_fail_threshold defaults to -1 to
+# disable, since a positive default could break clusters already above it on upgrade.
+# tables_warn_threshold: 1000
 # tables_fail_threshold: -1
+#
+# Controls how often the system_schema tables are flushed to disk after a schema change is
+# applied. 0ms flushes synchronously on every schema change (the historical behaviour); any
+# positive value flushes asynchronously, at most once per window, so a burst of DDL statements
+# pays for a single flush instead of one per statement. system_schema is durable through the
+# commitlog independently of this flush, and is rebuilt from the cluster metadata log on
+# startup, so delaying the flush does not risk losing schema. Measured effect on an in-JVM
+# scaling test creating 1,000 tables: 118s at 0ms versus 33s at the 1000ms default.
+# schema_flush_coalescing_window: 1000ms
 #
 # Guardrail to enable or disable the ability to create uncompressed tables
 # uncompressed_tables_enabled: true
