@@ -73,6 +73,9 @@ options {
         if (!isParsingTxn)
             throw new SyntaxException("Cannot create a row data reference unless parsing a transaction");
 
+        if (tuple == null)
+            throw new SyntaxException("Invalid syntax for row data reference");
+
         if (references == null)
             references = new ArrayList<>();
 
@@ -837,7 +840,8 @@ txnConditionKind returns [ConditionStatement.Kind op]
     ;
 
 txnColumnCondition[List<ConditionStatement.Raw> conditions]
-    : lhs=rowDataReference
+    :  '!' lhs=rowDataReference { conditions.add(new ConditionStatement.Raw(lhs, ConditionStatement.Kind.EQ, Constants.Literal.bool("false"))); }
+    | lhs=rowDataReference
       ( 
         K_IS 
         (
@@ -845,6 +849,8 @@ txnColumnCondition[List<ConditionStatement.Raw> conditions]
             | K_NULL { conditions.add(new ConditionStatement.Raw(lhs, ConditionStatement.Kind.IS_NULL, null)); }
         )
         | (txnConditionKind term)=> op=txnConditionKind t=term { conditions.add(new ConditionStatement.Raw(lhs, op, t)); }
+        | (txnConditionKind rowDataReference)=> op=txnConditionKind rhs=rowDataReference { conditions.add(new ConditionStatement.Raw(lhs, op, rhs)); }
+        | { conditions.add(new ConditionStatement.Raw(lhs, ConditionStatement.Kind.EQ, Constants.Literal.bool("true"))); }
       )
     | lhs=term op=txnConditionKind rhs=rowDataReference { conditions.add(new ConditionStatement.Raw(lhs, op, rhs)); }
     ;
