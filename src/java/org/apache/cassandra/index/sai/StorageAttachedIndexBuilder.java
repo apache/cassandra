@@ -33,6 +33,7 @@ import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
@@ -143,7 +144,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
             return false;
         }
 
-        try (RandomAccessReader dataFile = sstable.openDataReader();
+        try (RandomAccessReader dataFile = sstable.openDataReader(DatabaseDescriptor.getBackgroundReadDiskAccessMode());
              LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.INDEX_BUILD, sstable))
         {
             perSSTableFileLock = shouldWritePerSSTableFiles(sstable);

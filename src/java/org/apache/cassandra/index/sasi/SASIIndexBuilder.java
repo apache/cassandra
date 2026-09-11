@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.SortedMap;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.compaction.CompactionInfo;
@@ -80,7 +81,7 @@ class SASIIndexBuilder extends SecondaryIndexBuilder
             SSTableReader sstable = e.getKey();
             Map<ColumnMetadata, ColumnIndex> indexes = e.getValue();
 
-            try (RandomAccessReader dataFile = sstable.openDataReader())
+            try (RandomAccessReader dataFile = sstable.openDataReader(DatabaseDescriptor.getBackgroundReadDiskAccessMode()))
             {
                 PerSSTableIndexWriter indexWriter = SASIIndex.newWriter(keyValidator, sstable.descriptor, indexes, OperationType.COMPACTION);
                 targetDirectory = indexWriter.getDescriptor().directory.path();

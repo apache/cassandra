@@ -513,7 +513,7 @@ public class CursorCompactor extends CompactionInfo.Holder
          * {@link CompactionIterator#CompactionIterator(OperationType, List, AbstractCompactionController, long, TimeUUID, ActiveCompactionsTracker)}
          */
 
-        this.sstableCursors = convertScannersToCursors(scanners, sstables, DatabaseDescriptor.getCompactionReadDiskAccessMode());
+        this.sstableCursors = convertScannersToCursors(scanners, sstables, DatabaseDescriptor.getBackgroundReadDiskAccessMode());
         this.sstableCursorsEqualsNext = new boolean[sstables.size()];
         this.enforceStrictLiveness = controller.cfs.metadata.get().enforceStrictLiveness();
         this.probeCursorOrder = enforceStrictLiveness ? new StatefulCursor[sstableCursors.length] : null;

@@ -103,7 +103,8 @@ Upgrading
 
 Deprecation
 -----------
-
+    - `compaction_read_disk_access_mode` has been renamed to `background_read_disk_access_mode`. The old name
+      is still accepted for compatibility. (see CASSANDRA-19988)
 
 6.0
 ===

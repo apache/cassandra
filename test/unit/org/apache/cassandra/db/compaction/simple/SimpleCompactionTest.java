@@ -75,16 +75,16 @@ public abstract class SimpleCompactionTest extends CQLTester
     @Before
     public void setCompactionParams()
     {
-        originalDiskAccessMode = DatabaseDescriptor.getCompactionReadDiskAccessMode();
+        originalDiskAccessMode = DatabaseDescriptor.getBackgroundReadDiskAccessMode();
         originalCursorCompactionEnabled = DatabaseDescriptor.cursorCompactionEnabled();
-        DatabaseDescriptor.setCompactionReadDiskAccessMode(compactionReadDiskAccessMode);
+        DatabaseDescriptor.setBackgroundReadDiskAccessMode(compactionReadDiskAccessMode);
         DatabaseDescriptor.setCursorCompactionEnabled(cursorCompactionEnabled);
     }
 
     @After
     public void restoreCompactionParams()
     {
-        DatabaseDescriptor.setCompactionReadDiskAccessMode(originalDiskAccessMode);
+        DatabaseDescriptor.setBackgroundReadDiskAccessMode(originalDiskAccessMode);
         DatabaseDescriptor.setCursorCompactionEnabled(originalCursorCompactionEnabled);
     }
 

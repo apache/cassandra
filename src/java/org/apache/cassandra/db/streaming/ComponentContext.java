@@ -74,13 +74,18 @@ public class ComponentContext implements AutoCloseable
      */
     public FileChannel channel(Descriptor descriptor, Component component, long size) throws IOException
     {
-        File toTransfer = hardLinks.containsKey(component) ? hardLinks.get(component) : descriptor.fileFor(component);
+        File toTransfer = file(descriptor, component);
         @SuppressWarnings("resource") // file channel will be closed by Caller
         FileChannel channel = toTransfer.newReadChannel();
 
         assert size == channel.size() : String.format("Entire sstable streaming expects %s file size to be %s but got %s.",
                                                       component, size, channel.size());
         return channel;
+    }
+
+    File file(Descriptor descriptor, Component component)
+    {
+        return hardLinks.getOrDefault(component, descriptor.fileFor(component));
     }
 
     @Override
