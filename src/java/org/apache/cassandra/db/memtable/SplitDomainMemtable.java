@@ -47,6 +47,7 @@ import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 /**
@@ -359,10 +360,24 @@ public class SplitDomainMemtable implements Memtable
         if (fromJournal == null || fromJournal.isEmpty())
             return fromCommitLog;
 
-        try (UnfilteredRowIterator merged = UnfilteredRowIterators.merge(ImmutableList.of(fromCommitLog.unfilteredIterator(),
-                                                                                         fromJournal.unfilteredIterator())))
+        UnfilteredRowIterator commitLogRows = null;
+        UnfilteredRowIterator journalRows = null;
+        UnfilteredRowIterator merged;
+        try
         {
-            return ImmutableBTreePartition.create(merged);
+            commitLogRows = fromCommitLog.unfilteredIterator();
+            journalRows = fromJournal.unfilteredIterator();
+            merged = UnfilteredRowIterators.merge(ImmutableList.of(commitLogRows, journalRows));
+        }
+        catch (Throwable t)
+        {
+            Throwables.closeNonNullAndAddSuppressed(t, commitLogRows, journalRows);
+            throw Throwables.unchecked(t);
+        }
+
+        try (UnfilteredRowIterator itr = merged)
+        {
+            return ImmutableBTreePartition.create(itr);
         }
     }
 
@@ -373,15 +388,37 @@ public class SplitDomainMemtable implements Memtable
                                              boolean reversed,
                                              SSTableReadsListener listener)
     {
-        UnfilteredRowIterator fromCommitLog = commitLogInternal.rowIterator(key, slices, columnFilter, reversed, listener);
-        UnfilteredRowIterator fromJournal = journalInternal.rowIterator(key, slices, columnFilter, reversed, listener);
-        return mergeRows(fromCommitLog, fromJournal);
+        UnfilteredRowIterator fromCommitLog = null;
+        UnfilteredRowIterator fromJournal = null;
+        try
+        {
+            fromCommitLog = commitLogInternal.rowIterator(key, slices, columnFilter, reversed, listener);
+            fromJournal = journalInternal.rowIterator(key, slices, columnFilter, reversed, listener);
+            return mergeRows(fromCommitLog, fromJournal);
+        }
+        catch (Throwable t)
+        {
+            Throwables.closeNonNullAndAddSuppressed(t, fromCommitLog, fromJournal);
+            throw Throwables.unchecked(t);
+        }
     }
 
     @Override
     public UnfilteredRowIterator rowIterator(DecoratedKey key)
     {
-        return mergeRows(commitLogInternal.rowIterator(key), journalInternal.rowIterator(key));
+        UnfilteredRowIterator fromCommitLog = null;
+        UnfilteredRowIterator fromJournal = null;
+        try
+        {
+            fromCommitLog = commitLogInternal.rowIterator(key);
+            fromJournal = journalInternal.rowIterator(key);
+            return mergeRows(fromCommitLog, fromJournal);
+        }
+        catch (Throwable t)
+        {
+            Throwables.closeNonNullAndAddSuppressed(t, fromCommitLog, fromJournal);
+            throw Throwables.unchecked(t);
+        }
     }
 
     private static UnfilteredRowIterator mergeRows(UnfilteredRowIterator fromCommitLog, UnfilteredRowIterator fromJournal)
@@ -398,9 +435,20 @@ public class SplitDomainMemtable implements Memtable
                                                          DataRange dataRange,
                                                          SSTableReadsListener listener)
     {
-        return UnfilteredPartitionIterators.merge(ImmutableList.of(commitLogInternal.partitionIterator(columnFilter, dataRange, listener),
-                                                                   journalInternal.partitionIterator(columnFilter, dataRange, listener)),
-                                                  UnfilteredPartitionIterators.MergeListener.NOOP);
+        UnfilteredPartitionIterator fromCommitLog = null;
+        UnfilteredPartitionIterator fromJournal = null;
+        try
+        {
+            fromCommitLog = commitLogInternal.partitionIterator(columnFilter, dataRange, listener);
+            fromJournal = journalInternal.partitionIterator(columnFilter, dataRange, listener);
+            return UnfilteredPartitionIterators.merge(ImmutableList.of(fromCommitLog, fromJournal),
+                                                      UnfilteredPartitionIterators.MergeListener.NOOP);
+        }
+        catch (Throwable t)
+        {
+            Throwables.closeNonNullAndAddSuppressed(t, fromCommitLog, fromJournal);
+            throw Throwables.unchecked(t);
+        }
     }
 
     @Override
