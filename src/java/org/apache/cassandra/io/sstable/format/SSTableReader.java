@@ -1421,42 +1421,58 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     public RandomAccessReader openDataReader()
     {
-        return openDataReaderInternal(null, null, false);
+        return openDataReaderInternal(null, null, false, false);
     }
 
     public RandomAccessReader openDataReader(RateLimiter limiter)
     {
         assert limiter != null;
-        return openDataReaderInternal(null, limiter, false);
+        return openDataReaderInternal(null, limiter, false, false);
     }
 
     public RandomAccessReader openDataReader(DiskAccessMode diskAccessMode)
     {
-        return openDataReaderInternal(diskAccessMode, null, false);
+        return openDataReaderInternal(diskAccessMode, null, false, false);
     }
 
     public RandomAccessReader openDataReaderForScan()
     {
-        return openDataReaderInternal(null, null, true);
+        return openDataReaderInternal(null, null, true, false);
     }
 
-    public RandomAccessReader openDataReaderForScan(DiskAccessMode diskAccessMode)
+    /**
+     * A background bulk scan (compaction, cleanup, streaming, offline tools) reads the file once, so it may take
+     * a private descriptor advised as sequential. User range reads must use {@link #openDataReaderForScan()}.
+     */
+    public RandomAccessReader openDataReaderForBulkScan(DiskAccessMode diskAccessMode)
     {
-        return openDataReaderInternal(diskAccessMode, null, true);
+        return openDataReaderInternal(diskAccessMode, null, true, true);
     }
 
     private RandomAccessReader openDataReaderInternal(@Nullable DiskAccessMode diskAccessMode,
                                                       @Nullable RateLimiter limiter,
-                                                      boolean forScan)
+                                                      boolean forScan,
+                                                      boolean bulkScan)
     {
-        if (canReuseDfile(diskAccessMode))
+        boolean reuseDfile = canReuseDfile(diskAccessMode);
+        DiskAccessMode effectiveMode = reuseDfile ? dfile.diskAccessMode() : diskAccessMode;
+        // Mmap reads access the file through MmappedRegions, not the descriptor's read()/readahead path, so
+        // fadvise has nothing to act on there; direct I/O bypasses the page cache, so advice is a no-op too.
+        boolean advise = bulkScan && effectiveMode != DiskAccessMode.mmap && effectiveMode != DiskAccessMode.direct;
+        if (reuseDfile && !advise)
             return dfile.createReader(limiter, forScan, OnReaderClose.RETAIN_FILE_OPEN);
 
         FileHandle handle = dfile.toBuilder()
-                                 .withDiskAccessMode(diskAccessMode)
+                                 .withDiskAccessMode(effectiveMode)
+                                 // A temporary handle must not reopen through the writer's closed regions cache,
+                                 // nor own and invalidate the SSTable's shared chunk cache.
+                                 .withMmappedRegionsCache(null)
+                                 .withChunkCache(null)
                                  .complete();
         try
         {
+            if (advise)
+                NativeLibrary.trySetSequential(handle.channel.getFileDescriptor(), handle.path());
             return handle.createReader(limiter, forScan, OnReaderClose.CLOSE_FILE);
         }
         catch (Throwable t)
