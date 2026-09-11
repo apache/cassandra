@@ -42,6 +42,7 @@ import accord.api.ProgressLog;
 import accord.api.RemoteListeners;
 import accord.api.Result;
 import accord.api.RoutingKey;
+import accord.api.Scheduler;
 import accord.api.Timeouts;
 import accord.coordinate.Coordinations;
 import accord.impl.DefaultLocalListeners;
@@ -268,6 +269,12 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             }
 
             @Override public Coordinations coordinations() { return new Coordinations(); }
+
+            @Override
+            public Scheduler scheduler()
+            {
+                return null;
+            }
         };
 
         TestAgent.RethrowAgent agent = new TestAgent.RethrowAgent()

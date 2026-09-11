@@ -322,7 +322,7 @@ public abstract class ConsensusKeyMigrationState
         long start = nanoTime();
         long deadline = requestTime.computeDeadline(isForWrite ? getWriteRpcTimeout(TimeUnit.NANOSECONDS) : getReadRpcTimeout(TimeUnit.NANOSECONDS));
         RequestBookkeeping bookkeeping = new LatencyRequestBookkeeping(cfs == null ? null : cfs.metric.keyMigration);
-        AccordService.getBlocking(accord.sync(TxnId.minForEpoch(minEpoch), partitionKeys, Self, global ? Quorum : NoRemote),
+        AccordService.getBlocking(accord.syncKeysForMigration(TxnId.minForEpoch(minEpoch), partitionKeys, Self, global ? Quorum : NoRemote),
               partitionKeys, bookkeeping, start, deadline);
         Range[] asRanges = new Range[partitionKeys.size()];
         for (int i = 0; i < partitionKeys.size(); i++)

@@ -31,7 +31,6 @@ import org.junit.Test;
 
 import accord.api.RoutingKey;
 import accord.local.ExecutionContext;
-import accord.local.ExecutionContext.ExecutionSequence;
 import accord.local.LoadKeys;
 import accord.local.LoadKeysFor;
 import accord.local.Node.Id;
@@ -178,7 +177,7 @@ public class AccordFailedKeyAbandonTest
                             AccordCacheEntry<?, ?, ?> entry = store.cachesUnsafe().commandsForKeys().getUnsafe(key);
                             if (entry == null)
                                 continue;
-                            if (entry.isInconsistent())
+                            if (entry.isUnsafeToRead())
                                 marked.add(key);
                             if (!entry.hasNoTasks() || entry.references() > 0)
                                 claimed.add(key);
@@ -201,7 +200,7 @@ public class AccordFailedKeyAbandonTest
                 landed = await(() -> {
                     executor.executeDirectlyWithLock(() -> {
                         AccordCacheEntry<?, ?, ?> entry = store.cachesUnsafe().commandsForKeys().getUnsafe(slow);
-                        slowSettled.set(entry != null && !entry.isLoading() && entry.isInconsistent() && entry.references() > 0);
+                        slowSettled.set(entry != null && !entry.isLoading() && entry.isUnsafeToRead() && entry.references() > 0);
                     });
                     return slowSettled.get();
                 });

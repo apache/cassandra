@@ -27,6 +27,7 @@ import accord.api.ProtocolModifiers.CoordinatorBacklogExecution;
 import accord.api.ProtocolModifiers.FastExecution;
 import accord.api.ProtocolModifiers.ReplicaExecution;
 import accord.api.ProtocolModifiers.SendStableMessages;
+import accord.api.ProtocolModifiers.UniqueTimestampOnConflict;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 
@@ -34,7 +35,6 @@ import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
-import static org.apache.cassandra.config.AccordConfig.CatchupMode.NORMAL;
 import static org.apache.cassandra.config.AccordConfig.QueueShardModel.THREAD_POOL_PER_SHARD;
 import static org.apache.cassandra.config.AccordConfig.QueueSubmissionModel.SYNC;
 import static org.apache.cassandra.config.AccordConfig.RangeIndexMode.in_memory;
@@ -173,6 +173,13 @@ public class AccordConfig
         BLENDED_PRIORITY_PHASE_FAIR,
     }
 
+    public enum UniqueTimestampReservations
+    {
+        NONE,
+        SMALL_SHARED,
+        HISTOGRAM
+    }
+
     public QueueShardModel queue_shard_model = THREAD_POOL_PER_SHARD;
     public QueueSubmissionModel queue_submission_model = SYNC;
 
@@ -215,7 +222,6 @@ public class AccordConfig
      * once this number of tasks are blocked behind it, regardless of batch_size.
      */
     public Integer queue_nonsync_blocked_limit;
-
     /**
      * The number of threads that may be used to execute distributed requests for migration tasks
      */
@@ -304,12 +310,12 @@ public class AccordConfig
      */
     public volatile TransactionalRangeMigration range_migration = TransactionalRangeMigration.auto;
 
-    public enum CatchupMode
+    public enum CatchupFallbackMode
     {
-        DISABLED,
-        NORMAL,
-        FALLBACK_TO_HARD,
-        HARD
+        IGNORE,
+        EXIT,
+        REBOOTSTRAP,
+        REBOOTSTRAP_AND_CATCHUP
     }
 
     /**
@@ -340,6 +346,9 @@ public class AccordConfig
     public Boolean send_minimal;
     // note: simulator incompatible (for now)
     public Boolean precise_micros;
+    public UniqueTimestampReservations unique_timestamp_reservations = UniqueTimestampReservations.HISTOGRAM;
+    public UniqueTimestampOnConflict unique_timestamp_on_conflict = UniqueTimestampOnConflict.STALE;
+    public DurationSpec.IntMillisecondsBound unique_timestamp_reservation_range = new DurationSpec.IntMillisecondsBound(100);
 
     public boolean ephemeral_reads = true;
     public boolean state_cache_listener_jfr_enabled = false;
@@ -355,16 +364,20 @@ public class AccordConfig
     public int commands_for_key_prune_interval = 64;
     public DurationSpec.IntSecondsBound max_conflicts_prune_delta = new DurationSpec.IntSecondsBound(1);
 
+    // number of times we will try to catch up if the catchup was slow (we do not retry if we fail for some other reason)
+    public int catchup_on_start_max_slow_attempts = 5;
+    public boolean catchup_on_start = true;
     public DurationSpec.IntSecondsBound catchup_on_start_success_latency = new DurationSpec.IntSecondsBound(60);
     public DurationSpec.IntSecondsBound catchup_on_start_fail_latency = new DurationSpec.IntSecondsBound(900);
-    public int catchup_on_start_max_attempts = 5;
-    // TODO (required): roll this back to catchup_on_start_exit_on_failure: true
-    public boolean catchup_on_start_exit_on_failure = false;
-    public CatchupMode catchup_on_start = NORMAL;
+    // TODO (required): default this to EXIT or REBOOTSTRAP
+    public CatchupFallbackMode catchup_on_start_on_timeout = CatchupFallbackMode.IGNORE;
+    public CatchupFallbackMode catchup_on_start_on_error = CatchupFallbackMode.IGNORE;
+    public CatchupFallbackMode catchup_on_start_on_rebootstrap_fallback = CatchupFallbackMode.IGNORE;
+    public DurationSpec.IntSecondsBound shutdown_grace_period = new DurationSpec.IntSecondsBound(15 * 60);
+
     public boolean execute_waiting_on_start = true;
     public DurationSpec.IntSecondsBound execute_waiting_on_start_timeout = new DurationSpec.IntSecondsBound(0);
     public boolean execute_waiting_on_start_fail_on_timeout = false;
-    public DurationSpec.IntSecondsBound shutdown_grace_period = new DurationSpec.IntSecondsBound(15 * 60);
 
     public enum RangeIndexMode { in_memory, journal_sai }
     public RangeIndexMode range_index_mode = in_memory;
@@ -402,7 +415,17 @@ public class AccordConfig
              * Replay journal entries for commands that are not durable to the data or command stores.
              * THIS MODE IS NOT YET SAFE TO RUN
              */
-            NON_DURABLE
+            NON_DURABLE,
+
+            /**
+             * Don't replay, simply rebootstrap, marking our log as incomplete.
+             */
+            REBOOTSTRAP_INCOMPLETE,
+
+            /**
+             * Don't replay, simply rebootstrap, marking our log as corrupted/unavailable.
+             */
+            REBOOTSTRAP_RESET
         }
 
         public enum ReplaySavePoint

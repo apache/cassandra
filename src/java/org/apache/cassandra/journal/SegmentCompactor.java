@@ -17,12 +17,13 @@
  */
 package org.apache.cassandra.journal;
 
-import java.io.IOException;
 import java.util.Collection;
 
 public interface SegmentCompactor<K, V>
 {
     SegmentCompactor<?, ?> NOOP = (SegmentCompactor<Object, Object>) (segments) -> segments;
+
+    class Stopped extends RuntimeException {}
 
     static <K, V> SegmentCompactor<K, V> noop()
     {
@@ -30,5 +31,6 @@ public interface SegmentCompactor<K, V>
         return (SegmentCompactor<K, V>) NOOP;
     }
 
-    Collection<StaticSegment<K, V>> compact(Collection<StaticSegment<K, V>> segments) throws IOException;
+    Collection<StaticSegment<K, V>> compact(Collection<StaticSegment<K, V>> segments) throws Stopped;
+    default void stop() {}
 }

@@ -59,7 +59,7 @@ public class AccordExecutionTestUtils
     {
         for (AccordCacheEntry<RoutingKey, CommandsForKey, ?> e : ((AccordCommandStore)commandStore).cachesUnsafe().commandsForKeys())
         {
-            if (e.isInconsistent() && (ranges == null || ranges.contains(e.key())))
+            if (e.isUnsafeToRead() && (ranges == null || ranges.contains(e.key())))
                 return e.key();
         }
         return null;
@@ -95,15 +95,15 @@ public class AccordExecutionTestUtils
     }
 
     /** test-only: mark an entry as holding state an update failed to reach, as a failed task's key would be */
-    public static void setInconsistent(AccordCacheEntry<?, ?, ?> entry)
+    public static void setUnsafeToRead(AccordCacheEntry<?, ?, ?> entry)
     {
-        entry.setInconsistent();
+        entry.setUnsafeToRead();
     }
 
     /** test-only: the update has been applied, so the entry is usable again */
-    public static void unsetInconsistent(AccordCacheEntry<?, ?, ?> entry)
+    public static void unsetUnsafeToRead(AccordCacheEntry<?, ?, ?> entry)
     {
-        entry.unsetInconsistent();
+        entry.setConsistentAndSafeToRead();
     }
 
     /**

@@ -80,7 +80,7 @@ class AccordCacheEntryQueue
             for (int i = fifoHead - 1 ; i > fifoTail ;)
             {
                 SafeTask<?> task = tasks[i];
-                task.onInconsistentKeyExclusive(owner);
+                task.onUnsafeToReadKeyExclusive(owner);
                 if (tasks[i] == task) --i;
                 else if (fifoHead != this.fifoHead)
                 {
@@ -94,7 +94,7 @@ class AccordCacheEntryQueue
         for (int i = priorityHead; i < priorityTail + unsequencedSize ;)
         {
             SafeTask<?> task = tasks[i];
-            task.onInconsistentKeyExclusive(owner);
+            task.onUnsafeToReadKeyExclusive(owner);
             if (tasks[i] == task) ++i;
             else if (priorityHead != this.priorityHead)
             {
@@ -554,9 +554,9 @@ class AccordCacheEntryQueue
         if (!task.isFailed())
             return;
 
-        // if we're inconsistent we permit a failed in-progress task to be queued against us
+        // if we're unsafe-to-read we permit a failed in-progress task to be queued against us
         // but NOT any tasks that can be failed
-        if (owner != null && owner.isInconsistent() && (task.isContinuation() || task.hasIncrementalStarted()))
+        if (owner != null && owner.isUnsafeToRead() && (task.isContinuation() || task.hasIncrementalStarted()))
             return;
 
         throw Invariants.illegalState(String.format("%s is %s but still holds the %s position at %d of %s, waits=%d/%d",
