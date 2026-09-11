@@ -253,6 +253,90 @@ public class MutationTrackingMigrationTest extends TestBaseImpl
     }
 
     /**
+     * Counts, across every node, the sstables a repair session has claimed - either moved into its pending repair
+     * bucket or already promoted to repaired. Split by whether the sstable carries coordinator log offsets.
+     *
+     * @return the count carrying offsets, then the count carrying none
+     */
+    private static int[] countClaimedByRepair(String keyspace, String table)
+    {
+        int withOffsets = 0;
+        int withoutOffsets = 0;
+        for (int nodeId = 1; nodeId <= NUM_NODES; nodeId++)
+        {
+            int[] counts = SHARED_CLUSTER.get(nodeId).callOnInstance(() -> {
+                int tracked = 0;
+                int untracked = 0;
+                ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+                for (SSTableReader sstable : cfs.getLiveSSTables())
+                {
+                    if (!sstable.isPendingRepair() && !sstable.isRepaired())
+                        continue;
+                    if (sstable.getSSTableMetadata().coordinatorLogOffsets.isEmpty())
+                        untracked++;
+                    else
+                        tracked++;
+                }
+                return new int[]{ tracked, untracked };
+            });
+            withOffsets += counts[0];
+            withoutOffsets += counts[1];
+        }
+        return new int[]{ withOffsets, withoutOffsets };
+    }
+
+    private static int countWithOffsets(String keyspace, String table)
+    {
+        int total = 0;
+        for (int nodeId = 1; nodeId <= NUM_NODES; nodeId++)
+            total += SHARED_CLUSTER.get(nodeId).callOnInstance(() -> {
+                int count = 0;
+                ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+                for (SSTableReader sstable : cfs.getLiveSSTables())
+                    if (!sstable.getSSTableMetadata().coordinatorLogOffsets.isEmpty())
+                        count++;
+                return count;
+            });
+        return total;
+    }
+
+    /**
+     * Incremental repair must not anticompact an sstable carrying coordinator log offsets. Anticompaction sets
+     * repairedAt, which clears the offsets recording which mutations the sstable holds, so reconciliation could no
+     * longer see this replica as holding them. Tracked data reaches the repaired set through promotion instead.
+     *
+     * The migration window is what produces the mixed population: the ALTER puts the full ring pending while writes
+     * already route tracked, so the table holds commit-log-derived and offset-bearing sstables at once.
+     */
+    @Test
+    public void incrementalRepairLeavesOffsetBearingSSTablesUnrepaired() throws Exception
+    {
+        String testKeyspace = "ks_incremental_repair_offsets";
+        createKeyspaceWithTable(testKeyspace, "untracked");
+        for (int nodeId = 1; nodeId <= NUM_NODES; nodeId++)
+            SHARED_CLUSTER.get(nodeId).nodetoolResult("disableautocompaction", testKeyspace, TEST_TABLE).asserts().success();
+
+        insert(testKeyspace, TEST_TABLE, 0, 20, "untracked");
+        flushEverywhere(testKeyspace, TEST_TABLE);
+
+        alterReplicationType(testKeyspace, "tracked");
+        insert(testKeyspace, TEST_TABLE, 20, 40, "tracked");
+        flushEverywhere(testKeyspace, TEST_TABLE);
+
+        assertTrue("the migration window must leave offset-bearing sstables for repair to encounter",
+                   countWithOffsets(testKeyspace, TEST_TABLE) > 0);
+
+        SHARED_CLUSTER.get(1).nodetoolResult("repair", testKeyspace, TEST_TABLE).asserts().success();
+
+        int[] claimed = countClaimedByRepair(testKeyspace, TEST_TABLE);
+        assertEquals("incremental repair must not claim an sstable carrying coordinator log offsets",
+                     0, claimed[0]);
+        // Proves the filter is selective rather than excluding everything: the commit-log-derived sstables carry no
+        // offsets, so repair still claims them.
+        assertTrue("repair must still claim the sstables that carry no offsets", claimed[1] > 0);
+    }
+
+    /**
      * Check sstable provenance info correctness across migration to and from tracked replication
      */
     @Test

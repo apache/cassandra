@@ -40,16 +40,23 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.FutureTask;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.compaction.CompactionGroup;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.locator.RangesAtEndpoint;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.replication.migration.KeyspaceMigrationInfo;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
@@ -114,6 +121,44 @@ public class PendingAntiCompaction
             this.prsid = prsid;
         }
 
+        /**
+         * In cases where we have an unreconciled sstable and it's keyspace is both using untracked replication
+         * and there are no pending migrations to untracked replication, we can let incremental repair treat it
+         * as an unrepaired sstable.
+         */
+        private static boolean shouldTreatUnreconciledAsUnrepaired(SSTableReader sstable)
+        {
+            String keyspace = sstable.getKeyspaceName();
+            String table = sstable.getColumnFamilyName();
+
+            // System keyspaces always use untracked replication
+            if (SchemaConstants.isSystemKeyspace(sstable.getKeyspaceName()))
+                return true;
+
+            ClusterMetadata metadata = ClusterMetadata.current();
+
+            KeyspaceMetadata ksm = metadata.schema.maybeGetKeyspaceMetadata(keyspace).orElse(null);
+
+            if (ksm == null)
+                return true;
+
+            boolean isTracked = ksm.params.replicationType.isTracked();
+
+            if (isTracked)
+                return false;
+
+            KeyspaceMigrationInfo migrationInfo = metadata.mutationTrackingMigrationState.getKeyspaceInfo(keyspace);
+            if (migrationInfo == null)
+                return true;
+
+            TableMetadata tbl = ksm.getTableNullable(table);
+            if (tbl == null)
+                return true;
+
+            NormalizedRanges<Token> pending = migrationInfo.getPendingRangesForTable(tbl.id);
+            return pending == null || pending.isEmpty();
+        }
+
         public boolean apply(SSTableReader sstable)
         {
             if (!sstable.intersects(ranges))
@@ -121,32 +166,38 @@ public class PendingAntiCompaction
 
             StatsMetadata metadata = sstable.getSSTableMetadata();
 
-            // exclude repaired sstables
-            if (metadata.repairedAt != UNREPAIRED_SSTABLE)
-                return false;
-
-            if (!sstable.descriptor.version.hasPendingRepair())
+            switch (CompactionGroup.of(sstable))
             {
-                String message = String.format("Prepare phase failed because it encountered legacy sstables that don't " +
-                                               "support pending repair, run upgradesstables before starting incremental " +
-                                               "repairs, repair session (%s)", prsid);
-                throw new SSTableAcquisitionException(message);
+                case PENDING_REPAIR:
+                    {
+                        if (!ActiveRepairService.instance().consistent.local.isSessionFinalized(metadata.pendingRepair))
+                        {
+                            String message = String.format("Prepare phase for incremental repair session %s has failed because it encountered " +
+                                                           "intersecting sstables belonging to another incremental repair session (%s). This is " +
+                                                           "caused by starting an incremental repair session before a previous one has completed. " +
+                                                           "Check nodetool repair_admin for hung sessions and fix them.", prsid, metadata.pendingRepair);
+                            throw new SSTableAcquisitionException(message);
+                        }
+                        return false;
+                    }
+                case UNREPAIRED:
+                    if (!sstable.descriptor.version.hasPendingRepair())
+                    {
+                        String message = String.format("Prepare phase failed because it encountered legacy sstables that don't " +
+                                                       "support pending repair, run upgradesstables before starting incremental " +
+                                                       "repairs, repair session (%s)", prsid);
+                        throw new SSTableAcquisitionException(message);
+                    }
+                    break;
+                case UNRECONCILED:
+                    // unreconciled should fall through to false unless the table is now untracked and there are
+                    // no pending migrations to untracked, in which case it can be interpreted as unrepaired
+                    if (shouldTreatUnreconciledAsUnrepaired(sstable))
+                        break;
+                default:
+                    return false;
             }
 
-            // exclude sstables pending repair, but record session ids for
-            // non-finalized sessions for a later error message
-            if (metadata.pendingRepair != NO_PENDING_REPAIR)
-            {
-                if (!ActiveRepairService.instance().consistent.local.isSessionFinalized(metadata.pendingRepair))
-                {
-                    String message = String.format("Prepare phase for incremental repair session %s has failed because it encountered " +
-                                                   "intersecting sstables belonging to another incremental repair session (%s). This is " +
-                                                   "caused by starting an incremental repair session before a previous one has completed. " +
-                                                   "Check nodetool repair_admin for hung sessions and fix them.", prsid, metadata.pendingRepair);
-                    throw new SSTableAcquisitionException(message);
-                }
-                return false;
-            }
             Collection<CompactionInfo> cis = CompactionManager.instance.active.getCompactionsForSSTable(sstable, OperationType.ANTICOMPACTION);
             if (cis != null && !cis.isEmpty())
             {
