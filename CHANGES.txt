@@ -11,6 +11,7 @@
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
 6.0-alpha3
+ * Fix non-printable characters in Gossiper log for TOKENS (CASSANDRA-21417)
  * Fix compression dictionary training failing with "insufficient samples" on large-chunk tables (CASSANDRA-21666)
  * AccordExecutor improvements (CASSANDRA-21662)
  * Upgrade async-profiler to 4.5 (CASSANDRA-21630)
