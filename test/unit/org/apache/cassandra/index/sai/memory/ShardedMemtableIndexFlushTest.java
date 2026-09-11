@@ -19,6 +19,7 @@
 package org.apache.cassandra.index.sai.memory;
 
 import org.junit.Test;
+
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 

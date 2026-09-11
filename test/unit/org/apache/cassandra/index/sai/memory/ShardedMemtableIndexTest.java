@@ -30,7 +30,6 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
@@ -53,7 +52,6 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_SHARD_COUNT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -66,11 +64,6 @@ public class ShardedMemtableIndexTest extends SAIRandomizedTester
     private ShardedMemtableIndex memtableIndex;
     private Map<DecoratedKey, Integer> keyMap;
     private Map<Integer, Integer> rowMap;
-
-    @BeforeClass
-    public static void setShardCount() {
-        System.setProperty(MEMTABLE_SHARD_COUNT.getKey(), "8");
-    }
 
     @Before
     public void setup() throws Throwable
@@ -108,8 +101,7 @@ public class ShardedMemtableIndexTest extends SAIRandomizedTester
     @Test
     public void onHeapAllocationTest()
     {
-        // Should take the system variable-based shard count here
-        memtableIndex = new ShardedMemtableIndex(index, cfs, null, cfs.getCurrentMemtable());
+        memtableIndex = new ShardedMemtableIndex(index, cfs, 8, cfs.getCurrentMemtable());
         assertEquals(8, memtableIndex.shardCount());
 
         assertEquals(0L, memtableIndex.writeCount());
@@ -125,8 +117,7 @@ public class ShardedMemtableIndexTest extends SAIRandomizedTester
     @Test
     public void randomQueryTest() throws Exception
     {
-        // Should take the system variable-based shard count here
-        memtableIndex = new ShardedMemtableIndex(index, cfs, null, cfs.getCurrentMemtable());
+        memtableIndex = new ShardedMemtableIndex(index, cfs, 8, cfs.getCurrentMemtable());
         assertEquals(8, memtableIndex.shardCount());
 
         for (int row = 0; row < getRandom().nextIntBetween(1000, 5000); row++)
@@ -173,8 +164,7 @@ public class ShardedMemtableIndexTest extends SAIRandomizedTester
     @Test
     public void indexIteratorTest()
     {
-        // Should take the system variable-based shard count here
-        memtableIndex = new ShardedMemtableIndex(index, cfs, null, cfs.getCurrentMemtable());
+        memtableIndex = new ShardedMemtableIndex(index, cfs, 8, cfs.getCurrentMemtable());
         assertEquals(8, memtableIndex.shardCount());
 
         Map<Integer, Set<DecoratedKey>> terms = buildTermMap();

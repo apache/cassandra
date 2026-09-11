@@ -44,12 +44,9 @@ import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-
-import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_SHARD_COUNT;
 
 public class ShardedMemtableIndex implements MemtableIndex
 {
@@ -60,16 +57,14 @@ public class ShardedMemtableIndex implements MemtableIndex
     private final LongAdder estimatedMemoryUsed = new LongAdder();
     private final Memtable memtable;
 
-    private static final int DEFAULT_SHARD_COUNT = MEMTABLE_SHARD_COUNT.getInt(FBUtilities.getAvailableProcessors());
     public static final String SHARDS_OPTION = "shards";
 
     public ShardedMemtableIndex(StorageAttachedIndex index,
                                 Memtable.Owner owner,
-                                Integer shardCountOption,
+                                int shardCount,
                                 Memtable memtable)
     {
         this.index = index;
-        int shardCount = (null == shardCountOption) ? DEFAULT_SHARD_COUNT : shardCountOption;
         this.boundaries = owner.localRangeSplits(shardCount);
         this.shards = generateShards(boundaries.shardCount(), index);
         this.memtable = memtable;

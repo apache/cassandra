@@ -102,7 +102,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         Collections.emptyMap(),
         Collections.singletonMap(SHARDS, "1"),
         Collections.singletonMap(SHARDS, "4"),
-        Collections.singletonMap(SHARDS, "8")
+        Collections.singletonMap(SHARDS, "auto")
     };
     private static final Logger logger = LoggerFactory.getLogger(SingleNodeTableWalkTest.class);
 

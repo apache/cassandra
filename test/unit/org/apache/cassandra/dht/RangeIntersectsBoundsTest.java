@@ -20,10 +20,9 @@ package org.apache.cassandra.dht;
 
 import org.junit.Test;
 
-import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
-
 import org.apache.cassandra.CassandraTestBase;
 import org.apache.cassandra.CassandraTestBase.DDDaemonInitialization;
+import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

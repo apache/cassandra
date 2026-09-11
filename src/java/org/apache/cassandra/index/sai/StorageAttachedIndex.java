@@ -118,6 +118,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_SHARD_COUNT;
 import static org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig.MAX_TOP_K;
 
 public class StorageAttachedIndex implements Index
@@ -176,6 +177,8 @@ public class StorageAttachedIndex implements Index
 
     private static final Set<Class<? extends IPartitioner>> ILLEGAL_PARTITIONERS =
             ImmutableSet.of(OrderPreservingPartitioner.class, LocalPartitioner.class, ByteOrderedPartitioner.class, RandomPartitioner.class);
+    private static final int DEFAULT_SHARD_COUNT = MEMTABLE_SHARD_COUNT.getInt(FBUtilities.getAvailableProcessors());
+    private static final String AUTO_SHARDS_OPTION = "auto";
 
     private final ColumnFamilyStore baseCfs;
     private final IndexMetadata indexMetadata;
@@ -222,7 +225,12 @@ public class StorageAttachedIndex implements Index
         else
             maxTermSizeGuardrail = Guardrails.saiStringTermSize;
         String shardsOption = indexMetadata.options.get(ShardedMemtableIndex.SHARDS_OPTION);
-        shardCount = shardsOption == null ? 1 : Integer.parseInt(shardsOption);
+        if (shardsOption == null)
+            shardCount = 1;
+        else if (shardsOption.equalsIgnoreCase(AUTO_SHARDS_OPTION))
+            shardCount = DEFAULT_SHARD_COUNT;
+        else
+            shardCount = Integer.parseInt(shardsOption);
     }
 
     /**
@@ -295,17 +303,20 @@ public class StorageAttachedIndex implements Index
             if (indexTermType.isVector())
                 throw new InvalidRequestException("A storage-attached index on a vector column does not support sharding");
 
-            try
+            if (!shardsOption.equalsIgnoreCase(AUTO_SHARDS_OPTION))
             {
-                int shardCount = Integer.parseInt(shardsOption);
-                if (shardCount <= 0)
-                    throw new InvalidRequestException("Shard count for a storage-attached index must be a positive integer, was " + shardCount);
-                if (shardCount > MAX_SHARD_COUNT)
-                    throw new InvalidRequestException("Shard count for a storage-attached index must not exceed " + MAX_SHARD_COUNT + ", was " + shardCount);
-            }
-            catch (NumberFormatException e)
-            {
-                throw new InvalidRequestException("Shard count for a storage-attached index must be a valid integer, got '" + shardsOption + "'");
+                try
+                {
+                    int shardCount = Integer.parseInt(shardsOption);
+                    if (shardCount <= 0)
+                        throw new InvalidRequestException("Shard count for a storage-attached index must be a positive integer, was " + shardCount);
+                    if (shardCount > MAX_SHARD_COUNT)
+                        throw new InvalidRequestException("Shard count for a storage-attached index must not exceed " + MAX_SHARD_COUNT + ", was " + shardCount);
+                }
+                catch (NumberFormatException e)
+                {
+                    throw new InvalidRequestException("Shard count for a storage-attached index must be a valid integer, got '" + shardsOption + "'");
+                }
             }
         }
         AbstractAnalyzer.fromOptions(indexTermType, analysisOptions);
