@@ -23,6 +23,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import javax.annotation.Nullable;
 import javax.management.openmbean.CompositeData;
@@ -43,6 +44,7 @@ import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MBeanWrapper.OnException;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.schema.SystemDistributedKeyspace.retrieveLightweightLatestCompressionDictionary;
@@ -100,6 +102,11 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     public boolean isEnabled()
     {
         return isEnabled;
+    }
+
+    public boolean isTrainingRunning()
+    {
+        return scheduler.isTrainingRunning();
     }
 
     /**
@@ -174,22 +181,21 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     @Override
     public synchronized void train(boolean force, Map<String, String> parameters)
     {
-        // Validate table supports dictionary compression
+        // A non-dictionary table cannot be trained; reject it before anything else, matching the contract of
+        // train(force, parameters, refViewFragment, listener).
         if (!isEnabled)
-        {
             throw new UnsupportedOperationException("Table " + keyspaceName + '.' + tableName + " does not support dictionary compression");
-        }
 
-        // resolve training config and fail fast when invalid, so we do not reach logic which would e.g. flush unnecessarily.
+        // Fail fast on invalid training parameters before selecting a view or flushing: an unnecessary flush (and a
+        // misleading "No SSTables" error on an empty table) is worse than rejecting the bad parameters up front.
         CompressionDictionaryTrainingConfig trainingConfig = createTrainingConfig(parameters);
 
-        LightweightCompressionDictionary dictionary = retrieveLightweightLatestCompressionDictionary(columnFamilyStore.getKeyspaceName(),
-                                                                                                     columnFamilyStore.getTableName(),
-                                                                                                     columnFamilyStore.metadata.id.toLongString());
-
-        checkTrainingFrequency(dictionary, trainingConfig);
-
-        // SSTable-based training: sample from existing SSTables
+        // Likewise reject a too-soon retrain up front. train(4-arg) checks this again for the benefit of its other
+        // callers, but by then we would already have flushed and referenced SSTables for a request we then reject.
+        checkTrainingFrequency(retrieveLightweightLatestCompressionDictionary(columnFamilyStore.getKeyspaceName(),
+                                                                             columnFamilyStore.getTableName(),
+                                                                             columnFamilyStore.metadata.id.toLongString()),
+                               trainingConfig);
 
         // this is not closed here but in training runnable when finished
         // also, if view is empty, and we throw just below because of it then
@@ -209,11 +215,50 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
             }
         }
 
-        scheduler.scheduleSSTableBasedTraining(refViewFragment,
-                                               compressionParams,
-                                               trainingConfig,
-                                               this::handleNewDictionary,
-                                               force);
+        train(force, parameters, refViewFragment, this::handleNewDictionary);
+    }
+
+    public synchronized Future<?> train(boolean force, Map<String, String> parameters,
+                                        ColumnFamilyStore.RefViewFragment refViewFragment,
+                                        Consumer<CompressionDictionary> listener)
+    {
+        // This method takes ownership of refViewFragment: on success the scheduler releases it when the
+        // training task finishes. Every path that returns or throws before reaching the scheduler must
+        // therefore release it here, otherwise the SSTable references stay pinned for the life of the node
+        // and the files can never be deleted after compaction.
+        try
+        {
+            // Validate table supports dictionary compression
+            if (!isEnabled)
+            {
+                throw new UnsupportedOperationException("Table " + keyspaceName + '.' + tableName + " does not support dictionary compression");
+            }
+
+            if (refViewFragment.sstables.isEmpty())
+                throw new IllegalArgumentException("No SSTables to train on for table " + keyspaceName + '.' + tableName);
+
+            // resolve training config and fail fast when invalid, so we do not reach logic which would e.g. flush unnecessarily.
+            CompressionDictionaryTrainingConfig trainingConfig = createTrainingConfig(parameters);
+
+            LightweightCompressionDictionary dictionary = retrieveLightweightLatestCompressionDictionary(columnFamilyStore.getKeyspaceName(),
+                                                                                                         columnFamilyStore.getTableName(),
+                                                                                                         columnFamilyStore.metadata.id.toLongString());
+
+            checkTrainingFrequency(dictionary, trainingConfig);
+
+            // SSTable-based training: sample from existing SSTables
+
+            return scheduler.scheduleSSTableBasedTraining(refViewFragment,
+                                                          compressionParams,
+                                                          trainingConfig,
+                                                          listener,
+                                                          force);
+        }
+        catch (Throwable t)
+        {
+            refViewFragment.close();
+            throw t;
+        }
     }
 
     @Override
@@ -300,7 +345,14 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
             checkTrainingFrequency(latestCompressionDictionary, createTrainingConfig(Map.of()));
         }
 
-        handleNewDictionary(kind.createDictionary(dictId, dataObject.dict, dataObject.dictChecksum));
+        handleNewDictionary(kind.createDictionary(dictId, dataObject.dict, dataObject.dictChecksum, dataObject.createdAt));
+    }
+
+    @Override
+    public boolean isAutoTrainingEnabled()
+    {
+        // derived from the live params so ALTER TABLE takes effect without a restart
+        return CompressionDictionaryTrainingConfig.isAutoTrainingEnabled(compressionParams.getOtherOptions());
     }
 
     /**
@@ -314,9 +366,9 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         closeQuitely(scheduler, "CompressionDictionaryScheduler");
     }
 
-    void handleNewDictionary(CompressionDictionary dictionary)
+    public void handleNewDictionary(CompressionDictionary dictionary)
     {
-        // sequence meatters; persist the new dictionary before broadcasting to others.
+        // sequence matters; persist the new dictionary before broadcasting to others.
         storeDictionary(dictionary);
         onNewDictionaryTrained(dictionary.dictId());
     }
@@ -329,7 +381,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
      *                   for a given table will be used
      * @return training configuration with max dictionary size and total sample size of supplied arguments.
      */
-    private CompressionDictionaryTrainingConfig createTrainingConfig(Map<String, String> parameters)
+    public CompressionDictionaryTrainingConfig createTrainingConfig(Map<String, String> parameters)
     {
         return CompressionDictionaryTrainingConfig
                .builder()
@@ -337,9 +389,11 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
                .maxTotalSampleSize(CompressionDictionaryTrainingConfig.getMaxTotalSampleSizeWithUserSuppliedParams(compressionParams, parameters))
                .minTrainingFrequency(CompressionDictionaryTrainingConfig.getMinTrainingFrequency(compressionParams.getOtherOptions()))
                .chunkSize(compressionParams.chunkLength())
+               .isAutoTrainingEnabled(CompressionDictionaryTrainingConfig.isAutoTrainingEnabled(compressionParams.getOtherOptions()))
+               .autoTrainingImprovementThreshold(CompressionDictionaryTrainingConfig.getAutoTrainingImprovementThreshold(compressionParams.getOtherOptions()))
+               .autoTrainingTwcsMaxWindows(CompressionDictionaryTrainingConfig.getAutoTrainingTwcsMaxWindows(compressionParams.getOtherOptions()))
                .build();
     }
-
 
     private void checkTrainingFrequency(LightweightCompressionDictionary lastDictionary, CompressionDictionaryTrainingConfig config)
     {

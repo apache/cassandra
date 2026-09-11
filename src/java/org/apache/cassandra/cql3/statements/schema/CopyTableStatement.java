@@ -222,6 +222,11 @@ public final class CopyTableStatement extends AlterSchemaStatement
         TableParams originalParams = targetBuilder.build().params;
         TableParams newTableParams = attrs.asAlteredTableParams(originalParams);
 
+        // Validate against the merged params: compression may be inherited from the source table while the WITH
+        // clause overrides compaction, or vice versa, so neither side alone tells us whether auto-training is
+        // being paired with a non-TWCS strategy.
+        validateCompactionStrategySupportsAutoTraining(newTableParams);
+
         TableMetadata table = targetBuilder.params(newTableParams)
                                            .id(TableId.get(metadata))
                                            .build();
