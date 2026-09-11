@@ -598,7 +598,10 @@ public abstract class ColumnFilter
         @Override
         public boolean fetches(ColumnMetadata column)
         {
-            return true;
+            // A column dropped after this filter was built is absent from fetchedAndQueried, and
+            // answering true for it would fetch cells that fetchedColumns() cannot then encode as a
+            // superset. Use allEver() to read dropped columns deliberately.
+            return fetchedAndQueried.contains(column);
         }
 
         @Override
@@ -757,7 +760,7 @@ public abstract class ColumnFilter
         @Override
         public boolean fetches(ColumnMetadata column)
         {
-            return fetchingStrategy.fetchesAllColumns(column.isStatic()) || fetched.contains(column);
+            return fetched.contains(column);
         }
 
         /**
