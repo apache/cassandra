@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import org.junit.BeforeClass;
@@ -250,6 +251,130 @@ public class MutationTrackingMigrationTest extends TestBaseImpl
                                    + "'replication_factor': 3} AND replication_type='%s'", keyspace, replicationType),
                             ConsistencyLevel.ALL);
         waitForEpochOf(SHARED_CLUSTER, 1);
+    }
+
+    /**
+     * Counts, across every node, the sstables a repair session has claimed - either moved into its pending repair
+     * bucket or already promoted to repaired. Split by whether the sstable carries coordinator log offsets.
+     *
+     * @return the count carrying offsets, then the count carrying none
+     */
+    private static int[] countClaimedByRepair(String keyspace, String table)
+    {
+        int withOffsets = 0;
+        int withoutOffsets = 0;
+        for (int nodeId = 1; nodeId <= NUM_NODES; nodeId++)
+        {
+            int[] counts = SHARED_CLUSTER.get(nodeId).callOnInstance(() -> {
+                int tracked = 0;
+                int untracked = 0;
+                ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+                for (SSTableReader sstable : cfs.getLiveSSTables())
+                {
+                    if (!sstable.isPendingRepair() && !sstable.isRepaired())
+                        continue;
+                    if (sstable.getSSTableMetadata().coordinatorLogOffsets.isEmpty())
+                        untracked++;
+                    else
+                        tracked++;
+                }
+                return new int[]{ tracked, untracked };
+            });
+            withOffsets += counts[0];
+            withoutOffsets += counts[1];
+        }
+        return new int[]{ withOffsets, withoutOffsets };
+    }
+
+    private static int countWithOffsets(String keyspace, String table)
+    {
+        int total = 0;
+        for (int nodeId = 1; nodeId <= NUM_NODES; nodeId++)
+            total += SHARED_CLUSTER.get(nodeId).callOnInstance(() -> {
+                int count = 0;
+                ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+                for (SSTableReader sstable : cfs.getLiveSSTables())
+                    if (!sstable.getSSTableMetadata().coordinatorLogOffsets.isEmpty())
+                        count++;
+                return count;
+            });
+        return total;
+    }
+
+    /**
+     * Incremental repair must not anticompact an sstable carrying coordinator log offsets. Anticompaction sets
+     * repairedAt, which clears the offsets recording which mutations the sstable holds, so reconciliation could no
+     * longer see this replica as holding them. Tracked data reaches the repaired set through promotion instead.
+     *
+     * The migration window is what produces the mixed population: the ALTER puts the full ring pending while writes
+     * already route tracked, so the table holds commit-log-derived and offset-bearing sstables at once.
+     */
+    @Test
+    public void incrementalRepairLeavesOffsetBearingSSTablesUnrepaired() throws Exception
+    {
+        String testKeyspace = "ks_incremental_repair_offsets";
+        createKeyspaceWithTable(testKeyspace, "untracked");
+        for (int nodeId = 1; nodeId <= NUM_NODES; nodeId++)
+            SHARED_CLUSTER.get(nodeId).nodetoolResult("disableautocompaction", testKeyspace, TEST_TABLE).asserts().success();
+
+        insert(testKeyspace, TEST_TABLE, 0, 20, "untracked");
+        flushEverywhere(testKeyspace, TEST_TABLE);
+
+        alterReplicationType(testKeyspace, "tracked");
+        insert(testKeyspace, TEST_TABLE, 20, 40, "tracked");
+        flushEverywhere(testKeyspace, TEST_TABLE);
+
+        assertTrue("the migration window must leave offset-bearing sstables for repair to encounter",
+                   countWithOffsets(testKeyspace, TEST_TABLE) > 0);
+
+        SHARED_CLUSTER.get(1).nodetoolResult("repair", testKeyspace, TEST_TABLE).asserts().success();
+
+        int[] claimed = countClaimedByRepair(testKeyspace, TEST_TABLE);
+        assertEquals("incremental repair must not claim an sstable carrying coordinator log offsets",
+                     0, claimed[0]);
+        // Proves the filter is selective rather than excluding everything: the commit-log-derived sstables carry no
+        // offsets, so repair still claims them.
+        assertTrue("repair must still claim the sstables that carry no offsets", claimed[1] > 0);
+    }
+
+    /**
+     * Rolling the migration back leaves offset-bearing sstables on disk that nothing will ever reconcile. A background
+     * compaction round discards their offsets, after which incremental repair claims them like any other unrepaired
+     * sstable. Before that discard existed, the offsets stayed for the life of the process and the UNRECONCILED holder
+     * kept refusing them, which failed every repair and every compaction for the table.
+     */
+    @Test
+    public void rollbackDiscardsOffsetsSoRepairCanProceed() throws Exception
+    {
+        String testKeyspace = "ks_rollback_discards_offsets";
+        createKeyspaceWithTable(testKeyspace, "untracked");
+
+        insert(testKeyspace, TEST_TABLE, 0, 20, "untracked");
+        flushEverywhere(testKeyspace, TEST_TABLE);
+
+        alterReplicationType(testKeyspace, "tracked");
+        insert(testKeyspace, TEST_TABLE, 20, 40, "tracked");
+        flushEverywhere(testKeyspace, TEST_TABLE);
+        assertTrue("precondition: a flush inside the migration's pending ranges must carry offsets",
+                   countWithOffsets(testKeyspace, TEST_TABLE) > 0);
+
+        alterReplicationType(testKeyspace, "untracked");
+
+        // A flush is what asks a node for a background compaction round, which is where the discard happens.
+        insert(testKeyspace, TEST_TABLE, 40, 60, "after_rollback");
+        flushEverywhere(testKeyspace, TEST_TABLE);
+
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+        while (countWithOffsets(testKeyspace, TEST_TABLE) > 0 && System.nanoTime() < deadline)
+            Thread.sleep(500);
+        assertEquals("the rollback must leave no sstable claiming journal provenance",
+                     0, countWithOffsets(testKeyspace, TEST_TABLE));
+
+        SHARED_CLUSTER.get(1).nodetoolResult("repair", testKeyspace, TEST_TABLE).asserts().success();
+
+        int[] claimed = countClaimedByRepair(testKeyspace, TEST_TABLE);
+        assertEquals("nothing may still carry offsets once repair has claimed it", 0, claimed[0]);
+        assertTrue("repair must claim the sstables the rollback released", claimed[1] > 0);
     }
 
     /**

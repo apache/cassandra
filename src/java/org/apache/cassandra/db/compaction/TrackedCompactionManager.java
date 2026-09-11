@@ -42,6 +42,7 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
@@ -53,7 +54,10 @@ import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.schema.CompactionParams;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.replication.migration.KeyspaceMigrationInfo;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.TimeUUID;
 
 /**
@@ -95,6 +99,39 @@ public class TrackedCompactionManager extends AbstractStrategyHolder
     private static String describe(ImmutableSet<ShortMutationId> key)
     {
         return key.isEmpty() ? "reconciled mutations" : "tracked transfers " + key;
+    }
+
+    /**
+     * Marks as many of {@code candidates} compacting as are free, or returns null if none are.
+     */
+    static LifecycleTransaction tryLock(ColumnFamilyStore cfs, Set<SSTableReader> candidates, String reason)
+    {
+        if (candidates.isEmpty())
+            return null;
+
+        Set<SSTableReader> available = new HashSet<>(candidates);
+        available.removeAll(cfs.getTracker().getCompacting());
+        if (available.isEmpty())
+        {
+            logger.trace("Deferring {} for {}.{}; all {} sstables are busy",
+                         reason, cfs.metadata.keyspace, cfs.metadata.name, candidates.size());
+            return null;
+        }
+
+        LifecycleTransaction txn = cfs.getTracker().tryModify(available, OperationType.COMPACTION);
+        if (txn == null)
+        {
+            // if one or more of the sstables are already marked compacted, remove them and try again. Since we try to
+            // handle all eligible sstables in a single task, this keeps compaction from preventing any progress
+            available.removeAll(cfs.getTracker().getCompacting());
+            if (available.isEmpty())
+                return null;
+            txn = cfs.getTracker().tryModify(available, OperationType.COMPACTION);
+            if (txn == null)
+                logger.trace("Deferring {} for {}.{}; lost the race for its sstables",
+                             reason, cfs.metadata.keyspace, cfs.metadata.name);
+        }
+        return txn;
     }
 
     @Override
@@ -459,8 +496,8 @@ public class TrackedCompactionManager extends AbstractStrategyHolder
     {
         pruneEmpty();
 
-        // Promotion first
-        List<AbstractCompactionTask> tasks = new ArrayList<>(getNextPromotionTasks());
+        // Promotion, or offset discard, first
+        List<AbstractCompactionTask> tasks = new ArrayList<>(getNextTrackedTasks());
         for (CompactionStrategyHolder silo : silos.values())
         {
             Collection<AbstractCompactionTask> siloTasks = silo.getMaximalTasks(gcBefore, splitOutput);
@@ -481,6 +518,79 @@ public class TrackedCompactionManager extends AbstractStrategyHolder
     synchronized Set<ImmutableSet<ShortMutationId>> keys()
     {
         return ImmutableSet.copyOf(silos.keySet());
+    }
+
+    /**
+     * The work that has to happen before any ordinary compaction task is collected, because it is what lets an sstable
+     * leave this holder at all: promotion of the sstables that have reconciled, or, once the keyspace has stopped using
+     * mutation tracking, discarding the coordinator log offsets of everything held here.
+     *
+     * Called ahead of every other task supplier by {@link CompactionStrategyManager#getNextBackgroundTasks} and
+     * {@link #getMaximalTasks}.
+     */
+    synchronized Collection<AbstractCompactionTask> getNextTrackedTasks()
+    {
+        pruneEmpty();
+
+        // Holding nothing means there is nothing to promote and no offsets to discard. Checked before the keyspace
+        // lookup because every untracked table in the cluster reaches this on every compaction round.
+        if (holdsNothing())
+            return Collections.emptyList();
+
+        if (isTrackingAbandoned())
+            return getOffsetsDiscardTasks();
+
+        return getNextPromotionTasks();
+    }
+
+    private boolean holdsNothing()
+    {
+        for (CompactionStrategyHolder silo : silos.values())
+        {
+            if (!isEmpty(silo))
+                return false;
+        }
+        return true;
+    }
+
+    /**
+     * True once the keyspace has left mutation tracking with no ranges still pending migration. Nothing reconciles the
+     * table's tracked writes after that, so its offsets record a reconciliation that will never be confirmed, and
+     * {@link MutationTrackingService#isDurablyReconciled} cannot even resolve their log ids.
+     *
+     * Anything that cannot be determined counts as still tracked. Attempting promotion against a missing shard throws
+     * out of the compaction round, which is recoverable; discarding the offsets of a keyspace that is still tracked is
+     * not.
+     */
+    private boolean isTrackingAbandoned()
+    {
+        ClusterMetadata metadata = ClusterMetadata.currentNullable();
+        if (metadata == null)
+            return false;
+
+        KeyspaceMetadata ksm = metadata.schema.maybeGetKeyspaceMetadata(cfs.metadata.keyspace).orElse(null);
+        if (ksm == null || ksm.params.replicationType.isTracked())
+            return false;
+
+        KeyspaceMigrationInfo migration = metadata.mutationTrackingMigrationState.getKeyspaceInfo(cfs.metadata.keyspace);
+        return migration == null || migration.getPendingRangesForTable(cfs.metadata.id).isEmpty();
+    }
+
+    /**
+     * One task covering every silo, since the offsets are being discarded rather than compared: which transfers an
+     * sstable came from stops mattering as soon as nothing will reconcile them.
+     */
+    private Collection<AbstractCompactionTask> getOffsetsDiscardTasks()
+    {
+        Set<SSTableReader> candidates = new HashSet<>();
+        for (CompactionStrategyHolder silo : silos.values())
+            Iterables.addAll(candidates, sstablesIn(silo));
+
+        LifecycleTransaction txn = tryLock(cfs, candidates, "coordinator log offset discard");
+        if (txn == null)
+            return Collections.emptyList();
+
+        return Collections.singletonList(new ClearCoordinatorLogOffsetsTask(cfs, txn, this::pruneEmpty));
     }
 
     synchronized Collection<AbstractCompactionTask> getNextPromotionTasks()

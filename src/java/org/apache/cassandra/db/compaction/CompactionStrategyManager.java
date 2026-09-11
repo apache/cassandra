@@ -233,10 +233,11 @@ public class CompactionStrategyManager implements INotificationConsumer
             if (repairFinishedTasks != null && !repairFinishedTasks.isEmpty())
                 return repairFinishedTasks;
 
-            // then promote tracked sstables whose mutations or transfers have reconciled
-            Collection<AbstractCompactionTask> promotionTasks = tracked.getNextPromotionTasks();
-            if (promotionTasks != null && !promotionTasks.isEmpty())
-                return promotionTasks;
+            // then promote tracked sstables whose mutations or transfers have reconciled, or demote to unrepaire
+            // and remove the offsets if this keyspace is no longer using mutation tracking.
+            Collection<AbstractCompactionTask> trackedTasks = tracked.getNextTrackedTasks();
+            if (trackedTasks != null && !trackedTasks.isEmpty())
+                return trackedTasks;
 
             // sort compaction task suppliers by remaining tasks descending
             List<TaskSupplier> suppliers = new ArrayList<>(numPartitions * holders.size());
@@ -1545,6 +1546,42 @@ public class CompactionStrategyManager implements INotificationConsumer
             {
                 sstable.mutatePromotedToRepairedAndReload(repairedAt);
                 verifyMetadata(sstable, repairedAt, ActiveRepairService.NO_PENDING_REPAIR);
+                if (!sstable.getSSTableMetadata().coordinatorLogOffsets.isEmpty())
+                    throw new IllegalStateException(String.format("Failed clearing coordinator log offsets on %s", sstable));
+                changed.add(sstable);
+            }
+        }
+        finally
+        {
+            try
+            {
+                cfs.getTracker().notifySSTableRepairedStatusChanged(changed);
+            }
+            finally
+            {
+                writeLock.unlock();
+            }
+        }
+        return changed;
+    }
+
+    /**
+     * Removes the coordinator log offsets of sstables whose keyspace has stopped using mutation tracking, leaving
+     * {@code repairedAt} unset. This moves them from {@link CompactionGroup#UNRECONCILED} to
+     * {@link CompactionGroup#UNREPAIRED}
+     */
+    public Set<SSTableReader> clearCoordinatorLogOffsets(Collection<SSTableReader> sstables) throws IOException
+    {
+        if (sstables.isEmpty())
+            return Collections.emptySet();
+        Set<SSTableReader> changed = new HashSet<>();
+
+        writeLock.lock();
+        try
+        {
+            for (SSTableReader sstable : sstables)
+            {
+                sstable.mutateCoordinatorLogOffsetsAndReload(ImmutableCoordinatorLogOffsets.NONE);
                 if (!sstable.getSSTableMetadata().coordinatorLogOffsets.isEmpty())
                     throw new IllegalStateException(String.format("Failed clearing coordinator log offsets on %s", sstable));
                 changed.add(sstable);

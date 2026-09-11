@@ -57,10 +57,13 @@ import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.Offsets;
 import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.schema.CompactionParams;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationType;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
@@ -68,6 +71,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class TrackedUnreconciledPromotionTest
@@ -480,5 +484,99 @@ public class TrackedUnreconciledPromotionTest
         assertTrue(promoted.isRepaired());
         assertEquals("repaired, so not unpromotable however few offsets it carries",
                      0, (int) other.metric.unpromotableSSTables.getValue());
+    }
+
+    /**
+     * Drops the keyspace out of mutation tracking, as a rollback ALTER does. This wipes the log index for the keyspace
+     * too, so anything the discard path relied on {@link MutationTrackingService#isDurablyReconciled} for would throw
+     * rather than answer.
+     */
+    private static void stopTracking(ColumnFamilyStore cfs)
+    {
+        KeyspaceMetadata ksm = ClusterMetadata.current().schema.getKeyspaceMetadata(cfs.getKeyspaceName());
+        SchemaTestUtil.addOrUpdateKeyspace(ksm.withSwapped(KeyspaceParams.simple(1, ReplicationType.untracked)));
+
+        assertFalse("precondition: the keyspace must have left mutation tracking",
+                    ClusterMetadata.current().schema.getKeyspaceMetadata(cfs.getKeyspaceName())
+                                   .params.replicationType.isTracked());
+        assertNull("precondition: the rollback must leave no ranges pending migration",
+                   ClusterMetadata.current().mutationTrackingMigrationState.getKeyspaceInfo(cfs.getKeyspaceName()));
+    }
+
+    /**
+     * A keyspace that has left mutation tracking has the offsets discarded from every sstable it still holds, which
+     * moves them to {@link CompactionGroup#UNREPAIRED}. Nothing will reconcile them once tracking is off, so repair is
+     * the only mechanism left that can make the data consistent, and unrepaired is what asks for repair.
+     */
+    @Test
+    public void leavingTrackingDiscardsOffsets()
+    {
+        ColumnFamilyStore cfs = newTrackedTable();
+
+        Set<SSTableReader> stranded = new HashSet<>();
+        for (int k = 0; k < 4; k++)
+            stranded.add(flushUnreconciled(cfs, k));
+
+        // Unreconciled, so promotion would leave them where they are.
+        assertTrue(promotable(cfs).isEmpty());
+        assertTrue("precondition: promotion has nothing to do", promotionTasks(cfs).isEmpty());
+
+        stopTracking(cfs);
+
+        Collection<AbstractCompactionTask> tasks = manager(cfs).getNextTrackedTasks();
+        assertEquals("every silo should be covered by one task, not one task per silo", 1, tasks.size());
+        runPromotion(tasks);
+
+        for (SSTableReader sstable : cfs.getLiveSSTables())
+        {
+            assertTrue("the offsets must be gone: " + sstable,
+                       sstable.getSSTableMetadata().coordinatorLogOffsets.isEmpty());
+            assertFalse("discarding offsets must not mark anything repaired: " + sstable, sstable.isRepaired());
+            assertFalse(sstable.isPendingRepair());
+            assertEquals("the sstable must now be classified for the unrepaired holder: " + sstable,
+                         CompactionGroup.UNREPAIRED, CompactionGroup.of(sstable));
+        }
+
+        assertEquals("no data may be lost: the sstables are mutated in place, not rewritten",
+                     stranded.size(), cfs.getLiveSSTables().size());
+    }
+
+    /**
+     * The notification the discard fires has to re-sort the sstables between holders, or the tracked holder keeps
+     * referencing them and every later round scans them again.
+     */
+    @Test
+    public void discardedSSTablesLeaveTheTrackedHolder()
+    {
+        ColumnFamilyStore cfs = newTrackedTable();
+        SSTableReader stranded = flushUnreconciled(cfs, 1);
+
+        assertTrue("precondition: the tracked holder must hold it", manager(cfs).containsSSTable(stranded));
+
+        stopTracking(cfs);
+        runPromotion(manager(cfs).getNextTrackedTasks());
+
+        assertFalse("the tracked holder must have released it", manager(cfs).containsSSTable(stranded));
+        assertTrue("nothing is left for a later round to find", manager(cfs).getNextTrackedTasks().isEmpty());
+        assertTrue(cfs.getCompactionStrategyManager().getHolder(CompactionGroup.UNREPAIRED).containsSSTable(stranded));
+    }
+
+    /** While the keyspace is still tracked, the discard must not fire and promotion must stay in charge. */
+    @Test
+    public void trackedKeyspaceKeepsItsOffsets()
+    {
+        ColumnFamilyStore cfs = newTrackedTable();
+        SSTableReader stranded = flushUnreconciled(cfs, 1);
+
+        assertTrue("an unreconciled sstable in a tracked keyspace has nothing to do yet",
+                   manager(cfs).getNextTrackedTasks().isEmpty());
+        assertFalse(stranded.getSSTableMetadata().coordinatorLogOffsets.isEmpty());
+
+        // Once it reconciles, the same entry point promotes it rather than discarding the offsets.
+        persistLogState();
+        runPromotion(manager(cfs).getNextTrackedTasks());
+
+        SSTableReader promoted = Iterables.getOnlyElement(cfs.getLiveSSTables());
+        assertTrue("a tracked keyspace reaches repaired through promotion", promoted.isRepaired());
     }
 }

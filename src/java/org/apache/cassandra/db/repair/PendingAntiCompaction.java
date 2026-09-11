@@ -40,6 +40,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.FutureTask;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.compaction.CompactionGroup;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -123,6 +124,10 @@ public class PendingAntiCompaction
 
             // exclude repaired sstables
             if (metadata.repairedAt != UNREPAIRED_SSTABLE)
+                return false;
+
+            // exclude tracked sstables
+            if (CompactionGroup.of(sstable) == CompactionGroup.UNRECONCILED)
                 return false;
 
             if (!sstable.descriptor.version.hasPendingRepair())
