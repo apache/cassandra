@@ -56,6 +56,12 @@ public class RangeTermTree
         ByteBuffer minTerm = e.lower() == null ? min : e.lower().value.encoded;
         ByteBuffer maxTerm = e.upper() == null ? max : e.upper().value.encoded;
 
+        // For prefix queries, the prefix value (e.g. "appl") sorts before all matching terms
+        // (e.g. "apple") in byte order because shorter strings are lexicographically smaller.
+        // Use the global max so we don't incorrectly skip segments that contain matching terms.
+        if (e.getIndexOperator() == Expression.IndexOperator.LIKE_PREFIX)
+            maxTerm = max;
+
         return rangeTree.search(Interval.create(new Term(minTerm, indexTermType),
                                                 new Term(maxTerm, indexTermType),
                                                 null));
