@@ -19,8 +19,11 @@
 package org.apache.cassandra.distributed.test;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -32,13 +35,18 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compression.CompressionDictionary;
+import org.apache.cassandra.db.compression.CompressionDictionaryAutoTrainingHistory;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
 
+import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.awaitility.Awaitility.await;
 
 /**
@@ -57,7 +65,10 @@ import static org.awaitility.Awaitility.await;
  *   <li>wait for the scheduled auto-trainer to adopt a new dictionary (persisted to {@code system_distributed});</li>
  *   <li>wait for that dictionary to propagate to every node's current-dictionary cache;</li>
  *   <li>write more data and flush on every node, then assert every node's fresh SSTables are compressed with the
- *       adopted dictionary id - i.e. new writes cluster-wide use the new dictionary.</li>
+ *       adopted dictionary id - i.e. new writes cluster-wide use the new dictionary;</li>
+ *   <li>read the decision back from {@code system_views.compression_dictionary_auto_training} on the node that
+ *       trained, and from {@code system_views_remote.compression_dictionary_auto_training} on every node, which
+ *       answers for the whole cluster.</li>
  * </ol>
  * Cadence note: the auto-training interval/initial-delay are minute-granular (minimum 60s), so this test genuinely
  * waits for a scheduled cycle rather than triggering one.
@@ -65,6 +76,21 @@ import static org.awaitility.Awaitility.await;
 public class CompressionDictionaryAutoTrainingDistributedTest extends TestBaseImpl
 {
     private static final String TABLE = "recency_tbl";
+
+    /** The node-local view: only the node that ran the training has rows. */
+    private static final String LOCAL_DECISIONS =
+        "SELECT node, kind, baseline_ratio, candidate_ratio, improvement, threshold, promoted " +
+        "FROM system_views.compression_dictionary_auto_training WHERE keyspace_name = ? AND table_name = ?";
+
+    /** The cluster-wide view: any coordinator answers for every node, each row tagged with its node_id. */
+    private static final String REMOTE_DECISIONS =
+        "SELECT node_id, node, keyspace_name, table_name, kind, improvement, threshold, promoted " +
+        "FROM system_views_remote.compression_dictionary_auto_training";
+
+    private static final String REMOTE_DECISIONS_OF_NODE = REMOTE_DECISIONS + " WHERE node_id = ?";
+
+    /** Matches {@code auto_training_improvement_threshold} in the table definition below. */
+    private static final double THRESHOLD = 0.05;
     private static final long MICROS_PER_DAY = 86_400L * 1_000_000L;
     private static final int ROWS_PER_WINDOW = 250;
     private static final int VOCAB_SIZE = 256;
@@ -92,17 +118,7 @@ public class CompressionDictionaryAutoTrainingDistributedTest extends TestBaseIm
                                   cluster.get(n).callOnInstance(DatabaseDescriptor::getCompressionDictionaryAutoTrainingEnabled));
 
             // 2. TWCS, dictionary-compressed, auto-training-enabled table (small sample sizes so training is quick)
-            cluster.schemaChange(withKeyspace(
-                "CREATE TABLE %s." + TABLE + " (id int PRIMARY KEY, v text) WITH compression = {" +
-                "'class':'ZstdDictionaryCompressor'," +
-                "'chunk_length_in_kb':4," +
-                "'auto_training_enabled':'true'," +
-                "'training_min_frequency':'0m'," +
-                "'auto_training_improvement_threshold':'0.05'," +
-                "'training_max_dictionary_size':'8KiB'," +
-                "'training_max_total_sample_size':'64KiB'} " +
-                "AND compaction = {'class':'TimeWindowCompactionStrategy'," +
-                "'compaction_window_unit':'DAYS','compaction_window_size':1}"));
+            cluster.schemaChange(createTable(ks));
 
             // 3. window 1 (vocabulary A) -> flush everywhere -> hand-train the first ("latest") dictionary.
             //    This trains on node 1 directly (equivalent to `nodetool compressiondictionary train`, but without
@@ -151,7 +167,224 @@ public class CompressionDictionaryAutoTrainingDistributedTest extends TestBaseIm
                                   adoptedDictId + ", but saw dictionary ids " + ids,
                                   ids.contains(adoptedDictId));
             }
+
+            // 8. the decision behind that adoption must be readable from the virtual tables
+            assertDecisionVisibleLocally(cluster, ks);
+            assertDecisionVisibleClusterWide(cluster, ks);
         }
+    }
+
+    /**
+     * Auto-training runs on exactly one node: the first CMS member, which is the lowest {@code NodeId} among
+     * {@link ClusterMetadata#fullCMSMemberIds()}. That set is CMS <em>membership</em>, not liveness, so the role moves
+     * only when membership changes - a reconfiguration that drops the current holder, the holder leaving the cluster,
+     * or a node with a lower NodeId joining the CMS. A holder that is merely down does not hand over; auto-training
+     * just stops until it returns or the CMS is reconfigured.
+     * <p>
+     * Here the CMS is moved to the other datacenter, which drops node1 from it, and the recording of decisions must
+     * follow to the new holder.
+     */
+    @Test
+    public void autoTrainingFollowsTheFirstCmsMember() throws Throwable
+    {
+        // 2 datacenters, 2 nodes each: datacenter1 = nodes 1,2; datacenter2 = nodes 3,4
+        try (Cluster cluster = builder().withRacks(2, 1, 2)
+                                        .withConfig(c -> c.with(GOSSIP).with(NETWORK)
+                                                          .set("compression_dictionary_auto_training_enabled", true)
+                                                          .set("compression_dictionary_auto_training_initial_delay", "1m")
+                                                          .set("compression_dictionary_auto_training_interval", "1m")
+                                                          .set("flush_compression", "table"))
+                                        .start())
+        {
+            String ks = KEYSPACE;
+            cluster.schemaChange("CREATE KEYSPACE " + ks + " WITH replication = " +
+                                 "{'class':'NetworkTopologyStrategy','datacenter1':2,'datacenter2':2}");
+            cluster.schemaChange(createTable(ks));
+
+            // a baseline dictionary, so later cycles have something to compare a candidate against
+            writeWindow(cluster, 1, vocabulary(1));
+            cluster.forEach(i -> i.flush(ks));
+            cluster.get(1).runOnInstance(() ->
+                                         Keyspace.open(ks).getColumnFamilyStore(TABLE).compressionDictionaryManager().train(true, Collections.emptyMap()));
+            await("hand-trained dictionary becomes available on node 1")
+            .atMost(1, TimeUnit.MINUTES).pollInterval(1, TimeUnit.SECONDS)
+            .until(() -> currentDictId(cluster.get(1), ks) > 0);
+
+            // drift, so every cycle from now on evaluates a candidate and therefore records a decision
+            writeWindow(cluster, 2, vocabulary(2));
+            cluster.forEach(i -> i.flush(ks));
+
+            int firstHolder = firstCMSMember(cluster);
+            Assert.assertEquals("node 1 starts out as the first CMS member", 1, firstHolder);
+            awaitOnlyRecorder(cluster, ks, firstHolder);
+
+            // move the CMS into the other datacenter, dropping node 1 from it
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "datacenter2:1").asserts().success();
+
+            int secondHolder = firstCMSMember(cluster);
+            Assert.assertNotEquals("moving the CMS must hand the role to another node", firstHolder, secondHolder);
+
+            // forget the decisions recorded under the old holder, so the next cycle speaks for itself
+            cluster.forEach(i -> i.runOnInstance(() -> CompressionDictionaryAutoTrainingHistory.instance.clear()));
+            awaitOnlyRecorder(cluster, ks, secondHolder);
+        }
+    }
+
+    /**
+     * Auto-training runs on one node only (the first CMS member), so exactly one node records decisions, and its
+     * node-local virtual table must describe the adoption: the configured threshold, an improvement that met it, a
+     * candidate that compressed better than the baseline, and its own address.
+     */
+    private static void assertDecisionVisibleLocally(Cluster cluster, String ks)
+    {
+        int trainingNode = trainingNode(cluster, ks);
+        Object[][] decisions = cluster.coordinator(trainingNode).execute(LOCAL_DECISIONS, ConsistencyLevel.ONE, ks, TABLE);
+        Object[] promoted = promotedRow(decisions, 6);
+        Assert.assertNotNull("node " + trainingNode + " must have recorded a promoted candidate, rows: " +
+                             decisions.length, promoted);
+
+        // columns: node, kind, baseline_ratio, candidate_ratio, improvement, threshold, promoted
+        double baselineRatio = (Double) promoted[2];
+        double candidateRatio = (Double) promoted[3];
+        double improvement = (Double) promoted[4];
+        double threshold = (Double) promoted[5];
+
+        Assert.assertEquals("the trained dictionary kind must be recorded",
+                            CompressionDictionary.Kind.ZSTD.name(), promoted[1]);
+
+        Assert.assertEquals("threshold must be the table's configured one", THRESHOLD, threshold, 1e-9);
+        Assert.assertTrue("a promoted candidate must have met the threshold, improvement=" + improvement +
+                          " threshold=" + threshold, improvement >= threshold);
+        Assert.assertTrue("the promoted candidate must compress better than the baseline, baseline=" + baselineRatio +
+                          " candidate=" + candidateRatio, candidateRatio < baselineRatio);
+        Assert.assertEquals("the row must name the node that trained",
+                            cluster.get(trainingNode).config().broadcastAddress().getAddress(), promoted[0]);
+    }
+
+    /**
+     * The same decision must be readable through {@code system_views_remote} from <em>any</em> coordinator, including
+     * the nodes that did not train, and a {@code node_id} restriction must narrow the read to the node that did.
+     */
+    private static void assertDecisionVisibleClusterWide(Cluster cluster, String ks)
+    {
+        int trainingNode = trainingNode(cluster, ks);
+        Object expectedAddress = cluster.get(trainingNode).config().broadcastAddress().getAddress();
+
+        for (int n = 1; n <= 3; n++)
+        {
+            // columns: node_id, node, keyspace_name, table_name, kind, improvement, threshold, promoted
+            Object[][] all = cluster.coordinator(n).execute(REMOTE_DECISIONS, ConsistencyLevel.ONE);
+            Object[] promoted = promotedRow(ofTable(all, ks), 7);
+            Assert.assertNotNull("the adoption must be visible cluster-wide from node " + n, promoted);
+            Assert.assertEquals("the cluster-wide row must name the node that trained", expectedAddress, promoted[1]);
+            Assert.assertEquals("the cluster-wide row must carry the dictionary kind",
+                                CompressionDictionary.Kind.ZSTD.name(), promoted[4]);
+
+            int nodeId = (Integer) promoted[0];
+            Object[][] ofNode = cluster.coordinator(n).execute(REMOTE_DECISIONS_OF_NODE, ConsistencyLevel.ONE, nodeId);
+            Assert.assertNotNull("reading node_id " + nodeId + " alone from node " + n + " must carry the adoption",
+                                 promotedRow(ofTable(ofNode, ks), 7));
+            for (Object[] row : ofNode)
+                Assert.assertEquals("restricting node_id must only return that node's rows", nodeId, row[0]);
+        }
+    }
+
+    /** The single node whose local history holds decisions for the table, waiting for it to appear. */
+    private static int trainingNode(Cluster cluster, String ks)
+    {
+        Set<Integer> recording = new HashSet<>();
+        await("exactly one node records auto-training decisions")
+        .atMost(1, TimeUnit.MINUTES).pollInterval(2, TimeUnit.SECONDS)
+        .until(() -> {
+            recording.clear();
+            for (int n = 1; n <= 3; n++)
+            {
+                if (cluster.coordinator(n).execute(LOCAL_DECISIONS, ConsistencyLevel.ONE, ks, TABLE).length > 0)
+                    recording.add(n);
+            }
+            return recording.size() == 1;
+        });
+        return recording.iterator().next();
+    }
+
+    /** Rows whose {@code keyspace_name} is {@code ks} and whose table is {@link #TABLE}. */
+    private static Object[][] ofTable(Object[][] rows, String ks)
+    {
+        List<Object[]> result = new ArrayList<>();
+        for (Object[] row : rows)
+        {
+            if (ks.equals(row[2]) && TABLE.equals(row[3]))
+                result.add(row);
+        }
+        return result.toArray(new Object[0][]);
+    }
+
+    /** The first row whose {@code promoted} column (at {@code promotedAt}) is true, or null. */
+    private static Object[] promotedRow(Object[][] rows, int promotedAt)
+    {
+        for (Object[] row : rows)
+        {
+            if (Boolean.TRUE.equals(row[promotedAt]))
+                return row;
+        }
+        return null;
+    }
+
+
+    /** TWCS, dictionary-compressed, auto-training-enabled, with small sample sizes so training is quick. */
+    private static String createTable(String ks)
+    {
+        return "CREATE TABLE " + ks + '.' + TABLE + " (id int PRIMARY KEY, v text) WITH compression = {" +
+               "'class':'ZstdDictionaryCompressor'," +
+               "'chunk_length_in_kb':4," +
+               "'auto_training_enabled':'true'," +
+               "'training_min_frequency':'0m'," +
+               "'auto_training_improvement_threshold':'" + THRESHOLD + "'," +
+               "'training_max_dictionary_size':'8KiB'," +
+               "'training_max_total_sample_size':'64KiB'} " +
+               "AND compaction = {'class':'TimeWindowCompactionStrategy'," +
+               "'compaction_window_unit':'DAYS','compaction_window_size':1}";
+    }
+
+    /**
+     * The node the first-CMS-member rule picks, derived from cluster metadata rather than from the manager, so the
+     * test states the rule independently of the code under test.
+     */
+    private static int firstCMSMember(Cluster cluster)
+    {
+        for (int n = 1; n <= cluster.size(); n++)
+        {
+            boolean isFirst = cluster.get(n).callOnInstance(() -> {
+                ClusterMetadata metadata = ClusterMetadata.current();
+                List<NodeId> members = new ArrayList<>(metadata.fullCMSMemberIds());
+                members.sort(Comparator.comparingInt(NodeId::id));
+                return !members.isEmpty() && members.get(0).equals(metadata.myNodeId());
+            });
+
+            if (isFirst)
+                return n;
+        }
+        throw new AssertionError("no node considers itself the first CMS member");
+    }
+
+    /** Waits for {@code expected} to record a decision, then requires that no other node recorded one. */
+    private static void awaitOnlyRecorder(Cluster cluster, String ks, int expected)
+    {
+        await("node " + expected + " records an auto-training decision")
+        .atMost(4, TimeUnit.MINUTES).pollInterval(5, TimeUnit.SECONDS)
+        .until(() -> decisionCount(cluster, ks, expected) > 0);
+
+        for (int n = 1; n <= cluster.size(); n++)
+        {
+            if (n != expected)
+                Assert.assertEquals("only the first CMS member may record decisions, but node " + n + " did",
+                                    0, decisionCount(cluster, ks, n));
+        }
+    }
+
+    private static int decisionCount(Cluster cluster, String ks, int node)
+    {
+        return cluster.coordinator(node).execute(LOCAL_DECISIONS, ConsistencyLevel.ONE, ks, TABLE).length;
     }
 
     /** The id of the dictionary new writes on this node currently use (the manager's cached current dictionary). */

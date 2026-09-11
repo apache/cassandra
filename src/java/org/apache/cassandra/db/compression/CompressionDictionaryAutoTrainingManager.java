@@ -342,6 +342,15 @@ public class CompressionDictionaryAutoTrainingManager implements AutoCloseable
                         String.format("%.3f", config.autoTrainingImprovementThreshold * 100),
                         result);
 
+            CompressionDictionaryAutoTrainingHistory.instance.record(cfs.getKeyspaceName(),
+                                                                     cfs.getTableName(),
+                                                                     autoTrainedDictionary.kind(),
+                                                                     compressionRatioLatestDict,
+                                                                     compressionRatioAutoTrainedDict,
+                                                                     improvement,
+                                                                     config.autoTrainingImprovementThreshold,
+                                                                     isImprovement);
+
             return isImprovement;
         }
         catch (Throwable t)
