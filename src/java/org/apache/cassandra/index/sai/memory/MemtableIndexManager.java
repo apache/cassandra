@@ -61,10 +61,15 @@ public class MemtableIndexManager
     {
         MemtableIndex current = liveMemtableIndexMap.get(mt);
 
-        // We expect the relevant IndexMemtable to be present most of the time, so only make the
+        // We expect the relevant MemtableIndex to be present most of the time, so only make the
         // call to computeIfAbsent() if it's not. (see https://bugs.openjdk.java.net/browse/JDK-8161372)
         return current != null ? current
-                               : liveMemtableIndexMap.computeIfAbsent(mt, memtable -> new MemtableIndex(index, memtable));
+                               : liveMemtableIndexMap.computeIfAbsent(mt, memtable -> {
+            int shardCount = index.shardCount();
+            if (shardCount > 1)
+                return new ShardedMemtableIndex(index, index.baseCfs(), shardCount, memtable);
+            return new UnshardedMemtableIndex(index, memtable);
+        });
     }
 
     public long index(DecoratedKey key, Row row, Memtable mt)
