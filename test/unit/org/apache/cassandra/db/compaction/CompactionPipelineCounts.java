@@ -66,6 +66,21 @@ public final class CompactionPipelineCounts
     }
 
     /**
+     * The raw cursor-pipeline counter. In-JVM dtests read this inside the instance, where the
+     * counters actually live; a read from the test JVM sees its own classloader's zero.
+     */
+    public static long cursorPipelines()
+    {
+        return AbstractCompactionPipeline.cursorPipelinesCreated();
+    }
+
+    /** The raw iterator-pipeline counter; see {@link #cursorPipelines()}. */
+    public static long iteratorPipelines()
+    {
+        return AbstractCompactionPipeline.iteratorPipelinesCreated();
+    }
+
+    /**
      * Asserts that at least one compaction selecting the expected pipeline happened since
      * {@code before}, and that no cursor pipeline was created at all if cursor compaction was
      * switched off for the whole bracket.

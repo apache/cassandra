@@ -36,47 +36,40 @@ import org.apache.cassandra.db.compaction.differential.DifferentialCompactionTes
 import org.apache.cassandra.db.guardrails.GuardrailEvent.GuardrailEventType;
 import org.apache.cassandra.diag.DiagnosticEventService;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.utils.FBUtilities;
 
-import static java.nio.ByteBuffer.allocate;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 /**
- * The collection guardrails must reach the same verdict on both compaction pipelines.
+ * The {@code partition_tombstones} guardrail must fire at the same count on both compaction pipelines.
  * <p>
- * {@code SortedTableWriter} applies them per row, from the merged {@code ComplexColumnData}.
- * {@code SSTableCursorWriter} never builds a row, so it measures each collection while it writes the
- * cells. This drives one merge that crosses the warning threshold down each pipeline and compares
- * what each one emitted. The messages are redacted, so they carry the measured size but neither the
- * table nor the key: equal messages therefore mean equal measurements, which holds only if the
- * cursor writer reproduces {@code Cell.dataSize} exactly.
- * <p>
- * A guardrail the cursor path never reached would emit nothing at all, so this needs the cursor path
- * to have really run rather than fallen back. {@code commitCompaction} asserts that.
- * <p>
- * This lives in the guardrails package for {@link GuardrailEvent}, which is package-private, and
- * extends the differential harness for its two-pipeline machinery.
+ * {@code SortedTableWriter} counts the partition-level deletion when the partition starts and checks
+ * the threshold when it ends, so the deletion is inside the count. The cursor writer does both in
+ * {@code addPartitionMetadata}, and counting the deletion after the check would leave the partition
+ * one tombstone short. This fixture sits exactly on that boundary: a partition deletion plus enough
+ * row tombstones that the total crosses the threshold only if the partition deletion counts.
  */
-public class CollectionSizeGuardrailCompactionTest extends DifferentialCompactionTester
+public class PartitionTombstonesGuardrailCompactionTest extends DifferentialCompactionTester
 {
-    /** Small enough that the two halves of one set cross it only once they merge. */
-    private static final String WARN_THRESHOLD = "1024B";
-    private static final String FAIL_THRESHOLD = "4096B";
+    /** Row tombstones in the fixture. With the partition deletion the total is one more. */
+    private static final int ROW_TOMBSTONES = 5;
+    /** The total is ROW_TOMBSTONES + 1 and the guardrail fires above the threshold, not at it. */
+    private static final long WARN_THRESHOLD = ROW_TOMBSTONES;
+    private static final long FAIL_THRESHOLD = 1000;
 
     private final WarningCollector collector = new WarningCollector();
-    private String originalWarn;
-    private String originalFail;
+    private long originalWarn;
+    private long originalFail;
     private boolean originalDiagnostics;
 
     @Before
     public void armGuardrails()
     {
-        originalWarn = Guardrails.instance.getCollectionSizeWarnThreshold();
-        originalFail = Guardrails.instance.getCollectionSizeFailThreshold();
+        originalWarn = Guardrails.instance.getPartitionTombstonesWarnThreshold();
+        originalFail = Guardrails.instance.getPartitionTombstonesFailThreshold();
         originalDiagnostics = DatabaseDescriptor.diagnosticEventsEnabled();
 
-        Guardrails.instance.setCollectionSizeThreshold(WARN_THRESHOLD, FAIL_THRESHOLD);
+        Guardrails.instance.setPartitionTombstonesThreshold(WARN_THRESHOLD, FAIL_THRESHOLD);
         DatabaseDescriptor.setDiagnosticEventsEnabled(true);
         DiagnosticEventService.instance().subscribe(GuardrailEvent.class, collector);
     }
@@ -86,22 +79,25 @@ public class CollectionSizeGuardrailCompactionTest extends DifferentialCompactio
     {
         DiagnosticEventService.instance().unsubscribe(collector);
         DatabaseDescriptor.setDiagnosticEventsEnabled(originalDiagnostics);
-        Guardrails.instance.setCollectionSizeThreshold(originalWarn, originalFail);
+        Guardrails.instance.setPartitionTombstonesThreshold(originalWarn, originalFail);
     }
 
     /**
-     * A set whose two halves land in separate sstables. Neither half crosses the threshold on its
-     * own, so the flushes stay quiet and only the compaction has anything to report.
+     * One partition holding a partition deletion and, above it in timestamp, {@link #ROW_TOMBSTONES}
+     * row tombstones. The row deletions are newer, so the compaction keeps all of them, and the two
+     * kinds arrive in separate sstables so neither flush can warn on its own.
      */
-    private ColumnFamilyStore twoHalvesOfOneCollection()
+    private ColumnFamilyStore partitionDeletionOverRowTombstones()
     {
-        createTable("CREATE TABLE %s (k int PRIMARY KEY, v set<blob>)");
+        createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c)) " +
+                    "WITH gc_grace_seconds = 864000");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();
 
-        execute("INSERT INTO %s (k, v) VALUES (1, ?)", set(allocate(768)));
+        execute("DELETE FROM %s USING TIMESTAMP 1 WHERE k = 1");
         flush();
-        execute("UPDATE %s SET v = v + ? WHERE k = 1", set(allocate(256)));
+        for (int c = 0; c < ROW_TOMBSTONES; c++)
+            execute("DELETE FROM %s USING TIMESTAMP ? WHERE k = 1 AND c = ?", 10L + c, c);
         flush();
 
         assertEquals("the fixture needs two sstables to merge", 2, cfs.getLiveSSTables().size());
@@ -112,19 +108,15 @@ public class CollectionSizeGuardrailCompactionTest extends DifferentialCompactio
     /** Compacts a fresh fixture down one pipeline and returns the warnings that compaction emitted. */
     private List<String> warningsFromOneCompaction(boolean cursor) throws Exception
     {
-        ColumnFamilyStore cfs = twoHalvesOfOneCollection();
+        ColumnFamilyStore cfs = partitionDeletionOverRowTombstones();
         Set<SSTableReader> inputs = cfs.getLiveSSTables();
-        commitCompaction(cfs, inputs, cursor, cfs.getDefaultGcBefore(FBUtilities.nowInSeconds()));
+        // gcBefore 0 keeps every tombstone: a purged one would never reach the guardrail.
+        commitCompaction(cfs, inputs, cursor, 0);
         return collector.drain();
     }
 
-    /**
-     * The merged set holds 1024 value bytes across two cells, which {@code Cell.dataSize} carries
-     * past the 1KiB threshold. Each pipeline compacts its own copy of the fixture, so neither run
-     * can disturb the other.
-     */
     @Test
-    public void bothPipelinesReportTheSameOversizedCollection() throws Exception
+    public void bothPipelinesWarnAtTheSameTombstoneCount() throws Exception
     {
         assumeCursorSupportedFormatSelected();
 
@@ -133,11 +125,11 @@ public class CollectionSizeGuardrailCompactionTest extends DifferentialCompactio
 
         assertFalse("the iterator path must warn, or this says nothing about the cursor path",
                     iterator.isEmpty());
-        assertEquals("the cursor path must report the same collection size as the iterator path",
+        assertEquals("the cursor path must count the same tombstones as the iterator path",
                      iterator, cursor);
     }
 
-    /** Records the redacted text of each collection_size warning, in the order the events arrive. */
+    /** Records the redacted text of each partition_tombstones warning, in arrival order. */
     private static final class WarningCollector implements Consumer<GuardrailEvent>
     {
         private final List<String> warnings = new CopyOnWriteArrayList<>();
@@ -148,7 +140,7 @@ public class CollectionSizeGuardrailCompactionTest extends DifferentialCompactio
             if (event.getType() != GuardrailEventType.WARNED)
                 return;
             Map<String, Serializable> map = event.toMap();
-            if (Guardrails.collectionSize.name.equals(map.get("name")))
+            if (Guardrails.partitionTombstones.name.equals(map.get("name")))
                 warnings.add(String.valueOf(map.get("message")));
         }
 

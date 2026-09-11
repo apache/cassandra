@@ -23,7 +23,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.junit.After;
 import org.junit.Assume;
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -33,6 +35,7 @@ import org.apache.cassandra.db.compaction.CompactionTask;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ThreadStats;
@@ -74,6 +77,34 @@ public class CursorCompactionAllocationGateTest extends DifferentialCompactionTe
     private static final int WARMUP_ITERATIONS = 4;
     private static final int MEASURED_ITERATIONS = 3;
     private static final long CEILING_BYTES = 512 * 1024;
+
+    private SSTableFormat<?, ?> originalFormat;
+
+    /** The format these ceilings were measured against. A format subclass overrides it. */
+    protected String formatName()
+    {
+        return "big";
+    }
+
+    @Before
+    public void selectFormat()
+    {
+        originalFormat = DatabaseDescriptor.getSelectedSSTableFormat();
+        DatabaseDescriptor.setSelectedSSTableFormat(formatName());
+    }
+
+    @After
+    public void restoreFormat()
+    {
+        DatabaseDescriptor.setSelectedSSTableFormat(originalFormat);
+    }
+
+    /** A format subclass raises this: another sstable format may allocate more in its
+     *  index path. */
+    protected long ceilingBytes()
+    {
+        return CEILING_BYTES;
+    }
 
     private interface ThrowingRunnable
     {
@@ -168,13 +199,13 @@ public class CursorCompactionAllocationGateTest extends DifferentialCompactionTe
 
             logger.info("cursor compaction allocation: small={}B big={}B delta={}B ceiling={}B " +
                         "(iterator path for context: small={}B big={}B delta={}B)",
-                        smallAlloc, bigAlloc, delta, CEILING_BYTES,
+                        smallAlloc, bigAlloc, delta, ceilingBytes(),
                         smallIter, bigIter, bigIter - smallIter);
             assertTrue(String.format("cursor compaction allocation scales with data: " +
                                      "%,dB (small) -> %,dB (big), delta %,dB exceeds ceiling %,dB. " +
                                      "A per-row/cell allocation has been introduced on the cursor hot path.",
-                                     smallAlloc, bigAlloc, delta, CEILING_BYTES),
-                       delta <= CEILING_BYTES);
+                                     smallAlloc, bigAlloc, delta, ceilingBytes()),
+                       delta <= ceilingBytes());
         });
     }
 
@@ -239,20 +270,31 @@ public class CursorCompactionAllocationGateTest extends DifferentialCompactionTe
             long bigIter = measureSteadyStateAllocation(192, false, 4, padding, 2, 2);
 
             logger.info("LARGE-FILE cursor compaction allocation (4 files, ~10MB each big): " +
-                        "cursor small={}B big={}B delta={}B over {}B extra input = {}B/B; " +
-                        "iterator small={}B big={}B delta={}B",
+                        "cursor small={}B big={}B delta={}B over {}B extra input = {}B/B " +
+                        "(ceiling {} B/B); iterator small={}B big={}B delta={}B",
                         smallAlloc, bigAlloc, delta, extraBytes, String.format("%.3f", perInputByte),
-                        smallIter, bigIter, bigIter - smallIter);
+                        largeFilePerInputByteCeiling(), smallIter, bigIter, bigIter - smallIter);
             // The residual scales with data VOLUME, not row count. JFR decomposition at this
             // scale: 62% Ref$Debug stack captures (test env only,
             // -Dcassandra.debugrefcount=true), then chunk-cache machinery and per-compaction
             // constants. ZERO cursor-owned sites. Measured ~0.27 B allocated per extra input
-            // byte in the test env. Ceiling 0.5 B/B trips on any real per-element regression
-            // and absorbs the volume-proportional test-env noise.
-            assertTrue(String.format("cursor allocation per input byte too high: %.3f B/B (delta %,dB over %,dB)",
-                                     perInputByte, delta, extraBytes),
-                       perInputByte <= 0.5);
+            // byte in the test env. The ceiling trips on any real per-element regression and
+            // absorbs the volume-proportional test-env noise.
+            assertTrue(String.format("cursor allocation per input byte too high: %.3f B/B (delta %,dB over %,dB, " +
+                                     "ceiling %.2f B/B)",
+                                     perInputByte, delta, extraBytes, largeFilePerInputByteCeiling()),
+                       perInputByte <= largeFilePerInputByteCeiling());
         });
+    }
+
+    /** Ceiling for {@link #allocationAtLargeFileSizes}, calibrated on BIG: measured ~0.27 B/B in
+     *  the test env, all of it volume-proportional residual (Ref$Debug, chunk cache) by JFR
+     *  attribution, with 0.5 B/B leaving room for that noise and none for a per-element
+     *  regression. A format subclass raises this: BTI adds a row trie and a partition index,
+     *  ~2KB per partition, which this number does not include. */
+    protected double largeFilePerInputByteCeiling()
+    {
+        return 0.5;
     }
 
     /** Compacts all live sstables on the configured path, measuring ONLY execute(); restores inputs. */
@@ -307,11 +349,11 @@ public class CursorCompactionAllocationGateTest extends DifferentialCompactionTe
             long bigAlloc = measureSparse(SMALL_PARTITIONS * SCALE);
             long delta = bigAlloc - smallAlloc;
             logger.info("sparse-row cursor compaction allocation: small={}B big={}B delta={}B ceiling={}B",
-                        smallAlloc, bigAlloc, delta, CEILING_BYTES);
+                        smallAlloc, bigAlloc, delta, ceilingBytes());
             assertTrue(String.format("sparse-row cursor compaction allocation scales with data: " +
                                      "%,dB -> %,dB, delta %,dB exceeds ceiling %,dB",
-                                     smallAlloc, bigAlloc, delta, CEILING_BYTES),
-                       delta <= CEILING_BYTES);
+                                     smallAlloc, bigAlloc, delta, ceilingBytes()),
+                       delta <= ceilingBytes());
         });
     }
 
@@ -371,19 +413,29 @@ public class CursorCompactionAllocationGateTest extends DifferentialCompactionTe
             long extraBytes = bigBytes - smallBytes;
             double perInputByte = (double) delta / extraBytes;
             logger.info("wide-schema sparse-row cursor compaction allocation: small={}B big={}B delta={}B " +
-                        "over {}B extra input = {} B/B",
-                        smallAlloc, bigAlloc, delta, extraBytes, String.format("%.3f", perInputByte));
+                        "over {}B extra input = {} B/B (ceiling {} B/B)",
+                        smallAlloc, bigAlloc, delta, extraBytes, String.format("%.3f", perInputByte),
+                        wideSchemaPerInputByteCeiling());
             // Calibrated per INPUT BYTE: the mixed 3-of-69 and 67-of-69 rows make multi-MB
             // inputs whose volume-proportional test-env residual (Ref$Debug, chunk cache)
-            // dwarfs any fixed ceiling. Measured ~0.37 B/B on the BIG run. The per-row Columns
-            // cascade this gate guards measured ~3.8 B/B. One small object leaked per row costs
-            // about +0.2 B/B at this row size, lands at ~0.57 B/B, and still passes. The gate
-            // catches a whole-pipeline regression, not a single re-introduced per-row object.
+            // dwarfs any fixed ceiling. The per-row Columns cascade this gate guards measured
+            // ~3.8 B/B. One small object leaked per row costs about +0.2 B/B at this row size,
+            // lands at ~0.57 B/B, and still passes. The gate catches a whole-pipeline
+            // regression, not a single re-introduced per-row object.
             assertTrue(String.format("wide-schema (>=64 col) sparse-row cursor allocation per input byte too high: " +
-                                     "%.3f B/B (delta %,dB over %,dB extra input)",
-                                     perInputByte, delta, extraBytes),
-                       perInputByte <= 0.6);
+                                     "%.3f B/B (delta %,dB over %,dB extra input, ceiling %.2f B/B)",
+                                     perInputByte, delta, extraBytes, wideSchemaPerInputByteCeiling()),
+                       perInputByte <= wideSchemaPerInputByteCeiling());
         });
+    }
+
+    /** Ceiling for {@link #allocationDoesNotScaleWithWideSchemaSparseRows}, calibrated on BIG:
+     *  measured ~0.37 B/B, against the ~3.8 B/B the per-row Columns cascade cost when it was
+     *  present. A format subclass raises this: BTI adds a row trie and a partition index,
+     *  ~2KB per partition, which this number does not include. */
+    protected double wideSchemaPerInputByteCeiling()
+    {
+        return 0.6;
     }
 
     private long measureWideSparse(int partitions) throws Exception
