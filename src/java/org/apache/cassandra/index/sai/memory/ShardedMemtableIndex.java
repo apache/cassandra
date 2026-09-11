@@ -21,7 +21,6 @@ package org.apache.cassandra.index.sai.memory;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.LongAdder;
@@ -30,6 +29,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
@@ -200,15 +200,14 @@ public class ShardedMemtableIndex implements MemtableIndex
                                     "iterator(min, max) requires min <= max but got min shard %s > max shard %s",
                                     minSubrange, maxSubrange);
 
-        List<Iterator<Pair<ByteComparable, PrimaryKeys>>> rangeIterators = new ArrayList<>(maxSubrange - minSubrange + 1);
+        List<Iterator<Pair<ByteComparable, PrimaryKeys>>> shardIterators = new ArrayList<>(maxSubrange - minSubrange + 1);
 
         for (int i = minSubrange; i <= maxSubrange; i++)
-            rangeIterators.add(shards[i].iterator());
+            shardIterators.add(shards[i].iterator());
 
-        return MergeIterator.get(rangeIterators,
-                                 (o1, o2) -> ByteComparable.compare(o1.left, o2.left,
-                                                                    ByteComparable.Version.OSS50),
-                                 new PrimaryKeysMergeReducer(rangeIterators.size()));
+        return MergeIterator.get(shardIterators,
+                                 (o1, o2) -> ByteComparable.compare(o1.left, o2.left, ByteComparable.Version.OSS50),
+                                 new PrimaryKeysMergeReducer(shardIterators.size()));
     }
 
     /**
@@ -219,17 +218,17 @@ public class ShardedMemtableIndex implements MemtableIndex
      */
     private static class PrimaryKeysMergeReducer extends MergeIterator.Reducer<Pair<ByteComparable, PrimaryKeys>, Pair<ByteComparable, Iterator<PrimaryKey>>>
     {
-        private final Pair<ByteComparable, PrimaryKeys>[] shardEntriesToMerge;
-        private final Comparator<PrimaryKey> comparator;
+        private final Pair<ByteComparable, PrimaryKeys>[] perShardTermToKeys;
+        private final List<Iterator<PrimaryKey>> currentTermKeys;
 
-        private ByteComparable term;
+        private ByteComparable currentTerm;
+        private Iterator<PrimaryKey> lastReturnedIterator;
 
         @SuppressWarnings("unchecked")
-            // The size represents the number of shards that have been selected for the merger
-        PrimaryKeysMergeReducer(int size)
+        PrimaryKeysMergeReducer(int shards)
         {
-            this.shardEntriesToMerge = new Pair[size];
-            this.comparator = PrimaryKey::compareTo;
+            this.perShardTermToKeys = new Pair[shards];
+            this.currentTermKeys = new ArrayList<>(shards);
         }
 
         /**
@@ -242,32 +241,37 @@ public class ShardedMemtableIndex implements MemtableIndex
         @Override
         public void reduce(int idx, Pair<ByteComparable, PrimaryKeys> current)
         {
-            Preconditions.checkArgument(shardEntriesToMerge[idx] == null, "Terms should be unique in the memory index");
+            Preconditions.checkArgument(perShardTermToKeys[idx] == null, "Terms should be unique in the memory index");
 
-            shardEntriesToMerge[idx] = current;
-            if (current != null && term == null)
-                term = current.left;
+            perShardTermToKeys[idx] = current;
+
+            if (current != null && currentTerm == null)
+                currentTerm = current.left;
         }
 
         @Override
         protected Pair<ByteComparable, Iterator<PrimaryKey>> getReduced()
         {
-            Preconditions.checkArgument(term != null, "The term must exist in memory index");
+            Preconditions.checkArgument(currentTerm != null, "The term must exist in memory index");
 
-            List<Iterator<PrimaryKey>> keyIterators = new ArrayList<>(shardEntriesToMerge.length);
-            for (Pair<ByteComparable, PrimaryKeys> p : shardEntriesToMerge)
+            for (Pair<ByteComparable, PrimaryKeys> p : perShardTermToKeys)
                 if (p != null && p.right != null && !p.right.isEmpty())
-                    keyIterators.add(p.right.iterator());
+                    currentTermKeys.add(p.right.iterator());
 
-            Iterator<PrimaryKey> primaryKeys = MergeIterator.get(keyIterators, comparator, new MergeIterator.Reducer.Trivial<>());
-            return Pair.create(term, primaryKeys);
+            lastReturnedIterator = Iterators.concat(currentTermKeys.iterator());
+            return Pair.create(currentTerm, lastReturnedIterator);
         }
 
         @Override
         protected void onKeyChange()
         {
-            Arrays.fill(shardEntriesToMerge, null);
-            term = null;
+            Preconditions.checkState(lastReturnedIterator == null || !lastReturnedIterator.hasNext(),
+                                     "Previous per-term Iterator<PrimaryKey> was not drained before the outer iterator advanced");
+
+            Arrays.fill(perShardTermToKeys, null);
+            currentTermKeys.clear();
+            currentTerm = null;
+            lastReturnedIterator = null;
         }
     }
 }
