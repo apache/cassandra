@@ -125,7 +125,7 @@ public class RangeUnionIterator<K extends Comparable<K>, D extends CombinedValue
             FileUtils.closeQuietly(head);
         }
 
-        ranges.addAll(changedRanges.stream().collect(Collectors.toList()));
+        ranges.addAll(changedRanges);
     }
 
     public void close() throws IOException
