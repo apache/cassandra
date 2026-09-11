@@ -22,10 +22,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
 import javax.annotation.Nullable;
 
@@ -35,8 +33,6 @@ import com.github.benmanes.caffeine.cache.RemovalCause;
 import com.github.luben.zstd.Zstd;
 import com.github.luben.zstd.ZstdCompressCtx;
 import com.github.luben.zstd.ZstdDecompressCtx;
-import com.github.luben.zstd.ZstdDictCompress;
-import com.github.luben.zstd.ZstdDictDecompress;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.concurrent.ImmediateExecutor;
@@ -57,15 +53,10 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
             .removalListener((ZstdCompressionDictionary dictionary,
                               ZstdDictionaryCompressor compressor,
                               RemovalCause cause) -> {
-                if (compressor != null)
-                {
-                    // Close pooled native (de)compression contexts BEFORE dropping the dictionary reference they
-                    // were loaded with, so no context outlives the dictionary's native memory.
-                    compressor.releaseNativeContexts();
-                    // Release dictionary reference when compressor is evicted from cache
-                    if (compressor.dictionaryRef != null)
-                        compressor.dictionaryRef.release();
-                }
+                // Release dictionary reference when compressor is evicted from cache. The dictionary's own Tidy
+                // closes any pooled native (de)compression contexts once this was the last reference.
+                if (compressor != null && compressor.dictionaryRef != null)
+                    compressor.dictionaryRef.release();
             })
             .executor(ImmediateExecutor.INSTANCE)
             .build();
@@ -76,25 +67,6 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
     private final ZstdCompressionDictionary dictionary;
     @Nullable
     private final Ref<ZstdCompressionDictionary> dictionaryRef;
-
-    @Nullable
-    private final ZstdDictCompress zstdDictCompress;
-    @Nullable
-    private final ZstdDictDecompress zstdDictDecompress;
-
-    // Reusable native (de)compression contexts, pooled and borrowed per chunk.
-    //
-    // The static Zstd.compressDirectByteBufferFastDict / decompressDirectByteBufferFastDict helpers allocate and
-    // free a fresh native ZSTD_CCtx / ZSTD_DCtx on EVERY call — i.e. once per chunk. At small chunk sizes that
-    // fixed per-chunk cost dominates: profiling a 4KiB-chunk dictionary flush showed ~6.5% of node CPU in
-    // ZSTD_createCCtx alone (plus the allocator/scheduler churn it drives), scaling with chunk count. We instead
-    // keep a pool of contexts, each with the (immutable) dictionary loaded once, and reuse them across chunks.
-    // A context is borrowed for a single (de)compress call, since ZstdCompressCtx / ZstdDecompressCtx are NOT
-    // thread-safe and compress()/uncompress() may run on many threads concurrently. Pooled contexts are closed
-    // when this compressor is evicted from its cache (releaseNativeContexts()).
-    private final Queue<ZstdCompressCtx> compressCtxPool = new ConcurrentLinkedQueue<>();
-    private final Queue<ZstdDecompressCtx> decompressCtxPool = new ConcurrentLinkedQueue<>();
-    private volatile boolean released = false;
 
     /**
      * Create a ZstdDictionaryCompressor with the given options
@@ -151,9 +123,6 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
                             TRAINING_MIN_FREQUENCY_PARAMETER_NAME));
         this.dictionary = dictionary;
         this.dictionaryRef = dictionaryRef;
-
-        zstdDictCompress = dictionary == null ? null : dictionary.dictionaryForCompression(level);
-        zstdDictDecompress = dictionary == null ? null: dictionary.dictionaryForDecompression();
     }
 
     @Override
@@ -168,64 +137,6 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
         return Kind.ZSTD;
     }
 
-    // ---- pooled native context management (see the compressCtxPool field comment) ----
-
-    private ZstdCompressCtx acquireCompressCtx()
-    {
-        ZstdCompressCtx ctx = compressCtxPool.poll();
-        if (ctx == null)
-        {
-            // The compression level is carried by the precomputed CDict, so loadDict is all that is required.
-            ctx = new ZstdCompressCtx().loadDict(zstdDictCompress);
-        }
-        return ctx;
-    }
-
-    private void releaseCompressCtx(ZstdCompressCtx ctx)
-    {
-        compressCtxPool.offer(ctx);
-        if (released) // evicted concurrently — ensure the just-returned context is not leaked
-            drainCompressPool();
-    }
-
-    private ZstdDecompressCtx acquireDecompressCtx()
-    {
-        ZstdDecompressCtx ctx = decompressCtxPool.poll();
-        if (ctx == null)
-            ctx = new ZstdDecompressCtx().loadDict(zstdDictDecompress);
-        return ctx;
-    }
-
-    private void releaseDecompressCtx(ZstdDecompressCtx ctx)
-    {
-        decompressCtxPool.offer(ctx);
-        if (released)
-            drainDecompressPool();
-    }
-
-    // Close every pooled context. Called on cache eviction; a context still borrowed by an in-flight call is
-    // closed when it is returned, because the borrower re-checks 'released' in release*Ctx().
-    private void releaseNativeContexts()
-    {
-        released = true;
-        drainCompressPool();
-        drainDecompressPool();
-    }
-
-    private void drainCompressPool()
-    {
-        ZstdCompressCtx ctx;
-        while ((ctx = compressCtxPool.poll()) != null)
-            ctx.close();
-    }
-
-    private void drainDecompressPool()
-    {
-        ZstdDecompressCtx ctx;
-        while ((ctx = decompressCtxPool.poll()) != null)
-            ctx.close();
-    }
-
     @Override
     public int uncompress(byte[] input, int inputOffset, int inputLength, byte[] output, int outputOffset) throws IOException
     {
@@ -235,12 +146,13 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
             return super.uncompress(input, inputOffset, inputLength, output, outputOffset);
         }
 
-        ZstdDecompressCtx ctx = acquireDecompressCtx();
+        ZstdDecompressCtx ctx = null;
         boolean ok = false;
         try
         {
             // Reuse a pooled context (dictionary loaded once) rather than the static one-shot, which allocates a
-            // fresh ZSTD_DCtx per call. See the compressCtxPool field comment.
+            // fresh ZSTD_DCtx per call.
+            ctx = dictionary.acquireDecompressCtx();
             int dsz = ctx.decompressByteArray(output, outputOffset, output.length - outputOffset,
                                               input, inputOffset, inputLength);
             if (Zstd.isError(dsz))
@@ -259,10 +171,13 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
         finally
         {
             // success -> return to pool; failure -> close, so a context that errored is never reused
-            if (ok)
-                releaseDecompressCtx(ctx);
-            else
-                ctx.close();
+            if (ctx != null)
+            {
+                if (ok)
+                    dictionary.releaseDecompressCtx(ctx);
+                else
+                    ctx.close();
+            }
         }
     }
 
@@ -275,12 +190,13 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
             return;
         }
 
-        ZstdDecompressCtx ctx = acquireDecompressCtx();
+        ZstdDecompressCtx ctx = null;
         boolean ok = false;
         try
         {
             // Zstd compressors expect only direct bytebuffer. See ZstdCompressorBase.preferredBufferType and supports.
-            // The context carries the dictionary (loaded once) and is reused across chunks — see the pool comment.
+            // The context carries the dictionary (loaded once) and is reused across chunks.
+            ctx = dictionary.acquireDecompressCtx();
             int decompressedSize = ctx.decompressDirectByteBuffer(output, output.position(), output.limit() - output.position(),
                                                                   input, input.position(), input.limit() - input.position());
             output.position(output.position() + decompressedSize);
@@ -294,10 +210,13 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
         finally
         {
             // success -> return to pool; failure -> close, so a context that errored is never reused
-            if (ok)
-                releaseDecompressCtx(ctx);
-            else
-                ctx.close();
+            if (ctx != null)
+            {
+                if (ok)
+                    dictionary.releaseDecompressCtx(ctx);
+                else
+                    ctx.close();
+            }
         }
     }
 
@@ -310,12 +229,13 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
             return;
         }
 
-        ZstdCompressCtx ctx = acquireCompressCtx();
+        ZstdCompressCtx ctx = null;
         boolean ok = false;
         try
         {
             // Zstd compressors expect only direct bytebuffer. See ZstdCompressorBase.preferredBufferType and supports.
-            // The context carries the dictionary (loaded once) and is reused across chunks — see the pool comment.
+            // The context carries the dictionary (loaded once) and is reused across chunks.
+            ctx = dictionary.acquireCompressCtx(compressionLevel());
             int compressedSize = ctx.compressDirectByteBuffer(output, output.position(), output.limit() - output.position(),
                                                              input, input.position(), input.limit() - input.position());
             output.position(output.position() + compressedSize);
@@ -329,10 +249,13 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
         finally
         {
             // success -> return to pool; failure -> close, so a context that errored is never reused
-            if (ok)
-                releaseCompressCtx(ctx);
-            else
-                ctx.close();
+            if (ctx != null)
+            {
+                if (ok)
+                    dictionary.releaseCompressCtx(compressionLevel(), ctx);
+                else
+                    ctx.close();
+            }
         }
     }
 

@@ -20,9 +20,13 @@ package org.apache.cassandra.db.compression;
 
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.github.luben.zstd.ZstdCompressCtx;
+import com.github.luben.zstd.ZstdDecompressCtx;
 import com.github.luben.zstd.ZstdDictCompress;
 import com.github.luben.zstd.ZstdDictDecompress;
 import com.google.common.annotations.VisibleForTesting;
@@ -46,6 +50,12 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
     // One ZstdDictDecompress and multiple ZstdDictCompress (per level) can be derived from the same raw dictionary content
     private final ConcurrentHashMap<Integer, ZstdDictCompress> zstdDictCompressPerLevel = new ConcurrentHashMap<>();
     private final AtomicReference<ZstdDictDecompress> dictDecompress = new AtomicReference<>();
+    // Reusable native (de)compression contexts, pooled and borrowed per chunk by compressors sharing this
+    // dictionary. Compress contexts are keyed by level (the loaded CDict is level-specific); decompress contexts
+    // share one pool since a single DDict serves all levels. Closed by Tidy alongside the dictionary tables they
+    // were loaded with, so no context can outlive the native memory it references.
+    private final ConcurrentHashMap<Integer, Queue<ZstdCompressCtx>> compressCtxPoolPerLevel = new ConcurrentHashMap<>();
+    private final Queue<ZstdDecompressCtx> decompressCtxPool = new ConcurrentLinkedQueue<>();
     private volatile Ref<ZstdCompressionDictionary> selfRef;
     private final Instant createdAt;
 
@@ -189,6 +199,100 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
         }
     }
 
+    /**
+     * Borrow a pooled compression context with the dictionary for {@code compressionLevel} already loaded,
+     * creating one if the pool is empty. Reusing a context avoids allocating a native ZSTD_CCtx per call.
+     * <br>
+     * IMPORTANT: Caller MUST hold a valid reference (via tryRef/ref) to this dictionary for as long as the
+     * borrowed context is in use, and must return it via {@link #releaseCompressCtx(int, ZstdCompressCtx)}.
+     *
+     * @param compressionLevel compression level the context should be loaded for
+     * @return a borrowed context; caller owns it exclusively until released
+     * @throws IllegalStateException if called without holding a valid reference
+     */
+    public ZstdCompressCtx acquireCompressCtx(int compressionLevel)
+    {
+        ensureNotReleased();
+        Queue<ZstdCompressCtx> pool = compressCtxPoolPerLevel.computeIfAbsent(compressionLevel, level -> new ConcurrentLinkedQueue<>());
+        ZstdCompressCtx ctx = pool.poll();
+        if (ctx == null)
+            // The compression level is carried by the precomputed CDict, so loadDict is all that is required.
+            ctx = new ZstdCompressCtx().loadDict(dictionaryForCompression(compressionLevel));
+        return ctx;
+    }
+
+    /**
+     * Return a context borrowed from {@link #acquireCompressCtx(int)}. If this dictionary has since been
+     * released, the context is closed instead of pooled, so it does not outlive the dictionary's native memory.
+     */
+    public void releaseCompressCtx(int compressionLevel, ZstdCompressCtx ctx)
+    {
+        Queue<ZstdCompressCtx> pool = compressCtxPoolPerLevel.computeIfAbsent(compressionLevel, level -> new ConcurrentLinkedQueue<>());
+        pool.offer(ctx);
+        if (selfRef == null || selfRef.globalCount() <= 0) // released concurrently — ensure it is not leaked
+            drainCompressPool(pool);
+    }
+
+    /**
+     * Borrow a pooled decompression context with the dictionary already loaded, creating one if the pool is empty.
+     * <br>
+     * IMPORTANT: Caller MUST hold a valid reference (via tryRef/ref) to this dictionary for as long as the
+     * borrowed context is in use, and must return it via {@link #releaseDecompressCtx(ZstdDecompressCtx)}.
+     *
+     * @throws IllegalStateException if called without holding a valid reference
+     */
+    public ZstdDecompressCtx acquireDecompressCtx()
+    {
+        ensureNotReleased();
+        ZstdDecompressCtx ctx = decompressCtxPool.poll();
+        if (ctx == null)
+            ctx = new ZstdDecompressCtx().loadDict(dictionaryForDecompression());
+        return ctx;
+    }
+
+    /**
+     * Return a context borrowed from {@link #acquireDecompressCtx()}. If this dictionary has since been
+     * released, the context is closed instead of pooled.
+     */
+    public void releaseDecompressCtx(ZstdDecompressCtx ctx)
+    {
+        decompressCtxPool.offer(ctx);
+        if (selfRef == null || selfRef.globalCount() <= 0)
+            drainDecompressPool(decompressCtxPool);
+    }
+
+    private static void drainCompressPool(Queue<ZstdCompressCtx> pool)
+    {
+        ZstdCompressCtx ctx;
+        while ((ctx = pool.poll()) != null)
+        {
+            try
+            {
+                ctx.close();
+            }
+            catch (Exception e)
+            {
+                logger.warn("Failed to close pooled ZstdCompressCtx", e);
+            }
+        }
+    }
+
+    private static void drainDecompressPool(Queue<ZstdDecompressCtx> pool)
+    {
+        ZstdDecompressCtx ctx;
+        while ((ctx = pool.poll()) != null)
+        {
+            try
+            {
+                ctx.close();
+            }
+            catch (Exception e)
+            {
+                logger.warn("Failed to close pooled ZstdDecompressCtx", e);
+            }
+        }
+    }
+
     @Override
     public Ref<ZstdCompressionDictionary> tryRef()
     {
@@ -216,7 +320,8 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
             {
                 if (selfRef == null)
                 {
-                    selfRef = new Ref<>(this, new Tidy(zstdDictCompressPerLevel, dictDecompress));
+                    selfRef = new Ref<>(this, new Tidy(zstdDictCompressPerLevel, dictDecompress,
+                                                        compressCtxPoolPerLevel, decompressCtxPool));
                 }
             }
         }
@@ -244,12 +349,18 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
     {
         private final ConcurrentHashMap<Integer, ZstdDictCompress> zstdDictCompressPerLevel;
         private final AtomicReference<ZstdDictDecompress> dictDecompress;
+        private final ConcurrentHashMap<Integer, Queue<ZstdCompressCtx>> compressCtxPoolPerLevel;
+        private final Queue<ZstdDecompressCtx> decompressCtxPool;
 
         Tidy(ConcurrentHashMap<Integer, ZstdDictCompress> zstdDictCompressPerLevel,
-             AtomicReference<ZstdDictDecompress> dictDecompress)
+             AtomicReference<ZstdDictDecompress> dictDecompress,
+             ConcurrentHashMap<Integer, Queue<ZstdCompressCtx>> compressCtxPoolPerLevel,
+             Queue<ZstdDecompressCtx> decompressCtxPool)
         {
             this.zstdDictCompressPerLevel = zstdDictCompressPerLevel;
             this.dictDecompress = dictDecompress;
+            this.compressCtxPoolPerLevel = compressCtxPoolPerLevel;
+            this.decompressCtxPool = decompressCtxPool;
         }
 
         /**
@@ -267,6 +378,13 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
         @Override
         public void tidy()
         {
+            // Close pooled (de)compression contexts BEFORE the dictionary tables they were loaded with, so no
+            // context can outlive the native memory it references.
+            for (Queue<ZstdCompressCtx> pool : compressCtxPoolPerLevel.values())
+                drainCompressPool(pool);
+            compressCtxPoolPerLevel.clear();
+            drainDecompressPool(decompressCtxPool);
+
             // Close all compression dictionaries
             // No synchronization needed - reference counting ensures exclusive access
             for (ZstdDictCompress compressDict : zstdDictCompressPerLevel.values())
