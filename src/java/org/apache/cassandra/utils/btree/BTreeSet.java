@@ -131,7 +131,7 @@ public class BTreeSet<V> extends AbstractSet<V> implements NavigableSet<V>, List
     {
         int size = size();
         if (a.length < size + offset)
-            a = Arrays.copyOf(a, size);
+            a = Arrays.copyOf(a, size + offset);
         BTree.toArray(tree, a, offset);
         return a;
     }
@@ -514,7 +514,7 @@ public class BTreeSet<V> extends AbstractSet<V> implements NavigableSet<V>, List
 
         public <T> T[] toArray(T[] a, int offset)
         {
-            if (size() + offset < a.length)
+            if (size() + offset > a.length)
                 a = Arrays.copyOf(a, size() + offset);
 
             BTree.toArray(tree, lowerBound, upperBound + 1, a, offset);
