@@ -21,6 +21,7 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -1144,6 +1145,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
         private final String name;
         private final String scope;
         private final String mBeanName;
+        private volatile ObjectName objectName;
         private final String systemViewName;
 
         /**
@@ -1299,25 +1301,28 @@ public class CassandraMetricsRegistry extends MetricRegistry
          */
         public ObjectName getMBeanName()
         {
-
-            String mname = mBeanName;
-
-            if (mname == null)
-                mname = getMetricName();
+            ObjectName local = objectName;
+            if (local != null)
+                return local;
 
             try
             {
+                Hashtable<String, String> props = new Hashtable<>(4);
+                if (type != null)
+                    props.put("type", type);
+                if (scope != null)
+                    props.put("scope", ObjectName.quote(scope));
 
-                return new ObjectName(mname);
-            } catch (MalformedObjectNameException e)
+                if (!name.isEmpty())
+                    props.put("name", ObjectName.quote(name));
+
+                local = new ObjectName(group, props);
+                objectName = local;
+                return local;
+            }
+            catch (MalformedObjectNameException e)
             {
-                try
-                {
-                    return new ObjectName(ObjectName.quote(mname));
-                } catch (MalformedObjectNameException e1)
-                {
-                    throw new RuntimeException(e1);
-                }
+                throw new RuntimeException("Invalid JMX ObjectName for metric", e);
             }
         }
 
