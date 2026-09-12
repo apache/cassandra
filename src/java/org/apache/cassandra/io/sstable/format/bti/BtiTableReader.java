@@ -243,6 +243,14 @@ public class BtiTableReader extends SSTableReaderWithFilter
      * not have to open the same position again; on a compressed table that would decompress and checksum the same
      * chunk twice. It is null whenever there is nothing to reuse, and when it is not null the caller owns it and
      * must close it.
+     *
+     * This only applies to the exact-match lookup used by {@link #rowIterator}. In the other cases there is either no
+     * reader worth keeping, or no one to give it to. A partition that has a row index entry has its key checked in the
+     * row index file, not in the data file.
+     * The generic {@link org.apache.cassandra.io.sstable.format.SSTableReader#getPosition} is shared with the BIG format,
+     * which never reads the data file during a lookup. Its callers either only use the returned position, or, like
+     * compaction's shadow-source iterators and the secondary index builders, already keep one long-lived data file
+     * reader that they seek themselves for many partitions.
      */
     static final class ExactPosition
     {
