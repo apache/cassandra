@@ -62,6 +62,7 @@ import static org.apache.cassandra.cql3.statements.TransactionStatement.TRANSACT
 import static org.apache.cassandra.cql3.statements.UpdateStatement.CANNOT_SET_KEY_WITH_REFERENCE_MESSAGE;
 import static org.apache.cassandra.cql3.statements.UpdateStatement.UPDATING_PRIMARY_KEY_MESSAGE;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
+import static org.apache.cassandra.cql3.transactions.ConditionStatement.NULL_COMPARISON_MESSAGE;
 import static org.apache.cassandra.cql3.transactions.RowDataReference.CANNOT_FIND_TUPLE_MESSAGE;
 import static org.apache.cassandra.cql3.transactions.RowDataReference.COLUMN_NOT_IN_TUPLE_MESSAGE;
 import static org.apache.cassandra.schema.TableMetadata.UNDEFINED_COLUMN_NAME_MESSAGE;
@@ -608,6 +609,52 @@ public class TransactionStatementTest
                        "  END IF\n" +
                        "COMMIT TRANSACTION";
         Assertions.assertThat(prepare(query)).isNotNull();
+    }
+
+    @Test
+    public void shouldRejectColumnComparisonWithNullLiteral()
+    {
+        for (String operator : Arrays.asList("=", "!=", "<", "<=", ">", ">="))
+        {
+            String query = "BEGIN TRANSACTION\n" +
+                           "  LET row1 = (SELECT * FROM ks.tbl5 WHERE k=1);\n" +
+                           "  IF row1.v " + operator + " null THEN\n" +
+                           "    UPDATE ks.tbl5 SET v=1 WHERE k=1;\n" +
+                           "  END IF\n" +
+                           "COMMIT TRANSACTION";
+
+            Assertions.assertThatThrownBy(() -> prepare(query))
+                      .isInstanceOf(InvalidRequestException.class)
+                      .hasMessage(NULL_COMPARISON_MESSAGE);
+
+            // the reference may also appear on the RHS
+            String reversed = "BEGIN TRANSACTION\n" +
+                              "  LET row1 = (SELECT * FROM ks.tbl5 WHERE k=1);\n" +
+                              "  IF null " + operator + " row1.v THEN\n" +
+                              "    UPDATE ks.tbl5 SET v=1 WHERE k=1;\n" +
+                              "  END IF\n" +
+                              "COMMIT TRANSACTION";
+
+            Assertions.assertThatThrownBy(() -> prepare(reversed))
+                      .isInstanceOf(InvalidRequestException.class)
+                      .hasMessage(NULL_COMPARISON_MESSAGE);
+        }
+    }
+
+    @Test
+    public void shouldRejectColumnComparisonWithNullBindMarker()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET row1 = (SELECT * FROM ks.tbl5 WHERE k=1);\n" +
+                       "  IF row1.v = ? THEN\n" +
+                       "    UPDATE ks.tbl5 SET v=1 WHERE k=1;\n" +
+                       "  END IF\n" +
+                       "COMMIT TRANSACTION";
+
+        Assertions.assertThat(prepare(query)).isNotNull();
+        Assertions.assertThatThrownBy(() -> execute(query, new Object[]{ null }))
+                  .isInstanceOf(InvalidRequestException.class)
+                  .hasMessage(NULL_COMPARISON_MESSAGE);
     }
 
     private static CQLStatement prepare(String query)
