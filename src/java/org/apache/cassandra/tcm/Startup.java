@@ -232,10 +232,15 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         UUID currentHostId = SystemKeyspace.getLocalHostId();
         if (nodeId != NodeId.UNREGISTERED && !Objects.equals(nodeId.toUUID(), currentHostId))
         {
+            //Returning here if no host id was found in the system.local table means startup will fall
+            //through to the path taken by a new node attempting to join the cluster with a broadcast
+            //address that is already associated with an existing member. We could choose to report an
+            //IP collision here unless StorageService.isReplacingSameAddress() is true, but that would
+            //lead to inconsistent messages/logging across multiple restarts as it would be dependent
+            //on whether the node had performed catch up from a peer or not.
             if (currentHostId == null)
             {
-                logger.info("Taking over the host ID: {}, replacing address {}", nodeId.toUUID(), FBUtilities.getBroadcastAddressAndPort());
-                SystemKeyspace.setLocalHostId(nodeId.toUUID());
+                logger.debug("No host id set for node {} in system.local", nodeId);
                 return;
             }
 
@@ -689,6 +694,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                         throw new IllegalStateException("Cannot replace same address when accord transactions are enabled.");
                     }
 
+                    SystemKeyspace.setLocalHostId(self.toUUID());
                     ReplaceSameAddress.streamData(self, metadata, shouldBootstrap, finishJoiningRing);
                 }
 
