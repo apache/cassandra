@@ -226,6 +226,7 @@ import static org.apache.cassandra.service.consensus.migration.ConsensusMigratio
 import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.splitMutationsIntoAccordAndNormal;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.shouldReadEphemerally;
+import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.shouldUseQuorumConsistency;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.splitReadsIntoAccordAndNormal;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.GLOBAL;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.LOCAL;
@@ -2460,6 +2461,10 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     if (normalReads != null)
                     {
+                        // We use Quorum consistency here to ensure that earlier writes that were done by Accord are still observed
+                        // See CASSANDRA-20705 for more details
+                        if (shouldUseQuorumConsistency(cm, group, consistencyLevel))
+                            consistencyLevel = ConsistencyLevel.QUORUM;
                         normalPartitions = readRegular(normalReads, consistencyLevel, coordinator, requestTime);
                         Tracing.trace("Successfully executed normal reads");
                     }
