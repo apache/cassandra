@@ -24,6 +24,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.ImmutableList;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
@@ -72,17 +74,20 @@ public abstract class QueryOptions implements RealTimeFunctionContext
 
     public static QueryOptions forInternalCalls(ConsistencyLevel consistency, List<ByteBuffer> values)
     {
-        return new DefaultQueryOptions(consistency, values, ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS, false, SpecificOptions.DEFAULT, ProtocolVersion.V3);
+        SpecificOptions specificOptions = new SpecificOptions(-1, null, ConsistencyLevel.SERIAL, Long.MIN_VALUE, null, UNSET_NOWINSEC);
+        return new DefaultQueryOptions(consistency, values, ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS, false, specificOptions, ProtocolVersion.V3);
     }
 
     public static QueryOptions forInternalCallsWithNowInSec(long nowInSec, ConsistencyLevel consistency, List<ByteBuffer> values)
     {
-        return new DefaultQueryOptions(consistency, values, ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS, false, SpecificOptions.DEFAULT.withNowInSec(nowInSec), ProtocolVersion.CURRENT);
+        SpecificOptions specificOptions = new SpecificOptions(-1, null, ConsistencyLevel.SERIAL, Long.MIN_VALUE, null, nowInSec);
+        return new DefaultQueryOptions(consistency, values, ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS, false, specificOptions, ProtocolVersion.CURRENT);
     }
 
     public static QueryOptions forInternalCalls(List<ByteBuffer> values)
     {
-        return new DefaultQueryOptions(ConsistencyLevel.ONE, values, ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS, false, SpecificOptions.DEFAULT, ProtocolVersion.V3);
+        SpecificOptions specificOptions = new SpecificOptions(-1, null, ConsistencyLevel.SERIAL, Long.MIN_VALUE, null, UNSET_NOWINSEC);
+        return new DefaultQueryOptions(ConsistencyLevel.ONE, values, ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS, false, specificOptions, ProtocolVersion.V3);
     }
 
     public static QueryOptions forProtocolVersion(ProtocolVersion protocolVersion)
@@ -250,7 +255,12 @@ public abstract class QueryOptions implements RealTimeFunctionContext
     /**  Serial consistency for conditional updates. */
     public ConsistencyLevel getSerialConsistency()
     {
-        return getSpecificOptions().serialConsistency;
+        return getSpecificOptions().serialConsistency == null ? ConsistencyLevel.SERIAL : getSpecificOptions().serialConsistency;
+    }
+
+    public boolean serialConsistencyNotProvided()
+    {
+        return getSpecificOptions().serialConsistency == null;
     }
 
     public long getTimestamp(QueryState state)
@@ -655,7 +665,7 @@ public abstract class QueryOptions implements RealTimeFunctionContext
 
         private SpecificOptions(int pageSize,
                                 PagingState state,
-                                ConsistencyLevel serialConsistency,
+                                @Nullable ConsistencyLevel serialConsistency,
                                 long timestamp,
                                 String keyspace,
                                 long nowInSeconds,
@@ -663,7 +673,7 @@ public abstract class QueryOptions implements RealTimeFunctionContext
         {
             this.pageSize = pageSize;
             this.state = state;
-            this.serialConsistency = serialConsistency == null ? ConsistencyLevel.SERIAL : serialConsistency;
+            this.serialConsistency = serialConsistency;
             this.timestamp = timestamp;
             this.keyspace = keyspace;
             this.nowInSeconds = nowInSeconds;
@@ -760,7 +770,7 @@ public abstract class QueryOptions implements RealTimeFunctionContext
             {
                 int pageSize = Flag.contains(flags, Flag.PAGE_SIZE) ? body.readInt() : -1;
                 PagingState pagingState = Flag.contains(flags, Flag.PAGING_STATE) ? PagingState.deserialize(CBUtil.readValueNoCopy(body), version) : null;
-                ConsistencyLevel serialConsistency = Flag.contains(flags, Flag.SERIAL_CONSISTENCY) ? CBUtil.readConsistencyLevel(body) : ConsistencyLevel.SERIAL;
+                ConsistencyLevel serialConsistency = Flag.contains(flags, Flag.SERIAL_CONSISTENCY) ? CBUtil.readConsistencyLevel(body) : null;
                 long timestamp = Long.MIN_VALUE;
                 if (Flag.contains(flags, Flag.TIMESTAMP))
                 {
@@ -848,7 +858,7 @@ public abstract class QueryOptions implements RealTimeFunctionContext
                 flags = Flag.add(flags, Flag.PAGE_SIZE);
             if (options.getPagingState() != null)
                 flags = Flag.add(flags, Flag.PAGING_STATE);
-            if (options.getSerialConsistency() != ConsistencyLevel.SERIAL)
+            if (options.getSpecificOptions().serialConsistency != null)
                 flags = Flag.add(flags, Flag.SERIAL_CONSISTENCY);
             if (options.getSpecificOptions().timestamp != Long.MIN_VALUE)
                 flags = Flag.add(flags, Flag.TIMESTAMP);
