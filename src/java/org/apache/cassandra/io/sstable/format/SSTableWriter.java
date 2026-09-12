@@ -381,11 +381,10 @@ public abstract class SSTableWriter extends SSTable implements Transactional
             }
         }
 
-        // Offsets are only meaningful while an sstable is unrepaired, and this runs for compaction and anticompaction
-        // outputs as well as flushes. Those inherit repairedAt from their inputs, so the branch above is skipped and
-        // the union of the inputs' offsets would otherwise be written through. An anticompaction during a migration
-        // does exactly that: it repairs a journal-derived sstable in a pending range without clearing its offsets, and
-        // a later compaction in the repaired holder can then union it with commit-log-derived data.
+        // Offsets are only meaningful while an sstable is unrepaired. Compaction and anticompaction outputs inherit
+        // repairedAt from their inputs, so the branch above is skipped and CompactionTask.getCoordinatorLogOffsets()
+        // would write the union of the inputs' offsets through. No path is known to reach this with offsets present:
+        // StatsMetadata.mutateRepairedMetadata() clears them wherever repairedAt is set. This is a backstop.
         if (repairedAt != ActiveRepairService.UNREPAIRED_SSTABLE)
             coordinatorLogOffsets = ImmutableCoordinatorLogOffsets.NONE;
 

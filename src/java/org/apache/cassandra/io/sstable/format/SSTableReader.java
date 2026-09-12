@@ -1418,16 +1418,12 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      */
     public void mutatePromotedToRepairedAndReload(long newRepairedAt) throws IOException
     {
-        ImmutableCoordinatorLogOffsets cleared = new ImmutableCoordinatorLogOffsets.Builder().build();
-        synchronized (tidy.global)
-        {
-            descriptor.getMetadataSerializer()
-                      .mutate(descriptor,
-                              "promoted to repaired at " + newRepairedAt + " with offsets cleared",
-                              stats -> stats.mutateRepairedMetadata(newRepairedAt, ActiveRepairService.NO_PENDING_REPAIR)
-                                            .mutateCoordinatorLogOffsets(cleared));
-            reloadSSTableMetadata();
-        }
+        Preconditions.checkArgument(newRepairedAt != ActiveRepairService.UNREPAIRED_SSTABLE);
+
+        // setting repaired > UNREPAIRED_SSTABLE automatically clears the offsets
+        mutateRepairedAndReload(newRepairedAt, ActiveRepairService.NO_PENDING_REPAIR);
+
+        Preconditions.checkState(getSSTableMetadata().coordinatorLogOffsets.isEmpty());
     }
 
     /**
