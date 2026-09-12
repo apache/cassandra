@@ -495,6 +495,7 @@ def ks_prop_val_completer(ctxt, cass):
 
 
 def ks_prop_val_mapkey_completer(ctxt, cass):
+    session = cass.session if hasattr(cass, 'session') else cass
     optname = ctxt.get_binding('propname')[-1]
     if optname != 'replication':
         return ()
@@ -509,7 +510,24 @@ def ks_prop_val_mapkey_completer(ctxt, cass):
     if repclass == 'SimpleStrategy':
         opts = {'replication_factor'}
     elif repclass == 'NetworkTopologyStrategy':
-        return [Hint('<dc_name>')]
+          try:
+              resultLocal = session.execute("SELECT data_center FROM system.local")
+              row = resultLocal.one()
+              local_dc = row['data_center'] if row else None
+
+              resultPeer = session.execute("SELECT data_center FROM system.peers")
+              peer_dc = [row['data_center'] for row in resultPeer if row['data_center']]
+
+#               dummy_dcs = ['dc_dummy1', 'dc_dummy2', 'dc_dummy3']
+#               dc_list = sorted(set([dc for dc in [local_dc] + peer_dc + dummy_dcs if dc]))
+
+              dc_list = sorted(set([dc for dc in [local_dc] + peer_dc if dc]))
+
+              return list(map(escape_value, dc_list)) if dc_list else [Hint('<dc_name_not_available>')]
+
+          except Exception as e:
+              print(f"Query failed: {e}")
+              return [Hint('<dc_name_not_available>')]
     return list(map(escape_value, opts.difference(keysseen)))
 
 
