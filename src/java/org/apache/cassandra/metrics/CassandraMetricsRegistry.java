@@ -144,6 +144,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
                                    .add(MemtablePool.TYPE_NAME)
                                    .add(MessagingMetrics.TYPE_NAME)
                                    .add(MutualTlsMetrics.TYPE_NAME)
+                                   .add(NettyMemoryMetrics.TYPE_NAME)
                                    .add(PaxosMetrics.TYPE_NAME)
                                    .add(ReadRepairMetrics.TYPE_NAME)
                                    .add(RepairMetrics.TYPE_NAME)
