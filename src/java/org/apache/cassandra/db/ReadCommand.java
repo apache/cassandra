@@ -444,13 +444,26 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     public ReadResponse createResponse(UnfilteredPartitionIterator iterator, RepairedDataInfo rdi)
     {
+        return createResponse(iterator, rdi, false, false);
+    }
+
+    private ReadResponse createResponse(UnfilteredPartitionIterator iterator, RepairedDataInfo rdi, boolean localRead, boolean localReplicaOnly)
+    {
         // validate that the sequence of RT markers is correct: open is followed by close, deletion times for both
         // ends equal, and there are no dangling RT bound in any partition.
         iterator = RTBoundValidator.validate(iterator, Stage.PROCESSED, true);
+        if (isDigestQuery())
+            return ReadResponse.createDigestResponse(iterator, this);
 
-        return isDigestQuery()
-               ? ReadResponse.createDigestResponse(iterator, this)
-               : ReadResponse.createDataResponse(iterator, this, rdi);
+        if (localRead && ReadResponse.inMemoryLocalResponseEnabled(localReplicaOnly))
+            return ReadResponse.createInMemoryDataResponse(iterator, this, rdi, localReplicaOnly);
+
+        return ReadResponse.createDataResponse(iterator, this, rdi);
+    }
+
+    public ReadResponse createLocalObjectResponse(UnfilteredPartitionIterator iterator, RepairedDataInfo rdi, boolean localReplicaOnly)
+    {
+        return createResponse(iterator, rdi, true, localReplicaOnly);
     }
 
     public ReadResponse createEmptyResponse()
