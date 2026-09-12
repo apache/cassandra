@@ -23,6 +23,7 @@ import java.lang.reflect.Field;
 import java.nio.channels.FileChannel;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.sun.jna.LastErrorException;
 
 import org.slf4j.Logger;
@@ -72,6 +73,11 @@ public final class NativeLibrary
     private static final int POSIX_FADV_WILLNEED   = 3; /* fadvise.h */
     private static final int POSIX_FADV_DONTNEED   = 4; /* fadvise.h */
     private static final int POSIX_FADV_NOREUSE    = 5; /* fadvise.h */
+
+    // POSIX_FADV_DONTNEED only discards fully covered pages, so chunk on a boundary that is a multiple of
+    // every common page size (4K, 16K, 64K) instead of the unaligned Integer.MAX_VALUE.
+    @VisibleForTesting
+    static final int FADVISE_MAX_CHUNK = Integer.MAX_VALUE & ~((1 << 21) - 1);
 
     private static final NativeLibraryWrapper wrappedLibrary;
     private static boolean jnaLockable = false;
@@ -228,14 +234,17 @@ public final class NativeLibrary
     public static void trySkipCache(int fd, long offset, long len, String path)
     {
         if (len == 0)
-            trySkipCache(fd, 0, 0, path);
+        {
+            trySkipCache(fd, offset, 0, path);
+            return;
+        }
 
         while (len > 0)
         {
-            int sublen = (int) Math.min(Integer.MAX_VALUE, len);
+            int sublen = (int) Math.min(FADVISE_MAX_CHUNK, len);
             trySkipCache(fd, offset, sublen, path);
             len -= sublen;
-            offset -= sublen;
+            offset += sublen;
         }
     }
 
