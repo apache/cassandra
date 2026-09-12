@@ -1,0 +1,809 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""
+Local CI runner – a stand-in for the `.build/run-ci` Jenkins pipeline that runs on this machine
+instead of Jenkins.
+
+The 6.0 CI is a set of CI-agnostic, dockerised scripts (`.build/docker/*.sh`) that run inside
+docker images (apache/cassandra-ubuntu-test, apache/cassandra-debian-build,
+apache/cassandra-almalinux-build, tagged by the md5 of their dockerfile).  This script:
+
+  1. builds the same task matrix as the Jenkinsfile (profile -> steps -> jdk/python/split cells),
+  2. runs every cell locally in docker with the same images, each in its own copy-on-write
+     workspace under build/ci-local/<run>/cells/ (cleaned up afterwards unless --keep-workspace),
+  3. organises the test results and generates the same artefacts as CI:
+     ci_summary.html and results_details.tar.xz under build/ci-local/<run>/.
+
+Notes:
+  - The task matrix mirrored here comes from the Jenkinsfile; run `.build/run-ci-local-test.py`
+    to check the two are in sync (it fails on any drift).
+  - Requires: docker (running), rsync, bc, xz, git.  Python 3.8+.
+  - Generating ci_summary.html additionally needs the .build/ci python requirements
+    (`pip install -r .build/ci/requirements.txt`); without them the run still completes and the
+    raw JUnit xmls are kept in build/ci-local/<run>/test-results/.
+
+Examples:
+  .build/run-ci-local                          # skinny profile, all supported JDKs, native arch
+  .build/run-ci-local -j 11 -n 2               # only jdk 11, two cells in parallel
+  .build/run-ci-local -p custom -e 'cqlsh-test'   # custom profile: only cqlsh-test
+  .build/run-ci-local -p custom -e '^dtest$' -j 11 -c 64/64  # one matrix cell
+  .build/run-ci-local -p post-commit -k trunk     # python dtests from cassandra-dtest trunk
+  .build/run-ci-local --dry-run                # print the cell plan and exit
+"""
+
+import argparse
+import concurrent.futures
+import datetime
+import hashlib
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tarfile
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+
+# ----------------------------------------------------------------------------
+# constants
+# ----------------------------------------------------------------------------
+
+TREE = Path(__file__).resolve().parent.parent
+BUILD_XML = TREE / "build.xml"
+CI_LOCAL_BASE = TREE / "build" / "ci-local"
+DEFAULT_DTEST_REPO = "https://github.com/apache/cassandra-dtest.git"
+DEFAULT_DTEST_BRANCH = "trunk"
+ALPINE_IMAGE = "alpine:3.19.1"
+
+# the Jenkinsfile pipelineProfiles()
+PIPELINE_PROFILES = {
+    "packaging": ["artifacts", "lint", "debian", "redhat"],
+    "skinny": ["lint", "cqlsh-test", "test", "jvm-dtest", "simulator-dtest", "dtest"],
+    "pre-commit": ["artifacts", "lint", "debian", "redhat", "fqltool-test", "sstableloader-test",
+                   "cqlsh-test", "test", "test-latest", "stress-test", "test-burn", "jvm-dtest",
+                   "simulator-dtest", "dtest", "dtest-latest", "microbench-test"],
+    "pre-commit w/ upgrades": ["artifacts", "lint", "debian", "redhat", "fqltool-test",
+                               "sstableloader-test", "cqlsh-test", "test", "test-latest",
+                               "stress-test", "test-burn", "jvm-dtest", "jvm-dtest-upgrade",
+                               "simulator-dtest", "dtest", "dtest-novnode", "dtest-latest",
+                               "dtest-upgrade", "microbench-test"],
+    "post-commit": ["artifacts", "lint", "debian", "redhat", "fqltool-test", "sstableloader-test",
+                    "cqlsh-test", "test-cdc", "test", "test-latest", "test-compression",
+                    "stress-test", "test-burn", "long-test", "test-oa",
+                    "test-system-keyspace-directory", "jvm-dtest", "jvm-dtest-upgrade",
+                    "simulator-dtest", "dtest", "dtest-novnode", "dtest-latest", "dtest-large",
+                    "dtest-large-novnode", "dtest-large-latest", "dtest-upgrade",
+                    "dtest-upgrade-novnode", "dtest-upgrade-large", "dtest-upgrade-large-novnode",
+                    "microbench-test"],
+    "performance": ["microbench"],
+    "custom": [],
+}
+
+# the Jenkinsfile buildSteps() (minus 'jar', which gets its own stage)
+BUILD_STEPS = {
+    "artifacts": {"script": "build-artifacts.sh", "extra": []},
+    "lint": {"script": "check-code.sh", "extra": []},
+    "debian": {"script": "build-debian.sh", "extra": []},
+    "redhat": {"script": "build-redhat.sh", "extra": ["rpm"]},
+}
+
+# the Jenkinsfile testSteps() (split counts)
+TEST_STEPS = {
+    "cqlsh-test": 1,
+    "fqltool-test": 1,
+    "sstableloader-test": 1,
+    "test-cdc": 20,
+    "test": 20,
+    "test-latest": 20,
+    "test-compression": 20,
+    "stress-test": 1,
+    "test-burn": 4,
+    "long-test": 4,
+    "test-oa": 20,
+    "test-system-keyspace-directory": 20,
+    "jvm-dtest": 16,
+    "jvm-dtest-upgrade": 6,
+    "simulator-dtest": 2,
+    "dtest": 64,
+    "dtest-novnode": 64,
+    "dtest-latest": 64,
+    "dtest-large": 6,
+    "dtest-large-novnode": 6,
+    "dtest-large-latest": 6,
+    "dtest-upgrade": 160,
+    "dtest-upgrade-novnode": 160,
+    "dtest-upgrade-large": 40,
+    "dtest-upgrade-large-novnode": 40,
+    "microbench-test": 4,
+    "microbench": 4,
+}
+
+# per-step container timeout in hours (Jenkinsfile timeout_hours)
+STEP_TIMEOUT_HOURS = {"microbench-test": 2, "microbench": 6}
+
+# cqlsh-test runs the python matrix (Jenkinsfile pythonsSupported; cython disabled for 3.12+,
+# CASSANDRA-21482)
+CQLSH_PYTHON_MATRIX = [("3.8", ["yes", "no"]), ("3.11", ["yes", "no"]), ("3.12", ["no"]), ("3.13", ["no"])]
+
+# steps that only run on the default jdk (Jenkinsfile matrix filter)
+DEFAULT_JDK_ONLY_STEPS = lambda step: step in ("cqlsh-test", "simulator-dtest") or "dtest-upgrade" in step
+
+DOCKER_BUILD_FILES = ["debian-build.docker"]        # jar / build steps / summary reports
+DOCKER_TEST_FILES = ["ubuntu-test.docker"]          # test steps
+DOCKER_ALMALINUX_FILES = ["almalinux-build.docker"]  # redhat step
+
+
+# ----------------------------------------------------------------------------
+# small helpers
+# ----------------------------------------------------------------------------
+
+def fail(message, code=2):
+    print(f"ERROR: {message}", file=sys.stderr)
+    sys.exit(code)
+
+
+def which(cmd):
+    return shutil.which(cmd) is not None
+
+
+def run_quiet(cmd, **kwargs):
+    return subprocess.run(cmd, capture_output=True, text=True, **kwargs)
+
+
+def docker_has_image(name):
+    return bool(run_quiet(["docker", "images", "-q", name]).stdout.strip())
+
+
+def host_cpus():
+    return os.cpu_count() or 1
+
+
+def host_mem_gib():
+    try:
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemTotal"):
+                    return int(line.split()[1]) / (1024 * 1024)
+    except OSError:
+        pass
+    return None
+
+
+def image_name_for(dockerfile_name):
+    """same naming as the CI scripts: apache/cassandra-<name>:<md5 of dockerfile>"""
+    dockerfile = TREE / ".build" / "docker" / dockerfile_name
+    tag = hashlib.md5(dockerfile.read_bytes()).hexdigest()
+    return f"apache/cassandra-{dockerfile_name[:-len('.docker')]}:{tag}"
+
+
+# ----------------------------------------------------------------------------
+# argument parsing
+# ----------------------------------------------------------------------------
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(
+        description="Run the (6.0, dockerised) CI against this branch on the local machine.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        epilog=__doc__.split("Examples:")[-1] if "Examples:" in __doc__ else None)
+    parser.add_argument("-p", "--profile", choices=sorted(PIPELINE_PROFILES), default="skinny",
+                        help="CI pipeline profile.")
+    parser.add_argument("-e", "--profile-custom-regexp",
+                        help="Regexp selecting stages when using the custom profile, e.g. 'stress.*|jvm-dtest.*'")
+    parser.add_argument("-j", "--jdk",
+                        help="JDK version(s) to build and test with, comma separated (default: all supported by build.xml)")
+    parser.add_argument("-d", "--dtest-repository", default=DEFAULT_DTEST_REPO, help="cassandra-dtest repository URL.")
+    parser.add_argument("-k", "--dtest-branch", default=DEFAULT_DTEST_BRANCH, help="cassandra-dtest branch.")
+    parser.add_argument("-t", "--test-regexp",
+                        help="Run only tests matching this name regexp (disables splitting, mirrors run-tests.sh -t).")
+    parser.add_argument("-c", "--split", metavar="K/N",
+                        help="Run only matrix split K/N, for example 64/64. The denominator must match the step's configured split count.")
+    parser.add_argument("-a", "--steps", metavar="REGEXP",
+                        help="Only run steps whose name matches this regexp (applied on top of the profile).")
+    parser.add_argument("-n", "--concurrency", type=int, default=None,
+                        help="Number of test cells to run in parallel. "
+                             "Default: min(4, ncpu/4, host-memory/16GiB), at least 1.")
+    parser.add_argument("-m", "--m2-dir", default=str(CI_LOCAL_BASE / "m2"),
+                        help="Shared maven repository directory used by all cells.")
+    parser.add_argument("--timeout-hours", type=float, default=None,
+                        help="Override the per-cell timeout (default: 1h, 2h for microbench-test, 6h for microbench).")
+    parser.add_argument("--dry-run", action="store_true", help="Print the cell plan and exit.")
+    parser.add_argument("--keep-workspace", action="store_true", help="Keep the per-cell workspaces under build/ci-local/<run>/cells/.")
+    parser.add_argument("--debug", action="store_true", help="Enable DEBUG=1 in the CI scripts.")
+    args = parser.parse_args()
+    if args.split:
+        match = re.fullmatch(r"([1-9][0-9]*)/([1-9][0-9]*)", args.split)
+        if not match or int(match.group(1)) > int(match.group(2)):
+            parser.error("--split must be K/N with 1 <= K <= N")
+    if args.split and args.test_regexp:
+        parser.error("--split and --test-regexp cannot be used together")
+    return args
+
+
+# ----------------------------------------------------------------------------
+# build.xml java properties (the CI scripts read these: java.default / java.supported)
+# ----------------------------------------------------------------------------
+
+def read_build_xml_property(name):
+    m = re.search(rf'property\s+name="{name}"\s+value="([^"]*)"', BUILD_XML.read_text())
+    return m.group(1) if m else None
+
+
+# ----------------------------------------------------------------------------
+# planning
+# ----------------------------------------------------------------------------
+
+class Cell:
+    def __init__(self, name, kind, step, jdk=None, python="3.8", cython="no",
+                 split=1, splits=1, timeout_hours=1.0):
+        self.name = name
+        self.kind = kind          # jar | build_dtest_jars | build | test
+        self.step = step
+        self.jdk = jdk
+        self.python = python
+        self.cython = cython
+        self.split = split
+        self.splits = splits
+        self.timeout_hours = timeout_hours
+
+    def describe(self):
+        if self.kind == "jar":
+            return f"jar jdk{self.jdk}"
+        extra = f" python{self.python}" if self.step == "cqlsh-test" else ""
+        cython = " cython" if self.cython == "yes" else ""
+        split = f" {self.split}/{self.splits}" if self.splits > 1 else ""
+        return f"{self.step} jdk{self.jdk}{extra}{cython}{split}"
+
+
+def select_steps(args):
+    if args.profile == "custom":
+        if not args.profile_custom_regexp:
+            fail("custom profile requires -e/--profile-custom-regexp")
+        regexp = re.compile(args.profile_custom_regexp)
+        steps = [s for s in sorted(BUILD_STEPS) + sorted(TEST_STEPS) if regexp.search(s)]
+        if not steps:
+            fail(f"no steps match the custom regexp: {args.profile_custom_regexp}")
+    else:
+        steps = PIPELINE_PROFILES[args.profile]
+    if args.steps:
+        regexp = re.compile(args.steps)
+        steps = [s for s in steps if regexp.search(s)]
+        if not steps:
+            fail(f"no steps from profile '{args.profile}' match -a/--steps: {args.steps}")
+    if args.profile_custom_regexp and args.profile != "custom":
+        print(f"WARNING: -e/--profile-custom-regexp is only used with -p custom, ignoring '{args.profile_custom_regexp}' "
+              f"(profile '{args.profile}' applies)")
+    return steps
+
+
+def build_plan(args, steps, supported_jdks):
+    default_jdk = args._default_jdk
+    requested_split = tuple(map(int, args.split.split("/"))) if args.split else None
+    jdk_filter = [j.strip() for j in (args.jdk or "").split(",") if j.strip()]
+    if jdk_filter:
+        unknown = [j for j in jdk_filter if j not in supported_jdks]
+        if unknown:
+            fail(f"jdk(s) {unknown} not in build.xml java.supported: {supported_jdks}")
+    jdks = [j for j in supported_jdks if not jdk_filter or j in jdk_filter]
+
+    jar_cells = [Cell(f"jar-jdk{jdk}", "jar", "jar", jdk=jdk) for jdk in jdks]
+
+    cells = []
+    split_count_matched = False
+    for step in steps:
+        timeout = args.timeout_hours or STEP_TIMEOUT_HOURS.get(step, 1.0)
+        if step in BUILD_STEPS:
+            # A split selects a test matrix cell, not independent packaging cells.
+            if requested_split:
+                continue
+            for jdk in jdks:
+                cells.append(Cell(f"{step}-jdk{jdk}", "build", step, jdk=jdk, timeout_hours=timeout))
+        elif step in TEST_STEPS:
+            splits = 1 if args.test_regexp else TEST_STEPS[step]
+            if requested_split and requested_split[1] != splits:
+                continue
+            if requested_split:
+                split_count_matched = True
+            selected_splits = [requested_split[0]] if requested_split else range(1, splits + 1)
+            # Match Jenkins: default-JDK-only steps disappear when -j excludes the default,
+            # rather than scheduling cells for a jar that was not requested.
+            step_jdks = ([default_jdk] if default_jdk in jdks else []) if DEFAULT_JDK_ONLY_STEPS(step) else jdks
+            matrix = CQLSH_PYTHON_MATRIX if step == "cqlsh-test" else [("3.8", ["no"])]
+            for jdk in step_jdks:
+                for python, cythons in matrix:
+                    for cython in cythons:
+                        for split in selected_splits:
+                            name = f"{step}-jdk{jdk}"
+                            if step == "cqlsh-test":
+                                name += f"-python{python.replace('.', '')}"
+                                if cython == "yes":
+                                    name += "-cython"
+                            if splits > 1:
+                                name += f"-split{split}"
+                            cells.append(Cell(name, "test", step, jdk=jdk, python=python,
+                                              cython=cython, split=split, splits=splits,
+                                              timeout_hours=timeout))
+    if requested_split and not cells:
+        if not split_count_matched:
+            fail(f"no selected test step has a configured split count of {requested_split[1]}")
+        fail("the requested JDK and step filters exclude every cell for this split")
+    return jar_cells, cells
+
+
+def plan_summary_text(jar_cells, cells):
+    lines = ["Planned cells:"]
+    for c in jar_cells:
+        lines.append(f"  [jar ] {c.describe()}")
+    for c in cells:
+        lines.append(f"  [{c.kind[:4]}] {c.describe()}")
+    dtest_steps = {c.step for c in cells if c.kind == "test" and c.step.startswith("dtest")}
+    return "\n".join(lines) + f"\n({len(jar_cells)} jar cell(s), {len(cells)} task cell(s), dtest steps: {sorted(dtest_steps) or 'none'})"
+
+
+# ----------------------------------------------------------------------------
+# docker
+# ----------------------------------------------------------------------------
+
+def warmup_docker_images(args):
+    """Pull the same images the CI uses (dockerhub, falling back to the ASF jfrog mirror),
+    building locally when neither has them – exactly what the CI scripts do on first use."""
+    dockerfiles = DOCKER_BUILD_FILES + DOCKER_TEST_FILES + DOCKER_ALMALINUX_FILES
+    for dockerfile in dockerfiles:
+        name = image_name_for(dockerfile)
+        if docker_has_image(name):
+            print(f"docker image {name} already present")
+            continue
+        print(f"pulling docker image {name} …")
+        if run_quiet(["docker", "pull", "-q", name]).returncode == 0:
+            continue
+        print(f"pulling docker image apache.jfrog.io/cassan-docker/{name} …")
+        if run_quiet(["docker", "pull", "-q", f"apache.jfrog.io/cassan-docker/{name}"]).returncode == 0:
+            # tag locally the way the scripts will look it up
+            run_quiet(["docker", "tag", f"apache.jfrog.io/cassan-docker/{name}", name], check=False)
+            continue
+        print(f"pulling failed, building {name} from .build/docker/{dockerfile} …")
+        subprocess.run(["docker", "build", "-t", name, "-f", f"docker/{dockerfile}", "--load", "."],
+                       cwd=TREE / ".build", check=True)
+    if not docker_has_image(ALPINE_IMAGE):
+        print(f"pulling {ALPINE_IMAGE} …")
+        subprocess.run(["docker", "pull", "-q", ALPINE_IMAGE], check=True)
+
+
+def clone_dtest_repo(run_dir, repo, branch):
+    dtest_dir = run_dir / "cassandra-dtest"
+    if (dtest_dir / "dtest.py").is_file():
+        print(f"cassandra-dtest already present at {dtest_dir}")
+        return dtest_dir
+    print(f"cloning {repo} @ {branch} into {dtest_dir} …")
+    subprocess.run(["git", "clone", "--depth", "1", "--no-tags", "-b", branch, repo, str(dtest_dir)], check=True)
+    if not (dtest_dir / "dtest.py").is_file():
+        fail(f"{dtest_dir}/dtest.py not found – invalid cassandra-dtest repository/branch "
+             f"(does {branch} support cassandra 6.x?)")
+    return dtest_dir
+
+
+# ----------------------------------------------------------------------------
+# cell execution
+# ----------------------------------------------------------------------------
+
+def make_cell_workspace(cell_dir, jar_cell_dir):
+    """Create an isolated per-cell copy of the built jar workspace.
+
+    Prefer filesystem copy-on-write clones. Hardlinks are not safe here: packaging tools edit
+    tracked files in place, so a hardlinked workspace can modify both sibling cells and TREE.
+    Fall back to a regular rsync copy when reflinks are unavailable.
+    """
+    if cell_dir.exists():
+        shutil.rmtree(cell_dir, ignore_errors=True)
+    copied = subprocess.run(["cp", "-a", "--reflink=always", str(jar_cell_dir), str(cell_dir)],
+                            capture_output=True)
+    if copied.returncode != 0:
+        shutil.rmtree(cell_dir, ignore_errors=True)
+        subprocess.run(["rsync", "-a", f"{jar_cell_dir}/", str(cell_dir) + "/"], check=True)
+
+
+def create_jar_cell(cell_dir):
+    """Per-jdk base workspace: an isolated copy of the tree that looks like a clean CI
+    checkout plus local modifications – no gitignored build output or python bytecode, which
+    a fresh checkout would not have (e.g. bin/__pycache__ breaks the redhat spec's `cp bin/*`)."""
+    if cell_dir.exists():
+        shutil.rmtree(cell_dir, ignore_errors=True)
+    cell_dir.parent.mkdir(parents=True, exist_ok=True)
+    # A regular copy is intentional: build/package scripts may edit tracked files in place.
+    subprocess.run(
+        ["rsync", "-a",
+         # local build output (not in a fresh checkout)
+         "--exclude=/build/", "--exclude=/logs/",
+         # gitignored python bytecode (.gitignore: **/__pycache__, *.pyc); exclude the
+         # directories themselves so no empty shells are left behind
+         "--exclude=__pycache__/", "--exclude=*.pyc",
+         # local development venv (untracked, never used by the CI containers)
+         "--exclude=/.venv/",
+         f"{TREE}/", str(cell_dir) + "/"],
+        check=True)
+
+
+def cell_command(cell_dir, cell, args):
+    if cell.kind == "jar":
+        return [str(cell_dir / ".build" / "docker" / "build-jars.sh"), cell.jdk]
+    if cell.kind == "build_dtest_jars":
+        return [str(cell_dir / ".build" / "docker" / "run-tests.sh"), "-a", "build_dtest_jars",
+                "-j", cell.jdk]
+    if cell.kind == "build":
+        spec = BUILD_STEPS[cell.step]
+        return [str(cell_dir / ".build" / "docker" / spec["script"])] + spec["extra"] + [cell.jdk]
+    # test
+    cmd = [str(cell_dir / ".build" / "docker" / "run-tests.sh"), "-a", cell.step]
+    if args.test_regexp:
+        cmd += ["-t", args.test_regexp]
+    elif cell.splits > 1:
+        cmd += ["-c", f"{cell.split}/{cell.splits}"]
+    return cmd + ["-j", cell.jdk]
+
+
+def cell_env(cell_dir, cell, m2_dir, dtest_dir, args):
+    env = dict(os.environ)
+    env["cassandra_dir"] = str(cell_dir)
+    env["m2_dir"] = str(m2_dir)
+    env["python_version"] = cell.python
+    env["cython"] = cell.cython
+    if dtest_dir is not None and (cell.step.startswith("dtest") or cell.kind == "build_dtest_jars"):
+        env["cassandra_dtest_dir"] = str(dtest_dir)
+    env["docker_timeout_hours"] = str(int(cell.timeout_hours))
+    if args.debug:
+        env["DEBUG"] = "1"
+    # never pick up jenkins-related settings from the environment
+    for key in ("JENKINS_URL", "NODE_NAME"):
+        env.pop(key, None)
+    return env
+
+
+def execute_cell(cell, run_dir, jar_cells_by_jdk, m2_dir, dtest_dir, args):
+    """Create the workspace, run the cell in docker (one retry, like the Jenkinsfile), log everything."""
+    cells_dir = run_dir / "cells"
+    logs_dir = run_dir / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    log_file = logs_dir / f"{cell.name}.log"
+
+    if cell.kind == "jar":
+        jar_cell_dir = cells_dir / cell.name
+        create_jar_cell(jar_cell_dir)
+    else:
+        jar_cell = jar_cells_by_jdk.get(cell.jdk)
+        if jar_cell is None:
+            return False, "jar build for jdk%s failed, skipping" % cell.jdk
+        jar_cell_dir = cells_dir / jar_cell.name
+        cell_dir = cells_dir / cell.name
+        make_cell_workspace(cell_dir, jar_cell_dir)
+    run_dir_cell = jar_cell_dir if cell.kind == "jar" else cell_dir
+
+    cmd = cell_command(run_dir_cell, cell, args)
+    env = cell_env(run_dir_cell, cell, m2_dir, dtest_dir, args)
+    timeout_seconds = int(cell.timeout_hours * 3600)
+
+    for attempt in (1, 2):
+        if attempt > 1:
+            print(f"  retrying {cell.name} (attempt 2/2) …")
+        print(f"  running {cell.name} (attempt {attempt}/2) → {log_file}")
+        with open(log_file, "ab") as log:
+            log.write(f"\n===== {datetime.datetime.now()} attempt {attempt}/2: {' '.join(cmd)} =====\n".encode())
+            log.flush()  # keep the attempt header ahead of output written by the child process
+            proc = subprocess.Popen(cmd, cwd=run_dir_cell, env=env, stdout=log,
+                                    stderr=subprocess.STDOUT, start_new_session=True)
+            try:
+                rc = proc.wait(timeout=timeout_seconds)
+            except subprocess.TimeoutExpired:
+                os.killpg(os.getpgid(proc.pid), 9)
+                proc.wait()
+                raise
+        if rc == 0:
+            return True, None
+    # one retry already happened
+    return False, f"exit status from attempt 2 (see {log_file})"
+
+
+def run_pool(cells, label, run_dir, jar_cells_by_jdk, m2_dir, dtest_dir, args, concurrency):
+    results = {}
+    if not cells:
+        return results
+    print(f"\n=== {label}: {len(cells)} cell(s), {concurrency} in parallel ===")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as pool:
+        futures = {pool.submit(execute_cell, cell, run_dir, jar_cells_by_jdk, m2_dir, dtest_dir, args): cell
+                   for cell in cells}
+        for future in concurrent.futures.as_completed(futures):
+            cell = futures[future]
+            try:
+                ok, message = future.result()
+            except BaseException as exc:  # noqa: BLE001 – report and continue with the other cells
+                ok, message = False, f"crashed: {exc}"
+            results[cell.name] = ok
+            print(f"  [{'ok ' if ok else 'FAIL'}] {cell.name}" + (f" – {message}" if not ok else ""))
+    return results
+
+
+# ----------------------------------------------------------------------------
+# results
+# ----------------------------------------------------------------------------
+
+def organise_test_results(run_dir, cells):
+    """Mirror of the Jenkinsfile organiseTestResultFiles(): gather the JUnit xmls of all test cells
+    into <run>/test-results/<step>/jdk_<jdk>/<arch>/ (cqlshlib/nosetests directly under <step>)."""
+    results_dir = run_dir / "test-results"
+    arch = subprocess.run(["arch"], capture_output=True, text=True).stdout.strip() or "unknown"
+    moved = 0
+    for cell in cells:
+        if cell.kind != "test":
+            continue
+        cell_dir = run_dir / "cells" / cell.name
+        output_dir = cell_dir / "build" / "test" / "output"
+        if not output_dir.is_dir():
+            continue
+        step_dir = results_dir / cell.step
+        jdk_dir = step_dir / f"jdk_{cell.jdk}" / arch
+        for xml in output_dir.rglob("TEST*.xml"):
+            jdk_dir.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(xml), str(jdk_dir / xml.name))
+            moved += 1
+        for name in ("cqlshlib.xml", "nosetests.xml"):
+            for xml in list(output_dir.rglob(name)):
+                step_dir.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(xml), str(step_dir / f"{name[:-4]}_{cell.name}.xml"))
+                moved += 1
+    print(f"Gathered {moved} test result file(s) into {results_dir}")
+    return results_dir
+
+
+def count_results(results_dir):
+    totals = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+    if not results_dir.is_dir():
+        return totals, 0
+    files = list(results_dir.rglob("*.xml"))
+    for xml in files:
+        try:
+            root = ET.parse(str(xml)).getroot()
+        except ET.ParseError:
+            continue
+        for suite in ([root] if root.tag == "testsuite" else root.iter("testsuite")):
+            for key, attr in (("tests", "tests"), ("failures", "failures"),
+                              ("errors", "errors"), ("skipped", "skipped")):
+                value = suite.get(attr)
+                if value is not None:
+                    totals[key] += int(value)
+    return totals, len(files)
+
+
+def generate_summary(run_dir, results_dir, args, summary_cell_dir, branch):
+    """Mirror of the Jenkinsfile Summary stage: per-target ant generate-test-report (in docker,
+    same image as CI), then ci_summary.html via .build/ci/ci_parser.py."""
+    targets = sorted(p.name for p in results_dir.iterdir() if p.is_dir()) if results_dir.is_dir() else []
+    if not targets:
+        print("\nNo test results to summarise (build-only profile?).")
+        return None, results_dir
+
+    # move the results into the summary workspace where the container's defaults (build/test/…) find them
+    container_results = summary_cell_dir / "build" / "test" / "output"
+    shutil.rmtree(container_results, ignore_errors=True)
+    container_results.mkdir(parents=True, exist_ok=True)
+    for target in targets:
+        shutil.move(str(results_dir / target), str(container_results / target))
+
+    for target in targets:
+        print(f"generating test report for {target} …")
+        env = dict(os.environ)
+        env["cassandra_dir"] = str(summary_cell_dir)
+        env["m2_dir"] = str(args.m2_dir)
+        env["CASSANDRA_DOCKER_ANT_OPTS"] = (
+            f"-Dbuild.test.output.dir=build/test/output/{target} "
+            f"-Dbuild.test.report.dir=build/test/reports/{target}")
+        for key in ("JENKINS_URL", "NODE_NAME"):
+            env.pop(key, None)
+        rc = subprocess.run(
+            [str(summary_cell_dir / ".build" / "docker" / "_docker_run.sh"),
+             "debian-build.docker", "ci/generate-test-report.sh"],
+            cwd=summary_cell_dir, env=env).returncode
+        if rc != 0:
+            print(f"WARNING: generate-test-report for {target} exited {rc} (the ci summary still proceeds)")
+
+    # ci_summary.html – the Jenkinsfile Summary stage itself: run the vendored
+    # generate-ci-summary.sh inside debian-build, whose image ships the jinja2 and
+    # beautifulsoup4 that ci_parser.py needs (a plain host python may not have them).
+    # The script writes the HTML skeleton to ${DIST_DIR}/ci_summary.html and then runs
+    # ci_parser.py over ${DIST_DIR}/test/output, where the results were moved above.
+    in_container_summary = summary_cell_dir / "build" / "ci_summary.html"
+    remote = subprocess.run(["git", "-C", str(TREE), "remote", "get-url", "origin"],
+                            capture_output=True, text=True).stdout.strip() or str(TREE)
+    summary_env = {
+        "BUILD_TAG": run_dir.name,
+        "REPOSITORY": remote,
+        "BRANCH": branch,
+        "PROFILE": args.profile,
+        "PROFILE_CUSTOM_REGEXP": args.profile_custom_regexp or "",
+        "ARCHITECTURE": subprocess.run(["arch"], capture_output=True, text=True).stdout.strip(),
+        "JDK": args.jdk or "all-supported",
+        "DTEST_REPOSITORY": args.dtest_repository or "",
+        "DTEST_BRANCH": args.dtest_branch or "",
+    }
+    env = dict(os.environ)
+    env["cassandra_dir"] = str(summary_cell_dir)
+    env["m2_dir"] = str(args.m2_dir)
+    # space-separated --env flags: _docker_run.sh word-splits $docker_envs directly
+    # into the docker run command line, so values must not contain whitespace
+    spaceless = re.compile(r"\s+")
+    env["docker_envs"] = " ".join(f"--env {k}={spaceless.sub('-', v)}" for k, v in summary_env.items())
+    for key in ("JENKINS_URL", "NODE_NAME"):
+        env.pop(key, None)
+    rc = subprocess.run(
+        [str(summary_cell_dir / ".build" / "docker" / "_docker_run.sh"),
+         "debian-build.docker", "ci/generate-ci-summary.sh"],
+        cwd=summary_cell_dir, env=env).returncode
+    ci_summary = run_dir / "ci_summary.html"
+    if rc == 0 and in_container_summary.is_file():
+        shutil.copy(str(in_container_summary), str(ci_summary))
+        print(f"CI summary saved as {ci_summary}")
+    else:
+        print(f"WARNING: generate-ci-summary.sh exited {rc} (no ci_summary.html produced)")
+
+    # results_details.tar.xz – same as the Jenkinsfile (the per-target html reports)
+    details = run_dir / "results_details.tar.xz"
+    with tarfile.open(details, "w:xz") as tar:
+        for reports in sorted(container_results.parent.glob("reports/*")):
+            tar.add(reports, arcname=f"reports/{reports.name}")
+    print(f"Details file saved as {details}")
+    print("(attach ci_summary….html and results_details….tar.xz to the JIRA ticket)")
+    return ci_summary, container_results
+
+
+def print_console_summary(run_dir, results_dir, ci_summary):
+    print("\n--- Build Summary ---")
+    totals, files = count_results(results_dir)
+    if files:
+        passed = totals["tests"] - totals["failures"] - totals["errors"] - totals["skipped"]
+        print(f"{passed} passed, {totals['failures'] + totals['errors']} failed, "
+              f"{totals['skipped']} skipped, {totals['tests']} total, {files} test file(s)")
+    else:
+        print("No test results were found.")
+    if ci_summary is not None:
+        print(f"Full summary: {ci_summary}")
+    print(f"Logs: {run_dir / 'logs'}")
+    print(f"Results: {run_dir / 'test-results'}")
+
+
+# ----------------------------------------------------------------------------
+# main
+# ----------------------------------------------------------------------------
+
+def main():
+    args = parse_arguments()
+
+    for cmd in ("rsync", "bc", "xz", "git"):
+        if not which(cmd):
+            fail(f"{cmd} must be installed and available in the PATH")
+    if not which("docker"):
+        if args.dry_run:
+            print("WARNING: docker is not in PATH – it will be required for a real run")
+        else:
+            fail("docker must be installed and available in the PATH")
+    if not BUILD_XML.is_file():
+        fail(f"{BUILD_XML} not found – is this a cassandra checkout?")
+
+    # the dockerised CI scripts live in this tree
+    if not (TREE / ".build" / "docker" / "run-tests.sh").is_file():
+        fail(f"{TREE / '.build' / 'docker' / 'run-tests.sh'} not found – this is not a cassandra 6.x tree")
+
+    # java versions (build.xml defines java.default / java.supported)
+    supported_jdks = (read_build_xml_property("java.supported") or "11,17,21").split(",")
+    default_jdk = read_build_xml_property("java.default") or supported_jdks[0]
+    args._default_jdk = default_jdk
+
+    steps = select_steps(args)
+    jar_cells, cells = build_plan(args, steps, supported_jdks)
+    print(f"\nProfile: {args.profile}" + (f" (custom: {args.profile_custom_regexp})" if args.profile == "custom" else ""))
+    print(f"JDKs: {supported_jdks} (default {default_jdk}), arch: {subprocess.run(['arch'], capture_output=True, text=True).stdout.strip()}")
+    print(plan_summary_text(jar_cells, cells))
+
+    if args.dry_run:
+        return
+
+    if which("docker") and run_quiet(["docker", "info"]).returncode != 0:
+        fail("docker needs to be running")
+
+    run_dir = CI_LOCAL_BASE / f"run-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    Path(args.m2_dir).mkdir(parents=True, exist_ok=True)
+    print(f"\nRun directory: {run_dir}")
+
+    # the heaviest cells (dtest, simulator-dtest, microbench) limit their containers to 15GiB,
+    # so assume at most 16GiB per parallel cell when sizing the default concurrency
+    mem = host_mem_gib()
+    if args.concurrency:
+        concurrency = args.concurrency
+        if mem and mem < concurrency * 16:
+            print(f"WARNING: {concurrency} parallel cells x up to 16GiB container memory limit against "
+                  f"~{mem:.0f}GiB host memory – consider a lower -n/--concurrency")
+    else:
+        concurrency = min(4, max(1, host_cpus() // 4))
+        if mem:
+            concurrency = max(1, min(concurrency, int(mem // 16)))
+        print(f"Running up to {concurrency} cells in parallel "
+              f"(auto: {host_cpus()} cpus" + (f", ~{mem:.0f}GiB memory" if mem else "") + ")")
+
+    summary_cell_dir = None
+    warmup_docker_images(args)
+
+    # the python dtest steps need the dtest repo; jvm-dtest-upgrade additionally needs it to build the dtest jars
+    dtest_needed = any(c.kind == "test" and (c.step.startswith("dtest") or c.step == "jvm-dtest-upgrade") for c in cells)
+    dtest_dir = clone_dtest_repo(run_dir, args.dtest_repository, args.dtest_branch) if dtest_needed else None
+
+    # phase 1: jars, one workspace per jdk (Jenkinsfile 'jar' stage)
+    jar_results = run_pool(jar_cells, "jar stage", run_dir, {}, Path(args.m2_dir), dtest_dir, args, concurrency)
+    jar_cells_by_jdk = {c.jdk: c for c in jar_cells if jar_results.get(c.name)}
+    failed_jdks = [c.jdk for c in jar_cells if not jar_results.get(c.name)]
+    if failed_jdks:
+        print(f"WARNING: jar builds failed for jdk {failed_jdks}; their cells will be skipped")
+
+    # phase 2: build the dtest jars for jvm-dtest-upgrade (Jenkinsfile buildJVMDTestJars)
+    if any(c.step == "jvm-dtest-upgrade" for c in cells) and args._default_jdk in jar_cells_by_jdk:
+        base = Cell("build-dtest-jars", "build_dtest_jars", "build_dtest_jars", jdk=args._default_jdk)
+        base_results = run_pool([base], "build dtest jars", run_dir, jar_cells_by_jdk,
+                                Path(args.m2_dir), dtest_dir, args, concurrency)
+        if not base_results.get(base.name):
+            print("WARNING: build_dtest_jars failed – jvm-dtest-upgrade cells will likely fail")
+
+    # phase 3: all build and test cells (Jenkinsfile 'Tests' stage)
+    test_results = run_pool(cells, "tests stage", run_dir, jar_cells_by_jdk,
+                            Path(args.m2_dir), dtest_dir, args, concurrency)
+
+    # results + summary (Jenkinsfile 'Summary' stage)
+    results_dir = organise_test_results(run_dir, cells)
+    ci_summary, final_results_dir = None, results_dir
+    if args._default_jdk in jar_cells_by_jdk:
+        summary_cell_dir = run_dir / "summary"
+        make_cell_workspace(summary_cell_dir,
+                            run_dir / "cells" / jar_cells_by_jdk[args._default_jdk].name)
+        ci_summary, final_results_dir = generate_summary(
+            run_dir, results_dir, args, summary_cell_dir,
+            subprocess.run(["git", "-C", str(TREE), "branch", "--show-current"],
+                           capture_output=True, text=True).stdout.strip() or "local")
+    else:
+        print("\nSkipping summary generation: the default jdk jar build failed")
+    print_console_summary(run_dir, final_results_dir, ci_summary)
+
+    failed = [name for name, ok in test_results.items() if not ok] + \
+             [f"jar-{jdk}" for jdk in failed_jdks]
+    if failed:
+        print(f"\nBUILD FAILED – {len(failed)} failed cell(s):")
+        for name in sorted(failed):
+            print(f"  {name} (log: {run_dir / 'logs' / (name + '.log')})")
+        exit_code = 1
+    else:
+        print("\nBUILD SUCCESSFUL – all cells passed")
+        exit_code = 0
+
+    # cleanup the bulk (cell workspaces are the only big thing), keep logs/results/artefacts
+    if not args.keep_workspace:
+        shutil.rmtree(run_dir / "cells", ignore_errors=True)
+        if summary_cell_dir is not None:
+            shutil.rmtree(summary_cell_dir, ignore_errors=True)
+        print(f"Removed cell workspaces (kept {run_dir} with logs, results and artefacts)")
+    if not sys.exc_info()[0]:
+        sys.exit(exit_code)
+
+
+if __name__ == "__main__":
+    main()
