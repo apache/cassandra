@@ -29,6 +29,7 @@ import io.netty.buffer.AbstractByteBufAllocator;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.buffer.UnpooledUnsafeDirectByteBuf;
+import io.netty.util.internal.CleanableDirectBuffer;
 
 import static java.lang.Integer.max;
 
@@ -131,10 +132,37 @@ public abstract class BufferPoolAllocator extends AbstractByteBufAllocator
             return newBuffer;
         }
 
+        /**
+         * {@link #allocateDirect(int)} is deprecated since Netty 4.2 and not invoked by Netty anymore,
+         * the hook is used to obtain the backing memory when the buffer is resized.
+         */
         @Override
-        protected ByteBuffer allocateDirect(int initialCapacity)
+        protected CleanableDirectBuffer allocateDirectBuffer(int initialCapacity)
         {
-            return bufferPool.getAtLeast(initialCapacity, BufferType.OFF_HEAP);
+            return new PooledCleanableDirectBuffer(bufferPool.getAtLeast(initialCapacity, BufferType.OFF_HEAP));
+        }
+
+        private static final class PooledCleanableDirectBuffer implements CleanableDirectBuffer
+        {
+            private final ByteBuffer buffer;
+
+            PooledCleanableDirectBuffer(ByteBuffer buffer)
+            {
+                this.buffer = buffer;
+            }
+
+            @Override
+            public ByteBuffer buffer()
+            {
+                return buffer;
+            }
+
+            @Override
+            public void clean()
+            {
+                // noop
+                // buffer is put back into the pool by capacity() and deallocate()
+            }
         }
 
         @Override
