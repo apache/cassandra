@@ -1156,6 +1156,12 @@ public class TableMetadata implements SchemaElement
             return this;
         }
 
+        public Builder flushCompression(FlushCompressionParams val)
+        {
+            params.flushCompression(val);
+            return this;
+        }
+
         public Builder fastPath(FastPathStrategy val)
         {
             params.fastPath(val);

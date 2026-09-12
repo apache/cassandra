@@ -56,6 +56,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         ('memtable_flush_period_in_ms', None),
         ('cdc', None),
         ('read_repair', None),
+        ('flush_compression', None),
     )
 
     columnfamily_layout_map_options = (
@@ -568,6 +569,8 @@ def cf_prop_val_completer(ctxt, cass):
         return [Hint('<true|false>')]
     if this_opt in ('read_repair'):
         return [Hint('<\'none\'|\'blocking\'>')]
+    if this_opt == 'flush_compression':
+        return ["'auto'", "'none'", "'fast'", "'table'"]
     if this_opt == 'allow_auto_snapshot':
         return [Hint('<boolean>')]
     if this_opt == 'incremental_backups':
