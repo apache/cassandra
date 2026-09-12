@@ -407,9 +407,15 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
             EndpointsForRange allForRange = ctx.repair().getNeighbors(state.keyspace, keyspaceLocalRanges, range);
             allNeighbors.addAll(allForRange.endpoints());
 
+            Collection<String> specificHosts = Sets.newHashSet(state.options.getHosts());
+            if (isCMS && isMeta && !specificHosts.isEmpty())
+            {
+                logger.info("{} Repair requested with specific hosts {} for {} - repairing the full CMS instead", state.id, specificHosts, state.keyspace);
+                specificHosts.clear();
+            }
             EndpointsForRange includeForRange = ctx.repair().filterNeighbors(allForRange, range,
                                                                              state.options.getDataCenters(),
-                                                                             state.options.getHosts());
+                                                                             specificHosts);
 
             if (includeForRange.isEmpty())
             {
