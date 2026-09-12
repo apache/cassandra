@@ -47,7 +47,7 @@ public class ResultHandler implements Closeable
 
     public ResultHandler(List<String> targetHosts, List<File> resultPaths, File queryFilePath, MismatchListener mismatchListener)
     {
-        this.targetHosts = targetHosts;
+        this.targetHosts = targetHosts.stream().map(QueryReplayer.ParsedTargetHost::maskPassword).collect(Collectors.toList());
         resultStore = resultPaths != null ? new ResultStore(resultPaths, queryFilePath) : null;
         resultComparator = new ResultComparator(mismatchListener);
     }
