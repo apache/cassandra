@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
@@ -35,9 +36,11 @@ import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.Unfiltered;
@@ -200,7 +203,22 @@ public class SimpleDataSet extends AbstractVirtualTable.AbstractDataSet
                 {
                     Object value = values.get(c);
                     if (null != value)
-                        builder.addCell(BufferCell.live(c, now, decompose(c.type, value)));
+                    {
+                        if (c.isComplex() && c.type.isUDT())
+                        {
+                            UserType userType = (UserType) c.type;
+                            ByteBuffer decompose = decompose(c.type, value);
+                            List<ByteBuffer> unpack = userType.unpack(decompose);
+                            for (int i = 0; i < unpack.size(); i++)
+                            {
+                                CellPath cellPath = userType.cellPathForField(userType.fieldName(i));
+                                builder.addCell(BufferCell.live(c, now, unpack.get(i), cellPath));
+                            }
+                        }
+                        else
+                            builder.addCell(BufferCell.live(c, now, decompose(c.type, value)));
+                    }
+
                 }
                 catch (Exception e)
                 {
