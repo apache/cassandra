@@ -90,7 +90,7 @@ public class View
 
     final SSTableIntervalTree intervalTree;
 
-    // log domain boundaries the current memtable generateion began at
+    // log domain boundaries the current memtable generation began at
     final LogDomainBounds currentBounds;
 
     View(List<Memtable> liveMemtables,

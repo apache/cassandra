@@ -613,9 +613,9 @@ public abstract class CassandraIndex implements Index
         PartitionUpdate upd = partitionUpdate(valueKey, row);
 
         // we always use MutationId.NONE for index writes, even if the write itself is originating from a journal
-        // write. This is because the journals segment bookkeeping is only against the base table, and the 2i memtables
+        // write. This is because the journal's segment bookkeeping is only against the base table, and the 2i memtables
         // are flushed synchronously with the base table, so it doesn't affect segment dropping. Additionally, the 2i
-        // patch isn't inolved in replication, and sstable compaction is affected by replication status so it's easier
+        // path isn't involved in replication, and sstable compaction is affected by replication status so it's easier
         // to just treat all 2i data as untracked. Same way incremental repair doesn't move 2i sstables around.
         indexCfs.getWriteHandler().write(MutationId.none(), upd, ctx, false);
         logger.trace("Inserted entry into index for value {}", valueKey);

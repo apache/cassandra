@@ -72,6 +72,7 @@ public class SplitDomainMemtable implements Memtable
     public SplitDomainMemtable(Memtable left, Memtable right, long id)
     {
         Preconditions.checkArgument(left.owner() == right.owner());
+        Preconditions.checkArgument(!(left instanceof SplitDomainMemtable) && !(right instanceof SplitDomainMemtable));
         if (left.holds(LogDomain.COMMIT_LOG))
         {
             Preconditions.checkArgument(right.holds(LogDomain.MUTATION_JOURNAL));

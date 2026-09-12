@@ -452,9 +452,11 @@ public class Tracker
     {
         SplitDomainMemtable lastRefused = null;
 
+        View current = null;
         for (int attempt = 0; attempt < MAX_SPLIT_ATTEMPTS; attempt++)
         {
-            Memtable oldMemtable = view.getCurrentMemtable();
+            current = this.view;
+            Memtable oldMemtable = current.getCurrentMemtable();
             SplitDomainMemtable splitMemtable;
 
             if (oldMemtable instanceof SplitDomainMemtable)
@@ -486,12 +488,12 @@ public class Tracker
             // don't loop on the same generation refusing our write
             if (splitMemtable == lastRefused)
                 throw new AssertionError("A " + domain + " write was refused twice by the same generation " + splitMemtable
-                                         + " in " + view.liveMemtables);
+                                         + " in " + current.liveMemtables);
             lastRefused = splitMemtable;
         }
 
         throw new AssertionError("Gave up routing a " + domain + " write after " + MAX_SPLIT_ATTEMPTS
-                                 + " attempts against " + view.liveMemtables);
+                                 + " attempts against " + current.liveMemtables);
     }
 
     /**
