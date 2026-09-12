@@ -257,7 +257,8 @@ public class EncryptionUtils
         {
             int readLength = dst.remaining();
             // we should only be performing encrypt/decrypt operations with on-heap buffers, so calling BB.array() should be legit here
-            fileDataInput.readFully(dst.array(), dst.position(), readLength);
+            fileDataInput.readFully(dst.array(), dst.arrayOffset() + dst.position(), readLength);
+            dst.position(dst.position() + readLength);
             return readLength;
         }
 
