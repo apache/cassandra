@@ -29,7 +29,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.yaml.snakeyaml.Yaml;
 
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.JsonUtils;
 
@@ -39,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 /**
  * @see TableStats
  */
-public class TableStatsTest extends CQLTester
+public class TableStatsTest extends CQLNodetoolProtocolTester
 {
     @BeforeClass
     public static void setup() throws Exception
@@ -51,12 +51,12 @@ public class TableStatsTest extends CQLTester
     @Test
     public void testTableStats()
     {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats");
+        ToolRunner.ToolResult tool = invokeNodetool("tablestats");
         tool.assertOnCleanExit();
         assertThat(tool.getStdout()).contains("Keyspace: system_schema");
         assertThat(StringUtils.countMatches(tool.getStdout(), "Table:")).isGreaterThan(1);
 
-        tool = ToolRunner.invokeNodetool("tablestats", "system_distributed");
+        tool = invokeNodetool("tablestats", "system_distributed");
         tool.assertOnCleanExit();
         assertThat(tool.getStdout()).contains("Keyspace: system_distributed");
         assertThat(tool.getStdout()).doesNotContain("Keyspace : system_schema");
@@ -66,7 +66,7 @@ public class TableStatsTest extends CQLTester
     @Test
     public void testTableIgnoreArg()
     {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", "-i", "system_schema.aggregates");
+        ToolRunner.ToolResult tool = invokeNodetool("tablestats", "-i", "system_schema.aggregates");
         tool.assertOnCleanExit();
         assertThat(tool.getStdout()).contains("Keyspace: system_schema");
         assertThat(tool.getStdout()).doesNotContain("Table: system_schema.aggregates");
@@ -77,7 +77,7 @@ public class TableStatsTest extends CQLTester
     public void testHumanReadableArg()
     {
         Arrays.asList("-H", "--human-readable").forEach(arg -> {
-            ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg);
+            ToolRunner.ToolResult tool = invokeNodetool("tablestats", arg);
             tool.assertOnCleanExit();
             assertThat(tool.getStdout()).contains(" KiB");
         });
@@ -89,13 +89,13 @@ public class TableStatsTest extends CQLTester
         Pattern regExp = Pattern.compile("((?m)Table: .*$)");
 
         Arrays.asList("-s", "--sort").forEach(arg -> {
-            ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg, "table_name");
+            ToolRunner.ToolResult tool = invokeNodetool("tablestats", arg, "table_name");
             Matcher m = regExp.matcher(tool.getStdout());
             ArrayList<String> orig = new ArrayList<>();
             while (m.find())
                 orig.add(m.group(1));
 
-            tool = ToolRunner.invokeNodetool("tablestats", arg, "sstable_count");
+            tool = invokeNodetool("tablestats", arg, "sstable_count");
             tool.assertOnCleanExit();
             m = regExp.matcher(tool.getStdout());
             ArrayList<String> sorted = new ArrayList<>();
@@ -108,7 +108,7 @@ public class TableStatsTest extends CQLTester
             assertThat(sorted).isEqualTo(orig);
         });
 
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", "-s", "wrongSort");
+        ToolRunner.ToolResult tool = invokeNodetool("tablestats", "-s", "wrongSort");
         assertThat(tool.getStdout()).contains("argument for sort must be one of");
         tool.assertCleanStdErr();
         assertThat(tool.getExitCode()).isEqualTo(1);
@@ -118,12 +118,12 @@ public class TableStatsTest extends CQLTester
     public void testTopArg()
     {
         Arrays.asList("-t", "--top").forEach(arg -> {
-            ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", "-s", "table_name", arg, "1");
+            ToolRunner.ToolResult tool = invokeNodetool("tablestats", "-s", "table_name", arg, "1");
             tool.assertOnCleanExit();
             assertThat(StringUtils.countMatches(tool.getStdout(), "Table:")).isEqualTo(1);
         });
 
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", "-s", "table_name", "-t", "-1");
+        ToolRunner.ToolResult tool = invokeNodetool("tablestats", "-s", "table_name", "-t", "-1");
         tool.assertCleanStdErr();
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout()).contains("argument for top must be a positive integer");
@@ -133,12 +133,12 @@ public class TableStatsTest extends CQLTester
     public void testSSTableLocationCheckArg()
     {
         Arrays.asList("-l", "--sstable-location-check").forEach(arg -> {
-            ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg, "system.local");
+            ToolRunner.ToolResult tool = invokeNodetool("tablestats", arg, "system.local");
             tool.assertOnCleanExit();
             assertThat(StringUtils.countMatches(tool.getStdout(), "SSTables in correct location: ")).isEqualTo(1);
         });
 
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", "system.local");
+        ToolRunner.ToolResult tool = invokeNodetool("tablestats", "system.local");
         tool.assertCleanStdErr();
         assertThat(tool.getStdout()).doesNotContain("SSTables in correct location: ");
     }
@@ -147,7 +147,7 @@ public class TableStatsTest extends CQLTester
     public void testFormatJson()
     {
         Arrays.asList("-F", "--format").forEach(arg -> {
-            ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg, "json");
+            ToolRunner.ToolResult tool = invokeNodetool("tablestats", arg, "json");
             tool.assertOnCleanExit();
             String json = tool.getStdout();
             assertThatCode(() -> JsonUtils.JSON_OBJECT_MAPPER.readTree(json)).doesNotThrowAnyException();
@@ -160,7 +160,7 @@ public class TableStatsTest extends CQLTester
     public void testFormatYaml()
     {
         Arrays.asList("-F", "--format").forEach(arg -> {
-            ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg, "yaml");
+            ToolRunner.ToolResult tool = invokeNodetool("tablestats", arg, "yaml");
             tool.assertOnCleanExit();
             String yaml = tool.getStdout();
             org.yaml.snakeyaml.LoaderOptions loaderOptions = new org.yaml.snakeyaml.LoaderOptions();

@@ -45,6 +45,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.auth.jmx.AuthorizationProxy;
 import org.apache.cassandra.cache.UnweightedCacheSize;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
@@ -466,6 +467,36 @@ public class AuthCache<K, V> implements AuthCacheMBean, UnweightedCacheSize, Shu
     public int entries()
     {
         return Ints.checkedCast(getEstimatedSize());
+    }
+
+    /**
+     * Accepts a visitor for this cache instance. Subclasses should override this method to dispatch
+     * to the appropriate visitor method based on the specific MBean interface they implement.
+     * @param visitor the visitor to accept
+     */
+    public void accept(MBeanVisitor visitor)
+    {
+        visitor.visit(this);
+    }
+
+    /**
+     * Visitor interface for processing auth cache MBeans.
+     * Allows type-safe iteration over different cache types without instanceof checks.
+     */
+    public interface MBeanVisitor
+    {
+        /** Visits a credentials cache MBean. */
+        default void visitCredentials(PasswordAuthenticator.CredentialsCacheMBean cache) {}
+        /** Visits a JMX permissions cache MBean. */
+        default void visitJmxPermissions(AuthorizationProxy.JmxPermissionsCacheMBean cache) {}
+        /** Visits a permissions cache MBean. */
+        default void visitPermissions(PermissionsCacheMBean cache) {}
+        /** Visits a network permissions cache MBean. */
+        default void visitNetwork(NetworkPermissionsCacheMBean cache) {}
+        /** Visits a roles cache MBean. */
+        default void visitRoles(RolesCacheMBean cache) {}
+        /** Visits a generic auth cache (fallback for caches that don't implement specific MBean interfaces). */
+        default void visit(AuthCacheMBean cache) {}
     }
 
     private class MetricsUpdater implements StatsCounter

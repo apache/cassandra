@@ -21,6 +21,7 @@ package org.apache.cassandra.transport;
 import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -29,6 +30,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.exceptions.CasWriteUnknownResultException;
+import org.apache.cassandra.exceptions.CommandRequestExecutionException;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.WriteFailureException;
@@ -39,6 +41,7 @@ import org.apache.cassandra.transport.messages.ErrorMessage;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
@@ -189,6 +192,72 @@ public class ErrorMessageTest extends EncodeAndDecodeTestBase<ErrorMessage>
 
         assertEquals(failureReasonMap1, rfe.failureReasonByEndpoint);
         assertEquals(failureReasonMap1, wfe.failureReasonByEndpoint);
+    }
+
+    @Test
+    public void testV5CommandFailedSerDeser()
+    {
+        UUID executionId = UUID.randomUUID();
+        String errorMessage = "Command execution failed: test command";
+        Throwable cause = new RuntimeException("Underlying cause");
+        CommandRequestExecutionException ex = new CommandRequestExecutionException(executionId, errorMessage, cause);
+
+        ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromExceptionNoStreamId(ex), ProtocolVersion.V5);
+        assertTrue(deserialized.error instanceof CommandRequestExecutionException);
+        CommandRequestExecutionException deserializedEx = (CommandRequestExecutionException) deserialized.error;
+
+        assertEquals(executionId, deserializedEx.getCommandExecutionId());
+        assertEquals(errorMessage, deserializedEx.getMessage());
+        assertNull(deserializedEx.getCause());
+    }
+
+    @Test
+    public void testV4CommandFailedSerDeser()
+    {
+        UUID executionId = UUID.randomUUID();
+        String errorMessage = "Command execution failed: test command";
+        Throwable cause = new RuntimeException("Underlying cause");
+        CommandRequestExecutionException ex = new CommandRequestExecutionException(executionId, errorMessage, cause);
+
+        ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromExceptionNoStreamId(ex), ProtocolVersion.V4);
+        assertTrue(deserialized.error instanceof ServerError);
+        ServerError deserializedEx = (ServerError) deserialized.error;
+
+        // The executionId should be included in the message for backward compatibility.
+        assertTrue(deserializedEx.getMessage().contains(executionId.toString()));
+        assertTrue(deserializedEx.getMessage().contains(errorMessage));
+    }
+
+    @Test
+    public void testV5CommandFailedWithoutCause()
+    {
+        UUID executionId = UUID.randomUUID();
+        String errorMessage = "Command execution failed: test command";
+        CommandRequestExecutionException ex = new CommandRequestExecutionException(executionId, errorMessage);
+
+        ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromExceptionNoStreamId(ex), ProtocolVersion.V5);
+        assertTrue(deserialized.error instanceof CommandRequestExecutionException);
+        CommandRequestExecutionException deserializedEx = (CommandRequestExecutionException) deserialized.error;
+
+        assertEquals(executionId, deserializedEx.getCommandExecutionId());
+        assertEquals(errorMessage, deserializedEx.getMessage());
+        assertNull(deserializedEx.getCause());
+    }
+
+    @Test
+    public void testV3CommandFailedSerDeser()
+    {
+        UUID executionId = UUID.randomUUID();
+        String errorMessage = "Command execution failed: test command";
+        CommandRequestExecutionException ex = new CommandRequestExecutionException(executionId, errorMessage);
+
+        ErrorMessage deserialized = encodeThenDecode(ErrorMessage.fromExceptionNoStreamId(ex), ProtocolVersion.V3);
+        assertTrue(deserialized.error instanceof ServerError);
+        ServerError deserializedEx = (ServerError) deserialized.error;
+
+        // The executionId should be included in the message for backward compatibility.
+        assertTrue(deserializedEx.getMessage().contains(executionId.toString()));
+        assertTrue(deserializedEx.getMessage().contains(errorMessage));
     }
 
     protected Message.Codec<ErrorMessage> getCodec()

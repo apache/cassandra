@@ -39,6 +39,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+// TODO: CASSANDRA-XXXXX Test needs to be migrated to CQLNodetoolProtocolTester
+//  once nodetool supports passing authentication credentials.
 public class CIDRFilteringStatsTest extends CQLTester
 {
     @BeforeClass

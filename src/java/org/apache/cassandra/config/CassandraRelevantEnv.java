@@ -36,6 +36,16 @@ public enum CassandraRelevantEnv
     JAVA_HOME ("JAVA_HOME"),
     CIRCLECI("CIRCLECI"),
     CASSANDRA_SKIP_SYNC("CASSANDRA_SKIP_SYNC"),
+    /**
+     * Defines the protocol used by the Cassandra CLI to connect to Cassandra nodes.
+     * Possible values are {@code "static_mbeans"}, {@code "command_mbeans"} or {@code cql}.
+     * By default, the Cassandra CLI uses the JMX protocol via static MBeans.
+     */
+    CASSANDRA_CLI_EXECUTION_PROTOCOL("CASSANDRA_CLI_EXECUTION_PROTOCOL"),
+    /** Whether to show the execution id for cli command output, useful for correlating commands with logs and tracing. */
+    CASSANDRA_CLI_EXECUTION_SHOW_EXECUTION_ID("CASSANDRA_CLI_EXECUTION_SHOW_EXECUTION_ID"),
+    /** How long the Cassandra CLI waits for a server response when executing a command over CQL, in seconds. */
+    CASSANDRA_CLI_EXECUTION_TIMEOUT_SECONDS("CASSANDRA_CLI_EXECUTION_TIMEOUT_SECONDS"),
     /** By default, the standard Cassandra CLI layout is used for backward compatibility, however,
      * the new Picocli layout can be enabled by setting this property to the {@code "picocli"}. */
     CASSANDRA_CLI_LAYOUT("CASSANDRA_CLI_LAYOUT"),

@@ -18,8 +18,11 @@
 package org.apache.cassandra.tools.nodetool;
 
 
+import com.google.common.base.Throwables;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.strategy.NodetoolConnectionException;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import picocli.CommandLine.Command;
@@ -37,6 +40,12 @@ public class StopDaemon extends AbstractCommand
         } catch (Exception e)
         {
             JVMStabilityInspector.inspectThrowable(e);
+            // The connection dropping while the daemon stops is expected and ignored.
+            if (Throwables.getCausalChain(e).stream().anyMatch(NodetoolConnectionException.class::isInstance))
+            {
+                Throwables.throwIfUnchecked(e);
+                throw new RuntimeException(e);
+            }
             // ignored
         }
     }

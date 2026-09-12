@@ -22,12 +22,12 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.tools.ToolRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class SetDefaultKeyspaceRFTest extends CQLTester
+public class SetDefaultKeyspaceRFTest extends CQLNodetoolProtocolTester
 {
     @BeforeClass
     public static void setup() throws Exception
