@@ -23,8 +23,6 @@ import java.util.Date;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.collect.ImmutableSet;
-
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
@@ -69,7 +67,7 @@ public final class TraceKeyspace
 
     public static final String SESSIONS = "sessions";
     public static final String EVENTS = "events";
-    public static final Set<String> TABLE_NAMES = ImmutableSet.of(SESSIONS, EVENTS);
+    public static final Set<String> TABLE_NAMES = SchemaConstants.TRACE_KEYSPACE_TABLE_NAMES;
 
     public static final String SESSIONS_CQL = "CREATE TABLE IF NOT EXISTS %s ("
                                               + "session_id uuid,"

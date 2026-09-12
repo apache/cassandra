@@ -31,7 +31,6 @@ import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import org.slf4j.Logger;
@@ -133,7 +132,7 @@ public class AccordKeyspace
     public static final String COMMANDS_FOR_KEY = "commands_for_key";
     public static final String JOURNAL_INDEX_NAME = "record";
 
-    public static final Set<String> TABLE_NAMES = ImmutableSet.of(COMMANDS_FOR_KEY, JOURNAL);
+    public static final Set<String> TABLE_NAMES = SchemaConstants.ACCORD_KEYSPACE_TABLE_NAMES;
 
     private static final ClusteringIndexFilter FULL_PARTITION = new ClusteringIndexNamesFilter(BTreeSet.of(new ClusteringComparator(), Clustering.EMPTY), false);
 
