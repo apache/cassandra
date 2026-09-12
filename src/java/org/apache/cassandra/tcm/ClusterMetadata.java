@@ -32,6 +32,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
@@ -1318,6 +1320,7 @@ public class ClusterMetadata
         return service.metadata();
     }
 
+    @Nonnull
     public NodeId myNodeId()
     {
         return localNodeId;
