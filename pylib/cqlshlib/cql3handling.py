@@ -116,43 +116,6 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         'overlap_inclusion_method'
     )
 
-    @classmethod
-    def escape_value(cls, value):
-        if value is None:
-            return 'NULL'  # this totally won't work
-        if isinstance(value, bool):
-            value = str(value).lower()
-        elif isinstance(value, float):
-            return '%f' % value
-        elif isinstance(value, int):
-            return str(value)
-        return "'%s'" % value.replace("'", "''")
-
-    @classmethod
-    def escape_name(cls, name):
-        if name is None:
-            return 'NULL'
-        return "'%s'" % name.replace("'", "''")
-
-    @staticmethod
-    def dequote_name(name):
-        name = name.strip()
-        if name == '':
-            return name
-        if name[0] == '"' and name[-1] == '"':
-            return name[1:-1].replace('""', '"')
-        else:
-            return name.lower()
-
-    @staticmethod
-    def dequote_value(cqlword):
-        cqlword = cqlword.strip()
-        if cqlword == '':
-            return cqlword
-        if cqlword[0] == "'" and cqlword[-1] == "'":
-            cqlword = cqlword[1:-1].replace("''", "'")
-        return cqlword
-
 
 CqlRuleSet = Cql3ParsingRuleSet()
 
