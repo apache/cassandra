@@ -190,8 +190,8 @@ tombstone_warn_threshold tombstones).
 |TombstoneFailures |Counter |Number of tombstone read failures (reads that scanned more than
 tombstone_failure_threshold tombstones).
 
-|LiveScannedHistogram |Histogram |Histogram of live cells scanned in
-queries on this table.
+|LiveScannedHistogram |Histogram |Histogram of live rows retrieved per
+query on this table.
 
 |ColUpdateTimeDeltaHistogram |Histogram |Histogram of column update time
 delta on this table.
