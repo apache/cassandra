@@ -32,6 +32,7 @@ import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -41,6 +42,7 @@ import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.PlacementTransitionPlan;
 import org.apache.cassandra.tcm.sequences.LeaveStreams;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
+import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -91,6 +93,10 @@ public class PrepareLeave implements Transformation
 
         if (prev.directory.peerState(leaving) != NodeState.JOINED)
             return new Rejected(INVALID, String.format("Rejecting this plan as the node %s is in state %s", leaving, prev.directory.peerState(leaving)));
+
+        MultiStepOperation<?> cmsReconfiguration = prev.inProgressSequences.get(ReconfigureCMS.SequenceKey.instance);
+        if (cmsReconfiguration != null && cmsReconfiguration.affectedPeers(prev.directory).contains(leaving))
+            return new Rejected(INVALID, String.format("Rejecting this plan as the node %s is part of an in-progress CMS reconfiguration: %s", leaving, cmsReconfiguration));
 
         ClusterMetadata proposed = prev.transformer().proposeRemoveNode(leaving).build().metadata;
 

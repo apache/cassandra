@@ -575,6 +575,10 @@ public class ClusterMetadata
         while (iter.hasNext())
         {
             MultiStepOperation<?> operation = iter.next();
+            // Skip CMS reconfigurations since they currently don't alter non-internal keyspaces
+            if (operation.kind() == MultiStepOperation.Kind.RECONFIGURE_CMS)
+                continue;
+
             // Check whether the MSO materially affects the local ranges of the target node.
             boolean isRelevantOperation = operationAffectsLocalRangesOfPeer(peer,
                                                                             operation,
