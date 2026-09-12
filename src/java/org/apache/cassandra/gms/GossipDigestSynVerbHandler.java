@@ -58,9 +58,9 @@ public class GossipDigestSynVerbHandler extends GossipVerbHandler<GossipDigestSy
             return;
         }
 
-        if (gDigestMessage.partioner != null && !gDigestMessage.partioner.equals(DatabaseDescriptor.getPartitionerName()))
+        if (gDigestMessage.partitioner != null && !gDigestMessage.partitioner.equals(DatabaseDescriptor.getPartitionerName()))
         {
-            logger.warn("Partitioner mismatch from {} {}!={}", from, gDigestMessage.partioner, DatabaseDescriptor.getPartitionerName());
+            logger.warn("Partitioner mismatch from {} {}!={}", from, gDigestMessage.partitioner, DatabaseDescriptor.getPartitionerName());
             return;
         }
 
