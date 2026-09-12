@@ -62,29 +62,14 @@ public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
     @Override
     public WriteContext createContextForIndexing()
     {
-        return createEmptyContext();
+        // all callers of this method use keyspace.getWriteHandler(), which is the standard CassandraWriteHandler
+        throw new UnsupportedOperationException("Can't call createContextForIndexing on TrackedKeyspaceWriteHandler");
     }
 
     @Override
     public WriteContext createContextForRead()
     {
-        return createEmptyContext();
-    }
-
-    private WriteContext createEmptyContext()
-    {
-        OpOrder.Group group = Keyspace.writeOrder.start();
-        try
-        {
-            // Index rebuild and read contexts append to neither log. Commit-log domain because the writes they
-            // carry are index updates derived from data already durable, never journal appends of their own.
-            return new CassandraWriteContext(group, null, LogDomain.COMMIT_LOG);
-        }
-        catch (Throwable t)
-        {
-            if (group != null)
-                group.close();
-            throw t;
-        }
+        // all callers of this method use keyspace.getWriteHandler(), which is the standard CassandraWriteHandler
+        throw new UnsupportedOperationException("Can't call createContextForRead on TrackedKeyspaceWriteHandler");
     }
 }
