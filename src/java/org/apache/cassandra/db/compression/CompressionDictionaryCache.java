@@ -102,14 +102,19 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
     }
 
     @Override
-    public void add(@Nullable CompressionDictionary compressionDictionary)
+    public CompressionDictionary add(@Nullable CompressionDictionary compressionDictionary)
     {
         if (compressionDictionary == null)
-            return;
+            return null;
 
-        // Only update cache if not already in the cache
+        // Only update cache if not already in the cache. cache.get(key, mappingFunction) returns the
+        // CANONICAL cached instance: either the argument (on a miss, after initRefLazily makes the cache
+        // the owner of its selfRef and it is stored) or the instance that already won the cache for this
+        // dictId (on a hit/race, in which case our argument is a redundant loser whose selfRef was never
+        // created). We return that canonical instance so callers reference the managed dictionary rather
+        // than a loser whose selfRef the cache would never own or release (CASSANDRA-21047 leak).
         DictId newDictId = compressionDictionary.dictId();
-        cache.get(newDictId, id -> {
+        CompressionDictionary cached = cache.get(newDictId, id -> {
             Ref<?> ref = compressionDictionary.initRefLazily();
             if (ref == null)
             {
@@ -125,6 +130,8 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
         {
             currentId = currentDictId.get();
         }
+
+        return cached;
     }
 
     @Override
