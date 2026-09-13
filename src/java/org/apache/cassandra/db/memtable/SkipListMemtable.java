@@ -132,7 +132,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
                 // allocate the row overhead after the fact; this saves over allocating and having to free after, but
                 // means we can overshoot our declared limit.
                 int overhead = (int) (cloneKey.getToken().getHeapSize() + ROW_OVERHEAD_HEAP_SIZE);
-                allocator.onHeap().allocate(overhead, opGroup);
+                allocator.onHeap().allocate(overhead);
                 initialSize = 8;
             }
         }

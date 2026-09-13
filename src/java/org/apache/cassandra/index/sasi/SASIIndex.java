@@ -33,7 +33,6 @@ import com.googlecode.concurrenttrees.common.Iterables;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
-import org.apache.cassandra.db.CassandraWriteContext;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
@@ -80,7 +79,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
@@ -295,7 +293,7 @@ public class SASIIndex implements Index, INotificationConsumer
             public void insertRow(Row row)
             {
                 if (isNewData())
-                    adjustMemtableSize(index.index(key, row), CassandraWriteContext.fromContext(context).getGroup());
+                    adjustMemtableSize(index.index(key, row));
             }
 
             public void updateRow(Row oldRow, Row newRow)
@@ -316,9 +314,9 @@ public class SASIIndex implements Index, INotificationConsumer
                 return transactionType == IndexTransaction.Type.UPDATE;
             }
 
-            public void adjustMemtableSize(long additionalSpace, OpOrder.Group opGroup)
+            public void adjustMemtableSize(long additionalSpace)
             {
-                baseCfs.getTracker().getView().getCurrentMemtable().markExtraOnHeapUsed(additionalSpace, opGroup);
+                baseCfs.getTracker().getView().getCurrentMemtable().markExtraOnHeapUsed(additionalSpace);
             }
         };
     }

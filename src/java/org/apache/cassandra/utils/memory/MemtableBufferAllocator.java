@@ -99,9 +99,9 @@ public abstract class MemtableBufferAllocator extends MemtableAllocator
             {
                 int remaining = contextSlab.remaining();
                 if (contextSlab.isDirect())
-                    allocator.offHeap().adjust(-remaining, opGroup);
+                    allocator.offHeap().adjust(-remaining);
                 else
-                    allocator.onHeap().adjust(-remaining, opGroup);
+                    allocator.onHeap().adjust(-remaining);
                 contextSlab.position(contextSlab.position() + remaining);
             }
         }

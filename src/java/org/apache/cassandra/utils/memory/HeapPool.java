@@ -69,7 +69,7 @@ public class HeapPool extends MemtablePool
 
         public ByteBuffer allocate(int size, OpOrder.Group opGroup)
         {
-            super.onHeap().allocate(size, opGroup);
+            super.onHeap().allocate(size);
             return ByteBuffer.allocate(size);
         }
 
@@ -105,10 +105,10 @@ public class HeapPool extends MemtablePool
             {
                 return new MemtableAllocator.SubAllocator(this)
                 {
-                    public void allocate(long size, OpOrder.Group opGroup)
+                    public void allocate(long size)
                     {
                         onAllocated.accept(size, table);
-                        super.allocate(size, opGroup);
+                        super.allocate(size);
                     }
                 };
             }
@@ -133,7 +133,7 @@ public class HeapPool extends MemtablePool
 
             public ByteBuffer allocate(int size, OpOrder.Group opGroup)
             {
-                super.onHeap().allocate(size, opGroup);
+                super.onHeap().allocate(size);
                 return ByteBuffer.allocate(size);
             }
 
