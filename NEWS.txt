@@ -65,6 +65,15 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+5.0.9
+=====
+
+Upgrading
+---------
+    - memtable_offheap_space: 0 is now rejected at startup when memtable_allocation_type is
+    offheap_buffers or offheap_objects. Set a positive memtable_offheap_space, or an allocation
+    type that does not allocate off-heap. See CASSANDRA-21019.
+
 5.0.8
 ======
 

@@ -94,14 +94,15 @@ public abstract class MemtablePool
     }
 
     /**
-     * Note the difference between acquire() and allocate(); allocate() makes more resources available to all owners,
-     * and acquire() makes shared resources unavailable but still recorded. An Owner must always acquire resources,
-     * but only needs to allocate if there are none already available. This distinction is not always meaningful.
+     * Tracks the memory attributed to one purpose. Allocations only record usage and drive cleaning; the
+     * limit is enforced before a mutation starts, in {@link MemtableAllocator.SubAllocator#awaitRoom}
+     * (CASSANDRA-21019), so the recorded total may overshoot the limit by the mutations in flight.
      */
     public class SubPool
     {
 
-        // total memory/resource permitted to allocate
+        // total memory/resource permitted to allocate; 0 marks a sub-pool the configured allocation type
+        // does not allocate from, and is not enforced, see MemtableAllocator.SubAllocator.awaitRoom
         public final long limit;
 
         // ratio of used to spare (both excluding 'reclaiming') at which to trigger a clean
@@ -116,6 +117,7 @@ public abstract class MemtablePool
 
         public SubPool(long limit, float cleanThreshold)
         {
+            Preconditions.checkArgument(limit >= 0, "Negative limit: %s", limit);
             this.limit = limit;
             this.cleanThreshold = cleanThreshold;
         }
@@ -148,16 +150,10 @@ public abstract class MemtablePool
 
         /** Methods to allocate space **/
 
-        boolean tryAllocate(long size)
+        /** True if the pool is under its limit; reserves nothing. */
+        boolean belowLimit()
         {
-            while (true)
-            {
-                long cur;
-                if ((cur = allocated) + size > limit)
-                    return false;
-                if (allocatedUpdater.compareAndSet(this, cur, cur + size))
-                    return true;
-            }
+            return allocated < limit;
         }
 
         /**
@@ -181,11 +177,6 @@ public abstract class MemtablePool
                 return;
 
             adjustAllocated(size);
-            maybeClean();
-        }
-
-        void acquired()
-        {
             maybeClean();
         }
 

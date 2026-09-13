@@ -183,7 +183,9 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
     // Main write and read operations
 
     /**
-     * Put new data in the memtable. This operation may block until enough memory is available in the memory pool.
+     * Put new data in the memtable. This does not wait for room in the memory pool; the memory limit is enforced
+     * once per write, in {@link #checkSpaceAndPut}, which is what a write starting a mutation calls
+     * (CASSANDRA-21019). Call this directly only for a nested write, see {@link #checkSpaceAndPut}.
      *
      * @param update the partition update, may be a new partition or an update to an existing one
      * @param indexer receives information about the update's effect
@@ -205,6 +207,28 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
     default boolean limitsConcurrentWritesTo(int maxWriters)
     {
         return false;
+    }
+
+    /**
+     * Enforce the memtable memory limit, then put the update in the memtable. This operation may block until
+     * enough memory is available in the memory pool. Use this for a write that starts a mutation on this
+     * memtable; an implementation that waits for pool room does so here and not in {@link #put}.
+     * <p>
+     * A nested write, that is a write made from within an already-started mutation on the same write context,
+     * calls {@link #put} instead and is not gated. An indexer runs under the base table's memtable-internal
+     * locks and must not wait there: parking holds those locks, and a writer queued behind them cannot be
+     * released by markBlocking(), so the write barrier of any concurrent flush in the process never completes
+     * (CASSANDRA-21019; Keyspace.writeOrder is one OpOrder shared by every table, so the flush need not be of
+     * this memtable). The limit was enforced when the enclosing mutation started, so nested writes may
+     * overshoot it. Nesting is identified by enterMemtableWrite() on {@link org.apache.cassandra.db.CassandraWriteContext}.
+     * <p>
+     * That covers the indexes that write to a table of their own, legacy 2i from
+     * {@code indexer.onInserted()}. An index that keeps its own structures instead, SAI and SASI, reaches the
+     * pool through {@link #markExtraOnHeapUsed} rather than through a put, and that call never waits.
+     */
+    default long checkSpaceAndPut(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
+    {
+        return put(update, indexer, opGroup);
     }
 
     // Read operations are provided by the UnfilteredSource interface.
@@ -287,21 +311,25 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
 
     /**
      * Adjust the used on-heap space by the given size (e.g. to reflect memory used by a non-table-based index).
-     * This operation may block until enough memory is available in the memory pool.
+     * This records the usage and returns; it does not wait for room, and so is safe to call from an indexer
+     * running under a memtable-internal lock, which is how SAI and SASI both reach it. The recorded total drives
+     * cleaning; the memory limit is only enforced once per write, in {@link #checkSpaceAndPut} (CASSANDRA-21019).
      *
      * @param additionalSpace the number of allocated bytes
-     * @param opGroup write operation group, used to permit the operation to complete if it is needed to complete a
-     *                flush to free space.
+     * @param opGroup write operation group. Unused since CASSANDRA-21019, as this call no longer waits; kept for
+     *                compatibility with memtable implementations built against this release series.
      */
     void markExtraOnHeapUsed(long additionalSpace, OpOrder.Group opGroup);
 
     /**
      * Adjust the used off-heap space by the given size (e.g. to reflect memory used by a non-table-based index).
-     * This operation may block until enough memory is available in the memory pool.
+     * This records the usage and returns; it does not wait for room, and so is safe to call from an indexer
+     * running under a memtable-internal lock, which is how SAI and SASI both reach it. The recorded total drives
+     * cleaning; the memory limit is only enforced once per write, in {@link #checkSpaceAndPut} (CASSANDRA-21019).
      *
      * @param additionalSpace the number of allocated bytes
-     * @param opGroup write operation group, used to permit the operation to complete if it is needed to complete a
-     *                flush to free space.
+     * @param opGroup write operation group. Unused since CASSANDRA-21019, as this call no longer waits; kept for
+     *                compatibility with memtable implementations built against this release series.
      */
     void markExtraOffHeapUsed(long additionalSpace, OpOrder.Group opGroup);
 
