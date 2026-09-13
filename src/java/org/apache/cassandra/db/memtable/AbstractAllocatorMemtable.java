@@ -34,6 +34,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.Clock;
@@ -127,6 +129,23 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
     public MemtableAllocator getAllocator()
     {
         return allocator;
+    }
+
+    /**
+     * The memory limit is enforced here, once per PartitionUpdate and before any memtable-internal lock is
+     * taken; the allocations {@link #put} then makes only track usage. A mutation carries one update per table,
+     * so a mutation that writes to several tables is gated once for each of them. A nested write calls
+     * {@link #put} directly and is not gated, see {@link Memtable#checkSpaceAndPut}.
+     * <p>
+     * The wait does not depend on how much the update will allocate, which is not known until it has been
+     * merged into the memtable. An update that adds little or nothing therefore waits as well: a deletion, or
+     * one that loses on timestamp against what the memtable already holds.
+     */
+    @Override
+    public final long checkSpaceAndPut(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
+    {
+        allocator.awaitRoomToStart(opGroup);
+        return put(update, indexer, opGroup, assumeMissing);
     }
 
     @Override
