@@ -112,7 +112,7 @@ public class SplitDomainMemtableTest
         return cfs;
     }
 
-    private static Memtable internal(ColumnFamilyStore cfs, LogDomainBounds bounds, LogDomain domain)
+    private static DomainMemtable internal(ColumnFamilyStore cfs, LogDomainBounds bounds, LogDomain domain)
     {
         return cfs.createMemtable(bounds.forDomain(domain), domain);
     }
@@ -192,21 +192,21 @@ public class SplitDomainMemtableTest
     {
         ColumnFamilyStore cfs = newTrackedTable();
         LogDomainBounds bounds = LogDomainBounds.atCurrentPositions();
-        Memtable journalInternal = internal(cfs, bounds, LogDomain.MUTATION_JOURNAL);
+        DomainMemtable journalInternal = internal(cfs, bounds, LogDomain.MUTATION_JOURNAL);
         write(cfs, journalInternal, 1, LogDomain.MUTATION_JOURNAL);
 
         // Advance the commit log past the journal internal's creation, so the two internals' bounds differ, then
         // create the commit-log internal above the position under test and leave it clean.
         appendToCommitLog();
         CommitLogPosition reclaimBelow = CommitLog.instance.getCurrentPosition();
-        Memtable commitLogInternal = internal(cfs, bounds, LogDomain.COMMIT_LOG);
+        DomainMemtable commitLogInternal = internal(cfs, bounds, LogDomain.COMMIT_LOG);
         SplitDomainMemtable wrapper = new SplitDomainMemtable(commitLogInternal, journalInternal,
                                                              journalInternal.getMemtableId());
 
         // sanity check
         assertNotEquals(commitLogInternal.mayContainDataBefore(reclaimBelow), journalInternal.mayContainDataBefore(reclaimBelow));
 
-        assertFalse(wrapper.mayContainDataBefore(reclaimBelow));
+        assertFalse(wrapper.flushSourceFor(LogDomain.COMMIT_LOG).mayContainDataBefore(reclaimBelow));
         assertEquals(commitLogInternal.getApproximateCommitLogLowerBound(),
                      wrapper.getApproximateCommitLogLowerBound());
     }
@@ -216,20 +216,20 @@ public class SplitDomainMemtableTest
     {
         ColumnFamilyStore cfs = newTrackedTable();
         LogDomainBounds bounds = LogDomainBounds.atCurrentPositions();
-        Memtable commitLogInternal = internal(cfs, bounds, LogDomain.COMMIT_LOG);
+        DomainMemtable commitLogInternal = internal(cfs, bounds, LogDomain.COMMIT_LOG);
         write(cfs, commitLogInternal, 1, LogDomain.COMMIT_LOG);
 
         appendToCommitLog();
         CommitLogPosition reclaimBelow = CommitLog.instance.getCurrentPosition();
-        Memtable journalInternal = internal(cfs, bounds, LogDomain.MUTATION_JOURNAL);
+        DomainMemtable journalInternal = internal(cfs, bounds, LogDomain.MUTATION_JOURNAL);
         SplitDomainMemtable wrapper = new SplitDomainMemtable(commitLogInternal, journalInternal,
                                                              commitLogInternal.getMemtableId());
 
         // sanity check
         assertNotEquals(commitLogInternal.mayContainDataBefore(reclaimBelow), journalInternal.mayContainDataBefore(reclaimBelow));
 
-        assertTrue(wrapper.mayContainDataBefore(reclaimBelow));
-        assertEquals(commitLogInternal.getCommitLogLowerBound(), wrapper.getCommitLogLowerBound());
+        assertTrue(wrapper.flushSourceFor(LogDomain.COMMIT_LOG).mayContainDataBefore(reclaimBelow));
+        assertEquals(commitLogInternal.getCommitLogLowerBound(), wrapper.flushSourceFor(LogDomain.COMMIT_LOG).getCommitLogLowerBound());
     }
 
     private static void appendToCommitLog()
@@ -395,7 +395,7 @@ public class SplitDomainMemtableTest
     {
         ColumnFamilyStore cfs = newTrackedTable();
         LogDomainBounds bounds = LogDomainBounds.atCurrentPositions();
-        Memtable journalInternal = internal(cfs, bounds, LogDomain.MUTATION_JOURNAL);
+        DomainMemtable journalInternal = internal(cfs, bounds, LogDomain.MUTATION_JOURNAL);
 
         Assertions.assertThatThrownBy(() -> new SplitDomainMemtable(journalInternal,
                                                                     internal(cfs, bounds, LogDomain.MUTATION_JOURNAL),
@@ -416,7 +416,7 @@ public class SplitDomainMemtableTest
     public void normalMemtableRefusesForeignDomainWrite()
     {
         ColumnFamilyStore cfs = newTrackedTable();
-        Memtable journalInternal = internal(cfs, LogDomainBounds.atCurrentPositions(), LogDomain.MUTATION_JOURNAL);
+        DomainMemtable journalInternal = internal(cfs, LogDomainBounds.atCurrentPositions(), LogDomain.MUTATION_JOURNAL);
 
         TableMetadata metadata = cfs.metadata();
         DecoratedKey key = metadata.partitioner.decorateKey(ByteBufferUtil.bytes(1));
@@ -542,10 +542,6 @@ public class SplitDomainMemtableTest
     @Test
     public void splitGenerationFlushesAnSSTablePerDomain()
     {
-        // Can't call getFlushSet on SplitDomainMemtable directly, getFlushSources returns multiple domain memtables
-        Assertions.assertThatThrownBy(() -> newWrapper(newTrackedTable()).getFlushSet(null, null))
-                  .isInstanceOf(UnsupportedOperationException.class);
-
         assertFlushOutput(EnumSet.of(SSTableProvenance.MUTATION_JOURNAL, SSTableProvenance.COMMIT_LOG),
                           LogDomain.MUTATION_JOURNAL, LogDomain.COMMIT_LOG);
         assertFlushOutput(EnumSet.of(SSTableProvenance.MUTATION_JOURNAL),
@@ -654,7 +650,7 @@ public class SplitDomainMemtableTest
 
         // Flushing.flushRunnables refuses a memtable that already holds a flush transaction, so the journal internal
         // fails where a writer error would: inside Flush.flushMemtable, after the barrier has issued.
-        Memtable journalInternal = ((SplitDomainMemtable) generation).internalFor(LogDomain.MUTATION_JOURNAL);
+        DomainMemtable journalInternal = ((SplitDomainMemtable) generation).internalFor(LogDomain.MUTATION_JOURNAL);
         journalInternal.setFlushTransaction(LifecycleTransaction.offline(OperationType.FLUSH));
 
         try

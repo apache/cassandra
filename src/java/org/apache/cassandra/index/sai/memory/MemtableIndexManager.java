@@ -34,7 +34,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
-import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.DomainMemtable;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.utils.Clock;
@@ -43,7 +43,7 @@ import org.apache.cassandra.utils.FBUtilities;
 public class MemtableIndexManager
 {
     private final StorageAttachedIndex index;
-    private final ConcurrentMap<Memtable, MemtableIndex> liveMemtableIndexMap;
+    private final ConcurrentMap<DomainMemtable, MemtableIndex> liveMemtableIndexMap;
 
     public MemtableIndexManager(StorageAttachedIndex index)
     {
@@ -51,13 +51,13 @@ public class MemtableIndexManager
         this.liveMemtableIndexMap = new ConcurrentHashMap<>();
     }
 
-    public void maybeInitializeMemtableIndex(Memtable memtable)
+    public void maybeInitializeMemtableIndex(DomainMemtable memtable)
     {
         if (index.termType().isVector())
             initializeMemtableIndex(memtable);
     }
 
-    private MemtableIndex initializeMemtableIndex(Memtable mt)
+    private MemtableIndex initializeMemtableIndex(DomainMemtable mt)
     {
         MemtableIndex current = liveMemtableIndexMap.get(mt);
 
@@ -67,7 +67,7 @@ public class MemtableIndexManager
                                : liveMemtableIndexMap.computeIfAbsent(mt, memtable -> new MemtableIndex(index, memtable));
     }
 
-    public long index(DecoratedKey key, Row row, Memtable mt)
+    public long index(DecoratedKey key, Row row, DomainMemtable mt)
     {
         MemtableIndex target = initializeMemtableIndex(mt);
 
@@ -108,7 +108,7 @@ public class MemtableIndexManager
         return bytes;
     }
 
-    public long update(DecoratedKey key, Row oldRow, Row newRow, Memtable memtable)
+    public long update(DecoratedKey key, Row oldRow, Row newRow, DomainMemtable memtable)
     {
         if (!index.termType().isVector())
         {
@@ -124,9 +124,9 @@ public class MemtableIndexManager
         return target.update(key, oldRow.clustering(), oldValue, newValue);
     }
 
-    public void renewMemtable(Memtable renewed)
+    public void renewMemtable(DomainMemtable renewed)
     {
-        for (Memtable memtable : liveMemtableIndexMap.keySet())
+        for (DomainMemtable memtable : liveMemtableIndexMap.keySet())
         {
             // remove every index but the one that corresponds to the post-truncate Memtable
             if (renewed != memtable)
@@ -136,7 +136,7 @@ public class MemtableIndexManager
         }
     }
 
-    public void discardMemtable(Memtable discarded)
+    public void discardMemtable(DomainMemtable discarded)
     {
         liveMemtableIndexMap.remove(discarded);
     }

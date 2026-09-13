@@ -32,7 +32,7 @@ import accord.primitives.TxnId;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
-import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.DomainMemtable;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordKeyspace;
@@ -42,7 +42,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class RouteMemtableIndexManager implements MemtableIndexManager
 {
-    private final ConcurrentMap<Memtable, MemtableIndex> liveMemtableIndexMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<DomainMemtable, MemtableIndex> liveMemtableIndexMap = new ConcurrentHashMap<>();
     private final RouteJournalIndex index;
 
     public RouteMemtableIndexManager(RouteJournalIndex index)
@@ -51,7 +51,7 @@ public class RouteMemtableIndexManager implements MemtableIndexManager
     }
 
     @Override
-    public long index(DecoratedKey key, Row row, Memtable mt)
+    public long index(DecoratedKey key, Row row, DomainMemtable mt)
     {
         if (row.isStatic())
             return 0;
@@ -88,15 +88,15 @@ public class RouteMemtableIndexManager implements MemtableIndexManager
     }
 
     @Override
-    public void discardMemtable(Memtable memtable)
+    public void discardMemtable(DomainMemtable memtable)
     {
         liveMemtableIndexMap.remove(memtable);
     }
 
     @Override
-    public void renewMemtable(Memtable renewed)
+    public void renewMemtable(DomainMemtable renewed)
     {
-        for (Memtable memtable : liveMemtableIndexMap.keySet())
+        for (DomainMemtable memtable : liveMemtableIndexMap.keySet())
         {
             // remove every index but the one that corresponds to the post-truncate Memtable
             if (renewed != memtable)

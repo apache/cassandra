@@ -58,6 +58,7 @@ import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.CassandraWriteContext;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.LogDomain;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.WriteContext;
@@ -69,6 +70,7 @@ import org.apache.cassandra.db.guardrails.MaxThreshold;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.FloatType;
+import org.apache.cassandra.db.memtable.DomainMemtable;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
@@ -599,7 +601,8 @@ public class StorageAttachedIndex implements Index
     {
         if (transactionType == IndexTransaction.Type.UPDATE)
         {
-            return new UpdateIndexer(key, memtable, writeContext);
+            LogDomain domain = CassandraWriteContext.fromContext(writeContext).domain();
+            return new UpdateIndexer(key, memtable.flushSourceFor(domain), writeContext);
         }
 
         // we are only interested in the data from Memtable
@@ -1012,10 +1015,10 @@ public class StorageAttachedIndex implements Index
     private class UpdateIndexer implements Index.Indexer
     {
         private final DecoratedKey key;
-        private final Memtable memtable;
+        private final DomainMemtable memtable;
         private final WriteContext writeContext;
 
-        UpdateIndexer(DecoratedKey key, Memtable memtable, WriteContext writeContext)
+        UpdateIndexer(DecoratedKey key, DomainMemtable memtable, WriteContext writeContext)
         {
             this.key = key;
             this.memtable = memtable;

@@ -105,8 +105,8 @@ public abstract class TrieMemtableFlushSetTestBase extends CQLTester
             }
         }
 
-        Memtable memtable = cfs.getCurrentMemtable();
-        Memtable memtableToCompare = cfsToCompare.getCurrentMemtable();
+        DomainMemtable memtable = (DomainMemtable) cfs.getCurrentMemtable();
+        DomainMemtable memtableToCompare = (DomainMemtable) cfsToCompare.getCurrentMemtable();
 
         {
             Memtable.FlushablePartitionSet<?> flushSetNull = memtable.getFlushSet(null, null);
@@ -142,7 +142,7 @@ public abstract class TrieMemtableFlushSetTestBase extends CQLTester
 
     }
 
-    private static void testShardRanges(ShardBoundaries shardBoundaries, ColumnFamilyStore cfs, Memtable memtable, Memtable memtableToCompare)
+    private static void testShardRanges(ShardBoundaries shardBoundaries, ColumnFamilyStore cfs, DomainMemtable memtable, DomainMemtable memtableToCompare)
     {
         for (int fromShardIndex = 0; fromShardIndex < shardBoundaries.shardCount(); fromShardIndex++)
         {
@@ -168,7 +168,7 @@ public abstract class TrieMemtableFlushSetTestBase extends CQLTester
         }
     }
 
-    private static void testRange(Memtable memtable, Memtable memtableToCompare, PartitionPosition positionFrom, PartitionPosition positionTo)
+    private static void testRange(DomainMemtable memtable, DomainMemtable memtableToCompare, PartitionPosition positionFrom, PartitionPosition positionTo)
     {
         Memtable.FlushablePartitionSet<?> flushSet = memtable.getFlushSet(positionFrom, positionTo);
         Memtable.FlushablePartitionSet<?> flushSetToCompare = memtableToCompare.getFlushSet(positionFrom, positionTo);

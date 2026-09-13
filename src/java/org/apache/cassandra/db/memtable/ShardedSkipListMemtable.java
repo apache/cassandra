@@ -323,7 +323,7 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
         {
             private final TableMetadata tableMetadata = currentTableMetadata;
 
-            public Memtable memtable()
+            public DomainMemtable memtable()
             {
                 return ShardedSkipListMemtable.this;
             }
@@ -566,7 +566,7 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
         return new Factory(shardCount, isLocking);
     }
 
-    static class Factory implements Memtable.Factory
+    static class Factory implements DomainMemtable.Factory
     {
         final Integer shardCount;
         final boolean isLocking;
@@ -577,7 +577,7 @@ public class ShardedSkipListMemtable extends AbstractShardedMemtable
             this.isLocking = isLocking;
         }
 
-        public Memtable create(AtomicReference<CommitLogPosition> commitLogLowerBound,
+        public DomainMemtable create(AtomicReference<CommitLogPosition> commitLogLowerBound,
                                TableMetadataRef metadataRef,
                                Owner owner,
                                LogDomain domain)

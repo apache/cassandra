@@ -43,6 +43,7 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.LogDomain;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.memtable.DomainMemtable;
 import org.apache.cassandra.db.memtable.LogDomainBounds;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.SplitDomainMemtable;
@@ -468,9 +469,10 @@ public class Tracker
             {
                 // Construct new memtable and split domain memtable inside the view mutation so it happens once, under
                 // the view lock after the permit has accepted the change
+                DomainMemtable domainMemtable = (DomainMemtable) oldMemtable; // the branch above rejected a generation
                 Pair<View, View> result = apply(View.canSplitMemtable(oldMemtable), view -> {
-                    Memtable newMemtable = cfstore.createMemtable(view.currentBounds.sealIfUnset(domain), domain);
-                    SplitDomainMemtable wrapper = new SplitDomainMemtable(newMemtable, oldMemtable, oldMemtable.getMemtableId());
+                    DomainMemtable newMemtable = cfstore.createMemtable(view.currentBounds.sealIfUnset(domain), domain);
+                    SplitDomainMemtable wrapper = new SplitDomainMemtable(newMemtable, domainMemtable, domainMemtable.getMemtableId());
                     return View.splitMemtable(oldMemtable, wrapper).apply(view);
                 });
 
@@ -502,9 +504,12 @@ public class Tracker
      * discarding(memtable) is called. These two methods must be synchronized/paired, i.e. m = switchMemtable
      * must be followed by discarding(m), they cannot be interleaved.
      *
+     * A switch installs a single-domain memtable. A generation only becomes split in place, in
+     * {@link #installSplit}, so anything keyed on the memtable being retired has to expect several flush sources.
+     *
      * @return the previously active memtable
      */
-    public Memtable switchMemtable(boolean truncating, Memtable newMemtable, LogDomainBounds newBounds)
+    public Memtable switchMemtable(boolean truncating, DomainMemtable newMemtable, LogDomainBounds newBounds)
     {
         Pair<View, View> result = apply(View.switchMemtable(newMemtable, newBounds));
         if (truncating)
@@ -663,7 +668,7 @@ public class Tracker
         notify(new TablePreScrubNotification(cfstore));
     }
 
-    public void notifyRenewed(Memtable renewed)
+    public void notifyRenewed(DomainMemtable renewed)
     {
         notify(new MemtableRenewedNotification(renewed));
     }

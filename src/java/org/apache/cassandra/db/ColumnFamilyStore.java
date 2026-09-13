@@ -95,6 +95,7 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.lifecycle.View;
+import org.apache.cassandra.db.memtable.DomainMemtable;
 import org.apache.cassandra.db.memtable.Flushing;
 import org.apache.cassandra.db.memtable.LogDomainBounds;
 import org.apache.cassandra.db.memtable.Memtable;
@@ -290,7 +291,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     private final String oldMBeanName;
     private volatile boolean valid = true;
 
-    private volatile Memtable.Factory memtableFactory;
+    private volatile DomainMemtable.Factory memtableFactory;
 
     /**
      * Memtables and SSTables on disk for this column family.
@@ -1143,7 +1144,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         // we don't loop through the remaining memtables since here we only care about commit log dirtiness
         // and this does not vary between a table and its table-backed indexes
         Memtable current = data.getView().getCurrentMemtable();
-        if (current.mayContainDataBefore(flushIfDirtyBefore))
+        if (current.flushSourceFor(LogDomain.COMMIT_LOG).mayContainDataBefore(flushIfDirtyBefore))
             return flushMemtable(current, FlushReason.COMMITLOG_DIRTY);
         return waitForFlushes();
     }
@@ -1164,7 +1165,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     {
         // we grab the current memtable; once any preceding memtables have flushed, we know its
         // commitLogLowerBound has been set (as this it is set with the upper bound of the preceding memtable)
-        final Memtable current = data.getView().getCurrentMemtable();
+        final DomainMemtable current = data.getView().getCurrentMemtable().flushSourceFor(LogDomain.COMMIT_LOG);
         return postFlushExecutor.submit(current::getCommitLogLowerBound);
     }
 
@@ -1208,7 +1209,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 TableMetadata metadata = metadata();
 
                 // Each log is told about the span the memtable bounded in that log.
-                for (Memtable source : mainMemtable.flushSources())
+                for (DomainMemtable source : mainMemtable.flushSources())
                 {
                     CommitLogPosition lowerBound = source.getCommitLogLowerBound();
                     CommitLogPosition upperBound = source.getFinalCommitLogUpperBound();
@@ -1219,7 +1220,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                         CommitLog.instance.discardCompletedSegments(metadata.id, lowerBound, upperBound);
                 }
 
-                commitLogUpperBound = mainMemtable.getFinalCommitLogUpperBound();
+                commitLogUpperBound = mainMemtable.flushSourceFor(LogDomain.COMMIT_LOG).getFinalCommitLogUpperBound();
             }
 
             metric.pendingFlushes.dec();
@@ -1278,7 +1279,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 // switch all memtables, regardless of their dirty status, setting the barrier
                 // so that we can reach a coordinated decision about cleanliness once they
                 // are no longer possible to be modified
-                Memtable newMemtable = cfs.createMemtable(upperBounds);
+                DomainMemtable newMemtable = cfs.createMemtable(upperBounds);
                 Memtable oldMemtable = cfs.data.switchMemtable(truncate, newMemtable, upperBounds);
                 oldMemtable.switchOut(writeBarrier, upperBounds);
                 memtables.put(cfs, oldMemtable);
@@ -1385,7 +1386,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
                     // One transaction over every log domain's output, so the generation's sstables become visible
                     // together and PostFlush can't run against a half-persisted memtable generation.
-                    for (Memtable source : memtable.flushSources())
+                    for (DomainMemtable source : memtable.flushSources())
                     {
                         if (source.isClean())
                             continue;
@@ -1504,13 +1505,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
     }
 
-    public Memtable createMemtable(LogDomainBounds lowerBounds)
+    public DomainMemtable createMemtable(LogDomainBounds lowerBounds)
     {
         LogDomain domain = initialMemtableDomain();
         return createMemtable(lowerBounds.forDomain(domain), domain);
     }
 
-    public Memtable createMemtable(AtomicReference<CommitLogPosition> commitLogLowerBound, LogDomain domain)
+    public DomainMemtable createMemtable(AtomicReference<CommitLogPosition> commitLogLowerBound, LogDomain domain)
     {
         return memtableFactory.create(commitLogLowerBound, metadata, this, domain);
     }
@@ -2519,6 +2520,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
         if (current.holds(LogDomain.COMMIT_LOG) && current.holds(LogDomain.MUTATION_JOURNAL))
             throw new IllegalStateException("Cannot stream from a memtable holding more than one log domain: " + current);
+        DomainMemtable source = (DomainMemtable) current;
 
         List<Memtable.FlushablePartitionSet<?>> dataSets = new ArrayList<>(ranges.size());
         ImmutableCoordinatorLogOffsets.Builder logOffsetsBuilder = new ImmutableCoordinatorLogOffsets.Builder();
@@ -2526,7 +2528,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         long keys = 0;
         for (Range<PartitionPosition> range : ranges)
         {
-            Memtable.FlushablePartitionSet<?> dataSet = current.getFlushSet(range.left, range.right);
+            Memtable.FlushablePartitionSet<?> dataSet = source.getFlushSet(range.left, range.right);
             dataSets.add(dataSet);
             logOffsetsBuilder.addAll(dataSet.coordinatorLogOffsets());
             commitLogIntervals.addAll(dataSet.commitLogIntervals());

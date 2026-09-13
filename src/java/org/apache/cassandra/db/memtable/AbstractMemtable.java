@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.db.memtable;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -32,20 +34,21 @@ import com.google.common.annotations.VisibleForTesting;
 
 import org.github.jamm.Unmetered;
 
+import org.apache.cassandra.db.LogDomain;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 
-public abstract class AbstractMemtable implements Memtable
+public abstract class AbstractMemtable implements DomainMemtable
 {
     private static final AtomicLong nextId = new AtomicLong();
 
-    private final AtomicReference<LifecycleTransaction> flushTransaction = new AtomicReference<>(null);
+    private final AtomicReference<ILifecycleTransaction> flushTransaction = new AtomicReference<>(null);
     protected final AtomicLong currentOperations = new AtomicLong(0);
     protected final ColumnsCollector columnsCollector;
     protected final StatsCollector statsCollector = new StatsCollector();
@@ -140,13 +143,25 @@ public abstract class AbstractMemtable implements Memtable
     }
 
     @Override
-    public LifecycleTransaction getFlushTransaction()
+    public List<DomainMemtable> flushSources()
+    {
+        return Collections.singletonList(this);
+    }
+
+    @Override
+    public DomainMemtable flushSourceFor(LogDomain domain)
+    {
+        return this;
+    }
+
+    @Override
+    public ILifecycleTransaction getFlushTransaction()
     {
         return flushTransaction.get();
     }
 
     @Override
-    public LifecycleTransaction setFlushTransaction(LifecycleTransaction flushTransaction)
+    public ILifecycleTransaction setFlushTransaction(ILifecycleTransaction flushTransaction)
     {
         return this.flushTransaction.getAndSet(flushTransaction);
     }

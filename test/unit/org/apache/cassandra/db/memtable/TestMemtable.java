@@ -22,7 +22,7 @@ import java.util.Map;
 
 public class TestMemtable
 {
-    public static Memtable.Factory factory(Map<String, String> options)
+    public static DomainMemtable.Factory factory(Map<String, String> options)
     {
         String skiplist = options.remove("skiplist");
         if (Boolean.parseBoolean(skiplist))
@@ -31,5 +31,5 @@ public class TestMemtable
             return FACTORY;
     }
 
-    public static Memtable.Factory FACTORY = SkipListMemtable::new;
+    public static DomainMemtable.Factory FACTORY = SkipListMemtable::new;
 }

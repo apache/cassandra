@@ -91,6 +91,71 @@ public class TrackedFlushingTest extends SAITester
         assertEquals("rows are indexed after the flush", 10, indexedCount());
     }
 
+    /**
+     * The vector path writes its index through {@code MemtableIndex.writeDirect} rather than a row-mapping merge, and
+     * pre-creates the index on switch, so it reaches the flush by a different route than a literal index.
+     */
+    @Test
+    public void vectorIndexCoversRowsWrittenAfterTheSplit()
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v vector<float, 3>)");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'sai'");
+
+        migrateToTracked();
+        insertVectors(0, 10);
+
+        assertGenerationSplit();
+        assertEquals("precondition: the memtable index answers before the flush", 10, annCount());
+
+        flush();
+
+        assertEquals("rows are present after the flush", 10, unindexedCount());
+        assertEquals("rows are indexed after the flush", 10, annCount());
+    }
+
+    @Test
+    public void vectorIndexCoversRowsWrittenEitherSideOfTheSplit()
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v vector<float, 3>)");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'sai'");
+
+        insertVectors(0, 5);
+        migrateToTracked();
+        insertVectors(5, 10);
+
+        assertGenerationSplit();
+        assertEquals("precondition: the memtable index answers before the flush", 10, annCount());
+
+        flush();
+
+        assertOneSSTablePerDomain();
+        assertEquals("rows are present after the flush", 10, unindexedCount());
+        assertEquals("rows are indexed after the flush", 10, annCount());
+    }
+
+    /**
+     * Overwriting a row already resident in the same source reaches {@code MemtableIndexManager.update}, which asserts
+     * for a vector index that the source already has an index.
+     */
+    @Test
+    public void vectorIndexSurvivesOverwriteInASplitGeneration()
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v vector<float, 3>)");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'sai'");
+
+        insertVectors(0, 5);
+        migrateToTracked();
+        insertVectors(5, 10);
+        insertVectors(5, 10);
+
+        assertGenerationSplit();
+
+        flush();
+
+        assertEquals("rows are present after the flush", 10, unindexedCount());
+        assertEquals("rows are indexed after the flush", 10, annCount());
+    }
+
     private void migrateToTracked()
     {
         schemaChange("ALTER KEYSPACE " + KEYSPACE + " WITH replication_type = 'tracked'");
@@ -102,14 +167,25 @@ public class TrackedFlushingTest extends SAITester
             execute("INSERT INTO %s (id1, v1) VALUES (?, ?)", Integer.toString(i), i);
     }
 
+    private void insertVectors(int fromInclusive, int toExclusive)
+    {
+        for (int i = fromInclusive; i < toExclusive; i++)
+            execute("INSERT INTO %s (k, v) VALUES (?, ?)", i, vector(1.0f + i, 2.0f + i, 3.0f + i));
+    }
+
+    private int annCount()
+    {
+        return execute("SELECT k FROM %s ORDER BY v ANN OF [1.0, 2.0, 3.0] LIMIT 100").size();
+    }
+
     private int indexedCount()
     {
-        return executeNet("SELECT id1 FROM %s WHERE v1 >= 0").all().size();
+        return execute("SELECT id1 FROM %s WHERE v1 >= 0").size();
     }
 
     private int unindexedCount()
     {
-        return executeNet("SELECT id1 FROM %s").all().size();
+        return execute("SELECT * FROM %s").size();
     }
 
     private void assertGenerationSplit()

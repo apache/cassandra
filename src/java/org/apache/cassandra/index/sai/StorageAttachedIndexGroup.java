@@ -43,6 +43,7 @@ import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.Tracker;
+import org.apache.cassandra.db.memtable.DomainMemtable;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.Index;
@@ -280,11 +281,13 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
         }
         else if (notification instanceof MemtableSwitchedNotification)
         {
-            indexes.forEach(index -> index.memtableIndexManager().maybeInitializeMemtableIndex(((MemtableSwitchedNotification) notification).next));
+            for (DomainMemtable source : ((MemtableSwitchedNotification) notification).next.flushSources())
+                indexes.forEach(index -> index.memtableIndexManager().maybeInitializeMemtableIndex(source));
         }
         else if (notification instanceof MemtableDiscardedNotification)
         {
-            indexes.forEach(index -> index.memtableIndexManager().discardMemtable(((MemtableDiscardedNotification) notification).memtable));
+            for (DomainMemtable source : ((MemtableDiscardedNotification) notification).memtable.flushSources())
+                indexes.forEach(index -> index.memtableIndexManager().discardMemtable(source));
         }
     }
 

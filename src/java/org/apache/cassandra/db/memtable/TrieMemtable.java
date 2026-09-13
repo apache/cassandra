@@ -475,7 +475,7 @@ public class TrieMemtable extends AbstractShardedMemtable
         {
             private final TableMetadata tableMetadata = TrieMemtable.this.metadata();
 
-            public Memtable memtable()
+            public DomainMemtable memtable()
             {
                 return TrieMemtable.this;
             }
@@ -792,7 +792,7 @@ public class TrieMemtable extends AbstractShardedMemtable
         return new Factory(shardCount);
     }
 
-    static class Factory implements Memtable.Factory
+    static class Factory implements DomainMemtable.Factory
     {
         final Integer shardCount;
 
@@ -801,7 +801,7 @@ public class TrieMemtable extends AbstractShardedMemtable
             this.shardCount = shardCount;
         }
 
-        public Memtable create(AtomicReference<CommitLogPosition> commitLogLowerBound,
+        public DomainMemtable create(AtomicReference<CommitLogPosition> commitLogLowerBound,
                                TableMetadataRef metadaRef,
                                Owner owner,
                                LogDomain domain)

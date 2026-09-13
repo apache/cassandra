@@ -30,6 +30,7 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.memtable.DomainMemtable;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.SkipListMemtable;
 import org.apache.cassandra.db.memtable.TestMemtable;
@@ -641,7 +642,7 @@ public class CreateTest extends CQLTester
                                            + " WITH memtable = 'unknown';");
     }
 
-    private void testMemtableConfig(String memtableConfig, Memtable.Factory factoryInstance, Class<? extends Memtable> memtableClass) throws Throwable
+    private void testMemtableConfig(String memtableConfig, DomainMemtable.Factory factoryInstance, Class<? extends Memtable> memtableClass) throws Throwable
     {
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                     + " WITH memtable = '" + memtableConfig + "';");

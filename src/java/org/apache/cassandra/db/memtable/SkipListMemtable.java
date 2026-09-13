@@ -312,7 +312,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
             private final TableMetadata tableMetadata = currentTableMetadata;
 
             @Override
-            public Memtable memtable()
+            public DomainMemtable memtable()
             {
                 return SkipListMemtable.this;
             }

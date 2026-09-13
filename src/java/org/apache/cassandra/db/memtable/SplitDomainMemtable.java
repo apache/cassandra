@@ -19,7 +19,6 @@
 package org.apache.cassandra.db.memtable;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -30,11 +29,9 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.LogDomain;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -62,14 +59,13 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  */
 public class SplitDomainMemtable implements Memtable
 {
-    private final Memtable commitLogInternal;
-    private final Memtable journalInternal;
-    private final List<Memtable> internals;
+    private final DomainMemtable commitLogInternal;
+    private final DomainMemtable journalInternal;
+    private final List<DomainMemtable> internals;
     private final long id;
-    private final AtomicReference<LifecycleTransaction> flushTransaction = new AtomicReference<>(null);
     private final FlushListeners listeners = new FlushListeners();
 
-    public SplitDomainMemtable(Memtable left, Memtable right, long id)
+    public SplitDomainMemtable(DomainMemtable left, DomainMemtable right, long id)
     {
         Preconditions.checkArgument(left.owner() == right.owner());
         Preconditions.checkArgument(!(left instanceof SplitDomainMemtable) && !(right instanceof SplitDomainMemtable));
@@ -91,12 +87,18 @@ public class SplitDomainMemtable implements Memtable
     }
 
     @Override
-    public List<Memtable> flushSources()
+    public List<DomainMemtable> flushSources()
     {
         return internals;
     }
 
-    public Memtable internalFor(LogDomain domain)
+    @Override
+    public DomainMemtable flushSourceFor(LogDomain domain)
+    {
+        return internalFor(domain);
+    }
+
+    public DomainMemtable internalFor(LogDomain domain)
     {
         return domain.isJournal() ? journalInternal : commitLogInternal;
     }
@@ -270,18 +272,6 @@ public class SplitDomainMemtable implements Memtable
     }
 
     @Override
-    public LifecycleTransaction getFlushTransaction()
-    {
-        return flushTransaction.get();
-    }
-
-    @Override
-    public LifecycleTransaction setFlushTransaction(LifecycleTransaction transaction)
-    {
-        return flushTransaction.getAndSet(transaction);
-    }
-
-    @Override
     public <T extends Consumer<TableMetadata>> T ensureFlushListener(Object key, Supplier<T> factory)
     {
         return listeners.ensureFlushListener(key, factory);
@@ -316,25 +306,6 @@ public class SplitDomainMemtable implements Memtable
         return commitLogInternal.getApproximateCommitLogLowerBound();
     }
 
-    /** Answered by the commit-log internal alone, for the reason on {@link #getApproximateCommitLogLowerBound}. */
-    @Override
-    public boolean mayContainDataBefore(CommitLogPosition position)
-    {
-        return commitLogInternal.mayContainDataBefore(position);
-    }
-
-    @Override
-    public CommitLogPosition getCommitLogLowerBound()
-    {
-        return commitLogInternal.getCommitLogLowerBound();
-    }
-
-    @Override
-    public LastCommitLogPosition getFinalCommitLogUpperBound()
-    {
-        return commitLogInternal.getFinalCommitLogUpperBound();
-    }
-
     /**
      * Both internals take the same boundary and the same barrier, and each reads the position for its own domain from
      * it. One barrier, because the generation flushes as a whole; see the class javadoc.
@@ -344,12 +315,6 @@ public class SplitDomainMemtable implements Memtable
     {
         commitLogInternal.switchOut(writeBarrier, upperBounds);
         journalInternal.switchOut(writeBarrier, upperBounds);
-    }
-
-    @Override
-    public FlushablePartitionSet<?> getFlushSet(PartitionPosition from, PartitionPosition to)
-    {
-        throw new UnsupportedOperationException("Flush iterates flushSources(), so that each output carries one domain's bounds");
     }
 
     @Override

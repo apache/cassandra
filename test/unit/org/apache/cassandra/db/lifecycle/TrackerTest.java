@@ -40,6 +40,7 @@ import org.apache.cassandra.db.LogDomain;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.memtable.DomainMemtable;
 import org.apache.cassandra.db.memtable.LogDomainBounds;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.SplitDomainMemtable;
@@ -326,7 +327,7 @@ public class TrackerTest
         listener = new MockListener(false);
         tracker.subscribe(listener);
         LogDomainBounds nextBounds = LogDomainBounds.atCurrentPositions();
-        Memtable next1 = cfs.createMemtable(nextBounds);
+        DomainMemtable next1 = cfs.createMemtable(nextBounds);
         prev1 = tracker.switchMemtable(false, next1, nextBounds);
         tracker.markFlushing(prev1);
         reader = MockSchema.sstable(0, 10, true, cfs);
@@ -367,7 +368,7 @@ public class TrackerTest
         tracker.notifySSTableRepairedStatusChanged(singleton(r1));
         Assert.assertEquals(singleton(r1), ((SSTableRepairStatusChanged) listener.received.get(0)).sstables);
         listener.received.clear();
-        Memtable memtable = MockSchema.memtable(cfs);
+        DomainMemtable memtable = MockSchema.memtable(cfs);
         tracker.notifyRenewed(memtable);
         Assert.assertEquals(memtable, ((MemtableRenewedNotification) listener.received.get(0)).renewed);
         listener.received.clear();
@@ -398,7 +399,7 @@ public class TrackerTest
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
         Tracker tracker = cfs.getTracker();
-        Memtable retiring = tracker.getView().getCurrentMemtable();
+        DomainMemtable retiring = (DomainMemtable) tracker.getView().getCurrentMemtable();
 
         // Stand in for the flush that wins the race: switchMemtable retires the generation installSplit had read.
         LogDomainBounds replacementBounds = LogDomainBounds.atCurrentPositions();
@@ -408,7 +409,7 @@ public class TrackerTest
         Assert.assertTrue("still live until marked flushing", tracker.getView().liveMemtables.contains(retiring));
 
         // The split installSplit would have applied, had it not rechecked under the lock.
-        Memtable journal = cfs.createMemtable(tracker.getView().currentBounds.forDomain(LogDomain.MUTATION_JOURNAL),
+        DomainMemtable journal = cfs.createMemtable(tracker.getView().currentBounds.forDomain(LogDomain.MUTATION_JOURNAL),
                                               LogDomain.MUTATION_JOURNAL);
         SplitDomainMemtable wrapper = new SplitDomainMemtable(journal, retiring, retiring.getMemtableId());
         // Tracker.apply returns null when the permit predicate rejects the view.

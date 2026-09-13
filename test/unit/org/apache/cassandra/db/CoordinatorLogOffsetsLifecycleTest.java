@@ -39,7 +39,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.CompactionGroup;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.DomainMemtable;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -178,7 +178,7 @@ public class CoordinatorLogOffsetsLifecycleTest
             assertNonEmptyMemtable(view);
             assertNumSSTables(view, 0);
 
-            Memtable memtable = view.getCurrentMemtable();
+            DomainMemtable memtable = (DomainMemtable) view.getCurrentMemtable();
             ImmutableCoordinatorLogOffsets logOffsets = memtable.getFlushSet(null, null).coordinatorLogOffsets();
             Assertions.assertThat(logOffsets.mutations().size()).isEqualTo(1);
             Assertions.assertThat(logOffsets.mutations().offsets(id2.logId()).contains(id2.offset())).isTrue();
@@ -211,7 +211,7 @@ public class CoordinatorLogOffsetsLifecycleTest
             assertNonEmptyMemtable(view);
             assertNumSSTables(view, 1);
 
-            Memtable memtable = view.getCurrentMemtable();
+            DomainMemtable memtable = (DomainMemtable) view.getCurrentMemtable();
             ImmutableCoordinatorLogOffsets logOffsets = memtable.getFlushSet(null, null).coordinatorLogOffsets();
             Assertions.assertThat(logOffsets.mutations().size()).isEqualTo(1);
             Assertions.assertThat(logOffsets.mutations().offsets(id4.logId()).contains(id4.offset())).isTrue();
