@@ -547,11 +547,60 @@ public class Directories
     }
 
     /**
+     * Computes the base directory for snapshots of a given table data path.
+     * If snapshot_directory is configured, returns:
+     *   <snapshot_directory>/<relative_path_from_data_dir>
+     * Otherwise returns the original location (existing behavior).
+     */
+    private static File getSnapshotBaseDirectory(File dataLocation)
+    {
+        if (!DatabaseDescriptor.hasSnapshotDirectory())
+            return dataLocation;
+
+        String snapshotRoot = DatabaseDescriptor.getSnapshotDirectory();
+
+        // Try to find which data directory this location is under
+        for (DataDirectory dd : dataDirectories.getAllDirectories())
+        {
+            Path dataLocationPath = dataLocation.toPath().toAbsolutePath().normalize();
+            Path dataDirPath = dd.location.toPath().toAbsolutePath().normalize();
+
+            if (dataLocationPath.startsWith(dataDirPath))
+            {
+                Path relativePath = dataDirPath.relativize(dataLocationPath);
+                File snapshotBase = new File(new File(snapshotRoot), relativePath.toString());
+                if (!snapshotBase.exists())
+                    snapshotBase.tryCreateDirectories();
+                return snapshotBase;
+            }
+        }
+
+        // Fallback: extract last 2 path components (keyspace/table-id)
+        Path locationPath = dataLocation.toPath().toAbsolutePath().normalize();
+        int nameCount = locationPath.getNameCount();
+        if (nameCount >= 2)
+        {
+            String ksAndTable = locationPath.getName(nameCount - 2).toString()
+                                + File.pathSeparator()
+                                + locationPath.getName(nameCount - 1).toString();
+            File snapshotBase = new File(new File(snapshotRoot), ksAndTable);
+            if (!snapshotBase.exists())
+                snapshotBase.tryCreateDirectories();
+            return snapshotBase;
+        }
+
+        logger.warn("Could not determine relative path for snapshot directory, using data directory");
+        return dataLocation;
+    }
+
+    /**
      * Returns directory to write snapshot. If directory does not exist, then one is created.
      *
      * If given {@code location} indicates secondary index, this will return
      * {@code <cf dir>/snapshots/<snapshot name>/.<index name>}.
      * Otherwise, this will return {@code <cf dir>/snapshots/<snapshot name>}.
+     *
+     * When snapshot_directory is configured, paths are redirected to the separate mount.
      *
      * @param location base directory
      * @param snapshotName snapshot name
@@ -559,13 +608,20 @@ public class Directories
      */
     public static File getSnapshotDirectory(File location, String snapshotName)
     {
+        File base = getSnapshotBaseDirectory(location);
+
         if (isSecondaryIndexFolder(location))
         {
+            if (DatabaseDescriptor.hasSnapshotDirectory())
+            {
+                File indexParentBase = getSnapshotBaseDirectory(location.parent());
+                return getOrCreate(indexParentBase, SNAPSHOT_SUBDIR, snapshotName, location.name());
+            }
             return getOrCreate(location.parent(), SNAPSHOT_SUBDIR, snapshotName, location.name());
         }
         else
         {
-            return getOrCreate(location, SNAPSHOT_SUBDIR, snapshotName);
+            return getOrCreate(base, SNAPSHOT_SUBDIR, snapshotName);
         }
     }
 
@@ -1095,10 +1151,28 @@ public class Directories
         return ephemeralSnapshots;
     }
 
+    /**
+     * Returns the directories to search for snapshots.
+     * If snapshot_directory is configured, returns mirrored paths under it.
+     */
+    private File[] getSnapshotSearchPaths()
+    {
+        if (!DatabaseDescriptor.hasSnapshotDirectory())
+            return dataPaths;
+
+        File[] snapshotPaths = new File[dataPaths.length];
+        for (int i = 0; i < dataPaths.length; i++)
+        {
+            snapshotPaths[i] = getSnapshotBaseDirectory(dataPaths[i]);
+        }
+        return snapshotPaths;
+    }
+
     private List<File> listAllSnapshots()
     {
         final List<File> snapshots = new LinkedList<>();
-        for (final File dir : dataPaths)
+        File[] searchPaths = getSnapshotSearchPaths();
+        for (final File dir : searchPaths)
         {
             File snapshotDir = isSecondaryIndexFolder(dir)
                                ? new File(dir.parentPath(), SNAPSHOT_SUBDIR)
@@ -1124,7 +1198,8 @@ public class Directories
     protected Map<String, Set<File>> listSnapshotDirsByTag()
     {
         Map<String, Set<File>> snapshotDirsByTag = new HashMap<>();
-        for (final File dir : dataPaths)
+        File[] searchPaths = getSnapshotSearchPaths();
+        for (final File dir : searchPaths)
         {
             File snapshotDir = isSecondaryIndexFolder(dir)
                                ? new File(dir.parentPath(), SNAPSHOT_SUBDIR)
@@ -1148,7 +1223,8 @@ public class Directories
 
     public boolean snapshotExists(String snapshotName)
     {
-        for (File dir : dataPaths)
+        File[] searchPaths = getSnapshotSearchPaths();
+        for (File dir : searchPaths)
         {
             File snapshotDir;
             if (isSecondaryIndexFolder(dir))
@@ -1167,12 +1243,32 @@ public class Directories
 
     public static void clearSnapshot(String snapshotName, List<File> tableDirectories, RateLimiter snapshotRateLimiter)
     {
+        clearSnapshot(snapshotName, tableDirectories, snapshotRateLimiter, false);
+    }
+
+    /**
+     * Clears a snapshot, optionally also checking the configured snapshot_directory.
+     */
+    public static void clearSnapshot(String snapshotName, List<File> tableDirectories,
+                                     RateLimiter snapshotRateLimiter, boolean checkSnapshotDirectory)
+    {
         // If snapshotName is empty or null, we will delete the entire snapshot directory
         String tag = snapshotName == null ? "" : snapshotName;
         for (File tableDir : tableDirectories)
         {
             File snapshotDir = new File(tableDir, join(SNAPSHOT_SUBDIR, tag));
             removeSnapshotDirectory(snapshotRateLimiter, snapshotDir);
+        }
+
+        // Also clear from separate snapshot directory if configured
+        if (checkSnapshotDirectory && DatabaseDescriptor.hasSnapshotDirectory())
+        {
+            for (File tableDir : tableDirectories)
+            {
+                File snapshotBase = getSnapshotBaseDirectory(tableDir);
+                File snapshotDir = new File(snapshotBase, join(SNAPSHOT_SUBDIR, tag));
+                removeSnapshotDirectory(snapshotRateLimiter, snapshotDir);
+            }
         }
     }
 
@@ -1200,7 +1296,8 @@ public class Directories
     public long trueSnapshotsSize()
     {
         long result = 0L;
-        for (File dir : dataPaths)
+        File[] searchPaths = getSnapshotSearchPaths();
+        for (File dir : searchPaths)
         {
             File snapshotDir = isSecondaryIndexFolder(dir)
                                ? new File(dir.parentPath(), SNAPSHOT_SUBDIR)
