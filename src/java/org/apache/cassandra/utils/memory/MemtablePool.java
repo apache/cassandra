@@ -94,9 +94,9 @@ public abstract class MemtablePool
     }
 
     /**
-     * Note the difference between acquire() and allocate(); allocate() makes more resources available to all owners,
-     * and acquire() makes shared resources unavailable but still recorded. An Owner must always acquire resources,
-     * but only needs to allocate if there are none already available. This distinction is not always meaningful.
+     * Tracks memory attributed to this pool. Since CASSANDRA-21019 allocations only
+     * record usage (allocated/reclaiming) and drive cleaning; the limit is enforced
+     * before a mutation starts, via SubAllocator.awaitRoom() against belowLimit().
      */
     public class SubPool
     {
@@ -148,17 +148,12 @@ public abstract class MemtablePool
 
         /** Methods to allocate space **/
 
-        boolean tryAllocate(long size)
+        /** True if the pool is under its limit; reserves nothing. See SubAllocator.awaitRoom(). */
+        boolean belowLimit()
         {
-            while (true)
-            {
-                long cur;
-                if ((cur = allocated) + size > limit)
-                    return false;
-                if (allocatedUpdater.compareAndSet(this, cur, cur + size))
-                    return true;
-            }
+            return allocated < limit;
         }
+
 
         /**
          * apply the size adjustment to allocated, bypassing any limits or constraints. If this reduces the
@@ -184,10 +179,6 @@ public abstract class MemtablePool
             maybeClean();
         }
 
-        void acquired()
-        {
-            maybeClean();
-        }
 
         void released(long size)
         {
