@@ -40,6 +40,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.compression.CompressionDictionaryAutoTrainingManager;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -195,6 +196,7 @@ public final class ServerTestUtils
         initCMS();
         SystemKeyspace.persistLocalMetadata();
         AuditLogManager.instance.initialize();
+        CompressionDictionaryAutoTrainingManager.instance.start();
 
         DiskErrorsHandlerService.configure();
 

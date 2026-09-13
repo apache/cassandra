@@ -22,6 +22,7 @@ import java.util.function.Consumer;
 
 import org.apache.cassandra.db.ColumnFamilyStore.RefViewFragment;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.utils.concurrent.Future;
 
 /**
  * Interface for managing scheduled tasks for compression dictionary operations.
@@ -40,26 +41,27 @@ public interface ICompressionDictionaryScheduler extends AutoCloseable
 
     /**
      * Schedules SSTable-based training that samples from existing SSTables.
-     *
+     * <p>
      * A caller of this method should ensure that SSTables referred in {@code refViewFragment} are closed
      * eventually, either directly at the end of that method or by other means, when training is running
      * asynchronously.
-     *
+     * <p>
      * A caller of this method might assume that {@code trainer} might be closed after this method finishes, either
      * directly in this method or indirectly when training is running asynchronously.
      *
-     * @param refViewFragment the view of SSTables to sample from
+     * @param refViewFragment   the view of SSTables to sample from
      * @param compressionParams parameters for compression
-     * @param config the training configuration
-     * @param listener listener invoked when a dictionary is trained
-     * @param force force the dictionary training even if there are not enough samples
+     * @param config            the training configuration
+     * @param listener          listener invoked when a dictionary is trained
+     * @param force             force the dictionary training even if there are not enough samples
+     * @return training future which runs the actual training or null if no training was scheduled
      * @throws IllegalStateException if training is already in progress
      */
-    void scheduleSSTableBasedTraining(RefViewFragment refViewFragment,
-                                      CompressionParams compressionParams,
-                                      CompressionDictionaryTrainingConfig config,
-                                      Consumer<CompressionDictionary> listener,
-                                      boolean force);
+    Future<?> scheduleSSTableBasedTraining(RefViewFragment refViewFragment,
+                                           CompressionParams compressionParams,
+                                           CompressionDictionaryTrainingConfig config,
+                                           Consumer<CompressionDictionary> listener,
+                                           boolean force);
 
     /**
      * Sets the enabled state of the scheduler. When disabled, refresh tasks will not execute.
@@ -69,4 +71,11 @@ public interface ICompressionDictionaryScheduler extends AutoCloseable
     void setEnabled(boolean enabled);
 
     TrainingState getLastTrainingState();
+
+    /**
+     * Returns whether a training is running or not.
+     *
+     * @return true if there is a training running against a table, false otherwise
+     */
+    boolean isTrainingRunning();
 }

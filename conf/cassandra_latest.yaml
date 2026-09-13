@@ -2780,3 +2780,18 @@ compression_dictionary_cache_size: 10
 # Expired dictionaries will be removed from memory but can be reloaded if needed.
 # Min unit: s
 compression_dictionary_cache_expire: 24h
+
+# Controls if auto-training of compression dictionaries is enabled on this node or not
+# A node has to be a full CMS member with the lowest id to be selected for auto-training.
+# There is always at most one node who auto-trains in the whole cluster.
+compression_dictionary_auto_training_enabled: false
+
+# Controls the interval auto-training will be conducted at. Each interval, training will be
+# conducted all tables which have auto_training_enabled set to true in their compression parameters
+# when a dictionary compressor is in use.
+compression_dictionary_auto_training_interval: 1h
+
+# Controls initial delay of auto-training. If training interval is, for example, 1 day,
+# we would start auto-training for the first time after one day. If this is set e.g. to 1 hour,
+# Then the initial auto-training will be done after 1 hour and each next one will be done 1 day after it.
+compression_dictionary_auto_training_initial_delay: 1h

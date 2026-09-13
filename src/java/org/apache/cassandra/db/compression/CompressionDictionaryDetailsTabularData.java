@@ -170,7 +170,7 @@ public class CompressionDictionaryDetailsTabularData
                                             dictionary.kind().name(),
                                             dictionary.checksum(),
                                             dictionary.rawDictionary().length,
-                                            dictionary.createdAt().toString(),
+                                            dictionary.createdAt().toString()
                                             });
         }
         catch (OpenDataException e)

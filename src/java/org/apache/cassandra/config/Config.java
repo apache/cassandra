@@ -578,6 +578,9 @@ public class Config
     public volatile DurationSpec.IntSecondsBound compression_dictionary_refresh_initial_delay = new DurationSpec.IntSecondsBound("10s"); // 10 seconds default
     public volatile int compression_dictionary_cache_size = 10; // max dictionaries per table
     public volatile DurationSpec.IntSecondsBound compression_dictionary_cache_expire = new DurationSpec.IntSecondsBound("24h");
+    public volatile boolean compression_dictionary_auto_training_enabled = false;
+    public volatile DurationSpec.IntMinutesBound compression_dictionary_auto_training_interval = new DurationSpec.IntMinutesBound("1h");
+    public volatile DurationSpec.IntMinutesBound compression_dictionary_auto_training_initial_delay = new DurationSpec.IntMinutesBound("1h");
 
     public DataStorageSpec.LongMebibytesBound paxos_cache_size = null;
 

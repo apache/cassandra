@@ -391,7 +391,10 @@ public interface CompressionDictionary
          * @param createdAt creation date of to-be-constructed dictionary
          * @return a compression dictionary instance
          */
-        public abstract CompressionDictionary createDictionary(CompressionDictionary.DictId dictId, byte[] dict, int checksum, Instant createdAt);
+        public abstract CompressionDictionary createDictionary(CompressionDictionary.DictId dictId,
+                                                               byte[] dict,
+                                                               int checksum,
+                                                               Instant createdAt);
 
         /**
          * Creates a dictionary compressor for this kind

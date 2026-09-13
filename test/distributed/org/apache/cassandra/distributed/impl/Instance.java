@@ -85,6 +85,8 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionLogger;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compression.CompressionDictionaryAutoTrainingManager;
+import org.apache.cassandra.db.compression.CompressionDictionaryScheduler;
 import org.apache.cassandra.db.memtable.AbstractAllocatorMemtable;
 import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.distributed.Cluster;
@@ -935,6 +937,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
         ActiveRepairService.instance().start();
         StreamManager.instance.start();
+        CompressionDictionaryAutoTrainingManager.instance.start();
         PaxosState.startAutoRepairs();
         StorageService.instance.doAutoRepairSetup();
         CassandraDaemon.getInstanceForTesting().completeSetup();
@@ -974,7 +977,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             Throwable error = null;
             inInstancelogger.warn("Shutting down in thread {}", Thread.currentThread().getName());
 
-            error = parallelRun(error, executor, SnapshotManager.instance::close);
+            error = parallelRun(error, executor, SnapshotManager.instance::close, CompressionDictionaryAutoTrainingManager.instance::close);
 
             CompactionManager.instance.forceShutdown();
 
@@ -1030,6 +1033,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             error = parallelRun(error, executor,
                                 shutdownBatchlogAndHints,
                                 () -> CompactionLogger.shutdownNowAndWait(1L, MINUTES),
+                                () -> CompressionDictionaryScheduler.shutdownNowAndWait(1L, MINUTES),
                                 () -> AuthCache.shutdownAllAndWait(1L, MINUTES),
                                 () -> Sampler.shutdownNowAndWait(1L, MINUTES),
                                 NettyStreamingChannel::shutdown,

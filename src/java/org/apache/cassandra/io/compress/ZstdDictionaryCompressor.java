@@ -82,6 +82,10 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
         CompressionDictionaryTrainingConfig.getMaxDictionarySize(options);
         CompressionDictionaryTrainingConfig.getMaxTotalSampleSize(options);
         CompressionDictionaryTrainingConfig.getMinTrainingFrequency(options);
+        CompressionDictionaryTrainingConfig.isAutoTrainingEnabled(options);
+        CompressionDictionaryTrainingConfig.getAutoTrainingImprovementThreshold(options);
+        CompressionDictionaryTrainingConfig.getAutoTrainingTwcsMaxWindows(options);
+
         return getOrCreate(level, null);
     }
 
@@ -119,7 +123,10 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
         super(level, Set.of(COMPRESSION_LEVEL_OPTION_NAME,
                             TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME,
                             TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME,
-                            TRAINING_MIN_FREQUENCY_PARAMETER_NAME));
+                            TRAINING_MIN_FREQUENCY_PARAMETER_NAME,
+                            AUTO_TRAINING_ENABLED,
+                            AUTO_TRAINING_TWCS_MAX_WINDOWS,
+                            AUTO_TRAINING_IMPROVEMENT_THRESHOLD_NAME));
         this.dictionary = dictionary;
         this.dictionaryRef = dictionaryRef;
     }
