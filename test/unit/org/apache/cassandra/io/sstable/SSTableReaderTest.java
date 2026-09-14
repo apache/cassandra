@@ -18,12 +18,16 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -54,6 +58,7 @@ import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
@@ -63,6 +68,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.Row;
@@ -85,6 +91,7 @@ import org.apache.cassandra.io.sstable.keycache.KeyCache;
 import org.apache.cassandra.io.sstable.keycache.KeyCacheSupport;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.MmappedRegions;
 import org.apache.cassandra.io.util.PageAware;
 import org.apache.cassandra.schema.CachingParams;
@@ -99,6 +106,8 @@ import org.apache.cassandra.utils.concurrent.SelfRefCounted;
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -1480,5 +1489,91 @@ public class SSTableReaderTest
         T ref = refSupplier.get();
         refsToRelease.add(ref.selfRef());
         return ref;
+    }
+
+    @Test
+    public void testCreateLinksSkipsRegenerableComponentButFailsOnMissingRequired() throws IOException
+    {
+        // This reader is never registered with a tracker; this test owns its self reference.
+        SSTableReader reader = SSTableUtils.prepare().ks(KEYSPACE1).cf(CF_STANDARD).write(Collections.singleton("key")).iterator().next();
+        File directory = reader.descriptor.directory;
+        Ref<SSTableReader> ref = reader.selfRef();
+        try
+        {
+            File destination = new File(Files.createTempDirectory(directory.toPath(), "links-"));
+            Set<Component> components = Sets.newHashSet(reader.components);
+
+            Component regenerable = Components.FILTER;
+            assertTrue(reader.descriptor.getFormat().generatedOnLoadComponents().contains(regenerable));
+            assertTrue(components.contains(regenerable));
+            Files.delete(reader.descriptor.fileFor(regenerable).toPath());
+
+            SSTableReader.createLinks(reader.descriptor, components, destination.path(), null, false);
+            assertFalse(new File(destination, reader.descriptor.fileFor(regenerable).name()).exists());
+            assertTrue(new File(destination, reader.descriptor.fileFor(Components.DATA).name()).exists());
+
+            Component required = Components.STATS;
+            assertFalse(reader.descriptor.getFormat().generatedOnLoadComponents().contains(required));
+            Files.delete(reader.descriptor.fileFor(required).toPath());
+            File destination2 = new File(Files.createTempDirectory(directory.toPath(), "links2-"));
+            assertThatThrownBy(() -> SSTableReader.createLinks(reader.descriptor, components, destination2.path(), null, false))
+            .isInstanceOf(UncheckedIOException.class)
+            .hasCauseInstanceOf(NoSuchFileException.class);
+        }
+        finally
+        {
+            ref.release();
+            LifecycleTransaction.waitForDeletions();
+            FileUtils.deleteRecursive(directory);
+        }
+    }
+
+    @Test
+    public void testIncrementalBackupPinsComponentsUntilLinked() throws IOException
+    {
+        SSTableReader reader = SSTableUtils.prepare().ks(KEYSPACE1).cf(CF_STANDARD).write(Collections.singleton("key")).iterator().next();
+        ColumnFamilyStore cfs = Mockito.mock(ColumnFamilyStore.class);
+        Mockito.when(cfs.isTableIncrementalBackupsEnabled()).thenReturn(true);
+        Tracker tracker = new Tracker(cfs, null, false);
+        File directory = reader.descriptor.directory;
+        File backups = new File(directory, Directories.BACKUPS_SUBDIR);
+        Map<Component, byte[]> contents = new HashMap<>();
+        for (Component component : reader.components)
+            contents.put(component, Files.readAllBytes(reader.descriptor.fileFor(component).toPath()));
+        // Deletes every component once the reader's refcount reaches zero, like a real obsoletion.
+        reader.markObsolete(() -> {
+            for (Component component : reader.components)
+            {
+                File source = reader.descriptor.fileFor(component);
+                if (source.exists())
+                    source.delete();
+            }
+        });
+        try
+        {
+            SSTableReader racingReader = Mockito.spy(reader);
+            Mockito.doAnswer(invocation -> {
+                // Model compaction releasing its last reference right as backup starts linking.
+                // Without Tracker's own tryRef() pin, this races the deletion above against createLinks.
+                reader.selfRef().release();
+                LifecycleTransaction.waitForDeletions();
+                return invocation.callRealMethod();
+            }).when(racingReader).createLinks(Mockito.anyString());
+
+            tracker.maybeIncrementallyBackup(Collections.singleton(racingReader));
+            for (Map.Entry<Component, byte[]> entry : contents.entrySet())
+                assertArrayEquals(entry.getValue(), Files.readAllBytes(new File(backups, reader.descriptor.fileFor(entry.getKey()).name()).toPath()));
+
+            LifecycleTransaction.waitForDeletions();
+            // Tracker's pin deferred the deletion until linking finished, then released it.
+            for (Component component : reader.components)
+                assertFalse(reader.descriptor.fileFor(component).exists());
+        }
+        finally
+        {
+            reader.selfRef().ensureReleased();
+            LifecycleTransaction.waitForDeletions();
+            FileUtils.deleteRecursive(directory);
+        }
     }
 }
