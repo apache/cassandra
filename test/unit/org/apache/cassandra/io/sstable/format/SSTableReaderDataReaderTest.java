@@ -216,11 +216,11 @@ public class SSTableReaderDataReaderTest
     }
 
     @Test
-    public void testForScanReusesWithNullMode()
+    public void testForPartitionReadReusesWithNullMode()
     {
         SSTableReader sstable = createSSTable(CF_UNCOMPRESSED);
 
-        try (RandomAccessReader reader = sstable.openDataReaderForScan())
+        try (RandomAccessReader reader = sstable.openDataReaderForPartitionRead())
         {
             assertReaderSharesDfileChannel(sstable, reader);
         }

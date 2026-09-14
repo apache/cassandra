@@ -44,10 +44,10 @@ import org.apache.cassandra.utils.Pair;
 import static java.lang.Math.max;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_IO_TMPDIR;
 
-public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
+public class ReadAheadBufferTest implements WithQuickTheories
 {
     private static final int numFiles = 5;
-    private static final Logger logger = LoggerFactory.getLogger(ThreadLocalReadAheadBufferTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(ReadAheadBufferTest.class);
     protected static final File[] files = new File[numFiles];
     protected static Integer seed;
 
@@ -94,19 +94,105 @@ public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
             .checkAssert(this::testReads);
     }
 
-    protected void testReads(InputData propertyInputs)
+    @Test
+    public void allocateInitialisesBufferSizeFromCapacity() throws CorruptBlockException
     {
-        try (ChannelProxy channel = new ChannelProxy(propertyInputs.file);
-             ThreadLocalReadAheadBuffer tlrab = new ThreadLocalReadAheadBuffer(channel, new DataStorageSpec.IntKibibytesBound("256KiB").toBytes(), BufferType.OFF_HEAP); )
+        int bufferSize = new DataStorageSpec.IntKibibytesBound("256KiB").toBytes();
+        try (ChannelProxy channel = new ChannelProxy(files[0]))
         {
-            for (Pair<Long, Integer> read : propertyInputs.positionsAndLengths)
+            ReadAheadBuffer buffer = new ReadAheadBuffer(channel, bufferSize, BufferType.OFF_HEAP);
+            try
             {
-                testRead(read, channel, tlrab);
+                // Buffer is lazily allocated; before allocation there is no buffer.
+                Assert.assertFalse(buffer.hasBuffer());
+
+                buffer.allocateBuffer();
+
+                // Ownership is per-instance: allocation must set bufferSize from the buffer capacity,
+                // not leave it at -1 (which would make fill() call ByteBuffer.limit(-1)).
+                Assert.assertTrue(buffer.hasBuffer());
+                Assert.assertEquals("allocate must initialise bufferSize from capacity",
+                                    bufferSize, buffer.bufferSize());
+            }
+            finally
+            {
+                buffer.close();
             }
         }
     }
 
-    protected static void testRead(Pair<Long, Integer> read, ChannelProxy bufferedChannel, ThreadLocalReadAheadBuffer tlrab)
+    @Test
+    public void independentInstancesDoNotShareBuffer() throws CorruptBlockException
+    {
+        // Each ReadAheadBuffer owns its own buffer. Two instances over the same file, on the same
+        // thread, must not share state. Under the old static per-thread, per-path Block cache they
+        // shared one buffer, so advancing one instance to a different block clobbered the other's view.
+        File file = files[0];
+        int bufferSize = new DataStorageSpec.IntKibibytesBound("256KiB").toBytes();
+        try (ChannelProxy channel = new ChannelProxy(file))
+        {
+            ReadAheadBuffer a = new ReadAheadBuffer(channel, bufferSize, BufferType.OFF_HEAP);
+            ReadAheadBuffer b = new ReadAheadBuffer(channel, bufferSize, BufferType.OFF_HEAP);
+            try
+            {
+                a.fill(0);
+
+                // Advance b to a different block if the file is large enough; else keep it on block 0.
+                long secondBlock = bufferSize;
+                b.fill(channel.size() > secondBlock ? secondBlock : 0);
+
+                // a must still read block 0. A shared buffer would return b's block here.
+                int readSize = Math.min(100, (int) channel.size());
+                ByteBuffer expected = ByteBuffer.allocate(readSize);
+                channel.read(expected, 0);
+                expected.flip();
+
+                ByteBuffer actual = ByteBuffer.allocate(readSize);
+                a.read(actual, readSize);
+                actual.flip();
+
+                Assert.assertEquals(expected, actual);
+            }
+            finally
+            {
+                b.close();
+                a.close();
+            }
+        }
+    }
+
+    @Test
+    public void closeFreesBufferAndIsIdempotent() throws CorruptBlockException
+    {
+        int bufferSize = new DataStorageSpec.IntKibibytesBound("256KiB").toBytes();
+        try (ChannelProxy channel = new ChannelProxy(files[0]))
+        {
+            ReadAheadBuffer buffer = new ReadAheadBuffer(channel, bufferSize, BufferType.OFF_HEAP);
+            buffer.allocateBuffer();
+            Assert.assertTrue(buffer.hasBuffer());
+
+            buffer.close();
+            Assert.assertFalse("close must free the owned buffer", buffer.hasBuffer());
+
+            // A second close must not double-free.
+            buffer.close();
+            Assert.assertFalse(buffer.hasBuffer());
+        }
+    }
+
+    protected void testReads(InputData propertyInputs)
+    {
+        try (ChannelProxy channel = new ChannelProxy(propertyInputs.file);
+             ReadAheadBuffer rab = new ReadAheadBuffer(channel, new DataStorageSpec.IntKibibytesBound("256KiB").toBytes(), BufferType.OFF_HEAP); )
+        {
+            for (Pair<Long, Integer> read : propertyInputs.positionsAndLengths)
+            {
+                testRead(read, channel, rab);
+            }
+        }
+    }
+
+    protected static void testRead(Pair<Long, Integer> read, ChannelProxy bufferedChannel, ReadAheadBuffer rab)
     {
         int readSize = Math.min(read.right, (int) (bufferedChannel.size() - read.left));
         ByteBuffer buf1 = ByteBuffer.allocate(readSize);
@@ -118,12 +204,12 @@ public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
             int copied = 0;
             while (copied < readSize)
             {
-                tlrab.fill(read.left + copied);
+                rab.fill(read.left + copied);
                 int leftToRead = readSize - copied;
-                if (tlrab.remaining() >= leftToRead)
-                    copied += tlrab.read(buf2, leftToRead);
+                if (rab.remaining() >= leftToRead)
+                    copied += rab.read(buf2, leftToRead);
                 else
-                    copied += tlrab.read(buf2, tlrab.remaining());
+                    copied += rab.read(buf2, rab.remaining());
             }
         }
         catch (CorruptSSTableException | CorruptBlockException e)

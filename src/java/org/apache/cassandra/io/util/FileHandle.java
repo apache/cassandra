@@ -205,23 +205,23 @@ public class FileHandle extends SharedCloseableImpl
      */
     public RandomAccessReader createReader(RateLimiter limiter)
     {
-        return createReader(limiter, false);
+        return createReader(limiter, ReadPattern.ROW_READ);
     }
 
-    public RandomAccessReader createReader(RateLimiter limiter, boolean forScan)
+    public RandomAccessReader createReader(RateLimiter limiter, ReadPattern pattern)
     {
-        return createReader(limiter, forScan, OnReaderClose.RETAIN_FILE_OPEN);
+        return createReader(limiter, pattern, OnReaderClose.RETAIN_FILE_OPEN);
     }
 
-    public RandomAccessReader createReader(RateLimiter limiter, boolean forScan, OnReaderClose onReaderClose)
+    public RandomAccessReader createReader(RateLimiter limiter, ReadPattern pattern, OnReaderClose onReaderClose)
     {
         if (onReaderClose == OnReaderClose.CLOSE_FILE)
         {
-            return new RandomAccessReader.RandomAccessReaderWithOwnFile(instantiateRebufferer(limiter, forScan), this);
+            return new RandomAccessReader.RandomAccessReaderWithOwnFile(instantiateRebufferer(limiter, pattern), this);
         }
         else if (onReaderClose == OnReaderClose.RETAIN_FILE_OPEN)
         {
-            return new RandomAccessReader(instantiateRebufferer(limiter, forScan));
+            return new RandomAccessReader(instantiateRebufferer(limiter, pattern));
         }
         throw new IllegalArgumentException("Unknown close policy: " + onReaderClose);
     }
@@ -266,12 +266,12 @@ public class FileHandle extends SharedCloseableImpl
 
     public Rebufferer instantiateRebufferer(RateLimiter limiter)
     {
-        return instantiateRebufferer(limiter, false);
+        return instantiateRebufferer(limiter, ReadPattern.ROW_READ);
     }
 
-    public Rebufferer instantiateRebufferer(RateLimiter limiter, boolean forScan)
+    public Rebufferer instantiateRebufferer(RateLimiter limiter, ReadPattern pattern)
     {
-        Rebufferer rebufferer = rebuffererFactory.instantiateRebufferer(forScan);
+        Rebufferer rebufferer = rebuffererFactory.instantiateRebufferer(pattern);
 
         if (limiter != null)
             rebufferer = new LimitingRebufferer(rebufferer, limiter, DiskOptimizationStrategy.MAX_BUFFER_SIZE);

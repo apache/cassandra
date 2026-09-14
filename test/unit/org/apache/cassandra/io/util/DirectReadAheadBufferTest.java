@@ -27,7 +27,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.utils.Pair;
 
-public class DirectThreadLocalReadAheadBufferTest extends ThreadLocalReadAheadBufferTest
+public class DirectReadAheadBufferTest extends ReadAheadBufferTest
 {
 
     @Test
@@ -57,12 +57,12 @@ public class DirectThreadLocalReadAheadBufferTest extends ThreadLocalReadAheadBu
         try (ChannelProxy bufferedChannel = new ChannelProxy(propertyInputs.file);
              ChannelProxy directChannel = new ChannelProxy(propertyInputs.file, ChannelProxy.IOMode.DIRECT))
         {
-            ThreadLocalReadAheadBuffer tlrab = new DirectThreadLocalReadAheadBuffer(directChannel, bufferSize, blockSize);
+            ReadAheadBuffer rab = new DirectReadAheadBuffer(directChannel, bufferSize, blockSize);
             for (Pair<Long, Integer> read : propertyInputs.positionsAndLengths)
             {
-                testRead(read, bufferedChannel, tlrab);
+                testRead(read, bufferedChannel, rab);
             }
-            tlrab.close();
+            rab.close();
         }
     }
 
@@ -75,16 +75,16 @@ public class DirectThreadLocalReadAheadBufferTest extends ThreadLocalReadAheadBu
 
         try (ChannelProxy channel = new ChannelProxy(files[0], ChannelProxy.IOMode.DIRECT))
         {
-            DirectThreadLocalReadAheadBuffer tlrab =
-                new DirectThreadLocalReadAheadBuffer(channel, bufferSize, blockSize);
+            DirectReadAheadBuffer rab =
+                new DirectReadAheadBuffer(channel, bufferSize, blockSize);
 
             // Force buffer allocation
-            tlrab.allocateBuffer();
+            rab.allocateBuffer();
 
             long memoryUsedBefore = directPool.getMemoryUsed();
 
             // Close should clean the direct memory
-            tlrab.close();
+            rab.close();
 
             long memoryUsedAfter = directPool.getMemoryUsed();
 

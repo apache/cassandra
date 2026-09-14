@@ -19,9 +19,9 @@
 package org.apache.cassandra.io.util;
 
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.function.Supplier;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.CorruptBlockException;
@@ -29,39 +29,30 @@ import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 
-import io.netty.util.concurrent.FastThreadLocal;
-
-public class ThreadLocalReadAheadBuffer implements Closeable
+/**
+ * A read-ahead buffer for sequential scans of a single file.
+ * <p>
+ * Each instance owns its buffer.  An instance is used by one scan reader, which is single-threaded, so the buffer is
+ * never shared across threads.  A scan reader allocates one of these on open and frees it on close.  N scanners over N
+ * inputs give N buffers by construction.
+ */
+public class ReadAheadBuffer implements Closeable
 {
-
-    private static class Block
-    {
-        ByteBuffer buffer = null;
-        int index = -1;
-    }
-
     protected final ChannelProxy channel;
 
     private final Supplier<ByteBuffer> bufferSupplier;
-
-    private static final FastThreadLocal<Map<String, Block>> blockMap = new FastThreadLocal<>()
-    {
-        @Override
-        protected Map<String, Block> initialValue()
-        {
-            return new HashMap<>();
-        }
-    };
-
-    private volatile int bufferSize = -1;
     private final long channelSize;
 
-    public ThreadLocalReadAheadBuffer(ChannelProxy channel, int bufferSize, BufferType bufferType)
+    private ByteBuffer buffer;
+    private int index = -1;
+    private int bufferSize = -1;
+
+    public ReadAheadBuffer(ChannelProxy channel, int bufferSize, BufferType bufferType)
     {
         this(channel, () -> bufferType.allocate(bufferSize));
     }
 
-    public ThreadLocalReadAheadBuffer(ChannelProxy channel, Supplier<ByteBuffer> bufferSupplier)
+    public ReadAheadBuffer(ChannelProxy channel, Supplier<ByteBuffer> bufferSupplier)
     {
         this.channel = channel;
         this.channelSize = channel.size();
@@ -70,41 +61,39 @@ public class ThreadLocalReadAheadBuffer implements Closeable
 
     public boolean hasBuffer()
     {
-        return block().buffer != null;
+        return buffer != null;
+    }
+
+    @VisibleForTesting
+    int bufferSize()
+    {
+        return bufferSize;
     }
 
     public int remaining()
     {
-        return getBlock().buffer.remaining();
+        return getBuffer().remaining();
     }
 
     public void allocateBuffer()
     {
-        getBlock();
+        getBuffer();
     }
 
-    private Block getBlock()
+    private ByteBuffer getBuffer()
     {
-        Block block = block();
-        if (block.buffer == null)
+        if (buffer == null)
         {
-            block.buffer = bufferSupplier.get();
-            block.buffer.clear();
-            if (bufferSize == -1)
-                bufferSize = block.buffer.capacity();
+            buffer = bufferSupplier.get();
+            buffer.clear();
+            bufferSize = buffer.capacity();
         }
-        return block;
-    }
-
-    private Block block()
-    {
-        return blockMap.get().computeIfAbsent(channel.filePath(), k -> new Block());
+        return buffer;
     }
 
     public void fill(long position) throws CorruptBlockException
     {
-        Block block = getBlock();
-        ByteBuffer blockBuffer = block.buffer;
+        ByteBuffer blockBuffer = getBuffer();
         if (position >= channelSize)
             throw new CorruptBlockException(channel.filePath(), position, bufferSize);
 
@@ -113,11 +102,11 @@ public class ThreadLocalReadAheadBuffer implements Closeable
 
         long remaining = channelSize - blockPosition;
         int sizeToRead = (int) Math.min(remaining, bufferSize);
-        if (block.index != blockNo)
+        if (index != blockNo)
         {
             blockBuffer.flip();
             loadBlock(blockBuffer, blockPosition, sizeToRead);
-            block.index = blockNo;
+            index = blockNo;
         }
 
         blockBuffer.flip();
@@ -134,8 +123,7 @@ public class ThreadLocalReadAheadBuffer implements Closeable
 
     public int read(ByteBuffer dest, int length)
     {
-        Block block = getBlock();
-        ByteBuffer blockBuffer = block.buffer;
+        ByteBuffer blockBuffer = getBuffer();
         ByteBuffer tmp = blockBuffer.duplicate();
         tmp.limit(tmp.position() + length);
         dest.put(tmp);
@@ -146,21 +134,16 @@ public class ThreadLocalReadAheadBuffer implements Closeable
 
     public void clear(boolean deallocate)
     {
-        // avoid calling block() here to reduce unintended allocations
-        Block block = blockMap.get().get(channel.filePath());
-        if (block == null)
+        if (buffer == null)
             return;
 
-        block.index = -1;
-        if (block.buffer == null)
-            return;
-
-        ByteBuffer blockBuffer = block.buffer;
-        blockBuffer.clear();
+        index = -1;
+        buffer.clear();
         if (deallocate)
         {
-            cleanBuffer(blockBuffer);
-            block.buffer = null;
+            cleanBuffer(buffer);
+            buffer = null;
+            bufferSize = -1;
         }
     }
 
@@ -173,6 +156,5 @@ public class ThreadLocalReadAheadBuffer implements Closeable
     public void close()
     {
         clear(true);
-        blockMap.get().remove(channel.filePath());
     }
 }

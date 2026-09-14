@@ -97,6 +97,7 @@ import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.FileUtils.DuplicateHardlinkException;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.io.util.ReadPattern;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -1421,43 +1422,51 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     public RandomAccessReader openDataReader()
     {
-        return openDataReaderInternal(null, null, false);
+        return openDataReaderInternal(null, null, ReadPattern.ROW_READ);
     }
 
     public RandomAccessReader openDataReader(RateLimiter limiter)
     {
         assert limiter != null;
-        return openDataReaderInternal(null, limiter, false);
+        return openDataReaderInternal(null, limiter, ReadPattern.ROW_READ);
     }
 
     public RandomAccessReader openDataReader(DiskAccessMode diskAccessMode)
     {
-        return openDataReaderInternal(diskAccessMode, null, false);
+        return openDataReaderInternal(diskAccessMode, null, ReadPattern.ROW_READ);
     }
 
-    public RandomAccessReader openDataReaderForScan()
+    /**
+     * A reader for a query that walks a range of partitions, such as a token-range query. It reads in order, but
+     * keeps the chunk cache because a repeated partition-range query re-reads hot data. See CASSANDRA-21671.
+     */
+    public RandomAccessReader openDataReaderForPartitionRead()
     {
-        return openDataReaderInternal(null, null, true);
+        return openDataReaderInternal(null, null, ReadPattern.PARTITION_READ);
     }
 
+    /**
+     * A reader for a one-shot scan (compaction and similar). It reads each chunk once, so it bypasses the chunk
+     * cache and uses its own read-ahead buffer. See CASSANDRA-21671.
+     */
     public RandomAccessReader openDataReaderForScan(DiskAccessMode diskAccessMode)
     {
-        return openDataReaderInternal(diskAccessMode, null, true);
+        return openDataReaderInternal(diskAccessMode, null, ReadPattern.SCAN);
     }
 
     private RandomAccessReader openDataReaderInternal(@Nullable DiskAccessMode diskAccessMode,
                                                       @Nullable RateLimiter limiter,
-                                                      boolean forScan)
+                                                      ReadPattern pattern)
     {
         if (canReuseDfile(diskAccessMode))
-            return dfile.createReader(limiter, forScan, OnReaderClose.RETAIN_FILE_OPEN);
+            return dfile.createReader(limiter, pattern, OnReaderClose.RETAIN_FILE_OPEN);
 
         FileHandle handle = dfile.toBuilder()
                                  .withDiskAccessMode(diskAccessMode)
                                  .complete();
         try
         {
-            return handle.createReader(limiter, forScan, OnReaderClose.CLOSE_FILE);
+            return handle.createReader(limiter, pattern, OnReaderClose.CLOSE_FILE);
         }
         catch (Throwable t)
         {
