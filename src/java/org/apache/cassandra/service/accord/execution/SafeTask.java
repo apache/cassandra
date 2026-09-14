@@ -289,7 +289,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
         final boolean isLoaded(SafeTask<?> owner)
         {
-            return loaded >= Math.min(owner.keys - failed, alwaysReady ? 1 : NONSYNC_MIN_BATCH_SIZE);
+            return loaded >= Math.min(owner.keys - (processed + failed), alwaysReady ? 1 : NONSYNC_MIN_BATCH_SIZE);
         }
 
         final boolean isWaitReady(SafeTask<?> owner)
