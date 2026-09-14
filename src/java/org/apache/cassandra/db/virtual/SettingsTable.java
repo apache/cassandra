@@ -25,6 +25,8 @@ import java.util.Objects;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.cassandra.audit.AuditLogManager;
+import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Redacted;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -35,6 +37,8 @@ import org.apache.cassandra.config.Replacements;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
+import org.apache.cassandra.fql.FullQueryLogger;
+import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
 import org.yaml.snakeyaml.introspector.Property;
@@ -43,6 +47,12 @@ final class SettingsTable extends AbstractVirtualTable
 {
     private static final String NAME = "name";
     private static final String VALUE = "value";
+    private static final String FQL_PREFIX = "full_query_logging_options";
+    private static final String AUDIT_PREFIX = "audit_logging_options";
+    private static final Map<String, Property> FQL_PROPERTIES = ImmutableMap.copyOf(
+        Properties.defaultLoader().flatten(FullQueryLoggerOptions.class));
+    private static final Map<String, Property> AUDIT_PROPERTIES = ImmutableMap.copyOf(
+        Properties.defaultLoader().flatten(AuditLogOptions.class));
 
     private static final Map<String, String> BACKWARDS_COMPATABLE_NAMES = ImmutableMap.copyOf(getBackwardsCompatableNames());
     protected static final Map<String, Property> PROPERTIES = ImmutableMap.copyOf(getProperties());
@@ -87,6 +97,31 @@ final class SettingsTable extends AbstractVirtualTable
         return result;
     }
 
+    /**
+     * Returns the value to use for the given property. For FQL and audit logging properties,
+     * resolves from the current runtime options (which revert to yaml defaults when disabled)
+     * so the virtual table reflects the actual active state rather than the Config object.
+     */
+    private Object resolveValue(Property prop)
+    {
+        String name = prop.getName();
+        if (name.startsWith(FQL_PREFIX + "."))
+        {
+            String subName = name.substring(FQL_PREFIX.length() + 1);
+            Property subProp = FQL_PROPERTIES.get(subName);
+            if (subProp != null)
+                return subProp.get(FullQueryLogger.instance.getFullQueryLoggerOptions());
+        }
+        if (name.startsWith(AUDIT_PREFIX + "."))
+        {
+            String subName = name.substring(AUDIT_PREFIX.length() + 1);
+            Property subProp = AUDIT_PROPERTIES.get(subName);
+            if (subProp != null)
+                return subProp.get(AuditLogManager.instance.getAuditLogOptions());
+        }
+        return prop.get(config);
+    }
+
     @VisibleForTesting
     String getValue(Property prop)
     {
@@ -94,7 +129,7 @@ final class SettingsTable extends AbstractVirtualTable
         if (maybeCredential != null)
             return maybeCredential.redactedValue();
 
-        Object value = prop.get(config);
+        Object value = resolveValue(prop);
         if (value == null)
             return null;
 
@@ -162,21 +197,21 @@ final class SettingsTable extends AbstractVirtualTable
     {
         Map<String, String> names = new HashMap<>();
         // Names that dont match yaml
-        names.put("audit_logging_options_logger", "audit_logging_options.logger.class_name");
+        names.put(AUDIT_PREFIX + "_logger", AUDIT_PREFIX + ".logger.class_name");
         names.put("server_encryption_options_client_auth", "server_encryption_options.require_client_auth");
         names.put("server_encryption_options_endpoint_verification", "server_encryption_options.require_endpoint_verification");
         names.put("server_encryption_options_legacy_ssl_storage_port", "server_encryption_options.legacy_ssl_storage_port_enabled");
         names.put("server_encryption_options_protocol", "server_encryption_options.accepted_protocols");
 
         // matching names
-        names.put("audit_logging_options_audit_logs_dir", "audit_logging_options.audit_logs_dir");
-        names.put("audit_logging_options_enabled", "audit_logging_options.enabled");
-        names.put("audit_logging_options_excluded_categories", "audit_logging_options.excluded_categories");
-        names.put("audit_logging_options_excluded_keyspaces", "audit_logging_options.excluded_keyspaces");
-        names.put("audit_logging_options_excluded_users", "audit_logging_options.excluded_users");
-        names.put("audit_logging_options_included_categories", "audit_logging_options.included_categories");
-        names.put("audit_logging_options_included_keyspaces", "audit_logging_options.included_keyspaces");
-        names.put("audit_logging_options_included_users", "audit_logging_options.included_users");
+        names.put(AUDIT_PREFIX + "_audit_logs_dir", AUDIT_PREFIX + ".audit_logs_dir");
+        names.put(AUDIT_PREFIX + "_enabled", AUDIT_PREFIX + ".enabled");
+        names.put(AUDIT_PREFIX + "_excluded_categories", AUDIT_PREFIX + ".excluded_categories");
+        names.put(AUDIT_PREFIX + "_excluded_keyspaces", AUDIT_PREFIX + ".excluded_keyspaces");
+        names.put(AUDIT_PREFIX + "_excluded_users", AUDIT_PREFIX + ".excluded_users");
+        names.put(AUDIT_PREFIX + "_included_categories", AUDIT_PREFIX + ".included_categories");
+        names.put(AUDIT_PREFIX + "_included_keyspaces", AUDIT_PREFIX + ".included_keyspaces");
+        names.put(AUDIT_PREFIX + "_included_users", AUDIT_PREFIX + ".included_users");
         names.put("server_encryption_options_algorithm", "server_encryption_options.algorithm");
         names.put("server_encryption_options_cipher_suites", "server_encryption_options.cipher_suites");
         names.put("server_encryption_options_enabled", "server_encryption_options.enabled");
