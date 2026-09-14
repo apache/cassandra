@@ -119,14 +119,6 @@ public class SyncUtil
         if (SKIP_SYNC)
             return;
 
-        int directoryFD = NativeLibrary.tryOpenDirectory(dir.path());
-        try
-        {
-            trySync(directoryFD);
-        }
-        finally
-        {
-            NativeLibrary.tryCloseFD(directoryFD);
-        }
+        NativeLibrary.trySyncDirectory(dir.path());
     }
 }

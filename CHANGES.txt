@@ -1,4 +1,5 @@
 7.0
+ * Tolerate unsupported fsync only for kernel-verified directory descriptors, using host-resolved errno values; on AIX, whose jnr Errno table has no ENOTSUP constant, only EINVAL/EOPNOTSUPP are tolerated (CASSANDRA-14380)
  * Allow CQLSSTableWriter to specify SSTable id generator to use (CASSANDRA-21012)
  * Reject LIKE patterns with a wildcard (%) anywhere other than the start or end (CASSANDRA-21068)
  * Support pluggable default role initialization (CASSANDRA-21546)

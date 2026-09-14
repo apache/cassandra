@@ -141,7 +141,7 @@ final class LogReplica implements AutoCloseable
         try
         {
             if (directoryDescriptor >= 0)
-                NativeLibrary.trySync(directoryDescriptor);
+                NativeLibrary.trySyncDirectory(directoryDescriptor, getDirectory());
         }
         catch (FSError e)
         {

@@ -84,13 +84,7 @@ public class ReplayMarkers
 
     private static void trySyncJournalDirectory()
     {
-        trySyncDirectory(getAccordJournalDirectory());
-    }
-
-    private static void trySyncDirectory(String path)
-    {
-        int fd = NativeLibrary.tryOpenDirectory(path);
-        NativeLibrary.trySync(fd);
+        NativeLibrary.trySyncDirectory(getAccordJournalDirectory());
     }
 
     public static File saveDirectory()
