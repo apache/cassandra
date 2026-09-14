@@ -28,6 +28,7 @@ import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamSession;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.utils.TimeUUID;
@@ -51,15 +52,16 @@ public class StreamInitMessage extends StreamMessage
     public final PreviewKind previewKind;
 
     public final ShortMutationId transferId;
+    public final Epoch decidedAt;
 
     public StreamInitMessage(InetAddressAndPort from, int sessionIndex, TimeUUID planId, StreamOperation streamOperation,
                              TimeUUID pendingRepair, PreviewKind previewKind)
     {
-        this(from, sessionIndex, planId, streamOperation, pendingRepair, previewKind, null);
+        this(from, sessionIndex, planId, streamOperation, pendingRepair, previewKind, null, Epoch.EMPTY);
     }
 
     public StreamInitMessage(InetAddressAndPort from, int sessionIndex, TimeUUID planId, StreamOperation streamOperation,
-                             TimeUUID pendingRepair, PreviewKind previewKind, ShortMutationId transferId)
+                             TimeUUID pendingRepair, PreviewKind previewKind, ShortMutationId transferId, Epoch decidedAt)
     {
         super(Type.STREAM_INIT);
         this.from = from;
@@ -69,12 +71,13 @@ public class StreamInitMessage extends StreamMessage
         this.pendingRepair = pendingRepair;
         this.previewKind = previewKind;
         this.transferId = transferId;
+        this.decidedAt = decidedAt;
     }
 
     @Override
     public StreamSession getOrCreateAndAttachInboundSession(StreamingChannel channel, int messagingVersion)
     {
-        StreamSession session = StreamResultFuture.createFollower(sessionIndex, planId, streamOperation, from, channel, messagingVersion, pendingRepair, previewKind, transferId)
+        StreamSession session = StreamResultFuture.createFollower(sessionIndex, planId, streamOperation, from, channel, messagingVersion, pendingRepair, previewKind, transferId, decidedAt)
                                  .getSession(from, sessionIndex);
         session.attachInbound(channel);
         return session;
@@ -108,6 +111,7 @@ public class StreamInitMessage extends StreamMessage
                 out.writeBoolean(message.transferId != null);
                 if (message.transferId != null)
                     ShortMutationId.serializer.serialize(message.transferId, out);
+                Epoch.messageSerializer.serialize(message.decidedAt, out, version);
             }
         }
 
@@ -121,12 +125,14 @@ public class StreamInitMessage extends StreamMessage
             TimeUUID pendingRepair = in.readBoolean() ? TimeUUID.deserialize(in) : null;
             PreviewKind previewKind = PreviewKind.deserialize(in.readInt());
 
-            ShortMutationId transferId = version >= MessagingService.Version.MIN_MUTATION_TRACKING_VERSION.value && in.readBoolean()
+            boolean tracked = version >= MessagingService.Version.MIN_MUTATION_TRACKING_VERSION.value;
+            ShortMutationId transferId = tracked && in.readBoolean()
                                          ? ShortMutationId.serializer.deserialize(in)
                                          : null;
+            Epoch decidedAt = tracked ? Epoch.messageSerializer.deserialize(in, version) : Epoch.EMPTY;
 
             return new StreamInitMessage(from, sessionIndex, planId, StreamOperation.fromString(description),
-                                         pendingRepair, previewKind, transferId);
+                                         pendingRepair, previewKind, transferId, decidedAt);
         }
 
         public long serializedSize(StreamInitMessage message, int version)
@@ -145,6 +151,7 @@ public class StreamInitMessage extends StreamMessage
                 size += TypeSizes.sizeof(message.transferId != null);
                 if (message.transferId != null)
                     size += ShortMutationId.serializer.serializedSize(message.transferId);
+                size += Epoch.messageSerializer.serializedSize(message.decidedAt, version);
             }
 
             return size;

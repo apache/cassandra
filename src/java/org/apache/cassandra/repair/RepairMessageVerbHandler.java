@@ -333,7 +333,8 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                                                                        isIncremental(desc.parentSessionId) ? desc.parentSessionId : null,
                                                                        request.previewKind,
                                                                        request.asymmetric,
-                                                                       request.transferId);
+                                                                       request.transferId,
+                                                                       request.decidedAt);
                     task.run();
                     sendAck(message);
                 }

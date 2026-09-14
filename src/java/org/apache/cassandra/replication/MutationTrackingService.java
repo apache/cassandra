@@ -611,7 +611,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             {
                 pending = TransferTrackingService.instance().getPendingTransfer(request.planId);
 
-                if (pending == null && TransferTrackingService.hasPendingDirectories(request.planId))
+                if (pending == null && TransferTrackingService.hasPendingDirectories(keyspace, request.planId))
                     throw new IllegalStateException(String.format("Cannot activate %s: SSTables were staged for this plan but the " +
                                                                   "pending transfer is no longer tracked, most likely because this node " +
                                                                   "restarted before it was activated. They must be re-streamed.", request));
