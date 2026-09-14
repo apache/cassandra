@@ -59,7 +59,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     private final ILifecycleTransaction transaction; // the readers we are rewriting (updated as they are replaced)
     private final List<SSTableReader> preparedForCommit = new ArrayList<>();
 
-    private long currentlyOpenedEarlyAt; // the position (in MiB) in the target file we last (re)opened at
+    private long currentlyOpenedEarlyAt; // the byte position in the target file we last reopened or skipped cache at
     private long bytesWritten; // the bytes written by previous writers, or zero if the current writer is the first writer
 
     private final List<SSTableWriter> writers = new ArrayList<>();
@@ -166,6 +166,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
                 {
                     reader.trySkipFileCacheBefore(key);
                 }
+                currentlyOpenedEarlyAt = writer.getFilePointer();
             }
             else
             {
