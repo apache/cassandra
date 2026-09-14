@@ -245,36 +245,43 @@ public class DirectCompressedChunkReaderTest extends CompressedChunkReaderTestBa
              CompressedChunkReader reader = new CompressedChunkReader.Direct(channel, metadata, () -> 1d);
              metadata)
         {
-            if (forScan)
-                reader.forScan();
-
-            long currentFileOffset = 0;
-            long totalBytesRead = 0;
-            int currentChunkIndex = 0;
-
-            while (totalBytesRead < totalBytesExpected)
+            // forScan() returns a per-scan reader that owns its read-ahead buffer; use it, then close it.
+            CompressedChunkReader scanReader = forScan ? reader.forScan() : reader;
+            try
             {
-                ByteBuffer currentExpectedChunk = expectedChunksData.get(currentChunkIndex);
+                long currentFileOffset = 0;
+                long totalBytesRead = 0;
+                int currentChunkIndex = 0;
 
-                readBuffer.clear();
-                reader.readChunk(currentFileOffset, readBuffer);
+                while (totalBytesRead < totalBytesExpected)
+                {
+                    ByteBuffer currentExpectedChunk = expectedChunksData.get(currentChunkIndex);
 
-                Assert.assertTrue("Read buffer is empty unexpectedly at offset " + currentFileOffset, readBuffer.hasRemaining());
+                    readBuffer.clear();
+                    scanReader.readChunk(currentFileOffset, readBuffer);
 
-                int actualBytesRead = readBuffer.remaining();
-                int expectedBytes = currentExpectedChunk.remaining();
+                    Assert.assertTrue("Read buffer is empty unexpectedly at offset " + currentFileOffset, readBuffer.hasRemaining());
 
-                Assert.assertTrue("Read buffer remaining (" + actualBytesRead + ") is less than expected (" + expectedBytes + ") at offset " + currentFileOffset,
-                                  actualBytesRead >= expectedBytes);
+                    int actualBytesRead = readBuffer.remaining();
+                    int expectedBytes = currentExpectedChunk.remaining();
 
-                int originalReadBufferLimit = readBuffer.limit();
-                readBuffer.limit(expectedBytes);
-                Assert.assertEquals("Mismatched data at offset " + currentFileOffset, currentExpectedChunk, readBuffer);
-                readBuffer.limit(originalReadBufferLimit);
+                    Assert.assertTrue("Read buffer remaining (" + actualBytesRead + ") is less than expected (" + expectedBytes + ") at offset " + currentFileOffset,
+                                      actualBytesRead >= expectedBytes);
 
-                totalBytesRead += expectedBytes;
-                currentFileOffset += metadata.chunkLength();
-                currentChunkIndex++;
+                    int originalReadBufferLimit = readBuffer.limit();
+                    readBuffer.limit(expectedBytes);
+                    Assert.assertEquals("Mismatched data at offset " + currentFileOffset, currentExpectedChunk, readBuffer);
+                    readBuffer.limit(originalReadBufferLimit);
+
+                    totalBytesRead += expectedBytes;
+                    currentFileOffset += metadata.chunkLength();
+                    currentChunkIndex++;
+                }
+            }
+            finally
+            {
+                if (scanReader != reader)
+                    scanReader.close();
             }
         }
         finally
