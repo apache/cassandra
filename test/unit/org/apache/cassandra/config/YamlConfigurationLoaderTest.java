@@ -62,6 +62,15 @@ import static org.junit.Assert.assertTrue;
 public class YamlConfigurationLoaderTest
 {
     @Test
+    public void backgroundReadModeAcceptsLegacyName()
+    {
+        Config legacy = YamlConfigurationLoader.fromMap(ImmutableMap.of("compaction_read_disk_access_mode", "direct"), true, Config.class);
+        Config current = YamlConfigurationLoader.fromMap(ImmutableMap.of("background_read_disk_access_mode", "direct"), true, Config.class);
+        assertEquals(Config.DiskAccessMode.direct, legacy.background_read_disk_access_mode);
+        assertEquals(legacy.background_read_disk_access_mode, current.background_read_disk_access_mode);
+    }
+
+    @Test
     public void repairRetryEmpty()
     {
         RepairRetrySpec repair_retries = loadRepairRetry(ImmutableMap.of());

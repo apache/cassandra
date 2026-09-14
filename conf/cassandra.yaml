@@ -711,10 +711,14 @@ commitlog_disk_access_mode: legacy
 # Experimental.  New garbage free compaction path.  Does not yet support collections, counters, BTI.
 cursor_compaction_enabled: false
 
-# Set the disk access mode for reading SSTables during compaction. The allowed values are:
+# Set the disk access mode for reading SSTables during background operations
+# (compaction, scrub, verify, index build, streaming). The allowed values are:
 # - auto: inherit from disk_access_mode (default)
-# - direct: use direct I/O for compaction reads, bypassing the OS page cache
-# compaction_read_disk_access_mode: auto
+# - direct: use direct I/O for background reads, bypassing the OS page cache where supported.
+#   On macOS this is only a cache retention hint and tmpfs accepts it without effect; falls
+#   back to normal reads when direct I/O is unsupported.
+# The former compaction_read_disk_access_mode name is accepted for compatibility.
+# background_read_disk_access_mode: auto
 
 # Set the disk access mode for writing compressed SSTables during background operations
 # (compaction, streaming, cleanup, repair, etc.). The allowed values are:

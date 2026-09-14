@@ -142,15 +142,15 @@ public class PurgeBoundaryDifferentialCompactionTest extends DifferentialCompact
             flush();
         }
 
-        DiskAccessMode original = DatabaseDescriptor.getCompactionReadDiskAccessMode();
-        DatabaseDescriptor.setCompactionReadDiskAccessMode(DiskAccessMode.direct);
+        DiskAccessMode original = DatabaseDescriptor.getBackgroundReadDiskAccessMode();
+        DatabaseDescriptor.setBackgroundReadDiskAccessMode(DiskAccessMode.direct);
         try
         {
             assertCursorMatchesIterator(cfs);
         }
         finally
         {
-            DatabaseDescriptor.setCompactionReadDiskAccessMode(original);
+            DatabaseDescriptor.setBackgroundReadDiskAccessMode(original);
         }
     }
 

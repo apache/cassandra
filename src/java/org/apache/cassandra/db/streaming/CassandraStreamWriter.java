@@ -30,7 +30,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.DataIntegrityMetadata.ChecksumValidator;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamManager;
@@ -80,7 +79,7 @@ public class CassandraStreamWriter
         logger.debug("[Stream #{}] Start streaming file {} to {}, repairedAt = {}, totalSize = {}", session.planId(),
                      sstable.getFilename(), session.peer, sstable.getSSTableMetadata().repairedAt, totalSize);
 
-        try(ChannelProxy proxy = sstable.getDataChannel().newChannel();
+        try(StreamingFileReader proxy = StreamingFileReader.open(sstable.descriptor.fileFor(Components.DATA));
             ChecksumValidator validator = sstable.maybeGetChecksumValidator())
         {
             int bufferSize = validator == null ? DEFAULT_CHUNK_SIZE: validator.chunkSize;
@@ -140,7 +139,7 @@ public class CassandraStreamWriter
      *
      * @throws java.io.IOException on any I/O error
      */
-    protected long write(ChannelProxy proxy, ChecksumValidator validator, StreamingDataOutputPlus output, long start, int transferOffset, int toTransfer, int bufferSize) throws IOException
+    protected long write(StreamingFileReader proxy, ChecksumValidator validator, StreamingDataOutputPlus output, long start, int transferOffset, int toTransfer, int bufferSize) throws IOException
     {
         // the count of bytes to read off disk
         int minReadable = (int) Math.min(bufferSize, proxy.size() - start);
@@ -150,8 +149,8 @@ public class CassandraStreamWriter
         ByteBuffer buffer = BufferPools.forNetworking().get(minReadable, BufferType.OFF_HEAP);
         try
         {
-            int readCount = proxy.read(buffer, start);
-            assert readCount == minReadable : String.format("could not read required number of bytes from file to be streamed: read %d bytes, wanted %d bytes", readCount, minReadable);
+            buffer.limit(minReadable);
+            proxy.readFully(buffer, start);
             buffer.flip();
 
             if (validator != null)

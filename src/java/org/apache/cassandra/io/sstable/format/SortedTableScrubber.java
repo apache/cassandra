@@ -40,6 +40,7 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -155,8 +156,8 @@ public abstract class SortedTableScrubber<R extends SSTableReaderWithFilter> imp
         // partition header (key or data size) is corrupt. (This means our position in the index file will be one
         // partition "ahead" of the data file.)
         this.dataFile = transaction.isOffline()
-                        ? sstable.openDataReader()
-                        : sstable.openDataReader(CompactionManager.instance.getRateLimiter());
+                        ? sstable.openDataReader(DatabaseDescriptor.getBackgroundReadDiskAccessMode())
+                        : sstable.openDataReader(DatabaseDescriptor.getBackgroundReadDiskAccessMode(), CompactionManager.instance.getRateLimiter());
 
         this.scrubInfo = new ScrubInfo(dataFile, sstable, fileAccessLock.readLock());
 

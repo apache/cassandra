@@ -1435,6 +1435,11 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         return openDataReaderInternal(diskAccessMode, null, false);
     }
 
+    public RandomAccessReader openDataReader(DiskAccessMode diskAccessMode, RateLimiter limiter)
+    {
+        return openDataReaderInternal(diskAccessMode, limiter, false);
+    }
+
     public RandomAccessReader openDataReaderForScan()
     {
         return openDataReaderInternal(null, null, true);
