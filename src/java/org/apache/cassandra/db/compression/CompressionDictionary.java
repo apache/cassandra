@@ -254,10 +254,17 @@ public interface CompressionDictionary
 
         CompressionDictionary dictionary = kind.createDictionary(dictId, dict, checksum);
 
-        // update the dictionary manager if it exists
+        // Register with the manager and adopt the CANONICAL cached instance it returns. Under concurrent
+        // opens (e.g. the multi-threaded SSTableBatchOpen pool) two threads can both miss the cache and
+        // create separate instances for the same dictId; only one wins the cache. Returning our own
+        // (possibly losing) instance here would let the caller tryRef() an uncached dictionary whose
+        // lazily-created selfRef the cache never owns or releases, leaking it once the referrer is
+        // garbage collected (CASSANDRA-21047).
         if (manager != null)
         {
-            manager.add(dictionary);
+            CompressionDictionary canonical = manager.add(dictionary);
+            if (canonical != null)
+                dictionary = canonical;
         }
 
         return dictionary;

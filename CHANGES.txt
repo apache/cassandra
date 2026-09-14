@@ -1,4 +1,8 @@
 6.0-alpha3
+ * Fix Compression dictionary distribution silently leaving a node on a stale dictionary (CASSANDRA-21681)
+ * ZstdCompressionDictionary reference leak when opening dictionary-compressed SSTables concurrently (CASSANDRA-21680)
+ * Avoid ZstdDictionary to allocate a native zstd context per chunk (CASSANDRA-21677)
+ * Avoid ZstdDictionaryCompressor to allocate a native zstd context per chunk (CASSANDRA-21672)
  * Fix non-printable characters in Gossiper log for TOKENS (CASSANDRA-21417)
  * Fix compression dictionary training failing with "insufficient samples" on large-chunk tables (CASSANDRA-21666)
  * AccordExecutor improvements (CASSANDRA-21662)
