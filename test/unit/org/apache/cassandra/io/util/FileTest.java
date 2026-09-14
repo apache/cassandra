@@ -84,7 +84,13 @@ public class FileTest
         Files.createSymbolicLink(nonEmptySubdirLink.toPath(), nonEmptySubdir.toPath());
         new java.io.File(nonEmptySubdir, "something").createNewFile(); //checkstyle: permit this instantiation
 
-        testEquivalence("");
+        // java.io.File treats an empty path as the working directory on JDK 25. Cassandra File defines it as
+        // nonexistent, so test that contract without the java.io.File equivalence check.
+        File emptyPath = new File("");
+        Assert.assertFalse(emptyPath.exists());
+        Assert.assertFalse(emptyPath.isDirectory());
+        Assert.assertFalse(emptyPath.isFile());
+        Assert.assertEquals(0L, emptyPath.lastModified());
 
         List<Runnable> setup = ImmutableList.of(
             () -> {},

@@ -28,6 +28,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -38,6 +39,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.MapMaker;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
 
@@ -138,6 +140,22 @@ public class BufferPool
     private static final Logger logger = LoggerFactory.getLogger(BufferPool.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 15L, TimeUnit.MINUTES);
     private static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocateDirect(0);
+
+    /**
+     * JDK 25 AES-GCM casts each direct-buffer attachment to {@code java.nio.Buffer}. BufferPool normally
+     * attaches a {@link Chunk} or {@link DirectBufferRef}, which causes {@link ClassCastException} on JDK 25.
+     * Use a Buffer marker on JDK 25+ and map it back to the owning chunk.
+     */
+    private static final boolean GCM_NEEDS_BUFFER_ATTACHMENT = Runtime.version().feature() >= 25;
+
+    /**
+     * Maps a chunk's attachment marker to the chunk by object identity. The marker has no attachment, so JDK 25
+     * AES-GCM stops its overlap check at the 128&nbsp;KB chunk instead of the 8&nbsp;MB macro buffer.
+     * Weak keys prevent retired tiny-chunk markers from remaining in the map. Identity is required because a
+     * macro chunk and its first child have the same base address. This field is {@code null} before JDK 25.
+     */
+    private static final ConcurrentMap<ByteBuffer, Chunk> CHUNK_BY_MARKER =
+        GCM_NEEDS_BUFFER_ATTACHMENT ? new MapMaker().weakKeys().makeMap() : null;
 
     private volatile Debug debug = Debug.NO_OP;
     private volatile DebugLeaks debugLeaks = DebugLeaks.NO_OP;
@@ -991,6 +1009,8 @@ public class BufferPool
             ByteBuffer buffer = chunk.slab;
             Chunk parentChunk = Chunk.getParentChunk(buffer);
             assert parentChunk != null;  // tiny chunk always has a parent chunk
+            // Tiny chunks do not call unsafeFree. Remove the marker before returning the slab to the parent.
+            chunk.dropAttachmentMarker();
             put(buffer, parentChunk);
         }
 
@@ -1167,6 +1187,9 @@ public class BufferPool
         @VisibleForTesting
         Object debugAttachment;
 
+        // JDK 25+ Buffer attachment used by AES-GCM. CHUNK_BY_MARKER maps it back to this chunk.
+        private final ByteBuffer attachmentMarker;
+
         Chunk(Chunk recycle)
         {
             assert recycle.freeSlots == 0L;
@@ -1175,6 +1198,9 @@ public class BufferPool
             this.shift = recycle.shift;
             this.freeSlots = -1L;
             this.recycler = recycle.recycler;
+            this.attachmentMarker = recycle.attachmentMarker; // Recycled chunks retain the same slab and marker.
+            if (GCM_NEEDS_BUFFER_ATTACHMENT)
+                CHUNK_BY_MARKER.put(attachmentMarker, this);
         }
 
         Chunk(Recycler recycler, ByteBuffer slab)
@@ -1189,6 +1215,17 @@ public class BufferPool
             this.shift = 31 & (Integer.numberOfTrailingZeros(slab.capacity() / 64));
             // -1 means all free whilst 0 means all in use
             this.freeSlots = slab.capacity() == 0 ? 0L : -1L;
+            this.attachmentMarker = GCM_NEEDS_BUFFER_ATTACHMENT ? newAttachmentMarker(baseAddress, slab.capacity()) : null;
+            if (GCM_NEEDS_BUFFER_ATTACHMENT)
+                CHUNK_BY_MARKER.put(attachmentMarker, this);
+        }
+
+        /** Creates a Buffer attachment at the chunk base with no parent attachment. */
+        private static ByteBuffer newAttachmentMarker(long baseAddress, int capacity)
+        {
+            ByteBuffer marker = MemoryUtil.getHollowDirectByteBuffer(ByteOrder.BIG_ENDIAN);
+            MemoryUtil.setDirectByteBuffer(marker, baseAddress, capacity);
+            return marker;
         }
 
         @Override
@@ -1329,12 +1366,19 @@ public class BufferPool
             if (attachment instanceof DirectBufferRef)
                 return ((DirectBufferRef<Chunk>) attachment).get();
 
+            // JDK 25+ attachments are marker buffers mapped by object identity.
+            if (GCM_NEEDS_BUFFER_ATTACHMENT && attachment instanceof ByteBuffer)
+                return CHUNK_BY_MARKER.get(attachment);
+
             return null;
         }
 
         void setAttachment(ByteBuffer buffer)
         {
-            if (REF_TRACE_ENABLED)
+            // JDK 25+ uses a Buffer attachment for AES-GCM. JDK 24 and lower use the Chunk attachment.
+            if (GCM_NEEDS_BUFFER_ATTACHMENT)
+                MemoryUtil.setAttachment(buffer, attachmentMarker);
+            else if (REF_TRACE_ENABLED)
                 MemoryUtil.setAttachment(buffer, new DirectBufferRef<>(this, null));
             else
                 MemoryUtil.setAttachment(buffer, this);
@@ -1346,7 +1390,7 @@ public class BufferPool
             if (attachment == null)
                 return false;
 
-            if (REF_TRACE_ENABLED)
+            if (REF_TRACE_ENABLED && attachment instanceof DirectBufferRef)
                 ((DirectBufferRef<Chunk>) attachment).release();
 
             return true;
@@ -1560,8 +1604,16 @@ public class BufferPool
         }
 
         @VisibleForTesting
+        /** Removes this chunk from {@link #CHUNK_BY_MARKER} when the chunk is retired. */
+        private void dropAttachmentMarker()
+        {
+            if (GCM_NEEDS_BUFFER_ATTACHMENT)
+                CHUNK_BY_MARKER.remove(attachmentMarker, this);
+        }
+
         void unsafeFree()
         {
+            dropAttachmentMarker();
             Chunk parent = getParentChunk(slab);
             if (parent != null)
                 parent.free(slab);

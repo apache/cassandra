@@ -47,8 +47,10 @@ import static org.apache.cassandra.simulator.asm.Flag.NO_PROXY_METHODS;
 import static org.apache.cassandra.simulator.asm.Flag.SYSTEM_CLOCK;
 import static org.apache.cassandra.simulator.asm.InterceptClasses.BYTECODE_VERSION;
 import static org.objectweb.asm.Opcodes.ALOAD;
+import static org.objectweb.asm.Opcodes.F_SAME;
 import static org.objectweb.asm.Opcodes.GETFIELD;
 import static org.objectweb.asm.Opcodes.GETSTATIC;
+import static org.objectweb.asm.Opcodes.IFEQ;
 import static org.objectweb.asm.Opcodes.INVOKESPECIAL;
 import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
@@ -204,7 +206,9 @@ public class InterceptAgent
     }
 
     /**
-     * We want Enum to have a deterministic hashCode() so we simply forward calls to ordinal()
+     * Hash simulated enums by ordinal for repeatable iteration. Keep the identity hash for JDK enums because
+     * CDS may build JDK collections before this transformation. Changing their hash after construction breaks
+     * lookup, including the JDK 25 {@code AccessFlag.FINAL.locations} lookup used by type switches.
      */
     private static byte[] transformEnum(byte[] bytes)
     {
@@ -221,11 +225,22 @@ public class InterceptAgent
                 if (descriptor.equals("()I") && name.equals("hashCode"))
                 {
                     MethodVisitor visitor = super.visitMethod(access, name, descriptor, signature, exceptions);
+                    Label identity = new Label();
                     visitor.visitLabel(new Label());
-                    visitor.visitIntInsn(ALOAD, 0);
+                    // Use the identity hash for JDK enums.
+                    visitor.visitVarInsn(ALOAD, 0);
+                    visitor.visitMethodInsn(INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfSystemMethods$Global", "ordinalEnumHash", "(Ljava/lang/Object;)Z", false);
+                    visitor.visitJumpInsn(IFEQ, identity);
+                    // Use the ordinal for simulated enums.
+                    visitor.visitVarInsn(ALOAD, 0);
                     visitor.visitFieldInsn(GETFIELD, "java/lang/Enum", "ordinal", "I");
                     visitor.visitInsn(IRETURN);
-                    visitor.visitLabel(new Label());
+                    // Object.hashCode is not rewritten.
+                    visitor.visitLabel(identity);
+                    visitor.visitFrame(F_SAME, 0, null, 0, null);
+                    visitor.visitVarInsn(ALOAD, 0);
+                    visitor.visitMethodInsn(INVOKESPECIAL, "java/lang/Object", "hashCode", "()I", false);
+                    visitor.visitInsn(IRETURN);
                     visitor.visitMaxs(1, 1);
                     visitor.visitEnd();
 
@@ -316,25 +331,31 @@ public class InterceptAgent
                 {
                     if (unsafeFieldName == null)
                     {
+                        // JDK 8 uses sun.misc.Unsafe in UNSAFE. JDK 11+ uses jdk.internal.misc.Unsafe in U.
                         String version = System.getProperty("java.version");
-                        if (version.startsWith("11.")) { unsafeFieldName = "U"; unsafeDescriptor = "Ljdk/internal/misc/Unsafe;"; }
-                        else if (version.startsWith("1.8")) { unsafeFieldName = "UNSAFE"; unsafeDescriptor = "Lsun/misc/Unsafe;"; }
-                        else throw new AssertionError("Unsupported Java Version");
+                        if (version.startsWith("1.8")) { unsafeFieldName = "UNSAFE"; unsafeDescriptor = "Lsun/misc/Unsafe;"; }
+                        else { unsafeFieldName = "U"; unsafeDescriptor = "Ljdk/internal/misc/Unsafe;"; }
                     }
+
+                    // INVOKEVIRTUAL requires an internal name, not a type descriptor.
+                    String unsafeOwner = unsafeDescriptor.substring(1, unsafeDescriptor.length() - 1);
 
                     MethodVisitor visitor = super.visitMethod(access, name, descriptor, signature, exceptions);
                     visitor.visitLabel(new Label());
-                    visitor.visitIntInsn(ALOAD, 0);
+                    // localInit is static and has no local variable at index zero. JDK 25 rejects a load from it.
                     visitor.visitFieldInsn(GETSTATIC, "java/util/concurrent/ThreadLocalRandom", unsafeFieldName, unsafeDescriptor);
                     visitor.visitMethodInsn(INVOKESTATIC, "java/lang/Thread", "currentThread", "()Ljava/lang/Thread;", false);
                     visitor.visitFieldInsn(GETSTATIC, "java/util/concurrent/ThreadLocalRandom", "SEED", "J");
                     visitor.visitMethodInsn(INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfSystemMethods$Global", "randomSeed", "()J", false);
-                    visitor.visitMethodInsn(INVOKEVIRTUAL, unsafeDescriptor, "putLong", "(Ljava/lang/Object;JJ)V", false);
+                    visitor.visitMethodInsn(INVOKEVIRTUAL, unsafeOwner, "putLong", "(Ljava/lang/Object;JJ)V", false);
                     visitor.visitFieldInsn(GETSTATIC, "java/util/concurrent/ThreadLocalRandom", unsafeFieldName, unsafeDescriptor);
                     visitor.visitMethodInsn(INVOKESTATIC, "java/lang/Thread", "currentThread", "()Ljava/lang/Thread;", false);
                     visitor.visitFieldInsn(GETSTATIC, "java/util/concurrent/ThreadLocalRandom", "PROBE", "J");
-                    visitor.visitLdcInsn(0);
-                    visitor.visitMethodInsn(INVOKEVIRTUAL, unsafeDescriptor, "putInt", "(Ljava/lang/Object;JI)V", false);
+                    // JDK 25 ForkJoinPool requires a nonzero probe to lock an existing submission queue.
+                    // A zero probe remains zero after xorshift and causes the submission loop to spin.
+                    // The probe selects queue indices, so a fixed nonzero value preserves repeatability.
+                    visitor.visitLdcInsn(0x9e3779b9);
+                    visitor.visitMethodInsn(INVOKEVIRTUAL, unsafeOwner, "putInt", "(Ljava/lang/Object;JI)V", false);
                     visitor.visitInsn(RETURN);
                     visitor.visitLabel(new Label());
                     visitor.visitMaxs(6, 1);

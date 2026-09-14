@@ -251,9 +251,19 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
             tls10Connection.assertReceivedHandshakeException();
 
             TlsConnection tls11Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1.1"));
-            Assert.assertEquals("Should be possible to establish a TLSv1.1 connection",
-                                ConnectResult.NEGOTIATED, tls11Connection.connect());
-            Assert.assertEquals("TLSv1.1", tls11Connection.lastProtocol());
+            if (isProtocolEnabledByDefault("TLSv1.1"))
+            {
+                Assert.assertEquals("Should be possible to establish a TLSv1.1 connection",
+                                    ConnectResult.NEGOTIATED, tls11Connection.connect());
+                Assert.assertEquals("TLSv1.1", tls11Connection.lastProtocol());
+            }
+            else
+            {
+                // JDK 25 disables TLSv1.1 through jdk.tls.disabledAlgorithms.
+                Assert.assertEquals("Should not be possible to establish a TLSv1.1 connection when the JDK disables it",
+                                    ConnectResult.FAILED_TO_NEGOTIATE, tls11Connection.connect());
+                tls11Connection.assertReceivedHandshakeException();
+            }
 
             TlsConnection tls12Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1.2"));
             Assert.assertEquals("Should be possible to establish a TLSv1.2 connection",

@@ -39,6 +39,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.utils.ObjectSizes;
 
 import static org.apache.cassandra.utils.FBUtilities.preventIllegalAccessWarnings;
 import static org.junit.Assert.assertFalse;
@@ -215,6 +216,12 @@ public abstract class OfflineToolUtils
 
         // may start an async appender
         LoggerFactory.getLogger(OfflineToolUtils.class);
+
+        // Start the Byteman listener before recording the baseline threads.
+        SystemExitManager.ensureInstalled();
+
+        // Initialize jamm before tests capture tool output.
+        ObjectSizes.measureDeep(new Object());
 
         ThreadMXBean threads = ManagementFactory.getThreadMXBean();
         initialThreads = Arrays.asList(threads.getThreadInfo(threads.getAllThreadIds()));

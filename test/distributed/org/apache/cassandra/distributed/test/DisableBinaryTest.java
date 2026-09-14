@@ -151,27 +151,38 @@ public class DisableBinaryTest extends TestBaseImpl
                 }
             });
 
-            Future<?> afterShutdown = CompletableFuture.supplyAsync(() -> session.execute("select * from tbl").one());
+            // The common ForkJoinPool has one worker in this test. disablebinary blocks it while requests drain.
+            // JDK 25 does not add a worker in this case. Use another executor so this request reaches the stopped
+            // transport before disablebinary closes the connection.
+            ExecutorService afterShutdownExecutor = Executors.newSingleThreadExecutor();
             try
             {
-                session.execute("select * from tbl").one();
-                fail("Should have thrown OverloadedException");
-            }
-            catch (OverloadedException e) {}
+                Future<?> afterShutdown = afterShutdownExecutor.submit(() -> session.execute("select * from tbl").one());
+                try
+                {
+                    session.execute("select * from tbl").one();
+                    fail("Should have thrown OverloadedException");
+                }
+                catch (OverloadedException e) {}
 
-            control.get(1).runOnInstance(() -> BlockingSelect.signal.countDown());
-            result.get();
-            for (Future<?> future : futures)
-                future.get();
+                control.get(1).runOnInstance(() -> BlockingSelect.signal.countDown());
+                result.get();
+                for (Future<?> future : futures)
+                    future.get();
 
-            try
-            {
-                afterShutdown.get();
-                fail("Should have thrown OverloadedException");
+                try
+                {
+                    afterShutdown.get();
+                    fail("Should have thrown OverloadedException");
+                }
+                catch (ExecutionException e)
+                {
+                    Assert.assertTrue("Unexpected cause: " + e.getCause(), e.getCause() instanceof OverloadedException);
+                }
             }
-            catch (ExecutionException e)
+            finally
             {
-                Assert.assertTrue(e.getCause() instanceof OverloadedException);
+                afterShutdownExecutor.shutdownNow();
             }
         }
         finally

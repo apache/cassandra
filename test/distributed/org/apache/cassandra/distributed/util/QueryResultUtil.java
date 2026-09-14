@@ -25,7 +25,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import com.google.monitoring.runtime.instrumentation.common.collect.Iterators;
+import com.google.common.collect.Iterators;
 
 import org.assertj.core.api.Assertions;
 import org.assertj.core.data.Index;

@@ -574,9 +574,22 @@ public final class Ref<T> implements RefCounted<T>
                 if (o instanceof WeakReference & nextField.getDeclaringClass() == Reference.class)
                     continue;
 
-                Object nextObject = getFieldValue(o, nextField);
+                Object nextObject;
+                try
+                {
+                    nextObject = getFieldValue(o, nextField);
+                }
+                catch (UnaccessibleFieldException e)
+                {
+                    // Unsafe rejects record component offsets on JDK 16+. Modules and hidden classes can also
+                    // prevent field access. Skip this field so the leak scan can inspect the remaining graph.
+                    NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 5, TimeUnit.MINUTES,
+                                     "Could not read field {} of {} while checking for self-referential leaks; skipping it",
+                                     nextField.getName(), o.getClass().getName(), e);
+                    continue;
+                }
                 if (nextObject != null)
-                    return Pair.create(getFieldValue(o, nextField), nextField);
+                    return Pair.create(nextObject, nextField);
             }
         }
 

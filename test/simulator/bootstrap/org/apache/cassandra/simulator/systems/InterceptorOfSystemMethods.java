@@ -223,6 +223,18 @@ public interface InterceptorOfSystemMethods
             return identityHashCode.applyAsInt(object);
         }
 
+        /**
+         * Returns whether the simulator should hash an enum by ordinal. JDK enums retain their identity hash
+         * because CDS may build JDK collections before Enum.hashCode is transformed. Application enums load
+         * after the transformation and can use ordinal hashes for repeatable iteration.
+         */
+        public static boolean ordinalEnumHash(Object enumConstant)
+        {
+            String name = enumConstant.getClass().getName();
+            return !(name.startsWith("java.") || name.startsWith("javax.") || name.startsWith("jdk.")
+                     || name.startsWith("sun.") || name.startsWith("com.sun."));
+        }
+
         public static Unsafe getUnsafe()
         {
             try

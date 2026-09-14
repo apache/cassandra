@@ -85,6 +85,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOB
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_APPROX;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_PRECISE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SIMULATOR_ITERATIONS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SIMULATOR_SEED;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.TIME_LIMITED;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.UNLIMITED;
 import static org.apache.cassandra.simulator.ClusterSimulation.ISOLATE;
@@ -257,13 +258,19 @@ public class SimulationTestBase
         simulate(init, test, teardown, configure, (i1, i2) -> {});
     }
 
+    /** Returns the configured simulator seed or the current time when no seed is configured. */
+    public static long defaultSeed()
+    {
+        return SIMULATOR_SEED.isPresent() ? SimulationRunner.parseSeed(SIMULATOR_SEED.getString()) : System.currentTimeMillis();
+    }
+
     static void simulate(Function<SimpleSimulation, ActionList> init,
                          Function<SimpleSimulation, ActionList> test,
                          Function<SimpleSimulation, ActionList> teardown,
                          Consumer<ClusterSimulation.Builder<SimpleSimulation>> configure,
                          int iterations) throws IOException
     {
-        simulate(System::currentTimeMillis, new DTestClusterSimulationBuilder(init, test, teardown, (i1, i2) -> {}),
+        simulate(SimulationTestBase::defaultSeed, new DTestClusterSimulationBuilder(init, test, teardown, (i1, i2) -> {}),
                  configure, iterations);
     }
 
@@ -302,7 +309,7 @@ public class SimulationTestBase
     public static <T extends Simulation> void simulate(ClusterSimulation.Builder<T> factory,
                                                        Consumer<ClusterSimulation.Builder<T>> configure) throws IOException
     {
-        simulate(System::currentTimeMillis, factory, configure);
+        simulate(SimulationTestBase::defaultSeed, factory, configure);
     }
 
     public static <T extends Simulation> void simulate(long seed, ClusterSimulation.Builder<T> factory) throws IOException
@@ -312,7 +319,7 @@ public class SimulationTestBase
 
     public static <T extends Simulation> void simulate(ClusterSimulation.SimulationFactory<T> factory) throws IOException
     {
-        simulate(System.currentTimeMillis(), factory);
+        simulate(defaultSeed(), factory);
     }
 
     public static <T extends Simulation> void simulate(long seed, ClusterSimulation.SimulationFactory<T> factory) throws IOException
@@ -322,7 +329,7 @@ public class SimulationTestBase
 
     public static <T extends Simulation> void simulate(ClusterSimulation.SimulationFactory<T> factory, Consumer<ClusterSimulation.Builder<T>> configure) throws IOException
     {
-        simulate(System.currentTimeMillis(), factory, configure);
+        simulate(defaultSeed(), factory, configure);
     }
 
     public static <T extends Simulation> void simulate(long seed, ClusterSimulation.SimulationFactory<T> factory, Consumer<ClusterSimulation.Builder<T>> configure) throws IOException
@@ -403,7 +410,7 @@ public class SimulationTestBase
                                 IIsolatedExecutor.SerializableRunnable check,
                                 int iterations)
     {
-        long seed = System.currentTimeMillis();
+        long seed = defaultSeed();
         for (int i = 0; i < iterations; i++)
         {
             long currentSeed = seed + i;

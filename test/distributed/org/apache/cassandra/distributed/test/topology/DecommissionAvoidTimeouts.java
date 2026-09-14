@@ -28,6 +28,8 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -107,7 +109,10 @@ public abstract class DecommissionAvoidTimeouts extends TestBaseImpl
 
             paused = cluster.get(1);
             Callable<?> pending = pauseBeforeCommit(paused, (e) -> e instanceof PrepareLeave.StartLeave);
-            CompletableFuture<Void> nodetool = CompletableFuture.runAsync(() -> toDecom.nodetoolResult("decommission").asserts().success());
+            // Run the blocking command outside the common ForkJoinPool. JDK 25 may not add a worker when the
+            // pool's only worker blocks.
+            ExecutorService decommissionExecutor = Executors.newSingleThreadExecutor();
+            CompletableFuture<Void> nodetool = CompletableFuture.runAsync(() -> toDecom.nodetoolResult("decommission").asserts().success(), decommissionExecutor);
             ClusterUtils.awaitGossipStateMatch(cluster, cluster.get(DECOM_NODE), ApplicationState.SEVERITY);
             pending.call();
             unpauseCommits(paused);
@@ -117,6 +122,7 @@ public abstract class DecommissionAvoidTimeouts extends TestBaseImpl
             cluster.filters().verbs(Verb.GOSSIP_DIGEST_SYN.id).drop();
 
             nodetool.join();
+            decommissionExecutor.shutdownNow();
 
             List<String> failures = new ArrayList<>();
             String query = getQuery(table);

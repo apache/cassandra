@@ -188,7 +188,7 @@ public class ConnectionTest
             .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PATH)
             .withTrustStorePassword(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD)
             .withRequireClientAuth(NOT_REQUIRED)
-            .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA");
+            .withCipherSuites("TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256");
     static final EncryptionOptions.ServerEncryptionOptions encryptionOptions = encryptionOptionsBuilder.build();
 
     static final List<Function<Settings, Settings>> MODIFIERS = ImmutableList.of(

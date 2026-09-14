@@ -249,6 +249,20 @@ public class ShadowingTransformer extends ClassTransformer
         super.visitPermittedSubclass(toShadowType(permittedSubclass));
     }
 
+    // Remap nestmate attributes with other type references. A shadowed inner class must point to the shadowed
+    // nest host to access its private members.
+    @Override
+    public void visitNestHost(String nestHost)
+    {
+        super.visitNestHost(toShadowType(nestHost));
+    }
+
+    @Override
+    public void visitNestMember(String nestMember)
+    {
+        super.visitNestMember(toShadowType(nestMember));
+    }
+
     @Override
     public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value)
     {

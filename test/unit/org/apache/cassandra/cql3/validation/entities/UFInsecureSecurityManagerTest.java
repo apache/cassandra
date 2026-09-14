@@ -16,29 +16,23 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.shared;
+package org.apache.cassandra.cql3.validation.entities;
 
-import java.security.Permission;
+import org.junit.Assume;
+import org.junit.BeforeClass;
 
-import org.apache.cassandra.tools.SystemExitException;
-import org.apache.cassandra.utils.Shared;
+import org.apache.cassandra.cql3.CQLTester;
 
-@Shared
-public class PreventSystemExit extends SecurityManager
+import static org.apache.cassandra.config.CassandraRelevantProperties.UDF_SECURITY_MECHANISM;
+
+/** Tests the settings that permit restricted System method calls with an installed security manager. */
+public class UFInsecureSecurityManagerTest extends UFInsecureSystemAccessTest
 {
-    @Override
-    public void checkExit(int status)
+    @BeforeClass
+    public static void setUpClass()
     {
-        throw new SystemExitException(status);
-    }
-
-    @Override
-    public void checkPermission(Permission perm)
-    {
-    }
-
-    @Override
-    public void checkPermission(Permission perm, Object context)
-    {
+        Assume.assumeTrue(Runtime.version().feature() < 24);
+        UDF_SECURITY_MECHANISM.setString("securitymanager");
+        CQLTester.setUpClass();
     }
 }

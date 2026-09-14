@@ -18,22 +18,21 @@
 
 package org.apache.cassandra.simulator.logging;
 
-import accord.utils.Invariants;
-
 import org.apache.cassandra.config.CassandraRelevantProperties;
 
 import ch.qos.logback.core.PropertyDefinerBase;
 
 public class RunStartDefiner extends PropertyDefinerBase
 {
-    static
-    {
-        Invariants.require(CassandraRelevantProperties.SIMULATOR_STARTED.getString() != null);
-    }
-
     @Override
     public String getPropertyValue()
     {
+        // Logback can instantiate this class before SimulationRunner sets the property.
+        if (CassandraRelevantProperties.SIMULATOR_STARTED.getString() == null)
+        {
+            System.err.println("RunStartDefiner is being called before the run start has been set, check static init order");
+            CassandraRelevantProperties.SIMULATOR_STARTED.setString("<undefined>");
+        }
         return CassandraRelevantProperties.SIMULATOR_STARTED.getString();
     }
 }

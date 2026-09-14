@@ -28,8 +28,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.IntStream;
+import java.util.function.IntConsumer;
 
 import org.junit.Test;
 
@@ -167,14 +171,40 @@ public class VectorSiftSmallTest extends SAITester
         return groundTruthTopK;
     }
 
+    // These tasks block on CQL execution. Use a separate pool because the JDK 25 common ForkJoinPool may not add
+    // workers when its current workers block. Bound it by availableProcessors (the concurrency the original parallel
+    // stream had): jvector 1.0.2 caps each graph builder's scratch pools at availableProcessors + 1; more writers fail the insert.
+    private static void runConcurrently(int count, IntConsumer body)
+    {
+        ExecutorService pool = Executors.newFixedThreadPool(Math.max(1, Math.min(count, Runtime.getRuntime().availableProcessors())));
+        try
+        {
+            List<Future<?>> futures = new ArrayList<>(count);
+            for (int i = 0; i < count; i++)
+            {
+                int idx = i;
+                futures.add(pool.submit(() -> body.accept(idx)));
+            }
+            for (Future<?> future : futures)
+                future.get();
+        }
+        catch (InterruptedException | ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+        finally
+        {
+            pool.shutdownNow();
+        }
+    }
+
     public double testRecall(List<float[]> queryVectors, List<HashSet<Integer>> groundTruth)
     {
         AtomicInteger topKfound = new AtomicInteger(0);
         int topK = 100;
 
         // Perform query and compute recall
-        var stream = IntStream.range(0, queryVectors.size()).parallel();
-        stream.forEach(i -> {
+        runConcurrently(queryVectors.size(), i -> {
             float[] queryVector = queryVectors.get(i);
             String queryVectorAsString = Arrays.toString(queryVector);
 
@@ -197,7 +227,7 @@ public class VectorSiftSmallTest extends SAITester
 
     private void insertVectors(List<float[]> baseVectors)
     {
-        IntStream.range(0, baseVectors.size()).parallel().forEach(i -> {
+        runConcurrently(baseVectors.size(), i -> {
             float[] arrayVector = baseVectors.get(i);
             String vectorAsString = Arrays.toString(arrayVector);
             try
@@ -213,7 +243,7 @@ public class VectorSiftSmallTest extends SAITester
 
     private void insertVectorsWithId(List<float[]> baseVectors)
     {
-        IntStream.range(0, baseVectors.size()).parallel().forEach(i -> {
+        runConcurrently(baseVectors.size(), i -> {
             float[] arrayVector = baseVectors.get(i);
             String vectorAsString = Arrays.toString(arrayVector);
             try
@@ -233,7 +263,7 @@ public class VectorSiftSmallTest extends SAITester
         AtomicInteger topKfound = new AtomicInteger(0);
 
         // Perform query with id range restriction and compute recall
-        IntStream.range(0, queryVectors.size()).parallel().forEach(i -> {
+        runConcurrently(queryVectors.size(), i -> {
             float[] queryVector = queryVectors.get(i);
             String queryVectorAsString = Arrays.toString(queryVector);
 
