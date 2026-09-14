@@ -33,6 +33,7 @@ import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamingDataOutputPlusFixed;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
@@ -60,18 +61,34 @@ public class StreamInitMessageTest
     }
 
     @Test
+    public void testRoundTripDecidedAt() throws IOException
+    {
+        for (Epoch decidedAt : new Epoch[]{ Epoch.EMPTY, Epoch.FIRST, Epoch.create(42) })
+        {
+            StreamInitMessage roundTripped = roundTrip(message(new ShortMutationId(12, 34), decidedAt), MessagingService.VERSION_61);
+            assertEquals(decidedAt, roundTripped.decidedAt);
+        }
+    }
+
+    @Test
     public void testTransferIdNotSentToOlderVersions() throws IOException
     {
         // the field was added along with mutation tracking, so peers before VERSION_61 neither read nor write it
-        StreamInitMessage roundTripped = roundTrip(message(new ShortMutationId(12, 34)), MessagingService.VERSION_60);
+        StreamInitMessage roundTripped = roundTrip(message(new ShortMutationId(12, 34), Epoch.create(42)), MessagingService.VERSION_60);
         assertNull(roundTripped.transferId);
+        assertEquals(Epoch.EMPTY, roundTripped.decidedAt);
     }
 
     private static StreamInitMessage message(ShortMutationId transferId)
     {
+        return message(transferId, Epoch.create(7));
+    }
+
+    private static StreamInitMessage message(ShortMutationId transferId, Epoch decidedAt)
+    {
         TimeUUID planId = nextTimeUUID();
         return new StreamInitMessage(InetAddressAndPort.getByAddress(InetAddress.getLoopbackAddress()),
-                                     0, planId, StreamOperation.REPAIR, planId, PreviewKind.NONE, transferId);
+                                     0, planId, StreamOperation.REPAIR, planId, PreviewKind.NONE, transferId, decidedAt);
     }
 
     private static StreamInitMessage roundTrip(StreamInitMessage message, int version) throws IOException

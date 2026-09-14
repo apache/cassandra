@@ -89,6 +89,7 @@ import org.apache.cassandra.streaming.messages.SessionFailedMessage;
 import org.apache.cassandra.streaming.messages.StreamInitMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -234,6 +235,7 @@ public class StreamSession
     private final PreviewKind previewKind;
 
     private final ShortMutationId transferId;
+    private final Epoch decidedAt;
 
     public String failureReason;
 
@@ -291,12 +293,12 @@ public class StreamSession
     public StreamSession(StreamOperation streamOperation, InetAddressAndPort peer, StreamingChannel.Factory factory, @Nullable StreamingChannel controlChannel, int messagingVersion,
                          boolean isFollower, int index, TimeUUID pendingRepair, PreviewKind previewKind)
     {
-        this(streamOperation, peer, factory, controlChannel, messagingVersion, isFollower, index, pendingRepair, previewKind, null);
+        this(streamOperation, peer, factory, controlChannel, messagingVersion, isFollower, index, pendingRepair, previewKind, null, Epoch.EMPTY);
     }
 
     public StreamSession(StreamOperation streamOperation, InetAddressAndPort peer, StreamingChannel.Factory factory, @Nullable StreamingChannel controlChannel, int messagingVersion,
                          boolean isFollower, int index, TimeUUID pendingRepair, PreviewKind previewKind,
-                         ShortMutationId transferId)
+                         ShortMutationId transferId, Epoch decidedAt)
     {
         this.streamOperation = streamOperation;
         this.peer = peer;
@@ -308,6 +310,7 @@ public class StreamSession
         this.pendingRepair = pendingRepair;
         this.previewKind = previewKind;
         this.transferId = transferId;
+        this.decidedAt = decidedAt;
     }
 
     public boolean isFollower()
@@ -371,6 +374,15 @@ public class StreamSession
     public boolean isTrackedTransfer()
     {
         return transferId != null;
+    }
+
+    /**
+     * @return the epoch of the cluster metadata the sender decided the tracked/untracked path from, {@link Epoch#EMPTY}
+     *         when the sender did not tell us (older peer, or a stream that takes no such decision)
+     */
+    public Epoch decidedAt()
+    {
+        return decidedAt;
     }
 
     public StreamReceiver getAggregator(TableId tableId)
@@ -450,7 +462,8 @@ public class StreamSession
                                                               streamOperation(),
                                                               getPendingRepair(),
                                                               getPreviewKind(),
-                                                              transferId());
+                                                              transferId(),
+                                                              decidedAt());
 
             sendControlMessage(message).sync();
             onInitializationComplete();

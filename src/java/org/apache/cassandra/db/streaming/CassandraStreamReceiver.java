@@ -61,6 +61,7 @@ import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Throwables;
@@ -161,13 +162,26 @@ public class CassandraStreamReceiver implements StreamReceiver
         if (session.isTrackedTransfer() || !expectsTrackedTransfer)
             return;
 
+        Epoch migrationStateChangedAt = ClusterMetadata.current().mutationTrackingMigrationState.lastModified();
+        boolean decidedBeforeMigrationStateChanged = migrationStateChangedAt.isAfter(session.decidedAt());
+
         for (SSTableReader reader : readers)
         {
-            if (!reader.isRepaired())
-                throw new IllegalStateException(String.format("[Stream #%s] Received an untracked transfer carrying unrepaired SSTable %s for tracked, " +
-                                                              "non-migrating ranges %s of %s.%s; such data would be stranded in the unrepaired data silo. " +
-                                                              "This indicates the sender and receiver disagree about mutation tracking migration state.",
-                                                              session.planId(), reader.descriptor, ranges, cfs.getKeyspaceName(), cfs.getTableName()));
+            if (reader.isRepaired())
+                continue;
+
+            String reason = decidedBeforeMigrationStateChanged
+                            ? String.format("The sender decided to stream it untracked as of epoch %s, before the migration state " +
+                                            "this node holds last changed (epoch %s). The migration of these ranges completed while " +
+                                            "the repair was running, and it has to be re-run.",
+                                            session.decidedAt(), migrationStateChangedAt)
+                            : String.format("The sender decided to stream untracked SSTables as of epoch %s, and the migration state this " +
+                                            "node holds has not changed since (epoch %s), so the sender and this node disagree about the state.",
+                                            session.decidedAt(), migrationStateChangedAt);
+            throw new IllegalStateException(String.format("[Stream #%s] Received an untracked transfer carrying unrepaired SSTable %s for tracked, " +
+                                                          "non-migrating ranges %s of %s.%s; such data would be stranded in the unrepaired data silo. %s",
+                                                          session.planId(), reader.descriptor, ranges, cfs.getKeyspaceName(), cfs.getTableName(),
+                                                          reason));
         }
     }
 

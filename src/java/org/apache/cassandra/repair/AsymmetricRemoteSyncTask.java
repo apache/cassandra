@@ -32,6 +32,7 @@ import org.apache.cassandra.repair.messages.SyncRequest;
 import org.apache.cassandra.repair.messages.SyncResponse;
 import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 
 /**
@@ -42,29 +43,29 @@ import org.apache.cassandra.tracing.Tracing;
  */
 public class AsymmetricRemoteSyncTask extends SyncTask implements CompletableRemoteSyncTask
 {
-    public AsymmetricRemoteSyncTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort to, InetAddressAndPort from, List<Range<Token>> differences, PreviewKind previewKind, ShortMutationId transferId)
+    public AsymmetricRemoteSyncTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort to, InetAddressAndPort from, List<Range<Token>> differences, PreviewKind previewKind, ShortMutationId transferId, Epoch decidedAt)
     {
-        super(ctx, desc, to, from, differences, previewKind, transferId);
+        super(ctx, desc, to, from, differences, previewKind, transferId, decidedAt);
     }
 
     @Override
     public SyncTask withRanges(Collection<Range<Token>> newRanges)
     {
         List<Range<Token>> rangeList = newRanges instanceof List ? (List<Range<Token>>) newRanges : new ArrayList<>(newRanges);
-        return new AsymmetricRemoteSyncTask(ctx, desc, nodePair.coordinator, nodePair.peer, rangeList, previewKind, transferId);
+        return new AsymmetricRemoteSyncTask(ctx, desc, nodePair.coordinator, nodePair.peer, rangeList, previewKind, transferId, decidedAt);
     }
 
     @Override
     public SyncTask withTransferId(ShortMutationId transferId)
     {
         Preconditions.checkState(this.transferId == null);
-        return new AsymmetricRemoteSyncTask(ctx, desc, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind, transferId);
+        return new AsymmetricRemoteSyncTask(ctx, desc, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind, transferId, decidedAt);
     }
 
     public void startSync()
     {
         InetAddressAndPort local = ctx.broadcastAddressAndPort();
-        SyncRequest request = new SyncRequest(desc, local, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind, true, transferId);
+        SyncRequest request = new SyncRequest(desc, local, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind, true, transferId, decidedAt);
         String message = String.format("Forwarding streaming repair of %d ranges to %s (to be streamed with %s)", request.ranges.size(), request.src, request.dst);
         Tracing.traceRepair(message);
         sendRequest(request, request.src);

@@ -27,6 +27,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -37,6 +38,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.replication.ShortMutationId;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.net.MessagingService.current_version;
@@ -64,16 +66,17 @@ public class StreamCoordinator
     private final TimeUUID pendingRepair;
     private final PreviewKind previewKind;
     private ShortMutationId transferId;
+    private Epoch decidedAt;
 
     public StreamCoordinator(StreamOperation streamOperation, int connectionsPerHost, StreamingChannel.Factory factory,
                              boolean follower, boolean connectSequentially, TimeUUID pendingRepair, PreviewKind previewKind)
     {
-        this(streamOperation, connectionsPerHost, factory, follower, connectSequentially, pendingRepair, previewKind, null);
+        this(streamOperation, connectionsPerHost, factory, follower, connectSequentially, pendingRepair, previewKind, null, Epoch.EMPTY);
     }
 
     public StreamCoordinator(StreamOperation streamOperation, int connectionsPerHost, StreamingChannel.Factory factory,
                              boolean follower, boolean connectSequentially, TimeUUID pendingRepair, PreviewKind previewKind,
-                             ShortMutationId transferId)
+                             ShortMutationId transferId, Epoch decidedAt)
     {
         this.streamOperation = streamOperation;
         this.connectionsPerHost = connectionsPerHost;
@@ -83,6 +86,7 @@ public class StreamCoordinator
         this.pendingRepair = pendingRepair;
         this.previewKind = previewKind;
         this.transferId = transferId;
+        this.decidedAt = decidedAt;
     }
 
     public void setConnectionFactory(StreamingChannel.Factory factory)
@@ -288,6 +292,12 @@ public class StreamCoordinator
         this.transferId = transferId;
     }
 
+    void setDecidedAt(Epoch decidedAt)
+    {
+        Preconditions.checkState(!hasActiveSessions(), "Cannot change the decision epoch once sessions have been created");
+        this.decidedAt = Objects.requireNonNull(decidedAt, "decidedAt must be Epoch.EMPTY rather than null when unknown");
+    }
+
     /**
      * @return true when the transfer is tracked (i.e. we have a transferId)
      */
@@ -325,7 +335,7 @@ public class StreamCoordinator
             if (streamSessions.size() < connectionsPerHost)
             {
                 StreamSession session = new StreamSession(streamOperation, peer, factory, null, current_version, isFollower(), streamSessions.size(),
-                                                          pendingRepair, previewKind, transferId);
+                                                          pendingRepair, previewKind, transferId, decidedAt);
                 streamSessions.put(++lastReturned, session);
                 sessionInfos.put(lastReturned, session.getSessionInfo());
                 return session;
@@ -358,7 +368,7 @@ public class StreamCoordinator
             StreamSession session = streamSessions.get(id);
             if (session == null)
             {
-                session = new StreamSession(streamOperation, from, factory, channel, messagingVersion, isFollower(), id, pendingRepair, previewKind, transferId);
+                session = new StreamSession(streamOperation, from, factory, channel, messagingVersion, isFollower(), id, pendingRepair, previewKind, transferId, decidedAt);
                 streamSessions.put(id, session);
                 sessionInfos.put(id, session.getSessionInfo());
             }

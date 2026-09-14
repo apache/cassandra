@@ -40,6 +40,7 @@ import org.apache.cassandra.streaming.StreamEvent;
 import org.apache.cassandra.streaming.StreamEventHandler;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamPlan;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -70,6 +71,7 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
 
     @Nullable
     private final ShortMutationId transferId;
+    private final Epoch decidedAt;
 
     public StreamingRepairTask(SharedContext ctx,
                                SyncState state,
@@ -83,6 +85,22 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
                                boolean asymmetric,
                                ShortMutationId transferId)
     {
+        this(ctx, state, desc, initiator, src, dst, ranges, pendingRepair, previewKind, asymmetric, transferId, Epoch.EMPTY);
+    }
+
+    public StreamingRepairTask(SharedContext ctx,
+                               SyncState state,
+                               RepairJobDesc desc,
+                               InetAddressAndPort initiator,
+                               InetAddressAndPort src,
+                               InetAddressAndPort dst,
+                               Collection<Range<Token>> ranges,
+                               TimeUUID pendingRepair,
+                               PreviewKind previewKind,
+                               boolean asymmetric,
+                               ShortMutationId transferId,
+                               Epoch decidedAt)
+    {
         this.ctx = ctx;
         this.state = state;
         this.desc = desc;
@@ -94,6 +112,7 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
         this.pendingRepair = pendingRepair;
         this.previewKind = previewKind;
         this.transferId = transferId;
+        this.decidedAt = decidedAt;
     }
 
     public void run()
@@ -112,6 +131,7 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
         state.phase.planning();
         StreamPlan sp = new StreamPlan(StreamOperation.REPAIR, 1, false, pendingRepair, previewKind)
                .transferId(transferId)
+               .decidedAt(decidedAt)
                .listeners(this)
                .flushBeforeTransfer(pendingRepair == null) // sstables are isolated at the beginning of an incremental repair session, so flushing isn't neccessary
                // see comment on RangesAtEndpoint.toDummyList for why we synthesize replicas here
