@@ -48,6 +48,7 @@ import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
@@ -461,6 +462,11 @@ public class Commit
             {
                 return endpoints.endpoint(id);
             };
+
+            boolean hasLeft(NodeId id)
+            {
+                return directory.peerState(id) == NodeState.LEFT;
+            }
         }
 
         private final Supplier<RoutingHelper> routingSupplier;
@@ -490,10 +496,12 @@ public class Commit
             {
                 InetAddressAndPort endpoint = routing.endpoint(peerId);
                 boolean upgraded = routing.isUpgraded(peerId);
-                // Do not replicate to self and to the peer that has requested to commit this message
+                boolean hasLeft = routing.hasLeft(peerId);
+                // Do not replicate to self, to any left nodes and to the peer that has requested to commit this message
                 if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()) ||
                     (source != null && source.equals(endpoint)) ||
-                    !upgraded)
+                    !upgraded ||
+                    hasLeft)
                 {
                     continue;
                 }
