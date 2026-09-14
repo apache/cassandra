@@ -22,7 +22,11 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -37,12 +41,18 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ownership.ReplicaGroups;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -56,8 +66,14 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 public class PendingLocalTransfer
 {
     private static final Logger logger = LoggerFactory.getLogger(PendingLocalTransfer.class);
+    private static final String MANIFEST_FILE_NAME = "transfer.manifest";
 
     private String logPrefix()
+    {
+        return logPrefix(planId, transferId);
+    }
+
+    private static String logPrefix(TimeUUID planId, ShortMutationId transferId)
     {
         return String.format("[PendingLocalTransfer #%s transfer %s]", planId, transferId);
     }
@@ -93,6 +109,87 @@ public class PendingLocalTransfer
         this.sstables = sstables;
         this.keyspace = null;
         this.range = null;
+    }
+
+    /**
+     * Attempts to restore a transfer staged in {@code dir} from the manifest file by a previous run of this
+     * Cassandra instance.
+     *
+     * @param cfs the table
+     * @param dir the directory where the manifest lives
+     * @return the staged pending local transfer if available, {@code null} otherwise
+     */
+    static PendingLocalTransfer load(ColumnFamilyStore cfs, File dir)
+    {
+        TimeUUID planId;
+        try
+        {
+            planId = TimeUUID.fromString(dir.name());
+        }
+        catch (IllegalArgumentException e)
+        {
+            logger.warn("Ignoring pending directory with an unexpected name: {}", dir);
+            return null;
+        }
+
+        File manifest = new File(dir, MANIFEST_FILE_NAME);
+        if (!manifest.exists())
+        {
+            logger.warn("{} Ignoring pending transfer {} with no manifest. SSTables from this pending transfer cannot be activated",
+                        logPrefix(planId, null), dir);
+            return null;
+        }
+
+        ShortMutationId transferId;
+        try (FileInputStreamPlus in = manifest.newInputStream())
+        {
+            transferId = ShortMutationId.serializer.deserialize(in);
+        }
+        catch (IOException e)
+        {
+            throw new UncheckedIOException("Could not read " + manifest, e);
+        }
+
+        // Staged SSTables live in pending/<planId>/, so the keyspace and table cannot be inferred from their path:
+        // supply them explicitly rather than going through a path-based lister.
+        Map<Descriptor, Set<Component>> byDescriptor = new HashMap<>();
+        for (File file : dir.listUnchecked(File::isFile))
+        {
+            Pair<Descriptor, Component> parsed = SSTable.tryComponentFromFilename(file, cfs.getKeyspaceName(), cfs.getTableName());
+            if (parsed != null)
+                byDescriptor.computeIfAbsent(parsed.left, ignore -> new HashSet<>()).add(parsed.right);
+        }
+
+        Collection<SSTableReader> sstables = new ArrayList<>();
+        for (Map.Entry<Descriptor, Set<Component>> entry : byDescriptor.entrySet())
+            sstables.add(SSTableReader.open(cfs, entry.getKey(), entry.getValue(), cfs.metadata));
+
+        if (sstables.isEmpty())
+        {
+            logger.warn("{} Ignoring pending transfer {} that holds no SSTables", logPrefix(planId, transferId), dir);
+            return null;
+        }
+
+        logger.info("{} Recovered pending transfer with {} SSTables", logPrefix(planId, transferId), sstables.size());
+        return new PendingLocalTransfer(cfs.metadata().id, planId, transferId, sstables);
+    }
+
+    public void writeManifestFile()
+    {
+        File manifest = new File(directory(), MANIFEST_FILE_NAME);
+        try (FileOutputStreamPlus out = manifest.newOutputStream(File.WriteMode.OVERWRITE))
+        {
+            ShortMutationId.serializer.serialize(transferId, out);
+        }
+        catch (IOException e)
+        {
+            throw new UncheckedIOException("Could not write " + manifest, e);
+        }
+    }
+
+    private File directory()
+    {
+        return sstables.iterator().next().descriptor.directory;
     }
 
     /**

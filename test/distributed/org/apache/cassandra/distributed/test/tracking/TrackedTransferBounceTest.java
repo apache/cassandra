@@ -63,10 +63,21 @@ public class TrackedTransferBounceTest extends TrackedTransferTestBase
             assertPendingActivation(cluster);
             assertLocalSelect(cluster, rows -> assertRows(rows, EMPTY_ROWS));
 
+            long[] marks = new long[NODES];
+            for (int node = 1; node <= NODES; node++)
+                marks[node - 1] = cluster.get(node).logs().mark();
+
             bounce(cluster);
 
             assertPendingActivation(cluster);
             assertLocalSelect(cluster, rows -> assertRows(rows, EMPTY_ROWS));
+
+            // The pending set is not durable, so the restart must reload the staged transfers from disk, otherwise they
+            // could never be activated or failed and would sit unreferenced in pending/ forever
+            for (int node = 1; node <= NODES; node++)
+                Assertions.assertThat(cluster.get(node).logs().grep(marks[node - 1], "Recovered pending transfer").getResult())
+                          .describedAs("node%d did not recover its staged transfers after the bounce", node)
+                          .isNotEmpty();
         }
     }
 

@@ -261,6 +261,8 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
         ExpiredStatePurger.instance.register(incomingMutations);
 
+        TransferTrackingService.instance().recoverPendingTransfers();
+
         started = true;
     }
 
