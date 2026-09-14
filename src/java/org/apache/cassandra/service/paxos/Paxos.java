@@ -48,6 +48,9 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaLayout.ForTokenWrite;
 import org.apache.cassandra.locator.ReplicaPlan.ForRead;
+import org.apache.cassandra.locator.ReplicaPlans;
+import org.apache.cassandra.locator.SlotGroupMaps;
+import org.apache.cassandra.locator.SlotResponseTracker;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -356,7 +359,10 @@ public class Paxos
          */
         final int sizeOfReadQuorum;
 
-        Participants(Keyspace keyspace, ConsistencyLevel consistencyForConsensus, ReplicaLayout.ForTokenWrite all, ReplicaLayout.ForTokenWrite electorate, EndpointsForToken live)
+        @Nullable
+        final SlotGroupMaps.SlotGroupInfo slotInfo;
+
+        Participants(Keyspace keyspace, ConsistencyLevel consistencyForConsensus, ReplicaLayout.ForTokenWrite all, ReplicaLayout.ForTokenWrite electorate, EndpointsForToken live, @Nullable SlotGroupMaps.SlotGroupInfo slotInfo)
         {
             this.keyspace = keyspace;
             this.replicationStrategy = all.replicationStrategy();
@@ -369,7 +375,10 @@ public class Paxos
             this.electorateLive = electorate.all() == live ? live : electorate.all().keep(live.endpoints());
             this.allLive = live;
             this.sizeOfReadQuorum = electorate.natural().size() / 2 + 1;
-            this.sizeOfConsensusQuorum = sizeOfReadQuorum + electorate.pending().size();
+            this.slotInfo = slotInfo;
+            this.sizeOfConsensusQuorum = (slotInfo != null)
+                                         ? sizeOfReadQuorum
+                                         : sizeOfReadQuorum + electorate.pending().size();
         }
 
         @Override
@@ -394,7 +403,8 @@ public class Paxos
 
             EndpointsForToken live = all.all().filter(FailureDetector.isReplicaAlive);
 
-            return new Participants(keyspace, consistencyForConsensus, all, electorate, live);
+            SlotGroupMaps.SlotGroupInfo slotInfo = ReplicaPlans.getValidatedSlotInfo(keyspace, all);
+            return new Participants(keyspace, consistencyForConsensus, all, electorate, live, slotInfo);
         }
 
         static Participants get(TableMetadata cfm, DecoratedKey key, ConsistencyLevel consistency)
@@ -405,6 +415,12 @@ public class Paxos
         int sizeOfPoll()
         {
             return electorateLive.size();
+        }
+
+        @Nullable
+        SlotResponseTracker newSlotTracker()
+        {
+            return slotInfo != null ? new SlotResponseTracker(slotInfo) : null;
         }
 
         InetAddressAndPort voter(int i)
@@ -434,6 +450,8 @@ public class Paxos
             if (consistency == Paxos.nonSerial(consistencyForConsensus))
                 return sizeOfConsensusQuorum;
 
+            if (slotInfo != null)
+                return consistency.blockFor(replicationStrategy());
             return consistency.blockForWrite(replicationStrategy(), pending);
         }
 
