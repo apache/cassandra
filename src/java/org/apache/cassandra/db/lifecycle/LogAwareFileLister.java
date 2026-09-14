@@ -190,8 +190,7 @@ final class LogAwareFileLister
     private static boolean allFilesPresent(Map<LogRecord, Set<File>> oldFiles)
     {
         return !oldFiles.entrySet().stream()
-                        .filter((e) -> e.getKey().numFiles > e.getValue().size())
-                        .findFirst().isPresent();
+                        .anyMatch((e) -> e.getKey().numFiles > e.getValue().size());
     }
 
     private void setTemporary(LogFile txnFile, Collection<Set<File>> oldFiles, Collection<Set<File>> newFiles)
