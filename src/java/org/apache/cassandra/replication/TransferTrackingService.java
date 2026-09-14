@@ -122,6 +122,44 @@ public class TransferTrackingService
     }
 
     /**
+     * Recovers pending transfers by scanning pending directories for every table in tracked
+     * keyspaces. This allows node restarts to not leave SSTables unreferenced on disk. 
+     */
+    public void recoverPendingTransfers()
+    {
+        lock.writeLock().lock();
+        try
+        {
+            for (Keyspace keyspace : Keyspace.all())
+            {
+                if (!keyspace.getMetadata().params.replicationType.isTracked())
+                    continue;
+
+                for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+                {
+                    for (File pendingLocation : cfs.getDirectories().getPendingLocations())
+                    {
+                        for (File dir : pendingLocation.listUnchecked(File::isDirectory))
+                        {
+                            PendingLocalTransfer transfer = PendingLocalTransfer.load(cfs, dir);
+                            if (transfer == null)
+                                continue;
+
+                            PendingLocalTransfer existing = local.putIfAbsent(transfer.planId, transfer);
+                            if (existing != null)
+                                logger.warn("Not recovering {}, a transfer is already tracked for that plan", dir);
+                        }
+                    }
+                }
+            }
+        }
+        finally
+        {
+            lock.writeLock().unlock();
+        }
+    }
+
+    /**
      * Track a repair as a set of {@link TrackedRepairTransfer} instances corresponding to sync tasks prior to task 
      * execution so when the syncs are done, we can activate them via {@link ActivationRequest} or fail by 
      * sending {@link TransferFailed} to all replicas. In other words, one {@link RepairJob} will have as many
