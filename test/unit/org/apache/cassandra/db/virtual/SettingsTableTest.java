@@ -125,6 +125,9 @@ public class SettingsTableTest extends CQLTester
         autoRepairOverrides.table_max_repair_time = new DurationSpec.IntSecondsBound("6h");
         config.auto_repair.repair_type_overrides.put("full", autoRepairOverrides);
 
+        config.default_role_initializer = new ParameterizedClass("PasswordDefaultRoleInitializer",
+                                                                 Map.of("password_hash", "$2a$04$wsvzFamDJPDrTwMjgfcgpO.mKc.CMEuHBFZSjhGz2Ts6.v8PUO2rC"));
+
         table = new SettingsTable(KS_NAME, config);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
         disablePreparedReuseForTest();
@@ -391,6 +394,9 @@ public class SettingsTableTest extends CQLTester
         assertValue("transparent_data_encryption_options.key_provider.parameters",
                     String.format("{\"keystore_password\":\"%s\",\"keystore\":\"conf/.keystore\",\"key_password\":\"%s\"}",
                                   Redacted.REDACTED_STRING,
+                                  Redacted.REDACTED_STRING));
+        assertValue("default_role_initializer.parameters",
+                    String.format("{\"password_hash\":\"%s\"}",
                                   Redacted.REDACTED_STRING));
 
         Set<Map.Entry<String, Property>> entries = new DefaultLoader().flatten(Config.class)
