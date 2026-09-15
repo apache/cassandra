@@ -579,4 +579,27 @@ public class TrackedUnreconciledPromotionTest
         SSTableReader promoted = Iterables.getOnlyElement(cfs.getLiveSSTables());
         assertTrue("a tracked keyspace reaches repaired through promotion", promoted.isRepaired());
     }
+
+    /**
+     * The log to shard index has to survive the keyspace leaving mutation tracking.
+     * {@code MutationTrackingService.onNewClusterMetadata} empties it and depends on each arm of
+     * {@code applyUpdatedMetadata} to announce the logs of the shards it keeps. The arm that carries a rolled back
+     * keyspace forward did not, which left the shards reachable by token and unreachable by log id, so
+     * {@link MutationTrackingService#isDurablyReconciled} threw instead of answering.
+     */
+    @Test
+    public void logIdsStillResolveAfterLeavingTracking()
+    {
+        ColumnFamilyStore cfs = newTrackedTable();
+        MutationId id = applyMutation(cfs, 1, 1);
+        ImmutableCoordinatorLogOffsets offsets = new ImmutableCoordinatorLogOffsets.Builder().add(id).build();
+
+        assertFalse("precondition: the log id resolves and has not reconciled yet",
+                    MutationTrackingService.instance().isDurablyReconciled(offsets));
+
+        stopTracking(cfs);
+
+        assertFalse("the log id must still resolve once the keyspace has left tracking",
+                    MutationTrackingService.instance().isDurablyReconciled(offsets));
+    }
 }

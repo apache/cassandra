@@ -972,7 +972,8 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             if (!shardUpdateNeeded(keyspaceShards, prev, next))
                 return;
 
-            // recalculating the shards will repopulate this via the existing callbacks
+            // Emptied and repopulated by the onNewLog callbacks below. Every arm of applyUpdatedMetadata has to
+            // announce the logs of the shards it keeps, whether it rebuilds them or carries them forward.
             log2ShardMap = new ConcurrentHashMap<>();
             keyspaceShards = applyUpdatedMetadata(keyspaceShards, prev, next, this::nextLogId, this::onNewLog);
 
@@ -1045,7 +1046,10 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
                     // TODO (expected): Implement shard deletion for tracked → untracked migration completion (CASSANDRA-20955)
                 case NONE:
                     if (current != null)
+                    {
+                        current.reportAllLogsToCallback();
                         updated.put(keyspace, current);
+                    }
                     break;
                 case DROP:
                     // Don't carry forward the state for the dropped keyspace
@@ -1344,6 +1348,11 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             newShards.values().forEach(Shard::reportAllLogsToCallback);
 
             return new KeyspaceShards(keyspace.name, newShards, new ReplicaGroups(newGroups));
+        }
+
+        void reportAllLogsToCallback()
+        {
+            shards.values().forEach(Shard::reportAllLogsToCallback);
         }
 
         MutationId nextMutationId(Token token)
