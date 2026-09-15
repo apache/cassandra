@@ -235,6 +235,12 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
     }
 
     @Override
+    public boolean supportsCursorCompaction()
+    {
+        return true;
+    }
+
+    @Override
     public Version getLatestVersion()
     {
         return latestVersion;

@@ -35,20 +35,12 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReader.PartitionPositionBounds;
-import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-/**
- * The cursor path accepts a partial-range scanner.
- * <p>
- * UCS with {@code parallelize_output_shards: true} splits one pick into a task per output shard,
- * each with its own token range. An sstable lying wholly inside a shard yields a full-range
- * scanner; one straddling a shard boundary yields a partial one. On a large table most sstables
- * span several shards, so most tasks carry a partial scanner.
- */
+/** The cursor path accepts a partial-range scanner. */
 public class CursorPartialRangeGateTest extends CQLTester
 {
     private ColumnFamilyStore twoSSTablesOfManyPartitions()
@@ -65,17 +57,14 @@ public class CursorPartialRangeGateTest extends CQLTester
         return cfs;
     }
 
-    /** The token range that covers everything, which yields full-range scanners. */
+    /** The token range covering everything. */
     private List<Range<Token>> fullRange(ColumnFamilyStore cfs)
     {
         Token min = cfs.getPartitioner().getMinimumToken();
         return Collections.singletonList(new Range<>(min, min));
     }
 
-    /**
-     * A range that splits the ring, so at least one sstable is read only in part. The exact split
-     * does not matter; the assertion below checks that a partial scanner was actually produced.
-     */
+    /** A range that splits the ring, so at least one sstable is read only in part. */
     private List<Range<Token>> halfRange(ColumnFamilyStore cfs)
     {
         List<Token> tokens = new ArrayList<>();
@@ -89,14 +78,10 @@ public class CursorPartialRangeGateTest extends CQLTester
         return Collections.singletonList(new Range<>(min, tokens.get(tokens.size() / 2)));
     }
 
-    /**
-     * Whether the gate can accept any compaction at all under the running configuration. The cursor
-     * path writes the BIG format only, and {@code test/conf/latest_diff.yaml} selects BTI, so an
-     * assertion that the gate opens has to read the format rather than assume it.
-     */
+    /** Whether the gate can accept any compaction under the running configuration. */
     private static boolean cursorSupportsSelectedFormat()
     {
-        return DatabaseDescriptor.getSelectedSSTableFormat() instanceof BigFormat;
+        return DatabaseDescriptor.getSelectedSSTableFormat().supportsCursorCompaction();
     }
 
     private boolean isSupportedOver(ColumnFamilyStore cfs, List<Range<Token>> ranges) throws Exception
@@ -110,7 +95,7 @@ public class CursorPartialRangeGateTest extends CQLTester
         }
     }
 
-    /** The control: a whole-ring compaction was always supported and must stay so. */
+    /** A whole-ring compaction is supported. */
     @Test
     public void aFullRangeCompactionIsSupported() throws Exception
     {
@@ -119,10 +104,7 @@ public class CursorPartialRangeGateTest extends CQLTester
                      cursorSupportsSelectedFormat(), isSupportedOver(cfs, fullRange(cfs)));
     }
 
-    /**
-     * The fixture must actually produce a partial scanner, or the test below would pass for the
-     * wrong reason. A partial scanner is one whose position bounds do not cover its whole sstable.
-     */
+    /** The half-range fixture must actually produce a partial scanner. */
     @Test
     public void theHalfRangeFixtureProducesAPartialScanner()
     {
@@ -148,7 +130,7 @@ public class CursorPartialRangeGateTest extends CQLTester
                    + "or the gate test below proves nothing", sawPartial);
     }
 
-    /** The change itself: a partial range is now taken by the cursor path. */
+    /** A partial-range compaction is supported. */
     @Test
     public void aPartialRangeCompactionIsSupported() throws Exception
     {

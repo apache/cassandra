@@ -19,8 +19,10 @@
 package org.apache.cassandra.dht;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 import org.apache.cassandra.db.BufferDecoratedKey;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class ReusableDecoratedKey extends BufferDecoratedKey
@@ -44,6 +46,25 @@ public abstract class ReusableDecoratedKey extends BufferDecoratedKey
         keyLength = length;
         key.limit(length);
         recalculateToken();
+    }
+
+    public void copyKey(byte[] newKey, int length)
+    {
+        maybeResizeKey(length);
+        System.arraycopy(newKey, 0, keyBytes, 0, length);
+        keyLength = length;
+        key.limit(length);
+        recalculateToken();
+    }
+
+    /**
+     * Always a copy, token included: the next copyKey overwrites the bytes and moves the token, so
+     * this key is never safe to retain as it is.
+     */
+    @Override
+    public DecoratedKey retainable()
+    {
+        return getToken().getPartitioner().decorateKey(ByteBuffer.wrap(Arrays.copyOf(keyBytes, keyLength)));
     }
 
     /** WARNING: retains ref to external buffer */
