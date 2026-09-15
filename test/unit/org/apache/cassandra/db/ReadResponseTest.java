@@ -490,13 +490,23 @@ public class ReadResponseTest
 
             return singlePartitionIterator(new WrappingUnfilteredRowIterator()
             {
-                public UnfilteredRowIterator wrapped() { return rowIter; }
+                @Override
+                public UnfilteredRowIterator wrapped()
+                {
+                    return rowIter;
+                }
 
                 @Override
-                public RegularAndStaticColumns columns() { return columns; }
+                public RegularAndStaticColumns columns()
+                {
+                    return columns;
+                }
 
                 @Override
-                public Row staticRow() { return staticRow; }
+                public Row staticRow()
+                {
+                    return staticRow;
+                }
 
                 @Override
                 public Unfiltered next()
@@ -777,6 +787,7 @@ public class ReadResponseTest
             this.wrapped = wrapped;
         }
 
+        @Override
         public UnfilteredRowIterator wrapped()
         {
             return wrapped;
@@ -981,7 +992,7 @@ public class ReadResponseTest
 
         InMemoryAssertionBuilder maxRows(int maxRows) { this.maxRows = maxRows; return this; }
         // Enables the byte limit, sizing it to exactly hold the first n Unfiltered objects the read produces
-        InMemoryAssertionBuilder maxBytesAsSizeOfFirstNRows(int n) {this.maxBytes = n; return this; }
+        InMemoryAssertionBuilder maxBytesAsSizeOfFirstNRows(int n) { this.maxBytes = n; return this; }
         InMemoryAssertionBuilder rows(int rows) { this.rows = rows; return this; }
         InMemoryAssertionBuilder reversed() { this.reversed = true; return this; }
         InMemoryAssertionBuilder withTombstone(RangeTombstoneSpec rt) { tombstones.add(rt); return this; }
@@ -1141,10 +1152,17 @@ public class ReadResponseTest
         UnfilteredRowIterator rowIter = update.unfilteredIterator(command.columnFilter(), Slices.ALL, command.isReversed());
         return singlePartitionIterator(new WrappingUnfilteredRowIterator()
         {
-            public UnfilteredRowIterator wrapped() { return rowIter; }
+            @Override
+            public UnfilteredRowIterator wrapped()
+            {
+                return rowIter;
+            }
 
             @Override
-            public Row staticRow() { return staticRow; }
+            public Row staticRow()
+            {
+                return staticRow;
+            }
         });
     }
 
@@ -1171,6 +1189,7 @@ public class ReadResponseTest
                                                                          Rows.EMPTY_STATIC_ROW, command.isReversed(),
                                                                          EncodingStats.NO_STATS)
         {
+            @Override
             protected Unfiltered computeNext()
             {
                 return endOfData();
@@ -1226,6 +1245,7 @@ public class ReadResponseTest
     {
         return singlePartitionIterator(update, false);
     }
+
     private UnfilteredPartitionIterator singlePartitionIterator(PartitionUpdate update, boolean reversed)
     {
         return singlePartitionIterator(update.unfilteredIterator(ColumnFilter.SelectionColumnFilter.all(update.columns()), Slices.ALL, reversed));
@@ -1237,10 +1257,19 @@ public class ReadResponseTest
         {
             private boolean returned = false;
 
-            public TableMetadata metadata() { return rowIter.metadata(); }
+            @Override
+            public TableMetadata metadata()
+            {
+                return rowIter.metadata();
+            }
 
-            public boolean hasNext() { return !returned; }
+            @Override
+            public boolean hasNext()
+            {
+                return !returned;
+            }
 
+            @Override
             public UnfilteredRowIterator next()
             {
                 returned = true;
@@ -1302,7 +1331,6 @@ public class ReadResponseTest
     private ReadCommand command(int key, TableMetadata metadata, boolean reversed)
     {
         return new StubReadCommand(key, metadata, false, reversed);
-
     }
 
     private static class StubRepairedDataInfo extends RepairedDataInfo
@@ -1380,7 +1408,11 @@ public class ReadResponseTest
         UnfilteredRowIterator baseRowIter = update.unfilteredIterator();
         return singlePartitionIterator(new WrappingUnfilteredRowIterator()
         {
-            public UnfilteredRowIterator wrapped() { return baseRowIter; }
+            @Override
+            public UnfilteredRowIterator wrapped()
+            {
+                return baseRowIter;
+            }
 
             @Override
             public void close()
@@ -1410,7 +1442,6 @@ public class ReadResponseTest
                   null,
                   false,
                   null);
-
         }
 
         @Override
