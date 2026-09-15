@@ -39,6 +39,10 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
     final CompressionMetadata metadata;
     final int maxCompressedLength;
     final Supplier<Double> crcCheckChanceSupplier;
+    // Read-ahead is on only when a scan buffer is configured and larger than one chunk; a smaller buffer cannot
+    // batch reads, so it adds no value. A value of 0 means "no read-ahead". A per-scan view (see forScan) never
+    // reads ahead itself, so it always reports 0.
+    final int readAheadBufferSize;
 
     protected CompressedChunkReader(ChannelProxy channel, CompressionMetadata metadata, Supplier<Double> crcCheckChanceSupplier)
     {
@@ -46,7 +50,20 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
         this.metadata = metadata;
         this.maxCompressedLength = metadata.maxCompressedLength();
         this.crcCheckChanceSupplier = crcCheckChanceSupplier;
+        int size = DatabaseDescriptor.getCompressedReadAheadBufferSize();
+        this.readAheadBufferSize = (size > 0 && size > metadata.chunkLength()) ? size : 0;
         assert Integer.bitCount(metadata.chunkLength()) == 1; //must be a power of two
+    }
+
+    // Copy constructor for a per-scan view. The view shares the parent's channel and metadata but never reads
+    // ahead itself, so its readAheadBufferSize is 0.
+    protected CompressedChunkReader(CompressedChunkReader parent)
+    {
+        super(parent.channel, parent.metadata.dataLength);
+        this.metadata = parent.metadata;
+        this.maxCompressedLength = parent.maxCompressedLength;
+        this.crcCheckChanceSupplier = parent.crcCheckChanceSupplier;
+        this.readAheadBufferSize = 0;
     }
 
     protected CompressedChunkReader forScan()
@@ -90,9 +107,11 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
     }
 
     @Override
-    public Rebufferer instantiateRebufferer(boolean isScan)
+    public Rebufferer instantiateRebufferer(ReadPattern pattern)
     {
-        return new BufferManagingRebufferer.Aligned(isScan ? forScan() : this);
+        // A read-ahead pattern (PARTITION_READ, SCAN) gets a per-scan view that owns its own read-ahead buffer.
+        // A ROW_READ reads through this shared reader with no read-ahead.
+        return new BufferManagingRebufferer.Aligned(pattern.readsAhead() ? forScan() : this);
     }
 
     protected interface CompressedReader extends Closeable
@@ -115,7 +134,9 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
 
         }
 
-
+        /**
+         * The returned buffer is only valid until the next call to read(). Callers must consume the data immediately.
+         */
         ByteBuffer read(CompressionMetadata.Chunk chunk, boolean shouldCheckCrc) throws CorruptBlockException;
     }
 
@@ -157,13 +178,14 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
     {
         private final ChannelProxy channel;
         private final ThreadLocalByteBufferHolder bufferHolder;
-        private final ThreadLocalReadAheadBuffer readAheadBuffer;
+        private final ReadAheadBuffer readAheadBuffer;
 
-        private ScanCompressedReader(ChannelProxy channel, CompressionMetadata metadata, int readAheadBufferSize)
+        private ScanCompressedReader(ChannelProxy channel, ThreadLocalByteBufferHolder bufferHolder,
+                                     ReadAheadBuffer readAheadBuffer)
         {
             this.channel = channel;
-            this.bufferHolder = new ThreadLocalByteBufferHolder(metadata.compressor().preferredBufferType());
-            this.readAheadBuffer = new ThreadLocalReadAheadBuffer(channel, readAheadBufferSize, metadata.compressor().preferredBufferType());
+            this.bufferHolder = bufferHolder;
+            this.readAheadBuffer = readAheadBuffer;
         }
 
         @Override
@@ -216,6 +238,7 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
             return readAheadBuffer.hasBuffer();
         }
 
+        @Override
         public void close()
         {
             readAheadBuffer.close();
@@ -232,18 +255,30 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
         {
             super(channel, metadata, crcCheckChanceSupplier);
             reader = new RandomAccessCompressedReader(channel, metadata);
-
-            int readAheadBufferSize = DatabaseDescriptor.getCompressedReadAheadBufferSize();
-            scanReader = (readAheadBufferSize > 0 && readAheadBufferSize > metadata.chunkLength())
-                         ? new ScanCompressedReader(channel, metadata, readAheadBufferSize) : null;
+            this.scanReader = null;
         }
 
+        // Per-scan view. Each scan reader is single-threaded and owns its own read-ahead buffer, so no buffer is
+        // shared across threads. It shares the parent's random-access reader as a fallback; that reader's close()
+        // is a no-op, so the view frees only its own scan buffer.
+        private Standard(Standard parent, CompressedReader scanReader)
+        {
+            super(parent);
+            this.reader = parent.reader;
+            this.scanReader = scanReader;
+        }
+
+        @Override
         protected CompressedChunkReader forScan()
         {
-            if (scanReader != null)
-                scanReader.allocateResources();
+            if (readAheadBufferSize == 0)
+                return this;
 
-            return this;
+            ScanCompressedReader scan = new ScanCompressedReader(channel,
+                                                                 new ThreadLocalByteBufferHolder(metadata.compressor().preferredBufferType()),
+                                                                 new ReadAheadBuffer(channel, readAheadBufferSize, metadata.compressor().preferredBufferType()));
+            scan.allocateResources();
+            return new Standard(this, scan);
         }
 
         @Override
