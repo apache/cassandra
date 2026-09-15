@@ -213,6 +213,9 @@ Upgrading
     request. Auth cache request/hit/miss counts and the system_views.cidr_filtering_metrics_* counts and
     latencies will therefore report fewer events than before. (see CASSANDRA-21606)
     - Guardrail configurations of zero are now treated as zero instead of unlimited. See CASSANDRA-21517.
+    - The hostname column in system_views.clients will no longer perform a reverse DNS lookup and will instead
+    return the same value as the address column. This avoids the risk of client connections overwhelming
+    DNS. (CASSANDRA-21539)
 
 Deprecation
 -----------
