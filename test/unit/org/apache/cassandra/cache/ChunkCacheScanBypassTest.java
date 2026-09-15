@@ -21,7 +21,6 @@ package org.apache.cassandra.cache;
 import java.lang.reflect.Constructor;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DataStorageSpec;
@@ -43,12 +42,8 @@ import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.memory.BufferPool;
 import org.apache.cassandra.utils.memory.BufferPools;
 
-/**
- * A one-shot SCAN (compaction and similar) must bypass the chunk cache so it does not evict hot data with
- * one-shot chunks. CachingRebufferer.instantiateRebufferer(pattern) delegates to the source for a SCAN, which
- * routes the read through its own read-ahead buffer instead of the cache. A PARTITION_READ and a ROW_READ still
- * use the cache, because both re-read hot data. See CASSANDRA-21671.
- */
+import static org.assertj.core.api.Assertions.assertThat;
+
 public class ChunkCacheScanBypassTest
 {
     static
@@ -60,54 +55,16 @@ public class ChunkCacheScanBypassTest
         DatabaseDescriptor.getRawConfig().file_cache_size = new DataStorageSpec.IntMebibytesBound(64);
     }
 
-    // The shared ChunkCache.instance is null when the file cache is disabled (the default). Build a private
-    // instance directly so the test controls the cache regardless of the file_cache_enabled setting.
-    private static ChunkCache newChunkCache() throws Exception
-    {
-        Constructor<ChunkCache> ctor = ChunkCache.class.getDeclaredConstructor(BufferPool.class);
-        ctor.setAccessible(true);
-        return ctor.newInstance(BufferPools.forChunkCache());
-    }
-
-    private static CompressionMetadata writeCompressedFile(File f, File offsets, File digest, long longsToWrite) throws Exception
-    {
-        SequentialWriterOption option = SequentialWriterOption.newBuilder()
-                                                              .finishOnClose(false)
-                                                              .bufferSize(1 << 10)
-                                                              .build();
-        CompressionParams params = CompressionParams.snappy(4096, 1.1);
-        try (CompressedSequentialWriter writer = new CompressedSequentialWriter(f, offsets, digest, option, params,
-                                                                                new MetadataCollector(new ClusteringComparator())))
-        {
-            for (long i = 0; i < longsToWrite; i++)
-                writer.writeLong(i);
-
-            writer.sync();
-            return writer.open(0);
-        }
-    }
-
-    // Rebuffer every chunk-aligned position over the whole file and release each holder. This is enough to
-    // drive cache population (a point read) or a read-ahead scan; data correctness is covered elsewhere.
-    private static void rebufferWholeFile(Rebufferer rebufferer, long fileLength, int chunkSize)
-    {
-        long position = 0;
-        do
-        {
-            Rebufferer.BufferHolder holder = rebufferer.rebuffer(position);
-            holder.release();
-            position += chunkSize;
-        }
-        while (position < fileLength);
-    }
-
-    @Test(timeout = 60_000)
+    /**
+     * A scan (ex. compaction) should not populate the chunk cache, since it reads each chunk once
+     * and would only evict hot data.
+     */
+    @Test
     public void scanBypassesCacheWhilePointReadPopulatesIt() throws Exception
     {
         FileSystems.newGlobalInMemoryFileSystem();
         File f = new File("/chunk_cache_scan_bypass.db");
-        CompressionMetadata metadata = writeCompressedFile(f, new File("/chunk_cache_scan_bypass.offset"),
-                                                           new File("/chunk_cache_scan_bypass.digest"), 200_000);
+        CompressionMetadata metadata = writeCompressedFile(f, new File("/chunk_cache_scan_bypass.offset"), new File("/chunk_cache_scan_bypass.digest"), 200_000);
         DatabaseDescriptor.setCompressedReadAheadBufferSizeInKb(256);
 
         ChunkCache cache = newChunkCache();
@@ -119,11 +76,11 @@ public class ChunkCacheScanBypassTest
 
             // A SCAN gets a distinct, non-caching rebufferer and must not add anything to the cache.
             Rebufferer scan = factory.instantiateRebufferer(ReadPattern.SCAN);
-            Assertions.assertThat(scan).isNotSameAs(factory);
+            assertThat(scan).isNotSameAs(factory);
             try
             {
                 rebufferWholeFile(scan, reader.fileLength(), reader.chunkSize());
-                Assertions.assertThat(cache.size()).as("a scan must not populate the chunk cache").isZero();
+                assertThat(cache.size()).as("a scan must not populate the chunk cache").isZero();
             }
             finally
             {
@@ -135,17 +92,17 @@ public class ChunkCacheScanBypassTest
             // A PARTITION_READ reuses the caching rebufferer and populates the cache, so a repeated partition-range
             // query re-reads hot data. This is the CASSANDRA-21671 regression: it must not bypass the cache.
             Rebufferer partitionRead = factory.instantiateRebufferer(ReadPattern.PARTITION_READ);
-            Assertions.assertThat(partitionRead).isSameAs(factory);
+            assertThat(partitionRead).isSameAs(factory);
             rebufferWholeFile(partitionRead, reader.fileLength(), reader.chunkSize());
-            Assertions.assertThat(cache.size()).as("a partition read must populate the chunk cache").isGreaterThan(0);
+            assertThat(cache.size()).as("a partition read must populate the chunk cache").isGreaterThan(0);
 
             cache.close();
 
             // A point read reuses the caching rebufferer and populates the cache, proving the cache works.
             Rebufferer point = factory.instantiateRebufferer(ReadPattern.ROW_READ);
-            Assertions.assertThat(point).isSameAs(factory);
+            assertThat(point).isSameAs(factory);
             rebufferWholeFile(point, reader.fileLength(), reader.chunkSize());
-            Assertions.assertThat(cache.size()).as("a point read must populate the chunk cache").isGreaterThan(0);
+            assertThat(cache.size()).as("a point read must populate the chunk cache").isGreaterThan(0);
         }
         finally
         {
@@ -153,13 +110,17 @@ public class ChunkCacheScanBypassTest
         }
     }
 
-    @Test(timeout = 60_000)
+    /**
+     * A can bypasses the chunk cache entirely (its rebufferer delegates straight to the uncompressed source
+     * instead of the cache), so it must still batch its reads through its own read-ahead buffer rather than
+     * issuing one physical read per chunk.
+     */
+    @Test
     public void scanUnderCacheUsesReadAheadBuffer() throws Exception
     {
         ListenableFileSystem fs = FileSystems.newGlobalInMemoryFileSystem();
         File f = new File("/chunk_cache_scan_readahead.db");
-        CompressionMetadata metadata = writeCompressedFile(f, new File("/chunk_cache_scan_readahead.offset"),
-                                                           new File("/chunk_cache_scan_readahead.digest"), 200_000);
+        CompressionMetadata metadata = writeCompressedFile(f, new File("/chunk_cache_scan_readahead.offset"), new File("/chunk_cache_scan_readahead.digest"), 200_000);
         DatabaseDescriptor.setCompressedReadAheadBufferSizeInKb(256);
 
         AtomicInteger reads = new AtomicInteger();
@@ -186,16 +147,51 @@ public class ChunkCacheScanBypassTest
                 scan.closeReader();
             }
 
-            // Read-ahead reads many chunks per physical read, so the scan issues far fewer reads than chunks.
-            Assertions.assertThat((long) reads.get())
-                      .as("the scan must batch reads through the read-ahead buffer")
-                      .isLessThan(chunkCount);
-            // The scan must not have populated the cache either.
-            Assertions.assertThat(cache.size()).as("a scan must not populate the chunk cache").isZero();
+            assertThat((long) reads.get()).as("the scan must batch reads through the read-ahead buffer").isLessThan(chunkCount);
+            assertThat(cache.size()).as("a scan must not populate the chunk cache").isZero();
         }
         finally
         {
             cache.close();
         }
+    }
+
+    private static ChunkCache newChunkCache() throws Exception
+    {
+        // The shared ChunkCache.instance is null when the file cache is disabled (the default). Build a private
+        // instance directly so the test controls the cache regardless of the file_cache_enabled setting.
+        Constructor<ChunkCache> ctor = ChunkCache.class.getDeclaredConstructor(BufferPool.class);
+        ctor.setAccessible(true);
+        return ctor.newInstance(BufferPools.forChunkCache());
+    }
+
+    private static CompressionMetadata writeCompressedFile(File f, File offsets, File digest, long longsToWrite) throws Exception
+    {
+        SequentialWriterOption option = SequentialWriterOption.newBuilder().finishOnClose(false).bufferSize(1 << 10).build();
+        CompressionParams params = CompressionParams.snappy(4096, 1.1);
+        
+        try (CompressedSequentialWriter writer = new CompressedSequentialWriter(f, offsets, digest, option, params, new MetadataCollector(new ClusteringComparator())))
+        {
+            for (long i = 0; i < longsToWrite; i++)
+                writer.writeLong(i);
+
+            writer.sync();
+            return writer.open(0);
+        }
+    }
+
+    
+    private static void rebufferWholeFile(Rebufferer rebufferer, long fileLength, int chunkSize)
+    {
+        // Rebuffer every chunk-aligned position over the whole file and release each holder. This is enough to
+        // drive cache population (a point read) or a read-ahead scan.
+        long position = 0;
+        do
+        {
+            Rebufferer.BufferHolder holder = rebufferer.rebuffer(position);
+            holder.release();
+            position += chunkSize;
+        }
+        while (position < fileLength);
     }
 }
