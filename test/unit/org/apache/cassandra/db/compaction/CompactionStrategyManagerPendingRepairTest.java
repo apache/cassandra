@@ -203,7 +203,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         List<List<AbstractCompactionStrategy>> strategies;
 
         strategies = csm.getStrategies();
-        Assert.assertEquals(3, strategies.size());
+        Assert.assertEquals(4, strategies.size());
         Assert.assertTrue(strategies.get(2).isEmpty());
 
         SSTableReader sstable = makeSSTable(true);
@@ -211,7 +211,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         csm.handleNotification(new SSTableAddedNotification(Collections.singleton(sstable), null), cfs.getTracker());
 
         strategies = csm.getStrategies();
-        Assert.assertEquals(3, strategies.size());
+        Assert.assertEquals(4, strategies.size());
         Assert.assertFalse(strategies.get(2).isEmpty());
     }
 

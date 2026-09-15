@@ -43,6 +43,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.SimpleBuilders;
+import org.apache.cassandra.db.compaction.AbstractStrategyHolder.TaskSupplier;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -78,6 +79,9 @@ import static org.junit.Assert.assertTrue;
 public class TrackedUnreconciledPromotionTest
 {
     private static final AtomicInteger keyspaceNumber = new AtomicInteger();
+
+    /** Enough that the projection over repaired or unrepaired is non-zero, so a lost addend cannot hide. */
+    private static final long ADDITIONAL_BYTES = 1L << 30;
 
     static
     {
@@ -184,6 +188,11 @@ public class TrackedUnreconciledPromotionTest
     public void backlogDrainsInOnePass()
     {
         ColumnFamilyStore cfs = newTrackedTable();
+        CompactionStrategyManager csm = cfs.getCompactionStrategyManager();
+
+        // Baselines for the stream projection assertion below, taken while every holder is still empty.
+        int emptyIncremental = csm.getEstimatedRemainingTasks(4, ADDITIONAL_BYTES, true);
+        int emptyFull = csm.getEstimatedRemainingTasks(4, ADDITIONAL_BYTES, false);
 
         int backlog = 4;
         Set<SSTableReader> stranded = new HashSet<>();
@@ -192,6 +201,24 @@ public class TrackedUnreconciledPromotionTest
 
         assertEquals(backlog, cfs.getLiveSSTables().size());
         assertTrue(promotable(cfs).isEmpty());
+
+        // The size tiered estimate is a side effect of picking a bucket, so run a round and hand the sstables back.
+        for (TaskSupplier supplier : manager(cfs).getBackgroundTaskSuppliers(FBUtilities.nowInSeconds()))
+        {
+            Collection<AbstractCompactionTask> rounds = supplier.getTasks();
+            if (rounds != null)
+                rounds.forEach(AbstractCompactionTask::rejected);
+        }
+
+        int pending = manager(cfs).getEstimatedRemainingTasks();
+        assertTrue(pending > 0);
+        assertEquals(pending, csm.getEstimatedRemainingTasks());
+
+        // check that this increases the pending compaction count
+        assertEquals(emptyIncremental + pending,
+                     csm.getEstimatedRemainingTasks(4, ADDITIONAL_BYTES, true));
+        assertEquals(emptyFull + pending,
+                     csm.getEstimatedRemainingTasks(4, ADDITIONAL_BYTES, false));
 
         persistLogState();
         assertEquals(stranded, promotable(cfs));

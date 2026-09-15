@@ -37,7 +37,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -879,9 +878,10 @@ public class CompactionStrategyManager implements INotificationConsumer
         readLock.lock();
         try
         {
-            List<Map<Long, Integer>> countsByBucket = Stream.concat(
-                                                                StreamSupport.stream(repaired.allStrategies().spliterator(), false),
-                                                                StreamSupport.stream(unrepaired.allStrategies().spliterator(), false))
+            Iterable<AbstractCompactionStrategy> strategies = Iterables.concat(repaired.allStrategies(),
+                                                                              unrepaired.allStrategies(),
+                                                                              tracked.allStrategies());
+            List<Map<Long, Integer>> countsByBucket = StreamSupport.stream(strategies.spliterator(), false)
                                                             .filter((TimeWindowCompactionStrategy.class)::isInstance)
                                                             .map(s -> ((TimeWindowCompactionStrategy)s).getSSTableCountByBuckets())
                                                             .collect(Collectors.toList());
@@ -1328,6 +1328,10 @@ public class CompactionStrategyManager implements INotificationConsumer
         {
             int tasks = pendingRepairs.getEstimatedRemainingTasks();
 
+            // Every holder the incoming sstables are not distributed over still contributes its current backlog, so
+            // that callers comparing this against a threshold see the whole table.
+            tasks += tracked.getEstimatedRemainingTasks();
+
             Iterable<AbstractCompactionStrategy> strategies;
             if (isIncremental)
             {
@@ -1375,7 +1379,8 @@ public class CompactionStrategyManager implements INotificationConsumer
         {
             return Arrays.asList(Lists.newArrayList(repaired.allStrategies()),
                                  Lists.newArrayList(unrepaired.allStrategies()),
-                                 Lists.newArrayList(pendingRepairs.allStrategies()));
+                                 Lists.newArrayList(pendingRepairs.allStrategies()),
+                                 Lists.newArrayList(tracked.allStrategies()));
         }
         finally
         {
