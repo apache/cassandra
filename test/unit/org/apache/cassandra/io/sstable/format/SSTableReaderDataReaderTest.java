@@ -17,15 +17,23 @@
  */
 package org.apache.cassandra.io.sstable.format;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMRules;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -37,20 +45,25 @@ import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
 
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 
 /**
- * Tests for {@code SSTableReader#canReuseDfile} / {@code SSTableReader#openDataReaderInternal}.
+ * Tests for {@code SSTableReader#canReuseDfile} / {@code SSTableReader#openDataReaderInternal}, and for
+ * reader contents and resource lifetime across foreground reads and scans.
  */
+@RunWith(BMUnitRunner.class)
 public class SSTableReaderDataReaderTest
 {
     private static final String KEYSPACE = "SSTableReaderDataReaderTest";
@@ -58,6 +71,8 @@ public class SSTableReaderDataReaderTest
     private static final String CF_COMPRESSED = "Compressed";
 
     private static DiskAccessMode originalDiskAccessMode;
+    private static final ThreadLocal<Set<Integer>> advisedDescriptors = new ThreadLocal<>();
+    private static final ThreadLocal<Boolean> sequentialRead = new ThreadLocal<>();
     private final List<Ref<?>> refsToRelease = new ArrayList<>();
 
     @BeforeClass
@@ -84,6 +99,7 @@ public class SSTableReaderDataReaderTest
     @After
     public void teardown()
     {
+        DatabaseDescriptor.setDiskAccessMode(DiskAccessMode.standard);
         Throwable exceptions = null;
         for (Ref<?> ref : refsToRelease)
         {
@@ -216,24 +232,141 @@ public class SSTableReaderDataReaderTest
     }
 
     @Test
-    public void testForScanReusesWithNullMode()
+    public void testFlushedMmapScanRetainsLiveRegions() throws IOException
     {
-        SSTableReader sstable = createSSTable(CF_UNCOMPRESSED);
-
-        try (RandomAccessReader reader = sstable.openDataReaderForScan())
+        DatabaseDescriptor.setDiskAccessMode(DiskAccessMode.mmap);
+        for (String table : new String[]{ CF_UNCOMPRESSED, CF_COMPRESSED })
         {
-            assertReaderSharesDfileChannel(sstable, reader);
+            SSTableReader sstable = createSSTable(table);
+            assertEquals(DiskAccessMode.mmap, sstable.dfile.diskAccessMode());
+            byte[] expected = readData(sstable.openDataReader());
+            // Flush has already closed the writer and its MmappedRegionsCache.
+            assertArrayEquals(expected, readData(sstable.openDataReaderForScan()));
+            assertArrayEquals(expected, readData(sstable.openDataReaderForBulkScan(DiskAccessMode.mmap)));
+            assertArrayEquals(expected, readData(sstable.openDataReader()));
         }
     }
 
     @Test
-    public void testForScanCreatesNewHandleWithDirect()
+    public void testScanClosePreservesWarmedSharedCache() throws IOException
     {
-        SSTableReader sstable = createSSTable(CF_COMPRESSED);
-
-        try (RandomAccessReader reader = sstable.openDataReaderForScan(DiskAccessMode.direct))
+        assertNotNull("This regression requires the enabled file cache in test/conf/cassandra.yaml", ChunkCache.instance);
+        for (String table : new String[]{ CF_UNCOMPRESSED, CF_COMPRESSED })
         {
-            assertReaderHasOwnChannel(sstable, reader);
+            SSTableReader sstable = createSSTable(table);
+            byte[] expected = readData(sstable.openDataReader());
+            long misses = ChunkCache.instance.metrics.misses.getCount();
+            assertArrayEquals(expected, readData(sstable.openDataReaderForScan()));
+            assertArrayEquals(expected, readData(sstable.openDataReaderForBulkScan(DiskAccessMode.standard)));
+            assertArrayEquals(expected, readData(sstable.openDataReader()));
+            assertEquals("Neither a user scan nor a closed bulk scan may evict chunks warmed by foreground readers",
+                         misses, ChunkCache.instance.metrics.misses.getCount());
+        }
+    }
+
+    @Test
+    public void testUncompressedDirectScanFallsBack() throws IOException
+    {
+        assertScanContents(CF_UNCOMPRESSED, DiskAccessMode.direct);
+    }
+
+    @Test
+    public void testOnlyBulkScanOpensItsOwnChannel()
+    {
+        SSTableReader sstable = createSSTable(CF_UNCOMPRESSED);
+        try (RandomAccessReader reader = sstable.openDataReaderForScan())
+        {
+            assertSame("A user range read must not open the data file again", sstable.dfile.channel, reader.getChannel());
+        }
+        RandomAccessReader bulk = sstable.openDataReaderForBulkScan(DiskAccessMode.standard);
+        ChannelProxy bulkChannel = bulk.getChannel();
+        assertNotSame(sstable.dfile.channel, bulkChannel);
+        bulk.close();
+        assertTrue("A bulk scan must close its private descriptor", bulkChannel.isCleanedUp());
+        assertFalse("A bulk scan must not close the shared data channel", sstable.dfile.channel.isCleanedUp());
+    }
+
+    @Test
+    @BMRules(rules = {
+        @BMRule(name = "record advice on active scan descriptors",
+                targetClass = "org.apache.cassandra.utils.NativeLibraryLinux",
+                targetMethod = "callPosixFadvise(int, long, int, int)",
+                targetLocation = "AT ENTRY",
+                condition = "org.apache.cassandra.io.sstable.format.SSTableReaderDataReaderTest.isRecordingReads()",
+                action = "return org.apache.cassandra.io.sstable.format.SSTableReaderDataReaderTest.recordAdvice($1)"),
+        @BMRule(name = "check advice at actual read boundary",
+                targetClass = "org.apache.cassandra.io.util.ChannelProxy",
+                targetMethod = "read",
+                targetLocation = "AT ENTRY",
+                condition = "org.apache.cassandra.io.sstable.format.SSTableReaderDataReaderTest.isRecordingReads()",
+                action = "org.apache.cassandra.io.sstable.format.SSTableReaderDataReaderTest.checkReadAdvice($0.getFileDescriptor())")
+    })
+    public void testBulkScanAdviceDoesNotAffectOtherReads() throws IOException
+    {
+        assumeTrue("Sequential advice is Linux-only", FBUtilities.isLinux);
+        SSTableReader sstable = createSSTable(CF_UNCOMPRESSED);
+        byte[] expected = readData(sstable.openDataReader());
+        // Force subsequent foreground reads through their actual descriptor, not the chunk cache.
+        ChunkCache.instance.invalidateFile(sstable.dfile.path());
+        advisedDescriptors.set(new HashSet<>());
+        try
+        {
+            sequentialRead.set(true);
+            assertArrayEquals(expected, readData(sstable.openDataReaderForBulkScan(DiskAccessMode.standard)));
+            sequentialRead.set(false);
+            int advised = advisedDescriptors.get().size();
+            assertArrayEquals(expected, readData(sstable.openDataReaderForScan()));
+            assertEquals("A user range read must not be advised", advised, advisedDescriptors.get().size());
+            assertArrayEquals(expected, readData(sstable.openDataReader()));
+        }
+        finally
+        {
+            sequentialRead.remove();
+            advisedDescriptors.remove();
+        }
+    }
+
+    public static boolean isRecordingReads()
+    {
+        return advisedDescriptors.get() != null;
+    }
+
+    public static int recordAdvice(int fd)
+    {
+        advisedDescriptors.get().add(fd);
+        return 0;
+    }
+
+    public static void checkReadAdvice(int fd)
+    {
+        assertEquals("Advice must apply to the descriptor performing scan reads, not foreground reads",
+                     sequentialRead.get(), Boolean.valueOf(advisedDescriptors.get().contains(fd)));
+    }
+
+    private void assertScanContents(String table, DiskAccessMode mode) throws IOException
+    {
+        SSTableReader sstable = createSSTable(table);
+        byte[] expected = readData(sstable.openDataReader());
+        try (RandomAccessReader foreground = sstable.openDataReader())
+        {
+            assertEquals(expected[0], foreground.readByte());
+            assertArrayEquals(expected, readData(sstable.openDataReaderForBulkScan(mode)));
+            foreground.seek(0);
+            byte[] actual = new byte[expected.length];
+            foreground.readFully(actual);
+            assertArrayEquals(expected, actual);
+        }
+        assertArrayEquals(expected, readData(sstable.openDataReader()));
+    }
+
+    private byte[] readData(RandomAccessReader reader) throws IOException
+    {
+        try (RandomAccessReader input = reader)
+        {
+            byte[] contents = new byte[Math.toIntExact(input.length())];
+            input.readFully(contents);
+            assertEquals(-1, input.read());
+            return contents;
         }
     }
 
@@ -269,7 +402,7 @@ public class SSTableReaderDataReaderTest
         store.forceBlockingFlush(UNIT_TESTS);
 
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
-        refsToRelease.add(sstable.selfRef());
+        refsToRelease.add(sstable.ref());
         return sstable;
     }
 }

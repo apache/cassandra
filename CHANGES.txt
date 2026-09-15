@@ -1,4 +1,5 @@
 7.0
+ * Advise buffered background SSTable scans and whole-file streaming reads as sequential on Linux; bulk scans now use a private descriptor that bypasses the shared chunk cache (CASSANDRA-21094)
  * Allow CQLSSTableWriter to specify SSTable id generator to use (CASSANDRA-21012)
  * Reject LIKE patterns with a wildcard (%) anywhere other than the start or end (CASSANDRA-21068)
  * Support pluggable default role initialization (CASSANDRA-21546)

@@ -34,6 +34,7 @@ import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NativeLibrary;
 
 /**
  * CassandraStreamWriter for compressed SSTable.
@@ -67,6 +68,10 @@ public class CassandraCompressedStreamWriter extends CassandraStreamWriter
 
             // we want to send continuous chunks together to minimise reads from disk and network writes
             List<Section> sections = fuseAdjacentChunks(compressionInfo.chunks());
+
+            // Sequential readahead overshoots the end of every section, so only advise a whole-file stream.
+            if (sections.size() == 1 && isWholeFileSection(sections.get(0).start, sections.get(0).end, fc.size()))
+                NativeLibrary.trySetSequential(fc.getFileDescriptor(), fc.filePath());
 
             int sectionIdx = 0;
 

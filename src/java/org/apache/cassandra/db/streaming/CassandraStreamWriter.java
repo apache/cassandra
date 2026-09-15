@@ -39,6 +39,7 @@ import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.async.StreamCompressionSerializer;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.memory.BufferPools;
 
 import static org.apache.cassandra.net.MessagingService.current_version;
@@ -83,6 +84,10 @@ public class CassandraStreamWriter
         try(ChannelProxy proxy = sstable.getDataChannel().newChannel();
             ChecksumValidator validator = sstable.maybeGetChecksumValidator())
         {
+            // Sequential readahead overshoots the end of every section, so only advise a whole-file stream.
+            SSTableReader.PartitionPositionBounds only = sections.size() == 1 ? sections.iterator().next() : null;
+            if (only != null && isWholeFileSection(only.lowerPosition, only.upperPosition, proxy.size()))
+                NativeLibrary.trySetSequential(proxy.getFileDescriptor(), proxy.filePath());
             int bufferSize = validator == null ? DEFAULT_CHUNK_SIZE: validator.chunkSize;
 
             // setting up data compression stream
@@ -125,6 +130,12 @@ public class CassandraStreamWriter
     protected long totalSize()
     {
         return totalSize;
+    }
+
+    /** True when a single stream section spans the whole file: the case worth advising as sequential. */
+    protected static boolean isWholeFileSection(long start, long end, long fileSize)
+    {
+        return start == 0 && end == fileSize;
     }
 
     /**
