@@ -39,16 +39,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-/**
- * Covers the CASSANDRA-21520 hardening in {@link ComponentContext#channel} where an entire-sstable (zero-copy)
- * streaming size mismatch was changed from an {@code assert} (a no-op when assertions are disabled, as in
- * production) into a real {@link IOException}. This test verifies the mismatch path fails cleanly with an
- * {@code IOException} (never an {@link AssertionError}) even when assertions are disabled, and that the matching
- * path still returns a usable channel.
- */
-public class ComponentContextSizeMismatchTest
+public class ComponentContextTest
 {
-    private static final String KEYSPACE = "ComponentContextSizeMismatchTest";
+    private static final String KEYSPACE = "ComponentContextTest";
     private static final String CF_STANDARD = "Standard1";
 
     private static SSTableReader sstable;
@@ -92,7 +85,7 @@ public class ComponentContextSizeMismatchTest
     }
 
     @Test
-    public void sizeMismatchThrowsIOExceptionNotAssertionError() throws IOException
+    public void sizeMismatchThrowsIllegalStateExceptionNotAssertionError() throws IOException
     {
         try (ComponentContext context = ComponentContext.create(sstable))
         {
@@ -103,15 +96,15 @@ public class ComponentContextSizeMismatchTest
             try
             {
                 context.channel(sstable.descriptor, component, wrongSize);
-                fail("Expected an IOException when the advertised size does not match the on-disk size");
+                fail("Expected an IllegalStateException when the advertised size does not match the on-disk size");
             }
             catch (AssertionError e)
             {
                 // The whole point of the hardening: this must NOT be an AssertionError, since assertions are
                 // disabled in production and the corrupt bytes would otherwise be shipped silently.
-                throw new AssertionError("size mismatch must fail via IOException, not AssertionError", e);
+                throw new AssertionError("size mismatch must fail via IllegalStateException, not AssertionError", e);
             }
-            catch (IOException e)
+            catch (IllegalStateException e)
             {
                 assertTrue("exception message should describe the size mismatch",
                            e.getMessage().contains("file size to be"));

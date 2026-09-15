@@ -117,7 +117,7 @@ public class SSTableStreamRebuildStateTest
      * the sequential check in {@link #rebuildExcludesSecondRebuild()}.
      */
     @Test
-    public void concurrentRebuildAttempts_onlyOneWins() throws Exception
+    public void concurrentRebuildAttemptsOnlyOneWins() throws Exception
     {
         for (int round = 0; round < 200; round++)
         {

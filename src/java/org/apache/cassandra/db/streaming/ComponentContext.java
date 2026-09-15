@@ -82,8 +82,8 @@ public class ComponentContext implements AutoCloseable
         {
             long actual = channel.size();
             FileUtils.closeQuietly(channel);
-            throw new IOException(String.format("Entire sstable streaming expects %s file size to be %s but got %s.",
-                                                component, size, actual));
+            throw new IllegalStateException(String.format("Entire sstable streaming expects %s file size to be %s but got %s.",
+                                                          component, size, actual));
         }
         return channel;
     }
