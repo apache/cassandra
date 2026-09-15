@@ -118,7 +118,7 @@ java_versions_supported="11 17 21"
 java_version_string=$(IFS=" "; echo "${java_versions_supported}")
 
 # Determine the sort of JVM we'll be running on.
-JAVA_VERSION=$(java -version 2>&1 | grep '[openjdk|java] version' | cut -d '"' -f2 | cut -d '.' -f1)
+JAVA_VERSION=$($JAVA -version 2>&1 | grep '[openjdk|java] version' | cut -d '"' -f2 | cut -d '.' -f1)
 
 supported=0
 for version in ${java_versions_supported}; do
@@ -155,7 +155,7 @@ do
 done
 
 # Append additional options when using JDK17+ (CASSANDRA-19001)
-USING_JDK=$(command -v javac || command -v "${JAVA_HOME:-/usr}/bin/javac")
+USING_JDK=$(command -v "$(dirname "$JAVA")/javac")
 if [ -n "$USING_JDK" ] && [ "$JAVA_VERSION" -ge 17 ]; then
   JVM_OPTS="$JVM_OPTS --add-exports jdk.attach/sun.tools.attach=ALL-UNNAMED"
   JVM_OPTS="$JVM_OPTS --add-exports jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED"
