@@ -46,8 +46,8 @@ import accord.impl.basic.InMemoryJournal;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
 import accord.local.ExecutionContext;
+import accord.local.FindKeys;
 import accord.local.LoadKeys;
-import accord.local.LoadKeysFor;
 import accord.local.Node.Id;
 import accord.local.NodeCommandStoreService;
 import accord.local.SafeCommandStore;
@@ -626,7 +626,7 @@ public class AccordExecutorKeyAdoptionTest
         void submitRangeTask(LoadKeys loadKeys)
         {
             ExecutionContext context = AccordExecutionTestUtils.idempotent(
-                ExecutionContext.contextFor(txnId, null, range(), loadKeys, LoadKeysFor.RECOVERY, "adopting"));
+                ExecutionContext.contextFor(txnId, null, range(), loadKeys, FindKeys.SUPERSEDING, "adopting"));
             Object submitted = store.execute(context, (Consumer<? super SafeCommandStore>) safeStore -> {
                 SafeTask<?> self = ((SaferCommandStore) safeStore).task;
                 task = self;
@@ -653,7 +653,7 @@ public class AccordExecutorKeyAdoptionTest
         {
             Blocker blocker = new Blocker();
             ExecutionContext context = ExecutionContext.contextFor(otherTxnId(), null, RoutingKeys.of(key(ordinal)),
-                                                                   LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "runSlotHolder");
+                                                                   LoadKeys.SYNC, FindKeys.CONFLICTS, "runSlotHolder");
             store.execute(context, (Consumer<? super SafeCommandStore>) ignore -> {
                 blocker.running.signal();
                 blocker.release.awaitUninterruptibly(TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -673,7 +673,7 @@ public class AccordExecutorKeyAdoptionTest
             competitor = new Waiter();
             ExecutionContext context = AccordExecutionTestUtils.idempotent(
                 ExecutionContext.contextFor(txnId, null, RoutingKeys.of(key(keyOrdinal)),
-                                            LoadKeys.INCR, LoadKeysFor.READ_WRITE, "competitor"));
+                                            LoadKeys.INCR, FindKeys.CONFLICTS, "competitor"));
             competitor.task = (SafeTask<?>) store.execute(context, (Consumer<? super SafeCommandStore>) ignore -> {},
                                                           (success, fail) -> competitor.done.signal());
             awaiting.add(competitor.done);
@@ -733,7 +733,7 @@ public class AccordExecutorKeyAdoptionTest
             Condition ready = Condition.newOneTimeCondition();
             awaiting.add(ready);
             ExecutionContext context = ExecutionContext.contextFor(otherTxnId(), null, RoutingKeys.of(key(ordinal)),
-                                                                   LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "load" + ordinal);
+                                                                   LoadKeys.SYNC, FindKeys.CONFLICTS, "load" + ordinal);
             store.execute(context, (Consumer<? super SafeCommandStore>) ignore -> {}, (success, fail) -> ready.signal());
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS);
             while (System.nanoTime() < deadline)
@@ -759,7 +759,7 @@ public class AccordExecutorKeyAdoptionTest
         {
             Condition ready = Condition.newOneTimeCondition();
             ExecutionContext context = ExecutionContext.contextFor(otherTxnId(), null, RoutingKeys.of(key(ordinal)),
-                                                                   LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "modify" + ordinal);
+                                                                   LoadKeys.SYNC, FindKeys.CONFLICTS, "modify" + ordinal);
             store.execute(context, (Consumer<? super SafeCommandStore>) safeStore -> {
                 SaferCommandsForKey safeCfk = (SaferCommandsForKey) ((SaferCommandStore) safeStore).task.refs.get(key(ordinal));
                 safeCfk.set(new CommandsForKey(key(ordinal), nextTxnId.incrementAndGet()));
@@ -800,7 +800,7 @@ public class AccordExecutorKeyAdoptionTest
             Condition ready = Condition.newOneTimeCondition();
             awaiting.add(ready);
             ExecutionContext context = ExecutionContext.contextFor(otherTxnId(), null, RoutingKeys.of(key(ordinal)),
-                                                                  LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "blockedLoad" + ordinal);
+                                                                   LoadKeys.SYNC, FindKeys.CONFLICTS, "blockedLoad" + ordinal);
             store.execute(context, (Consumer<? super SafeCommandStore>) ignore -> {}, (success, fail) -> ready.signal());
         }
 
@@ -952,7 +952,7 @@ public class AccordExecutorKeyAdoptionTest
             AtomicReference<Throwable> afterFailure = new AtomicReference<>();
             ExecutionContext context = ExecutionContext.contextFor(TxnId.fromValues(1, nextTxnId.incrementAndGet(), 0, new Id(1)),
                                                                    null, RoutingKeys.of(key(ordinal)),
-                                                                   LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "after");
+                                                                   LoadKeys.SYNC, FindKeys.CONFLICTS, "after");
             store.execute(context, (Consumer<? super SafeCommandStore>) ignore -> {},
                           (success, fail) -> { afterFailure.set(fail); after.signal(); });
             assertTrue("a task on the adopted key never ran afterwards - a position was left behind",

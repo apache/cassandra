@@ -20,6 +20,8 @@ package org.apache.cassandra.service.accord.execution;
 
 import java.util.function.Predicate;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 
 import accord.api.Agent;
@@ -223,7 +225,7 @@ public final class SaferCommandStore extends AbstractSafeCommandStore<SaferComma
         return task.histogramBuffer;
     }
 
-    private boolean visitForKey(Unseekables<?> keysOrRanges, Predicate<CommandsForKey> forEach)
+    private boolean visitForKey(@Nullable Unseekables<?> keysOrRanges, Predicate<CommandsForKey> forEach)
     {
         Unseekables<?> unseekables = context.keys();
         switch (unseekables.domain())
@@ -231,22 +233,26 @@ public final class SaferCommandStore extends AbstractSafeCommandStore<SaferComma
             default: throw new UnhandledEnum(unseekables.domain());
             case Key:
                 AbstractUnseekableKeys keys = (AbstractUnseekableKeys) context.keys();
-                return Routables.foldl(keys, keysOrRanges, (self, f, key, v, index) -> {
-                    SafeCommandsForKey safeCfk = (SafeCommandsForKey) self.task.refs.get(key);
-                    if (safeCfk == null || safeCfk.isUninitialised())
-                        return v;
-                    return f.test(safeCfk.current());
-                }, this, forEach, Boolean.TRUE, cont -> !cont);
+                if (keysOrRanges != null)
+                {
+                    return Routables.foldl(keys, keysOrRanges, (self, f, key, v, index) -> {
+                        SafeCommandsForKey safeCfk = (SafeCommandsForKey) self.task.refs.get(key);
+                        if (safeCfk == null || safeCfk.isUninitialised())
+                            return v;
+                        return f.test(safeCfk.current());
+                    }, this, forEach, Boolean.TRUE, cont -> !cont);
+                }
+                // fall-through for unrestricted key visit
 
             case Range:
-                Unseekables<?> skip = context.keys().without(keysOrRanges);
+                Unseekables<?> skip = keysOrRanges == null ? null : context.keys().without(keysOrRanges);
                 for (SafeState<?> safeState : task.refs.values())
                 {
                     if (!(safeState instanceof SaferCommandsForKey))
                         continue;
 
                     SafeCommandsForKey safeCfk = (SafeCommandsForKey) safeState;
-                    if (safeCfk.isUninitialised() || skip.contains(safeCfk.key()))
+                    if (safeCfk.isUninitialised() || (skip != null && skip.contains(safeCfk.key())))
                         continue;
 
                     if (!forEach.test(safeCfk.current()))
@@ -257,7 +263,7 @@ public final class SaferCommandStore extends AbstractSafeCommandStore<SaferComma
     }
 
     @Override
-    public <P1, P2> void visit(Unseekables<?> keysOrRanges, Timestamp startedBefore, Kinds testKind, ActiveCommandVisitor<P1, P2> visitor, P1 p1, P2 p2)
+    public <P1, P2> void visit(@Nullable Unseekables<?> keysOrRanges, Timestamp startedBefore, Kinds testKind, ActiveCommandVisitor<P1, P2> visitor, P1 p1, P2 p2)
     {
         visitForKey(keysOrRanges, cfk -> { cfk.visit(startedBefore, testKind, visitor, p1, p2); return true; });
         CommandSummaries commandsForRanges = task.commandsForRanges();
@@ -266,7 +272,7 @@ public final class SaferCommandStore extends AbstractSafeCommandStore<SaferComma
     }
 
     @Override
-    public boolean visit(Unseekables<?> keysOrRanges, TxnId testTxnId, Kinds testKind, SupersedingCommandVisitor visit)
+    public boolean visit(@Nullable Unseekables<?> keysOrRanges, TxnId testTxnId, Kinds testKind, SupersedingCommandVisitor visit)
     {
         if (!visitForKey(keysOrRanges, cfk -> cfk.visit(testTxnId, testKind, visit)))
             return false;

@@ -35,8 +35,8 @@ import org.junit.Test;
 import accord.api.RoutingKey;
 import accord.impl.TestAgent;
 import accord.local.ExecutionContext;
+import accord.local.FindKeys;
 import accord.local.LoadKeys;
-import accord.local.LoadKeysFor;
 import accord.local.Node.Id;
 import accord.local.SafeCommandStore;
 import accord.local.cfk.CommandsForKey;
@@ -299,7 +299,7 @@ public class AccordFailedKeyTest
             // ... and a later, unrelated operation that touches the same key
             Condition secondDone = Condition.newOneTimeCondition();
             store.execute(ExecutionContext.contextFor(TxnId.fromValues(1, 2, 0, new Id(1)), null, RoutingKeys.of(failing),
-                                                      LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "after"),
+                                                      LoadKeys.SYNC, FindKeys.CONFLICTS, "after"),
                           (Consumer<? super SafeCommandStore>) ignore -> {},
                           (success, fail) -> { second.set(fail); secondDone.signal(); });
             assertTrue("the later operation was never notified", secondDone.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
@@ -421,7 +421,7 @@ public class AccordFailedKeyTest
                            anyInconsistentIntersecting(store, null)));
 
             store.execute(ExecutionContext.contextFor(TxnId.fromValues(1, 2, 0, new Id(1)), null, RoutingKeys.of(ok),
-                                                      LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "after"),
+                                                      LoadKeys.SYNC, FindKeys.CONFLICTS, "after"),
                           (Consumer<? super SafeCommandStore>) ignore -> {},
                           (success, fail) -> { second.set(fail); secondDone.signal(); });
             assertTrue("the later operation was never notified", secondDone.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
@@ -783,7 +783,7 @@ public class AccordFailedKeyTest
             for (int i = 0 ; i < waiters ; ++i)
             {
                 store.execute(ExecutionContext.contextFor(TxnId.fromValues(1, 2 + i, 0, new Id(1)), null, RoutingKeys.of(blocked),
-                                                          LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "behind"),
+                                                          LoadKeys.SYNC, FindKeys.CONFLICTS, "behind"),
                               (Consumer<? super SafeCommandStore>) ignore -> blockedReport.set("ran"),
                               (success, fail) -> { blockedReport.compareAndSet(null, fail == null ? "success" : fail); blockedDone.signal(); });
                 // "ran" would overwrite the failure, so a body that runs is visible in the assertion below
@@ -816,7 +816,7 @@ public class AccordFailedKeyTest
             // second positive fence: work on an unrelated key still runs, so the executor has polled past the blocked
             // task rather than merely not got to it yet
             store.execute(ExecutionContext.contextFor(TxnId.fromValues(1, 2 + waiters, 0, new Id(1)), null, RoutingKeys.of(unrelated),
-                                                      LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "unrelated"),
+                                                      LoadKeys.SYNC, FindKeys.CONFLICTS, "unrelated"),
                           (Consumer<? super SafeCommandStore>) ignore -> {},
                           (success, fail) -> { unrelatedFailure.set(fail); unrelatedDone.signal(); });
             unrelatedRan = unrelatedDone.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -1018,7 +1018,7 @@ public class AccordFailedKeyTest
 
             // and the key the round failed for is usable: nothing holds its lock, and nothing refuses it
             store.execute(ExecutionContext.contextFor(TxnId.fromValues(1, 2, 0, new Id(1)), null, RoutingKeys.of(failedIn.get()),
-                                                      LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "after"),
+                                                      LoadKeys.SYNC, FindKeys.CONFLICTS, "after"),
                           (Consumer<? super SafeCommandStore>) ignore -> {},
                           (success, fail) -> { after.set(fail); afterDone.signal(); });
             assertTrue("the later operation was never notified", afterDone.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
@@ -1208,7 +1208,7 @@ public class AccordFailedKeyTest
             });
 
             store.execute(ExecutionContext.contextFor(TxnId.fromValues(1, 2, 0, new Id(1)), null, RoutingKeys.of(failedIn.get()),
-                                                      LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "after"),
+                                                      LoadKeys.SYNC, FindKeys.CONFLICTS, "after"),
                           (Consumer<? super SafeCommandStore>) ignore -> {},
                           (success, fail) -> { after.set(fail); afterDone.signal(); });
             assertTrue("the later operation was never notified", afterDone.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
@@ -1280,7 +1280,7 @@ public class AccordFailedKeyTest
         {
             // stop the store from inside an unrelated task, so that the fan-out below is refused before it ever runs
             store.execute(ExecutionContext.contextFor(TxnId.fromValues(1, 1, 0, new Id(1)), null, RoutingKeys.of(keys[0]),
-                                                      LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "stopper"),
+                                                      LoadKeys.SYNC, FindKeys.CONFLICTS, "stopper"),
                           (Consumer<? super SafeCommandStore>) ignore -> store.exclusiveExecutor().stop(),
                           (success, fail) -> stopped.signal());
             assertTrue("the store was never stopped", stopped.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
@@ -1378,14 +1378,14 @@ public class AccordFailedKeyTest
         {
             // a SYNC task over both keys: its keys are required, so the failing load fails the task outright
             store.execute(ExecutionContext.contextFor(TxnId.fromValues(1, 1, 0, new Id(1)), null, RoutingKeys.of(ok, failing),
-                                                      LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "sync"),
+                                                      LoadKeys.SYNC, FindKeys.CONFLICTS, "sync"),
                           (Consumer<? super SafeCommandStore>) ignore -> rounds.incrementAndGet(),
                           (success, fail) -> { failure.set(fail); done.signal(); });
             assertTrue("the caller was never told", done.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
 
             // fence on a later task completing, so this reads state after the failed task released
             store.execute(ExecutionContext.contextFor(TxnId.fromValues(1, 2, 0, new Id(1)), null, RoutingKeys.of(ok),
-                                                      LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "after"),
+                                                      LoadKeys.SYNC, FindKeys.CONFLICTS, "after"),
                           (Consumer<? super SafeCommandStore>) ignore -> {},
                           (success, fail) -> { after.set(fail); afterDone.signal(); });
             assertTrue("the later operation was never notified", afterDone.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
@@ -1478,7 +1478,7 @@ public class AccordFailedKeyTest
             assertTrue("the second round never ran", await(() -> failingIn.get() != null));
             RoutingKey blocked = failingIn.get();
             store.execute(ExecutionContext.contextFor(TxnId.fromValues(1, 2, 0, new Id(1)), null, RoutingKeys.of(blocked),
-                                                      LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "behind"),
+                                                      LoadKeys.SYNC, FindKeys.CONFLICTS, "behind"),
                           (Consumer<? super SafeCommandStore>) ignore -> {},
                           (success, fail) -> blockedDone.signal());
             assertTrue("the task behind the round never queued on " + blocked,
@@ -1499,7 +1499,7 @@ public class AccordFailedKeyTest
 
             // ... and one registered after all runnable work has drained
             store.execute(ExecutionContext.contextFor(TxnId.fromValues(1, 3, 0, new Id(1)), null, RoutingKeys.of(unrelated),
-                                                      LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "unrelated"),
+                                                      LoadKeys.SYNC, FindKeys.CONFLICTS, "unrelated"),
                           (Consumer<? super SafeCommandStore>) ignore -> {},
                           (success, fail) -> unrelatedDone.signal());
             assertTrue("the unrelated task never ran", unrelatedDone.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
@@ -1798,7 +1798,7 @@ public class AccordFailedKeyTest
 
             // the lock: a later task declaring the same txnId can only run once the fan-out has released HOLD_QUEUE
             store.execute(ExecutionContext.contextFor(txnId, null, RoutingKeys.of(unrelated),
-                                                      LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "same txn"),
+                                                      LoadKeys.SYNC, FindKeys.CONFLICTS, "same txn"),
                           (Consumer<? super SafeCommandStore>) ignore -> {},
                           (success, fail) -> { sameTxn.set(fail); sameTxnDone.signal(); });
             sameTxnRan = sameTxnDone.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -1939,7 +1939,7 @@ public class AccordFailedKeyTest
                 // the txnId is marked too, so a later task on that command must be told promptly rather than queue
                 // behind a HOLD_QUEUE lock nothing will release
                 store.execute(ExecutionContext.contextFor(txnId, null, RoutingKeys.of(key(tableId, partitioner, 100)),
-                                                          LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "same txn"),
+                                                          LoadKeys.SYNC, FindKeys.CONFLICTS, "same txn"),
                               (Consumer<? super SafeCommandStore>) ignore -> {},
                               (success, fail) -> { sameTxn.set(fail); sameTxnDone.signal(); });
                 sameTxnRan = sameTxnDone.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -2022,7 +2022,7 @@ public class AccordFailedKeyTest
 
             // and require the store still works: a later operation on an unrelated key must run
             store.execute(ExecutionContext.contextFor(TxnId.fromValues(1, 2, 0, new Id(1)), null, RoutingKeys.of(first),
-                                                      LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "after"),
+                                                      LoadKeys.SYNC, FindKeys.CONFLICTS, "after"),
                           (Consumer<? super SafeCommandStore>) ignore -> {},
                           (success, fail) -> { after.set(fail); afterDone.signal(); });
             assertTrue("the later operation was never notified", afterDone.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
@@ -2079,7 +2079,7 @@ public class AccordFailedKeyTest
     private static ExecutionContext fanOut(@javax.annotation.Nullable TxnId txnId, LoadKeys loadKeys, boolean mustBeWitnessed, boolean isIdempotent, RoutingKey... keys)
     {
         ExecutionContext wrapped = ExecutionContext.contextFor(txnId, null, RoutingKeys.of(keys), loadKeys,
-                                                               LoadKeysFor.READ_WRITE, "fanout");
+                                                               FindKeys.CONFLICTS, "fanout");
         return new ExecutionContext.Wrapped()
         {
             @Override public ExecutionSequence executionSequence() { return mustBeWitnessed ? ATOMIC : ExecutionSequence.BY_PRIORITY; }

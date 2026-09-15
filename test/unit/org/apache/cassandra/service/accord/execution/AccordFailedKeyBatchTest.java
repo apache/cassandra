@@ -35,9 +35,8 @@ import org.junit.Test;
 
 import accord.api.RoutingKey;
 import accord.local.ExecutionContext;
-import accord.local.ExecutionContext.ExecutionSequence;
+import accord.local.FindKeys;
 import accord.local.LoadKeys;
-import accord.local.LoadKeysFor;
 import accord.local.Node.Id;
 import accord.local.SafeCommandStore;
 import accord.primitives.RoutingKeys;
@@ -300,7 +299,7 @@ public class AccordFailedKeyBatchTest
             {
                 Condition afterDone = Condition.newOneTimeCondition();
                 store.execute(ExecutionContext.contextFor(TxnId.fromValues(1, 2 + after.size(), 0, new Id(1)), null,
-                                                          RoutingKeys.of(k), LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "after"),
+                                                          RoutingKeys.of(k), LoadKeys.SYNC, FindKeys.CONFLICTS, "after"),
                               (Consumer<? super SafeCommandStore>) ignore -> {},
                               (success, fail) -> { if (fail != null) after.put(k, fail); afterDone.signal(); });
                 assertTrue("the later operation on " + k + " was never notified", afterDone.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
@@ -327,7 +326,7 @@ public class AccordFailedKeyBatchTest
     private static ExecutionContext fanOut(TxnId txnId, RoutingKey... keys)
     {
         ExecutionContext wrapped = ExecutionContext.contextFor(txnId, null, RoutingKeys.of(keys), LoadKeys.INCR,
-                                                              LoadKeysFor.READ_WRITE, "fanout");
+                                                               FindKeys.CONFLICTS, "fanout");
         return new ExecutionContext.Wrapped()
         {
             @Override public ExecutionContext wrapped() { return wrapped; }
@@ -345,7 +344,7 @@ public class AccordFailedKeyBatchTest
     private static ExecutionContext nonAtomicFanOut(@javax.annotation.Nullable TxnId txnId, RoutingKey... keys)
     {
         ExecutionContext wrapped = ExecutionContext.contextFor(txnId, null, RoutingKeys.of(keys), LoadKeys.INCR,
-                                                              LoadKeysFor.READ_WRITE, "fanout");
+                                                               FindKeys.CONFLICTS, "fanout");
         return new ExecutionContext.Wrapped()
         {
             @Override public ExecutionContext wrapped() { return wrapped; }

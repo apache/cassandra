@@ -89,11 +89,11 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.Condition;
 
+import static accord.local.FindKeys.DECLARED;
+import static accord.local.FindKeys.SUPERSEDING;
 import static accord.local.LoadKeys.INCR;
 import static accord.local.LoadKeys.NONE;
 import static accord.local.LoadKeys.SYNC;
-import static accord.local.LoadKeysFor.RECOVERY;
-import static accord.local.LoadKeysFor.WRITE;
 import static accord.primitives.Routable.Domain.Key;
 import static accord.primitives.Txn.Kind.EphemeralRead;
 import static accord.utils.Functions.returningVoid;
@@ -206,14 +206,13 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
                 txnIds.add(txnId);
             }
         }
-
-
     }
 
     static class NonSyncState<R> extends OptionalState implements ExecutionContext.Wrapped, Runnable
     {
         final SafeTask<R> owner;
         final ExecutionContext context;
+        Unseekables<?> keys; // keys we report - if partially loaded we report active, if fully loaded we report the declared keys (which may be ranges)
         RoutingKeys active;
         ObjectHashSet<RoutingKey> blocking, notBlocking;
         int loaded, processed;
@@ -230,7 +229,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         }
 
 
-        @Override public final Unseekables<?> keys() { return active; }
+        @Override public final Unseekables<?> keys() { return keys; }
         @Override public ExecutionContext wrapped() { return context; }
 
         final void addLoaded()
@@ -276,6 +275,11 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             if (notBlocking == null)
                 notBlocking = new ObjectHashSet<>();
             return notBlocking;
+        }
+
+        private boolean isNotBlocking(RoutingKey key)
+        {
+            return notBlocking != null && notBlocking.contains(key);
         }
 
         private int readyCount()
@@ -324,6 +328,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
                 active = RoutingKeys.ofSortedUnique(keys);
             }
+            keys = processed + failed == 0 && active.size() == owner.keys ? context.keys() : active;
             processed += active.size();
             // failed counts the keys we could not load, which never enter a batch; a batch that ran and failed is
             // counted in processed, since we did reach those keys and will not try them again
@@ -359,8 +364,11 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         {
             if (active != null)
             {
-                // if we partially failed, we must mark every failed key as inconsistent so no further work may touch them
-                if (failed && owner.isAtomic())
+                if (owner.ranges instanceof CommandSummaries)
+                    owner.ranges = null;
+
+                // if we partially failed and must retry, we mark every failed key as inconsistent so no further work may touch them
+                if (failed && owner.isAtomic() && !context.abandonPartialSuccess())
                 {
                     if (retry == null)
                         retry = new ArrayList<>(active.size());
@@ -389,6 +397,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
                     }
                 }
                 active = null;
+                keys = null;
             }
         }
 
@@ -577,22 +586,25 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         setSequencedExclusive(context.executionSequence());
         if (loadKeys != NONE)
         {
+            boolean inheritLoadedKeys = loadKeys != INCR;
             Unseekables<?> parentKeysOrRanges = parent.context.keys();
             Unseekables<?> keysOrRanges = context.keys();
 
+            // IMPORTANT NOTE: isKeySubset does not mean we have all references the child task will adopt:
+            //   a range transaction might not have adopted a ref to a key we will update because that key is currently empty
             boolean isKeySubset = parent.isIncremental() ? parent.nonSync().active.containsAll(keysOrRanges) : parentKeysOrRanges.containsAll(keysOrRanges);
             if (isKeySubset)
             {
                 setInheritedRangeScan();
-                boolean needsCfr = keysOrRanges.domain() == Key ? context.loadKeysFor() == RECOVERY : context.loadKeysFor() != WRITE;
-                if (needsCfr)
+                boolean needsCfr = keysOrRanges.domain() == Key ? context.findKeys() == SUPERSEDING : context.findKeys() != DECLARED;
+                if (needsCfr && inheritLoadedKeys)
                     ranges = parent.ranges;
             }
 
             if (loadKeys != SYNC)
                 initNonSync(loadKeys);
 
-            if (isAtomic() && !isKeySubset)
+            if (!isKeySubset && isAtomic())
             {
                 Invariants.require(keysOrRanges.domain() == Key, "ATOMIC tasks over ranges must declare a subset of their parent's task keys() to avoid a range scan across which we would not impose sequencing");
                 // TODO (expected): explain the scenario in which priority inversion deadlocks could occur
@@ -606,12 +618,14 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
                 }
             }
 
+
+            AccordCache.Type<RoutingKey, CommandsForKey, SaferCommandsForKey>.Instance commandsForKeysCache = commandStore.cachesUnsafe().commandsForKeys();
             if (keysOrRanges.equals(parentKeysOrRanges))
             {
                 // TODO (desired): custom map we can more cheaply fork/copy
                 parent.refs.forEach((key, val) -> {
                     if (val instanceof SaferCommandsForKey)
-                        preSetup((RoutingKey) key, parent.refs, commandStore.cachesUnsafe().commandsForKeys());
+                        preSetup(inheritLoadedKeys, (RoutingKey) key, parent.refs, commandsForKeysCache);
                 });
             }
             else
@@ -620,14 +634,14 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
                 {
                     case Key:
                         for (RoutingKey key : (AbstractUnseekableKeys) keysOrRanges)
-                            preSetup(key, parent.refs, commandStore.cachesUnsafe().commandsForKeys());
+                            preSetup(inheritLoadedKeys, key, parent.refs, commandsForKeysCache);
                         break;
 
                     case Range:
                         AbstractRanges ranges = (AbstractRanges) keysOrRanges;
                         parent.refs.forEach((key, val) -> {
                             if (val instanceof SaferCommandsForKey && ranges.contains((RoutingKey) key))
-                                preSetup((RoutingKey) key, parent.refs, commandStore.cachesUnsafe().commandsForKeys());
+                                preSetup(inheritLoadedKeys, (RoutingKey) key, (SaferCommandsForKey) val, commandsForKeysCache);
                         });
                         break;
                 }
@@ -658,7 +672,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         }
 
         for (TxnId txnId : context.txnIds())
-            preSetup(txnId, parent.refs, commandStore.cachesUnsafe().commands());
+            preSetup(true, txnId, parent.refs, commandStore.cachesUnsafe().commands());
     }
 
     private void initNonSync(LoadKeys loadKeys)
@@ -667,7 +681,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         optional = new NonSyncState<>(this, context);
         if (loadKeys == INCR)
         {
-            Invariants.require(context.isIdempotent(), "Incremental tasks must be idempotent");
+            Invariants.require(context.isIdempotent() || context.abandonPartialSuccess(), "Incremental tasks must be idempotent, or it must be safe to abandon partial success");
             setIncrementalExclusive();
             requireSequencedIfHoldsLocksBetweenRuns();
             nonSync().initialisePendingJournalWrites();
@@ -715,10 +729,13 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             {
                 case Range:
                     if (!hasInheritedRangeScan()) setupRangeLoadsExclusive(caches);
-                    else refs.forEach((k, v) -> {
-                        if (v instanceof SaferCommandsForKey)
-                            completePresetupExclusive((SaferCommandsForKey)v, isSync() ? 1 : 0);
-                    });
+                    else
+                    {
+                        refs.forEach((k, v) -> {
+                            if (v instanceof SaferCommandsForKey)
+                                completePresetupExclusive((SaferCommandsForKey)v, isSync() ? 1 : 0);
+                        });
+                    }
                     break;
                 case Key:
                     setupKeyLoadsExclusive(hasPreSetup, caches, (AbstractUnseekableKeys) keysOrRanges, hasInheritedRangeScan());
@@ -734,10 +751,11 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
     private void setupKeyLoadsExclusive(boolean hasPreSetup, Caches caches, Iterable<? extends RoutingKey> setupKeys, boolean doNotScanRanges)
     {
-        if (context.loadKeys() == NONE)
+        LoadKeys loadKeys = context.loadKeys();
+        if (loadKeys == NONE)
             return;
 
-        if (!doNotScanRanges && context.loadKeysFor() == RECOVERY)
+        if (!doNotScanRanges && context.findKeys() == SUPERSEDING)
         {
             Invariants.require(ranges == null);
             RangeTxnScanner scanner = new RangeTxnScanner();
@@ -748,16 +766,24 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         int waitsForIncrement = isSync() ? 1 : 0;
         for (RoutingKey setupKey : setupKeys)
         {
-            if (hasPreSetup && tryCompletePresetupExclusive(setupKey, waitsForIncrement))
+            // we reuse the notBlocking set to track keys that our parent had already processed
+            if (hasPreSetup && (tryCompletePresetupExclusive(setupKey, waitsForIncrement) || (isIncremental() && nonSync().isNotBlocking(setupKey))))
                 continue;
 
+            // ATOMIC tasks that inherit their logical position from a parent task which fall-through to here
+            // should only occur for range tasks where there exists no populated key on disk, and none at all in cache
+            // so there should be no other task scheduled that could run before we adopt our position on this key
+            // TODO (required): audit this for correctness
             setupExclusive(setupKey, caches.commandsForKeys(), waitsForIncrement);
         }
+
+        if (hasPreSetup && isIncremental())
+            nonSync().notBlocking = null;
     }
 
     private void setupRangeLoadsExclusive(Caches caches)
     {
-        if (context.loadKeysFor() == WRITE)
+        if (context.findKeys() == DECLARED)
             return;
 
         RangeTxnAndKeyScanner scanner = new RangeTxnAndKeyScanner(caches.commandsForKeys());
@@ -766,21 +792,40 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     }
 
     // expects mutual exclusivity only on the command store
-    private <K, V, S extends SafeState<V> & SaferState<K, V, S>> void preSetup(K k, Map<Object, SafeState<?>> parentMap, AccordCache.Type<K, V, S>.Instance cache)
+    private <K, V, S extends SafeState<V> & SaferState<K, V, S>> void preSetup(boolean inheritLoadedKeys, K k, Map<Object, SafeState<?>> parentMap, AccordCache.Type<K, V, S>.Instance cache)
     {
         S ref = (S) parentMap.get(k);
-        if (ref == null)
+        if (ref != null)
+            preSetup(inheritLoadedKeys, k, ref, cache);
+    }
+
+    private <K, V, S extends SafeState<V> & SaferState<K, V, S>> void preSetup(boolean inheritLoaded, K k, S ref, AccordCache.Type<K, V, S>.Instance cache)
+    {
+        if (!inheritLoaded && ref.isSafe())
+        {
+            Invariants.require(cache.isCommandsForKey());
+            keys++;
+            NonSyncState<R> nonSync = nonSync();
+            nonSync.processed++;
+            if (context.keys().domain().isKey())
+            {
+                // when processing a specified list of keys we will try to setup any that are missing
+                // but INCR semantics are to process only those keys not already in the parent context
+                // so we reuse the not blocking collection to record those keys we have processed
+                nonSync.ensureNotBlocking().add((RoutingKey) k);
+            }
             return;
+        }
 
         AccordCacheEntry<K, V, S> node = ref.global();
         // we ignore poison bit here else we might process range transactions incorrectly since we are not guaranteed to call setupExclusive
-
-        int refs = node.increment();
-        Invariants.require(refs > 1);
+        int refCount = node.increment();
+        Invariants.require(refCount > 1);
         S safeState = cache.parent().adapter().safeRef(node);
-        this.refs.put(k, safeState);
+        refs.put(k, safeState);
         if (cache.isCommandsForKey())
             keys++;
+        else Invariants.require(!(safeState instanceof SaferCommandsForKey));
     }
 
     private <K, V, S extends SafeState<V> & SaferState<K, V, S>> boolean tryCompletePresetupExclusive(K k, int waitForIncrement)
@@ -855,7 +900,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
                 default:
                     throw new UnhandledEnum(entryStatus);
                 case FAILED_TO_LOAD:
-                    throw new RuntimeException("Failed to load " + safeRef.global().key());
+                    throw new RuntimeException("Failed to load " + safeRef.global().key(), entry.loadFailure());
                 case WAITING_TO_LOAD:
                     submitLoad = true;
                 case LOADING:
@@ -1163,7 +1208,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         Invariants.require(!isCacheQueuedFifo()); // to guarantee atomicity
 
         refs.put(entry.key(), safeRef);
-        ++keys;
+        keys++;
 
         boolean addToQueue = CACHE_QUEUES_ENABLED && isState(WAITING);
         if (addToQueue)
@@ -1920,7 +1965,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             ranges = null;
 
             refs.forEach((key, safeState) -> {
-                if (optional != null && SaferState.global(safeState).isInconsistent())
+                if (optional != null && SaferState.global(safeState).isInconsistent() && !context.abandonPartialSuccess())
                     optional.ensureRetry().add(safeState);
                 else
                     SaferState.postExecute(safeState, this);
@@ -1950,7 +1995,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
                 {
                     try
                     {
-                        if (optional != null && SaferState.global(safeState).isInconsistent())
+                        if (optional != null && SaferState.global(safeState).isInconsistent() && !context.abandonPartialSuccess())
                             optional.ensureRetry().add(safeState);
                         else
                             SaferState.postExecute(safeState, this);
@@ -2114,6 +2159,8 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         protected void fail(Throwable t)
         {
             this.failure = t;
+            if (isDone())
+                SafeTask.this.tryFailAndCompleteUnexecutedExclusive(t, FAILED);
         }
 
         public void start()
@@ -2127,7 +2174,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
         void startInternal(Caches caches)
         {
-            loader = commandStore.rangeIndex().loader(context.primaryTxnId(), context.executeAt(), context.loadKeysFor(), context.keys());
+            loader = commandStore.rangeIndex().loader(context.primaryTxnId(), context.executeAt(), context.findKeys(), context.keys());
             loader.loadExclusive(guardedSummaries, caches);
         }
 

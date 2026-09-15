@@ -36,6 +36,7 @@ import accord.local.cfk.CommandsForKey;
 import accord.messages.Accept;
 import accord.messages.Commit;
 import accord.messages.PreAccept;
+import accord.messages.PreAccept.PreAcceptOk;
 import accord.primitives.Ballot;
 import accord.primitives.FullRoute;
 import accord.primitives.KeyDeps;
@@ -112,11 +113,11 @@ public class AccordCommandTest
         getBlocking(commandStore.execute(preAccept, safeStore -> {
             SafeCommand safeCommand = safeStore.get(txnId, StoreParticipants.all(route));
             Command before = safeCommand.current();
-            PreAccept.PreAcceptReply reply = preAccept.apply(safeStore);
+            Object reply = preAccept.apply(safeStore);
             Command after = safeCommand.current();
 
-            Assert.assertTrue(reply.isOk());
-            PreAccept.PreAcceptOk ok = (PreAccept.PreAcceptOk) reply;
+            Assert.assertTrue(reply instanceof PreAcceptOk);
+            PreAcceptOk ok = (PreAcceptOk) reply;
             Assert.assertEquals(txnId, ok.witnessedAt);
             Assert.assertTrue(ok.deps.isEmpty());
 
@@ -149,9 +150,11 @@ public class AccordCommandTest
 
         getBlocking(commandStore.execute(accept, safeStore -> {
             Command before = safeStore.ifInitialised(txnId).current();
-            Accept.AcceptReply reply = accept.apply(safeStore);
-            Assert.assertTrue(reply.isOk());
-            Assert.assertEquals(filterDuplicateDependenciesFromAcceptReply() ? KeyDeps.NONE : deps.keyDeps, reply.deps.keyDeps);
+            Object reply = accept.apply(safeStore);
+            Assert.assertTrue(reply instanceof Accept.AcceptReply);
+            Accept.AcceptReply acceptReply = (Accept.AcceptReply) reply;
+            Assert.assertTrue(acceptReply.isOk());
+            Assert.assertEquals(filterDuplicateDependenciesFromAcceptReply() ? KeyDeps.NONE : deps.keyDeps, acceptReply.deps.keyDeps);
             Command after = safeStore.ifInitialised(txnId).current();
             AccordTestUtils.appendCommandsBlocking(commandStore, before, after);
         }));
@@ -214,9 +217,9 @@ public class AccordCommandTest
         preAccept2.unsafeSetNode(emptyNode());
         getBlocking(commandStore.execute(preAccept2, safeStore -> {
             persistDiff(commandStore, safeStore, txnId2, route, () -> {
-                PreAccept.PreAcceptReply reply = preAccept2.apply(safeStore);
-                Assert.assertTrue(reply.isOk());
-                PreAccept.PreAcceptOk ok = (PreAccept.PreAcceptOk) reply;
+                Object reply = preAccept2.apply(safeStore);
+                Assert.assertTrue(reply instanceof PreAcceptOk);
+                PreAcceptOk ok = (PreAcceptOk) reply;
                 Assert.assertTrue(ok.deps.contains(txnId1));
             });
         }));

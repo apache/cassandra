@@ -57,8 +57,8 @@ import accord.local.DurableBefore;
 import accord.local.ExecutionContext;
 import accord.local.ExecutionContext.ExecutionKind;
 import accord.local.ExecutionContext.ExecutionSequence;
+import accord.local.FindKeys;
 import accord.local.LoadKeys;
-import accord.local.LoadKeysFor;
 import accord.local.Node.Id;
 import accord.local.NodeCommandStoreService;
 import accord.local.SafeCommandStore;
@@ -740,10 +740,10 @@ public class AccordCommandStoreExecutorTest extends SimulationTestBase
             }
 
             // RECOVERY only where there is a txnId to recover for, and only for top-level work (see RECOVERY_CHANCE)
-            LoadKeysFor loadKeysFor = parent == null && txnIdOrdinals.length > 0 && rnd.nextFloat() < RECOVERY_CHANCE
-                                      ? LoadKeysFor.RECOVERY : LoadKeysFor.READ_WRITE;
+            FindKeys findKeys = parent == null && txnIdOrdinals.length > 0 && rnd.nextFloat() < RECOVERY_CHANCE
+                                ? FindKeys.SUPERSEDING : FindKeys.CONFLICTS;
             // a range task scans whatever its loadKeysFor, as long as it is not WRITE; a key task scans only for RECOVERY
-            if (loadKeysFor == LoadKeysFor.RECOVERY || isRange)
+            if (findKeys == FindKeys.SUPERSEDING || isRange)
                 rangeScans.incrementAndGet();
             // Sequencing is imposed on every task, not only a pre-set-up child: a task submitted at top level or for
             // another store takes its context's declared sequence. An INCR task that declares a txnId may not be
@@ -755,8 +755,8 @@ public class AccordCommandStoreExecutorTest extends SimulationTestBase
                 sequence = rnd.nextBoolean() ? ExecutionSequence.BY_PRIORITY : ExecutionSequence.UNSEQUENCED;
             sequenceOf.set(taskId, sequence.ordinal());
 
-            ExecutionContext context = isRange ? rangeContextFor(taskId, keyOrdinals, txnIdOrdinals, loadKeys, loadKeysFor)
-                                               : contextFor(taskId, keyOrdinals, txnIdOrdinals, loadKeys, loadKeysFor);
+            ExecutionContext context = isRange ? rangeContextFor(taskId, keyOrdinals, txnIdOrdinals, loadKeys, findKeys)
+                                               : contextFor(taskId, keyOrdinals, txnIdOrdinals, loadKeys, findKeys);
             context = new SeqContext(context, sequence, context.executionKind());
             Cancellable submitted =
                 store.store.execute(context, (Consumer<? super SafeCommandStore>) safeStore ->
@@ -996,31 +996,31 @@ public class AccordCommandStoreExecutorTest extends SimulationTestBase
          * As {@link #contextFor}, but declaring {@code Ranges}: a contiguous window {@code (keys[lo-1], keys[hi]]}, which is
          * the domain that sends a task through {@code setupRangeLoadsExclusive} and its {@code RangeTxnAndKeyScanner}.
          */
-        private ExecutionContext rangeContextFor(int taskId, int[] keyOrdinals, int[] txnIdOrdinals, LoadKeys loadKeys, LoadKeysFor loadKeysFor)
+        private ExecutionContext rangeContextFor(int taskId, int[] keyOrdinals, int[] txnIdOrdinals, LoadKeys loadKeys, FindKeys findKeys)
         {
             TxnId primary = txnIdOrdinals.length > 0 ? txnIds[txnIdOrdinals[0]] : null;
             TxnId additional = txnIdOrdinals.length > 1 ? txnIds[txnIdOrdinals[1]] : null;
             int lo = keyOrdinals[0], hi = keyOrdinals[keyOrdinals.length - 1];
             Invariants.require(lo > 0, "a range's exclusive start is the key below its first member, so key 0 cannot be in it");
             Ranges ranges = Ranges.of(TokenRange.create((TokenKey) keys[lo - 1], (TokenKey) keys[hi]));
-            return ExecutionContext.contextFor(primary, additional, ranges, loadKeys, loadKeysFor, "task" + taskId);
+            return ExecutionContext.contextFor(primary, additional, ranges, loadKeys, findKeys, "task" + taskId);
         }
 
         private ExecutionContext contextFor(int taskId, int[] keyOrdinals, int[] txnIdOrdinals, LoadKeys loadKeys)
         {
-            return contextFor(taskId, keyOrdinals, txnIdOrdinals, loadKeys, LoadKeysFor.READ_WRITE);
+            return contextFor(taskId, keyOrdinals, txnIdOrdinals, loadKeys, FindKeys.CONFLICTS);
         }
 
         /**
-         * @param loadKeysFor RECOVERY is what drives a task through {@code RangeTxnScanner}: setupKeyLoadsExclusive
+         * @param findKeys RECOVERY is what drives a task through {@code RangeTxnScanner}: setupKeyLoadsExclusive
          *                    starts a scan, the task passes through SCANNING_RANGES, and setup re-enters presetup when
          *                    the scan completes - a second pass over refs that are already queued.
          */
-        private ExecutionContext contextFor(int taskId, int[] keyOrdinals, int[] txnIdOrdinals, LoadKeys loadKeys, LoadKeysFor loadKeysFor)
+        private ExecutionContext contextFor(int taskId, int[] keyOrdinals, int[] txnIdOrdinals, LoadKeys loadKeys, FindKeys findKeys)
         {
             TxnId primary = txnIdOrdinals.length > 0 ? txnIds[txnIdOrdinals[0]] : null;
             TxnId additional = txnIdOrdinals.length > 1 ? txnIds[txnIdOrdinals[1]] : null;
-            return ExecutionContext.contextFor(primary, additional, keys(keyOrdinals), loadKeys, loadKeysFor, "task" + taskId);
+            return ExecutionContext.contextFor(primary, additional, keys(keyOrdinals), loadKeys, findKeys, "task" + taskId);
         }
 
         private Batch newBatch(ThreadLocalRandom rnd, int parentTaskId, int[] inheritable, int[] declared, int[] parentTxnIds)

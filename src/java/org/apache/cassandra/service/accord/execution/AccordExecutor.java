@@ -644,7 +644,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
                     try { task.onFailedToLoadExclusive(loaded, fail); }
                     catch (Throwable t) { task.unhandledException(t); }
                 }
-                cache.failedToLoad(loaded);
+                cache.failedToLoad(loaded, fail);
             }
             else
             {

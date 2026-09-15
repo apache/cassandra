@@ -34,7 +34,7 @@ import accord.local.CommandSummaries.Relevance;
 import accord.local.CommandSummaries.Summary;
 import accord.local.CommandSummaries.SummaryLoader;
 import accord.local.CommandSummaries.SummaryStatus;
-import accord.local.LoadKeysFor;
+import accord.local.FindKeys;
 import accord.local.MaxDecidedRX;
 import accord.local.RedundantBefore;
 import accord.primitives.Status;
@@ -110,18 +110,18 @@ public class ControllableRangeIndex implements RangeIndex
     }
 
     @Override
-    public Loader loader(TxnId primaryTxnId, Timestamp primaryExecuteAt, LoadKeysFor loadKeysFor, Unseekables<?> keysOrRanges)
+    public Loader loader(TxnId primaryTxnId, Timestamp primaryExecuteAt, FindKeys findKeys, Unseekables<?> keysOrRanges)
     {
         RedundantBefore redundantBefore = commandStore.unsafeGetRedundantBefore();
         MaxDecidedRX maxDecidedRX = commandStore.unsafeGetMaxDecidedRX();
-        return SummaryLoader.loader(redundantBefore, maxDecidedRX, primaryTxnId, primaryExecuteAt, loadKeysFor, keysOrRanges, this::newLoader);
+        return SummaryLoader.loader(redundantBefore, maxDecidedRX, primaryTxnId, primaryExecuteAt, findKeys, keysOrRanges, this::newLoader);
     }
 
     private Loader newLoader(RedundantBefore redundantBefore, MaxDecidedRX maxDecidedRX, @Nullable TxnId primaryTxnId,
                              Unseekables<?> searchKeysOrRanges, Kinds testKind, TxnId minTxnId, Timestamp maxTxnId,
-                             LoadKeysFor loadKeysFor)
+                             FindKeys findKeys)
     {
-        return new ControllableLoader(redundantBefore, maxDecidedRX, primaryTxnId, searchKeysOrRanges, testKind, minTxnId, maxTxnId, loadKeysFor);
+        return new ControllableLoader(redundantBefore, maxDecidedRX, primaryTxnId, searchKeysOrRanges, testKind, minTxnId, maxTxnId, findKeys);
     }
 
     private class ControllableLoader extends Loader
@@ -131,9 +131,9 @@ public class ControllableRangeIndex implements RangeIndex
 
         ControllableLoader(RedundantBefore redundantBefore, MaxDecidedRX maxDecidedRX, @Nullable TxnId primaryTxnId,
                            Unseekables<?> searchKeysOrRanges, Kinds testKinds, TxnId minTxnId, Timestamp maxTxnId,
-                           LoadKeysFor loadKeysFor)
+                           FindKeys findKeys)
         {
-            super(redundantBefore, maxDecidedRX, primaryTxnId, searchKeysOrRanges, testKinds, minTxnId, maxTxnId, loadKeysFor);
+            super(redundantBefore, maxDecidedRX, primaryTxnId, searchKeysOrRanges, testKinds, minTxnId, maxTxnId, findKeys);
             this.primaryTxnId = primaryTxnId;
             this.searchKeysOrRanges = searchKeysOrRanges;
         }

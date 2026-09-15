@@ -26,7 +26,7 @@ import java.util.function.Consumer;
 
 import accord.local.Command;
 import accord.local.CommandSummaries;
-import accord.local.LoadKeysFor;
+import accord.local.FindKeys;
 import accord.local.MaxDecidedRX;
 import accord.local.MinimalCommand;
 import accord.local.MinimalCommand.MinimalWithDeps;
@@ -51,15 +51,15 @@ import org.apache.cassandra.service.accord.serializers.Version;
 
 import static accord.api.Journal.Load.MINIMAL;
 import static accord.api.Journal.Load.MINIMAL_WITH_DEPS;
-import static accord.local.LoadKeysFor.RECOVERY;
+import static accord.local.FindKeys.SUPERSEDING;
 
 public interface RangeIndex
 {
     abstract class Loader extends CommandSummaries.SummaryLoader
     {
-        public Loader(RedundantBefore redundantBefore, MaxDecidedRX maxDecidedRX, TxnId primaryTxnId, Unseekables<?> searchKeysOrRanges, Txn.Kind.Kinds testKinds, TxnId minTxnId, Timestamp maxTxnId, LoadKeysFor loadKeysFor)
+        public Loader(RedundantBefore redundantBefore, MaxDecidedRX maxDecidedRX, TxnId primaryTxnId, Unseekables<?> searchKeysOrRanges, Txn.Kind.Kinds testKinds, TxnId minTxnId, Timestamp maxTxnId, FindKeys findKeys)
         {
-            super(redundantBefore, maxDecidedRX, primaryTxnId, searchKeysOrRanges, testKinds, minTxnId, maxTxnId, loadKeysFor);
+            super(redundantBefore, maxDecidedRX, primaryTxnId, searchKeysOrRanges, testKinds, minTxnId, maxTxnId, findKeys);
         }
 
         protected abstract AccordCommandStore commandStore();
@@ -78,7 +78,7 @@ public interface RangeIndex
 
         protected CommandSummaries.Summary loadFromDisk(TxnId txnId)
         {
-            if (loadKeysFor != RECOVERY)
+            if (findKeys != SUPERSEDING)
             {
                 MinimalCommand cmd = commandStore().loadMinimal(txnId);
                 if (cmd != null)
@@ -127,13 +127,13 @@ public interface RangeIndex
                 return ifRelevant((Command) command);
 
             Invariants.require(command instanceof ByteBuffer);
-            CommandChanges builder = new CommandChanges(txnId, loadKeysFor != RECOVERY ? MINIMAL : MINIMAL_WITH_DEPS);
+            CommandChanges builder = new CommandChanges(txnId, findKeys != SUPERSEDING ? MINIMAL : MINIMAL_WITH_DEPS);
             ByteBuffer buffer = (ByteBuffer) command;
             buffer.mark();
             try (DataInputBuffer buf = new DataInputBuffer(buffer, false))
             {
                 builder.deserializeNext(buf, Version.LATEST);
-                if (loadKeysFor != RECOVERY) return ifRelevant(builder.asMinimal());
+                if (findKeys != SUPERSEDING) return ifRelevant(builder.asMinimal());
                 else return ifRelevant(builder.asMinimalWithDeps());
             }
             catch (UnknownTableException e)
@@ -151,7 +151,7 @@ public interface RangeIndex
         }
     }
 
-    Loader loader(TxnId primaryTxnId, Timestamp primaryExecuteAt, LoadKeysFor loadKeysFor, Unseekables<?> keysOrRanges);
+    Loader loader(TxnId primaryTxnId, Timestamp primaryExecuteAt, FindKeys findKeys, Unseekables<?> keysOrRanges);
     default void update(Command prev, Command updated, boolean force) {}
     default void postReplay() {}
     default void prune(TxnId syncId, Ranges ranges, RedundantBefore redundantBefore) {}
