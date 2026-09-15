@@ -96,6 +96,13 @@ class LeveledGenerations
         return levels[level - 1];
     }
 
+    TreeSet<SSTableReader> getSortedLevel(int level)
+    {
+        if (level > levelCount() - 1 || level <= 0)
+            throw new ArrayIndexOutOfBoundsException("Invalid sorted generation " + level + " - maximum is " + (levelCount() - 1) + " and minimum is 1");
+        return levels[level - 1];
+    }
+
     int levelCount()
     {
         return levels.length + 1;

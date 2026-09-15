@@ -27,6 +27,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -573,14 +574,17 @@ public class LeveledManifest
                 return candidates;
         }
 
+        // We know that because we are in level L0+, this is a tree set with disjoint SSTables
+        TreeSet<SSTableReader> sstablesNextLevel = generations.getSortedLevel(level + 1);
+
         // look for a non-suspect keyspace to compact with, starting with where we left off last time,
         // and wrapping back to the beginning of the generation if necessary
-        Map<SSTableReader, Bounds<Token>> sstablesNextLevel = genBounds(generations.get(level + 1));
         Iterator<SSTableReader> levelIterator = generations.wrappingIterator(level, lastCompactedSSTables[level]);
         while (levelIterator.hasNext())
         {
             SSTableReader sstable = levelIterator.next();
-            Set<SSTableReader> candidates = Sets.union(Collections.singleton(sstable), overlappingWithBounds(sstable, sstablesNextLevel));
+            Set<SSTableReader> candidates = getIntersectingSSTablesFromTreeSet(sstable, sstablesNextLevel);
+            candidates.add(sstable);
 
             if (Iterables.any(candidates, SSTableReader::isMarkedSuspect))
                 continue;
@@ -590,6 +594,30 @@ public class LeveledManifest
 
         // all the sstables were suspect or overlapped with something suspect
         return Collections.emptyList();
+    }
+
+    /**
+     * Precondition: SSTables in sstablesNextLevel must be disjoint
+    */
+    @VisibleForTesting
+    protected static Set<SSTableReader> getIntersectingSSTablesFromTreeSet(SSTableReader sstable, TreeSet<SSTableReader> sstablesNextLevel)
+    {
+        Set<SSTableReader> candidates = new HashSet<>();
+
+        if (sstablesNextLevel.isEmpty())
+            return candidates;
+
+        SSTableReader start = sstablesNextLevel.floor(sstable);
+        Iterator<SSTableReader> it = sstablesNextLevel.tailSet(start != null ? start : sstablesNextLevel.first(), true).iterator();
+
+        while (it.hasNext())
+        {
+            SSTableReader s = it.next();
+            if (s.getFirst().compareTo(sstable.getLast()) > 0) break;
+            if (s.getLast().compareTo(sstable.getFirst()) >= 0) candidates.add(s);
+        }
+
+        return candidates;
     }
 
     private Set<SSTableReader> getCompactingL0()
