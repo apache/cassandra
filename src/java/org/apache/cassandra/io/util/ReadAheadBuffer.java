@@ -19,84 +19,79 @@
 package org.apache.cassandra.io.util;
 
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.function.Supplier;
 
-import io.netty.util.concurrent.FastThreadLocal;
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.CorruptBlockException;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.utils.Closeable;
 
-public final class ThreadLocalReadAheadBuffer
+import javax.annotation.concurrent.NotThreadSafe;
+
+/**
+ * A read-ahead buffer for sequential scans of a single file.
+ */
+@NotThreadSafe
+public class ReadAheadBuffer implements Closeable
 {
-    private static class Block
-    {
-        ByteBuffer buffer = null;
-        int index = -1;
-    }
+    protected final ChannelProxy channel;
 
-    private final ChannelProxy channel;
-
-    private final BufferType bufferType;
-
-    private static final FastThreadLocal<Map<String, Block>> blockMap = new FastThreadLocal<>()
-    {
-        @Override
-        protected Map<String, Block> initialValue()
-        {
-            return new HashMap<>();
-        }
-    };
-
-    private final int bufferSize;
+    private final Supplier<ByteBuffer> bufferSupplier;
     private final long channelSize;
 
-    public ThreadLocalReadAheadBuffer(ChannelProxy channel, int bufferSize, BufferType bufferType)
+    private ByteBuffer buffer;
+    private int index = -1;
+    private int bufferSize = -1;
+
+    public ReadAheadBuffer(ChannelProxy channel, int bufferSize, BufferType bufferType)
+    {
+        this(channel, () -> bufferType.allocate(bufferSize));
+    }
+
+    public ReadAheadBuffer(ChannelProxy channel, Supplier<ByteBuffer> bufferSupplier)
     {
         this.channel = channel;
         this.channelSize = channel.size();
-        this.bufferSize = bufferSize;
-        this.bufferType = bufferType;
+        this.bufferSupplier = bufferSupplier;
     }
 
     public boolean hasBuffer()
     {
-        return block().buffer != null;
+        return buffer != null;
     }
 
-    /**
-     * Safe to call only if {@link #hasBuffer()} is true
-     */
+    @VisibleForTesting
+    int bufferSize()
+    {
+        return bufferSize;
+    }
+
     public int remaining()
     {
-        return getBlock().buffer.remaining();
+        return getBuffer().remaining();
     }
 
     public void allocateBuffer()
     {
-        getBlock();
+        getBuffer();
     }
 
-    private Block getBlock()
+    private ByteBuffer getBuffer()
     {
-        Block block = block();
-        if (block.buffer == null)
+        if (buffer == null)
         {
-            block.buffer = bufferType.allocate(bufferSize);
-            block.buffer.clear();
+            buffer = bufferSupplier.get();
+            buffer.clear();
+            bufferSize = buffer.capacity();
         }
-        return block;
-    }
-
-    private Block block()
-    {
-        return blockMap.get().computeIfAbsent(channel.filePath(), k -> new Block());
+        return buffer;
     }
 
     public void fill(long position) throws CorruptBlockException
     {
-        Block block = getBlock();
-        ByteBuffer blockBuffer = block.buffer;
+        ByteBuffer blockBuffer = getBuffer();
         if (position >= channelSize)
             throw new CorruptBlockException(channel.filePath(), position, bufferSize);
 
@@ -105,14 +100,11 @@ public final class ThreadLocalReadAheadBuffer
 
         long remaining = channelSize - blockPosition;
         int sizeToRead = (int) Math.min(remaining, bufferSize);
-        if (block.index != blockNo)
+        if (index != blockNo)
         {
             blockBuffer.flip();
-            blockBuffer.limit(sizeToRead);
-            if (channel.read(blockBuffer, blockPosition) != sizeToRead)
-                throw new CorruptSSTableException(null, channel.filePath());
-
-            block.index = blockNo;
+            loadBlock(blockBuffer, blockPosition, sizeToRead);
+            index = blockNo;
         }
 
         blockBuffer.flip();
@@ -120,10 +112,16 @@ public final class ThreadLocalReadAheadBuffer
         blockBuffer.position((int) (position - blockPosition));
     }
 
+    protected void loadBlock(ByteBuffer blockBuffer, long blockPosition, int sizeToRead)
+    {
+        blockBuffer.limit(sizeToRead);
+        if (channel.read(blockBuffer, blockPosition) != sizeToRead)
+            throw new CorruptSSTableException(null, channel.filePath());
+    }
+
     public int read(ByteBuffer dest, int length)
     {
-        Block block = getBlock();
-        ByteBuffer blockBuffer = block.buffer;
+        ByteBuffer blockBuffer = getBuffer();
         ByteBuffer tmp = blockBuffer.duplicate();
         tmp.limit(tmp.position() + length);
         dest.put(tmp);
@@ -134,27 +132,27 @@ public final class ThreadLocalReadAheadBuffer
 
     public void clear(boolean deallocate)
     {
-        // avoid calling block() here to reduce unintended allocations
-        Block block = blockMap.get().get(channel.filePath());
-        if (block == null)
+        if (buffer == null)
             return;
 
-        block.index = -1;
-        if (block.buffer == null)
-            return;
-
-        ByteBuffer blockBuffer = block.buffer;
-        blockBuffer.clear();
+        index = -1;
+        buffer.clear();
         if (deallocate)
         {
-            FileUtils.clean(blockBuffer);
-            block.buffer = null;
+            cleanBuffer(buffer);
+            buffer = null;
+            bufferSize = -1;
         }
     }
 
+    protected void cleanBuffer(ByteBuffer buffer)
+    {
+        FileUtils.clean(buffer);
+    }
+
+    @Override
     public void close()
     {
         clear(true);
-        blockMap.get().remove(channel.filePath());
     }
 }

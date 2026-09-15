@@ -136,7 +136,12 @@ public class FileHandle extends SharedCloseableImpl
 
     public RandomAccessReader createReaderForScan()
     {
-        return createReader(null, true);
+        return createReader(null, ReadPattern.SCAN);
+    }
+
+    public RandomAccessReader createReaderForPartitionRead()
+    {
+        return createReader(null, ReadPattern.PARTITION_READ);
     }
 
     /**
@@ -148,12 +153,12 @@ public class FileHandle extends SharedCloseableImpl
      */
     public RandomAccessReader createReader(RateLimiter limiter)
     {
-        return createReader(limiter, false);
+        return createReader(limiter, ReadPattern.ROW_READ);
     }
 
-    public RandomAccessReader createReader(RateLimiter limiter, boolean forScan)
+    public RandomAccessReader createReader(RateLimiter limiter, ReadPattern pattern)
     {
-       return new RandomAccessReader(instantiateRebufferer(limiter, forScan));
+       return new RandomAccessReader(instantiateRebufferer(limiter, pattern));
     }
 
     public FileDataInput createReader(long position)
@@ -196,12 +201,12 @@ public class FileHandle extends SharedCloseableImpl
 
     public Rebufferer instantiateRebufferer(RateLimiter limiter)
     {
-        return instantiateRebufferer(limiter, false);
+        return instantiateRebufferer(limiter, ReadPattern.ROW_READ);
     }
 
-    public Rebufferer instantiateRebufferer(RateLimiter limiter, boolean forScan)
+    public Rebufferer instantiateRebufferer(RateLimiter limiter, ReadPattern pattern)
     {
-        Rebufferer rebufferer = rebuffererFactory.instantiateRebufferer(forScan);
+        Rebufferer rebufferer = rebuffererFactory.instantiateRebufferer(pattern);
 
         if (limiter != null)
             rebufferer = new LimitingRebufferer(rebufferer, limiter, DiskOptimizationStrategy.MAX_BUFFER_SIZE);

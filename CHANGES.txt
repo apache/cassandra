@@ -1,4 +1,5 @@
 5.0.10
+ * Give each compressed scan reader its own read-ahead buffer and keep the chunk cache for partition reads while scans bypass it (CASSANDRA-21671)
  * Release hints write buffer when the write executor shuts down (CASSANDRA-21657)
  * Fix concurrent SAI vector inserts failing once jvector's per-graph pool limit is exceeded (CASSANDRA-21644)
  * Let the commit log allocator observe the shutdown state (CASSANDRA-21616)

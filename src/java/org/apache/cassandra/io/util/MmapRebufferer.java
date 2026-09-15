@@ -41,7 +41,7 @@ class MmapRebufferer extends AbstractReaderFileProxy implements Rebufferer, Rebu
     }
 
     @Override
-    public Rebufferer instantiateRebufferer(boolean isScan)
+    public Rebufferer instantiateRebufferer(ReadPattern pattern)
     {
         return this;
     }

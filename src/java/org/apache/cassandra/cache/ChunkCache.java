@@ -37,6 +37,7 @@ import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.ChunkReader;
 import org.apache.cassandra.io.util.FileHandle;
+import org.apache.cassandra.io.util.ReadPattern;
 import org.apache.cassandra.io.util.Rebufferer;
 import org.apache.cassandra.io.util.RebuffererFactory;
 import org.apache.cassandra.metrics.ChunkCacheMetrics;
@@ -259,9 +260,10 @@ public class ChunkCache
         }
 
         @Override
-        public Rebufferer instantiateRebufferer(boolean isScan)
+        public Rebufferer instantiateRebufferer(ReadPattern pattern)
         {
-            return this;
+            // Bypass the cache for patterns that read data once, so they don't evict hot data.
+            return pattern.usesCache() ? this : source.instantiateRebufferer(pattern);
         }
 
         @Override
