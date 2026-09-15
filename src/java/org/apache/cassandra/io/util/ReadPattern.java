@@ -19,33 +19,18 @@
 package org.apache.cassandra.io.util;
 
 /**
- * How a reader accesses a file. A caller states the access pattern when it instantiates a rebufferer. Each
- * rebufferer layer then reads only the decision it owns: {@link org.apache.cassandra.cache.ChunkCache} reads
- * {@link #usesCache()}, and {@link CompressedChunkReader} reads {@link #readsAhead()}.
- *
- * <p>The pattern carries two orthogonal decisions, but the three values below are the only meaningful pairs.
- * A pattern that neither caches nor reads ahead has no caller, so the enum does not offer it. See
- * CASSANDRA-21671.
+ * How a reader accesses a file, set when a rebufferer is created. {@link org.apache.cassandra.cache.ChunkCache}
+ * checks {@link #usesCache()}; {@link CompressedChunkReader} checks {@link #readsAhead()}.
  */
 public enum ReadPattern
 {
-    /**
-     * A read of specific rows: a single-partition read served by named or sliced clustering keys. It uses the
-     * chunk cache and does not read ahead. Repeated reads of hot data hit the cache.
-     */
+    /** Single-partition reads use the chunk cache but do not read ahead. */
     ROW_READ(true, false),
 
-    /**
-     * A read that walks a range of partitions in order, such as a token-range query. Re-use is likely, so it
-     * keeps the chunk cache. It reads ahead only when the chunk cache is off.
-     */
+    /** Range queries walking partitions in order  use the chunk cache and can read ahead only if the cache is disabled. */
     PARTITION_READ(true, true),
 
-    /**
-     * An unbounded, one-shot read: compaction, cursor compaction, and similar callers. It reads each chunk once,
-     * so it must bypass the chunk cache to avoid evicting hot data with one-shot chunks. It reads ahead through
-     * its own buffer instead.
-     */
+    /** One-shot scans (ex. compactions) bypass the cache to avoid evicting hot data but read ahead instead. */
     SCAN(false, true);
 
     private final boolean usesCache;

@@ -49,17 +49,14 @@ public class ChunkCacheScanBypassTest
     static
     {
         DatabaseDescriptor.clientInitialization();
-        // Client init leaves file_cache_size null, which gives the chunk cache a maximum weight of 0 and a
-        // 0-byte buffer pool. Set a real size before ChunkCache and the buffer pool load so the cache can
-        // actually hold entries; otherwise a point read spins forever in Caffeine's degenerate maintenance.
+        // Client initialization leaves the cache size at zero, which would make a point read spin forever.
         DatabaseDescriptor.getRawConfig().file_cache_size = new DataStorageSpec.IntMebibytesBound(64);
     }
 
     /**
-     * A scan (ex. compaction) should not populate the chunk cache, since it reads each chunk once
-     * and would only evict hot data.
+     * A scan (ex. compaction) should not populate the chunk cache, as it could evict hot data.
      */
-    @Test
+    @Test(timeout = 60_000)
     public void scanBypassesCacheWhilePointReadPopulatesIt() throws Exception
     {
         FileSystems.newGlobalInMemoryFileSystem();
@@ -74,7 +71,7 @@ public class ChunkCacheScanBypassTest
         {
             RebuffererFactory factory = cache.wrap(reader);
 
-            // A SCAN gets a distinct, non-caching rebufferer and must not add anything to the cache.
+            // This bypasses the cache and must add nothing to it.
             Rebufferer scan = factory.instantiateRebufferer(ReadPattern.SCAN);
             assertThat(scan).isNotSameAs(factory);
             try
@@ -84,13 +81,11 @@ public class ChunkCacheScanBypassTest
             }
             finally
             {
-                // Release the scan's read-ahead buffer only. close() would close the shared underlying reader,
-                // which the point read below still needs; the parent reader's try-with-resources closes it.
+                // Only release the scan's own buffer. The shared reader stays open for the point read below.
                 scan.closeReader();
             }
 
-            // A PARTITION_READ reuses the caching rebufferer and populates the cache, so a repeated partition-range
-            // query re-reads hot data. This is the CASSANDRA-21671 regression: it must not bypass the cache.
+            // A range query reuses the cache and populates it, since repeated range queries revisit data.
             Rebufferer partitionRead = factory.instantiateRebufferer(ReadPattern.PARTITION_READ);
             assertThat(partitionRead).isSameAs(factory);
             rebufferWholeFile(partitionRead, reader.fileLength(), reader.chunkSize());
@@ -98,7 +93,7 @@ public class ChunkCacheScanBypassTest
 
             cache.close();
 
-            // A point read reuses the caching rebufferer and populates the cache, proving the cache works.
+            // A point read also populates the cache.
             Rebufferer point = factory.instantiateRebufferer(ReadPattern.ROW_READ);
             assertThat(point).isSameAs(factory);
             rebufferWholeFile(point, reader.fileLength(), reader.chunkSize());
@@ -111,11 +106,9 @@ public class ChunkCacheScanBypassTest
     }
 
     /**
-     * A can bypasses the chunk cache entirely (its rebufferer delegates straight to the uncompressed source
-     * instead of the cache), so it must still batch its reads through its own read-ahead buffer rather than
-     * issuing one physical read per chunk.
+     * A scan bypasses the cache, but it must still batch its reads through its own read-ahead buffer.
      */
-    @Test
+    @Test(timeout = 60_000)
     public void scanUnderCacheUsesReadAheadBuffer() throws Exception
     {
         ListenableFileSystem fs = FileSystems.newGlobalInMemoryFileSystem();
@@ -158,8 +151,6 @@ public class ChunkCacheScanBypassTest
 
     private static ChunkCache newChunkCache() throws Exception
     {
-        // The shared ChunkCache.instance is null when the file cache is disabled (the default). Build a private
-        // instance directly so the test controls the cache regardless of the file_cache_enabled setting.
         Constructor<ChunkCache> ctor = ChunkCache.class.getDeclaredConstructor(BufferPool.class);
         ctor.setAccessible(true);
         return ctor.newInstance(BufferPools.forChunkCache());
@@ -183,8 +174,6 @@ public class ChunkCacheScanBypassTest
     
     private static void rebufferWholeFile(Rebufferer rebufferer, long fileLength, int chunkSize)
     {
-        // Rebuffer every chunk-aligned position over the whole file and release each holder. This is enough to
-        // drive cache population (a point read) or a read-ahead scan.
         long position = 0;
         do
         {

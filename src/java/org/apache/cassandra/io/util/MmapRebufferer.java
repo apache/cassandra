@@ -43,8 +43,6 @@ class MmapRebufferer extends AbstractReaderFileProxy implements Rebufferer, Rebu
     @Override
     public Rebufferer instantiateRebufferer(ReadPattern pattern)
     {
-        // Mmap serves reads from the OS page cache regardless of the pattern, so there is no chunk cache to
-        // bypass and no separate read-ahead buffer to allocate.
         return this;
     }
 

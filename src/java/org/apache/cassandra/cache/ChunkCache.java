@@ -262,12 +262,7 @@ public class ChunkCache
         @Override
         public Rebufferer instantiateRebufferer(ReadPattern pattern)
         {
-            // A SCAN (compaction, cursor compaction) reads each chunk once and must not pollute the cache with
-            // one-shot chunks that evict hot data. It does not use the cache, so delegate to the source: the scan
-            // bypasses the cache and uses its own read-ahead buffer instead. For an Mmap source this also bypasses
-            // the chunk cache, which is correct: mmap data already lives in the OS page cache, so the chunk cache
-            // only duplicates it. A PARTITION_READ still uses the cache, because a repeated partition-range query
-            // re-reads hot data. See CASSANDRA-21671.
+            // Bypass the cache for patterns that read data once, so they don't evict hot data.
             return pattern.usesCache() ? this : source.instantiateRebufferer(pattern);
         }
 

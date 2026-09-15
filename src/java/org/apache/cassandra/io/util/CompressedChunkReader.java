@@ -49,7 +49,6 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
         assert Integer.bitCount(metadata.chunkLength()) == 1; //must be a power of two
     }
 
-    // Copy constructor for a per-scan view. The view shares the parent's channel and metadata.
     protected CompressedChunkReader(CompressedChunkReader parent)
     {
         super(parent.channel, parent.metadata.dataLength);
@@ -101,8 +100,7 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
     @Override
     public Rebufferer instantiateRebufferer(ReadPattern pattern)
     {
-        // A read-ahead pattern (PARTITION_READ, SCAN) gets a per-scan view that owns its own read-ahead buffer.
-        // A ROW_READ reads through this shared reader with no read-ahead.
+        // Patterns that read ahead get their own buffer. Otherwise, they share this reader with no read-ahead.
         return new BufferManagingRebufferer.Aligned(pattern.readsAhead() ? forScan() : this);
     }
 
@@ -242,9 +240,6 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
 
         private final CompressedReader reader;
         private final CompressedReader scanReader;
-        // Read-ahead is on only when a scan buffer is configured and larger than one chunk; a smaller buffer cannot
-        // batch reads, so it adds no value. A value of 0 means "no read-ahead". A per-scan view (see forScan) never
-        // reads ahead itself, so it always reports 0.
         private final int readAheadBufferSize;
 
         public Standard(ChannelProxy channel, CompressionMetadata metadata, Supplier<Double> crcCheckChanceSupplier)
@@ -256,10 +251,6 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
             this.readAheadBufferSize = (size > 0 && size > metadata.chunkLength()) ? size : 0;
         }
 
-        // Per-scan view. Each scan reader is single-threaded and owns its own read-ahead buffer, so no buffer is
-        // shared across threads. It shares the parent's random-access reader as a fallback; that reader's close()
-        // is a no-op, so the view frees only its own scan buffer. It never reads ahead itself, so its
-        // readAheadBufferSize is 0.
         private Standard(Standard parent, CompressedReader scanReader)
         {
             super(parent);

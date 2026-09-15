@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Random;
 
 import org.junit.AfterClass;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.quicktheories.WithQuickTheories;
@@ -43,6 +42,7 @@ import org.apache.cassandra.utils.Pair;
 
 import static java.lang.Math.max;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_IO_TMPDIR;
+import static org.junit.Assert.*;
 
 public class ReadAheadBufferTest implements WithQuickTheories
 {
@@ -95,7 +95,7 @@ public class ReadAheadBufferTest implements WithQuickTheories
     }
 
     @Test
-    public void allocateInitialisesBufferSizeFromCapacity() throws CorruptBlockException
+    public void allocateInitialisesBufferSizeFromCapacity()
     {
         int bufferSize = new DataStorageSpec.IntKibibytesBound("256KiB").toBytes();
         try (ChannelProxy channel = new ChannelProxy(files[0]))
@@ -103,16 +103,12 @@ public class ReadAheadBufferTest implements WithQuickTheories
             ReadAheadBuffer buffer = new ReadAheadBuffer(channel, bufferSize, BufferType.OFF_HEAP);
             try
             {
-                // Buffer is lazily allocated; before allocation there is no buffer.
-                Assert.assertFalse(buffer.hasBuffer());
-
+                assertFalse(buffer.hasBuffer());
                 buffer.allocateBuffer();
 
-                // Ownership is per-instance: allocation must set bufferSize from the buffer capacity,
-                // not leave it at -1 (which would make fill() call ByteBuffer.limit(-1)).
-                Assert.assertTrue(buffer.hasBuffer());
-                Assert.assertEquals("allocate must initialise bufferSize from capacity",
-                                    bufferSize, buffer.bufferSize());
+                // Allocation must record the actual buffer size, not leave it unset.
+                assertTrue(buffer.hasBuffer());
+                assertEquals("allocate must initialise bufferSize from capacity", bufferSize, buffer.bufferSize());
             }
             finally
             {
@@ -121,12 +117,13 @@ public class ReadAheadBufferTest implements WithQuickTheories
         }
     }
 
+    /**
+     * Two instances over the same file must not share buffer state.
+     */
     @Test
     public void independentInstancesDoNotShareBuffer() throws CorruptBlockException
     {
-        // Each ReadAheadBuffer owns its own buffer. Two instances over the same file, on the same
-        // thread, must not share state. Under the old static per-thread, per-path Block cache they
-        // shared one buffer, so advancing one instance to a different block clobbered the other's view.
+        
         File file = files[0];
         int bufferSize = new DataStorageSpec.IntKibibytesBound("256KiB").toBytes();
         try (ChannelProxy channel = new ChannelProxy(file))
@@ -151,7 +148,7 @@ public class ReadAheadBufferTest implements WithQuickTheories
                 a.read(actual, readSize);
                 actual.flip();
 
-                Assert.assertEquals(expected, actual);
+                assertEquals(expected, actual);
             }
             finally
             {
@@ -169,14 +166,14 @@ public class ReadAheadBufferTest implements WithQuickTheories
         {
             ReadAheadBuffer buffer = new ReadAheadBuffer(channel, bufferSize, BufferType.OFF_HEAP);
             buffer.allocateBuffer();
-            Assert.assertTrue(buffer.hasBuffer());
+            assertTrue(buffer.hasBuffer());
 
             buffer.close();
-            Assert.assertFalse("close must free the owned buffer", buffer.hasBuffer());
+            assertFalse("close must free the owned buffer", buffer.hasBuffer());
 
             // A second close must not double-free.
             buffer.close();
-            Assert.assertFalse(buffer.hasBuffer());
+            assertFalse(buffer.hasBuffer());
         }
     }
 
@@ -217,7 +214,7 @@ public class ReadAheadBufferTest implements WithQuickTheories
             throw new RuntimeException(e);
         }
 
-        Assert.assertEquals(buf1, buf2);
+        assertEquals(buf1, buf2);
     }
 
     protected Gen<InputData> reads()
@@ -239,7 +236,6 @@ public class ReadAheadBufferTest implements WithQuickTheories
                                           .map(positionsAndLengths -> new InputData(file, positionsAndLengths)));
     }
 
-    // need this because generators don't handle the IOException
     private long fileSize(File file)
     {
         try

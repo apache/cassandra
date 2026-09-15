@@ -1380,19 +1380,11 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         return dfile.createReader();
     }
 
-    /**
-     * A reader for a one-shot scan (compaction and similar). It reads each chunk once, so it bypasses the chunk
-     * cache and uses its own read-ahead buffer. See CASSANDRA-21671.
-     */
     public RandomAccessReader openDataReaderForScan()
     {
         return dfile.createReaderForScan();
     }
 
-    /**
-     * A reader for a query that walks a range of partitions, such as a token-range query. It reads in order, but
-     * keeps the chunk cache because a repeated partition-range query re-reads hot data. See CASSANDRA-21671.
-     */
     public RandomAccessReader openDataReaderForPartitionRead()
     {
         return dfile.createReaderForPartitionRead();

@@ -101,7 +101,6 @@ public class CompressedChunkReaderTest
             try (CompressedChunkReader reader = new CompressedChunkReader.Standard(channel, metadata, () -> 1d);
                  metadata)
             {
-                // forScan() returns a per-scan reader that owns its read-ahead buffer; use it, then close it.
                 CompressedChunkReader scanReader = useReadAhead ? reader.forScan() : reader;
                 try
                 {
@@ -217,12 +216,13 @@ public class CompressedChunkReaderTest
         }
     }
 
+    /*
+     * Two or more concurrent scans of one file must not corrupt each other or double-free a shared buffer.
+     */
     @Test(timeout = 60_000)
     public void concurrentScansOfOneReaderAreIndependent() throws Exception
     {
-        // Two or more scanners over one SSTable (compaction plus an index build sharing the dfile) each open
-        // their own scan reader via forScan(). Each scan reader owns its read-ahead buffer, so concurrent scans
-        // of one file must not corrupt each other or double-free a shared buffer.
+        
         SequentialWriterOption writerOption = SequentialWriterOption.newBuilder().finishOnClose(false).bufferSize(1 << 10).build();
         CompressionParams params = CompressionParams.snappy(4096, 1.1);
 
@@ -241,7 +241,8 @@ public class CompressedChunkReaderTest
             metadata = writer.open(0);
         }
 
-        DatabaseDescriptor.setCompressedReadAheadBufferSizeInKb(256); // minimum allowed; spans many blocks over the test file
+        // Minium legal buffer size. (This should span many blocks over the test file.)
+        DatabaseDescriptor.setCompressedReadAheadBufferSizeInKb(256);
 
         int threads = 4;
         long maxOffset = longsToWrite * Long.BYTES;
@@ -283,7 +284,6 @@ public class CompressedChunkReaderTest
                     }));
                 }
 
-                // Propagate any assertion failure or corruption from the worker threads.
                 for (Future<?> future : futures)
                     future.get(45, TimeUnit.SECONDS);
             }
