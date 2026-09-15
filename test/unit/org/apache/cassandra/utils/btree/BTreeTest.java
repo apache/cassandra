@@ -98,6 +98,92 @@ public class BTreeTest
     }
 
     @Test
+    public void testReplacePreservesSnapshots()
+    {
+        // Exceed the capacity of a root with only leaf children, exercising deeper paths and internal keys.
+        checkReplaceSnapshots((BTree.MAX_KEYS + 1) * (BTree.MAX_KEYS + 1));
+    }
+
+    private static void checkReplaceSnapshots(int count)
+    {
+        List<Accumulator> values = new ArrayList<>();
+        for (int i = 0; i < count; i++)
+            values.add(new Accumulator(i, 0));
+        Object[] original = BTree.build(values);
+
+        for (int index = 0; index < count; index++)
+        {
+            Assert.assertSame(original, BTree.replace(original, index, values.get(index)));
+
+            Accumulator firstValue = new Accumulator(index, 1);
+            Accumulator secondValue = new Accumulator(index, 2);
+            int siblingIndex = (index + 1) % count;
+            Accumulator siblingValue = new Accumulator(siblingIndex, 3);
+            Object[] first = BTree.replace(original, index, firstValue);
+            Object[] second = BTree.replace(first, index, secondValue);
+            Object[] sibling = BTree.replace(original, siblingIndex, siblingValue);
+
+            assertReplacementPath(original, first, index);
+            assertReplacementPath(first, second, index);
+            assertReplacementPath(original, sibling, siblingIndex);
+            assertEquals(BTree.sizeOnHeapOf(original), BTree.sizeOnHeapOf(first));
+            assertTrue(BTree.isWellFormed(first, Comparator.<Accumulator>naturalOrder()));
+            Assert.assertSame(first, BTree.replace(first, index, firstValue));
+
+            for (int i = 0; i < count; i++)
+            {
+                Assert.assertSame(values.get(i), BTree.findByIndex(original, i));
+                Assert.assertSame(i == index ? firstValue : values.get(i), BTree.findByIndex(first, i));
+                Assert.assertSame(i == index ? secondValue : values.get(i), BTree.findByIndex(second, i));
+                Assert.assertSame(i == siblingIndex ? siblingValue : values.get(i), BTree.findByIndex(sibling, i));
+            }
+        }
+    }
+
+    private static void assertReplacementPath(Object[] original, Object[] replaced, int index)
+    {
+        Assert.assertNotSame(original, replaced);
+        assertEquals(original.length, replaced.length);
+        assertEquals(BTree.size(original), BTree.size(replaced));
+        if (BTree.isLeaf(original))
+            return;
+
+        Assert.assertSame(BTree.sizeMap(original), BTree.sizeMap(replaced));
+        int offset = 0;
+        for (int child = BTree.getChildStart(original); child < BTree.getChildEnd(original); child++)
+        {
+            Object[] originalChild = (Object[]) original[child];
+            int childSize = BTree.size(originalChild);
+            if (index >= offset && index < offset + childSize)
+                assertReplacementPath(originalChild, (Object[]) replaced[child], index - offset);
+            else
+                Assert.assertSame(originalChild, replaced[child]);
+            offset += childSize + 1;
+        }
+    }
+
+    @Test
+    public void testReplaceInvalidIndex()
+    {
+        for (int count : new int[] { 0, 2, BTree.MAX_KEYS + 1 })
+        {
+            Object[] tree = BTree.build(seq(count));
+            for (int index : new int[] { Integer.MIN_VALUE, -1, count, Integer.MAX_VALUE })
+            {
+                try
+                {
+                    BTree.replace(tree, index, 0);
+                    Assert.fail("Expected an invalid replacement index to be rejected");
+                }
+                catch (IndexOutOfBoundsException expected)
+                {
+                }
+                assertTrue(Iterables.elementsEqual(seq(count), BTree.<Integer>iterable(tree)));
+            }
+        }
+    }
+
+    @Test
     public void testApply()
     {
         List<Integer> input = seq(71);

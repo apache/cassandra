@@ -18,19 +18,23 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 
 import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.utils.AbstractIterator;
+import org.apache.cassandra.utils.BulkIterator;
 import org.apache.cassandra.utils.CassandraUInt;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.btree.BTree;
+import org.apache.cassandra.utils.btree.UpdateFunction;
 import org.apache.cassandra.utils.memory.ByteBufferCloner;
 
 /**
@@ -46,46 +50,105 @@ import org.apache.cassandra.utils.memory.ByteBufferCloner;
  * the first one on [5, 10]. If such tombstones are added to a RangeTombstoneList,
  * the range tombstone list will store them as [[0, 5]@t1, [5, 15]@t2].
  * <p>
- * The only use of the local deletion time is to know when a given tombstone can
- * be purged, which will be done by the purge() method.
+ * Snapshots share immutable BTree nodes and interval entries. Inserting one disjoint range
+ * allocates O(log n) nodes; an overlapping update visits the affected intervals, copying
+ * O(log n) nodes per changed interval. The list itself, like its array-backed predecessor,
+ * requires a single writer; immutable snapshots may be read concurrently.
  */
-public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurableMemory
+public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurableMemory, UpdateFunction<RangeTombstoneList.Range, RangeTombstoneList.Range>
 {
-    private static long EMPTY_SIZE = ObjectSizes.measure(new RangeTombstoneList(null, 0));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new RangeTombstoneList((ClusteringComparator) null));
+    private static final long RANGE_SIZE = ObjectSizes.measure(new Range(null, null, 0, 0));
 
     private final ClusteringComparator comparator;
+    private final BoundComparator byStart;
+    private final BoundComparator byEnd;
 
-    // Note: we don't want to use a List for the markedAts and delTimes to avoid boxing. We could
-    // use a List for starts and ends, but having arrays everywhere is almost simpler.
-    private ClusteringBound<?>[] starts;
-    private ClusteringBound<?>[] ends;
-    private long[] markedAts;
-    private int[] delTimesUnsignedIntegers;
-
+    // Roots and entries are immutable. A writer replaces only its own root, never a published
+    // partition's nodes. In particular, copy followed by an append copies a tree path, not all ranges.
+    private Object[] tree = BTree.empty();
     private long boundaryHeapSize;
+    private long treeHeapSize;
     private int size;
 
-    private RangeTombstoneList(ClusteringComparator comparator,
-                               ClusteringBound<?>[] starts,
-                               ClusteringBound<?>[] ends,
-                               long[] markedAts,
-                               int[] delTimesUnsignedIntegers,
-                               long boundaryHeapSize,
-                               int size)
+    public RangeTombstoneList(ClusteringComparator comparator)
     {
-        assert starts.length == ends.length && starts.length == markedAts.length && starts.length == delTimesUnsignedIntegers.length;
         this.comparator = comparator;
-        this.starts = starts;
-        this.ends = ends;
-        this.markedAts = markedAts;
-        this.delTimesUnsignedIntegers = delTimesUnsignedIntegers;
-        this.size = size;
-        this.boundaryHeapSize = boundaryHeapSize;
+        this.byStart = new BoundComparator(comparator, true);
+        this.byEnd = new BoundComparator(comparator, false);
     }
 
-    public RangeTombstoneList(ClusteringComparator comparator, int capacity)
+    private RangeTombstoneList(RangeTombstoneList source)
     {
-        this(comparator, new ClusteringBound<?>[capacity], new ClusteringBound<?>[capacity], new long[capacity], new int[capacity], 0, 0);
+        comparator = source.comparator;
+        byStart = source.byStart;
+        byEnd = source.byEnd;
+        tree = source.tree;
+        boundaryHeapSize = source.boundaryHeapSize;
+        treeHeapSize = source.treeHeapSize;
+        size = source.size;
+    }
+
+    // UpdateFunction<Range, Range>, used only by addInternal to insert a single new entry by end bound.
+    public Range insert(Range range)
+    {
+        return range;
+    }
+
+    public Range merge(Range existing, Range update)
+    {
+        throw new IllegalStateException("Duplicate range end");
+    }
+
+    public void onAllocatedOnHeap(long delta)
+    {
+        treeHeapSize += delta;
+    }
+
+    static final class Range
+    {
+        final ClusteringBound<?> start;
+        final ClusteringBound<?> end;
+        final long markedAt;
+        final int delTime;
+
+        Range(ClusteringBound<?> start, ClusteringBound<?> end, long markedAt, int delTime)
+        {
+            this.start = start;
+            this.end = end;
+            this.markedAt = markedAt;
+            this.delTime = delTime;
+        }
+    }
+
+    private static final class BoundComparator implements Comparator<Object>
+    {
+        private final ClusteringComparator comparator;
+        private final boolean start;
+
+        BoundComparator(ClusteringComparator comparator, boolean start)
+        {
+            this.comparator = comparator;
+            this.start = start;
+        }
+
+        private ClusteringPrefix<?> bound(Object value)
+        {
+            if (!(value instanceof Range))
+                return (ClusteringPrefix<?>) value;
+            Range range = (Range) value;
+            return start ? range.start : range.end;
+        }
+
+        public int compare(Object left, Object right)
+        {
+            return comparator.compare(bound(left), bound(right));
+        }
+    }
+
+    private Range get(int index)
+    {
+        return BTree.findByIndex(tree, index);
     }
 
     public boolean isEmpty()
@@ -105,30 +168,15 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
 
     public RangeTombstoneList copy()
     {
-        return new RangeTombstoneList(comparator,
-                                      Arrays.copyOf(starts, size),
-                                      Arrays.copyOf(ends, size),
-                                      Arrays.copyOf(markedAts, size),
-                                      Arrays.copyOf(delTimesUnsignedIntegers, size),
-                                      boundaryHeapSize, size);
+        return new RangeTombstoneList(this);
     }
 
     public RangeTombstoneList clone(ByteBufferCloner cloner)
     {
-        RangeTombstoneList copy =  new RangeTombstoneList(comparator,
-                                                          new ClusteringBound<?>[size],
-                                                          new ClusteringBound<?>[size],
-                                                          Arrays.copyOf(markedAts, size),
-                                                          Arrays.copyOf(delTimesUnsignedIntegers, size),
-                                                          boundaryHeapSize, size);
-
-
-        for (int i = 0; i < size; i++)
-        {
-            copy.starts[i] = clone(starts[i], cloner);
-            copy.ends[i] = clone(ends[i], cloner);
-        }
-
+        RangeTombstoneList copy = copy();
+        copy.tree = BTree.<Range, Range>transform(tree, range -> new Range(clone(range.start, cloner),
+                                                                        clone(range.end, cloner),
+                                                                        range.markedAt, range.delTime));
         return copy;
     }
 
@@ -162,7 +210,10 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
             return;
         }
 
-        int c = comparator.compare(ends[size-1], start);
+        if (Slice.isEmpty(comparator, start, end))
+            return;
+
+        int c = comparator.compare(get(size-1).end, start);
 
         // Fast path if we add in sorted order
         if (c <= 0)
@@ -172,10 +223,9 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         else
         {
             // Note: insertFrom expect i to be the insertion point in term of interval ends
-            int pos = Arrays.binarySearch(ends, 0, size, start, comparator);
+            int pos = BTree.findIndex(tree, byEnd, start);
             insertFrom((pos >= 0 ? pos+1 : -pos-1), start, end, markedAt, delTimeUnsignedInteger);
         }
-        boundaryHeapSize += start.unsharedHeapSize() + end.unsharedHeapSize();
     }
 
     /**
@@ -188,52 +238,18 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
 
         if (isEmpty())
         {
-            copyArrays(tombstones, this);
+            tree = tombstones.tree;
+            size = tombstones.size;
+            boundaryHeapSize = tombstones.boundaryHeapSize;
+            treeHeapSize = tombstones.treeHeapSize;
             return;
         }
 
-        /*
-         * We basically have 2 techniques we can use here: either we repeatedly call add() on tombstones values,
-         * or we do a merge of both (sorted) lists. If this lists is bigger enough than the one we add, then
-         * calling add() will be faster, otherwise it's merging that will be faster.
-         *
-         * Let's note that during memtables updates, it might not be uncommon that a new update has only a few range
-         * tombstones, while the CF we're adding it to (the one in the memtable) has many. In that case, using add() is
-         * likely going to be faster.
-         *
-         * In other cases however, like when diffing responses from multiple nodes, the tombstone lists we "merge" will
-         * be likely sized, so using add() might be a bit inefficient.
-         *
-         * Roughly speaking (this ignore the fact that updating an element is not exactly constant but that's not a big
-         * deal), if n is the size of this list and m is tombstones size, merging is O(n+m) while using add() is O(m*log(n)).
-         *
-         * But let's not crank up a logarithm computation for that. Long story short, merging will be a bad choice only
-         * if this list size is lot bigger that the other one, so let's keep it simple.
-         */
-        if (size > 10 * tombstones.size)
+        Iterator<Range> ranges = BTree.iterator(tombstones.tree);
+        while (ranges.hasNext())
         {
-            for (int i = 0; i < tombstones.size; i++)
-                add(tombstones.starts[i], tombstones.ends[i], tombstones.markedAts[i], tombstones.delTimesUnsignedIntegers[i]);
-        }
-        else
-        {
-            int i = 0;
-            int j = 0;
-            while (i < size && j < tombstones.size)
-            {
-                if (comparator.compare(tombstones.starts[j], ends[i]) < 0)
-                {
-                    insertFrom(i, tombstones.starts[j], tombstones.ends[j], tombstones.markedAts[j], tombstones.delTimesUnsignedIntegers[j]);
-                    j++;
-                }
-                else
-                {
-                    i++;
-                }
-            }
-            // Addds the remaining ones from tombstones if any (note that addInternal will increment size if relevant).
-            for (; j < tombstones.size; j++)
-                addInternal(size, tombstones.starts[j], tombstones.ends[j], tombstones.markedAts[j], tombstones.delTimesUnsignedIntegers[j]);
+            Range range = ranges.next();
+            add(range.start, range.end, range.markedAt, range.delTime);
         }
     }
 
@@ -243,9 +259,9 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
      */
     public boolean isDeleted(Clustering<?> clustering, Cell<?> cell)
     {
-        int idx = searchInternal(clustering, 0, size);
+        int idx = searchInternal(clustering);
         // No matter what the counter cell's timestamp is, a tombstone always takes precedence. See CASSANDRA-7346.
-        return idx >= 0 && (cell.isCounterCell() || markedAts[idx] >= cell.timestamp());
+        return idx >= 0 && (cell.isCounterCell() || get(idx).markedAt >= cell.timestamp());
     }
 
     /**
@@ -254,14 +270,17 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
      */
     public DeletionTime searchDeletionTime(Clustering<?> name)
     {
-        int idx = searchInternal(name, 0, size);
-        return idx < 0 ? null : DeletionTime.buildUnsafeWithUnsignedInteger(markedAts[idx], delTimesUnsignedIntegers[idx]);
+        int idx = searchInternal(name);
+        if (idx < 0)
+            return null;
+        Range range = get(idx);
+        return DeletionTime.buildUnsafeWithUnsignedInteger(range.markedAt, range.delTime);
     }
 
     public RangeTombstone search(Clustering<?> name)
     {
-        int idx = searchInternal(name, 0, size);
-        return idx < 0 ? null : rangeTombstone(idx);
+        int idx = searchInternal(name);
+        return idx < 0 ? null : rangeTombstone(get(idx));
     }
 
     /*
@@ -270,15 +289,15 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
      *
      * Note that bounds are not in the range if they fall on its boundary.
      */
-    private int searchInternal(ClusteringPrefix<?> name, int startIdx, int endIdx)
+    private int searchInternal(ClusteringPrefix<?> name)
     {
         if (isEmpty())
             return -1;
 
-        int pos = Arrays.binarySearch(starts, startIdx, endIdx, name, comparator);
+        int pos = BTree.findIndex(tree, byStart, name);
         if (pos >= 0)
         {
-            // Equality only happens for bounds (as used by forward/reverseIterator), and bounds are equal only if they
+            // Equality only happens for bounds (as used by slice iteration), and bounds are equal only if they
             // are the same or complementary, in either case the bound itself is not part of the range.
             return -pos - 1;
         }
@@ -289,18 +308,20 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
             if (idx < 0)
                 return -1;
 
-            return comparator.compare(name, ends[idx]) < 0 ? idx : -idx-2;
+            return comparator.compare(name, get(idx).end) < 0 ? idx : -idx-2;
         }
     }
 
     public int dataSize()
     {
         int dataSize = TypeSizes.sizeof(size);
-        for (int i = 0; i < size; i++)
+        Iterator<Range> ranges = BTree.iterator(tree);
+        while (ranges.hasNext())
         {
-            dataSize += starts[i].dataSize() + ends[i].dataSize();
-            dataSize += TypeSizes.sizeof(markedAts[i]);
-            dataSize += TypeSizes.sizeof(delTimesUnsignedIntegers[i]);
+            Range range = ranges.next();
+            dataSize += range.start.dataSize() + range.end.dataSize();
+            dataSize += TypeSizes.sizeof(range.markedAt);
+            dataSize += TypeSizes.sizeof(range.delTime);
         }
         return dataSize;
     }
@@ -308,54 +329,42 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
     public long maxMarkedAt()
     {
         long max = Long.MIN_VALUE;
-        for (int i = 0; i < size; i++)
-            max = Math.max(max, markedAts[i]);
+        Iterator<Range> ranges = BTree.iterator(tree);
+        while (ranges.hasNext())
+            max = Math.max(max, ranges.next().markedAt);
         return max;
     }
 
     public void collectStats(EncodingStats.Collector collector)
     {
-        for (int i = 0; i < size; i++)
+        Iterator<Range> ranges = BTree.iterator(tree);
+        while (ranges.hasNext())
         {
-            collector.updateTimestamp(markedAts[i]);
-            collector.updateLocalDeletionTime(CassandraUInt.toLong(delTimesUnsignedIntegers[i]));
+            Range range = ranges.next();
+            collector.updateTimestamp(range.markedAt);
+            collector.updateLocalDeletionTime(CassandraUInt.toLong(range.delTime));
         }
     }
 
     public void updateAllTimestamp(long timestamp)
     {
-        for (int i = 0; i < size; i++)
-            markedAts[i] = timestamp;
+        tree = BTree.<Range, Range>transform(tree, range -> range.markedAt == timestamp
+                                                        ? range
+                                                        : new Range(range.start, range.end, timestamp, range.delTime));
     }
 
     public void updateAllTimestampAndLocalDeletionTime(long timestamp, long localDeletionTime)
     {
-        int unsignedLocalDeletionTime = Cell.deletionTimeLongToUnsignedInteger(localDeletionTime);
-        for (int i = 0; i < size; i++)
-        {
-            markedAts[i] = timestamp;
-            delTimesUnsignedIntegers[i] = unsignedLocalDeletionTime;
-        }
+        int delTime = Cell.deletionTimeLongToUnsignedInteger(localDeletionTime);
+        tree = BTree.<Range, Range>transform(tree, range -> range.markedAt == timestamp && range.delTime == delTime
+                                                        ? range
+                                                        : new Range(range.start, range.end, timestamp, delTime));
     }
 
-    private RangeTombstone rangeTombstone(int idx)
+    private static RangeTombstone rangeTombstone(Range range)
     {
-        return new RangeTombstone(Slice.make(starts[idx], ends[idx]), DeletionTime.buildUnsafeWithUnsignedInteger(markedAts[idx], delTimesUnsignedIntegers[idx]));
-    }
-
-    private RangeTombstone rangeTombstoneWithNewStart(int idx, ClusteringBound<?> newStart)
-    {
-        return new RangeTombstone(Slice.make(newStart, ends[idx]), DeletionTime.buildUnsafeWithUnsignedInteger(markedAts[idx], delTimesUnsignedIntegers[idx]));
-    }
-
-    private RangeTombstone rangeTombstoneWithNewEnd(int idx, ClusteringBound<?> newEnd)
-    {
-        return new RangeTombstone(Slice.make(starts[idx], newEnd), DeletionTime.buildUnsafeWithUnsignedInteger(markedAts[idx], delTimesUnsignedIntegers[idx]));
-    }
-
-    private RangeTombstone rangeTombstoneWithNewBounds(int idx, ClusteringBound<?> newStart, ClusteringBound<?> newEnd)
-    {
-        return new RangeTombstone(Slice.make(newStart, newEnd), DeletionTime.buildUnsafeWithUnsignedInteger(markedAts[idx], delTimesUnsignedIntegers[idx]));
+        return new RangeTombstone(Slice.make(range.start, range.end),
+                                  DeletionTime.buildUnsafeWithUnsignedInteger(range.markedAt, range.delTime));
     }
 
     public Iterator<RangeTombstone> iterator()
@@ -365,128 +374,40 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
 
     public Iterator<RangeTombstone> iterator(boolean reversed)
     {
-        return reversed
-             ? new AbstractIterator<RangeTombstone>()
-             {
-                 private int idx = size - 1;
-
-                 protected RangeTombstone computeNext()
-                 {
-                     if (idx < 0)
-                         return endOfData();
-
-                     return rangeTombstone(idx--);
-                 }
-             }
-             : new AbstractIterator<RangeTombstone>()
-             {
-                 private int idx;
-
-                 protected RangeTombstone computeNext()
-                 {
-                     if (idx >= size)
-                         return endOfData();
-
-                     return rangeTombstone(idx++);
-                 }
-             };
+        return Iterators.transform(BTree.<Range>iterator(tree, reversed ? BTree.Dir.DESC : BTree.Dir.ASC),
+                                   RangeTombstoneList::rangeTombstone);
     }
 
     public Iterator<RangeTombstone> iterator(final Slice slice, boolean reversed)
     {
-        return reversed ? reverseIterator(slice) : forwardIterator(slice);
-    }
-
-    private Iterator<RangeTombstone> forwardIterator(final Slice slice)
-    {
-        int startIdx = slice.start().isBottom() ? 0 : searchInternal(slice.start(), 0, size);
-        final int start = startIdx < 0 ? -startIdx-1 : startIdx;
-
-        if (start >= size)
+        if (isEmpty() || Slice.isEmpty(comparator, slice.start(), slice.end()))
             return Collections.emptyIterator();
 
-        int finishIdx = slice.end().isTop() ? size - 1 : searchInternal(slice.end(), start, size);
-        // if stopIdx is the first range after 'slice.end()' we care only until the previous range
+        int startIdx = slice.start().isBottom() ? 0 : searchInternal(slice.start());
+        final int start = startIdx < 0 ? -startIdx-1 : startIdx;
+        int finishIdx = slice.end().isTop() ? size - 1 : searchInternal(slice.end());
         final int finish = finishIdx < 0 ? -finishIdx-2 : finishIdx;
-
         if (start > finish)
             return Collections.emptyIterator();
 
-        if (start == finish)
-        {
-            // We want to make sure the range are stricly included within the queried slice as this
-            // make it easier to combine things when iterating over successive slices.
-            ClusteringBound<?> s = comparator.compare(starts[start], slice.start()) < 0 ? slice.start() : starts[start];
-            ClusteringBound<?> e = comparator.compare(slice.end(), ends[start]) < 0 ? slice.end() : ends[start];
-            if (Slice.isEmpty(comparator, s, e))
-                return Collections.emptyIterator();
-            return Iterators.<RangeTombstone>singletonIterator(rangeTombstoneWithNewBounds(start, s, e));
-        }
-
+        Iterator<Range> ranges = BTree.iterator(tree, start, finish, reversed ? BTree.Dir.DESC : BTree.Dir.ASC);
         return new AbstractIterator<RangeTombstone>()
         {
-            private int idx = start;
+            private int idx = reversed ? finish : start;
 
             protected RangeTombstone computeNext()
             {
-                if (idx >= size || idx > finish)
+                if (!ranges.hasNext())
                     return endOfData();
 
-                // We want to make sure the range are stricly included within the queried slice as this
-                // make it easier to combine things when iterating over successive slices. This means that
-                // for the first and last range we might have to "cut" the range returned.
-                if (idx == start && comparator.compare(starts[idx], slice.start()) < 0)
-                    return rangeTombstoneWithNewStart(idx++, slice.start());
-                if (idx == finish && comparator.compare(slice.end(), ends[idx]) < 0)
-                    return rangeTombstoneWithNewEnd(idx++, slice.end());
-                return rangeTombstone(idx++);
-            }
-        };
-    }
-
-    private Iterator<RangeTombstone> reverseIterator(final Slice slice)
-    {
-        int startIdx = slice.end().isTop() ? size - 1 : searchInternal(slice.end(), 0, size);
-        // if startIdx is the first range after 'slice.end()' we care only until the previous range
-        final int start = startIdx < 0 ? -startIdx-2 : startIdx;
-
-        if (start < 0)
-            return Collections.emptyIterator();
-
-        int finishIdx = slice.start().isBottom() ? 0 : searchInternal(slice.start(), 0, start + 1);  // include same as finish
-        // if stopIdx is the first range after 'slice.end()' we care only until the previous range
-        final int finish = finishIdx < 0 ? -finishIdx-1 : finishIdx;
-
-        if (start < finish)
-            return Collections.emptyIterator();
-
-        if (start == finish)
-        {
-            // We want to make sure the range are stricly included within the queried slice as this
-            // make it easier to combine things when iterator over successive slices.
-            ClusteringBound<?> s = comparator.compare(starts[start], slice.start()) < 0 ? slice.start() : starts[start];
-            ClusteringBound<?> e = comparator.compare(slice.end(), ends[start]) < 0 ? slice.end() : ends[start];
-            if (Slice.isEmpty(comparator, s, e))
-                return Collections.emptyIterator();
-            return Iterators.<RangeTombstone>singletonIterator(rangeTombstoneWithNewBounds(start, s, e));
-        }
-
-        return new AbstractIterator<RangeTombstone>()
-        {
-            private int idx = start;
-
-            protected RangeTombstone computeNext()
-            {
-                if (idx < 0 || idx < finish)
-                    return endOfData();
-                // We want to make sure the range are stricly included within the queried slice as this
-                // make it easier to combine things when iterator over successive slices. This means that
-                // for the first and last range we might have to "cut" the range returned.
-                if (idx == start && comparator.compare(slice.end(), ends[idx]) < 0)
-                    return rangeTombstoneWithNewEnd(idx--, slice.end());
-                if (idx == finish && comparator.compare(starts[idx], slice.start()) < 0)
-                    return rangeTombstoneWithNewStart(idx--, slice.start());
-                return rangeTombstone(idx--);
+                Range range = ranges.next();
+                ClusteringBound<?> s = idx == start && comparator.compare(range.start, slice.start()) < 0
+                                       ? slice.start() : range.start;
+                ClusteringBound<?> e = idx == finish && comparator.compare(slice.end(), range.end) < 0
+                                       ? slice.end() : range.end;
+                idx += reversed ? -1 : 1;
+                return new RangeTombstone(Slice.make(s, e),
+                                          DeletionTime.buildUnsafeWithUnsignedInteger(range.markedAt, range.delTime));
             }
         };
     }
@@ -500,15 +421,14 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         if (size != that.size)
             return false;
 
-        for (int i = 0; i < size; i++)
+        Iterator<Range> left = BTree.iterator(tree);
+        Iterator<Range> right = BTree.iterator(that.tree);
+        while (left.hasNext())
         {
-            if (!starts[i].equals(that.starts[i]))
-                return false;
-            if (!ends[i].equals(that.ends[i]))
-                return false;
-            if (markedAts[i] != that.markedAts[i])
-                return false;
-            if (delTimesUnsignedIntegers[i] != that.delTimesUnsignedIntegers[i])
+            Range a = left.next();
+            Range b = right.next();
+            if (!a.start.equals(b.start) || !a.end.equals(b.end)
+                || a.markedAt != b.markedAt || a.delTime != b.delTime)
                 return false;
         }
         return true;
@@ -518,24 +438,15 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
     public final int hashCode()
     {
         int result = size;
-        for (int i = 0; i < size; i++)
+        Iterator<Range> ranges = BTree.iterator(tree);
+        while (ranges.hasNext())
         {
-            result += starts[i].hashCode() + ends[i].hashCode();
-            result += (int)(markedAts[i] ^ (markedAts[i] >>> 32));
-            result += delTimesUnsignedIntegers[i];
+            Range range = ranges.next();
+            result += range.start.hashCode() + range.end.hashCode();
+            result += (int)(range.markedAt ^ (range.markedAt >>> 32));
+            result += range.delTime;
         }
         return result;
-    }
-
-    private static void copyArrays(RangeTombstoneList src, RangeTombstoneList dst)
-    {
-        dst.grow(src.size);
-        System.arraycopy(src.starts, 0, dst.starts, 0, src.size);
-        System.arraycopy(src.ends, 0, dst.ends, 0, src.size);
-        System.arraycopy(src.markedAts, 0, dst.markedAts, 0, src.size);
-        System.arraycopy(src.delTimesUnsignedIntegers, 0, dst.delTimesUnsignedIntegers, 0, src.size);
-        dst.size = src.size;
-        dst.boundaryHeapSize = src.boundaryHeapSize;
     }
 
     /*
@@ -552,46 +463,66 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
      */
     private void insertFrom(int i, ClusteringBound<?> start, ClusteringBound<?> end, long markedAt, int delTimeUnsignedInternal)
     {
-        while (i < size)
+        // A tombstone that supersedes many intervals would path-copy the tree once per interval; past a small
+        // fraction of the list it is cheaper to merge the affected run in an array and rebuild the tree once.
+        int pos = BTree.findIndex(tree, byStart, end);
+        int to = pos >= 0 ? pos : -pos - 1;
+        if (to - i >= 32 && to - i >= size / 32)
         {
+            Window window = new Window(i, to);
+            insertFrom(window, 0, start, end, markedAt, delTimeUnsignedInternal);
+            window.commit(i, to);
+        }
+        else
+        {
+            insertFrom(new TreeRanges(), i, start, end, markedAt, delTimeUnsignedInternal);
+        }
+    }
+
+    private void insertFrom(Ranges ranges, int i, ClusteringBound<?> start, ClusteringBound<?> end, long markedAt, int delTimeUnsignedInternal)
+    {
+        while (i < ranges.size())
+        {
+            Range current = ranges.get(i);
             assert start.isStart() && end.isEnd();
-            assert i == 0 || comparator.compare(ends[i-1], start) <= 0;
-            assert comparator.compare(start, ends[i]) < 0;
+            assert i == 0 || comparator.compare(ranges.get(i - 1).end, start) <= 0;
+            assert comparator.compare(start, current.end) < 0;
 
             if (Slice.isEmpty(comparator, start, end))
                 return;
 
             // Do we overwrite the current element?
-            if (markedAt > markedAts[i])
+            if (markedAt > current.markedAt)
             {
                 // We do overwrite.
 
                 // First deal with what might come before the newly added one.
-                if (comparator.compare(starts[i], start) < 0)
+                if (comparator.compare(current.start, start) < 0)
                 {
                     ClusteringBound<?> newEnd = start.invert();
-                    if (!Slice.isEmpty(comparator, starts[i], newEnd))
+                    if (!Slice.isEmpty(comparator, current.start, newEnd))
                     {
-                        addInternal(i, starts[i], newEnd, markedAts[i], delTimesUnsignedIntegers[i]);
+                        ranges.add(i, new Range(current.start, newEnd, current.markedAt, current.delTime));
                         i++;
-                        setInternal(i, start, ends[i], markedAts[i], delTimesUnsignedIntegers[i]);
+                        ranges.set(i, new Range(start, current.end, current.markedAt, current.delTime));
+                        current = ranges.get(i);
                     }
                 }
 
                 // now, start <= starts[i]
 
                 // Does the new element stops before the current one,
-                int endCmp = comparator.compare(end, starts[i]);
+                int endCmp = comparator.compare(end, current.start);
                 if (endCmp < 0)
                 {
                     // Here start <= starts[i] and end < starts[i]
                     // This means the current element is before the current one.
-                    addInternal(i, start, end, markedAt, delTimeUnsignedInternal);
+                    ranges.add(i, new Range(start, end, markedAt, delTimeUnsignedInternal));
                     return;
                 }
 
                 // Do we overwrite the current element fully?
-                int cmp = comparator.compare(ends[i], end);
+                int cmp = comparator.compare(current.end, end);
                 if (cmp <= 0)
                 {
                     // We do overwrite fully:
@@ -601,26 +532,28 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
                     // Note that the comparison below is inclusive: if a end equals a start, this means they form a boundary, or
                     // in other words that they are for the same element but one is inclusive while the other exclusive. In which case we know
                     // we're good with the next element
-                    if (i == size-1 || comparator.compare(end, starts[i+1]) <= 0)
+                    Range next = i == ranges.size() - 1 ? null : ranges.get(i + 1);
+                    if (next == null || comparator.compare(end, next.start) <= 0)
                     {
-                        setInternal(i, start, end, markedAt, delTimeUnsignedInternal);
+                        ranges.set(i, new Range(start, end, markedAt, delTimeUnsignedInternal));
                         return;
                     }
 
-                    setInternal(i, start, starts[i+1].invert(), markedAt, delTimeUnsignedInternal);
-                    start = starts[i+1];
+                    ranges.set(i, new Range(start, next.start.invert(), markedAt, delTimeUnsignedInternal));
+                    start = next.start;
                     i++;
                 }
                 else
                 {
                     // We don't overwrite fully. Insert the new interval, and then update the now next
                     // one to reflect the not overwritten parts. We're then done.
-                    addInternal(i, start, end, markedAt, delTimeUnsignedInternal);
+                    ranges.add(i, new Range(start, end, markedAt, delTimeUnsignedInternal));
                     i++;
                     ClusteringBound<?> newStart = end.invert();
-                    if (!Slice.isEmpty(comparator, newStart, ends[i]))
+                    current = ranges.get(i);
+                    if (!Slice.isEmpty(comparator, newStart, current.end))
                     {
-                        setInternal(i, newStart, ends[i], markedAts[i], delTimesUnsignedIntegers[i]);
+                        ranges.set(i, new Range(newStart, current.end, current.markedAt, current.delTime));
                     }
                     return;
                 }
@@ -630,19 +563,19 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
                 // we don't overwrite the current element
 
                 // If the new interval starts before the current one, insert that new interval
-                if (comparator.compare(start, starts[i]) < 0)
+                if (comparator.compare(start, current.start) < 0)
                 {
                     // If we stop before the start of the current element, just insert the new interval and we're done;
                     // otherwise insert until the beginning of the current element
-                    if (comparator.compare(end, starts[i]) <= 0)
+                    if (comparator.compare(end, current.start) <= 0)
                     {
-                        addInternal(i, start, end, markedAt, delTimeUnsignedInternal);
+                        ranges.add(i, new Range(start, end, markedAt, delTimeUnsignedInternal));
                         return;
                     }
-                    ClusteringBound<?> newEnd = starts[i].invert();
+                    ClusteringBound<?> newEnd = current.start.invert();
                     if (!Slice.isEmpty(comparator, start, newEnd))
                     {
-                        addInternal(i, start, newEnd, markedAt, delTimeUnsignedInternal);
+                        ranges.add(i, new Range(start, newEnd, markedAt, delTimeUnsignedInternal));
                         i++;
                     }
                 }
@@ -651,139 +584,130 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
                 // some residual parts after ...
 
                 // ... unless we don't extend beyond it.
-                if (comparator.compare(end, ends[i]) <= 0)
+                if (comparator.compare(end, current.end) <= 0)
                     return;
 
-                start = ends[i].invert();
+                start = current.end.invert();
                 i++;
             }
         }
 
         // If we got there, then just insert the remainder at the end
-        addInternal(i, start, end, markedAt, delTimeUnsignedInternal);
-    }
-
-    private int capacity()
-    {
-        return starts.length;
+        ranges.add(i, new Range(start, end, markedAt, delTimeUnsignedInternal));
     }
 
     /*
-     * Adds the new tombstone at index i, growing and/or moving elements to make room for it.
+     * Entries are ordered by end bound. During a split the new left fragment can have the
+     * same start as its successor, but its end is strictly smaller.
      */
-    private void addInternal(int i, ClusteringBound<?> start, ClusteringBound<?> end, long markedAt, int delTimeUnsignedInteger)
+    private void addInternal(int i, ClusteringBound<?> start, ClusteringBound<?> end, long markedAt, int delTime)
     {
-        assert i >= 0;
+        addInternal(i, new Range(start, end, markedAt, delTime));
+    }
 
-        if (size == capacity())
-            growToFree(i);
-        else if (i < size)
-            moveElements(i);
-
-        setInternal(i, start, end, markedAt, delTimeUnsignedInteger);
+    private void addInternal(int i, Range range)
+    {
+        assert i >= 0 && i <= size;
+        tree = BTree.update(tree, BTree.singleton(range), byEnd, this);
+        assert get(i) == range;
+        boundaryHeapSize += range.start.unsharedHeapSize() + range.end.unsharedHeapSize();
         size++;
     }
 
-    /*
-     * Grow the arrays, leaving index i "free" in the process.
-     */
-    private void growToFree(int i)
+    private void setInternal(int i, Range range)
     {
-        // Introduce getRangeTombstoneResizeFactor
-        int newLength = (int) Math.ceil(capacity() * DatabaseDescriptor.getRangeTombstoneListGrowthFactor());
-        // Fallback to the original calculation if the newLength calculated from the resize factor is not valid.
-        if (newLength <= capacity())
-            newLength = ((capacity() * 3) / 2) + 1;
-        
-        grow(i, newLength);
-    }
-
-    /*
-     * Grow the arrays to match newLength capacity.
-     */
-    private void grow(int newLength)
-    {
-        if (capacity() < newLength)
-            grow(-1, newLength);
-    }
-
-    private void grow(int i, int newLength)
-    {
-        starts = grow(starts, size, newLength, i);
-        ends = grow(ends, size, newLength, i);
-        markedAts = grow(markedAts, size, newLength, i);
-        delTimesUnsignedIntegers = grow(delTimesUnsignedIntegers, size, newLength, i);
-    }
-
-    private static ClusteringBound<?>[] grow(ClusteringBound<?>[] a, int size, int newLength, int i)
-    {
-        if (i < 0 || i >= size)
-            return Arrays.copyOf(a, newLength);
-
-        ClusteringBound<?>[] newA = new ClusteringBound<?>[newLength];
-        System.arraycopy(a, 0, newA, 0, i);
-        System.arraycopy(a, i, newA, i+1, size - i);
-        return newA;
-    }
-
-    private static long[] grow(long[] a, int size, int newLength, int i)
-    {
-        if (i < 0 || i >= size)
-            return Arrays.copyOf(a, newLength);
-
-        long[] newA = new long[newLength];
-        System.arraycopy(a, 0, newA, 0, i);
-        System.arraycopy(a, i, newA, i+1, size - i);
-        return newA;
-    }
-
-    private static int[] grow(int[] a, int size, int newLength, int i)
-    {
-        if (i < 0 || i >= size)
-            return Arrays.copyOf(a, newLength);
-
-        int[] newA = new int[newLength];
-        System.arraycopy(a, 0, newA, 0, i);
-        System.arraycopy(a, i, newA, i+1, size - i);
-        return newA;
-    }
-
-    /*
-     * Move elements so that index i is "free", assuming the arrays have at least one free slot at the end.
-     */
-    private void moveElements(int i)
-    {
-        if (i >= size)
+        Range previous = get(i);
+        if (previous.start == range.start && previous.end == range.end && previous.markedAt == range.markedAt && previous.delTime == range.delTime)
             return;
-
-        System.arraycopy(starts, i, starts, i+1, size - i);
-        System.arraycopy(ends, i, ends, i+1, size - i);
-        System.arraycopy(markedAts, i, markedAts, i+1, size - i);
-        System.arraycopy(delTimesUnsignedIntegers, i, delTimesUnsignedIntegers, i+1, size - i);
-        // we set starts[i] to null to indicate the position is now empty, so that we update boundaryHeapSize
-        // when we set it
-        starts[i] = null;
+        tree = BTree.replace(tree, i, range);
+        boundaryHeapSize += range.start.unsharedHeapSize() + range.end.unsharedHeapSize()
+                            - previous.start.unsharedHeapSize() - previous.end.unsharedHeapSize();
     }
 
-    private void setInternal(int i, ClusteringBound<?> start, ClusteringBound<?> end, long markedAt, int delTimeUnsignedInteger)
+    /** The intervals insertFrom merges into: either this list's tree or an array copy of the affected run. */
+    private interface Ranges
     {
-        if (starts[i] != null)
-            boundaryHeapSize -= starts[i].unsharedHeapSize() + ends[i].unsharedHeapSize();
-        starts[i] = start;
-        ends[i] = end;
-        markedAts[i] = markedAt;
-        delTimesUnsignedIntegers[i] = delTimeUnsignedInteger;
-        boundaryHeapSize += start.unsharedHeapSize() + end.unsharedHeapSize();
+        Range get(int i);
+        void add(int i, Range range);
+        void set(int i, Range range);
+        int size();
+    }
+
+    private final class TreeRanges implements Ranges
+    {
+        public Range get(int i)
+        {
+            return RangeTombstoneList.this.get(i);
+        }
+
+        public void add(int i, Range range)
+        {
+            addInternal(i, range);
+        }
+
+        public void set(int i, Range range)
+        {
+            setInternal(i, range);
+        }
+
+        public int size()
+        {
+            return size;
+        }
+    }
+
+    private final class Window implements Ranges
+    {
+        private final List<Range> ranges;
+        private long boundaryDelta;
+
+        Window(int from, int to)
+        {
+            ranges = new ArrayList<>(to - from + 1);
+            Iterators.addAll(ranges, BTree.iterator(tree, from, to - 1, BTree.Dir.ASC));
+        }
+
+        public Range get(int i)
+        {
+            return ranges.get(i);
+        }
+
+        public void add(int i, Range range)
+        {
+            ranges.add(i, range);
+            boundaryDelta += range.start.unsharedHeapSize() + range.end.unsharedHeapSize();
+        }
+
+        public void set(int i, Range range)
+        {
+            Range previous = ranges.set(i, range);
+            boundaryDelta += range.start.unsharedHeapSize() + range.end.unsharedHeapSize()
+                             - previous.start.unsharedHeapSize() - previous.end.unsharedHeapSize();
+        }
+
+        public int size()
+        {
+            return ranges.size();
+        }
+
+        /** Replaces the run [from, to) of the tree with this window's intervals, rebuilding the tree once. */
+        void commit(int from, int to)
+        {
+            int newSize = size - (to - from) + ranges.size();
+            Iterator<Range> merged = Iterators.concat(BTree.iterator(tree, 0, from - 1, BTree.Dir.ASC),
+                                                      ranges.iterator(),
+                                                      BTree.iterator(tree, to, size - 1, BTree.Dir.ASC));
+            treeHeapSize = 0;
+            tree = BTree.build(BulkIterator.of(merged), newSize, RangeTombstoneList.this);
+            size = newSize;
+            boundaryHeapSize += boundaryDelta;
+        }
     }
 
     @Override
     public long unsharedHeapSize()
     {
-        return EMPTY_SIZE
-                + boundaryHeapSize
-                + ObjectSizes.sizeOfArray(starts)
-                + ObjectSizes.sizeOfArray(ends)
-                + ObjectSizes.sizeOfArray(markedAts)
-                + ObjectSizes.sizeOfArray(delTimesUnsignedIntegers);
+        // byStart/byEnd are shared with every copy() derived from this list, so they are not counted here.
+        return EMPTY_SIZE + boundaryHeapSize + treeHeapSize + size * RANGE_SIZE;
     }
 }
