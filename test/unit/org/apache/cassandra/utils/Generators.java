@@ -370,7 +370,7 @@ public final class Generators
 
     public static Gen<ByteBuffer> bytes(int min, int max)
     {
-        return bytes(min, max, SourceDSL.arbitrary().constant(BBCases.HEAP));
+        return bytes(min, max, SourceDSL.arbitrary().pick(BBCases.HEAP, BBCases.READ_ONLY_HEAP));
     }
 
     public static Gen<ByteBuffer> directBytes(int min, int max)
