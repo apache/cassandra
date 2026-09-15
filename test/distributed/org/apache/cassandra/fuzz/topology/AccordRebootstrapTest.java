@@ -51,6 +51,7 @@ import org.apache.cassandra.service.consensus.TransactionalMode;
 
 import static org.apache.cassandra.distributed.shared.ClusterUtils.waitForCMSToQuiesce;
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
+import static org.apache.cassandra.service.accord.journal.ReplayMarkers.stopMarkerCrc;
 
 public class AccordRebootstrapTest extends FuzzTestBase
 {
@@ -98,7 +99,7 @@ public class AccordRebootstrapTest extends FuzzTestBase
                 history1.run(() -> {
                     cluster.get(2).config().set("accord.journal.stop_marker_failure_policy", "REBOOTSTRAP");
                     Path journalDir = Path.of(cluster.get(2).config().get("accord.journal_directory").toString());
-                    Path stopMarker = journalDir.resolve("stopped");
+                    Path stopMarker = journalDir.resolve(stopMarkerCrc);
                     PathUtils.delete(stopMarker);
                     cluster.get(2).startup();
                     cluster.get(2).logs().watchFor(".*Rebootstrapping.*");

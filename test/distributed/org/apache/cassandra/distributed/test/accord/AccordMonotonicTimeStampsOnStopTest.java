@@ -40,12 +40,12 @@ import org.apache.cassandra.utils.Shared;
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 
-public class AccordMonotonicTimeStampsOnCrashTest extends TestBaseImpl
+public class AccordMonotonicTimeStampsOnStopTest extends TestBaseImpl
 {
     @Test
-    public void monotonicTimeStampsOnCrashTest() throws Throwable
+    public void monotonicTimeStampsOnStopTest() throws Throwable
     {
         try (Cluster cluster = Cluster.build().withNodes(3)
                                       .withInstanceInitializer(BBHelper::install)
@@ -61,6 +61,8 @@ public class AccordMonotonicTimeStampsOnCrashTest extends TestBaseImpl
             cluster.get(1).runOnInstance( () -> {
                 AccordService.instance().node().uniqueNow();
             });
+
+            assertFalse(State.assertionError.get());
         }
     }
 
@@ -68,7 +70,8 @@ public class AccordMonotonicTimeStampsOnCrashTest extends TestBaseImpl
     public static class State
     {
         public static AtomicBoolean beforeRestart = new AtomicBoolean(true);
-        public static AtomicLong timestamp = new AtomicLong(0);
+        public static AtomicLong beforeRestartMaxTimestamp = new AtomicLong(0);
+        public static AtomicBoolean assertionError = new AtomicBoolean(false);
     }
 
     public static class BBHelper
@@ -105,8 +108,13 @@ public class AccordMonotonicTimeStampsOnCrashTest extends TestBaseImpl
         public static long uniqueNow(@SuperCall Callable<Long> r) throws Exception
         {
             long newTimestamp = r.call();
-            assertTrue(State.timestamp.get() < newTimestamp);
-            State.timestamp.set(newTimestamp);
+
+            // Maintain the greatest timestamp prior to restarting and ensure that all
+            // timestamps after restart are monotonic
+            if (State.beforeRestart.get())
+                State.beforeRestartMaxTimestamp.accumulateAndGet(newTimestamp, Math::max);
+            else if (newTimestamp <= State.beforeRestartMaxTimestamp.get())
+                State.assertionError.set(true);
 
             return newTimestamp;
         }

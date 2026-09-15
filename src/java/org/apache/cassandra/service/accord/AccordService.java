@@ -539,7 +539,7 @@ public class AccordService implements IAccordService, Shutdownable
             long startMarkerSegmentId = startMarker.getSegmentId();
             long stopMarkerSegmentId = stopMarker.getSegmentId();
 
-            if (startMarker.isValid() && stopMarker.isValid() && stopMarkerSegmentId < startMarkerSegmentId)
+            if (stopMarkerSegmentId < startMarkerSegmentId)
             {
                 switch (getAccord().journal.stopMarkerFailurePolicy)
                 {

@@ -128,16 +128,16 @@ public class ReplayMarkerSerializerTest
             throw new UncheckedIOException(e);
         }
 
-        writeStartMarker(startMarker(), 250L);
+        writeStartMarker(startMarker(), 100L);
         ReplayMarkers.StartMarker startMarker = ReplayMarkers.readStartMarker();
-        Assert.assertEquals(250L, startMarker.getSegmentId());
+        Assert.assertEquals(100L, startMarker.getSegmentId());
 
         // Stop marker
         file = new File(DatabaseDescriptor.getAccordJournalDirectory(), stopMarker);
 
         try (FileOutputStreamPlus out = new FileOutputStreamPlus(file))
         {
-            out.writeBytes(Long.toString(150L));
+            out.writeBytes(Long.toString(300L));
         }
         catch (IOException e)
         {
@@ -145,9 +145,10 @@ public class ReplayMarkerSerializerTest
         }
 
         long lastUniqueTimestamp = AccordTimeService.nowMicros();
-        writeStopMarker(safeStopMarker(), 150L, lastUniqueTimestamp);
+
+        writeStopMarker(safeStopMarker(), 800L, lastUniqueTimestamp);
         ReplayMarkers.StopMarker stopMarker = ReplayMarkers.readStopMarker();
-        Assert.assertEquals(150L, stopMarker.getSegmentId());
+        Assert.assertEquals(800L, stopMarker.getSegmentId());
         Assert.assertEquals(lastUniqueTimestamp, stopMarker.getLastUniqueTimestamp());
     }
 }

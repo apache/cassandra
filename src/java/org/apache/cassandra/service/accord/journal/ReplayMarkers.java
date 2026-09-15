@@ -40,8 +40,8 @@ public class ReplayMarkers
 
     public static final String startMarkerCrc = "startedCrc.marker";
     public static final String stopMarkerCrc = "stoppedCrc.marker";
-    public static final String startMarker = "started.marker";
-    public static final String stopMarker = "stopped.marker";
+    public static final String startMarker = "started";
+    public static final String stopMarker = "stopped";
 
     public static File startMarker()
     {
@@ -66,10 +66,6 @@ public class ReplayMarkers
             return new StartMarker(-1L);
         }
 
-        public boolean isValid() {
-            return segmentId != -1L;
-        }
-
         public long getSegmentId()
         {
             return segmentId;
@@ -87,12 +83,9 @@ public class ReplayMarkers
             this.lastUniqueTimestamp = lastUniqueTimestamp;
         }
 
-        public static StopMarker invalidMarker() {
+        public static StopMarker invalidMarker()
+        {
             return new StopMarker(-1L, -1L);
-        }
-
-        public boolean isValid() {
-            return segmentId != -1L && lastUniqueTimestamp != -1L;
         }
 
         public long getSegmentId()
@@ -108,38 +101,54 @@ public class ReplayMarkers
 
     public static void writeStartMarker(File file, long segmentId)
     {
-        try (FileOutputStreamPlus out = new FileOutputStreamPlus(file))
+        File tempFile = new File(file.path() + ".tmp");
+
+        try
         {
-            CRC32 crc = crc32();
-            out.writeLong(segmentId);
-            FBUtilities.updateChecksumLong(crc, segmentId);
-            out.writeInt((int) crc.getValue());
-            out.sync();
+            try (FileOutputStreamPlus out = new FileOutputStreamPlus(tempFile))
+            {
+                CRC32 crc = crc32();
+                out.writeLong(segmentId);
+                FBUtilities.updateChecksumLong(crc, segmentId);
+                out.writeInt((int) crc.getValue());
+                out.flush();
+                out.sync();
+            }
+
+            tempFile.move(file);
+            trySyncJournalDirectory();
         }
         catch (IOException e)
         {
             throw new UncheckedIOException(e);
         }
-        trySyncJournalDirectory();
     }
 
     public static void writeStopMarker(File file, long segmentId, long lastUniqueTimestamp)
     {
-        try (FileOutputStreamPlus out = new FileOutputStreamPlus(file))
+        File tempFile = new File(file.path() + ".tmp");
+
+        try
         {
-            CRC32 crc = crc32();
-            out.writeLong(segmentId);
-            FBUtilities.updateChecksumLong(crc, segmentId);
-            out.writeLong(lastUniqueTimestamp);
-            FBUtilities.updateChecksumLong(crc, lastUniqueTimestamp);
-            out.writeInt((int) crc.getValue());
-            out.sync();
+            try (FileOutputStreamPlus out = new FileOutputStreamPlus(tempFile))
+            {
+                CRC32 crc = crc32();
+                out.writeLong(segmentId);
+                FBUtilities.updateChecksumLong(crc, segmentId);
+                out.writeLong(lastUniqueTimestamp);
+                FBUtilities.updateChecksumLong(crc, lastUniqueTimestamp);
+                out.writeInt((int) crc.getValue());
+                out.flush();
+                out.sync();
+            }
+
+            tempFile.move(file);
+            trySyncJournalDirectory();
         }
         catch (IOException e)
         {
             throw new UncheckedIOException(e);
         }
-        trySyncJournalDirectory();
     }
 
     public static StartMarker readStartMarker()
@@ -178,7 +187,7 @@ public class ReplayMarkers
             int checksum = in.readInt();
             if (in.read() != -1 || (int) crc.getValue() != checksum)
             {
-                logger.debug("{} is corrupted", file);
+                logger.warn("{} is corrupted", file);
                 return StopMarker.invalidMarker();
             }
 
@@ -186,7 +195,7 @@ public class ReplayMarkers
         }
         catch (IOException e)
         {
-            logger.debug("Encountered IO exception {}, while reading {}", e, file);
+            logger.warn("Encountered IO exception while reading {}", file, e);
             return StopMarker.invalidMarker();
         }
     }
@@ -207,7 +216,7 @@ public class ReplayMarkers
             int checksum = in.readInt();
             if (in.read() != -1 || (int) crc.getValue() != checksum)
             {
-                logger.debug("{} is corrupted", file);
+                logger.warn("{} is corrupted", file);
                 return StartMarker.invalidMarker();
             }
 
@@ -215,7 +224,7 @@ public class ReplayMarkers
         }
         catch (IOException e)
         {
-            logger.debug("Encountered IO exception {}, while reading {}", e, file);
+            logger.warn("Encountered IO exception while reading {}", file, e);
             return StartMarker.invalidMarker();
         }
     }
@@ -224,7 +233,7 @@ public class ReplayMarkers
     {
         if (!file.exists())
         {
-            logger.debug("{} does not exist", file);
+            logger.warn("{} does not exist", file);
             return StopMarker.invalidMarker();
         }
 
@@ -237,7 +246,12 @@ public class ReplayMarkers
         }
         catch (IOException e)
         {
-            logger.debug("Encountered IO exception {}, while reading {}", e, file);
+            logger.warn("Encountered IO exception while reading {}", file, e);
+            return StopMarker.invalidMarker();
+        }
+        catch (NumberFormatException e)
+        {
+            logger.warn("Encountered NumberFormatException exception while reading {}", file, e);
             return StopMarker.invalidMarker();
         }
     }
@@ -246,7 +260,7 @@ public class ReplayMarkers
     {
         if (!file.exists())
         {
-            logger.debug("{} does not exist", file);
+            logger.warn("{} does not exist", file);
             return StartMarker.invalidMarker();
         }
 
@@ -259,7 +273,12 @@ public class ReplayMarkers
         }
         catch (IOException e)
         {
-            logger.debug("Encountered IO exception {}, while reading {}", e, file);
+            logger.warn("Encountered IO exception while reading {}", file, e);
+            return StartMarker.invalidMarker();
+        }
+        catch (NumberFormatException e)
+        {
+            logger.warn("Encountered NumberFormatException exception while reading {}", file, e);
             return StartMarker.invalidMarker();
         }
     }
@@ -272,7 +291,14 @@ public class ReplayMarkers
     private static void trySyncDirectory(String path)
     {
         int fd = NativeLibrary.tryOpenDirectory(path);
-        NativeLibrary.trySync(fd);
+        try
+        {
+            NativeLibrary.trySync(fd);
+        }
+        finally
+        {
+            NativeLibrary.tryCloseFD(fd);
+        }
     }
 
     public static File saveDirectory()
