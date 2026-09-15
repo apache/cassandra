@@ -20,24 +20,23 @@ package org.apache.cassandra.service.accord;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.DataStore;
 import accord.local.CommandStore;
+import accord.local.CommandStores.RestrictedStoreSelector;
+import accord.local.MapReduceConsumeCommandStores;
 import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.local.SafeCommandStore;
 import accord.primitives.Ranges;
-import accord.primitives.SyncPoint;
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
-import accord.utils.Reduce;
+import accord.utils.SortedArrays.SortedArrayList;
 import accord.utils.UnhandledEnum;
-import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
@@ -56,10 +55,9 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordDurableOnFlush.ReportDurable;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.utils.progress.ProgressEvent;
+import org.apache.cassandra.utils.progress.ProgressListener;
 
-import static accord.local.durability.DurabilityService.SyncLocal.NoLocal;
-import static accord.local.durability.DurabilityService.SyncRemote.Quorum;
-import static accord.primitives.Txn.Kind.ExclusiveSyncPoint;
 import static accord.utils.Invariants.illegalArgument;
 
 public class AccordDataStore implements DataStore
@@ -94,12 +92,12 @@ public class AccordDataStore implements DataStore
         AccordDurableOnFlush.notifyOnDurable(cfs, commandStore, ReportDurable.of(redundantBefore, flags));
     }
 
-    public FetchResult image(Node node, SafeCommandStore safeStore, Ranges ranges, SyncPoint syncPoint, FetchRanges callback)
+    public FetchResult image(Node node, SafeCommandStore safeStore, Ranges ranges, TxnId atLeast, SortedArrayList<Node.Id> readable, FetchRanges callback)
     {
         AccordFetchCoordinator coordinator;
         try
         {
-            coordinator = new AccordFetchCoordinator(node, ranges, syncPoint, callback, safeStore.commandStore());
+            coordinator = new AccordFetchCoordinator(node, ranges, atLeast, readable, callback, safeStore.commandStore());
         }
         catch (Throwable t)
         {
@@ -110,11 +108,12 @@ public class AccordDataStore implements DataStore
         return coordinator.result();
     }
 
-    public FetchResult sync(Node node, SafeCommandStore safeStore, Map<TxnId, Ranges> rangesById, FetchRanges callback)
+    // sync performs a quorum data repair, so does not read from any particular source node(s)
+    // TODO (desired): perform a point-to-point repair with some readable node instead, to save effort
+    @Override
+    public FetchResult sync(Node node, SafeCommandStore safeStore, Ranges ranges, TxnId atLeast, SortedArrayList<Node.Id> readable, FetchRanges callback)
     {
         TableId tableId = ((AccordCommandStore)safeStore.commandStore()).tableId();
-        Invariants.require(rangesById.values().stream().flatMap(Ranges::stream).allMatch(r -> tableId.equals(r.prefix())));
-        Ranges ranges = rangesById.values().stream().reduce(Ranges::with).get();
 
         ClusterMetadata cm = ClusterMetadata.current();
         TableMetadata tableMetadata = cm.schema.getTableMetadata(tableId);
@@ -130,34 +129,38 @@ public class AccordDataStore implements DataStore
             @Override
             public void abort(Ranges ranges)
             {
-                throw new UnsupportedOperationException("Can not abort sync task");
+                // do nothing if unimplemented
+                // TODO (expected): implement this
             }
         }
 
         // TODO (expected): add some automatic slicing of ranges and retry/back-off logic; but for now,
         //  since this is done at the command store level, and this is already a slice of a node, this should be fine
         SyncResult syncResult = new SyncResult();
-
-        logger.info("Requesting quorum durability before initiating repair");
-        List<AsyncResult<Void>> syncs = new ArrayList<>();
-        for (Map.Entry<TxnId, Ranges> e : rangesById.entrySet())
-            syncs.add(node.durability().sync("Sync Data Store", ExclusiveSyncPoint, e.getKey(), e.getValue(), NoLocal, Quorum, 1L, TimeUnit.HOURS));
-
-        AsyncResults.reduce(syncs, Reduce.toNull()).invoke((success, fail) -> {
-            if (fail != null)
+        class Listener implements ProgressListener
+        {
+            StartingRangeFetch starting;
             {
-                logger.error("{} failed to achieve quorum durability before repair for rebootstrap of {}", safeStore.commandStore(), ranges);
-                syncResult.tryFailure(fail);
-                return;
+                StartingRangeFetch starting = callback.starting(ranges);
+                Invariants.require(starting != null);
+                synchronized (this)
+                {
+                    this.starting = starting;
+                }
             }
 
-            RepairCoordinator coord = StorageService.instance.newRepairCoordinator(tableMetadata.keyspace, options(tableMetadata, ranges));
-            coord.addProgressListener((tag, event) -> {
+            @Override
+            public void progress(String tag, ProgressEvent event)
+            {
                 switch (event.getType())
                 {
                     default: throw new UnhandledEnum(event.getType());
+                    case SUCCESS:
+                        callback.fetched(ranges);
+                        syncResult.trySuccess(null);
+                        // fall-through to ensure started
                     case START:
-                        callback.starting(ranges);
+                        reportStarted();
                         break;
                     case PROGRESS:
                     case COMPLETE:
@@ -166,21 +169,94 @@ public class AccordDataStore implements DataStore
                     case ABORT:
                     case ERROR:
                         RuntimeException ex = new RuntimeException(String.format("Repair failed (%s): %s", event.getType(), event.getMessage()));
-                        callback.fail(ranges, ex);
-                        syncResult.tryFailure(ex);
-                        break;
-                    case SUCCESS:
-                        callback.fetched(ranges);
-                        syncResult.trySuccess(null);
+                        fail(ex);
                         break;
                 }
-            });
+            }
+
+            private void reportStarted()
+            {
+                StartingRangeFetch start;
+                synchronized (this)
+                {
+                    start = this.starting;
+                    if (start == null)
+                        return;
+                    this.starting = null;
+                }
+
+                node.commandStores().mapReduceConsume(new RestrictedStoreSelector(ranges, 0, Long.MAX_VALUE), new MapReduceConsumeCommandStores<Ranges, Timestamp>(ranges)
+                {
+                    @Override public Timestamp reduce(Timestamp o1, Timestamp o2) { return Timestamp.nonNullOrMax(o1, o2); }
+                    @Override public void accept(Timestamp result, Throwable failure)
+                    {
+                        if (failure == null && result == null)
+                            failure = new RuntimeException("No matching command stores for " + ranges);
+
+                        if (failure != null) fail(start, failure);
+                        else start.started(result);
+                    }
+                    @Override public TxnId primaryTxnId() { return null; }
+                    @Override public String reason() { return "Compute MaxConflict to report for fetch"; }
+                    @Override protected Timestamp applyInternal(SafeCommandStore safeStore) { return safeStore.commandStore().maxConflict(TxnId.NONE, ranges); }
+                });
+            }
+
+            synchronized StartingRangeFetch takeStarting()
+            {
+                StartingRangeFetch start = starting;
+                starting = null;
+                return start;
+            }
+
+            void fail(Throwable fail)
+            {
+                fail(takeStarting(), fail);
+            }
+
+            void fail(StartingRangeFetch starting, Throwable fail)
+            {
+                if (starting != null)
+                {
+                    try { starting.cancel(); }
+                    catch (Throwable t)
+                    {
+                        t.addSuppressed(fail);
+                        node.agent().onException(t);
+                    }
+                }
+                try { callback.fail(ranges, fail); }
+                catch (Throwable t)
+                {
+                    if (t != fail)
+                        t.addSuppressed(fail);
+                    node.agent().onException(t);
+                }
+                try { syncResult.tryFailure(fail); }
+                catch (Throwable t)
+                {
+                    if (t != fail)
+                        t.addSuppressed(fail);
+                    node.agent().onException(t);
+                }
+            }
+        }
+
+        Listener listener = new Listener();
+        try
+        {
+            RepairCoordinator coord = StorageService.instance.newRepairCoordinator(tableMetadata.keyspace, options(tableMetadata, ranges));
+            coord.addProgressListener(listener);
 
             ScheduledExecutors.optionalTasks.submit(coord).addCallback((s, f) -> {
                 if (f != null)
                     syncResult.tryFailure(f);
             });
-        });
+        }
+        catch (Throwable t)
+        {
+            listener.fail(t);
+        }
 
         return syncResult;
     }
