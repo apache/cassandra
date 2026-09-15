@@ -22,6 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
@@ -173,10 +174,75 @@ public abstract class AbstractReadExecutor
     public abstract void maybeTryAdditionalReplicas();
 
     /**
+     * Perform an additional request because the outbound connection to a contacted replica was overloaded and
+     * dropped our request before it was sent. Unlike {@link #maybeTryAdditionalReplicas()} this never blocks,
+     * since we already know the request will not be answered.
+     *
+     * @return true if an additional replica was contacted
+     */
+    abstract boolean maybeTryAdditionalReplicasOnOverload();
+
+    /**
+     * Send an extra read to the next uncontacted candidate.
+     *
+     * @return true if an additional replica was contacted
+     */
+    boolean trySpeculativeRetry()
+    {
+        //Handle speculation stats first in case the callback fires immediately
+        cfs.metric.speculativeRetries.inc();
+
+        ReplicaPlan.ForTokenRead replicaPlan = replicaPlan();
+        ReadCommand retryCommand;
+        Replica extraReplica;
+        if (handler.resolver.isDataPresent())
+        {
+            extraReplica = replicaPlan.firstUncontactedCandidate(replica -> true);
+            if (extraReplica == null)
+            {
+                cfs.metric.speculativeInsufficientReplicas.inc();
+                return false;
+            }
+
+            retryCommand = extraReplica.isTransient()
+                    ? command.copyAsTransientQuery(extraReplica)
+                    : command.copyAsDigestQuery(extraReplica);
+        }
+        else
+        {
+            extraReplica = replicaPlan.firstUncontactedCandidate(Replica::isFull);
+            retryCommand = command;
+            if (extraReplica == null)
+            {
+                cfs.metric.speculativeInsufficientReplicas.inc();
+                // cannot safely speculate a new data request, without more work - requests assumed to be
+                // unique per endpoint, and we have no full nodes left to speculate against
+                return false;
+            }
+        }
+
+        // we must update the plan to include this new node, else when we come to read-repair, we may not include this
+        // speculated response in the data requests we make again, and we will not be able to 'speculate' an extra repair read,
+        // nor would we be able to speculate a new 'write' if the repair writes are insufficient
+        this.replicaPlan.addToContacts(extraReplica);
+
+        if (traceState != null)
+            traceState.trace("speculating read retry on {}", extraReplica);
+        logger.trace("speculating read retry on {}", extraReplica);
+
+        MessagingService.instance().sendWithCallback(retryCommand.createMessage(false, requestTime), extraReplica.endpoint(), handler);
+
+        return true;
+    }
+
+    /**
      * send the initial set of requests
      */
     public void executeAsync()
     {
+        // the handler needs us before the first send, because a send can drop its message and call back inline
+        handler.setExecutor(this);
+
         EndpointsForToken selected = replicaPlan().contacts();
         EndpointsForToken fullDataRequests = selected.filter(Replica::isFull, initialDataRequestCount);
         makeFullDataRequests(fullDataRequests);
@@ -281,6 +347,16 @@ public abstract class AbstractReadExecutor
                 cfs.metric.speculativeInsufficientReplicas.inc();
             }
         }
+
+        boolean maybeTryAdditionalReplicasOnOverload()
+        {
+            if (DatabaseDescriptor.getReadFallbackOnOverloadedConnection() && logFailedSpeculation)
+            {
+                cfs.metric.speculativeInsufficientReplicas.inc();
+            }
+
+            return false;
+        }
     }
 
     static class SpeculatingReadExecutor extends AbstractReadExecutor
@@ -302,48 +378,22 @@ public abstract class AbstractReadExecutor
         {
             if (shouldSpeculateAndMaybeWait())
             {
-                //Handle speculation stats first in case the callback fires immediately
-                cfs.metric.speculativeRetries.inc();
                 speculated = true;
-
-                ReplicaPlan.ForTokenRead replicaPlan = replicaPlan();
-                ReadCommand retryCommand;
-                Replica extraReplica;
-                if (handler.resolver.isDataPresent())
-                {
-                    extraReplica = replicaPlan.firstUncontactedCandidate(replica -> true);
-
-                    // we should only use a SpeculatingReadExecutor if we have an extra replica to speculate against
-                    assert extraReplica != null;
-
-                    retryCommand = extraReplica.isTransient()
-                            ? command.copyAsTransientQuery(extraReplica)
-                            : command.copyAsDigestQuery(extraReplica);
-                }
-                else
-                {
-                    extraReplica = replicaPlan.firstUncontactedCandidate(Replica::isFull);
-                    retryCommand = command;
-                    if (extraReplica == null)
-                    {
-                        cfs.metric.speculativeInsufficientReplicas.inc();
-                        // cannot safely speculate a new data request, without more work - requests assumed to be
-                        // unique per endpoint, and we have no full nodes left to speculate against
-                        return;
-                    }
-                }
-
-                // we must update the plan to include this new node, else when we come to read-repair, we may not include this
-                // speculated response in the data requests we make again, and we will not be able to 'speculate' an extra repair read,
-                // nor would we be able to speculate a new 'write' if the repair writes are insufficient
-                super.replicaPlan.addToContacts(extraReplica);
-
-                if (traceState != null)
-                    traceState.trace("speculating read retry on {}", extraReplica);
-                logger.trace("speculating read retry on {}", extraReplica);
-
-                MessagingService.instance().sendWithCallback(retryCommand.createMessage(false, requestTime), extraReplica.endpoint(), handler);
+                trySpeculativeRetry();
             }
+        }
+
+        boolean maybeTryAdditionalReplicasOnOverload()
+        {
+            if (!DatabaseDescriptor.getReadFallbackOnOverloadedConnection())
+                return false;
+
+            speculated = true;
+            if (!trySpeculativeRetry())
+                return false;
+
+            cfs.metric.overloadSpeculativeRetries.inc();
+            return true;
         }
 
         @Override
@@ -371,6 +421,15 @@ public abstract class AbstractReadExecutor
         public void maybeTryAdditionalReplicas()
         {
             // no-op
+        }
+
+        boolean maybeTryAdditionalReplicasOnOverload()
+        {
+            if (!DatabaseDescriptor.getReadFallbackOnOverloadedConnection() || !trySpeculativeRetry())
+                return false;
+
+            cfs.metric.overloadSpeculativeRetries.inc();
+            return true;
         }
 
         @Override

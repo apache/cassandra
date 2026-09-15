@@ -19,6 +19,7 @@ package org.apache.cassandra.net;
 
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.ResourceLimits.Outcome;
 
 /**
  * implementors of {@link RequestCallback} need to make sure that any public methods
@@ -38,6 +39,31 @@ public interface RequestCallback<T>
      */
     default void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
     {
+    }
+
+    /**
+     * Called when the outbound connection to the peer was overloaded i.e., the request was dropped
+     * before it was sent.
+     *
+     * This method runs on the internal response stage, unless the callback asks for it to run inline
+     * with {@link #invokeOnOverloadedInline()}.
+     *
+     * @param outcome which capacity limit the request was refused by
+     */
+    default void onOverloaded(InetAddressAndPort from, Outcome outcome)
+    {
+        onFailure(from, RequestFailureReason.TIMEOUT);
+    }
+
+    /**
+     * Dictates whether the overloaded callback should run on the INTERNAL_RESPONSE threadpool or on the
+     * calling thread.
+     *
+     * @return true if {@link #onOverloaded} must run on the thread that dropped the request
+     */
+    default boolean invokeOnOverloadedInline()
+    {
+        return false;
     }
 
     /**

@@ -1116,6 +1116,16 @@ uuid_sstable_identifiers_enabled: false
 # Lowest acceptable value is 10 ms.
 # Min unit: ms
 read_request_timeout: 5000ms
+
+# What the coordinator does when a read message is dropped because the send queue for a
+# replica is full. This happens while a replica is unreachable and gossip has not yet marked
+# it down.
+# If true, the coordinator sends the read to another candidate replica, as a speculative
+# retry. The table must permit speculative retry, so a table with speculative_retry: NONE
+# keeps the behaviour below.
+# If false, the coordinator fails the read.
+# read_fallback_on_overloaded_connection: false
+
 # How long the coordinator should wait for seq or index scans to complete.
 # Lowest acceptable value is 10 ms.
 # Min unit: ms
