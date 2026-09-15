@@ -18,6 +18,8 @@
 package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.IOException;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -323,10 +325,11 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
     {
         logger.info("Deleting sstable: {}", desc);
 
-        if (components.remove(DATA))
-            components.add(0, DATA); // DATA component should be first
-        if (components.remove(Components.SUMMARY))
-            components.add(Components.SUMMARY); // SUMMARY component should be last (IDK why)
+        // delete older files first so the overall SSTable timestamp stays the same on partial deletes
+        Map<Component, Long> lastModified = new HashMap<>();
+        for (Component c : components)
+            lastModified.put(c, desc.fileFor(c).lastModified());
+        components.sort(Comparator.comparingLong(lastModified::get));
 
         for (Component component : components)
         {
