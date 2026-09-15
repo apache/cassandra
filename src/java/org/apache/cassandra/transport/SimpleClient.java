@@ -112,6 +112,7 @@ public class SimpleClient implements Closeable
     public final int port;
     private final EncryptionOptions.ClientEncryptionOptions encryptionOptions;
     private final int largeMessageThreshold;
+    private final boolean ignoreGracefulDisconnect;
 
     protected final ResponseHandler responseHandler = new ResponseHandler(this);
     protected final Connection.Tracker tracker = new ConnectionTracker();
@@ -133,6 +134,7 @@ public class SimpleClient implements Closeable
         private ProtocolVersion version = ProtocolVersion.CURRENT;
         private boolean useBeta = false;
         private int largeMessageThreshold = FrameEncoder.Payload.MAX_SIZE;
+        private boolean ignoreGracefulDisconnect = false;
 
         private Builder(String host, int port)
         {
@@ -155,6 +157,12 @@ public class SimpleClient implements Closeable
         public Builder protocolVersion(ProtocolVersion version)
         {
             this.version = version;
+            return this;
+        }
+
+        public Builder ignoreGracefulDisconnect()
+        {
+            this.ignoreGracefulDisconnect = true;
             return this;
         }
 
@@ -185,6 +193,7 @@ public class SimpleClient implements Closeable
         this.version = builder.version;
         this.encryptionOptions = builder.encryptionOptions.applyConfig();
         this.largeMessageThreshold = builder.largeMessageThreshold;
+        this.ignoreGracefulDisconnect = builder.ignoreGracefulDisconnect;
     }
 
     public SimpleClient(String host, int port, ProtocolVersion version, EncryptionOptions.ClientEncryptionOptions encryptionOptions)
@@ -202,6 +211,16 @@ public class SimpleClient implements Closeable
         this(host, port, version, new EncryptionOptions.ClientEncryptionOptions());
     }
 
+    public boolean isDraining()
+    {
+        return draining.get();
+    }
+
+    public boolean isConnected()
+    {
+        return channel != null && channel.isActive();
+    }
+
     public SimpleClient(String host, int port, ProtocolVersion version, boolean useBeta, EncryptionOptions.ClientEncryptionOptions encryptionOptions)
     {
         this.host = host;
@@ -214,6 +233,7 @@ public class SimpleClient implements Closeable
         this.largeMessageThreshold = FrameEncoder.Payload.MAX_SIZE -
                                         Math.max(FrameEncoderCrc.HEADER_AND_TRAILER_LENGTH,
                                                  FrameEncoderLZ4.HEADER_AND_TRAILER_LENGTH);
+        this.ignoreGracefulDisconnect = false;
     }
 
     public SimpleClient(String host, int port)
@@ -751,7 +771,8 @@ public class SimpleClient implements Closeable
                         logger.info("Received GRACEFUL_DISCONNECT. Entering draining mode.");
                         if (eventHandler != null)
                             eventHandler.onEvent(event);
-                        client.handleGracefulDisconnect();
+                        if (!client.ignoreGracefulDisconnect)
+                            client.handleGracefulDisconnect();
                         return;
                     }
 
