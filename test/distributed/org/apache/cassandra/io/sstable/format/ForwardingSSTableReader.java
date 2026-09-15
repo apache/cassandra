@@ -538,6 +538,18 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
+    public RandomAccessReader openDataReaderForScan()
+    {
+        return delegate.openDataReaderForScan();
+    }
+
+    @Override
+    public RandomAccessReader openDataReaderForScan(RateLimiter limiter)
+    {
+        return delegate.openDataReaderForScan(limiter);
+    }
+
+    @Override
     public void trySkipFileCacheBefore(DecoratedKey key)
     {
         delegate.trySkipFileCacheBefore(key);
