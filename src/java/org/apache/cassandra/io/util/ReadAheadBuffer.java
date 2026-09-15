@@ -28,13 +28,12 @@ import org.apache.cassandra.io.compress.CorruptBlockException;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.utils.Closeable;
 
+import javax.annotation.concurrent.NotThreadSafe;
+
 /**
  * A read-ahead buffer for sequential scans of a single file.
- * <p>
- * Each instance owns its buffer.  An instance is used by one scan reader, which is single-threaded, so the buffer is
- * never shared across threads.  A scan reader allocates one of these on open and frees it on close.  N scanners over N
- * inputs give N buffers by construction.
  */
+@NotThreadSafe
 public class ReadAheadBuffer implements Closeable
 {
     protected final ChannelProxy channel;
