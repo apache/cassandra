@@ -58,6 +58,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.replication.migration.KeyspaceMigrationInfo;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 
 /**
@@ -498,11 +499,19 @@ public class TrackedCompactionManager extends AbstractStrategyHolder
 
         // Promotion, or offset discard, first
         List<AbstractCompactionTask> tasks = new ArrayList<>(getNextTrackedTasks());
-        for (CompactionStrategyHolder silo : silos.values())
+        try
         {
-            Collection<AbstractCompactionTask> siloTasks = silo.getMaximalTasks(gcBefore, splitOutput);
-            if (siloTasks != null)
-                tasks.addAll(siloTasks);
+            for (CompactionStrategyHolder silo : silos.values())
+            {
+                Collection<AbstractCompactionTask> siloTasks = silo.getMaximalTasks(gcBefore, splitOutput);
+                if (siloTasks != null)
+                    tasks.addAll(siloTasks);
+            }
+        }
+        catch (Throwable t)
+        {
+            // Abort any txns already created
+            throw Throwables.unchecked(Throwables.perform(t, tasks.stream().map(task -> task::rejected)));
         }
         return tasks;
     }
@@ -597,11 +606,20 @@ public class TrackedCompactionManager extends AbstractStrategyHolder
     {
         pruneEmpty();
         List<AbstractCompactionTask> tasks = new ArrayList<>();
-        for (ImmutableSet<ShortMutationId> key : silos.keySet())
+        try
         {
-            AbstractCompactionTask task = getPromotionTask(key);
-            if (task != null)
-                tasks.add(task);
+
+            for (ImmutableSet<ShortMutationId> key : silos.keySet())
+            {
+                AbstractCompactionTask task = getPromotionTask(key);
+                if (task != null)
+                    tasks.add(task);
+            }
+        }
+        catch (Throwable t)
+        {
+            // Abort any txns already created
+            throw Throwables.unchecked(Throwables.perform(t, tasks.stream().map(task -> task::rejected)));
         }
         return tasks;
     }

@@ -86,6 +86,7 @@ import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
 import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.db.compaction.AbstractStrategyHolder.GroupedSSTableContainer;
@@ -1256,6 +1257,11 @@ public class CompactionStrategyManager implements INotificationConsumer
                     }
                 }
                 tasks = CompositeCompactionTask.applyParallelismLimit(tasks, permittedParallelism);
+            }
+            catch (Throwable t)
+            {
+                // Abort any txns already created
+                throw Throwables.unchecked(Throwables.perform(t, tasks.stream().map(task -> task::rejected)));
             }
             finally
             {

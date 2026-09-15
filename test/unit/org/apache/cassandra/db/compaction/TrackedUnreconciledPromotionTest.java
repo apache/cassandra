@@ -50,6 +50,7 @@ import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.replication.CoordinatorLogId;
 import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.replication.MutationJournal;
@@ -601,5 +602,57 @@ public class TrackedUnreconciledPromotionTest
 
         assertFalse("the log id must still resolve once the keyspace has left tracking",
                     MutationTrackingService.instance().isDurablyReconciled(offsets));
+    }
+
+    /**
+     * A holder that throws part way through the maximal task loop must not leave the sstables of the holders already
+     * visited marked compacting. They would be excluded from every later compaction attempt as well, and the reference
+     * reaper reports them as leaked for the life of the process.
+     */
+    @Test
+    public void throwingHolderRejectsExistingTasks() throws IOException
+    {
+        ColumnFamilyStore cfs = newTrackedTable();
+
+        // Two sstables for the unrepaired holder, which the maximal task loop visits before the tracked one, so it has
+        // something to hand over before it fails.
+        Set<SSTableReader> unrepaired = new HashSet<>();
+        unrepaired.add(flushUnreconciled(cfs, 1));
+        unrepaired.add(flushUnreconciled(cfs, 2));
+        cfs.getCompactionStrategyManager().clearCoordinatorLogOffsets(unrepaired);
+        for (SSTableReader sstable : unrepaired)
+            assertEquals(CompactionGroup.UNREPAIRED, CompactionGroup.of(sstable));
+
+        // One sstable left in the tracked holder, carrying a log id no shard owns, which is what promotion throws on.
+        SSTableReader stranded = flushUnreconciled(cfs, 3);
+        long unknownLogId = CoordinatorLogId.asLong(99, 99);
+        stranded.mutateCoordinatorLogOffsetsAndReload(new ImmutableCoordinatorLogOffsets.Builder()
+                                                      .add(new MutationId(unknownLogId, 0, 0))
+                                                      .build());
+        assertEquals(CompactionGroup.UNRECONCILED, CompactionGroup.of(stranded));
+
+        try
+        {
+            cfs.getCompactionStrategyManager()
+               .getMaximalTasks(Integer.MAX_VALUE, false, Integer.MAX_VALUE, OperationType.MAJOR_COMPACTION);
+            Assert.fail("collecting maximal tasks should have failed on the unresolvable log id");
+        }
+        catch (Throwable t)
+        {
+            assertTrue("failed for a reason other than the unresolvable log id: " + t, mentionsUnknownShard(t));
+        }
+
+        assertTrue("the failed collection must not leave sstables marked compacting: " + cfs.getTracker().getCompacting(),
+                   cfs.getTracker().getCompacting().isEmpty());
+    }
+
+    private static boolean mentionsUnknownShard(Throwable t)
+    {
+        for (Throwable cause = t; cause != null; cause = cause.getCause() == cause ? null : cause.getCause())
+        {
+            if (cause.getMessage() != null && cause.getMessage().contains("Could not find shard for logId"))
+                return true;
+        }
+        return false;
     }
 }
