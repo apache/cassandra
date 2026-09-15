@@ -28,7 +28,6 @@ import java.util.concurrent.ExecutionException;
 
 import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.runner.RunWith;
@@ -42,8 +41,8 @@ import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionController;
 import org.apache.cassandra.db.compaction.CompactionPipelineCounts;
 import org.apache.cassandra.db.compaction.CursorCompactor;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TestHelper;
 
@@ -60,25 +59,38 @@ public abstract class SimpleCompactionTest extends CQLTester
     @Parameterized.Parameter(1)
     public boolean cursorCompactionEnabled;
 
-    @Parameterized.Parameters(name = "diskAccessMode={0},cursor={1}")
+    @Parameterized.Parameter(2)
+    public String sstableFormat;
+
+    @Parameterized.Parameters(name = "diskAccessMode={0},cursor={1},format={2}")
     public static Collection<Object[]> params()
     {
-        return Arrays.asList(new Object[]{ DiskAccessMode.standard, true },
-                             new Object[]{ DiskAccessMode.standard, false },
-                             new Object[]{ DiskAccessMode.direct, true },
-                             new Object[]{ DiskAccessMode.direct, false });
+        // Every scenario runs on both output formats.  The test pins the format itself, so the
+        // corpus behaves the same way under any ambient config (for example ant test-latest, whose
+        // overlay selects BTI).  Both BIG and BTI support cursor compaction.
+        return Arrays.asList(new Object[]{ DiskAccessMode.standard, true, "big" },
+                             new Object[]{ DiskAccessMode.standard, false, "big" },
+                             new Object[]{ DiskAccessMode.direct, true, "big" },
+                             new Object[]{ DiskAccessMode.direct, false, "big" },
+                             new Object[]{ DiskAccessMode.standard, true, "bti" },
+                             new Object[]{ DiskAccessMode.standard, false, "bti" },
+                             new Object[]{ DiskAccessMode.direct, true, "bti" },
+                             new Object[]{ DiskAccessMode.direct, false, "bti" });
     }
 
     private DiskAccessMode originalDiskAccessMode;
     private boolean originalCursorCompactionEnabled;
+    private SSTableFormat<?, ?> originalFormat;
 
     @Before
     public void setCompactionParams()
     {
         originalDiskAccessMode = DatabaseDescriptor.getCompactionReadDiskAccessMode();
         originalCursorCompactionEnabled = DatabaseDescriptor.cursorCompactionEnabled();
+        originalFormat = DatabaseDescriptor.getSelectedSSTableFormat();
         DatabaseDescriptor.setCompactionReadDiskAccessMode(compactionReadDiskAccessMode);
         DatabaseDescriptor.setCursorCompactionEnabled(cursorCompactionEnabled);
+        DatabaseDescriptor.setSelectedSSTableFormat(sstableFormat);
     }
 
     @After
@@ -86,6 +98,7 @@ public abstract class SimpleCompactionTest extends CQLTester
     {
         DatabaseDescriptor.setCompactionReadDiskAccessMode(originalDiskAccessMode);
         DatabaseDescriptor.setCursorCompactionEnabled(originalCursorCompactionEnabled);
+        DatabaseDescriptor.setSelectedSSTableFormat(originalFormat);
     }
 
     @AfterClass
@@ -104,12 +117,12 @@ public abstract class SimpleCompactionTest extends CQLTester
         if (!cursorCompactionEnabled)
             return;
 
-        // Cursor compaction only supports BIG output, so under a non-BIG selected format — which is
-        // what `ant test-latest` runs — the assertion below would fail for a reason that is not a
-        // defect. Skip, and keep the assertion for every other unsupported-ness reason.
-        Assume.assumeTrue("cursor compaction requires the BIG sstable format; selected=" +
-                          DatabaseDescriptor.getSelectedSSTableFormat().name(),
-                          BigFormat.isSelected());
+        // A format that does not support cursor compaction refuses the cursor path by design, so the
+        // iterator pipeline is then the correct outcome, not a defect. Both BIG and BTI — the formats
+        // this test pins — support it, so this guard passes through; keep the assertion below for
+        // every other unsupported-ness reason.
+        if (!DatabaseDescriptor.getSelectedSSTableFormat().supportsCursorCompaction())
+            return;
 
         Set<SSTableReader> inputs = new HashSet<>(cfs.getLiveSSTables());
         try (CompactionController controller = new CompactionController(cfs, inputs, cfs.gcBefore(FBUtilities.nowInSeconds()));
@@ -130,16 +143,18 @@ public abstract class SimpleCompactionTest extends CQLTester
      * scenario that requested the cursor path and was served by the iterator one would assert
      * nothing about the cursor reader or writer and still pass.
      * <p>
-     * The expectation is derived from the parameterization and the selected format rather than from
-     * {@code isSupported}, so that it cannot become a tautology restating the predicate the pipeline
-     * itself consults. Under a non-BIG selected format — {@code ant test-latest} selects BTI — the
-     * cursor path is refused outright, so the iterator pipeline is the correct expectation there
-     * rather than a skip: asserting it is true, cheap, and still non-vacuous.
+     * The expectation is derived from the parameterization and the pinned format's cursor-compaction
+     * capability rather than from {@code isSupported}, so that it cannot become a tautology restating
+     * the predicate the pipeline itself consults. A format that does not support cursor compaction
+     * refuses the cursor path, so the iterator pipeline is the correct expectation there; BIG and BTI
+     * both support it, so under {@code cursor=true} the cursor pipeline is expected on both.
      */
     protected void majorCompact(ColumnFamilyStore cfs)
     {
         CompactionPipelineCounts before = CompactionPipelineCounts.mark();
         cfs.forceMajorCompaction();
-        CompactionPipelineCounts.assertPipelineRan(cursorCompactionEnabled && BigFormat.isSelected(), before);
+        CompactionPipelineCounts.assertPipelineRan(cursorCompactionEnabled &&
+                                                   DatabaseDescriptor.getSelectedSSTableFormat().supportsCursorCompaction(),
+                                                   before);
     }
 }

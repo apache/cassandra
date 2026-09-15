@@ -59,7 +59,7 @@ public class HarryDifferentialCompactionTest extends DifferentialCompactionTeste
     {
         // withRandom rewraps every Throwable as an AssertionError. An assumption that fails inside
         // the callback therefore reaches JUnit as a failure, not as a skip. This check runs first.
-        assumeBigFormatSelected();
+        assumeCursorSupportedFormatSelected();
 
         long seed = System.currentTimeMillis();
         logger.info("harryTombstoneHistories seed={}", seed);

@@ -39,7 +39,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
@@ -83,13 +82,13 @@ public class CursorCompactionGateTest extends CQLTester
     }
 
     /**
-     * Whether the gate can accept any compaction at all under the running configuration. The cursor
-     * path writes the BIG format only, and {@code test/conf/latest_diff.yaml} selects BTI, so an
-     * assertion that the gate opens has to read the format rather than assume it.
+     * Whether the gate can accept any compaction at all under the running configuration. Which
+     * formats the cursor path writes changes as the patch series lands, and the test configs
+     * differ in what they select, so the oracle asks the format rather than naming one.
      */
     private static boolean cursorSupportsSelectedFormat()
     {
-        return DatabaseDescriptor.getSelectedSSTableFormat() instanceof BigFormat;
+        return DatabaseDescriptor.getSelectedSSTableFormat().supportsCursorCompaction();
     }
 
     private boolean isSupportedWith(ColumnFamilyStore cfs, TombstoneOption tombstoneOption) throws Exception

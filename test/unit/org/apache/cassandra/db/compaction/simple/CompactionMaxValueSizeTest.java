@@ -32,7 +32,6 @@ import org.apache.cassandra.db.compaction.CompactionPipelineCounts;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 
 import static org.junit.Assert.assertEquals;
@@ -176,7 +175,9 @@ public class CompactionMaxValueSizeTest extends SimpleCompactionTest
             // that refuses runs afterwards, inside the pipeline.
             CompactionPipelineCounts pipelines = CompactionPipelineCounts.mark();
             thrown = compactExpectingRefusal(cfs);
-            CompactionPipelineCounts.assertPipelineRan(cursorCompactionEnabled && BigFormat.isSelected(), pipelines);
+            CompactionPipelineCounts.assertPipelineRan(cursorCompactionEnabled &&
+                                                       DatabaseDescriptor.getSelectedSSTableFormat().supportsCursorCompaction(),
+                                                       pipelines);
         }
         finally
         {
