@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable;
 
 import org.junit.Test;
 
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 
 import static org.junit.Assert.assertEquals;
@@ -98,7 +99,7 @@ public class CursorIndexWriterOffsetWidthTest
         }
 
         @Override
-        public void endPartition(byte[] key, int keyLength, int headerLength,
+        public void endPartition(DecoratedKey key, byte[] keyBytes, int keyLength, int headerLength,
                                  DeletionTime partitionDeletionTime, long partitionEnd,
                                  ClusteringDescriptor lastName)
         {
