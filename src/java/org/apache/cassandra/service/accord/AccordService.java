@@ -534,8 +534,8 @@ public class AccordService implements IAccordService, Shutdownable
 
         boolean rebootstrap = false;
         {
-            ReplayMarkers.ReplayMarkerData startMarker = ReplayMarkers.readStartMarker();
-            ReplayMarkers.ReplayMarkerData stopMarker = ReplayMarkers.readStopMarker();
+            ReplayMarkers.StartMarker startMarker = ReplayMarkers.readStartMarker();
+            ReplayMarkers.StopMarker stopMarker = ReplayMarkers.readStopMarker();
             long startMarkerSegmentId = startMarker.getSegmentId();
             long stopMarkerSegmentId = stopMarker.getSegmentId();
 

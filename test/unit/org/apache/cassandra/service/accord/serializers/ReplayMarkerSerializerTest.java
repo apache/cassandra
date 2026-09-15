@@ -38,10 +38,11 @@ import org.apache.cassandra.service.accord.journal.ReplayMarkers;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
 
 import static accord.utils.Property.qt;
-import static org.apache.cassandra.service.accord.journal.ReplayMarkers.endMarker;
 import static org.apache.cassandra.service.accord.journal.ReplayMarkers.safeStopMarker;
 import static org.apache.cassandra.service.accord.journal.ReplayMarkers.startMarker;
-import static org.apache.cassandra.service.accord.journal.ReplayMarkers.writeMarker;
+import static org.apache.cassandra.service.accord.journal.ReplayMarkers.stopMarker;
+import static org.apache.cassandra.service.accord.journal.ReplayMarkers.writeStartMarker;
+import static org.apache.cassandra.service.accord.journal.ReplayMarkers.writeStopMarker;
 
 public class ReplayMarkerSerializerTest
 {
@@ -58,19 +59,18 @@ public class ReplayMarkerSerializerTest
         if (new File(DatabaseDescriptor.getAccordJournalDirectory()).exists())
             ServerTestUtils.cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
 
-        qt().forAll(RandomSource::nextLong).check(timestamp -> {
-            long lastUniqueTimestamp = AccordTimeService.nowMicros();
+        qt().forAll(RandomSource::nextLong).check(segmentId -> {
             // Start marker
-            writeMarker(startMarker(), timestamp, lastUniqueTimestamp);
-            ReplayMarkers.ReplayMarkerData replayMarkerData = ReplayMarkers.readStartMarker();
-            Assert.assertEquals(timestamp, Long.valueOf(replayMarkerData.getSegmentId()));
-            Assert.assertEquals(lastUniqueTimestamp, replayMarkerData.getLastUniqueTimestamp());
+            writeStartMarker(startMarker(), segmentId);
+            ReplayMarkers.StartMarker startMarker = ReplayMarkers.readStartMarker();
+            Assert.assertEquals(segmentId, Long.valueOf(startMarker.getSegmentId()));
 
             // Stop marker
-            writeMarker(safeStopMarker(), timestamp, lastUniqueTimestamp);
-            replayMarkerData = ReplayMarkers.readStopMarker();
-            Assert.assertEquals(timestamp, Long.valueOf(replayMarkerData.getSegmentId()));
-            Assert.assertEquals(lastUniqueTimestamp, replayMarkerData.getLastUniqueTimestamp());
+            long lastUniqueTimestamp = AccordTimeService.nowMicros();
+            writeStopMarker(safeStopMarker(), segmentId, lastUniqueTimestamp);
+            ReplayMarkers.StopMarker stopMarker = ReplayMarkers.readStopMarker();
+            Assert.assertEquals(segmentId, Long.valueOf(stopMarker.getSegmentId()));
+            Assert.assertEquals(lastUniqueTimestamp, stopMarker.getLastUniqueTimestamp());
         });
     }
 
@@ -80,33 +80,33 @@ public class ReplayMarkerSerializerTest
         if (new File(DatabaseDescriptor.getAccordJournalDirectory()).exists())
             ServerTestUtils.cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
 
-        qt().forAll(RandomSource::nextLong).check(timestamp -> {
+        qt().forAll(RandomSource::nextLong).check(segmentId -> {
             // Start marker
             File file = new File(DatabaseDescriptor.getAccordJournalDirectory(), startMarker);
 
             try (FileOutputStreamPlus out = new FileOutputStreamPlus(file))
             {
-                out.writeBytes(Long.toString(timestamp));
+                out.writeBytes(Long.toString(segmentId));
             }
             catch (IOException e)
             {
                 throw new UncheckedIOException(e);
             }
 
-            Assert.assertEquals(timestamp, Long.valueOf(ReplayMarkers.readStartMarker().getSegmentId()));
+            Assert.assertEquals(segmentId, Long.valueOf(ReplayMarkers.readStartMarker().getSegmentId()));
 
             // Stop marker
-            file = new File(DatabaseDescriptor.getAccordJournalDirectory(), endMarker);
+            file = new File(DatabaseDescriptor.getAccordJournalDirectory(), stopMarker);
 
             try (FileOutputStreamPlus out = new FileOutputStreamPlus(file))
             {
-                out.writeBytes(Long.toString(timestamp));
+                out.writeBytes(Long.toString(segmentId));
             }
             catch (IOException e)
             {
                 throw new UncheckedIOException(e);
             }
-            Assert.assertEquals(timestamp, Long.valueOf(ReplayMarkers.readStopMarker().getSegmentId()));
+            Assert.assertEquals(segmentId, Long.valueOf(ReplayMarkers.readStopMarker().getSegmentId()));
         });
     }
 
@@ -128,27 +128,26 @@ public class ReplayMarkerSerializerTest
             throw new UncheckedIOException(e);
         }
 
-        long lastUniqueTimestamp = AccordTimeService.nowMicros();
-        writeMarker(startMarker(), 250L, lastUniqueTimestamp);
-        ReplayMarkers.ReplayMarkerData replayMarkerData = ReplayMarkers.readStartMarker();
-        Assert.assertEquals(250L, replayMarkerData.getSegmentId());
-        Assert.assertEquals(lastUniqueTimestamp, replayMarkerData.getLastUniqueTimestamp());
+        writeStartMarker(startMarker(), 250L);
+        ReplayMarkers.StartMarker startMarker = ReplayMarkers.readStartMarker();
+        Assert.assertEquals(250L, startMarker.getSegmentId());
 
         // Stop marker
-        file = new File(DatabaseDescriptor.getAccordJournalDirectory(), endMarker);
+        file = new File(DatabaseDescriptor.getAccordJournalDirectory(), stopMarker);
 
         try (FileOutputStreamPlus out = new FileOutputStreamPlus(file))
         {
-            out.writeBytes(Long.toString(250L));
+            out.writeBytes(Long.toString(150L));
         }
         catch (IOException e)
         {
             throw new UncheckedIOException(e);
         }
 
-        writeMarker(safeStopMarker(), 250L, lastUniqueTimestamp);
-        replayMarkerData = ReplayMarkers.readStartMarker();
-        Assert.assertEquals(250L, replayMarkerData.getSegmentId());
-        Assert.assertEquals(lastUniqueTimestamp, replayMarkerData.getLastUniqueTimestamp());
+        long lastUniqueTimestamp = AccordTimeService.nowMicros();
+        writeStopMarker(safeStopMarker(), 150L, lastUniqueTimestamp);
+        ReplayMarkers.StopMarker stopMarker = ReplayMarkers.readStopMarker();
+        Assert.assertEquals(150L, stopMarker.getSegmentId());
+        Assert.assertEquals(lastUniqueTimestamp, stopMarker.getLastUniqueTimestamp());
     }
 }

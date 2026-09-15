@@ -85,7 +85,7 @@ import static org.apache.cassandra.config.DatabaseDescriptor.getAccordJournalDir
 import static org.apache.cassandra.service.accord.JournalKey.Type.COMMAND_DIFF;
 import static org.apache.cassandra.service.accord.journal.ReplayMarkers.safeStopMarker;
 import static org.apache.cassandra.service.accord.journal.ReplayMarkers.startMarker;
-import static org.apache.cassandra.service.accord.journal.ReplayMarkers.writeMarker;
+import static org.apache.cassandra.service.accord.journal.ReplayMarkers.writeStopMarker;
 import static org.apache.cassandra.service.accord.journal.TopologyRecord.newTopology;
 
 public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
@@ -623,13 +623,13 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
 
     public void writeStartMarker()
     {
-        writeMarker(startMarker(), segments.peekSegmentId(), -1L);
+        ReplayMarkers.writeStartMarker(startMarker(), segments.peekSegmentId());
     }
 
     public void writeSafeStopMarker(long lastUniqueTimestamp)
     {
         segments.fsync();
-        writeMarker(safeStopMarker(), segments.peekSegmentId(), lastUniqueTimestamp);
+        writeStopMarker(safeStopMarker(), segments.peekSegmentId(), lastUniqueTimestamp);
     }
 
     private static Runnable merge(Runnable first, Runnable second)
