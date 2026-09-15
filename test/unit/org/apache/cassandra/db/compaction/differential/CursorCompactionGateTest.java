@@ -39,7 +39,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
@@ -47,14 +46,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
-/**
- * Pins the arms of {@code CursorCompactor.isSupported} that decide on the COMPACTION rather than on
- * the schema. {@link CursorSupportMatrixTest} covers the schema and the sstable headers.
- * <p>
- * Each gate falls back to the iterator path, so a gate that silently opened would not fail a
- * differential test: both pipelines would simply be the iterator. That is why these assert the gate
- * directly.
- */
+/** Checks the arms of {@code CursorCompactor.isSupported} that decide on the compaction, not the schema. */
 public class CursorCompactionGateTest extends CQLTester
 {
     private PaxosStatePurging originalPurging;
@@ -69,7 +61,7 @@ public class CursorCompactionGateTest extends CQLTester
         }
     }
 
-    /** Two sstables of a plain table, which every gate below then accepts or rejects. */
+    /** Two sstables of a plain table. */
     private ColumnFamilyStore twoSSTableTable()
     {
         createTable("CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck))");
@@ -82,14 +74,10 @@ public class CursorCompactionGateTest extends CQLTester
         return cfs;
     }
 
-    /**
-     * Whether the gate can accept any compaction at all under the running configuration. The cursor
-     * path writes the BIG format only, and {@code test/conf/latest_diff.yaml} selects BTI, so an
-     * assertion that the gate opens has to read the format rather than assume it.
-     */
+    /** Whether the selected format supports cursor compaction at all. */
     private static boolean cursorSupportsSelectedFormat()
     {
-        return DatabaseDescriptor.getSelectedSSTableFormat() instanceof BigFormat;
+        return DatabaseDescriptor.getSelectedSSTableFormat().supportsCursorCompaction();
     }
 
     private boolean isSupportedWith(ColumnFamilyStore cfs, TombstoneOption tombstoneOption) throws Exception
@@ -104,10 +92,7 @@ public class CursorCompactionGateTest extends CQLTester
         }
     }
 
-    /**
-     * The control. Every rejection below has to be attributable to the one input it changes, so the
-     * same table and the same sstables must be accepted first.
-     */
+    /** The control: a plain two-sstable compaction is accepted. */
     @Test
     public void aPlainTwoSSTableCompactionIsSupported() throws Exception
     {
@@ -115,10 +100,7 @@ public class CursorCompactionGateTest extends CQLTester
                      cursorSupportsSelectedFormat(), isSupportedWith(twoSSTableTable(), TombstoneOption.NONE));
     }
 
-    /**
-     * Garbage skipping is CompactionIterator.GarbageSkipper, which the cursor path does not
-     * implement. Either non-NONE option must fall back.
-     */
+    /** Cursor compaction refuses any non-NONE tombstone_compaction option. */
     @Test
     public void garbageSkippingIsUnsupported() throws Exception
     {
@@ -129,15 +111,7 @@ public class CursorCompactionGateTest extends CQLTester
                     isSupportedWith(cfs, TombstoneOption.CELL));
     }
 
-    /**
-     * CompactionIterator swaps in PaxosPurger for system.paxos when purging is not legacy. The
-     * cursor path has one purger, so it must decline rather than compact that table with the wrong
-     * one.
-     * <p>
-     * This asserts the gate's own predicate rather than driving a compaction of system.paxos,
-     * because the table under test here is an ordinary one: the point is that the gate reads the
-     * setting, and that an ordinary table is unaffected by it.
-     */
+    /** An ordinary table stays cursor-supported under any paxos purging setting. */
     @Test
     public void nonLegacyPaxosPurgingDoesNotAffectAnOrdinaryTable() throws Exception
     {
@@ -188,11 +162,7 @@ public class CursorCompactionGateTest extends CQLTester
         return new Range<>(keys.get(4).getToken(), keys.get(12).getToken());
     }
 
-    /**
-     * A UCS shard task hands the strategy a token range, and an sstable that straddles the shard
-     * boundary gets a partial scanner. The cursor reads that scanner's data-file segments, so the
-     * gate must accept it rather than fall the whole task back to the iterator.
-     */
+    /** A partial-range SSTableSimpleScanner is cursor-supported. */
     @Test
     public void aPartialRangeSimpleScannerIsSupported() throws Exception
     {
@@ -211,10 +181,7 @@ public class CursorCompactionGateTest extends CQLTester
         }
     }
 
-    /**
-     * Only an SSTableSimpleScanner carries data-file bounds. A partial scanner of any other kind
-     * filters by token as it iterates, which the cursor cannot, so the gate must still refuse it.
-     */
+    /** A partial scanner that is not an SSTableSimpleScanner is refused. */
     @Test
     public void aPartialScannerWithoutPositionBoundsIsUnsupported() throws Exception
     {

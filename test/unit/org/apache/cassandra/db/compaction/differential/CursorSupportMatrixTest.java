@@ -24,14 +24,18 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Assume;
 import org.junit.Test;
+import org.mockito.Mockito;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionController;
 import org.apache.cassandra.db.compaction.CursorCompactor;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
 import org.apache.cassandra.notifications.INotificationConsumer;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -43,13 +47,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-/**
- * Pins the cursor compaction support matrix.
- * <p>
- * The gate decides on three inputs: the schema, an input sstable's header, and the compaction the
- * controller describes. A change in its semantics that widens or narrows the fallback fails a test
- * here, instead of taking a different code path in production.
- */
+/** Pins the cursor compaction support matrix: which schemas, headers and compactions the gate
+ *  accepts or refuses. */
 public class CursorSupportMatrixTest extends CQLTester
 {
     private TableMetadata metadataFor(String createTable)
@@ -146,7 +145,88 @@ public class CursorSupportMatrixTest extends CQLTester
                         "PRIMARY KEY (pk, ck))");
     }
 
-    /** Counter columns are a planned gap in the supported surface, not a permanent limit. */
+    /** BTI output is inside the supported surface, asserted through the gate's production calls. */
+    @Test
+    public void btiFormatSupported() throws Exception
+    {
+        SSTableFormat<?, ?> original = DatabaseDescriptor.getSelectedSSTableFormat();
+        DatabaseDescriptor.setSelectedSSTableFormat(BtiFormat.NAME);
+        try
+        {
+            assertTrue("the BTI format must report cursor compaction support",
+                       DatabaseDescriptor.getSelectedSSTableFormat().supportsCursorCompaction());
+
+            ColumnFamilyStore cfs =
+                twoSSTableTable("CREATE TABLE %s (pk bigint, ck bigint, m map<text, bigint>, v text, " +
+                                "PRIMARY KEY (pk, ck))",
+                                "INSERT INTO %s (pk, ck, m, v) VALUES (1, 1, {'a': 1}, 'x')",
+                                "INSERT INTO %s (pk, ck, m, v) VALUES (1, 2, {'b': 2}, 'y')");
+
+            // the inputs must be in the format under test
+            for (SSTableReader reader : cfs.getLiveSSTables())
+                assertTrue("expected BTI input sstables, got " + reader.descriptor.version.format.name(),
+                           BtiFormat.is(reader.descriptor.version.format));
+
+            assertTrue("cursor compaction must accept a BTI table", isSupportedNow(cfs));
+        }
+        finally
+        {
+            DatabaseDescriptor.setSelectedSSTableFormat(original);
+        }
+    }
+
+    /** A selected format that does not support cursor compaction is refused. */
+    @Test
+    public void formatWithoutCursorSupportUnsupported() throws Exception
+    {
+        Assume.assumeTrue("requires the BIG sstable format", BigFormat.isSelected());
+
+        ColumnFamilyStore cfs =
+            twoSSTableTable("CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck))",
+                            "INSERT INTO %s (pk, ck, v) VALUES (1, 1, 'x')",
+                            "INSERT INTO %s (pk, ck, v) VALUES (1, 2, 'y')");
+
+        // control: the same table is supported under the real format
+        assertTrue("expected a plain two-sstable table to be cursor-supported", isSupportedNow(cfs));
+
+        SSTableFormat<?, ?> original = DatabaseDescriptor.getSelectedSSTableFormat();
+        SSTableFormat<?, ?> noCursorSupport = Mockito.mock(SSTableFormat.class, Mockito.CALLS_REAL_METHODS);
+        assertFalse("the stand-in must report no cursor compaction support, or the gate below is " +
+                    "not the thing being observed",
+                    noCursorSupport.supportsCursorCompaction());
+
+        DatabaseDescriptor.setSelectedSSTableFormat(noCursorSupport);
+        try
+        {
+            assertFalse("cursor compaction must refuse a table whose selected output format does " +
+                        "not support it",
+                        isSupportedNow(cfs));
+        }
+        finally
+        {
+            DatabaseDescriptor.setSelectedSSTableFormat(original);
+        }
+
+        // the table is supported again once the real format is back
+        assertTrue("expected the table to be cursor-supported again under the real format",
+                   isSupportedNow(cfs));
+    }
+
+    /** Creates {@code ddl} with auto-compaction off and flushes each insert into its own sstable. */
+    private ColumnFamilyStore twoSSTableTable(String ddl, String firstInsert, String secondInsert)
+    {
+        createTable(ddl);
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+        execute(firstInsert);
+        flush();
+        execute(secondInsert);
+        flush();
+        assertEquals("expected one sstable per flush", 2, cfs.getLiveSSTables().size());
+        return cfs;
+    }
+
+    /** Counter columns are unsupported. */
     @Test
     public void countersUnsupported()
     {
@@ -163,39 +243,25 @@ public class CursorSupportMatrixTest extends CQLTester
                    CursorCompactor.unsupportedMetadata(getCurrentColumnFamilyStore().metadata()));
     }
 
-    /**
-     * The refusal belongs to the gate, in {@code CursorCompactor.isSupported}'s ignore-gc-grace
-     * branch. This test supplies only the window in which the gate can be observed.
-     * <p>
-     * The key set lives only for the duration of the force compaction.
-     * {@code forceCompactionKeysIgnoringGcGrace} populates it, hands the keys to
-     * {@code CompactionManager}, then clears it in a finally block. The tracker subscriber below
-     * reads the gate from inside that window. The compaction publishes its sstable swap on the
-     * compaction thread while the caller still blocks inside the force compaction, with the set
-     * populated.
-     */
+    /** Cursor compaction is refused while any key ignores gc grace. */
     @Test
     public void ignoreGcGraceForAnyKeyUnsupported() throws Throwable
     {
-        // cursor compaction only supports BIG output. Under another format isSupported is false for
-        // every table, so the assertions below could not tell the ignore-gc-grace gate apart
+        // BIG required: under another format isSupported is false for every table
         Assume.assumeTrue("requires the BIG sstable format", BigFormat.isSelected());
 
         createTable("CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck))");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();
 
-        // pk 1 is the key forcecompact names, and its row deletion is what that compaction must purge
-        // ahead of gc grace. pk 2 keeps the output non-empty whatever the purge decides about pk 1, so
-        // the observer below always has an output sstable to gate on
+        // pk 1's row deletion is what the force compaction must purge; pk 2 keeps the output non-empty
         execute("INSERT INTO %s (pk, ck, v) VALUES (1, 1, 'x')");
         execute("INSERT INTO %s (pk, ck, v) VALUES (2, 1, 'y')");
         flush();
         execute("DELETE FROM %s WHERE pk = 1 AND ck = 1");
         flush();
 
-        // control: the same table and the same two sstables, with nothing ignoring gc grace, is
-        // supported. The rejection observed below is therefore attributable to the key set alone
+        // control: the same table with nothing ignoring gc grace is supported
         assertEquals("expected one sstable per flush", 2, cfs.getLiveSSTables().size());
         assertFalse("no key should ignore gc grace outside a force compaction",
                     cfs.shouldIgnoreGcGraceForAnyKey());
@@ -209,22 +275,17 @@ public class CursorSupportMatrixTest extends CQLTester
         {
             if (!(notification instanceof SSTableListChangedNotification))
                 return;
-            // record the first sstable swap only. Record the key set before anything else, so a
-            // throw below cannot leave the window unaccounted for
+            // record the first sstable swap only, and the key set before anything else
             if (!ignoredGcGraceInside.compareAndSet(null, cfs.shouldIgnoreGcGraceForAnyKey()))
                 return;
             try
             {
-                // the compaction strategy manager subscribes to the tracker in the ColumnFamilyStore
-                // constructor, so it precedes this observer. It has already taken the swap and
-                // released its lock. On the commit path the live set here is the compaction's output,
-                // so it is safe to open scanners over it
+                // on the commit path the live set is the compaction's output, so scanners over it are safe
                 supportedInside.set(isSupportedNow(cfs));
             }
             catch (Throwable t)
             {
-                // Tracker merges a subscriber's throw into the compaction's own failure, which would
-                // say nothing about the gate. Carry the throw out and rethrow it on the calling thread
+                // carry the throw out and rethrow it on the calling thread
                 observerFailure.set(t);
             }
         };
@@ -242,8 +303,7 @@ public class CursorSupportMatrixTest extends CQLTester
         if (observerFailure.get() != null)
             throw observerFailure.get();
 
-        // the scenario covers its subject only while the force compaction really compacts something
-        // with the key set populated. Assert both, so the test cannot go quiet and still pass
+        // assert the force compaction really ran with the key set populated, so the test cannot pass quietly
         assertNotNull("expected the force compaction to change the sstable list while the observer was " +
                       "subscribed; with no compaction there is no window in which the gate is exercised",
                       ignoredGcGraceInside.get());
@@ -256,25 +316,15 @@ public class CursorSupportMatrixTest extends CQLTester
                     "suppresses row-level purging wholesale there and a streaming cursor cannot",
                     supportedInside.get());
 
-        // the gate reopens once the force compaction has cleared the set. The assertion below reuses
-        // the helper that returned false inside the window, so the helper is not hardwired to one answer
+        // the table is supported again once the force compaction has cleared the set
         assertFalse("expected the key set to be cleared when the force compaction returned",
                     cfs.shouldIgnoreGcGraceForAnyKey());
         assertTrue("expected the table to be cursor-supported again after the force compaction",
                    isSupportedNow(cfs));
     }
 
-    /**
-     * A DROPPED non-frozen collection is gone from the schema. Every sstable written before the drop
-     * still lists it in that sstable's own header, still multi-cell. The metadata-level check cannot
-     * see it, so the gate has to screen the input headers too.
-     * <p>
-     * The cursor reads complex framing correctly, so this gate is not about parsing. It is held
-     * closed because a cell written above the drop time survives the read, and the iterator cannot
-     * merge a row that holds one. See {@code CursorCompactor.unsupportedHeaderColumns} and
-     * {@code DroppedColumnDifferentialCompactionTest.droppedComplexColumnSurvivingCells}, which is
-     * {@code @Ignore}d on CASSANDRA-21607.
-     */
+    /** A dropped non-frozen collection stays gated: the header check must screen it though the
+     *  schema no longer lists it. */
     @Test
     public void droppedCollectionUnsupportedFromHeaders() throws Exception
     {
@@ -284,11 +334,7 @@ public class CursorSupportMatrixTest extends CQLTester
                                            false);
     }
 
-    /**
-     * The same shape through a dropped STATIC collection. A static column lands in
-     * {@code header.columns(true)} only, so a gate that inspected regular columns alone would
-     * reach a different verdict here than on this test's regular-column sibling.
-     */
+    /** The same, through a dropped STATIC collection, which lands in the static header columns only. */
     @Test
     public void droppedStaticCollectionUnsupportedFromHeaders() throws Exception
     {
@@ -300,8 +346,7 @@ public class CursorSupportMatrixTest extends CQLTester
 
     private void assertDroppedCollectionUnsupported(String ddl, String insert, boolean isStatic) throws Exception
     {
-        // cursor compaction only supports BIG output. Under another format isSupported is false
-        // for every table, so the assertion below could not tell the header check apart
+        // BIG required: under another format isSupported is false for every table
         Assume.assumeTrue("requires the BIG sstable format", BigFormat.isSelected());
 
         createTable(ddl);
@@ -345,21 +390,13 @@ public class CursorSupportMatrixTest extends CQLTester
                    isSupportedNow(plain));
     }
 
-    /**
-     * A dropped COUNTER column stays gated. The cursor path has no counter merge at all, so the
-     * header gate must still screen a counter the schema has dropped.
-     * <p>
-     * The dropped-collection tests above reach the same verdict through the same gate, but for a
-     * different reason. This one is about the missing counter merge, not about the drop filter.
-     */
+    /** A dropped counter column stays gated: the cursor path has no counter merge. */
     @Test
     public void droppedCounterUnsupportedFromHeaders() throws Exception
     {
         Assume.assumeTrue("requires the BIG sstable format", BigFormat.isSelected());
 
-        // ONE counter column, so the drop leaves no counter in the schema. With a second counter
-        // still live, unsupportedSchema would reject the table on its own and this test would pass
-        // without the header gate doing anything.
+        // one counter only, so the drop leaves no counter in the schema for unsupportedSchema to catch
         createTable("CREATE TABLE %s (pk bigint, ck bigint, c counter, PRIMARY KEY (pk, ck))");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();

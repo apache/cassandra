@@ -194,12 +194,21 @@ public class IndexSummaryBuilder implements AutoCloseable
         return maybeAddEntry(decoratedKey, indexStart, 0, 0);
     }
     /**
+     * The garbage-free counterpart of {@link #maybeAddEntry(DecoratedKey, long, long, long)}: it samples from
+     * the key bytes, and takes a retainable copy of the key only for a readable boundary, which is one record
+     * per summary interval.
+     *
+     * @param decoratedKey the key for this record; may be a reusable instance
      * @param keyBytes the key data for this record
      * @param offset key data offset in the keyBytes array
      * @param length key data length
      * @param indexStart the position in the index file this record begins
+     * @param indexEnd the position in the index file we need to be able to read to (exclusive) to read this record
+     * @param dataEnd the position in the data file we need to be able to read to (exclusive) to read this record;
+     *                a value of 0 indicates we are not tracking readable boundaries
      */
-    public IndexSummaryBuilder maybeAddEntry(byte[] keyBytes, int offset, int length, long indexStart) throws IOException
+    public IndexSummaryBuilder maybeAddEntry(DecoratedKey decoratedKey, byte[] keyBytes, int offset, int length,
+                                             long indexStart, long indexEnd, long dataEnd) throws IOException
     {
         if (keysWritten == nextSamplePosition)
         {
@@ -216,6 +225,14 @@ public class IndexSummaryBuilder implements AutoCloseable
                 logger.error("Memory capacity of index summary exceeded (2GiB), index summary will not cover full sstable, " +
                              "you should increase min_sampling_level");
             }
+        }
+        else if (dataEnd != 0 && keysWritten + 1 == nextSamplePosition)
+        {
+            // this is the last key in this summary interval, so stash it
+            ReadableBoundary boundary = new ReadableBoundary(decoratedKey.retainable(), indexEnd, dataEnd,
+                                                             (int) (offsets.length() / 4), entries.length());
+            lastReadableByData.put(dataEnd, boundary);
+            lastReadableByIndex.put(indexEnd, boundary);
         }
 
         keysWritten++;
