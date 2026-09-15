@@ -759,6 +759,7 @@ class TestCqlshOutput(BaseTestCase):
                 AND fast_path = 'keyspace'
                 AND default_time_to_live = 0
                 AND extensions = {}
+                AND flush_compression = 'auto'
                 AND gc_grace_seconds = 864000
                 AND incremental_backups = true
                 AND max_index_interval = 2048

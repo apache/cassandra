@@ -751,6 +751,10 @@ background_write_disk_access_mode: direct
 # table: Always flush with the same compressor that the table uses. This
 #        was the pre 4.0 behavior.
 #
+# This is the node-wide default. A table can override it with the
+# flush_compression table option (values: none, fast, table); the default
+# table value 'auto' uses this setting.
+#
 # flush_compression: fast
 
 # any class that implements the SeedProvider interface and has a
