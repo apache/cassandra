@@ -31,6 +31,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 
+import org.agrona.collections.IntArrayList;
+
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
@@ -173,12 +175,12 @@ public class ShardedMemtableIndex implements MemtableIndex
     @Override
     public KeyRangeIterator search(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange)
     {
-        List<Integer> shardsForRange = boundaries.getShardsForRange(keyRange);
+        IntArrayList shardsForRange = boundaries.getShardsForRange(keyRange);
         KeyRangeConcatIterator.Builder builder = KeyRangeConcatIterator.builder(shardsForRange.size());
 
-        for (int shard: shardsForRange)
+        for (int i = 0; i < shardsForRange.size(); i++)
         {
-            assert shards[shard] != null;
+            int shard = shardsForRange.getInt(i);
             builder.add(shards[shard].search(queryContext, expression, keyRange));
         }
 

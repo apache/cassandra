@@ -71,10 +71,7 @@ public class ShardedMemtableIndexTest extends SAIRandomizedTester
         // CQLTester @BeforeClass already sets up server.
         // Set up the keyspace and the table.
         String keyspace = createKeyspace("CREATE KEYSPACE %s with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 } and durable_writes = false");
-        String table = createTable(keyspace,
-                                   "CREATE TABLE %s (pk int PRIMARY KEY, val int)",
-                            "memtable_index");
-        execute("use " + keyspace + ";");
+        String table = createTable(keyspace, "CREATE TABLE %s (pk int PRIMARY KEY, val int)", "memtable_index");
 
         setupCfsAndIndex(keyspace, table);
 

@@ -18,12 +18,11 @@
 package org.apache.cassandra.db.memtable;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import com.google.common.annotations.VisibleForTesting;
+
+import org.agrona.collections.IntArrayList;
 
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
@@ -45,18 +44,18 @@ public class ShardBoundaries
 {
     private static final Token[] EMPTY_TOKEN_ARRAY = new Token[0];
 
-    // Special boundaries that map all tokens to one shard.
-    // These boundaries will be used in either of these cases:
+    // Special boundaries that map all tokens to one shard. These boundaries will be used in either of these cases:
     // - there is only 1 shard configured
     // - the default partitioner doesn't support splitting
     // - the keyspace is local system keyspace
-    public static final ShardBoundaries NONE = new ShardBoundaries(EMPTY_TOKEN_ARRAY, Epoch.EMPTY);
     private static final Range<PartitionPosition>[] EMPTY_RANGE_ARRAY = new Range[0];
-    private static final List<Integer> EMPTY_BOUNDARIES_SHARDS = Collections.singletonList(0);
+    private static final IntArrayList EMPTY_BOUNDARIES_SHARDS = new IntArrayList(new int[] { 0 }, 1, IntArrayList.DEFAULT_NULL_VALUE);
+
+    public static final ShardBoundaries NONE = new ShardBoundaries(EMPTY_TOKEN_ARRAY, Epoch.EMPTY);
 
     private final Token[] boundaries;
     private final Range<PartitionPosition>[] ranges;
-    private final List<Integer> allShards;
+    private final IntArrayList allShards;
     public final Epoch epoch;
 
     @VisibleForTesting
@@ -65,7 +64,11 @@ public class ShardBoundaries
         this.boundaries = boundaries;
         this.epoch = epoch;
         this.ranges = precomputeRanges();
-        this.allShards = IntStream.range(0, boundaries.length + 1).boxed().collect(Collectors.toUnmodifiableList());
+
+        IntArrayList shards = new IntArrayList(boundaries.length + 1, IntArrayList.DEFAULT_NULL_VALUE);
+        for (int i = 0; i <= boundaries.length; i++)
+            shards.addInt(i);
+        this.allShards = shards;
     }
 
     private Range<PartitionPosition>[] precomputeRanges()
@@ -121,7 +124,7 @@ public class ShardBoundaries
         return getShardForToken(key.getToken());
     }
 
-    public List<Integer> getShardsForRange(AbstractBounds<PartitionPosition> keyRange)
+    public IntArrayList getShardsForRange(AbstractBounds<PartitionPosition> keyRange)
     {
         if (boundaries.length == 0)
             return EMPTY_BOUNDARIES_SHARDS;
@@ -130,9 +133,12 @@ public class ShardBoundaries
         // then we need to return all the shards.
         if (keyRange.right.isMinimum() && keyRange.left.compareTo(keyRange.right) == 0)
             return allShards;
-
-        // Otherwise we need to return all the shards whose range intersects the keyrange
-        return allShards.stream().filter(s -> ranges[s].intersects(keyRange)).collect(Collectors.toList());
+        
+        IntArrayList inRange = new IntArrayList(ranges.length, IntArrayList.DEFAULT_NULL_VALUE);
+        for (int shard = 0; shard < ranges.length; shard++)
+            if (ranges[shard].intersects(keyRange))
+                inRange.addInt(shard);
+        return inRange;
     }
 
     public Token getShardStartBoundary(int shardId)
