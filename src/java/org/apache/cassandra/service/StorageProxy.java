@@ -2762,7 +2762,9 @@ public class StorageProxy implements StorageProxyMBean
                         response = command.createLocalObjectResponse(iterator, controller.getRepairedDataInfo(), localReplicaOnly);
                     }
                     else
+                    {
                         response = command.createResponse(iterator, controller.getRepairedDataInfo());
+                    }
                 }
                 catch (RejectException e)
                 {

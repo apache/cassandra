@@ -498,7 +498,11 @@ public abstract class ReadResponse
             int count = 0;
             try (UnfilteredRowIterator iter = partition.unfilteredIterator())
             {
-                while (iter.hasNext()) { iter.next(); count++; }
+                while (iter.hasNext())
+                {
+                    iter.next();
+                    count++;
+                }
             }
             return count;
         }
@@ -653,6 +657,7 @@ public abstract class ReadResponse
 
             return new WrappingUnfilteredRowIterator()
             {
+                @Override
                 public UnfilteredRowIterator wrapped()
                 {
                     return iter;
@@ -691,16 +696,23 @@ public abstract class ReadResponse
             this.partition = partition;
         }
 
-        public TableMetadata metadata() { return metadata; }
+        @Override
+        public TableMetadata metadata()
+        {
+            return metadata;
+        }
 
+        @Override
         public boolean hasNext()
         {
             return !returned;
         }
 
+        @Override
         public UnfilteredRowIterator next()
         {
-            if (returned) throw new NoSuchElementException();
+            if (returned)
+                throw new NoSuchElementException();
             returned = true;
             return partition;
         }
