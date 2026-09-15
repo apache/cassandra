@@ -23,6 +23,7 @@ import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -45,6 +46,7 @@ public class CqlshTest extends CQLTester
     public static void setUp()
     {
         requireNetwork();
+        addVirtualKeyspace();
     }
 
     @Test
@@ -146,6 +148,84 @@ public class CqlshTest extends CQLTester
         UntypedResultSet importedRows = execute("SELECT * FROM %s");
         assertRowsIgnoringOrder(importedRows, row(1, vector(1, 2, 3, 4, 5, 6)),
                                 row(3, vector(1, 2, 3, 4, 6, 7)));
+    }
+
+    @Test
+    public void testManagementPortCommandStatus()
+    {
+        ToolResult tool = ToolRunner.invokeCqlshManagement(Collections.singletonList("INVOKE COMMAND status;"));
+        tool.asserts().success();
+        assertThat(tool.getStdout()).contains("execution_id");
+        assertThat(tool.getStdout()).contains("output");
+    }
+
+    @Test
+    public void testManagementPortSelectSystemLocal()
+    {
+        ToolResult tool = ToolRunner.invokeCqlshManagement(
+            Collections.singletonList("SELECT cluster_name, release_version FROM system.local;"));
+        tool.asserts().success();
+        assertThat(tool.getStdout()).contains("cluster_name");
+        assertThat(tool.getStdout()).contains("release_version");
+    }
+
+    @Test
+    public void testManagementPortSelectSystemPeers()
+    {
+        ToolResult tool = ToolRunner.invokeCqlshManagement(Collections.singletonList("SELECT * FROM system.peers;"));
+        tool.asserts().success();
+        assertThat(tool.getStdout()).contains("peer");
+    }
+
+    @Test
+    public void testManagementPortSelectSystemSchemaKeyspaces()
+    {
+        ToolResult tool = ToolRunner.invokeCqlshManagement(
+            Collections.singletonList("SELECT keyspace_name FROM system_schema.keyspaces;"));
+        tool.asserts().success();
+        assertThat(tool.getStdout()).contains("keyspace_name");
+        assertThat(tool.getStdout()).contains("system");
+    }
+
+    @Test
+    public void testManagementPortSelectVirtualTableSettings()
+    {
+        ToolResult tool = ToolRunner.invokeCqlshManagement(
+            Collections.singletonList("SELECT name FROM system_views.settings LIMIT 1;"));
+        tool.asserts().success();
+        assertThat(tool.getStdout()).contains("name");
+    }
+
+    @Test
+    public void testManagementPortSelectVirtualTableClients()
+    {
+        ToolResult tool = ToolRunner.invokeCqlshManagement(
+            Collections.singletonList("SELECT * FROM system_views.clients;"));
+        tool.asserts().success();
+        assertThat(tool.getStdout()).contains("address");
+    }
+
+    @Test
+    public void testManagementPortRejectsNonSystemSelect()
+    {
+        String keyspaceName = createKeyspace(
+            "CREATE KEYSPACE %s WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
+        String tableName = createTable(keyspaceName, "CREATE TABLE %s (k text PRIMARY KEY, v int)");
+        ToolResult tool = ToolRunner.invokeCqlshManagement(
+            Collections.singletonList(format("SELECT * FROM %s.%s;", keyspaceName, tableName)));
+        tool.asserts().failure();
+    }
+
+    @Test
+    public void testManagementPortRejectsInsert()
+    {
+        String keyspaceName = createKeyspace(
+            "CREATE KEYSPACE %s WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
+        String tableName = createTable(keyspaceName, "CREATE TABLE %s (k text PRIMARY KEY, v int)");
+
+        ToolResult tool = ToolRunner.invokeCqlshManagement(
+            Collections.singletonList(format("INSERT INTO %s.%s (k, v) VALUES ('a', 1);", keyspaceName, tableName)));
+        tool.asserts().failure();
     }
 
     private static Path prepareCSVFile(Object[][] rows) throws IOException

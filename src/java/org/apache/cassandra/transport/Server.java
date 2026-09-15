@@ -85,7 +85,8 @@ public class Server implements CassandraDaemon.Server
     {
         public Connection newConnection(Channel channel, ProtocolVersion version)
         {
-            return new ServerConnection(channel, version, connectionTracker);
+            boolean isManagementConnection = Boolean.TRUE.equals(channel.attr(Connection.managementKey).get());
+            return new ServerConnection(channel, version, connectionTracker, isManagementConnection);
         }
     };
 
@@ -111,13 +112,14 @@ public class Server implements CassandraDaemon.Server
                 workerGroup = new NioEventLoopGroup();
         }
 
-        dispatcher = new Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher());
+        dispatcher = new Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher(), builder.isManagementConnection);
         pipelineConfigurator = builder.pipelineConfigurator != null
                                ? builder.pipelineConfigurator
                                : new PipelineConfigurator(useEpoll,
                                                           DatabaseDescriptor.getRpcKeepAlive(),
                                                           builder.tlsEncryptionPolicy,
-                                                          dispatcher);
+                                                          dispatcher,
+                                                          builder.isManagementConnection);
 
         EventNotifier notifier = builder.eventNotifier != null ? builder.eventNotifier : new EventNotifier();
         connectionTracker = new ConnectionTracker(isRunning::get);
@@ -234,6 +236,7 @@ public class Server implements CassandraDaemon.Server
         private InetSocketAddress socket;
         private PipelineConfigurator pipelineConfigurator;
         private EventNotifier eventNotifier;
+        private boolean isManagementConnection = false;
 
         public Builder withTlsEncryptionPolicy(EncryptionOptions.TlsEncryptionPolicy tlsEncryptionPolicy)
         {
@@ -270,6 +273,12 @@ public class Server implements CassandraDaemon.Server
         public Builder withEventNotifier(EventNotifier eventNotifier)
         {
             this.eventNotifier = eventNotifier;
+            return this;
+        }
+
+        public Builder withManagementConnectionFlag(boolean management)
+        {
+            this.isManagementConnection = management;
             return this;
         }
 

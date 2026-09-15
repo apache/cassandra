@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
@@ -139,6 +140,24 @@ public class NodeToolTest extends TestBaseImpl
             ringResult.asserts().stdoutContains("Uptime");
             ringResult.asserts().stdoutContains("Heap Memory");
         }
+    }
+
+    @Test
+    public void testCompactionCommandsThroughMockProbe()
+    {
+        String table = "compaction_history_tbl";
+        CLUSTER.schemaChange("CREATE TABLE " + KEYSPACE + '.' + table + " (k int PRIMARY KEY, v int)");
+        assertEquals(0, NODE.nodetool("disableautocompaction", KEYSPACE));
+        for (int i = 0; i < 2; i++)
+        {
+            CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + '.' + table + " (k, v) VALUES (?, ?)",
+                                           ConsistencyLevel.ONE, i, i);
+            NODE.flush(KEYSPACE);
+        }
+        NODE.forceCompact(KEYSPACE, table);
+
+        NODE.nodetoolResult("compactionhistory").asserts().success().stdoutContains(table);
+        NODE.nodetoolResult("stop", "COMPACTION").asserts().success();
     }
 
     @Test

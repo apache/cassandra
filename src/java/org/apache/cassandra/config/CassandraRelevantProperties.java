@@ -97,6 +97,16 @@ public enum CassandraRelevantProperties
     CACHEABLE_MUTATION_SIZE_LIMIT("cassandra.cacheable_mutation_size_limit_bytes", convertToString(1_000_000)),
     CASSANDRA_ALLOW_SIMPLE_STRATEGY("cassandra.allow_simplestrategy"),
     CASSANDRA_AVAILABLE_PROCESSORS("cassandra.available_processors"),
+    /**
+     * Defines the protocol used by the Cassandra CLI to connect to Cassandra nodes.
+     * Possible values are {@code "static_mbean"}, {@code "command_mbean"} or {@code cql}.
+     * By default, the Cassandra CLI uses the JMX protocol via static MBeans.
+     */
+    CASSANDRA_CLI_EXECUTION_PROTOCOL("cassandra.cli.execution.protocol", "static_mbean"),
+    /** Whether to show the execution id for cli command output, useful for correlating commands with logs and tracing. */
+    CASSANDRA_CLI_EXECUTION_SHOW_EXECUTION_ID("cassandra.cli.execution.show_execution_id", "false"),
+    /** How long the Cassandra CLI waits for a server response when executing a command over CQL, in seconds. */
+    CASSANDRA_CLI_EXECUTION_TIMEOUT_SECONDS("cassandra.cli.execution.timeout_seconds", "0"),
     /** By default, the standard Cassandra CLI layout is used for backward compatibility, however,
      * the new Picocli layout can be enabled by setting this property to the {@code "picocli"}. */
     CASSANDRA_CLI_LAYOUT("cassandra.cli.layout", "airline"),
@@ -422,6 +432,8 @@ public enum CassandraRelevantProperties
     MX4JPORT("mx4jport"),
     NANOTIMETOMILLIS_TIMESTAMP_UPDATE_INTERVAL("cassandra.NANOTIMETOMILLIS_TIMESTAMP_UPDATE_INTERVAL", "10000"),
     NATIVE_EPOLL_ENABLED("cassandra.native.epoll.enabled", "true"),
+    /** This is the port used with RPC address for the management native protocol to communicate with clients that manage the node. */
+    NATIVE_TRANSPORT_MANAGEMENT_PORT("cassandra.native_transport_management_port"),
     /** This is the port used with RPC address for the native protocol to communicate with clients. Now that thrift RPC is no longer in use there is no RPC port. */
     NATIVE_TRANSPORT_PORT("cassandra.native_transport_port"),
     NEVER_PURGE_TOMBSTONES("cassandra.never_purge_tombstones"),
@@ -588,6 +600,7 @@ public enum CassandraRelevantProperties
     SSL_ENABLE("ssl.enable"),
     SSL_STORAGE_PORT("cassandra.ssl_storage_port"),
     START_GOSSIP("cassandra.start_gossip", "true"),
+    START_NATIVE_MANAGEMENT_TRANSPORT("cassandra.start_native_management_transport"),
     START_NATIVE_TRANSPORT("cassandra.start_native_transport"),
     STORAGE_DIR("cassandra.storagedir"),
     STORAGE_HOOK("cassandra.storage_hook"),

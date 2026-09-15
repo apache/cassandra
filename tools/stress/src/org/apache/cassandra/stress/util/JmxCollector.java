@@ -18,7 +18,6 @@
 */
 package org.apache.cassandra.stress.util;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -30,6 +29,7 @@ import java.util.concurrent.Future;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.stress.settings.SettingsJMX;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.RemoteJmxMBeanAccessor;
 
 public class JmxCollector implements Callable<JmxCollector.GcStats>
 {
@@ -91,17 +91,10 @@ public class JmxCollector implements Callable<JmxCollector.GcStats>
 
     private static NodeProbe connect(String host, int port, SettingsJMX jmx)
     {
-        try
-        {
-            if (jmx.user != null && jmx.password != null)
-                return new NodeProbe(host, port, jmx.user, jmx.password);
-            else
-                return new NodeProbe(host, port);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        if (jmx.user != null && jmx.password != null)
+            return new NodeProbe(new RemoteJmxMBeanAccessor(host, port, jmx.user, jmx.password));
+        else
+            return new NodeProbe(new RemoteJmxMBeanAccessor(host, port));
     }
 
     public GcStats call() throws Exception

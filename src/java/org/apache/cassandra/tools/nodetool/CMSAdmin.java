@@ -303,6 +303,8 @@ public class CMSAdmin extends AbstractCommand
     @Command(name = "dump", description = "Dumps cluster metadata into a file")
     public static class DumpClusterMetadata extends AbstractCommand
     {
+        // TODO CASSANDRA-XXXXX @ArgGroup cannot be populated by the remote (CQL/MBean) execution path,
+        //  this should be avoided to keep the command hierarchy flat for all interfaces
         @ArgGroup(exclusive = false, multiplicity = "0..1")
         DumpOptions dumpOptions;
 
