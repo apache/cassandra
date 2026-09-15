@@ -72,6 +72,69 @@ public final class SchemaConstants
     /* replicate system keyspace names (the ones with a "true" replication strategy) */
     public static final Set<String> REPLICATED_SYSTEM_KEYSPACE_NAMES =
         ImmutableSet.of(TRACE_KEYSPACE_NAME, AUTH_KEYSPACE_NAME, DISTRIBUTED_KEYSPACE_NAME, METADATA_KEYSPACE_NAME);
+
+    public static final Set<String> SYSTEM_KEYSPACE_TABLE_NAMES =
+        ImmutableSet.of(SystemKeyspace.BATCHES,
+                        SystemKeyspace.PAXOS,
+                        SystemKeyspace.PAXOS_REPAIR_HISTORY,
+                        SystemKeyspace.BUILT_INDEXES,
+                        SystemKeyspace.LOCAL,
+                        SystemKeyspace.PEERS_V2,
+                        SystemKeyspace.PEER_EVENTS_V2,
+                        SystemKeyspace.COMPACTION_HISTORY,
+                        SystemKeyspace.SSTABLE_ACTIVITY_V2,
+                        SystemKeyspace.TABLE_ESTIMATES,
+                        SystemKeyspace.AVAILABLE_RANGES_V2,
+                        SystemKeyspace.TRANSFERRED_RANGES_V2,
+                        SystemKeyspace.VIEW_BUILDS_IN_PROGRESS,
+                        SystemKeyspace.BUILT_VIEWS,
+                        SystemKeyspace.PREPARED_STATEMENTS,
+                        SystemKeyspace.REPAIRS,
+                        SystemKeyspace.TOP_PARTITIONS,
+                        SystemKeyspace.LEGACY_PEERS,
+                        SystemKeyspace.LEGACY_PEER_EVENTS,
+                        SystemKeyspace.LEGACY_TRANSFERRED_RANGES,
+                        SystemKeyspace.LEGACY_AVAILABLE_RANGES,
+                        SystemKeyspace.LEGACY_SIZE_ESTIMATES,
+                        SystemKeyspace.LEGACY_SSTABLE_ACTIVITY,
+                        SystemKeyspace.METADATA_LOG,
+                        SystemKeyspace.SNAPSHOT_TABLE_NAME,
+                        SystemKeyspace.CONSENSUS_MIGRATION_STATE);
+
+    public static final Set<String> TRACE_KEYSPACE_TABLE_NAMES =
+        ImmutableSet.of(TraceKeyspace.SESSIONS, TraceKeyspace.EVENTS);
+
+    public static final Set<String> AUTH_KEYSPACE_TABLE_NAMES =
+        ImmutableSet.of(AuthKeyspace.ROLES,
+                        AuthKeyspace.ROLE_MEMBERS,
+                        AuthKeyspace.ROLE_PERMISSIONS,
+                        AuthKeyspace.RESOURCE_ROLE_INDEX,
+                        AuthKeyspace.NETWORK_PERMISSIONS,
+                        AuthKeyspace.CIDR_PERMISSIONS,
+                        AuthKeyspace.CIDR_GROUPS,
+                        AuthKeyspace.IDENTITY_TO_ROLES);
+
+    public static final Set<String> DISTRIBUTED_KEYSPACE_TABLE_NAMES =
+        ImmutableSet.of(SystemDistributedKeyspace.REPAIR_HISTORY,
+                        SystemDistributedKeyspace.PARENT_REPAIR_HISTORY,
+                        SystemDistributedKeyspace.VIEW_BUILD_STATUS,
+                        SystemDistributedKeyspace.PARTITION_DENYLIST_TABLE,
+                        SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+                        SystemDistributedKeyspace.AUTO_REPAIR_PRIORITY,
+                        SystemDistributedKeyspace.COMPRESSION_DICTIONARIES);
+
+    public static final Set<String> ACCORD_KEYSPACE_TABLE_NAMES =
+        ImmutableSet.of(AccordKeyspace.COMMANDS_FOR_KEY, AccordKeyspace.JOURNAL);
+
+    public static final Set<String> LOCAL_AND_REPLICATED_SYSTEM_TABLE_NAMES =
+        ImmutableSet.<String>builder()
+                    .addAll(SYSTEM_KEYSPACE_TABLE_NAMES)
+                    .addAll(SchemaKeyspaceTables.ALL)
+                    .addAll(TRACE_KEYSPACE_TABLE_NAMES)
+                    .addAll(AUTH_KEYSPACE_TABLE_NAMES)
+                    .addAll(DISTRIBUTED_KEYSPACE_TABLE_NAMES)
+                    .addAll(ACCORD_KEYSPACE_TABLE_NAMES)
+                    .build();
     /**
      * The longest permissible KS or CF name.
      *
@@ -195,13 +258,6 @@ public final class SchemaConstants
      */
     public static Set<String> getLocalAndReplicatedSystemTableNames()
     {
-        return ImmutableSet.<String>builder()
-                           .addAll(SystemKeyspace.TABLE_NAMES)
-                           .addAll(SchemaKeyspaceTables.ALL)
-                           .addAll(TraceKeyspace.TABLE_NAMES)
-                           .addAll(AuthKeyspace.TABLE_NAMES)
-                           .addAll(SystemDistributedKeyspace.TABLE_NAMES)
-                           .addAll(AccordKeyspace.TABLE_NAMES)
-                           .build();
+        return LOCAL_AND_REPLICATED_SYSTEM_TABLE_NAMES;
     }
 }

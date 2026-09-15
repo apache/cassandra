@@ -36,7 +36,6 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
@@ -110,10 +109,7 @@ public final class SystemDistributedKeyspace
 
     public static final String COMPRESSION_DICTIONARIES = "compression_dictionaries";
 
-    public static final Set<String> TABLE_NAMES = ImmutableSet.of(REPAIR_HISTORY, PARENT_REPAIR_HISTORY,
-                                                                  VIEW_BUILD_STATUS, PARTITION_DENYLIST_TABLE,
-                                                                  AUTO_REPAIR_HISTORY, AUTO_REPAIR_PRIORITY,
-                                                                  COMPRESSION_DICTIONARIES);
+    public static final Set<String> TABLE_NAMES = SchemaConstants.DISTRIBUTED_KEYSPACE_TABLE_NAMES;
 
     public static final String REPAIR_HISTORY_CQL = "CREATE TABLE IF NOT EXISTS %s ("
                                                      + "keyspace_name text,"
