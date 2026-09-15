@@ -59,21 +59,9 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-/**
- * Verifies the CASSANDRA-21520 entire-sstable (zero-copy) streaming reservation lifecycle in
- * {@link CassandraOutgoingFile} and its rollback in {@link CassandraStreamManager#createOutgoingStreams}.
- *
- * <ul>
- *     <li>Constructing an entire-sstable stream reserves the per-sstable ZCS status; {@code finish()} releases it,
- *     and {@link CassandraOutgoingFile#releaseStreamRebuildStatus()} is idempotent.</li>
- *     <li>When planning outgoing streams fails partway through a multi-sstable batch, the manager's catch block
- *     releases the ZCS status already reserved by the streams constructed so far, so a planning failure cannot
- *     leak the status.</li>
- * </ul>
- */
-public class CassandraStreamManagerRebuildStatusTest
+public class TableStreamManagerTest
 {
-    private static final String KEYSPACE = "CassandraStreamManagerRebuildStatusTest";
+    private static final String KEYSPACE = "TableStreamManagerTest";
     private static final String CF = "Standard1";
     private static final StreamingChannel.Factory connectionFactory = new NettyStreamingConnectionFactory();
 

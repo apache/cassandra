@@ -98,12 +98,12 @@ class StorageAttachedIndexBuildingSupport implements Index.IndexBuildingSupport
                     // NORMAL state (an entire-sstable zero-copy stream is in flight). Cap the list so the message
                     // stays bounded even when a large number of sstables are affected.
                     String blockedSSTables = targets.values().stream()
-                                            .flatMap(Collection::stream)
-                                            .distinct()
-                                            .filter(s -> s.streamRebuildState().state() != SSTableStreamRebuildState.State.NORMAL)
-                                            .map(s -> s.descriptor.toString())
-                                            .limit(MAX_LOGGED_SSTABLES)
-                                            .collect(Collectors.joining(", "));
+                                                             .flatMap(Collection::stream)
+                                                             .distinct()
+                                                             .filter(s -> s.streamRebuildState().state() != SSTableStreamRebuildState.State.NORMAL)
+                                                             .map(s -> s.descriptor.toString())
+                                                             .limit(MAX_LOGGED_SSTABLES)
+                                                             .collect(Collectors.joining(", "));
                     throw new RuntimeException(String.format(
                         "Cannot build SAI index while entire-sstable (zero-copy) streaming is in progress. " +
                         "Blocked sstable(s) (up to %d shown): %s", MAX_LOGGED_SSTABLES, blockedSSTables));

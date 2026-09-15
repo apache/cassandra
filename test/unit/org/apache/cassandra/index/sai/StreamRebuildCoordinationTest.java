@@ -35,19 +35,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-/**
- * Unit coverage for the CASSANDRA-21520 coordination between an SAI rebuild and entire-sstable (zero-copy)
- * streaming, exercised through the real {@code StorageAttachedIndexBuildingSupport.getIndexBuildTask} path:
- *
- * <ul>
- *     <li>{@link #onNotExecutedReleasesReservedRebuildStatus()} - when the build task is created (reserving the
- *     per-sstable rebuild status) but its {@code build()} never runs (e.g. the executor rejected the submission
- *     during shutdown), {@code onNotExecuted()} must release every reserved status.</li>
- *     <li>{@link #partialReservationRollbackWhenAnSSTableIsBeingStreamed()} - when reserving the rebuild status
- *     fails partway (one target sstable is already being entire-sstable streamed), every status reserved before
- *     the failure must be rolled back, leaving only the streamed sstable in {@code ZCS_STREAMING}.</li>
- * </ul>
- */
 public class StreamRebuildCoordinationTest extends SAITester
 {
     private StorageAttachedIndex createIndexedTableWithSSTables(int sstableCount)
