@@ -22,8 +22,10 @@ SYNOPSIS
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] cms reconfigure
-                [(-c | --cancel)] [(-r | --resume)] [--status] [--] [<replication
-                factor>] or <datacenter>:<replication_factor> ...
+                [(-c | --cancel)]
+                [(-i <ignored_endpoints> | --ignore <ignored_endpoints>)...]
+                [(-r | --resume)] [--status] [--] [<replication factor>] or
+                <datacenter>:<replication_factor> ...
 
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
                 [(-pw <password> | --password <password>)]
@@ -102,6 +104,11 @@ COMMANDS
             should be resumed
 
             With --cancel option, Cancels any in progress CMS reconfiguration
+
+            With --ignore option, Hosts to exclude from the new CMS, in addition to any
+            which are currently down. Useful before shrinking a cluster: excluding the
+            nodes which are about to be decommissioned keeps the CMS membership stable,
+            avoiding a reconfiguration per decommissioned member.
         snapshot
             Request a checkpointing snapshot of cluster metadata
         unregister
