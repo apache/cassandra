@@ -572,7 +572,7 @@ public class TransactionStatementTest
                        "COMMIT TRANSACTION";
 
         Assertions.assertThatThrownBy(() -> prepare(query))
-                  .isInstanceOf(IllegalStateException.class)
+                  .isInstanceOf(InvalidRequestException.class)
                   .hasMessageContaining("Row reference (row1) can only be used with IS NULL/IS NOT NULL conditions");
     }
 
@@ -587,7 +587,7 @@ public class TransactionStatementTest
                        "COMMIT TRANSACTION";
 
         Assertions.assertThatThrownBy(() -> prepare(query))
-                  .isInstanceOf(IllegalStateException.class)
+                  .isInstanceOf(InvalidRequestException.class)
                   .hasMessageContaining("Row reference (row1) can only be used with IS NULL/IS NOT NULL conditions");
     }
 
