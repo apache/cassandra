@@ -347,7 +347,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                                             .add("txn_id_additional", executionContext, ExecutionContext::additionalTxnId, TO_STRING)
                                             .add("keys", executionContext, ExecutionContext::keys, TO_STRING)
                                             .add("keys_loading", executionContext, ExecutionContext::loadKeys, TO_STRING)
-                                            .add("keys_loading_for", executionContext, ExecutionContext::loadKeysFor, TO_STRING);
+                                            .add("keys_loading_for", executionContext, ExecutionContext::findKeys, TO_STRING);
                         });
                     }
                 });

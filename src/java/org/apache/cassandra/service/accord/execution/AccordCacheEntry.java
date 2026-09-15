@@ -1076,8 +1076,19 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
 
     public void failedToLoad()
     {
+        failedToLoad(null);
+    }
+
+    public void failedToLoad(@Nullable Throwable cause)
+    {
         setStatus(FAILED_TO_LOAD);
-        state = null;
+        state = cause == null ? null : new FailedToLoad(cause);
+    }
+
+    /** the failure that left this entry {@link Status#FAILED_TO_LOAD}, if one was recorded */
+    public @Nullable Throwable loadFailure()
+    {
+        return state instanceof FailedToLoad ? ((FailedToLoad) state).cause : null;
     }
 
     Shrink tryShrink()
@@ -1336,6 +1347,16 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
         WaitingToSave(UniqueSave identity, Object state)
         {
             super(identity, state);
+        }
+    }
+
+    static final class FailedToLoad
+    {
+        final Throwable cause;
+
+        FailedToLoad(Throwable cause)
+        {
+            this.cause = cause;
         }
     }
 

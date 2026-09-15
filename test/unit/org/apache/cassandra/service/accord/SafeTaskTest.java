@@ -91,8 +91,8 @@ import org.apache.cassandra.utils.concurrent.Condition;
 
 import static accord.local.ExecutionContext.contextFor;
 import static accord.local.ExecutionContext.unsequencedReadWrite;
+import static accord.local.FindKeys.CONFLICTS;
 import static accord.local.LoadKeys.SYNC;
-import static accord.local.LoadKeysFor.READ_WRITE;
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordService.getBlocking;
@@ -299,7 +299,7 @@ public class SafeTaskTest
                 awaitDone(commandStore, ids, participants);
                 assertNoReferences(commandStore, ids, participants);
 
-                ExecutionContext ctx = contextFor(ids.get(0), ids.size() == 1 ? null : ids.get(1), participants, SYNC, READ_WRITE, "Test");
+                ExecutionContext ctx = contextFor(ids.get(0), ids.size() == 1 ? null : ids.get(1), participants, SYNC, CONFLICTS, "Test");
                 Consumer<SafeCommandStore> consumer = Mockito.mock(Consumer.class);
 
                 Map<TxnId, Boolean> failed = selectFailedTxn(rs, ids);
@@ -364,7 +364,7 @@ public class SafeTaskTest
             assertNoReferences(commandStore, ids, participants);
             createCommand(commandStore, rs, ids);
 
-            ExecutionContext ctx = contextFor(ids.get(0), ids.size() == 1 ? null : ids.get(1), participants, SYNC, READ_WRITE, "Test");
+            ExecutionContext ctx = contextFor(ids.get(0), ids.size() == 1 ? null : ids.get(1), participants, SYNC, CONFLICTS, "Test");
 
             Consumer<SafeCommandStore> consumer = Mockito.mock(Consumer.class);
             String errorMsg = "txn_ids " + ids;

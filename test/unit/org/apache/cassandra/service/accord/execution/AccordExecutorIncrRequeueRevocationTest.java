@@ -49,8 +49,8 @@ import accord.local.DurableBefore;
 import accord.local.ExecutionContext;
 import accord.local.ExecutionContext.ExecutionKind;
 import accord.local.ExecutionContext.ExecutionSequence;
+import accord.local.FindKeys;
 import accord.local.LoadKeys;
-import accord.local.LoadKeysFor;
 import accord.local.Node.Id;
 import accord.local.NodeCommandStoreService;
 import accord.local.SafeCommandStore;
@@ -198,7 +198,7 @@ public class AccordExecutorIncrRequeueRevocationTest
                         // revocation this test needs. Consequences inherit their parent's position, so the sort is
                         // decided by execution kind: we take the last, and give the nested task below the first.
                         ExecutionContext context = kind(AccordExecutionTestUtils.idempotent(ExecutionContext.contextFor(null, null, declaredKeys,
-                                                                                   LoadKeys.INCR, LoadKeysFor.READ_WRITE, "incr")),
+                                                                                                                        LoadKeys.INCR, FindKeys.CONFLICTS, "incr")),
                                                        ExecutionSequence.BY_PRIORITY, ExecutionKind.OTHER);
                         AtomicInteger runs = new AtomicInteger();
                         submit(store, context, outstanding, failures, done, safeStore -> {
@@ -211,7 +211,7 @@ public class AccordExecutorIncrRequeueRevocationTest
                             // declares every key we declared and sorts ahead of us, so it takes the head of the entry we
                             // were waiting for and revokes the permission to run we have just been given.
                             ExecutionContext nested = kind(ExecutionContext.contextFor(null, null, declaredKeys,
-                                                                                       LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "nested"),
+                                                                                       LoadKeys.SYNC, FindKeys.CONFLICTS, "nested"),
                                                            ExecutionSequence.UNSEQUENCED, ExecutionKind.PREACCEPT);
                             submit(store, nested, outstanding, failures, done, ignore -> {});
                         });

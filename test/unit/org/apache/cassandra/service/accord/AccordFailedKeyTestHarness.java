@@ -35,6 +35,7 @@ import accord.impl.TestAgent;
 import accord.impl.basic.InMemoryJournal;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
+import accord.local.FindKeys;
 import accord.local.Node.Id;
 import accord.local.NodeCommandStoreService;
 import accord.local.TimeService;
@@ -99,7 +100,7 @@ public class AccordFailedKeyTestHarness
         org.apache.cassandra.utils.concurrent.Condition ready = org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition();
         store.execute(accord.local.ExecutionContext.contextFor(TxnId.fromValues(1, 999, 0, new Id(1)), null,
                                                                accord.primitives.RoutingKeys.of(key),
-                                                               accord.local.LoadKeys.SYNC, accord.local.LoadKeysFor.READ_WRITE, "preload"),
+                                                               accord.local.LoadKeys.SYNC, FindKeys.CONFLICTS, "preload"),
                       (java.util.function.Consumer<? super accord.local.SafeCommandStore>) ignore -> {},
                       (success, fail) -> ready.signal());
         if (!ready.await(30, TimeUnit.SECONDS))

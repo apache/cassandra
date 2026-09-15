@@ -42,8 +42,8 @@ import accord.impl.basic.InMemoryJournal;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
 import accord.local.ExecutionContext;
+import accord.local.FindKeys;
 import accord.local.LoadKeys;
-import accord.local.LoadKeysFor;
 import accord.local.Node.Id;
 import accord.local.NodeCommandStoreService;
 import accord.local.SafeCommandStore;
@@ -138,10 +138,10 @@ public class AccordExecutorCancelledConsequenceTest
         AtomicReference<Throwable> nestedFailure = new AtomicReference<>();
         try
         {
-            ExecutionContext parentContext = ExecutionContext.contextFor(txnId, null, RoutingKeys.of(key), LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "parent");
+            ExecutionContext parentContext = ExecutionContext.contextFor(txnId, null, RoutingKeys.of(key), LoadKeys.SYNC, FindKeys.CONFLICTS, "parent");
             store.execute(parentContext, (Consumer<? super SafeCommandStore>) safeStore -> {
                 // submitted from within the parent, on the parent's store, so it inherits the parent's references
-                ExecutionContext nested = ExecutionContext.contextFor(txnId, null, RoutingKeys.of(key), LoadKeys.SYNC, LoadKeysFor.READ_WRITE, "nested");
+                ExecutionContext nested = ExecutionContext.contextFor(txnId, null, RoutingKeys.of(key), LoadKeys.SYNC, FindKeys.CONFLICTS, "nested");
                 store.execute(nested, (Consumer<? super SafeCommandStore>) ignore -> {},
                               (success, fail) -> {
                                   nestedFailure.set(fail);

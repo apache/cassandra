@@ -45,8 +45,8 @@ import accord.impl.basic.InMemoryJournal;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
 import accord.local.ExecutionContext;
+import accord.local.FindKeys;
 import accord.local.LoadKeys;
-import accord.local.LoadKeysFor;
 import accord.local.Node.Id;
 import accord.local.NodeCommandStoreService;
 import accord.local.SafeCommandStore;
@@ -184,7 +184,7 @@ public class AccordExecutorIncrDeadlockTest
                         // task *completes* - so without this every INCR submission here failed before it took a single
                         // claim, and the only test for the INCR/txnId deadlock passed while exercising none of it
                         ExecutionContext context = AccordExecutionTestUtils.idempotent(
-                            ExecutionContext.contextFor(primary, additional, RoutingKeys.of(declared), loadKeys, LoadKeysFor.READ_WRITE, "task"));
+                            ExecutionContext.contextFor(primary, additional, RoutingKeys.of(declared), loadKeys, FindKeys.CONFLICTS, "task"));
                         store.execute(context, (Consumer<? super SafeCommandStore>) safeStore -> ran.incrementAndGet(),
                                       (success, fail) -> {
                                           if (fail != null)

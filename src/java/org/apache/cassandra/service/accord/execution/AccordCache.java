@@ -381,13 +381,13 @@ public class AccordCache
         node.notifyListeners(Listener::onUpdate);
     }
 
-    <K, V> void failedToLoad(AccordCacheEntry<K, V, ?> node)
+    <K, V> void failedToLoad(AccordCacheEntry<K, V, ?> node, Throwable cause)
     {
         if (node.references() > 0)
         {
             // a task that was running when the load failed could not be failed along with the waiters, and it still
             // holds the entry; record the failure and leave the eviction to whoever releases it last
-            node.failedToLoad();
+            node.failedToLoad(cause);
             return;
         }
 
@@ -397,7 +397,7 @@ public class AccordCache
             return;
         }
         node.unlink();
-        node.failedToLoad();
+        node.failedToLoad(cause);
         evict(node, true);
     }
 
