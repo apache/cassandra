@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture; // checkstyle: permit this import
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.SynchronousQueue; // checkstyle: permit this import
 import java.util.concurrent.TimeUnit;
@@ -111,8 +112,9 @@ public class SimpleClient implements Closeable
     public final int port;
     private final EncryptionOptions.ClientEncryptionOptions encryptionOptions;
     private final int largeMessageThreshold;
+    private final boolean ignoreGracefulDisconnect;
 
-    protected final ResponseHandler responseHandler = new ResponseHandler();
+    protected final ResponseHandler responseHandler = new ResponseHandler(this);
     protected final Connection.Tracker tracker = new ConnectionTracker();
     protected final ProtocolVersion version;
     // We don't track connection really, so we don't need one Connection per channel
@@ -120,7 +122,8 @@ public class SimpleClient implements Closeable
     protected Bootstrap bootstrap;
     protected Channel channel;
     protected ChannelFuture lastWriteFuture;
-
+    private final AtomicBoolean draining = new AtomicBoolean(false);
+    private volatile CompletableFuture<Void> inFlight = CompletableFuture.completedFuture(null);
     protected String compression;
 
     public static class Builder
@@ -131,6 +134,7 @@ public class SimpleClient implements Closeable
         private ProtocolVersion version = ProtocolVersion.CURRENT;
         private boolean useBeta = false;
         private int largeMessageThreshold = FrameEncoder.Payload.MAX_SIZE;
+        private boolean ignoreGracefulDisconnect = false;
 
         private Builder(String host, int port)
         {
@@ -156,6 +160,12 @@ public class SimpleClient implements Closeable
             return this;
         }
 
+        public Builder ignoreGracefulDisconnect()
+        {
+            this.ignoreGracefulDisconnect = true;
+            return this;
+        }
+
         public Builder largeMessageThreshold(int bytes)
         {
             largeMessageThreshold = bytes;
@@ -170,6 +180,7 @@ public class SimpleClient implements Closeable
         }
     }
 
+
     public static Builder builder(String host, int port)
     {
         return new Builder(host, port);
@@ -182,6 +193,7 @@ public class SimpleClient implements Closeable
         this.version = builder.version;
         this.encryptionOptions = builder.encryptionOptions.applyConfig();
         this.largeMessageThreshold = builder.largeMessageThreshold;
+        this.ignoreGracefulDisconnect = builder.ignoreGracefulDisconnect;
     }
 
     public SimpleClient(String host, int port, ProtocolVersion version, EncryptionOptions.ClientEncryptionOptions encryptionOptions)
@@ -199,6 +211,16 @@ public class SimpleClient implements Closeable
         this(host, port, version, new EncryptionOptions.ClientEncryptionOptions());
     }
 
+    public boolean isDraining()
+    {
+        return draining.get();
+    }
+
+    public boolean isConnected()
+    {
+        return channel != null && channel.isActive();
+    }
+
     public SimpleClient(String host, int port, ProtocolVersion version, boolean useBeta, EncryptionOptions.ClientEncryptionOptions encryptionOptions)
     {
         this.host = host;
@@ -211,6 +233,7 @@ public class SimpleClient implements Closeable
         this.largeMessageThreshold = FrameEncoder.Payload.MAX_SIZE -
                                         Math.max(FrameEncoderCrc.HEADER_AND_TRAILER_LENGTH,
                                                  FrameEncoderLZ4.HEADER_AND_TRAILER_LENGTH);
+        this.ignoreGracefulDisconnect = false;
     }
 
     public SimpleClient(String host, int port)
@@ -322,8 +345,14 @@ public class SimpleClient implements Closeable
         return execute(request, true);
     }
 
+
     public Message.Response execute(Message.Request request, boolean throwOnErrorResponse)
     {
+        if (draining.get())
+            throw new RuntimeException("Connection is draining (GRACEFUL_DISCONNECT received)");
+
+        CompletableFuture<Void> requestCompletion = new CompletableFuture<>();
+        inFlight = requestCompletion;
         try
         {
             request.attach(connection);
@@ -338,6 +367,10 @@ public class SimpleClient implements Closeable
         catch (InterruptedException e)
         {
             throw new UncheckedInterruptedException(e);
+        }
+        finally
+        {
+            requestCompletion.complete(null);
         }
     }
 
@@ -398,6 +431,13 @@ public class SimpleClient implements Closeable
     public interface EventHandler
     {
         void onEvent(Event event);
+    }
+
+    private void handleGracefulDisconnect()
+    {
+        draining.set(true);
+        inFlight.thenRun(() -> channel.eventLoop().execute(channel::close));
+        channel.closeFuture().addListener(f -> bootstrap.group().shutdownGracefully());
     }
 
     public static class SimpleEventHandler implements EventHandler
@@ -701,7 +741,12 @@ public class SimpleClient implements Closeable
     static class ResponseHandler extends SimpleChannelInboundHandler<Message.Response>
     {
         public final BlockingQueue<Message.Response> responses = new SynchronousQueue<>(true);
+        private final SimpleClient client;
         public EventHandler eventHandler;
+        public ResponseHandler(SimpleClient client)
+        {
+            this.client = client;
+        }
 
         @Override
         public void channelRead0(ChannelHandlerContext ctx, Message.Response r)
@@ -719,8 +764,20 @@ public class SimpleClient implements Closeable
 
                 if (r instanceof EventMessage)
                 {
+                    Event event = ((EventMessage)r).event;
+
+                    if (event.type == Event.Type.GRACEFUL_DISCONNECT)
+                    {
+                        logger.info("Received GRACEFUL_DISCONNECT. Entering draining mode.");
+                        if (eventHandler != null)
+                            eventHandler.onEvent(event);
+                        if (!client.ignoreGracefulDisconnect)
+                            client.handleGracefulDisconnect();
+                        return;
+                    }
+
                     if (eventHandler != null)
-                        eventHandler.onEvent(((EventMessage) r).event);
+                        eventHandler.onEvent(event);
                 }
                 else
                     responses.put(r);
