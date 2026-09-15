@@ -233,7 +233,7 @@ public class ReplayMarkers
     {
         if (!file.exists())
         {
-            logger.warn("{} does not exist", file);
+            logger.debug("{} does not exist", file);
             return StopMarker.invalidMarker();
         }
 
@@ -260,7 +260,7 @@ public class ReplayMarkers
     {
         if (!file.exists())
         {
-            logger.warn("{} does not exist", file);
+            logger.debug("{} does not exist", file);
             return StartMarker.invalidMarker();
         }
 
