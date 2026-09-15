@@ -39,6 +39,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
 import org.junit.Test;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -74,6 +75,9 @@ import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.AbstractTransactionalTest;
 import org.apache.cassandra.utils.concurrent.Transactional;
+
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -339,6 +343,45 @@ public class LogTransactionTest extends AbstractTransactionalTest
         sstable.selfRef().release();
 
         assertFiles(dataFolder.path(), new HashSet<>());
+    }
+
+    @Test
+    public void testDeletionLogContainsOperationContext() throws Throwable
+    {
+        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(LogTransaction.class);
+        ListAppender<ILoggingEvent> listAppender = new ListAppender<>();
+        try
+        {
+            listAppender.start();
+            logger.addAppender(listAppender);
+
+            ColumnFamilyStore cfs = MockSchema.newCFS(KEYSPACE);
+            File dataFolder = new Directories(cfs.metadata()).getDirectoryForNewSSTables();
+            SSTableReader sstable = sstable(dataFolder, cfs, 0, 128);
+
+            LogTransaction log = new LogTransaction(OperationType.COMPACTION);
+
+            LogTransaction.SSTableTidier tidier = log.obsoleted(sstable);
+            assertNotNull(tidier);
+
+            String id = log.id().toString();
+
+            log.finish();
+            sstable.markObsolete(tidier);
+            sstable.selfRef().release();
+
+            LogTransaction.waitForDeletions();
+
+            boolean found = listAppender.list.stream()
+                                             .anyMatch(e -> e.getFormattedMessage().contains("Deleting sstable:")
+                                                            && e.getFormattedMessage().contains("operation type: Compaction")
+                                                            && e.getFormattedMessage().contains(id));
+            assertTrue(found);
+        }
+        finally
+        {
+            logger.detachAppender(listAppender);
+        }
     }
 
     @Test
