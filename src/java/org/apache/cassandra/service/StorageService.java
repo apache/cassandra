@@ -850,6 +850,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         Gossiper.waitToSettle();
 
+        IndexStatusManager.instance.loadIndexStatusesFromTable();
+        IndexStatusManager.instance.startPolling();
+
         NodeId self = Register.maybeRegister();
         if (!AccordService.isSetupOrStarting())
             AccordService.localStartup(self);
