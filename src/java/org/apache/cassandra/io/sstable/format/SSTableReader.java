@@ -1385,6 +1385,12 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         return dfile.createReaderForScan();
     }
 
+    public RandomAccessReader openDataReaderForScan(RateLimiter limiter)
+    {
+        assert limiter != null;
+        return dfile.createReaderForScan(limiter);
+    }
+
     public void trySkipFileCacheBefore(DecoratedKey key)
     {
         long position = getPosition(key, SSTableReader.Operator.GE);

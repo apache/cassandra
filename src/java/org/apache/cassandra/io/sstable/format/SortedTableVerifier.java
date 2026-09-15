@@ -95,8 +95,8 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
 
         this.fileAccessLock = new ReentrantReadWriteLock();
         this.dataFile = isOffline
-                        ? sstable.openDataReader()
-                        : sstable.openDataReader(CompactionManager.instance.getRateLimiter());
+                        ? sstable.openDataReaderForScan()
+                        : sstable.openDataReaderForScan(CompactionManager.instance.getRateLimiter());
         this.verifyInfo = new VerifyInfo(dataFile, sstable, fileAccessLock.readLock());
         this.options = options;
         this.isOffline = isOffline;
