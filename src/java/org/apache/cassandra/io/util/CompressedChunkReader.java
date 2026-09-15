@@ -39,10 +39,6 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
     final CompressionMetadata metadata;
     final int maxCompressedLength;
     final Supplier<Double> crcCheckChanceSupplier;
-    // Read-ahead is on only when a scan buffer is configured and larger than one chunk; a smaller buffer cannot
-    // batch reads, so it adds no value. A value of 0 means "no read-ahead". A per-scan view (see forScan) never
-    // reads ahead itself, so it always reports 0.
-    final int readAheadBufferSize;
 
     protected CompressedChunkReader(ChannelProxy channel, CompressionMetadata metadata, Supplier<Double> crcCheckChanceSupplier)
     {
@@ -50,20 +46,16 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
         this.metadata = metadata;
         this.maxCompressedLength = metadata.maxCompressedLength();
         this.crcCheckChanceSupplier = crcCheckChanceSupplier;
-        int size = DatabaseDescriptor.getCompressedReadAheadBufferSize();
-        this.readAheadBufferSize = (size > 0 && size > metadata.chunkLength()) ? size : 0;
         assert Integer.bitCount(metadata.chunkLength()) == 1; //must be a power of two
     }
 
-    // Copy constructor for a per-scan view. The view shares the parent's channel and metadata but never reads
-    // ahead itself, so its readAheadBufferSize is 0.
+    // Copy constructor for a per-scan view. The view shares the parent's channel and metadata.
     protected CompressedChunkReader(CompressedChunkReader parent)
     {
         super(parent.channel, parent.metadata.dataLength);
         this.metadata = parent.metadata;
         this.maxCompressedLength = parent.maxCompressedLength;
         this.crcCheckChanceSupplier = parent.crcCheckChanceSupplier;
-        this.readAheadBufferSize = 0;
     }
 
     protected CompressedChunkReader forScan()
@@ -250,22 +242,30 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
 
         private final CompressedReader reader;
         private final CompressedReader scanReader;
+        // Read-ahead is on only when a scan buffer is configured and larger than one chunk; a smaller buffer cannot
+        // batch reads, so it adds no value. A value of 0 means "no read-ahead". A per-scan view (see forScan) never
+        // reads ahead itself, so it always reports 0.
+        private final int readAheadBufferSize;
 
         public Standard(ChannelProxy channel, CompressionMetadata metadata, Supplier<Double> crcCheckChanceSupplier)
         {
             super(channel, metadata, crcCheckChanceSupplier);
             reader = new RandomAccessCompressedReader(channel, metadata);
             this.scanReader = null;
+            int size = DatabaseDescriptor.getCompressedReadAheadBufferSize();
+            this.readAheadBufferSize = (size > 0 && size > metadata.chunkLength()) ? size : 0;
         }
 
         // Per-scan view. Each scan reader is single-threaded and owns its own read-ahead buffer, so no buffer is
         // shared across threads. It shares the parent's random-access reader as a fallback; that reader's close()
-        // is a no-op, so the view frees only its own scan buffer.
+        // is a no-op, so the view frees only its own scan buffer. It never reads ahead itself, so its
+        // readAheadBufferSize is 0.
         private Standard(Standard parent, CompressedReader scanReader)
         {
             super(parent);
             this.reader = parent.reader;
             this.scanReader = scanReader;
+            this.readAheadBufferSize = 0;
         }
 
         @Override
