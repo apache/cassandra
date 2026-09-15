@@ -31,7 +31,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
@@ -43,6 +42,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.serialization.UDTAndFunctionsAwareMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.utils.btree.BTreeMap;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
@@ -56,15 +56,52 @@ public final class Tables implements Iterable<TableMetadata>
 
     private static final Tables NONE = builder().build();
 
-    private final ImmutableMap<String, TableMetadata> tables;
-    private final ImmutableMap<TableId, TableMetadata> tablesById;
-    private final ImmutableMap<String, TableMetadata> indexTables;
+    private final BTreeMap<String, TableMetadata> tables;
+    private final BTreeMap<TableId, TableMetadata> tablesById;
+    private final BTreeMap<String, TableMetadata> indexTables;
 
     private Tables(Builder builder)
     {
-        tables = builder.tables.build();
-        tablesById = builder.tablesById.build();
-        indexTables = builder.indexTables.build();
+        this(builder.tables, builder.tablesById, builder.indexTables);
+    }
+
+    private Tables(BTreeMap<String, TableMetadata> tables,
+                   BTreeMap<TableId, TableMetadata> tablesById,
+                   BTreeMap<String, TableMetadata> indexTables)
+    {
+        this.tables = tables;
+        this.tablesById = tablesById;
+        this.indexTables = indexTables;
+    }
+
+    /**
+     * Index tables are derived from their base table rather than stored independently, so they are added and removed
+     * alongside it. The key is the index name: {@link TableMetadata#indexTableName} builds the index table's name by
+     * appending it to the base table's, and {@link TableMetadata#indexName()} strips it back off again. Keying off
+     * {@link IndexMetadata#name} directly is therefore the same key without building the metadata to derive it, so
+     * removal costs a lookup per index. Either direction is bounded by the indexes on the one table being changed
+     * rather than by the size of the collection.
+     */
+    private static BTreeMap<String, TableMetadata> withIndexesOf(BTreeMap<String, TableMetadata> indexTables, TableMetadata table)
+    {
+        for (IndexMetadata index : table.indexes)
+        {
+            if (index.isCustom())
+                continue;
+            indexTables = indexTables.with(index.name, CassandraIndex.indexCfsMetadata(table, index));
+        }
+        return indexTables;
+    }
+
+    private static BTreeMap<String, TableMetadata> withoutIndexesOf(BTreeMap<String, TableMetadata> indexTables, TableMetadata table)
+    {
+        for (IndexMetadata index : table.indexes)
+        {
+            if (index.isCustom())
+                continue;
+            indexTables = indexTables.without(index.name);
+        }
+        return indexTables;
     }
 
     public static Builder builder()
@@ -102,7 +139,7 @@ public final class Tables implements Iterable<TableMetadata>
         return Iterables.filter(tables.values(), t -> t.referencesUserType(name));
     }
 
-    ImmutableMap<String, TableMetadata> indexTables()
+    Map<String, TableMetadata> indexTables()
     {
         return indexTables;
     }
@@ -161,7 +198,9 @@ public final class Tables implements Iterable<TableMetadata>
         if (get(table.name).isPresent())
             throw new IllegalStateException(String.format("Table %s already exists", table.name));
 
-        return builder().add(this).add(table).build();
+        return new Tables(tables.with(table.name, table),
+                          tablesById.with(table.id, table),
+                          withIndexesOf(indexTables, table));
     }
 
     public Tables withSwapped(TableMetadata table)
@@ -182,7 +221,9 @@ public final class Tables implements Iterable<TableMetadata>
 
     public Tables without(TableMetadata table)
     {
-        return filter(t -> t != table);
+        return new Tables(tables.without(table.name),
+                          tablesById.without(table.id),
+                          withoutIndexesOf(indexTables, table));
     }
 
     public Tables withUpdatedUserType(UserType udt)
@@ -223,9 +264,9 @@ public final class Tables implements Iterable<TableMetadata>
 
     public static final class Builder
     {
-        final ImmutableMap.Builder<String, TableMetadata> tables = new ImmutableMap.Builder<>();
-        final ImmutableMap.Builder<TableId, TableMetadata> tablesById = new ImmutableMap.Builder<>();
-        final ImmutableMap.Builder<String, TableMetadata> indexTables = new ImmutableMap.Builder<>();
+        BTreeMap<String, TableMetadata> tables = BTreeMap.empty();
+        BTreeMap<TableId, TableMetadata> tablesById = BTreeMap.empty();
+        BTreeMap<String, TableMetadata> indexTables = BTreeMap.empty();
 
         private Builder()
         {
@@ -238,15 +279,14 @@ public final class Tables implements Iterable<TableMetadata>
 
         public Builder add(TableMetadata table)
         {
-            tables.put(table.name, table);
+            // ImmutableMap.Builder rejected duplicates when it was built; a persistent map would silently overwrite,
+            // so the check is made explicit rather than dropped.
+            if (tables.containsKey(table.name))
+                throw new IllegalArgumentException(String.format("Table %s already exists", table.name));
 
-            tablesById.put(table.id, table);
-
-            table.indexes
-                 .stream()
-                 .filter(i -> !i.isCustom())
-                 .map(i -> CassandraIndex.indexCfsMetadata(table, i))
-                 .forEach(i -> indexTables.put(i.indexName().get(), i));
+            tables = tables.with(table.name, table);
+            tablesById = tablesById.with(table.id, table);
+            indexTables = withIndexesOf(indexTables, table);
 
             return this;
         }
@@ -284,18 +324,48 @@ public final class Tables implements Iterable<TableMetadata>
             if (before == after)
                 return NONE;
 
-            Tables created = after.filter(t -> !before.containsTable(t.id));
-            Tables dropped = before.filter(t -> !after.containsTable(t.id));
-
+            // Collect the differences directly instead of filtering whole collections: a schema change touches a
+            // handful of tables, so allocating only for those keeps the cost of a diff proportional to what actually
+            // changed rather than to the size of the schema.
+            Builder created = null;
+            Builder dropped = null;
             ImmutableList.Builder<Altered<TableMetadata>> altered = ImmutableList.builder();
-            before.forEach(tableBefore ->
+
+            for (TableMetadata tableAfter : after)
+            {
+                if (!before.containsTable(tableAfter.id))
+                {
+                    if (created == null)
+                        created = builder();
+                    created.add(tableAfter);
+                }
+            }
+
+            for (TableMetadata tableBefore : before)
             {
                 TableMetadata tableAfter = after.getNullable(tableBefore.id);
-                if (null != tableAfter)
+                if (null == tableAfter)
+                {
+                    if (dropped == null)
+                        dropped = builder();
+                    dropped.add(tableBefore);
+                }
+                else if (tableAfter != tableBefore)
+                {
+                    // Untouched tables are carried over by reference (Builder.add stores the instance verbatim), and
+                    // compare() of an instance against itself is empty by construction, so identity is a sound and
+                    // exact substitute for the comparison here.
                     tableBefore.compare(tableAfter).ifPresent(kind -> altered.add(new Altered<>(tableBefore, tableAfter, kind)));
-            });
+                }
+            }
 
-            return new TablesDiff(created, dropped, altered.build());
+            ImmutableList<Altered<TableMetadata>> alteredTables = altered.build();
+            if (created == null && dropped == null && alteredTables.isEmpty())
+                return NONE;
+
+            return new TablesDiff(created == null ? Tables.none() : created.build(),
+                                  dropped == null ? Tables.none() : dropped.build(),
+                                  alteredTables);
         }
     }
 

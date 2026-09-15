@@ -42,6 +42,32 @@ garbage collection
 tenuring threshold of 6
 ** G1GC
 
+== Schema Size
+
+Cassandra has been tested with schemas on the order of 10,000 tables; other
+distributed databases that replicate schema through a consensus log document
+limits in the same range.
+Each table retains roughly 290KiB of heap on every node, most of it metrics, so
+10,000 tables costs about 3GiB of heap before accounting for any data. Factor
+this into capacity planning for clusters with large numbers of tables.
+
+Schema changes are applied one at a time, one per cluster-metadata epoch, and
+the cost of applying a change grows with the number of tables already in the
+schema. Bulk creation of thousands of tables should be planned and paced
+rather than issued as a single burst.
+
+The `tables_warn_threshold` guardrail (see `cassandra.yaml`) warns when the
+number of user tables exceeds a threshold, and defaults to 1000. Set it to
+`-1` to disable the warning, or raise it for clusters that intentionally carry
+more tables. `tables_fail_threshold` can additionally reject table creation
+past a threshold; it defaults to `-1` (disabled) so that upgrading a cluster
+already above some threshold does not itself start failing schema changes.
+
+The `schema_flush_coalescing_window` setting (see `cassandra.yaml`) controls
+how often the `system_schema` tables are flushed to disk after a schema
+change is applied. Coalescing flushes lowers the cost of applying many schema
+changes in succession.
+
 == Disks
 
 Cassandra persists data to disk for two very different purposes. The

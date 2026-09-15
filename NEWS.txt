@@ -140,6 +140,13 @@ New features
     - New functions `format_bytes` and `format_time` were added. See CASSANDRA-19546.
     - It is possible to use Async-profiler for various profiling scenarios. See CASSANDRA-20854.
     - It is possible to provide custom startup check via Java SPI. See CASSANDRA-21093.
+    - New yaml setting schema_flush_coalescing_window controls how often the system_schema tables are
+      flushed to disk after a schema change is applied. It defaults to 1000ms, meaning at most one flush
+      is scheduled per second regardless of how many schema changes arrive; set it to 0ms to restore the
+      previous behaviour of flushing synchronously on every schema change. See CASSANDRA-21664.
+    - The tables_warn_threshold guardrail, which warns when the number of user tables exceeds a threshold,
+      is now enabled by default with a value of 1000. Set it to -1 in cassandra.yaml to disable the warning.
+      tables_fail_threshold remains disabled (-1) by default. See CASSANDRA-21664.
 
 Upgrading
 ---------

@@ -1497,7 +1497,7 @@ public class ClusterMetadata
                     newKeyspaces = newKeyspaces.withAddedOrUpdated(newKeyspaceMetadata);
                 }
             }
-            return new DistributedSchema(newKeyspaces, schema.lastModified());
+            return new DistributedSchema(newKeyspaces, schema.lastModified(), schema);
         }
 
         @Override
