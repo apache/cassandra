@@ -106,7 +106,12 @@ public class Hex
         for (int i = start ; i < end ; ++i)
         {
             char c = hex.charAt(i);
-            result |= (long)(c - (c >= 'a' ? 'a' - 10 : '0')) << shift;
+            if (c >= charToByte.length)
+                throw new NumberFormatException("Invalid hex character '" + c + "' at index " + i + " in: " + hex.substring(start, end));
+            int digit = charToByte[c];
+            if (digit < 0)
+                throw new NumberFormatException("Invalid hex character '" + c + "' at index " + i + " in: " + hex.substring(start, end));
+            result |= (long) digit << shift;
             shift -= 4;
         }
         return result;
