@@ -1,0 +1,558 @@
+plugins {
+    id 'java-library'
+    id 'checkstyle'
+}
+
+// To make sure that gradle doesn't touch the ant build dir, need to override gradle to write to another build dir
+project.layout.buildDirectory.set(file(cassandraBuildDir))
+
+logger.lifecycle("Cassandra Gradle build – convention plugin loaded (buildDir=${project.layout.buildDirectory.get()})")
+
+// ---------------------------------------------------------------------------
+// 1. Parse Ant build.xml properties (version tokens, etc.)
+// ---------------------------------------------------------------------------
+def antProps = AntBuildProperties.parse(file('build.xml'))
+
+// Self-resolve ${...} references within ant properties.
+// e.g. version = "${base.version}-SNAPSHOT" → "7.0-SNAPSHOT"
+5.times {
+    antProps.each { key, value ->
+        def resolved = value
+        (value =~ /\$\{([^}]+)}/).each { match ->
+            def refKey = match[1]
+            if (antProps.containsKey(refKey)) {
+                resolved = resolved.replace(match[0], antProps[refKey])
+            }
+        }
+        antProps[key] = resolved
+    }
+}
+
+project.version = antProps['version'] ?: "${antProps['base.version'] ?: '0.0'}-SNAPSHOT"
+project.group = 'org.apache.cassandra'
+logger.lifecycle("Cassandra ${project.version}")
+
+// ---------------------------------------------------------------------------
+// 2. Read build.properties.default for Maven repository URLs
+// ---------------------------------------------------------------------------
+def buildPropsFile = file('build.properties.default')
+def buildProps = new Properties()
+if (buildPropsFile.exists()) {
+    buildPropsFile.withInputStream { buildProps.load(it) }
+}
+
+repositories {
+    def central = buildProps.getProperty('artifact.remoteRepository.central', 'https://repo1.maven.org/maven2')
+    def apache = buildProps.getProperty('artifact.remoteRepository.apache', 'https://repo.maven.apache.org/maven2')
+    def apacheSnapshot = buildProps.getProperty('artifact.remoteRepository.apacheSnapshot',
+                            'https://repository.apache.org/content/repositories/snapshots')
+
+    maven { url = central }
+    maven { url = apache }
+    maven { url = apacheSnapshot }
+}
+
+// ---------------------------------------------------------------------------
+// 3. Parse the 3 POMs: parent → compile deps → test deps
+// ---------------------------------------------------------------------------
+def parser = new PomDependencyParser(antProps)
+def parentVersions = parser.parseParentVersions(file('.build/parent-maven-pom.xml'))
+def compileDeps = parser.parseDependencies(file('.build/cassandra-deps-maven-pom.xml'), parentVersions)
+def testDeps = parser.parseDependencies(file('.build/cassandra-build-maven-pom.xml'), parentVersions)
+
+// ---------------------------------------------------------------------------
+// 4. Wire dependencies into Gradle configurations
+//    POM scope → Gradle configuration:
+//      compile (default)  → implementation
+//      runtime            → runtimeOnly
+//      provided           → compileOnly
+//      test               → testImplementation
+// ---------------------------------------------------------------------------
+
+// Self-references to skip (Cassandra referencing itself)
+// Note: cassandra-accord is NOT skipped — the composite build (includeBuild) handles it
+def skipArtifacts = ['cassandra-all'] as Set
+
+// AmazonCorrettoCryptoProvider is linux-only with OS-specific classifiers.
+// Add as compileOnly so code that references it compiles on all platforms.
+// Also testCompileOnly so test code referencing it compiles too.
+dependencies {
+    compileOnly 'software.amazon.cryptools:AmazonCorrettoCryptoProvider:2.2.0:linux-x86_64'
+    testCompileOnly 'software.amazon.cryptools:AmazonCorrettoCryptoProvider:2.2.0:linux-x86_64'
+}
+
+compileDeps.each { dep ->
+    if (skipArtifacts.contains(dep.artifactId)) return
+    if (dep.type == 'pom') return
+
+    def notation = dep.toGradleNotation()
+    def scope = dep.scope ?: 'compile'
+
+    switch (scope) {
+        case 'compile':
+            dependencies.add('implementation', notation)
+            dependencies.add('testImplementation', notation)
+            break
+        case 'runtime':
+            dependencies.add('runtimeOnly', notation)
+            break
+        case 'provided':
+            // Maven 'provided' deps are available at test compile time,
+            // but Gradle's compileOnly is NOT inherited by testCompileClasspath.
+            // Add to both compileOnly and testCompileOnly to match Maven behavior.
+            dependencies.add('compileOnly', notation)
+            dependencies.add('testCompileOnly', notation)
+            break
+        case 'test':
+            dependencies.add('testImplementation', notation)
+            break
+        default:
+            dependencies.add('implementation', notation)
+            break
+    }
+}
+
+testDeps.each { dep ->
+    if (skipArtifacts.contains(dep.artifactId)) return
+    if (dep.artifactId == 'cassandra-accord') return  // handled via composite build
+    if (dep.type == 'pom') return
+
+    def notation = dep.toGradleNotation()
+    def scope = dep.scope ?: 'compile'
+
+    // Test deps POM: everything goes to testImplementation unless
+    // it's 'provided' (compileOnly) or 'compile' (already in implementation)
+    switch (scope) {
+        case 'test':
+            dependencies.add('testImplementation', notation)
+            break
+        case 'provided':
+            // Maven 'provided' deps are available at test compile time
+            dependencies.add('compileOnly', notation)
+            dependencies.add('testCompileOnly', notation)
+            break
+        case 'compile':
+            // Could be a dep needed at both compile and test time;
+            // testImplementation extends implementation, so add to testImplementation
+            // to avoid duplicating in implementation
+            dependencies.add('testImplementation', notation)
+            break
+        case 'runtime':
+            dependencies.add('testRuntimeOnly', notation)
+            break
+        default:
+            dependencies.add('testImplementation', notation)
+            break
+    }
+}
+
+logger.lifecycle("Cassandra Gradle build – ${compileDeps.size()} compile deps, ${testDeps.size()} test/build deps wired")
+
+// ---------------------------------------------------------------------------
+// 5. Project version from Ant properties
+// ---------------------------------------------------------------------------
+def baseVersion = antProps['base.version'] ?: 'unknown'
+project.version = "${baseVersion}-SNAPSHOT"
+
+// ---------------------------------------------------------------------------
+// 6. JDK detection, source sets, and compiler configuration
+// ---------------------------------------------------------------------------
+def jdkVersion = JdkJvmArgs.detectJdkVersion()
+logger.lifecycle("Building with JDK ${jdkVersion}")
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(jdkVersion)
+    }
+}
+
+sourceSets {
+    main {
+        java { srcDirs = ['src/java', 'src/gen-java', 'tools/sstableloader/src', 'tools/fqltool/src'] }
+        resources { srcDir 'src/resources' }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.debug = true
+    options.debugOptions.debugLevel = 'source,lines,vars'
+    options.compilerArgs.addAll(['-XDignore.symbol.file'])
+    options.compilerArgs.addAll(JdkJvmArgs.javacExports())
+    options.forkOptions.jvmArgs.addAll(JdkJvmArgs.jvmArgs(jdkVersion))
+}
+
+// ---------------------------------------------------------------------------
+// 7. ANTLR 3 CQL grammar generation
+// ---------------------------------------------------------------------------
+def antlrConfig = configurations.create('antlr3') { canBeConsumed = false; canBeResolved = true }
+dependencies { antlr3 'org.antlr:antlr:3.5.2' }
+
+def generateCqlGrammar = tasks.register('generateCqlGrammar', JavaExec) {
+    description = 'Generate CQL parser from ANTLR 3 grammar'
+    group = 'build'
+    mainClass = 'org.antlr.Tool'
+    classpath = antlrConfig
+    def antlrDir = file('src/antlr')
+    def outputDir = file('src/gen-java/org/apache/cassandra/cql3')
+    inputs.dir(antlrDir)
+    outputs.dir(outputDir)
+    args = ['-Xconversiontimeout', '10000', "${antlrDir}/Cql.g", '-fo', outputDir.absolutePath, '-Xmaxinlinedfastates', '10']
+}
+tasks.named('compileJava') { dependsOn generateCqlGrammar }
+
+// ---------------------------------------------------------------------------
+// 8. JFlex SASI tokenizer generation
+// ---------------------------------------------------------------------------
+def jflexConfig = configurations.create('jflex') { canBeConsumed = false; canBeResolved = true }
+def jflexVersion = antProps['jflex.version'] ?: '1.8.2'
+dependencies { jflex "de.jflex:jflex:${jflexVersion}" }
+
+def generateJflex = tasks.register('generateJflex', JavaExec) {
+    description = 'Generate SASI tokenizer from JFlex grammar'
+    group = 'build'
+    mainClass = 'jflex.Main'
+    classpath = jflexConfig
+    def jflexFile = file('src/java/org/apache/cassandra/index/sasi/analyzer/StandardTokenizerImpl.jflex')
+    def outputDir = file('src/gen-java')
+    inputs.file(jflexFile)
+    outputs.dir("${outputDir}/org/apache/cassandra/index/sasi/analyzer")
+    args = ['-d', "${outputDir}/org/apache/cassandra/index/sasi/analyzer", jflexFile.absolutePath]
+}
+tasks.named('compileJava') { dependsOn generateJflex }
+
+// ---------------------------------------------------------------------------
+// 9. version.properties generation
+// ---------------------------------------------------------------------------
+def generateVersionProperties = tasks.register('generateVersionProperties') {
+    description = 'Generate version.properties with version, git SHA, and build date'
+    group = 'build'
+    def outputDir = project.layout.buildDirectory.dir('resources/main/org/apache/cassandra/config')
+    def outputFile = outputDir.map { it.file('version.properties') }
+    outputs.file(outputFile)
+    inputs.property('version', project.version)
+    inputs.files(file('.git/HEAD')).optional()
+    doLast {
+        def gitSha = 'unknown'
+        try {
+            def proc = ['git', 'rev-parse', 'HEAD'].execute(null, project.projectDir)
+            proc.waitFor()
+            if (proc.exitValue() == 0) gitSha = proc.text.trim()
+        } catch (Exception e) {
+            logger.warn("Could not determine git SHA: ${e.message}")
+        }
+        def buildDate = java.time.ZonedDateTime.now().format(
+            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))
+        def outDir = outputDir.get().asFile
+        outDir.mkdirs()
+        outputFile.get().asFile.text =
+            "CassandraVersion=${project.version}\nGitSHA=${gitSha}\nBuildDate=${buildDate}\n"
+    }
+}
+tasks.named('processResources') { dependsOn generateVersionProperties }
+
+// ---------------------------------------------------------------------------
+// 10. Checkstyle
+// ---------------------------------------------------------------------------
+
+def checkstyleDep = testDeps.find { it.groupId == 'com.puppycrawl.tools' && it.artifactId == 'checkstyle' }
+if (checkstyleDep) {
+    checkstyle { toolVersion = checkstyleDep.version }
+}
+
+checkstyle {
+    configFile = file('.build/checkstyle.xml')
+    configProperties = [
+        'checkstyle.suppressions': file('.build/checkstyle_suppressions.xml').absolutePath,
+        'checkstyle_cachefile': "${project.layout.buildDirectory.get()}/checkstyle/checkstyle_cachefile",
+    ]
+    showViolations = true
+    ignoreFailures = false
+}
+
+tasks.named('checkstyleTest') {
+    configFile = file('.build/checkstyle_test.xml')
+    configProperties = [
+        'checkstyle.suppressions': file('.build/checkstyle_suppressions.xml').absolutePath,
+        'checkstyle_test_cachefile': "${project.layout.buildDirectory.get()}/checkstyle/checkstyle_test_cachefile",
+    ]
+}
+
+// ---------------------------------------------------------------------------
+// 11. Test source sets
+// ---------------------------------------------------------------------------
+sourceSets {
+    test {
+        java {
+            srcDirs = [
+                'test/unit', 'test/long', 'test/burn', 'test/distributed',
+                'test/memory', 'test/microbench',
+                'test/simulator/main', 'test/simulator/asm', 'test/simulator/bootstrap', 'test/simulator/test',
+                'test/harry/main', 'test/anttasks',
+            ]
+        }
+        resources {
+            srcDirs = ['test/resources', 'test/conf']
+        }
+    }
+}
+
+dependencies {
+    testCompileOnly 'org.apache.ant:ant:1.10.14'
+    testCompileOnly 'org.apache.ant:ant-junit:1.10.14'
+    // Accord test classes – the composite build substitutes the main jar,
+    // but we need the test output directly for Cassandra's tests.
+    testImplementation files("${project.projectDir}/modules/accord/accord-core/build/classes/java/test")
+    testImplementation files("${project.projectDir}/modules/accord/accord-core/build/resources/test")
+}
+
+// Ensure accord test classes are compiled before Cassandra's test compilation
+tasks.named('compileTestJava') {
+    dependsOn gradle.includedBuild('accord').task(':accord-core:testClasses')
+}
+
+// ---------------------------------------------------------------------------
+// 12. Simulator jar tasks
+// ---------------------------------------------------------------------------
+def asmVersion = antProps['asm.version'] ?: '9.5'
+def simulatorAsmConfig = configurations.create('simulatorAsm') { canBeConsumed = false; canBeResolved = true }
+dependencies {
+    simulatorAsm "org.ow2.asm:asm:${asmVersion}"
+    simulatorAsm "org.ow2.asm:asm-analysis:${asmVersion}"
+    simulatorAsm "org.ow2.asm:asm-commons:${asmVersion}"
+    simulatorAsm "org.ow2.asm:asm-tree:${asmVersion}"
+    simulatorAsm "org.ow2.asm:asm-util:${asmVersion}"
+}
+
+def simulatorTestLibDir = project.layout.buildDirectory.dir('test/lib/jars')
+
+// simulator-asm.jar
+def compileSimulatorAsm = tasks.register('compileSimulatorAsm', JavaCompile) {
+    source = fileTree('test/simulator/asm')
+    classpath = simulatorAsmConfig
+    destinationDirectory = project.layout.buildDirectory.dir('classes/simulator-asm')
+    sourceCompatibility = "${jdkVersion}"
+    targetCompatibility = "${jdkVersion}"
+    // Force generation of package-info.class even without annotations (matches Ant behavior)
+    options.compilerArgs.add('-Xpkginfo:always')
+}
+
+def simulatorAsmJar = tasks.register('simulatorAsmJar', Jar) {
+    dependsOn compileSimulatorAsm
+    from compileSimulatorAsm.get().destinationDirectory
+    // Bundle ASM jars inside (matches Ant's jar which includes asm-*.jar entries)
+    from(simulatorAsmConfig) { include '*.jar' }
+    archiveFileName = 'simulator-asm.jar'
+    destinationDirectory = simulatorTestLibDir
+    manifest {
+        attributes(
+            'Built-By': System.getProperty('user.name'),
+            'Premain-Class': 'org.apache.cassandra.simulator.asm.InterceptAgent',
+            'Agent-Class': 'org.apache.cassandra.simulator.asm.InterceptAgent',
+            'Can-Redefine-Classes': 'true',
+            'Can-Retransform-Classes': 'true',
+        )
+    }
+    // Ant writes MANIFEST.MF to the classes dir which gets picked up by the fileset,
+    // resulting in a root-level MANIFEST.MF entry in addition to META-INF/MANIFEST.MF.
+    doFirst {
+        def builtBy = System.getProperty('user.name')
+        def manifestFile = compileSimulatorAsm.get().destinationDirectory.file('MANIFEST.MF').get().asFile
+        manifestFile.text = """\
+Manifest-Version: 1.0
+Built-By: ${builtBy}
+Premain-Class: org.apache.cassandra.simulator.asm.InterceptAgent
+Agent-Class: org.apache.cassandra.simulator.asm.InterceptAgent
+Can-Redefine-Classes: true
+Can-Retransform-Classes: true
+""".stripIndent()
+    }
+}
+
+// simulator-bootstrap.jar
+def compileSimulatorBootstrap = tasks.register('compileSimulatorBootstrap', JavaCompile) {
+    source = fileTree('test/simulator/bootstrap')
+    classpath = simulatorAsmConfig
+    destinationDirectory = project.layout.buildDirectory.dir('classes/simulator-bootstrap')
+    sourceCompatibility = "${jdkVersion}"
+    targetCompatibility = "${jdkVersion}"
+    options.compilerArgs.add('-XDignore.symbol.file')
+}
+
+def simulatorBootstrapJar = tasks.register('simulatorBootstrapJar', Jar) {
+    dependsOn compileSimulatorBootstrap
+    from compileSimulatorBootstrap.get().destinationDirectory
+    // Bundle ASM jars inside (matches Ant)
+    from(simulatorAsmConfig) { include '*.jar' }
+    archiveFileName = 'simulator-bootstrap.jar'
+    destinationDirectory = simulatorTestLibDir
+    manifest {
+        attributes(
+            'Built-By': System.getProperty('user.name'),
+        )
+    }
+    // Ant writes MANIFEST.MF to the classes dir
+    doFirst {
+        def builtBy = System.getProperty('user.name')
+        def manifestFile = compileSimulatorBootstrap.get().destinationDirectory.file('MANIFEST.MF').get().asFile
+        manifestFile.text = """\
+Manifest-Version: 1.0
+Built-By: ${builtBy}
+""".stripIndent()
+    }
+}
+
+tasks.register('simulatorJars') {
+    dependsOn simulatorAsmJar, simulatorBootstrapJar
+    description = 'Build simulator-asm.jar and simulator-bootstrap.jar'
+    group = 'build'
+}
+
+// ---------------------------------------------------------------------------
+// 13. Test suite tasks
+// ---------------------------------------------------------------------------
+
+// Configure the default 'test' task as the unit test suite
+tasks.named('test') {
+    description = 'Run Cassandra unit tests'
+    group = 'verification'
+    CassandraTestSuite.configure(it, [
+        project   : project,
+        jdkVersion: jdkVersion,
+        antProps  : antProps,
+        sourceDir : 'test/unit',
+        timeout   : 480_000L,
+        maxHeap   : '1g',
+    ])
+}
+
+tasks.register('testLong', Test) {
+    description = 'Run Cassandra long-running tests'
+    group = 'verification'
+    CassandraTestSuite.configure(it, [
+        project   : project,
+        jdkVersion: jdkVersion,
+        antProps  : antProps,
+        sourceDir : 'test/long',
+        timeout   : 600_000L,
+        maxHeap   : '1g',
+    ])
+}
+
+tasks.register('testBurn', Test) {
+    description = 'Run Cassandra burn tests'
+    group = 'verification'
+    CassandraTestSuite.configure(it, [
+        project   : project,
+        jdkVersion: jdkVersion,
+        antProps  : antProps,
+        sourceDir : 'test/burn',
+        timeout   : 60_000_000L,
+        maxHeap   : '1g',
+    ])
+}
+
+tasks.register('testDistributed', Test) {
+    description = 'Run Cassandra distributed (in-jvm dtest) tests'
+    group = 'verification'
+    CassandraTestSuite.configure(it, [
+        project   : project,
+        jdkVersion: jdkVersion,
+        antProps  : antProps,
+        sourceDir : 'test/distributed',
+        timeout   : 900_000L,
+        maxHeap   : '1g',
+    ])
+}
+
+// ---------------------------------------------------------------------------
+// 13b. Simulator tests — uses IsolatedJUnitTask instead of Gradle's Test task.
+//
+// The simulator's ASM agent intercepts all non-deterministic operations and
+// requires a clean JVM with no unexpected threads.  Gradle's Test task injects
+// worker threads (GradleWorkerMain) that the agent doesn't intercept, causing
+// deadlocks.  IsolatedJUnitTask forks a clean JVM per test class via
+// ConsoleLauncher, matching Ant's <junit forkmode="perTest">.
+// See gradle-simulator.md for the full investigation.
+// ---------------------------------------------------------------------------
+
+def junitConsoleLauncherConfig = configurations.create('junitConsoleLauncher') {
+    canBeConsumed = false
+    canBeResolved = true
+}
+dependencies {
+    junitConsoleLauncher 'org.junit.platform:junit-platform-console-standalone:1.9.1'
+}
+
+// Discover all simulator test classes at configuration time
+def simulatorTestClasses = CassandraTestSuite.scanTestClassPatterns(project, 'test/simulator/test')
+        .collect { it.replace('/', '.').replaceAll(/\.class$/, '') }
+
+tasks.register('testSimulator', IsolatedJUnitTask) {
+    description = 'Run Cassandra simulator tests'
+    group = 'verification'
+    dependsOn simulatorAsmJar, simulatorBootstrapJar, 'testClasses'
+
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(jdkVersion) })
+
+    testClasspath = sourceSets.test.runtimeClasspath
+    launcherClasspath = junitConsoleLauncherConfig
+    testClasses = simulatorTestClasses
+    workDir = project.projectDir
+    maxHeapSize = '8g'
+    minHeapSize = '512m'
+    perClassTimeoutMs = 1_800_000L  // 30 minutes per class, matches Ant test.simulation.timeout
+
+    // JVM args: base + simulator-specific
+    testJvmArgs = CassandraTestSuite.baseTestJvmArgs(project, jdkVersion as int) +
+                  CassandraTestSuite.simulatorSuiteArgs(project)
+
+    // Resolve JAMM jar lazily at execution time and prepend it as the first javaagent.
+    // JAMM must load before simulator-asm to match Ant's agent ordering.
+    jvmArgsTransformer = { List<String> args ->
+        project.file("${project.layout.buildDirectory.get()}/tmp").mkdirs()
+        project.file("${project.layout.buildDirectory.get()}/test/cassandra").mkdirs()
+
+        def jammJar = CassandraTestSuite.resolveJammJar(project)
+        if (jammJar) {
+            def modified = new ArrayList(args)
+            modified.add(0, "-javaagent:${jammJar}")
+            return modified
+        }
+        return args
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 14. Jar task configuration
+// ---------------------------------------------------------------------------
+tasks.named('jar') {
+    archiveBaseName = 'apache-cassandra'
+    archiveVersion = project.version
+    manifest {
+        attributes(
+            'Multi-Release'          : 'true',
+            'Implementation-Title'   : 'Cassandra',
+            'Implementation-Version' : project.version,
+            'Implementation-Vendor'  : 'Apache',
+        )
+    }
+    from('LICENSE.txt') { into 'META-INF' }
+    from('NOTICE.txt') { into 'META-INF' }
+    dependsOn 'generateVersionProperties'
+    doFirst {
+        def gitSha = 'unknown'
+        try {
+            def p = ['git', 'rev-parse', 'HEAD'].execute(null, project.projectDir)
+            p.waitFor()
+            if (p.exitValue() == 0) gitSha = p.text.trim()
+        } catch (Exception ignored) {}
+        manifest {
+            attributes(
+                'Implementation-Git-SHA'    : gitSha,
+                'Implementation-Build-Date' : java.time.ZonedDateTime.now().format(
+                    java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")),
+            )
+        }
+    }
+}
