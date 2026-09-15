@@ -1261,7 +1261,7 @@ public class CompactionStrategyManager implements INotificationConsumer
             catch (Throwable t)
             {
                 // Abort any txns already created
-                throw Throwables.unchecked(Throwables.perform(t, tasks.stream().map(task -> task::rejected)));
+                throw Throwables.throwAsUncheckedException(Throwables.perform(t, tasks.stream().map(task -> task::rejected)));
             }
             finally
             {

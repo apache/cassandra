@@ -511,7 +511,7 @@ public class TrackedCompactionManager extends AbstractStrategyHolder
         catch (Throwable t)
         {
             // Abort any txns already created
-            throw Throwables.unchecked(Throwables.perform(t, tasks.stream().map(task -> task::rejected)));
+            throw Throwables.throwAsUncheckedException(Throwables.perform(t, tasks.stream().map(task -> task::rejected)));
         }
         return tasks;
     }
@@ -619,7 +619,7 @@ public class TrackedCompactionManager extends AbstractStrategyHolder
         catch (Throwable t)
         {
             // Abort any txns already created
-            throw Throwables.unchecked(Throwables.perform(t, tasks.stream().map(task -> task::rejected)));
+            throw Throwables.throwAsUncheckedException(Throwables.perform(t, tasks.stream().map(task -> task::rejected)));
         }
         return tasks;
     }
