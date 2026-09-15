@@ -99,7 +99,7 @@ max_hints_file_size: 128MiB
 # Disable the option in order to preserve those hints on the disk.
 auto_hints_cleanup_enabled: false
 
-# Enable/disable transfering hints to a peer during decommission. Even when enabled, this does not guarantee
+# Enable/disable transferring hints to a peer during decommission. Even when enabled, this does not guarantee
 # consistency for logged batches, and it may delay decommission when coupled with a strict hinted_handoff_throttle.
 # Default: true
 # transfer_hints_on_decommission: true
@@ -379,7 +379,7 @@ commit_failure_policy: stop
 #
 # Valid values are either "auto" (omitting the value) or a value greater 0.
 #
-# Note that specifying a too large value will result in long running GCs and possbily
+# Note that specifying a too large value will result in long running GCs and possibly
 # out-of-memory errors. Keep the value at a small fraction of the heap.
 #
 # If you constantly see "prepared statements discarded in the last minute because
@@ -388,7 +388,7 @@ commit_failure_policy: stop
 # i.e. use bind markers for variable parts.
 #
 # Do only change the default value, if you really have more prepared statements than
-# fit in the cache. In most cases it is not neccessary to change this value.
+# fit in the cache. In most cases it is not necessary to change this value.
 # Constantly re-preparing statements is a performance penalty.
 #
 # Default value ("auto") is 1/256th of the heap or 10MiB, whichever is greater
@@ -675,7 +675,7 @@ concurrent_materialized_view_writes: 32
 memtable_allocation_type: heap_buffers
 
 # Limit memory usage for Merkle tree calculations during repairs of a certain
-# table and common token range. Repair commands targetting multiple tables or
+# table and common token range. Repair commands targeting multiple tables or
 # virtual nodes can exceed this limit depending on concurrent_merkle_tree_requests.
 #
 # The default is 1/16th of the available heap. The main tradeoff is that
@@ -767,7 +767,7 @@ memtable_allocation_type: heap_buffers
 # Min unit: ms
 # cdc_free_space_check_interval: 250ms
 
-# A fixed memory pool size in MB for for SSTable index summaries. If left
+# A fixed memory pool size in MB for SSTable index summaries. If left
 # empty, this will default to 5% of the heap size. If the memory usage of
 # all index summaries exceeds this limit, SSTables with low read rates will
 # shrink their index summaries in order to meet this limit.  However, this
@@ -1027,7 +1027,7 @@ column_index_cache_size: 2KiB
 
 # Number of simultaneous repair validations to allow. If not set or set to
 # a value less than 1, it defaults to the value of concurrent_compactors.
-# To set a value greeater than concurrent_compactors at startup, the system
+# To set a value greater than concurrent_compactors at startup, the system
 # property cassandra.allow_unlimited_concurrent_validations must be set to
 # true. To dynamically resize to a value > concurrent_compactors on a running
 # node, first call the bypassConcurrentValidatorsLimit method on the
@@ -1424,7 +1424,7 @@ server_encryption_options:
   #     class_name: org.apache.cassandra.security.DefaultSslContextFactory
   # Verify peer server certificates
   require_client_auth: false
-  # Set to a valid trustore if require_client_auth is true
+  # Set to a valid truststore if require_client_auth is true
   truststore: conf/.truststore
   truststore_password: cassandra
   # Verify that the host name in the certificate matches the connected host
@@ -1468,7 +1468,7 @@ client_encryption_options:
   #     class_name: org.apache.cassandra.security.DefaultSslContextFactory
   # Verify client certificates
   require_client_auth: false
-  # Set trustore and truststore_password if require_client_auth is true
+  # Set truststore and truststore_password if require_client_auth is true
   # truststore: conf/.truststore
   # truststore_password: cassandra
   # More advanced defaults:
@@ -1521,7 +1521,7 @@ scripted_user_defined_functions_enabled: false
 
 # Enables encrypting data at-rest (on disk). Different key providers can be plugged in, but the default reads from
 # a JCE-style keystore. A single keystore can hold multiple keys, but the one referenced by
-# the "key_alias" is the only key that will be used for encrypt opertaions; previously used keys
+# the "key_alias" is the only key that will be used for encrypt operations; previously used keys
 # can still (and should!) be in the keystore and will be used on decrypt operations
 # (to handle the case of key rotation).
 #
@@ -1555,7 +1555,7 @@ transparent_data_encryption_options:
 # tombstones seen in memory so we can return them to the coordinator, which
 # will use them to make sure other replicas also know about the deleted rows.
 # With workloads that generate a lot of tombstones, this can cause performance
-# problems and even exaust the server heap.
+# problems and even exhaust the server heap.
 # (http://www.datastax.com/dev/blog/cassandra-anti-patterns-queues-and-queue-like-datasets)
 # Adjust the thresholds here if you understand the dangers and want to
 # scan more tombstones anyway.  These thresholds may also be adjusted at runtime
@@ -1831,7 +1831,7 @@ drop_compact_storage_enabled: false
 # write_consistency_levels_warned: []
 # write_consistency_levels_disallowed: []
 # Guardrail to warn or fail when encountering larger size of collection data than threshold.
-# At query time this guardrail is applied only to the collection fragment that is being writen, even though in the case
+# At query time this guardrail is applied only to the collection fragment that is being written, even though in the case
 # of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
 # prevent read-before-write. The guardrail is also checked at sstable write time to detect large non-frozen collections,
 # although in that case exceeding the fail threshold will only log an error message, without interrupting the operation.
@@ -1841,7 +1841,7 @@ drop_compact_storage_enabled: false
 # Min unit: B
 # collection_size_fail_threshold:
 # Guardrail to warn or fail when encountering more elements in collection than threshold.
-# At query time this guardrail is applied only to the collection fragment that is being writen, even though in the case
+# At query time this guardrail is applied only to the collection fragment that is being written, even though in the case
 # of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
 # prevent read-before-write. The guardrail is also checked at sstable write time to detect large non-frozen collections,
 # although in that case exceeding the fail threshold will only log an error message, without interrupting the operation.
@@ -1880,21 +1880,21 @@ drop_compact_storage_enabled: false
 # minimum_replication_factor_fail_threshold: -1
 
 # Startup Checks are executed as part of Cassandra startup process, not all of them
-# are configurable (so you can disable them) but these which are enumerated bellow.
+# are configurable (so you can disable them) but these which are enumerated below.
 # Uncomment the startup checks and configure them appropriately to cover your needs.
 #
 #startup_checks:
 # Verifies correct ownership of attached locations on disk at startup. See CASSANDRA-16879 for more details.
 #  check_filesystem_ownership:
 #    enabled: false
-#    ownership_token: "sometoken" # (overriden by "CassandraOwnershipToken" system property)
-#    ownership_filename: ".cassandra_fs_ownership" # (overriden by "cassandra.fs_ownership_filename")
+#    ownership_token: "sometoken" # (overridden by "CassandraOwnershipToken" system property)
+#    ownership_filename: ".cassandra_fs_ownership" # (overridden by "cassandra.fs_ownership_filename")
 # Prevents a node from starting if snitch's data center differs from previous data center.
 #  check_dc:
-#    enabled: true # (overriden by cassandra.ignore_dc system property)
+#    enabled: true # (overridden by cassandra.ignore_dc system property)
 # Prevents a node from starting if snitch's rack differs from previous rack.
 #  check_rack:
-#    enabled: true # (overriden by cassandra.ignore_rack system property)
+#    enabled: true # (overridden by cassandra.ignore_rack system property)
 # Enable this property to fail startup if the node is down for longer than gc_grace_seconds, to potentially
 # prevent data resurrection on tables with deletes. By default, this will run against all keyspaces and tables
 # except the ones specified on excluded_keyspaces and excluded_tables.
