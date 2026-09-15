@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.memory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.function.Function;
 
@@ -64,6 +65,15 @@ public abstract class MemoryIndex implements MemtableOrdering
      * Iterate all Term->PrimaryKeys mappings in sorted order
      */
     public abstract Iterator<Pair<ByteComparable, PrimaryKeys>> iterator();
+
+    /**
+     * Returns a sectioned iterator for V2 prefix flush.
+     * Default returns an empty iterator; overridden in {@link TrieMemoryIndex}.
+     */
+    public Iterator<Pair<ByteComparable, SectionedPrimaryKeys>> iteratorSectioned()
+    {
+        return Collections.emptyIterator();
+    }
 
     public abstract SegmentMetadata.ComponentMetadataMap writeDirect(IndexDescriptor indexDescriptor,
                                                                      IndexIdentifier indexIdentifier,
