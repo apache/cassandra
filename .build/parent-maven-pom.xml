@@ -38,7 +38,7 @@
   <properties>
     <bytebuddy.version>1.17.8</bytebuddy.version>
     <byteman.version>4.0.26</byteman.version>
-    <netty.version>4.2.17.Final</netty.version>
+    <netty.version>4.2.18.Final</netty.version>
     <ohc.version>0.5.1</ohc.version>
     <async-profiler.version>4.5</async-profiler.version>
 
@@ -896,7 +896,7 @@
       <dependency>
         <groupId>io.netty</groupId>
         <artifactId>netty-tcnative-boringssl-static</artifactId>
-        <version>2.0.81.Final</version>
+        <version>2.0.84.Final</version>
       </dependency>
       <dependency>
         <groupId>org.bouncycastle</groupId>
