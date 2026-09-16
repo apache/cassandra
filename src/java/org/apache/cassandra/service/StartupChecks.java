@@ -883,7 +883,7 @@ public class StartupChecks
             if (configuration.isDisabled(name()))
                 return;
 
-            boolean directReads = DatabaseDescriptor.getCompactionReadDiskAccessMode() == Config.DiskAccessMode.direct;
+            boolean directReads = DatabaseDescriptor.getBackgroundReadDiskAccessMode() == Config.DiskAccessMode.direct;
             boolean directWrites = DatabaseDescriptor.getBackgroundWriteDiskAccessMode() == Config.DiskAccessMode.direct;
 
             if (!directReads && !directWrites)
@@ -894,8 +894,8 @@ public class StartupChecks
             if (!unsupportedLocations.isEmpty())
             {
                 String configuredModes = directReads && directWrites
-                    ? "compaction reads and background writes"
-                    : directReads ? "compaction reads" : "background writes";
+                    ? "background reads and writes"
+                    : directReads ? "background reads" : "background writes";
 
                 throw new StartupException(StartupException.ERR_WRONG_DISK_STATE,
                                            String.format("Direct I/O is configured for %s, " +

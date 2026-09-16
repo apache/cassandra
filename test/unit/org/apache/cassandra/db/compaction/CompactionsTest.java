@@ -137,10 +137,10 @@ public class CompactionsTest
     @Before
     public void setCompactionParams()
     {
-        originalDiskAccessMode = DatabaseDescriptor.getCompactionReadDiskAccessMode();
+        originalDiskAccessMode = DatabaseDescriptor.getBackgroundReadDiskAccessMode();
         originalCursorCompactionEnabled = DatabaseDescriptor.cursorCompactionEnabled();
         originalBackgroundWriteDiskAccessMode = DatabaseDescriptor.getBackgroundWriteDiskAccessMode();
-        DatabaseDescriptor.setCompactionReadDiskAccessMode(compactionReadDiskAccessMode);
+        DatabaseDescriptor.setBackgroundReadDiskAccessMode(compactionReadDiskAccessMode);
         DatabaseDescriptor.setCursorCompactionEnabled(cursorCompactionEnabled);
         DatabaseDescriptor.setBackgroundWriteDiskAccessMode(backgroundWriteDiskAccessMode);
     }
@@ -148,7 +148,7 @@ public class CompactionsTest
     @After
     public void restoreCompactionParams()
     {
-        DatabaseDescriptor.setCompactionReadDiskAccessMode(originalDiskAccessMode);
+        DatabaseDescriptor.setBackgroundReadDiskAccessMode(originalDiskAccessMode);
         DatabaseDescriptor.setCursorCompactionEnabled(originalCursorCompactionEnabled);
         DatabaseDescriptor.setBackgroundWriteDiskAccessMode(originalBackgroundWriteDiskAccessMode);
     }

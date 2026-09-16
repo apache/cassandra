@@ -29,7 +29,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamingDataOutputPlus;
@@ -61,7 +60,7 @@ public class CassandraCompressedStreamWriter extends CassandraStreamWriter
         long totalSize = totalSize();
         logger.debug("[Stream #{}] Start streaming file {} to {}, repairedAt = {}, totalSize = {}", session.planId(),
                      sstable.getFilename(), session.peer, sstable.getSSTableMetadata().repairedAt, totalSize);
-        try (ChannelProxy fc = sstable.getDataChannel().newChannel())
+        try (StreamingFileReader fc = StreamingFileReader.open(sstable.descriptor.fileFor(Components.DATA)))
         {
             long progress = 0L;
 
@@ -88,8 +87,8 @@ public class CassandraCompressedStreamWriter extends CassandraStreamWriter
 
                     out.writeToChannel(bufferSupplier -> {
                         ByteBuffer outBuffer = bufferSupplier.get(toTransfer);
-                        long read = fc.read(outBuffer, position);
-                        assert read == toTransfer : String.format("could not read required number of bytes from file to be streamed: read %d bytes, wanted %d bytes", read, toTransfer);
+                        outBuffer.limit(toTransfer);
+                        fc.readFully(outBuffer, position);
                         outBuffer.flip();
                     }, limiter);
 

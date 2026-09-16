@@ -19,11 +19,14 @@
 package org.apache.cassandra.db.streaming;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.Config.DiskAccessMode;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.streaming.ProgressInfo;
@@ -88,8 +91,49 @@ public class CassandraEntireSSTableStreamWriter
                          component,
                          prettyPrintMemory(length));
 
-            FileChannel channel = context.channel(sstable.descriptor, component, length);
-            long bytesWritten = out.writeFileToChannel(channel, limiter);
+            long bytesWritten;
+            // sendfile from an O_DIRECT descriptor either falls back to the page cache or is bounce-buffered
+            // by the kernel, so direct reads are staged in user space; sendfile is kept when not direct.
+            StreamingFileReader opened = DatabaseDescriptor.getBackgroundReadDiskAccessMode() == DiskAccessMode.direct
+                                          ? StreamingFileReader.open(context.file(sstable.descriptor, component))
+                                          : null;
+            if (opened != null && !opened.isDirect())
+            {
+                opened.close();
+                opened = null;
+            }
+            final StreamingFileReader reader = opened;
+            try
+            {
+                if (reader != null)
+                {
+                    if (reader.size() != length)
+                        throw new IOException("Component size changed while streaming " + component);
+                    bytesWritten = 0;
+                    while (bytesWritten < length)
+                    {
+                        long position = bytesWritten;
+                        int count = (int) Math.min(StreamingFileReader.BUFFER_SIZE, length - position);
+                        out.writeToChannel(supplier -> {
+                            ByteBuffer buffer = supplier.get(count);
+                            buffer.limit(count);
+                            reader.readFully(buffer, position);
+                            buffer.flip();
+                        }, limiter);
+                        bytesWritten += count;
+                    }
+                }
+                else
+                {
+                    FileChannel channel = context.channel(sstable.descriptor, component, length);
+                    bytesWritten = out.writeFileToChannel(channel, limiter);
+                }
+            }
+            finally
+            {
+                if (reader != null)
+                    reader.close();
+            }
             progress += bytesWritten;
 
             session.progress(sstable.descriptor.fileFor(component).toString(), ProgressInfo.Direction.OUT, bytesWritten, bytesWritten, length);
