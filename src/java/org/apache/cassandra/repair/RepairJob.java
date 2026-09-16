@@ -100,6 +100,8 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
     private final RepairSession session;
     private final RepairParallelism parallelismDegree;
     private final Executor taskExecutor;
+    private final boolean useTrackedTransfers;
+    private final Epoch decidedTransferPathAt;
 
     @VisibleForTesting
     final List<ValidationTask> validationTasks = new CopyOnWriteArrayList<>();
@@ -129,6 +131,10 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
 
         if ((!session.repairData && !session.repairPaxos) && !metadata.requiresAccordSupport())
             throw new IllegalArgumentException(String.format("Cannot run accord only repair on %s.%s, which isn't configured for accord operations", cfs.keyspace.getName(), cfs.name));
+
+        ClusterMetadata clusterMetadata = ClusterMetadata.current();
+        this.decidedTransferPathAt = clusterMetadata.epoch;
+        this.useTrackedTransfers = shouldUseTrackedTransfers(clusterMetadata);
     }
 
     public long getNowInSeconds()
@@ -267,8 +273,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                                                                             .flatMap(this::executeTasks, taskExecutor);
 
             // For tracked keyspaces, we need to ensure sync'd data is present in the log
-            boolean isTracked = useTrackedTransfers();
-            if (isTracked)
+            if (useTrackedTransfers)
                 syncResults = TransferTrackingService.instance().onRepairSyncCompletion(this, syncResults, taskExecutor);
         }
         else
@@ -353,7 +358,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
             else
                 syncTasks = createStandardSyncTasks(trees);
 
-            return useTrackedTransfers()
+            return useTrackedTransfers
                    ? SyncTasks.tracked(ks, syncTasks)
                    : SyncTasks.untracked(syncTasks);
         }, taskExecutor);
@@ -383,13 +388,17 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
      * streaming path because:
      * - The data being streamed is pre-migration data without mutation tracking offsets
      * - TrackedRepairTransfer does not support --force (dead node exclusion)
+     * Incremental repairs during a migration also use the untracked path.
      */
-    private boolean useTrackedTransfers()
+    private boolean shouldUseTrackedTransfers(ClusterMetadata metadata)
     {
         if (!cfs.metadata().replicationType().isTracked())
             return false;
 
-        return KeyspaceMigrationInfo.shouldUseTrackedTransfers(ClusterMetadata.current(), desc.keyspace, cfs.metadata().id, desc.ranges);
+        if (session.isIncremental && metadata.mutationTrackingMigrationState.isMigrating(desc.keyspace))
+            return false;
+
+        return KeyspaceMigrationInfo.shouldUseTrackedTransfers(metadata, desc.keyspace, cfs.metadata().id, desc.ranges);
     }
 
     private boolean isTransient(InetAddressAndPort ep)
@@ -405,7 +414,8 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                                        this::isTransient,
                                        session.isIncremental,
                                        session.pullRepair,
-                                       session.previewKind);
+                                       session.previewKind,
+                                       decidedTransferPathAt);
     }
 
     @VisibleForTesting
@@ -417,6 +427,20 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                                                   boolean isIncremental,
                                                   boolean pullRepair,
                                                   PreviewKind previewKind)
+    {
+        return createStandardSyncTasks(ctx, desc, trees, local, isTransient, isIncremental, pullRepair, previewKind, Epoch.EMPTY);
+    }
+
+    @VisibleForTesting
+    static List<SyncTask> createStandardSyncTasks(SharedContext ctx,
+                                                  RepairJobDesc desc,
+                                                  List<TreeResponse> trees,
+                                                  InetAddressAndPort local,
+                                                  Predicate<InetAddressAndPort> isTransient,
+                                                  boolean isIncremental,
+                                                  boolean pullRepair,
+                                                  PreviewKind previewKind,
+                                                  Epoch decidedAt)
     {
         long startedAt = ctx.clock().currentTimeMillis();
         List<SyncTask> syncTasks = new ArrayList<>();
@@ -454,18 +478,18 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                         continue;
 
                     task = new LocalSyncTask(ctx, desc, self.endpoint, remote.endpoint, differences, isIncremental ? desc.parentSessionId : null,
-                                             requestRanges, transferRanges, previewKind, null);
+                                             requestRanges, transferRanges, previewKind, null, decidedAt);
                 }
                 else if (isTransient.test(r1.endpoint) || isTransient.test(r2.endpoint))
                 {
                     // Stream only from transient replica
                     TreeResponse streamFrom = isTransient.test(r1.endpoint) ? r1 : r2;
                     TreeResponse streamTo = isTransient.test(r1.endpoint) ? r2 : r1;
-                    task = new AsymmetricRemoteSyncTask(ctx, desc, streamTo.endpoint, streamFrom.endpoint, differences, previewKind, null);
+                    task = new AsymmetricRemoteSyncTask(ctx, desc, streamTo.endpoint, streamFrom.endpoint, differences, previewKind, null, decidedAt);
                 }
                 else
                 {
-                    task = new SymmetricRemoteSyncTask(ctx, desc, r1.endpoint, r2.endpoint, differences, previewKind, null);
+                    task = new SymmetricRemoteSyncTask(ctx, desc, r1.endpoint, r2.endpoint, differences, previewKind, null, decidedAt);
                 }
                 syncTasks.add(task);
             }
@@ -483,12 +507,22 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         try
         {
             ctx.repair().getParentRepairSession(desc.parentSessionId);
+
+            ClusterMetadata metadata = ClusterMetadata.current();
+            if (shouldUseTrackedTransfers(metadata) != useTrackedTransfers)
+                return ImmediateFuture.failure(new IllegalStateException(
+                String.format("The mutation tracking migration state of %s.%s changed between the start of this repair " +
+                              "(epoch %s) and streaming (epoch %s), so its %d sync task(s), prepared for the %s path, " +
+                              "cannot be executed. Re-run the repair.",
+                              desc.keyspace, desc.columnFamily, decidedTransferPathAt, metadata.epoch, tasks.size(),
+                              useTrackedTransfers ? "tracked transfer" : "untracked streaming")));
+
             syncTasks.addAll(tasks);
 
             if (!tasks.isEmpty())
                 state.phase.streamSubmitted();
 
-            if (useTrackedTransfers())
+            if (useTrackedTransfers)
                 TransferTrackingService.instance().onRepairSyncExecution(tasks);
 
             for (SyncTask task : tasks)
@@ -530,7 +564,8 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                                                this::isTransient,
                                                this::getDC,
                                                session.isIncremental,
-                                               session.previewKind);
+                                               session.previewKind,
+                                               decidedTransferPathAt);
     }
 
     @VisibleForTesting
@@ -542,6 +577,20 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                                                           Function<InetAddressAndPort, String> getDC,
                                                           boolean isIncremental,
                                                           PreviewKind previewKind)
+    {
+        return createOptimisedSyncingSyncTasks(ctx, desc, trees, local, isTransient, getDC, isIncremental, previewKind, Epoch.EMPTY);
+    }
+
+    @VisibleForTesting
+    static List<SyncTask> createOptimisedSyncingSyncTasks(SharedContext ctx,
+                                                          RepairJobDesc desc,
+                                                          List<TreeResponse> trees,
+                                                          InetAddressAndPort local,
+                                                          Predicate<InetAddressAndPort> isTransient,
+                                                          Function<InetAddressAndPort, String> getDC,
+                                                          boolean isIncremental,
+                                                          PreviewKind previewKind,
+                                                          Epoch decidedAt)
     {
         long startedAt = ctx.clock().currentTimeMillis();
         List<SyncTask> syncTasks = new ArrayList<>();
@@ -579,11 +628,11 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                     if (address.equals(local))
                     {
                         task = new LocalSyncTask(ctx, desc, address, fetchFrom, toFetch, isIncremental ? desc.parentSessionId : null,
-                                                 true, false, previewKind, null);
+                                                 true, false, previewKind, null, decidedAt);
                     }
                     else
                     {
-                        task = new AsymmetricRemoteSyncTask(ctx, desc, address, fetchFrom, toFetch, previewKind, null);
+                        task = new AsymmetricRemoteSyncTask(ctx, desc, address, fetchFrom, toFetch, previewKind, null, decidedAt);
                     }
                     syncTasks.add(task);
 

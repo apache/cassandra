@@ -45,7 +45,7 @@ public class PrepareSynMessage extends StreamMessage
             for (int i = 0; i < numSummaries; i++)
                 message.summaries.add(StreamSummary.serializer.deserialize(input, version));
 
-            if (version >= MessagingService.VERSION_61)
+            if (version >= MessagingService.Version.MIN_MUTATION_TRACKING_VERSION.value)
             {
                 if (input.readBoolean())
                     message.logRequest = LogStreamManifest.embedded.deserialize(input, version);
@@ -65,7 +65,7 @@ public class PrepareSynMessage extends StreamMessage
             for (StreamSummary summary : message.summaries)
                 size += StreamSummary.serializer.serializedSize(summary, version);
             // log request and summary (optional, added in version 52)
-            if (version >= MessagingService.VERSION_61)
+            if (version >= MessagingService.Version.MIN_MUTATION_TRACKING_VERSION.value)
             {
                 size += 1; // boolean for logRequest presence
                 if (message.logRequest != null)
@@ -88,7 +88,7 @@ public class PrepareSynMessage extends StreamMessage
             for (StreamSummary summary : message.summaries)
                 StreamSummary.serializer.serialize(summary, out, version);
             // log request and summary (optional, added in version 52)
-            if (version >= MessagingService.VERSION_61)
+            if (version >= MessagingService.Version.MIN_MUTATION_TRACKING_VERSION.value)
             {
                 out.writeBoolean(message.logRequest != null);
                 if (message.logRequest != null)

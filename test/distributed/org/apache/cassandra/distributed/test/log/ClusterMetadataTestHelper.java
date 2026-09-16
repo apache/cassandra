@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
@@ -45,6 +46,7 @@ import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -102,6 +104,7 @@ import org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfiguration;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.schema.SchemaTestUtil.submit;
 import static org.apache.cassandra.tcm.membership.NodeState.BOOTSTRAPPING;
@@ -944,6 +947,31 @@ public class ClusterMetadataTestHelper
         return ClusterMetadataService.instance().commit(transform);
     }
 
+    /**
+     * Wait for all nodes to catch up to the epoch of the given node
+     */
+    public static void waitForEpochOf(Cluster cluster, int node)
+    {
+        Epoch epoch = Epoch.create(cluster.get(node).callOnInstance(() -> ClusterMetadata.current().epoch.getEpoch()));
+        for (int nodeId = 1; nodeId <= cluster.size(); nodeId++)
+        {
+            if (nodeId == node) continue;
+            cluster.get(nodeId).runOnInstance(() -> {
+                try
+                {
+                    ClusterMetadataService.instance().awaitAtLeast(epoch);
+                }
+                catch (InterruptedException e)
+                {
+                    throw new UncheckedInterruptedException(e);
+                }
+                catch (TimeoutException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            });
+        }
+    }
     public static interface NodeOperations
     {
         public void register();

@@ -42,6 +42,7 @@ import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamState;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
@@ -70,9 +71,10 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
 
     public LocalSyncTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort local, InetAddressAndPort remote,
                          List<Range<Token>> diff, TimeUUID pendingRepair,
-                         boolean requestRanges, boolean transferRanges, PreviewKind previewKind, ShortMutationId transferId)
+                         boolean requestRanges, boolean transferRanges, PreviewKind previewKind, ShortMutationId transferId,
+                         Epoch decidedAt)
     {
-        super(ctx, desc, local, remote, diff, previewKind, transferId);
+        super(ctx, desc, local, remote, diff, previewKind, transferId, decidedAt);
         Preconditions.checkArgument(requestRanges || transferRanges, "Nothing to do in a sync job");
         Preconditions.checkArgument(local.equals(ctx.broadcastAddressAndPort()));
 
@@ -83,23 +85,30 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
 
     public LocalSyncTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort local, InetAddressAndPort remote,
                          List<Range<Token>> diff, TimeUUID pendingRepair,
+                         boolean requestRanges, boolean transferRanges, PreviewKind previewKind, ShortMutationId transferId)
+    {
+        this(ctx, desc, local, remote, diff, pendingRepair, requestRanges, transferRanges, previewKind, transferId, Epoch.EMPTY);
+    }
+
+    public LocalSyncTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort local, InetAddressAndPort remote,
+                         List<Range<Token>> diff, TimeUUID pendingRepair,
                          boolean requestRanges, boolean transferRanges, PreviewKind previewKind)
     {
-        this(ctx, desc, local, remote, diff, pendingRepair, requestRanges, transferRanges, previewKind, null);
+        this(ctx, desc, local, remote, diff, pendingRepair, requestRanges, transferRanges, previewKind, null, Epoch.EMPTY);
     }
 
     @Override
     public SyncTask withRanges(Collection<Range<Token>> newRanges)
     {
         List<Range<Token>> rangeList = newRanges instanceof List ? (List<Range<Token>>) newRanges : new ArrayList<>(newRanges);
-        return new LocalSyncTask(ctx, desc, nodePair.coordinator, nodePair.peer, rangeList, pendingRepair, requestRanges, transferRanges, previewKind, transferId);
+        return new LocalSyncTask(ctx, desc, nodePair.coordinator, nodePair.peer, rangeList, pendingRepair, requestRanges, transferRanges, previewKind, transferId, decidedAt);
     }
 
     @Override
     public SyncTask withTransferId(ShortMutationId transferId)
     {
         Preconditions.checkState(this.transferId == null);
-        return new LocalSyncTask(ctx, desc, nodePair.coordinator, nodePair.peer, rangesToSync, pendingRepair, requestRanges, transferRanges, previewKind, transferId);
+        return new LocalSyncTask(ctx, desc, nodePair.coordinator, nodePair.peer, rangesToSync, pendingRepair, requestRanges, transferRanges, previewKind, transferId, decidedAt);
     }
 
     @VisibleForTesting
@@ -108,6 +117,8 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
         InetAddressAndPort remote =  nodePair.peer;
 
         StreamPlan plan = new StreamPlan(StreamOperation.REPAIR, 1, false, pendingRepair, previewKind)
+                          .transferId(transferId)
+                          .decidedAt(decidedAt)
                           .listeners(this)
                           .flushBeforeTransfer(pendingRepair == null);
 

@@ -372,7 +372,7 @@ public enum Verb
 
     MT_TRANSFER_ACTIVATE_RSP (912, P1, repairTimeout,            REQUEST_RESPONSE, () -> mtEmbedded(ActivationResponse.serializer),           RESPONSE_HANDLER                                                   ),
     MT_TRANSFER_ACTIVATE_REQ (913, P1, repairTimeout,            ANTI_ENTROPY,     () -> mtEmbedded(ActivationRequest.serializer),            () -> ActivationRequest.verbHandler,       MT_TRANSFER_ACTIVATE_RSP),
-    MT_TRANSFER_FAILED_RSP   (914, P1, repairTimeout,            REQUEST_RESPONSE, () -> mtEmbedded(NoPayload.unversionedSerializer),         RESPONSE_HANDLER                                                   ),
+    MT_TRANSFER_FAILED_RSP   (914, P1, repairTimeout,            REQUEST_RESPONSE, () -> NoPayload.serializer,                                RESPONSE_HANDLER                                                   ),
     MT_TRANSFER_FAILED_REQ   (915, P1, repairTimeout,            ANTI_ENTROPY,     () -> mtEmbedded(TransferFailed.serializer),               () -> TransferTrackingService.verbHandler, MT_TRANSFER_FAILED_RSP  ),
     MT_SYNC_RSP              (916, P1, repairWithBackoffTimeout, REQUEST_RESPONSE, () -> mtEmbedded(MutationTrackingSyncResponse.serializer), RESPONSE_HANDLER                                                   ),
     MT_SYNC_REQ              (917, P1, repairWithBackoffTimeout, ANTI_ENTROPY,     () -> mtEmbedded(MutationTrackingSyncRequest.serializer),  () -> RepairMessageVerbHandler.instance(), MT_SYNC_RSP             ),

@@ -70,6 +70,7 @@ import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.ReconciledKeyspaceOffsets;
 import org.apache.cassandra.replication.ReconciledLogSnapshot;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
@@ -88,6 +89,7 @@ import org.apache.cassandra.streaming.messages.SessionFailedMessage;
 import org.apache.cassandra.streaming.messages.StreamInitMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -232,6 +234,9 @@ public class StreamSession
     private final TimeUUID pendingRepair;
     private final PreviewKind previewKind;
 
+    private final ShortMutationId transferId;
+    private final Epoch decidedAt;
+
     public String failureReason;
 
 /**
@@ -288,6 +293,13 @@ public class StreamSession
     public StreamSession(StreamOperation streamOperation, InetAddressAndPort peer, StreamingChannel.Factory factory, @Nullable StreamingChannel controlChannel, int messagingVersion,
                          boolean isFollower, int index, TimeUUID pendingRepair, PreviewKind previewKind)
     {
+        this(streamOperation, peer, factory, controlChannel, messagingVersion, isFollower, index, pendingRepair, previewKind, null, Epoch.EMPTY);
+    }
+
+    public StreamSession(StreamOperation streamOperation, InetAddressAndPort peer, StreamingChannel.Factory factory, @Nullable StreamingChannel controlChannel, int messagingVersion,
+                         boolean isFollower, int index, TimeUUID pendingRepair, PreviewKind previewKind,
+                         ShortMutationId transferId, Epoch decidedAt)
+    {
         this.streamOperation = streamOperation;
         this.peer = peer;
         this.isFollower = isFollower;
@@ -297,6 +309,8 @@ public class StreamSession
         this.metrics = StreamingMetrics.get(peer);
         this.pendingRepair = pendingRepair;
         this.previewKind = previewKind;
+        this.transferId = transferId;
+        this.decidedAt = decidedAt;
     }
 
     public boolean isFollower()
@@ -345,6 +359,30 @@ public class StreamSession
     public PreviewKind getPreviewKind()
     {
         return previewKind;
+    }
+
+    @Nullable
+    public ShortMutationId transferId()
+    {
+        return transferId;
+    }
+
+    /**
+     * @return whether SSTables received in this session are staged as a pending coordinated transfer, rather than
+     *         becoming live as soon as they are received
+     */
+    public boolean isTrackedTransfer()
+    {
+        return transferId != null;
+    }
+
+    /**
+     * @return the epoch of the cluster metadata the sender decided the tracked/untracked path from, {@link Epoch#EMPTY}
+     *         when the sender did not tell us (older peer, or a stream that takes no such decision)
+     */
+    public Epoch decidedAt()
+    {
+        return decidedAt;
     }
 
     public StreamReceiver getAggregator(TableId tableId)
@@ -423,7 +461,9 @@ public class StreamSession
                                                               planId(),
                                                               streamOperation(),
                                                               getPendingRepair(),
-                                                              getPreviewKind());
+                                                              getPreviewKind(),
+                                                              transferId(),
+                                                              decidedAt());
 
             sendControlMessage(message).sync();
             onInitializationComplete();

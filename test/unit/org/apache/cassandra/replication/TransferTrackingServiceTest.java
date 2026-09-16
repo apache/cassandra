@@ -25,11 +25,20 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.streaming.StreamOperation;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -42,6 +51,7 @@ import static org.apache.cassandra.replication.CoordinatedTransfer.SingleTransfe
 import static org.apache.cassandra.replication.CoordinatedTransfer.SingleTransferResult.State.STREAM_NOOP;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
@@ -79,12 +89,52 @@ public class TransferTrackingServiceTest
         return new TrackedImportTransfer(range, mutationId);
     }
 
-    private PendingLocalTransfer pendingTransfer(TimeUUID planId)
+    private PendingLocalTransfer pendingTransfer(TimeUUID planId, ShortMutationId transferId)
     {
         SSTableReader mockSSTable = mock(SSTableReader.class);
         Collection<SSTableReader> sstables = Collections.singletonList(mockSSTable);
 
-        return new PendingLocalTransfer(planId, sstables);
+        return new PendingLocalTransfer(planId, transferId, sstables);
+    }
+
+    private ActivationRequest activationRequest(ShortMutationId transferId)
+    {
+        return new ActivationRequest(StreamOperation.IMPORT,
+                                     Pair.create(FBUtilities.getBroadcastAddressAndPort(), FBUtilities.getBroadcastAddressAndPort()),
+                                     ActivationRequest.Phase.PREPARE,
+                                     transferId,
+                                     new NodeId(1),
+                                     new Range<>(tk(0), tk(1000)),
+                                     "ks",
+                                     planId);
+    }
+
+    @Test
+    public void testActivationFailsWhenStagedSSTablesAreNoLongerTracked()
+    {
+        ServerTestUtils.prepareServer();
+
+        ColumnFamilyStore cfs = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.LOCAL);
+        TimeUUID stagedPlanId = nextTimeUUID();
+        cfs.getDirectories().getPendingLocationForDisk(cfs.getDirectories().getWriteableLocations()[0], stagedPlanId);
+
+        assertThatThrownBy(() -> repairActivation(stagedPlanId).apply())
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("pending transfer is no longer tracked");
+
+        assertThatCode(() -> repairActivation(nextTimeUUID()).apply()).doesNotThrowAnyException();
+    }
+
+    private ActivationRequest repairActivation(TimeUUID planId)
+    {
+        return new ActivationRequest(StreamOperation.REPAIR,
+                                     Pair.create(FBUtilities.getBroadcastAddressAndPort(), FBUtilities.getBroadcastAddressAndPort()),
+                                     ActivationRequest.Phase.PREPARE,
+                                     transferId,
+                                     new NodeId(1),
+                                     new Range<>(tk(0), tk(1000)),
+                                     SchemaConstants.SYSTEM_KEYSPACE_NAME,
+                                     planId);
     }
 
     private static Token tk(long token)
@@ -121,7 +171,7 @@ public class TransferTrackingServiceTest
     public void testReceivedTransfer()
     {
         TimeUUID planId = nextTimeUUID();
-        PendingLocalTransfer transfer = pendingTransfer(planId);
+        PendingLocalTransfer transfer = pendingTransfer(planId, transferId);
         transferTrackingService.received(transfer);
         PendingLocalTransfer retrieved = transferTrackingService.getPendingTransfer(planId);
         assertThat(retrieved).isEqualTo(transfer);
@@ -130,8 +180,21 @@ public class TransferTrackingServiceTest
     @Test
     public void testReceivedEmptyTransferThrows()
     {
-        assertThatThrownBy(() -> new PendingLocalTransfer(planId, Collections.emptyList()))
+        assertThatThrownBy(() -> new PendingLocalTransfer(planId, transferId, Collections.emptyList()))
             .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    public void testActivatingWithMismatchedTransferIdThrows()
+    {
+        PendingLocalTransfer transfer = pendingTransfer(planId, transferId);
+        ShortMutationId otherTransferId = new ShortMutationId(transferId.logId() + 1, transferId.offset() + 1);
+
+        assertThatThrownBy(() -> transfer.activate(activationRequest(otherTransferId), new Bounds<>(tk(0), tk(1000))))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("Cannot activate a transfer staged for");
+
+        assertThat(transfer.activated).isFalse();
     }
 
     @Test

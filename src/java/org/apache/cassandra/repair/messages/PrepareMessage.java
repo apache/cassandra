@@ -122,7 +122,7 @@ public class PrepareMessage extends RepairMessage
             out.writeLong(message.repairedAt);
             out.writeBoolean(message.isGlobal);
             out.writeInt(message.previewKind.getSerializationVal());
-            if (version >= MessagingService.VERSION_61)
+            if (version >= MessagingService.Version.MIN_MUTATION_TRACKING_VERSION.value)
                 Epoch.messageSerializer.serialize(message.minEpoch, out, version);
         }
 
@@ -146,7 +146,7 @@ public class PrepareMessage extends RepairMessage
             long timestamp = in.readLong();
             boolean isGlobal = in.readBoolean();
             PreviewKind previewKind = PreviewKind.deserialize(in.readInt());
-            Epoch minEpoch = version >= MessagingService.VERSION_61
+            Epoch minEpoch = version >= MessagingService.Version.MIN_MUTATION_TRACKING_VERSION.value
                            ? Epoch.messageSerializer.deserialize(in, version)
                            : Epoch.EMPTY;
             return new PrepareMessage(parentRepairSession, tableIds, partitioner, ranges, isIncremental, timestamp, isGlobal, previewKind, minEpoch);
@@ -168,7 +168,7 @@ public class PrepareMessage extends RepairMessage
             size += TypeSizes.sizeof(message.repairedAt);
             size += TypeSizes.sizeof(message.isGlobal);
             size += TypeSizes.sizeof(message.previewKind.getSerializationVal());
-            if (version >= MessagingService.VERSION_61)
+            if (version >= MessagingService.Version.MIN_MUTATION_TRACKING_VERSION.value)
                 size += Epoch.messageSerializer.serializedSize(message.minEpoch, version);
             return size;
         }

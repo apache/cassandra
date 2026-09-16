@@ -733,7 +733,10 @@ public class Directories
             {
                 if (!dataDirectory.contains(dir))
                     continue;
-                 result.add(getOrCreate(dir, PENDING_SUBDIR));
+
+                File pendingLocation = getWithoutCreation(dir, PENDING_SUBDIR);
+                if (pendingLocation.exists())
+                    result.add(pendingLocation);
             }
         }
         return result;

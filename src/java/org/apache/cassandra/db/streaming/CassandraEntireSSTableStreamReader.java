@@ -45,7 +45,6 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.ProgressInfo;
-import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.FBUtilities;
@@ -158,14 +157,13 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
         }
     }
 
-    private File getDataDir(ColumnFamilyStore cfs, long totalSize) throws IOException
+    private File getDataDir(ColumnFamilyStore cfs, long totalSize, CassandraStreamReceiver streamReceiver) throws IOException
     {
-        boolean isTracked = cfs.metadata().replicationType().isTracked() && session.streamOperation().isTrackable();
-
         Directories.DataDirectory localDir = cfs.getDirectories().getWriteableLocation(totalSize);
         if (localDir == null)
             throw new IOException(format("Insufficient disk space to store %s", FBUtilities.prettyPrintMemory(totalSize)));
-        if (isTracked)
+
+        if (streamReceiver.useTrackedTransferPath())
             return cfs.getDirectories().getPendingLocationForDisk(localDir, session.planId());
 
         File dir = cfs.getDirectories().getLocationForDisk(cfs.getDiskBoundaries().getCorrectDiskForKey(header.firstKey));
@@ -178,10 +176,8 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
 
     protected SSTableTxnZeroCopyWriter createWriter(ColumnFamilyStore cfs, long totalSize, Collection<Component> components) throws IOException
     {
-        File dataDir = getDataDir(cfs, totalSize);
-
-        StreamReceiver streamReceiver = session.getAggregator(tableId);
-        assert streamReceiver instanceof CassandraStreamReceiver;
+        CassandraStreamReceiver streamReceiver = CassandraStreamReceiver.fromReceiver(session.getAggregator(tableId));
+        File dataDir = getDataDir(cfs, totalSize, streamReceiver);
 
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.STREAM);
 

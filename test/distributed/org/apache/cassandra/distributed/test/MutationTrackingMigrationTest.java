@@ -21,7 +21,6 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.TimeoutException;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -36,11 +35,9 @@ import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.replication.migration.MutationTrackingMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.waitForEpochOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -77,32 +74,6 @@ public class MutationTrackingMigrationTest extends TestBaseImpl
                                      .start());
 
         coordinator = SHARED_CLUSTER.coordinator(1);
-    }
-
-    /**
-     * Wait for all nodes to catch up to the epoch of the given node
-     */
-    private static void waitForEpochOf(Cluster cluster, int node)
-    {
-        long epoch = cluster.get(node).callOnInstance(() -> ClusterMetadata.current().epoch.getEpoch());
-
-        for (int nodeId = 1; nodeId <= NUM_NODES; nodeId++)
-        {
-            cluster.get(nodeId).runOnInstance(() -> {
-                try
-                {
-                    ClusterMetadataService.instance().awaitAtLeast(Epoch.create(epoch));
-                }
-                catch (InterruptedException e)
-                {
-                    throw new UncheckedInterruptedException(e);
-                }
-                catch (TimeoutException e)
-                {
-                    throw new RuntimeException(e);
-                }
-            });
-        }
     }
 
     private static int countJournalEntries()

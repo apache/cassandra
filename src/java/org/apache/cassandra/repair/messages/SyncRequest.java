@@ -38,6 +38,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.Epoch;
 
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 
@@ -58,6 +59,7 @@ public class SyncRequest extends RepairMessage
     
     @Nullable
     public final ShortMutationId transferId;
+    public final Epoch decidedAt;
 
    public SyncRequest(RepairJobDesc desc,
                       InetAddressAndPort initiator,
@@ -68,6 +70,19 @@ public class SyncRequest extends RepairMessage
                       boolean asymmetric,
                       ShortMutationId transferId)
    {
+       this(desc, initiator, src, dst, ranges, previewKind, asymmetric, transferId, Epoch.EMPTY);
+   }
+
+   public SyncRequest(RepairJobDesc desc,
+                      InetAddressAndPort initiator,
+                      InetAddressAndPort src,
+                      InetAddressAndPort dst,
+                      Collection<Range<Token>> ranges,
+                      PreviewKind previewKind,
+                      boolean asymmetric,
+                      ShortMutationId transferId,
+                      Epoch decidedAt)
+   {
         super(desc);
         this.initiator = initiator;
         this.src = src;
@@ -76,6 +91,7 @@ public class SyncRequest extends RepairMessage
         this.previewKind = previewKind;
         this.asymmetric = asymmetric;
         this.transferId = transferId;
+        this.decidedAt = decidedAt;
     }
 
     @Override
@@ -91,13 +107,14 @@ public class SyncRequest extends RepairMessage
                ranges.equals(req.ranges) &&
                previewKind == req.previewKind &&
                asymmetric == req.asymmetric &&
-               transferId == req.transferId;
+               transferId == req.transferId &&
+               decidedAt.equals(req.decidedAt);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(desc, initiator, src, dst, ranges, previewKind, transferId);
+        return Objects.hash(desc, initiator, src, dst, ranges, previewKind, transferId, decidedAt);
     }
 
     public static final IVersionedSerializer<SyncRequest> serializer = new IVersionedSerializer<>()
@@ -114,11 +131,12 @@ public class SyncRequest extends RepairMessage
             out.writeInt(message.previewKind.getSerializationVal());
             out.writeBoolean(message.asymmetric);
 
-            if (version >= MessagingService.Version.VERSION_61.value)
+            if (version >= MessagingService.Version.MIN_MUTATION_TRACKING_VERSION.value)
             {
                 out.writeBoolean(message.transferId != null);
                 if (message.transferId != null)
                     ShortMutationId.serializer.serialize(message.transferId, out);
+                Epoch.messageSerializer.serialize(message.decidedAt, out, version);
             }
         }
 
@@ -136,11 +154,13 @@ public class SyncRequest extends RepairMessage
             PreviewKind previewKind = PreviewKind.deserialize(in.readInt());
             boolean asymmetric = in.readBoolean();
 
-            ShortMutationId transferId = version >= MessagingService.Version.VERSION_61.value && in.readBoolean()
+            boolean tracked = version >= MessagingService.Version.MIN_MUTATION_TRACKING_VERSION.value;
+            ShortMutationId transferId = tracked && in.readBoolean()
                                          ? ShortMutationId.serializer.deserialize(in)
                                          : null;
+            Epoch decidedAt = tracked ? Epoch.messageSerializer.deserialize(in, version) : Epoch.EMPTY;
 
-            return new SyncRequest(desc, initiator, src, dst, ranges, previewKind, asymmetric, transferId);
+            return new SyncRequest(desc, initiator, src, dst, ranges, previewKind, asymmetric, transferId, decidedAt);
         }
 
         public long serializedSize(SyncRequest message, int version)
@@ -155,11 +175,12 @@ public class SyncRequest extends RepairMessage
             size += TypeSizes.sizeof(message.previewKind.getSerializationVal());
             size += TypeSizes.sizeof(message.asymmetric);
 
-            if (version >= MessagingService.Version.VERSION_61.value)
+            if (version >= MessagingService.Version.MIN_MUTATION_TRACKING_VERSION.value)
             {
                 size += TypeSizes.sizeof(false);
                 if (message.transferId != null)
                     size += ShortMutationId.serializer.serializedSize(message.transferId);
+                size += Epoch.messageSerializer.serializedSize(message.decidedAt, version);
             }
 
             return size;
@@ -176,7 +197,8 @@ public class SyncRequest extends RepairMessage
                 ", ranges=" + ranges +
                 ", previewKind=" + previewKind +
                 ", asymmetric=" + asymmetric +
-                ", transfer ID=" + transferId +
+                ", transferId=" + transferId +
+                ", decidedAt=" + decidedAt +
                 "} " + super.toString();
     }
 }

@@ -39,6 +39,7 @@ import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.SyncRequest;
 import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
@@ -57,12 +58,13 @@ public abstract class SyncTask extends AsyncFuture<SyncStat> implements Runnable
     protected final PreviewKind previewKind;
     protected final SyncNodePair nodePair;
     protected final ShortMutationId transferId;
+    protected final Epoch decidedAt;
     protected volatile TimeUUID planId;
 
     protected volatile long startTime = Long.MIN_VALUE;
     protected final SyncStat stat;
 
-    protected SyncTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort primaryEndpoint, InetAddressAndPort peer, List<Range<Token>> rangesToSync, PreviewKind previewKind, ShortMutationId transferId)
+    protected SyncTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort primaryEndpoint, InetAddressAndPort peer, List<Range<Token>> rangesToSync, PreviewKind previewKind, ShortMutationId transferId, Epoch decidedAt)
     {
         Preconditions.checkArgument(!peer.equals(primaryEndpoint), "Sending and receiving node are the same: %s", peer);
         this.ctx = ctx;
@@ -71,6 +73,7 @@ public abstract class SyncTask extends AsyncFuture<SyncStat> implements Runnable
         this.nodePair = new SyncNodePair(primaryEndpoint, peer);
         this.previewKind = previewKind;
         this.transferId = transferId;
+        this.decidedAt = Objects.requireNonNull(decidedAt, "decidedAt must be Epoch.EMPTY rather than null when unknown");
         this.stat = new SyncStat(nodePair, rangesToSync);
 
         addCallback((syncStat, failure) -> {

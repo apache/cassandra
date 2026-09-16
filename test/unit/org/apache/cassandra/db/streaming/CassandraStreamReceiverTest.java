@@ -33,6 +33,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamSession;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
@@ -149,5 +150,28 @@ public class CassandraStreamReceiverTest extends CQLTester
         DatabaseDescriptor.setCDCOnRepairEnabled(true);
         CassandraStreamReceiver receiver2 = new CassandraStreamReceiver(cfs, session, Collections.EMPTY_LIST, 1);
         assertTrue(receiver2.requiresWritePath(cfs));
+    }
+
+    @Test
+    public void testUntrackedSessionDoesNotUseTrackedTransferPath()
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CDC_TABLE);
+        when(session.streamOperation()).thenReturn(StreamOperation.REPAIR);
+        when(session.isTrackedTransfer()).thenReturn(false);
+
+        assertFalse(new CassandraStreamReceiver(cfs, session, Collections.EMPTY_LIST, 1).useTrackedTransferPath());
+    }
+
+    @Test
+    public void testTrackedTransferForUntrackedTableIsRejected()
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CDC_TABLE);
+        assertFalse(cfs.metadata().replicationType().isTracked());
+        when(session.streamOperation()).thenReturn(StreamOperation.REPAIR);
+        when(session.isTrackedTransfer()).thenReturn(true);
+
+        assertThatThrownBy(() -> new CassandraStreamReceiver(cfs, session, Collections.EMPTY_LIST, 1))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("does not use tracked replication here");
     }
 }

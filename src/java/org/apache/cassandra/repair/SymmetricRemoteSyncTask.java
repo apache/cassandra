@@ -34,6 +34,7 @@ import org.apache.cassandra.repair.messages.SyncRequest;
 import org.apache.cassandra.repair.messages.SyncResponse;
 import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 
 /**
@@ -48,28 +49,33 @@ public class SymmetricRemoteSyncTask extends SyncTask implements CompletableRemo
 
     public SymmetricRemoteSyncTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort r1, InetAddressAndPort r2, List<Range<Token>> differences, PreviewKind previewKind, ShortMutationId transferId)
     {
-        super(ctx, desc, r1, r2, differences, previewKind, transferId);
+        this(ctx, desc, r1, r2, differences, previewKind, transferId, Epoch.EMPTY);
+    }
+
+    public SymmetricRemoteSyncTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort r1, InetAddressAndPort r2, List<Range<Token>> differences, PreviewKind previewKind, ShortMutationId transferId, Epoch decidedAt)
+    {
+        super(ctx, desc, r1, r2, differences, previewKind, transferId, decidedAt);
     }
 
     @Override
     public SyncTask withRanges(Collection<Range<Token>> newRanges)
     {
         List<Range<Token>> rangeList = newRanges instanceof List ? (List<Range<Token>>) newRanges : new ArrayList<>(newRanges);
-        return new SymmetricRemoteSyncTask(ctx, desc, nodePair.coordinator, nodePair.peer, rangeList, previewKind, transferId);
+        return new SymmetricRemoteSyncTask(ctx, desc, nodePair.coordinator, nodePair.peer, rangeList, previewKind, transferId, decidedAt);
     }
 
     @Override
     public SyncTask withTransferId(ShortMutationId transferId)
     {
         Preconditions.checkState(this.transferId == null);
-        return new SymmetricRemoteSyncTask(ctx, desc, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind, transferId);
+        return new SymmetricRemoteSyncTask(ctx, desc, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind, transferId, decidedAt);
     }
 
     @Override
     protected void startSync()
     {
         InetAddressAndPort local = ctx.broadcastAddressAndPort();
-        SyncRequest request = new SyncRequest(desc, local, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind, false, transferId);
+        SyncRequest request = new SyncRequest(desc, local, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind, false, transferId, decidedAt);
         Preconditions.checkArgument(nodePair.coordinator.equals(request.src));
         String message = String.format("Forwarding streaming repair of %d ranges to %s (to be streamed with %s)", request.ranges.size(), request.src, request.dst);
         logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
