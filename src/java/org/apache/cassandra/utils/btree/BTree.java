@@ -719,6 +719,50 @@ public class BTree
     }
 
     /**
+     * Replaces the value at {@code index}, copying only the path to that value. The replacement must preserve
+     * the tree's ordering (this is not enforced). Unchanged children and size maps are shared with the input.
+     *
+     * @return the updated tree, or the input tree if the replacement is the same object as the existing value
+     */
+    public static <V> Object[] replace(Object[] tree, int index, V replace)
+    {
+        if ((index < 0) | (index >= size(tree)))
+            throw new IndexOutOfBoundsException(index + " not in range [0.." + size(tree) + ")");
+
+        return replaceRecursive(tree, index, replace);
+    }
+
+    private static Object[] replaceRecursive(Object[] tree, int index, Object replace)
+    {
+        int slot = index;
+        if (!isLeaf(tree))
+        {
+            int[] sizeMap = sizeMap(tree);
+            int boundary = Arrays.binarySearch(sizeMap, index);
+            if (boundary >= 0)
+            {
+                assert boundary < sizeMap.length - 1;
+                slot = boundary;
+            }
+            else
+            {
+                boundary = -1 - boundary;
+                if (boundary > 0)
+                    index -= 1 + sizeMap[boundary - 1];
+                slot = getChildStart(tree) + boundary;
+                replace = replaceRecursive((Object[]) tree[slot], index, replace);
+            }
+        }
+
+        if (tree[slot] == replace)
+            return tree;
+
+        Object[] result = tree.clone();
+        result[slot] = replace;
+        return result;
+    }
+
+    /**
      * Modifies the provided btree directly. THIS SHOULD NOT BE USED WITHOUT EXTREME CARE as BTrees are meant to be immutable.
      * Finds and replaces the item provided by index in the tree.
      */

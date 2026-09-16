@@ -365,7 +365,7 @@ public class RowAndDeletionMergeIteratorTest
     public void testWithNoopBoundaryMarkers()
     {
         PartitionUpdate update = PartitionUpdate.emptyUpdate(cfm, dk);
-        RangeTombstoneList rtl = new RangeTombstoneList(cfm.comparator, 10);
+        RangeTombstoneList rtl = new RangeTombstoneList(cfm.comparator);
         rtl.add(rt(1, 2, 5, 5));
         rtl.add(rt(3, 4, 5, 5));
         rtl.add(rt(5, 6, 5, 5));
@@ -395,7 +395,7 @@ public class RowAndDeletionMergeIteratorTest
 
     private Iterator<RangeTombstone> createRangeTombstoneIterator(RangeTombstone... tombstones)
     {
-        RangeTombstoneList list = new RangeTombstoneList(cfm.comparator, 10);
+        RangeTombstoneList list = new RangeTombstoneList(cfm.comparator);
 
         for (RangeTombstone tombstone : tombstones)
             list.add(tombstone);
