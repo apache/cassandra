@@ -548,7 +548,7 @@ public class AccordService implements IAccordService, Shutdownable
                     case EXIT:
                         throw new RuntimeException(
                         "Start marker state: " + startMarker.getState() + " , start marker segmentId: " + startMarkerSegmentId +
-                        " , Stop marker state: " + stopMarker.getState() + " , stop marker segmentId: " + startMarkerSegmentId +
+                        " , Stop marker state: " + stopMarker.getState() + " , stop marker segmentId: " + stopMarkerSegmentId +
                         " .Invalid start marker & stop marker state, so cannot assume we have a complete log of our votes in any consensus groups. Exiting");
                     case ALLOW_UNSAFE_STARTUP:
                     case UNSAFE_STARTUP:
@@ -689,7 +689,6 @@ public class AccordService implements IAccordService, Shutdownable
         WatermarkCollector.fetchAndReportWatermarksAsync(topology())
                           .addCallback((success, failure) -> {
                               topologyService.afterStartup(node);
-
                           });
 
         fastPathCoordinator.start();
@@ -1240,16 +1239,27 @@ public class AccordService implements IAccordService, Shutdownable
         AccordCommandStores commandStores = (AccordCommandStores)node.commandStores();
         Set<TableId> tableIds = commandStores.shutdownStores();
         commandStores.waitForQuiescence();
+
         journal.writeSafeStopMarker(node.uniqueNow());
         scheduler.shutdownNow();
-        toFuture(flushCaches()).map(ignore -> {
-            return AccordColumnFamilyStores.commandsForKey.forceFlush(DRAIN);
-        });
+        long deadlineNanos = nanoTime() + DatabaseDescriptor.getAccord().shutdown_grace_period.toDuration().toNanos();
+
+        List<Future<?>> flushes = new ArrayList<>();
+        flushes.add(toFuture(flushCaches()).flatMap(ignore -> AccordColumnFamilyStores.commandsForKey.forceFlush(DRAIN)));
+
         for (TableId tableId : tableIds)
         {
             ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(tableId);
             if (cfs != null)
-                cfs.forceFlush(DRAIN);
+                flushes.add(cfs.forceFlush(DRAIN));
+        }
+
+        for (Future<?> f : flushes)
+        {
+            if (!f.awaitUntilThrowUncheckedOnInterrupt(deadlineNanos))
+                logger.error("Timeout waiting for Accord flushes during stop");
+            else if (f.cause() != null)
+                logger.error("Failed to flush Accord state during stop", f.cause());
         }
 
         state = State.STOPPED;
