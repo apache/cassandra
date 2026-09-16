@@ -246,6 +246,10 @@ public class SerializationHeader
     {
         long markedAt = readTimestamp(in);
         long localDeletionTime = readLocalDeletionTime(in);
+        // Historical LIVE bytes decode as LIVE; the timestamp alone doesn't suffice since the storage
+        // API accepts a Long.MIN_VALUE timestamp, so also check the reserved low bits (0xffffffff).
+        if (markedAt == Long.MIN_VALUE && (int) localDeletionTime == DeletionTime.LIVE.localDeletionTimeUnsignedInteger())
+            return DeletionTime.LIVE;
         return DeletionTime.build(markedAt, localDeletionTime);
     }
 
@@ -253,7 +257,10 @@ public class SerializationHeader
     {
         long markedAt = readTimestamp(in);
         long localDeletionTime = readLocalDeletionTime(in);
-        reuse.reset(markedAt, localDeletionTime);
+        if (markedAt == Long.MIN_VALUE && (int) localDeletionTime == DeletionTime.LIVE.localDeletionTimeUnsignedInteger())
+            reuse.resetLive();
+        else
+            reuse.reset(markedAt, localDeletionTime);
     }
 
 
@@ -264,7 +271,7 @@ public class SerializationHeader
 
     public long localDeletionTimeSerializedSize(long localDeletionTime)
     {
-        return TypeSizes.sizeofUnsignedVInt(localDeletionTime - stats.minLocalDeletionTime);
+        return TypeSizes.sizeofUnsignedVInt((int) (localDeletionTime - stats.minLocalDeletionTime));
     }
 
     public long ttlSerializedSize(int ttl)

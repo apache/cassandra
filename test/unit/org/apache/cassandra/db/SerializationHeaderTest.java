@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.concurrent.Callable;
@@ -35,28 +36,43 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.UnknownColumnException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.PartitionDescriptor;
+import org.apache.cassandra.io.sstable.SSTableCursorReader;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
+import org.apache.cassandra.io.sstable.UnfilteredDescriptor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_HEADER_START;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.CELL_VALUE_START;
+import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.ROW_START;
 
 public class SerializationHeaderTest
 {
@@ -324,4 +340,169 @@ public class SerializationHeaderTest
         }
     }
 
+    @Test
+    public void testHistoricalLiveDeletionTimeEncoding() throws IOException
+    {
+        // Exact base-writer bytes: unsigned vint(MIN_VALUE - 2^50), then
+        // unsigned vint((long) (int) (MAX_VALUE - minLocalDeletionTime)).
+        // The int delta is sign-extended, NOT zero-extended, by writeUnsignedVInt32.
+        assertHistoricalLiveDeletionTime(1L << 30, "ff7ffc000000000000" + "ffffffffffbfffffff");
+        assertHistoricalLiveDeletionTime(1L << 31, "ff7ffc000000000000" + "f07fffffff");
+    }
+
+    private static void assertHistoricalLiveDeletionTime(long minLocalDeletionTime, String hex) throws IOException
+    {
+        SerializationHeader header = deletionTimeHeader(minLocalDeletionTime);
+        ByteBuffer historicalBytes = ByteBufferUtil.hexToBytes(hex);
+        try (DataOutputBuffer out = new DataOutputBuffer())
+        {
+            header.writeDeletionTime(DeletionTime.LIVE, out);
+            Assert.assertEquals(historicalBytes, out.asNewBuffer());
+            Assert.assertEquals(historicalBytes.remaining(), header.deletionTimeSerializedSize(DeletionTime.LIVE));
+        }
+
+        try (DataInputBuffer in = new DataInputBuffer(historicalBytes.duplicate(), false))
+        {
+            Assert.assertSame(DeletionTime.LIVE, header.readDeletionTime(in));
+            Assert.assertEquals(0, in.available());
+        }
+        // Reading LIVE must overwrite both fields, even after a real deletion or invalid input.
+        for (DeletionTime previous : new DeletionTime[]{ DeletionTime.build(123, minLocalDeletionTime),
+                                                        DeletionTime.build(123, Cell.INVALID_DELETION_TIME) })
+        {
+            DeletionTime.ReusableDeletionTime reuse = DeletionTime.ReusableDeletionTime.copy(previous);
+            try (DataInputBuffer in = new DataInputBuffer(historicalBytes.duplicate(), false))
+            {
+                header.readDeletionTime(in, reuse);
+                Assert.assertEquals(DeletionTime.LIVE, reuse);
+                Assert.assertTrue(reuse.validate());
+                Assert.assertEquals(0, in.available());
+            }
+        }
+    }
+
+    @Test
+    public void testMinimumTimestampTombstoneIsNotLive() throws IOException
+    {
+        // MIN_VALUE is accepted by the timestamp API. Only the reserved local deletion time,
+        // not this timestamp by itself (nor a zero delta), distinguishes LIVE on disk.
+        long localDeletionTime = 1L << 30;
+        SerializationHeader header = deletionTimeHeader(localDeletionTime);
+        DeletionTime tombstone = DeletionTime.build(Long.MIN_VALUE, localDeletionTime);
+        Assert.assertTrue(tombstone.validate());
+        Assert.assertFalse(tombstone.isLive());
+        DeletionTime[] sequence = { tombstone, DeletionTime.LIVE, tombstone };
+        try (DataOutputBuffer out = new DataOutputBuffer())
+        {
+            long size = 0;
+            for (DeletionTime deletion : sequence)
+            {
+                header.writeDeletionTime(deletion, out);
+                size += header.deletionTimeSerializedSize(deletion);
+            }
+            Assert.assertEquals(size, out.getLength());
+            try (DataInputBuffer in = new DataInputBuffer(out.asNewBuffer(), false))
+            {
+                for (DeletionTime deletion : sequence)
+                    Assert.assertEquals(deletion, header.readDeletionTime(in));
+                Assert.assertEquals(0, in.available());
+            }
+        }
+    }
+
+    private static SerializationHeader deletionTimeHeader(long minLocalDeletionTime)
+    {
+        TableMetadata metadata = TableMetadata.builder(KEYSPACE, "deletion_times")
+                                              .addPartitionKeyColumn("k", Int32Type.instance)
+                                              .addRegularColumn("v", Int32Type.instance)
+                                              .build();
+        return new SerializationHeader(true, metadata, metadata.regularAndStaticColumns(),
+                                       new EncodingStats(1L << 50, minLocalDeletionTime, 0));
+    }
+
+    @Test
+    public void testMixedComplexDeletionsInSSTable() throws Exception
+    {
+        TableMetadata metadata = TableMetadata.builder(KEYSPACE, "mixed_complex_deletions")
+                                              .partitioner(Murmur3Partitioner.instance)
+                                              .addPartitionKeyColumn("k", Int32Type.instance)
+                                              .addRegularColumn("a", MapType.getInstance(Int32Type.instance, Int32Type.instance, true))
+                                              .addRegularColumn("b", MapType.getInstance(Int32Type.instance, Int32Type.instance, true))
+                                              .build();
+        ColumnMetadata a = metadata.getColumn(ColumnIdentifier.getInterned("a", false));
+        ColumnMetadata b = metadata.getColumn(ColumnIdentifier.getInterned("b", false));
+        long timestamp = 1L << 50;
+        long localDeletionTime = 1L << 30;
+        DeletionTime deletion = DeletionTime.build(timestamp, localDeletionTime);
+        CellPath path = CellPath.create(Int32Type.instance.decompose(1));
+        ByteBuffer value = Int32Type.instance.decompose(42);
+        Row.Builder builder = BTreeRow.sortedBuilder();
+        builder.newRow(Clustering.EMPTY);
+        builder.addComplexDeletion(a, deletion);
+        builder.addCell(BufferCell.live(a, timestamp + 1, value, path));
+        builder.addCell(BufferCell.live(b, timestamp + 1, value, path));
+        Row row = builder.build();
+
+        for (SSTableFormat<?, ?> format : DatabaseDescriptor.getSSTableFormats().values())
+        {
+            File dir = new File(Files.createTempDir());
+            SSTableReader reader = null;
+            try
+            {
+                Descriptor descriptor = new Descriptor(format.getLatestVersion(), dir, metadata.keyspace, metadata.name,
+                                                       Util.newSeqGen().get());
+                SerializationHeader header = new SerializationHeader(true, metadata, metadata.regularAndStaticColumns(),
+                                                                     new EncodingStats(timestamp, localDeletionTime, 0));
+                try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE);
+                     SSTableWriter writer = format.getWriterFactory().builder(descriptor)
+                                                  .setTableMetadataRef(TableMetadataRef.forOfflineTools(metadata))
+                                                  .setKeyCount(1)
+                                                  .setSerializationHeader(header)
+                                                  .setMetadataCollector(new MetadataCollector(metadata.comparator))
+                                                  .addDefaultComponents(Collections.emptySet())
+                                                  .build(txn, null))
+                {
+                    writer.append(PartitionUpdate.singleRowUpdate(metadata, Int32Type.instance.decompose(1), row).unfilteredIterator());
+                    writer.finish(false);
+                    txn.finish();
+                }
+                reader = SSTableReader.openNoValidation(null, descriptor, TableMetadataRef.forOfflineTools(metadata));
+                try (ISSTableScanner scanner = reader.getScanner();
+                     UnfilteredRowIterator partition = scanner.next())
+                {
+                    Row read = (Row) partition.next();
+                    Assert.assertEquals(deletion, read.getComplexColumnData(a).complexDeletion());
+                    Assert.assertTrue(read.getComplexColumnData(b).complexDeletion().isLive());
+                    Assert.assertEquals(value, read.getCell(a, path).buffer());
+                    Assert.assertEquals(value, read.getCell(b, path).buffer());
+                    Assert.assertFalse(partition.hasNext());
+                    Assert.assertFalse(scanner.hasNext());
+                }
+
+                // The cursor reuses the same deletion object for a (deleted) and b (live).
+                // Unlike the row builder, it cannot incidentally discard a noncanonical MIN marker.
+                try (SSTableCursorReader cursor = new SSTableCursorReader(reader))
+                {
+                    PartitionDescriptor partition = new PartitionDescriptor(reader.getPartitioner().createReusableKey(0));
+                    UnfilteredDescriptor unfiltered = new UnfilteredDescriptor(reader.header.clusteringTypes().toArray(AbstractType[]::new));
+                    Assert.assertEquals(ROW_START, cursor.readPartitionHeader(partition));
+                    int state = cursor.readRowHeader(unfiltered);
+                    for (ColumnMetadata column : new ColumnMetadata[]{ a, b })
+                    {
+                        Assert.assertEquals(CELL_HEADER_START, state);
+                        Assert.assertEquals(CELL_VALUE_START, cursor.readCellHeader());
+                        Assert.assertEquals(column, cursor.cellCursor().cellColumn);
+                        Assert.assertEquals(column.equals(a) ? deletion : DeletionTime.LIVE, cursor.cellCursor().complexDeletion);
+                        state = cursor.skipCellValue();
+                    }
+                }
+            }
+            finally
+            {
+                if (reader != null)
+                    reader.selfRef().close();
+                FileUtils.deleteRecursive(dir);
+            }
+        }
+    }
 }
