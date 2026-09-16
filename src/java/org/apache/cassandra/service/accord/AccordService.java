@@ -1240,7 +1240,10 @@ public class AccordService implements IAccordService, Shutdownable
         Set<TableId> tableIds = commandStores.shutdownStores();
         commandStores.waitForQuiescence();
 
-        journal.writeSafeStopMarker(node.uniqueNow());
+        // Only write the stop marker, if the start marker was also written
+        if (state == State.STARTED)
+            journal.writeSafeStopMarker(node.uniqueNow());
+
         scheduler.shutdownNow();
         long deadlineNanos = nanoTime() + DatabaseDescriptor.getAccord().shutdown_grace_period.toDuration().toNanos();
 
