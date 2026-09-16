@@ -75,7 +75,7 @@ public class SnapshotManager {
     {
         this.initialDelaySeconds = initialDelaySeconds;
         this.cleanupPeriodSeconds = cleanupPeriodSeconds;
-        snapshotLoader = new SnapshotLoader(DatabaseDescriptor.getAllDataFileLocations());
+        snapshotLoader = new SnapshotLoader();
     }
 
     public Collection<TableSnapshot> getExpiringSnapshots()
