@@ -515,7 +515,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             List<TxnNamedRead> reads = createNamedReads(options, null, keyCollector);
             Keys keys = keyCollector.build();
             TxnRead read = createTxnRead(tables, reads, consistencyLevelForAccordRead(cm, tables, keys, options.getSerialConsistency()), Domain.Key);
-            Txn.Kind kind = shouldReadEphemerally(keys, tables.getMetadata((TableId)keys.get(0).prefix()).params, Read);
+            Txn.Kind kind = shouldReadEphemerally(keys, tables.getMetadata((TableId)keys.get(0).prefix()).params, Read, read);
             return new Txn.InMemory(kind, keys, read, TxnQuery.ALL, null, new TableMetadatasAndKeys(tables, keys));
         }
         else
@@ -559,7 +559,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         // Return a read only txn
         Keys keys = keyCollector.build();
         TxnRead read = createTxnRead(tables, reads, consistencyLevelForAccordRead(cm, tables, keys, options.getSerialConsistency()), Domain.Key);
-        Txn.Kind kind = shouldReadEphemerally(keys, tables.getMetadata((TableId)keys.get(0).prefix()).params, Read);
+        Txn.Kind kind = shouldReadEphemerally(keys, tables.getMetadata((TableId)keys.get(0).prefix()).params, Read, read);
         return new Txn.InMemory(kind, keys, read, TxnQuery.ALL, null, new TableMetadatasAndKeys(tables, keys));
     }
 
