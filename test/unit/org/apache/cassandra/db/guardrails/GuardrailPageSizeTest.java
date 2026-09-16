@@ -101,6 +101,18 @@ public class GuardrailPageSizeTest extends ThresholdTester
         assertPagingIgnored("SELECT * FROM %s", PAGE_SIZE_FAIL_THRESHOLD + 1);
     }
 
+    @Test
+    public void testBytePagesDoNotTriggerRowGuardrail() throws Throwable
+    {
+        assertValid(() -> executeWithPaging(userClientState, "SELECT * FROM %s", PageSize.inBytes(1)));
+    }
+
+    @Test
+    public void testUnpagedAggregateDoesNotTriggerRowGuardrail() throws Throwable
+    {
+        assertValid(() -> executeWithPaging(userClientState, "SELECT count(*) FROM %s WHERE k = 0", PageSize.NONE));
+    }
+
     private void assertPagingValid(String query, int pageSize) throws Throwable
     {
         assertValid(() -> executeWithPaging(userClientState, query, pageSize));
@@ -128,6 +140,11 @@ public class GuardrailPageSizeTest extends ThresholdTester
 
     private void executeWithPaging(ClientState state, String query, int pageSize)
     {
+        executeWithPaging(state, query, PageSize.inRows(pageSize));
+    }
+
+    private void executeWithPaging(ClientState state, String query, PageSize pageSize)
+    {
         QueryState queryState = new QueryState(state);
 
         String formattedQuery = formatQuery(query);
@@ -137,7 +154,7 @@ public class GuardrailPageSizeTest extends ThresholdTester
         QueryOptions options = QueryOptions.create(ConsistencyLevel.ONE,
                                                    Collections.emptyList(),
                                                    false,
-                                                   PageSize.inRows(pageSize),
+                                                   pageSize,
                                                    null,
                                                    null,
                                                    ProtocolVersion.CURRENT,

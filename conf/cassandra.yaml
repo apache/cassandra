@@ -2267,6 +2267,8 @@ report_unconfirmed_repaired_data_mismatches: false
 
 # This is the page size used internally by aggregation queries. It aims to limit the memory used by aggregation
 # queries when there is a lot of data to aggregate.
+# The client page size, when specified, takes precedence over this setting.
+# During rolling upgrades from 4.x or 5.0, aggregation queries use row-sized subpages until all nodes run 6.0 or later.
 # aggregation_subpage_size: 2MiB
 
 #########################
@@ -2389,10 +2391,17 @@ drop_compact_storage_enabled: false
 # Guardrail to allow/disallow bulk load of SSTables
 # bulk_load_enabled: true
 #
-# Guardrail to warn or fail when using a page size greater than threshold.
+# Guardrail to warn or fail when requesting a row page size greater than threshold, in rows.
 # The two thresholds default to -1 to disable.
 # page_size_warn_threshold: -1
 # page_size_fail_threshold: -1
+#
+# Guardrail to warn or fail when requesting a byte page size greater than threshold.
+# These thresholds apply to client requests, not server-selected aggregation subpages or upgrade fallbacks.
+# A row larger than the requested byte page size can still be returned to allow paging to make progress.
+# The two thresholds default to null to disable; use storage units such as MiB, KiB, or B.
+# page_size_in_bytes_warn_threshold:
+# page_size_in_bytes_fail_threshold:
 #
 # Guardrail to allow/disallow list operations that require read before write, i.e. setting list element by index and
 # removing list elements by either index or value. Defaults to true.

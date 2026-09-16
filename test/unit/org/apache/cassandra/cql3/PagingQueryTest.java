@@ -153,7 +153,7 @@ public class PagingQueryTest extends CQLTester
             QueryHandler.Prepared prepared = QueryProcessor.prepareInternal(String.format(query, args));
             SelectStatement select = (SelectStatement) prepared.statement;
             ReadQuery readQuery = select.getQuery(QueryProcessor.makeInternalOptions(prepared.statement, EMPTY_OBJECT_ARRAY), FBUtilities.nowInSeconds());
-            QueryPager pager = select.getPager(readQuery, QueryOptions.forInternalCalls(ConsistencyLevel.LOCAL_ONE, Collections.emptyList()));
+            QueryPager pager = select.getPager(readQuery, QueryOptions.forInternalCalls(ConsistencyLevel.LOCAL_ONE, Collections.emptyList()), ClientState.forInternalCalls());
             return Pair.create(pager, select);
         };
     }
@@ -244,6 +244,7 @@ public class PagingQueryTest extends CQLTester
         {
             if (pager instanceof AggregationQueryPager && requestedPageSize.getUnit() == PageSize.PageUnit.BYTES)
                 return null;
+            throw ex;
         }
 
         if (pager instanceof AggregationQueryPager && requestedPageSize.getUnit() == PageSize.PageUnit.BYTES)
@@ -415,6 +416,32 @@ public class PagingQueryTest extends CQLTester
     public void testLimitsOnFullScanQuery() throws Throwable
     {
         testPagingCases("SELECT * FROM %s", 10, 10, 10, 10);
+    }
+
+    @Test
+    public void testPagingAcrossPartitionsWithoutClustering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+        for (int k = 0; k < 3; k++)
+            execute("INSERT INTO %s (k, v) VALUES (?, ?)", k, k);
+
+        assertThat(executeNetWithPaging("SELECT * FROM %s", 1).all())
+        .extracting(row -> row.getInt("k")).containsExactlyInAnyOrder(0, 1, 2);
+
+        Supplier<Pair<QueryPager, SelectStatement>> pager = getPager("SELECT * FROM %s.%s", KEYSPACE, currentTable());
+        assertResults(pager, PageSize.inRows(1), 1, 3);
+        assertResults(pager, PageSize.inBytes(1), 1, 3);
+    }
+
+    @Test
+    public void testAnnLimitEqualToPageSize() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v vector<float, 1>)");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function': 'euclidean'}");
+        execute("INSERT INTO %s (k, v) VALUES (0, [1])");
+
+        assertRowsNet(executeNetWithPaging("SELECT k FROM %s WHERE k = 0 ORDER BY v ANN OF [1] LIMIT 2", 2), row(0));
+        assertRowsNet(executeNetWithPaging("SELECT k FROM %s WHERE k = 0 ORDER BY v ANN OF [1] LIMIT 2", 1), row(0));
     }
 
     @Test

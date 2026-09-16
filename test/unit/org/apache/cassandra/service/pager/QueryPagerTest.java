@@ -36,6 +36,7 @@ import com.google.common.collect.Sets;
 
 import org.junit.After;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -82,6 +83,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+@Ignore
 public abstract class QueryPagerTest
 {
     private final static Logger logger = LoggerFactory.getLogger(QueryPagerTest.class);
@@ -362,6 +364,7 @@ public abstract class QueryPagerTest
             ByteBuffer expected = names[i++];
             assertEquals("column " + i + " doesn't match " + string(expected) + " vs " + string(row.clustering().bufferAt(0)), expected, row.clustering().bufferAt(0));
         }
+        assertEquals("Row count in partition " + key, names.length, i);
     }
 
     QueryPager maybeRecreate(QueryPager pager, ReadQuery command, boolean testPagingState)

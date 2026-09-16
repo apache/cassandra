@@ -86,6 +86,7 @@ public class GuardrailsOptions implements GuardrailsConfig
         config.keyspace_properties_ignored = validateKeyspaceProperties(config.keyspace_properties_ignored, "keyspace_properties_ignored");
         config.keyspace_properties_disallowed = validateKeyspaceProperties(config.keyspace_properties_disallowed, "keyspace_properties_disallowed");
         validateMaxIntThreshold(config.page_size_warn_threshold, config.page_size_fail_threshold, "page_size");
+        validateSizeThreshold(config.page_size_in_bytes_warn_threshold, config.page_size_in_bytes_fail_threshold, "page_size_in_bytes");
         validateMaxIntThreshold(config.partition_keys_in_select_warn_threshold, config.partition_keys_in_select_fail_threshold, "partition_keys_in_select");
         validateMaxIntThreshold(config.in_select_cartesian_product_warn_threshold, config.in_select_cartesian_product_fail_threshold, "in_select_cartesian_product");
         config.read_consistency_levels_warned = validateConsistencyLevels(config.read_consistency_levels_warned, "read_consistency_levels_warned");
@@ -335,6 +336,33 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   fail,
                                   () -> config.page_size_fail_threshold,
                                   x -> config.page_size_fail_threshold = x);
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getPageSizeInBytesWarnThreshold()
+    {
+        return config.page_size_in_bytes_warn_threshold;
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getPageSizeInBytesFailThreshold()
+    {
+        return config.page_size_in_bytes_fail_threshold;
+    }
+
+    public void setPageSizeInBytesThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
+    {
+        validateSizeThreshold(warn, fail, "page_size_in_bytes");
+        updatePropertyWithLogging("page_size_in_bytes_warn_threshold",
+                                  warn,
+                                  () -> config.page_size_in_bytes_warn_threshold,
+                                  x -> config.page_size_in_bytes_warn_threshold = x);
+        updatePropertyWithLogging("page_size_in_bytes_fail_threshold",
+                                  fail,
+                                  () -> config.page_size_in_bytes_fail_threshold,
+                                  x -> config.page_size_in_bytes_fail_threshold = x);
     }
 
     @Override

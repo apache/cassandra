@@ -21,6 +21,7 @@ package org.apache.cassandra.service.pager;
 import java.util.function.BiFunction;
 import java.util.function.IntFunction;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.PageSize;
@@ -30,6 +31,7 @@ import org.apache.cassandra.db.ReadQuery;
 import static org.apache.cassandra.db.filter.DataLimits.NO_LIMIT;
 import static org.junit.Assert.assertTrue;
 
+@Ignore
 public abstract class AbstractPartitionsPagerTest extends QueryPagerTest
 {
     protected abstract ReadQuery makePartitionsSliceQuery(int limit, int perPartitionLimit, ColumnFamilyStore cfs, String startKeyInc, String endKeyExcl, String startClustInc, String endClustExcl);
@@ -49,6 +51,27 @@ public abstract class AbstractPartitionsPagerTest extends QueryPagerTest
         return makePartitionsNamesQuery(limit, perPartitionLimit, cfs(KEYSPACE1, CF_STANDARD),
                                         tokenOrderedKeys.get(1), tokenOrderedKeys.get(5),
                                         "c1", "c2", "c3", "c4", "c5", "c6", "c7");
+    }
+
+    @Test
+    public void perPartitionLimitAcrossPagesTest()
+    {
+        for (boolean restoreState : new boolean[]{ false, true })
+        {
+            for (PageSize pageSize : new PageSize[]{ pageSizeInRows(2), pageSizeInBytes(2) })
+            {
+                ReadQuery query = makePartitionsSliceQuery(6, 3);
+                QueryPager pager = checkNextPage(null, query, restoreState, pageSize, 2, partitions -> {
+                    assertRow(partitions.get(0), tokenOrderedKeys.get(1), "c1", "c2");
+                });
+                PageSize largerPage = new PageSize(pageSize.getSize() * 2, pageSize.getUnit());
+                pager = checkNextPage(pager, query, restoreState, largerPage, 4, partitions -> {
+                    assertRow(partitions.get(0), tokenOrderedKeys.get(1), "c3");
+                    assertRow(partitions.get(1), tokenOrderedKeys.get(2), "c1", "c2", "c3");
+                });
+                assertTrue(pager.isExhausted());
+            }
+        }
     }
 
     @Test

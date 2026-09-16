@@ -34,6 +34,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 @RunWith(Parameterized.class)
@@ -792,6 +793,22 @@ public class PagingAggregationQueryTest extends CQLTester
     private void assertPartitionCount(Object k, int expectedCount)
     {
         assertCount("SELECT * FROM %s WHERE k=?", "SELECT COUNT(*) FROM %s WHERE k=?", expectedCount, k);
+    }
+
+    @Override
+    public UntypedResultSet executeWithCoordinator(String query, Object... values)
+    {
+        CoordinatorWarnings.init();
+        try
+        {
+            UntypedResultSet result = super.executeWithCoordinator(query, values);
+            CoordinatorWarnings.done();
+            return result;
+        }
+        finally
+        {
+            CoordinatorWarnings.reset();
+        }
     }
 
     private void assertRangeCount(int expectedCount)

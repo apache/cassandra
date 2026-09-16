@@ -132,6 +132,7 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.pager.AggregationQueryPager;
 import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.service.pager.QueryPager;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -363,14 +364,14 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
 
     /**
      * Returns whether the paging can be skipped based on the user limits and the page size - that is, if the user limit
-     * is provided and is lower than the page size, it means that we will only return at most one page and thus paging
+     * is provided and does not exceed the page size, it means that we will only return at most one page and thus paging
      * is unnecessary in this case. That applies to the page size defined in rows - if the page size is defined in bytes
      * we cannot say anything about the relation beteween the user rows limit and the page size.
      */
     private boolean canSkipPaging(DataLimits userLimits, PageSize pageSize)
     {
         return !pageSize.isDefined() ||
-               pageSize.getUnit() == PageSize.PageUnit.ROWS && !pageSize.isCompleted(userLimits.count(), PageSize.PageUnit.ROWS);
+               pageSize.getUnit() == PageSize.PageUnit.ROWS && userLimits.count() <= pageSize.rows();
     }
 
     @Override
@@ -387,6 +388,15 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         int userLimit = getLimit(options);
         int userPerPartitionLimit = getPerPartitionLimit(options);
         PageSize pageSize = options.getPageSize();
+
+        if (!hasAggregation() && pageSize.isDefined() && pageSize.getUnit() == PageSize.PageUnit.BYTES && !isBytePagingSupported())
+        {
+            pageSize = rowPagingFallback(state.getClientState());
+
+            ClientWarn.instance.warn(String.format("Paging in bytes requires all nodes in the cluster to run Cassandra 6.0 or later. " +
+                                                   "Using pages of %s rows instead.", pageSize.rows()));
+        }
+
         boolean unmask = !table.hasMaskedColumns() || state.getClientState().hasTablePermission(table, Permission.UNMASK);
 
         Selectors selectors = selection.newSelectors(options);
@@ -436,13 +446,13 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         if (query.limits().isGroupByLimit() && pageSize.isDefined() && pageSize.getUnit() == PageSize.PageUnit.BYTES)
             throw new InvalidRequestException("Paging in bytes cannot be specified for aggregation queries");
 
-        if (aggregationSpec == null && (canSkipPaging(query.limits(), pageSize) || query.isTopK()))
+        if (aggregationSpec == null && ((options.getPagingState() == null && canSkipPaging(query.limits(), options.getPageSize())) || query.isTopK()))
         {
             rows = execute(query, options, state.getClientState(), selectors, nowInSec, userLimit, null, requestTime, unmask);
         }
         else
         {
-            QueryPager pager = getPager(query, options);
+            QueryPager pager = getPager(query, options, state.getClientState());
 
             rows = execute(state,
                            Pager.forDistributedQuery(pager, cl, state.getClientState()),
@@ -623,22 +633,31 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
                                        Dispatcher.RequestTime requestTime,
                                        boolean unmask)
     {
-        // TODO fix this guardrail to include bytes limits
-        Guardrails.pageSize.guard(pageSize.rows(), table(), false, state.getClientState());
+        // Guard the client request in its original unit, even after a compatibility fallback.
+        PageSize requestedPageSize = options.getPageSize();
+        if (requestedPageSize.isDefined())
+        {
+            if (requestedPageSize.getUnit() == PageSize.PageUnit.ROWS)
+                Guardrails.pageSize.guard(requestedPageSize.rows(), table(), false, state.getClientState());
+            else
+                Guardrails.pageSizeInBytes.guard(requestedPageSize.bytes(), table(), false, state.getClientState());
+        }
 
         if (aggregationSpecFactory != null)
         {
             if (!restrictions.hasPartitionKeyRestrictions())
             {
-                warn("Aggregation query used without partition key");
-                noSpamLogger.warn(String.format("Aggregation query used without partition key on table %s.%s, aggregation type: %s",
-                                                 keyspace(), table(), aggregationSpec.kind()));
+                ClientWarn.instance.warn("Aggregation query used without partition key");
+
+                noSpamLogger.warn("Aggregation query used without partition key on table {}.{}, aggregation type: {}",
+                                  keyspace(), table(), aggregationSpec.kind());
             }
             else if (restrictions.keyIsInRelation())
             {
-                warn("Aggregation query used on multiple partition keys (IN restriction)");
-                noSpamLogger.warn(String.format("Aggregation query used on multiple partition keys (IN restriction) on table %s.%s, aggregation type: %s",
-                                                 keyspace(), table(), aggregationSpec.kind()));
+                ClientWarn.instance.warn("Aggregation query used on multiple partition keys (IN restriction)");
+
+                noSpamLogger.warn("Aggregation query used on multiple partition keys (IN restriction) on table {}.{}, aggregation type: {}",
+                                  keyspace(), table(), aggregationSpec.kind());
             }
         }
 
@@ -719,7 +738,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
                 }
             }
 
-            QueryPager pager = getPager(query, options);
+            QueryPager pager = getPager(query, options, state.getClientState());
 
             return execute(state,
                            Pager.forInternalQuery(pager, executionController),
@@ -735,14 +754,37 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
     }
 
     @VisibleForTesting
-    public QueryPager getPager(ReadQuery query, QueryOptions options)
+    public QueryPager getPager(ReadQuery query, QueryOptions options, ClientState state)
     {
         QueryPager pager = query.getPager(options.getPagingState(), options.getProtocolVersion());
 
         if (aggregationSpecFactory == null || query.isEmpty())
             return pager;
 
-        return new AggregationQueryPager(pager, DatabaseDescriptor.getAggregationSubPageSize(), query.limits());
+        PageSize pageSize = options.getPageSize().isDefined()
+                            ? options.getPageSize() : DatabaseDescriptor.getAggregationSubPageSize();
+
+        if (pageSize.isDefined() && pageSize.getUnit() == PageSize.PageUnit.BYTES && !isBytePagingSupported())
+        {
+            // Preserve row-based aggregation paging while older nodes remain in the cluster.
+            pageSize = rowPagingFallback(state);
+
+            noSpamLogger.warn("Byte paging requires all nodes to run Cassandra 6.0 or later; using a row limit of {} for {}.{}",
+                              pageSize.rows(), keyspace(), table());
+        }
+        return new AggregationQueryPager(pager, pageSize, query.limits());
+    }
+
+    private static PageSize rowPagingFallback(ClientState state)
+    {
+        long rowLimit = Guardrails.pageSize.enabled(state) ? Guardrails.pageSize.failValue(state) : Long.MAX_VALUE;
+        // A zero threshold rejects client row requests, but must not prevent a byte request from making progress.
+        return PageSize.inRows(rowLimit > 0 ? (int) Math.min(DEFAULT_PAGE_SIZE, rowLimit) : DEFAULT_PAGE_SIZE);
+    }
+
+    private static boolean isBytePagingSupported()
+    {
+        return ClusterMetadata.current().directory.clusterMinVersion.cassandraVersion.major >= 6;
     }
 
     public Map<DecoratedKey, List<Row>> executeRawInternal(QueryOptions options, ClientState state, long nowInSec) throws RequestExecutionException, RequestValidationException

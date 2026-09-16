@@ -160,22 +160,13 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
     }
 
     /**
-     * Limits for the next page are basically the initial CQL limits reduced by the counts of data fetches so far on
-     * previous pages, that is - remaining and remainingInPartition. The fact that we use the minimum of the actual
-     * limits and remaining amounts is that, the remaining amounts are computed against the initial CQL limits, while
-     * the actual limits might have been updated by {@link #withUpdatedLimit(DataLimits)} and we want that none of those
-     * can be exceeded.
-     * <p/>
-     * TL;DR - this situation takes place when we do aggregation with grouping, while paging results by groups. When
-     * the next page of groups is fetched, the remaining counters denote the CQL limits ({@link #remaining}
-     * {@link #remainingInPartition}) while the actual limits are updated with the groups page size ({@link #limits()}).
-     * Since both limits need to be obeyed, and we can only specify one limit, we simply use the minimum of both for
-     * the next page.
+     * Bounds the next page by the remaining query limit and any updated aggregation limit.
+     * The per-partition limit still applies in full to new partitions; subclasses pass the
+     * previous partition's remaining allowance to the paging-aware limits.
      */
     protected DataLimits nextPageLimits()
     {
-        return limits().withCountedLimit(Math.min(limits().count(), remaining))
-                       .withCountedPerPartitionLimit(Math.min(limits().perPartitionCount(), remainingInPartition));
+        return limits().withCountedLimit(Math.min(limits().count(), remaining));
     }
 
     private class UnfilteredPagerTransformation extends PagerTransformation<Unfiltered>

@@ -81,4 +81,30 @@ public class GuardrailsOptionsTest
                   .isInstanceOf(IllegalArgumentException.class)
                   .hasMessageContaining("negative values are not allowed, outside of -1 which disables the guardrail");
     }
+
+    @Test
+    public void testPageSizeInBytesThresholds()
+    {
+        Config config = new Config();
+        GuardrailsOptions options = new GuardrailsOptions(config);
+        assertNull(options.getPageSizeInBytesWarnThreshold());
+        assertNull(options.getPageSizeInBytesFailThreshold());
+
+        config.page_size_in_bytes_warn_threshold = new DataStorageSpec.LongBytesBound("1KiB");
+        config.page_size_in_bytes_fail_threshold = new DataStorageSpec.LongBytesBound("1MiB");
+        options = new GuardrailsOptions(config);
+        assertEquals(1024, options.getPageSizeInBytesWarnThreshold().toBytes());
+        assertEquals(1048576, options.getPageSizeInBytesFailThreshold().toBytes());
+
+        config.page_size_in_bytes_warn_threshold = new DataStorageSpec.LongBytesBound("0B");
+        config.page_size_in_bytes_fail_threshold = new DataStorageSpec.LongBytesBound("0B");
+        options = new GuardrailsOptions(config);
+        assertEquals(0, options.getPageSizeInBytesWarnThreshold().toBytes());
+        assertEquals(0, options.getPageSizeInBytesFailThreshold().toBytes());
+
+        config.page_size_in_bytes_warn_threshold = new DataStorageSpec.LongBytesBound("1B");
+        Assertions.assertThatThrownBy(() -> new GuardrailsOptions(config))
+                  .isInstanceOf(IllegalArgumentException.class)
+                  .hasMessageContaining("page_size_in_bytes_warn_threshold should be lower than the fail threshold");
+    }
 }

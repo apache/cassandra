@@ -37,6 +37,7 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadQuery;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadQuery;
 import org.apache.cassandra.db.aggregation.AggregationSpecification;
 import org.apache.cassandra.db.filter.DataLimits;
@@ -47,6 +48,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static java.util.stream.Collectors.toList;
 import static org.apache.cassandra.db.filter.DataLimits.NO_LIMIT;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertEquals;
@@ -69,6 +71,8 @@ public class AggregationPagerTest extends QueryPagerTest
         { PageSize.inRows(4) },
         { PageSize.inRows(10) },
         { PageSize.inRows(15) },
+        { PageSize.inBytes(1) },
+        { PageSize.inBytes(1024) },
         });
     }
 
@@ -109,6 +113,12 @@ public class AggregationPagerTest extends QueryPagerTest
     {
 
         @Override
+        protected ReadCommand makePartitionsSliceQuery(int limit, int perPartitionLimit, ColumnFamilyStore cfs, String startKeyInc, String endKeyExcl, String startClustInc, String endClustExcl)
+        {
+            return AggregationPagerTest.this.makePartitionsSliceQuery(limit, perPartitionLimit, cfs, startKeyInc, endKeyExcl, startClustInc, endClustExcl);
+        }
+
+        @Override
         QueryPager checkNextPage(QueryPager pager, ReadQuery command, boolean testPagingState, PageSize pageSize, int expectedRows, Consumer<List<FilteredPartition>> assertion)
         {
             return super.checkNextPage(pager, command, testPagingState, pageSize, subPageSize, expectedRows * expectedPerGroupCnt, assertion);
@@ -123,6 +133,15 @@ public class AggregationPagerTest extends QueryPagerTest
 
     private final MultiPartitionPagerTest multiPartitionPagerTest = new MultiPartitionPagerTest()
     {
+
+        @Override
+        protected ReadQuery makePartitionsSliceQuery(int limit, int perPartitionLimit, ColumnFamilyStore cfs, String startKeyInc, String endKeyExcl, String startClustInc, String endClustExcl)
+        {
+            SinglePartitionReadCommand.Group query = (SinglePartitionReadCommand.Group) super.makePartitionsSliceQuery(limit, perPartitionLimit, cfs, startKeyInc, endKeyExcl, startClustInc, endClustExcl);
+            AggregationSpecification spec = AggregationSpecification.aggregatePkPrefixFactory(cfs.metadata().comparator, 1).newInstance(QueryOptions.DEFAULT);
+            DataLimits limits = DataLimits.groupByLimits(limit, perPartitionLimit, NO_LIMIT, NO_LIMIT, spec);
+            return SinglePartitionReadCommand.Group.create(query.queries.stream().map(q -> q.withUpdatedLimit(limits)).collect(toList()), limits);
+        }
 
         @Override
         QueryPager checkNextPage(QueryPager pager, ReadQuery command, boolean testPagingState, PageSize pageSize, int expectedRows, Consumer<List<FilteredPartition>> assertion)
@@ -171,6 +190,9 @@ public class AggregationPagerTest extends QueryPagerTest
             prev = row.clustering().bufferAt(0);
             cnt = 1;
         }
+        assertEquals("Last group size in partition " + key, expectedPerGroupCnt, cnt);
+        assertEquals("Group count in partition " + key, names.length, i + 1);
+        assertEquals(names[i], prev);
     }
 
 

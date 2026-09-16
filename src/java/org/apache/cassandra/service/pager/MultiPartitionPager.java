@@ -135,7 +135,8 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
     @Override
     public QueryPager withUpdatedLimit(DataLimits newLimits)
     {
-        moveToNextNonEmptyPager();
+        if (moveToNextNonEmptyPager())
+            newLimits = newLimits.withoutState();
 
         return new MultiPartitionPager<T>(queries,
                                           newLimits,
@@ -261,8 +262,9 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
             this.clientState = clientState;
             this.executionController = executionController;
             this.requestTime = requestTime;
-            this.curPageLimits = limits.withCountedLimit(remaining);
-            this.curPageCounter = curPageLimits.forPaging(pageSize)
+            this.curPageLimits = limits.withCountedLimit(Math.min(limits.count(), remaining));
+            // Child pagers account for unfinished groups; this counter only sums their counts.
+            this.curPageCounter = curPageLimits.withoutState().forPaging(pageSize)
                                                .newCounter(nowInSec, true, true, false);
 
             if (logger.isTraceEnabled())
@@ -313,7 +315,8 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
                 // initially individual queries have their limits set to the initial value passed in the constructor
                 // the limits for subsequent queries have to be adjusted to the current page limits reduced by what has
                 // been counted so far on this page
-                curPager = curPager.withUpdatedLimit(curPageLimits.reducedBy(curPageCounter));
+                DataLimits partitionLimits = curPageLimits.reducedBy(curPageCounter);
+                curPager = curPager.withUpdatedLimit(isNewPartition ? partitionLimits.withoutState() : partitionLimits);
 
                 // a single page may span multiple partitions, so we may be in a middle of a page when switching
                 // to the next partition; therefore, a full page should not be requested from the next partition query,

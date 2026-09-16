@@ -978,6 +978,8 @@ public class Config
     public volatile int materialized_views_per_table_fail_threshold = -1;
     public volatile int page_size_warn_threshold = -1;
     public volatile int page_size_fail_threshold = -1;
+    public volatile DataStorageSpec.LongBytesBound page_size_in_bytes_warn_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound page_size_in_bytes_fail_threshold = null;
     public volatile int partition_keys_in_select_warn_threshold = -1;
     public volatile int partition_keys_in_select_fail_threshold = -1;
     public volatile int in_select_cartesian_product_warn_threshold = -1;

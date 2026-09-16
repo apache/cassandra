@@ -162,6 +162,27 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     }
 
     @Test
+    public void testPageSizeInBytesThreshold()
+    {
+        String fail = getThreshold("page_size_in_bytes_fail_threshold");
+        String warn = getThreshold("page_size_in_bytes_warn_threshold");
+        try
+        {
+            setThresholds("page_size_in_bytes_threshold", "2MiB", "1MiB").asserts().success();
+            assertEquals("2MiB", getThreshold("page_size_in_bytes_fail_threshold"));
+            assertEquals("1MiB", getThreshold("page_size_in_bytes_warn_threshold"));
+
+            setThresholds("page_size_in_bytes_threshold", "null", "null").asserts().success();
+            assertEquals("null", getThreshold("page_size_in_bytes_fail_threshold"));
+            assertEquals("null", getThreshold("page_size_in_bytes_warn_threshold"));
+        }
+        finally
+        {
+            setThresholds("page_size_in_bytes_threshold", fail, warn).asserts().success();
+        }
+    }
+
+    @Test
     public void testParsedGuardrailNamesFromMBeanExistInCassandraYaml()
     {
         Set<String> configFieldNames = getConfigFieldNames();
@@ -244,6 +265,7 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     "minimum_cms_size_threshold                   -1            \n" +
     "minimum_replication_factor_threshold         [-1, -1]      \n" +
     "minimum_timestamp_threshold                  [null, null]  \n" +
+    "page_size_in_bytes_threshold                 [null, null]  \n" +
     "page_size_threshold                          [-1, -1]      \n" +
     "partition_keys_in_select_threshold           [-1, -1]      \n" +
     "partition_size_threshold                     [null, null]  \n" +
@@ -297,6 +319,8 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     "minimum_replication_factor_warn_threshold         -1   \n" +
     "minimum_timestamp_fail_threshold                  null \n" +
     "minimum_timestamp_warn_threshold                  null \n" +
+    "page_size_in_bytes_fail_threshold                 null \n" +
+    "page_size_in_bytes_warn_threshold                 null \n" +
     "page_size_fail_threshold                          -1   \n" +
     "page_size_warn_threshold                          -1   \n" +
     "partition_keys_in_select_fail_threshold           -1   \n" +
