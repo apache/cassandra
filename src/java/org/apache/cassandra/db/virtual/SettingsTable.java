@@ -30,8 +30,10 @@ import com.google.common.base.Functions;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
@@ -53,6 +55,7 @@ final class SettingsTable extends AbstractVirtualTable
     final Map<String, BiConsumer<SimpleDataSet, Field>> overrides =
         ImmutableMap.<String, BiConsumer<SimpleDataSet, Field>>builder()
                     .put("audit_logging_options", this::addAuditLoggingOptions)
+                    .put("full_query_logging_options", this::addFullQueryLoggingOptions)
                     .put("client_encryption_options", this::addEncryptionOptions)
                     .put("server_encryption_options", this::addEncryptionOptions)
                     .put("transparent_data_encryption_options", this::addTransparentEncryptionOptions)
@@ -140,11 +143,16 @@ final class SettingsTable extends AbstractVirtualTable
         return result;
     }
 
+    private void addFullQueryLoggingOptions(SimpleDataSet result, Field f)
+    {
+        result.row(f.getName()).column(VALUE, FullQueryLogger.instance.getFullQueryLoggerOptions().toString());
+    }
+
     private void addAuditLoggingOptions(SimpleDataSet result, Field f)
     {
         Preconditions.checkArgument(AuditLogOptions.class.isAssignableFrom(f.getType()));
 
-        AuditLogOptions value = (AuditLogOptions) getValue(f);
+        AuditLogOptions value = AuditLogManager.instance.getAuditLogOptions();
         result.row(f.getName() + "_enabled").column(VALUE, Boolean.toString(value.enabled));
         result.row(f.getName() + "_logger").column(VALUE, value.logger.class_name);
         result.row(f.getName() + "_audit_logs_dir").column(VALUE, value.audit_logs_dir);

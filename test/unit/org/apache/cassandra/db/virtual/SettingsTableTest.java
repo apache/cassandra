@@ -32,6 +32,8 @@ import org.junit.Test;
 
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
+import org.apache.cassandra.audit.AuditLogManager;
+import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption;
 import org.apache.cassandra.config.ParameterizedClass;
@@ -191,44 +193,58 @@ public class SettingsTableTest extends CQLTester
     public void testAuditOverride() throws Throwable
     {
         String pre = "audit_logging_options_";
-        check(pre + "enabled", "false");
         String all = "SELECT * FROM vts.settings WHERE " +
                      "name > 'audit_logging' AND name < 'audit_loggingz' ALLOW FILTERING";
 
-        config.audit_logging_options.enabled = true;
-        Assert.assertEquals(9, executeNet(all).all().size());
-        check(pre + "enabled", "true");
-
+        // Before enabling, VT shows yaml defaults (audit logging disabled)
+        check(pre + "enabled", "false");
         check(pre + "logger", "BinAuditLogger");
-        config.audit_logging_options.logger = new ParameterizedClass("logger", null);
-        check(pre + "logger", "logger");
-
-        config.audit_logging_options.audit_logs_dir = "dir";
-        check(pre + "audit_logs_dir", "dir");
-
         check(pre + "included_keyspaces", "");
-        config.audit_logging_options.included_keyspaces = "included_keyspaces";
-        check(pre + "included_keyspaces", "included_keyspaces");
-
         check(pre + "excluded_keyspaces", "system,system_schema,system_virtual_schema");
-        config.audit_logging_options.excluded_keyspaces = "excluded_keyspaces";
-        check(pre + "excluded_keyspaces", "excluded_keyspaces");
-
         check(pre + "included_categories", "");
-        config.audit_logging_options.included_categories = "included_categories";
-        check(pre + "included_categories", "included_categories");
-
         check(pre + "excluded_categories", "");
-        config.audit_logging_options.excluded_categories = "excluded_categories";
-        check(pre + "excluded_categories", "excluded_categories");
-
         check(pre + "included_users", "");
-        config.audit_logging_options.included_users = "included_users";
-        check(pre + "included_users", "included_users");
-
         check(pre + "excluded_users", "");
-        config.audit_logging_options.excluded_users = "excluded_users";
-        check(pre + "excluded_users", "excluded_users");
+
+        // Enable audit logging via AuditLogManager with FileAuditLogger (no filesystem setup needed)
+        AuditLogOptions options = new AuditLogOptions();
+        options.enabled = true;
+        options.logger = new ParameterizedClass("FileAuditLogger", null);
+        options.audit_logs_dir = "dir";
+        options.included_keyspaces = "included_keyspaces";
+        options.excluded_keyspaces = "excluded_keyspaces";
+        options.included_categories = "included_categories";
+        options.excluded_categories = "excluded_categories";
+        options.included_users = "included_users";
+        options.excluded_users = "excluded_users";
+        AuditLogManager.instance.enable(options);
+
+        try
+        {
+            Assert.assertEquals(9, executeNet(all).all().size());
+            check(pre + "enabled", "true");
+            check(pre + "logger", "FileAuditLogger");
+            check(pre + "audit_logs_dir", "dir");
+            check(pre + "included_keyspaces", "included_keyspaces");
+            check(pre + "excluded_keyspaces", "excluded_keyspaces");
+            check(pre + "included_categories", "included_categories");
+            check(pre + "excluded_categories", "excluded_categories");
+            check(pre + "included_users", "included_users");
+            check(pre + "excluded_users", "excluded_users");
+
+            // After disabling, VT reverts to yaml defaults
+            AuditLogManager.instance.disableAuditLog();
+            check(pre + "enabled", "false");
+            check(pre + "logger", "BinAuditLogger");
+            check(pre + "excluded_keyspaces", "system,system_schema,system_virtual_schema");
+            check(pre + "included_keyspaces", "");
+        }
+        finally
+        {
+            // Ensure cleanup even if assertions fail
+            if (AuditLogManager.instance.isEnabled())
+                AuditLogManager.instance.disableAuditLog();
+        }
     }
 
     @Test
