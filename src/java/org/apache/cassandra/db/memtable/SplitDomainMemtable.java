@@ -288,24 +288,6 @@ public class SplitDomainMemtable implements Memtable
         journalInternal.notifyFlushed();
     }
 
-    // Commit-log-only accessors
-
-    /**
-     * The commit-log internal's value, not an aggregate. Its only consumer is commit log segment reclamation, via
-     * {@link ColumnFamilyStore#forceFlush(CommitLogPosition)} from
-     * {@code AbstractCommitLogSegmentManager}, and only that internal can hold commit-log-derived rows.
-     *
-     * Aggregating would be wrong rather than merely redundant: the field is initialized from
-     * {@code CommitLog.instance.getCurrentPosition()} on every memtable regardless of domain, so the journal internal's
-     * value describes when it was created, not what it holds. Folding it in reports commit log data the memtable does
-     * not have and pins segments that could be recycled.
-     */
-    @Override
-    public CommitLogPosition getApproximateCommitLogLowerBound()
-    {
-        return commitLogInternal.getApproximateCommitLogLowerBound();
-    }
-
     /**
      * Both internals take the same boundary and the same barrier, and each reads the position for its own domain from
      * it. One barrier, because the generation flushes as a whole; see the class javadoc.

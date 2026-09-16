@@ -92,6 +92,19 @@ public class LogDomainBoundsTest
         assertEquals(inherited, bounds.get(LogDomain.COMMIT_LOG));
     }
 
+    /** seal must not overwrite a bound already sealed as LastCommitLogPosition. */
+    @Test(timeout = 30_000)
+    public void sealSkipsAlreadySealedBound()
+    {
+        LogDomainBounds bounds = LogDomainBounds.unset();
+        Memtable.LastCommitLogPosition propagated = sealedAt(1, 100);
+        bounds.forDomain(LogDomain.COMMIT_LOG).set(propagated);
+
+        bounds.seal(positions(new CommitLogPosition(1, 500), null));
+
+        assertEquals(propagated, bounds.get(LogDomain.COMMIT_LOG));
+    }
+
     private static Function<LogDomain, CommitLogPosition> positions(CommitLogPosition commitLog, CommitLogPosition journal)
     {
         return domain -> domain.isJournal() ? journal : commitLog;

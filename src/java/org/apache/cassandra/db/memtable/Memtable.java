@@ -72,7 +72,7 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
     interface Owner
     {
         /** Signal to the owner that a flush is required (e.g. in response to hitting space limits) */
-        Future<CommitLogPosition> signalFlushRequired(Memtable memtable, ColumnFamilyStore.FlushReason reason);
+        Future<LogDomainPositions> signalFlushRequired(Memtable memtable, ColumnFamilyStore.FlushReason reason);
 
         /** Get the current memtable for this owner. Used to avoid capturing memtable in scheduled flush tasks. */
         Memtable getCurrentMemtable();
@@ -341,16 +341,16 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
     {
     }
 
-    /** Approximate commit log lower bound, <= getCommitLogLowerBound, used as a time stamp for ordering */
-    CommitLogPosition getApproximateCommitLogLowerBound();
-
     /** True if the memtable contains no data */
     boolean isClean();
 
-    /** Order memtables by time as reflected in the commit log position at time of construction */
+    /**
+     * Order memtables by time as reflected in memtable id at time of construction.
+     * Note that split generations share the id of the generation they replace.
+     */
     default int compareTo(Memtable that)
     {
-        return this.getApproximateCommitLogLowerBound().compareTo(that.getApproximateCommitLogLowerBound());
+        return Long.compare(this.getMemtableId(), that.getMemtableId());
     }
 
     /**

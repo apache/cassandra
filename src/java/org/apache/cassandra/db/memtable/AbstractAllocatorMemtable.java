@@ -318,7 +318,7 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
                         largestMemtable.owner(), ratio(usedOnHeap, usedOffHeap), ratio(liveOnHeap, liveOffHeap),
                         ratio(flushingOnHeap, flushingOffHeap), ratio(largestUsage.ownershipRatioOnHeap, largestUsage.ownershipRatioOffHeap));
 
-            Future<CommitLogPosition> flushFuture = largestMemtable.owner().signalFlushRequired(largestMemtable, ColumnFamilyStore.FlushReason.MEMTABLE_LIMIT);
+            Future<LogDomainPositions> flushFuture = largestMemtable.owner().signalFlushRequired(largestMemtable, ColumnFamilyStore.FlushReason.MEMTABLE_LIMIT);
             flushFuture.addListener(() -> {
                 try
                 {

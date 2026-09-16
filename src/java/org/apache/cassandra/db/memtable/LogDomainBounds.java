@@ -112,6 +112,9 @@ public class LogDomainBounds
                              LogDomain domain,
                              Function<LogDomain, CommitLogPosition> logs)
     {
+        if (bound.get() instanceof Memtable.LastCommitLogPosition)
+            return;
+
         while (true)
         {
             // Re-read on every attempt. A write admitted since the last read raises the bound above the position we

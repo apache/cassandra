@@ -151,6 +151,8 @@ public abstract class AbstractMemtable implements DomainMemtable
     @Override
     public DomainMemtable flushSourceFor(LogDomain domain)
     {
+        if (!holds(domain))
+            throw new IllegalArgumentException(String.format("Memtable %s does not hold domain %s", this, domain));
         return this;
     }
 

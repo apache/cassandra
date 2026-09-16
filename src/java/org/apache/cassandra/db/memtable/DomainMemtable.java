@@ -43,7 +43,10 @@ public interface DomainMemtable extends Memtable
     /** The commit log position at the time that this memtable was switched out */
     LastCommitLogPosition getFinalCommitLogUpperBound();
 
-    /** True if the memtable can contain any data that was written before the given commit log position */
+    /**
+     * True if the memtable can contain any data that was written before the given position in this memtable's log domain.
+     * Callers must only pass a position from this memtable's backing log domain (e.g. obtained via {@link Memtable#flushSourceFor}).
+     */
     boolean mayContainDataBefore(CommitLogPosition position);
     // The following two methods provide a way of tracking ongoing flushes
     ILifecycleTransaction setFlushTransaction(ILifecycleTransaction transaction);

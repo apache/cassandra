@@ -914,12 +914,6 @@ public class ColumnFamilyStoreTest
             }
 
             @Override
-            public CommitLogPosition getApproximateCommitLogLowerBound()
-            {
-                return null;
-            }
-
-            @Override
             public CommitLogPosition getCommitLogLowerBound()
             {
                 return null;

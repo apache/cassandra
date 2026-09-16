@@ -21,7 +21,6 @@ package org.apache.cassandra.db.memtable;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.cassandra.db.LogDomain;
-import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -32,9 +31,6 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  */
 public abstract class AbstractMemtableWithCommitlog extends AbstractMemtable
 {
-    // The approximate lower bound by this memtable; must be <= commitLogLowerBound once our predecessor
-    // has been finalised, and this is enforced in LogDomainBounds.seal
-    private final CommitLogPosition approximateCommitLogLowerBound = CommitLog.instance.getCurrentPosition();
     // the precise lower bound of CommitLogPosition owned by this memtable; equal to its predecessor's commitLogUpperBound
     private final AtomicReference<CommitLogPosition> commitLogLowerBound;
     // the write barrier for directing writes to this memtable or the next during a switch
@@ -71,11 +67,6 @@ public abstract class AbstractMemtableWithCommitlog extends AbstractMemtable
     {
         if (writeDomain != domain)
             throw new IllegalArgumentException("Cannot put a " + writeDomain + " write into a " + domain + " memtable");
-    }
-
-    public CommitLogPosition getApproximateCommitLogLowerBound()
-    {
-        return approximateCommitLogLowerBound;
     }
 
     public void switchOut(OpOrder.Barrier writeBarrier, LogDomainBounds upperBounds)
@@ -152,6 +143,7 @@ public abstract class AbstractMemtableWithCommitlog extends AbstractMemtable
 
     public boolean mayContainDataBefore(CommitLogPosition position)
     {
-        return approximateCommitLogLowerBound.compareTo(position) < 0;
+        CommitLogPosition lower = commitLogLowerBound.get();
+        return lower == null || lower.compareTo(position) < 0;
     }
 }

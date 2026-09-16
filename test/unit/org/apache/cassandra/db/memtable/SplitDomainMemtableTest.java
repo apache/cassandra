@@ -68,6 +68,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -181,11 +182,6 @@ public class SplitDomainMemtableTest
      * {@link ColumnFamilyStore#forceFlush(CommitLogPosition)}. Only the commit-log internal can hold
      * commit-log-derived rows, so the wrapper answers from it alone. A generation whose journal internal is the dirty
      * one holds no commit log data, and must not pin the segment.
-     * <p>
-     * The ordering matters. Both internals' {@code approximateCommitLogLowerBound} are commit log positions taken at
-     * construction, whatever the internal's domain. Aggregating across them is therefore only distinguishable from
-     * delegating when the journal internal is the older of the two. That is also the order an install produces for a
-     * tracked table, since the memtable already live becomes an internal and the other is created after it.
      */
     @Test
     public void journalOnlySplitMemtableDoesntPinCommitlogSegments()
@@ -195,20 +191,17 @@ public class SplitDomainMemtableTest
         DomainMemtable journalInternal = internal(cfs, bounds, LogDomain.MUTATION_JOURNAL);
         write(cfs, journalInternal, 1, LogDomain.MUTATION_JOURNAL);
 
-        // Advance the commit log past the journal internal's creation, so the two internals' bounds differ, then
+        // Advance the commit log past the journal internal's creation, then
         // create the commit-log internal above the position under test and leave it clean.
         appendToCommitLog();
         CommitLogPosition reclaimBelow = CommitLog.instance.getCurrentPosition();
-        DomainMemtable commitLogInternal = internal(cfs, bounds, LogDomain.COMMIT_LOG);
+        appendToCommitLog();
+        LogDomainBounds clBounds = LogDomainBounds.atCurrentPositions();
+        DomainMemtable commitLogInternal = internal(cfs, clBounds, LogDomain.COMMIT_LOG);
         SplitDomainMemtable wrapper = new SplitDomainMemtable(commitLogInternal, journalInternal,
                                                              journalInternal.getMemtableId());
 
-        // sanity check
-        assertNotEquals(commitLogInternal.mayContainDataBefore(reclaimBelow), journalInternal.mayContainDataBefore(reclaimBelow));
-
         assertFalse(wrapper.flushSourceFor(LogDomain.COMMIT_LOG).mayContainDataBefore(reclaimBelow));
-        assertEquals(commitLogInternal.getApproximateCommitLogLowerBound(),
-                     wrapper.getApproximateCommitLogLowerBound());
     }
 
     @Test
@@ -224,9 +217,6 @@ public class SplitDomainMemtableTest
         DomainMemtable journalInternal = internal(cfs, bounds, LogDomain.MUTATION_JOURNAL);
         SplitDomainMemtable wrapper = new SplitDomainMemtable(commitLogInternal, journalInternal,
                                                              commitLogInternal.getMemtableId());
-
-        // sanity check
-        assertNotEquals(commitLogInternal.mayContainDataBefore(reclaimBelow), journalInternal.mayContainDataBefore(reclaimBelow));
 
         assertTrue(wrapper.flushSourceFor(LogDomain.COMMIT_LOG).mayContainDataBefore(reclaimBelow));
         assertEquals(commitLogInternal.getCommitLogLowerBound(), wrapper.flushSourceFor(LogDomain.COMMIT_LOG).getCommitLogLowerBound());
@@ -688,6 +678,27 @@ public class SplitDomainMemtableTest
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         assertFalse(commitLogIsDirtyFor(cfs));
+    }
+
+    @Test
+    public void flushSourceForEnforcesDomain()
+    {
+        ColumnFamilyStore cfs = newTrackedTable();
+        LogDomainBounds bounds = LogDomainBounds.atCurrentPositions();
+        DomainMemtable commitLogInternal = internal(cfs, bounds, LogDomain.COMMIT_LOG);
+        DomainMemtable journalInternal = internal(cfs, bounds, LogDomain.MUTATION_JOURNAL);
+        SplitDomainMemtable wrapper = new SplitDomainMemtable(commitLogInternal, journalInternal, 1L);
+
+        assertSame(commitLogInternal, commitLogInternal.flushSourceFor(LogDomain.COMMIT_LOG));
+        assertThatThrownBy(() -> commitLogInternal.flushSourceFor(LogDomain.MUTATION_JOURNAL))
+            .isInstanceOf(IllegalArgumentException.class);
+
+        assertSame(journalInternal, journalInternal.flushSourceFor(LogDomain.MUTATION_JOURNAL));
+        assertThatThrownBy(() -> journalInternal.flushSourceFor(LogDomain.COMMIT_LOG))
+            .isInstanceOf(IllegalArgumentException.class);
+
+        assertSame(commitLogInternal, wrapper.flushSourceFor(LogDomain.COMMIT_LOG));
+        assertSame(journalInternal, wrapper.flushSourceFor(LogDomain.MUTATION_JOURNAL));
     }
 
     private static Mutation untrackedMutation(ColumnFamilyStore cfs, int k)

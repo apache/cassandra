@@ -35,7 +35,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
-import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.RestorableMeter;
@@ -136,7 +135,7 @@ public class IndexSummaryRedistributionTest<R extends SSTableReader & IndexSumma
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();
 
-        ArrayList<Future<CommitLogPosition>> futures = new ArrayList<>(numSSTables);
+        ArrayList<Future<?>> futures = new ArrayList<>(numSSTables);
         ByteBuffer value = ByteBuffer.wrap(new byte[100]);
         for (int sstable = 0; sstable < numSSTables; sstable++)
         {
@@ -151,7 +150,7 @@ public class IndexSummaryRedistributionTest<R extends SSTableReader & IndexSumma
             }
             futures.add(cfs.forceFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
         }
-        for (Future<CommitLogPosition> future : futures)
+        for (Future<?> future : futures)
         {
             try
             {

@@ -98,6 +98,7 @@ import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.memtable.DomainMemtable;
 import org.apache.cassandra.db.memtable.Flushing;
 import org.apache.cassandra.db.memtable.LogDomainBounds;
+import org.apache.cassandra.db.memtable.LogDomainPositions;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.ShardBoundaries;
 import org.apache.cassandra.db.memtable.SplitDomainMemtable;
@@ -185,7 +186,6 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.DatabaseDescriptor.getFlushWriters;
-import static org.apache.cassandra.db.commitlog.CommitLogPosition.NONE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
@@ -1069,7 +1069,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
      *
      * @param memtable
      */
-    public Future<CommitLogPosition> switchMemtableIfCurrent(Memtable memtable, FlushReason reason)
+    public Future<LogDomainPositions> switchMemtableIfCurrent(Memtable memtable, FlushReason reason)
     {
         synchronized (data)
         {
@@ -1088,7 +1088,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
      * marked clean up to the position owned by the Memtable.
      */
     @VisibleForTesting
-    public Future<CommitLogPosition> switchMemtable(FlushReason reason)
+    public Future<LogDomainPositions> switchMemtable(FlushReason reason)
     {
         synchronized (data)
         {
@@ -1120,7 +1120,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
      * @return a Future yielding the commit log position that can be guaranteed to have been successfully written
      *         to sstables for this table once the future completes
      */
-    public Future<CommitLogPosition> forceFlush(FlushReason reason)
+    public Future<LogDomainPositions> forceFlush(FlushReason reason)
     {
         synchronized (data)
         {
@@ -1144,12 +1144,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         // we don't loop through the remaining memtables since here we only care about commit log dirtiness
         // and this does not vary between a table and its table-backed indexes
         Memtable current = data.getView().getCurrentMemtable();
-        if (current.flushSourceFor(LogDomain.COMMIT_LOG).mayContainDataBefore(flushIfDirtyBefore))
+        if (current.holds(LogDomain.COMMIT_LOG) && current.flushSourceFor(LogDomain.COMMIT_LOG).mayContainDataBefore(flushIfDirtyBefore))
             return flushMemtable(current, FlushReason.COMMITLOG_DIRTY);
         return waitForFlushes();
     }
 
-    private Future<CommitLogPosition> flushMemtable(Memtable current, FlushReason reason)
+    private Future<LogDomainPositions> flushMemtable(Memtable current, FlushReason reason)
     {
         if (current.shouldSwitch(reason))
             return switchMemtableIfCurrent(current, reason);
@@ -1161,15 +1161,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
      * @return a Future yielding the commit log position that can be guaranteed to have been successfully written
      *         to sstables for this table once the future completes
      */
-    private Future<CommitLogPosition> waitForFlushes()
+    private Future<LogDomainPositions> waitForFlushes()
     {
         // we grab the current memtable; once any preceding memtables have flushed, we know its
         // commitLogLowerBound has been set (as this it is set with the upper bound of the preceding memtable)
-        final DomainMemtable current = data.getView().getCurrentMemtable().flushSourceFor(LogDomain.COMMIT_LOG);
-        return postFlushExecutor.submit(current::getCommitLogLowerBound);
+        return postFlushExecutor.submit(() -> LogDomainPositions.of(data.getView().currentBounds));
     }
 
-    public CommitLogPosition forceBlockingFlush(FlushReason reason)
+    public LogDomainPositions forceBlockingFlush(FlushReason reason)
     {
         return FBUtilities.waitOnFuture(forceFlush(reason));
     }
@@ -1178,18 +1177,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
      * Both synchronises custom secondary indexes and provides ordering guarantees for futures on switchMemtable/flush
      * etc, which expect to be able to wait until the flush (and all prior flushes) requested have completed.
      */
-    private final class PostFlush implements Callable<CommitLogPosition>
+    private final class PostFlush implements Callable<LogDomainPositions>
     {
         final CountDownLatch latch = newCountDownLatch(1);
         final Memtable mainMemtable;
+        final LogDomainBounds upperBounds;
         volatile Throwable flushFailure = null;
 
-        private PostFlush(Memtable mainMemtable)
+        private PostFlush(Memtable mainMemtable, LogDomainBounds upperBounds)
         {
             this.mainMemtable = mainMemtable;
+            this.upperBounds = upperBounds;
         }
 
-        public CommitLogPosition call()
+        public LogDomainPositions call()
         {
             try
             {
@@ -1202,7 +1203,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 throw new UncheckedInterruptedException(e);
             }
 
-            CommitLogPosition commitLogUpperBound = NONE;
+            LogDomainPositions commitLogUpperBound = LogDomainPositions.NONE;
             // If a flush errored out but the error was ignored, make sure we don't discard the commit log.
             if (flushFailure == null && mainMemtable != null)
             {
@@ -1220,7 +1221,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                         CommitLog.instance.discardCompletedSegments(metadata.id, lowerBound, upperBound);
                 }
 
-                commitLogUpperBound = mainMemtable.flushSourceFor(LogDomain.COMMIT_LOG).getFinalCommitLogUpperBound();
+                CommitLogPosition clUpper = mainMemtable.holds(LogDomain.COMMIT_LOG)
+                                            ? mainMemtable.flushSourceFor(LogDomain.COMMIT_LOG).getFinalCommitLogUpperBound()
+                                            : upperBounds.get(LogDomain.COMMIT_LOG);
+                CommitLogPosition jUpper = mainMemtable.holds(LogDomain.MUTATION_JOURNAL)
+                                           ? mainMemtable.flushSourceFor(LogDomain.MUTATION_JOURNAL).getFinalCommitLogUpperBound()
+                                           : upperBounds.get(LogDomain.MUTATION_JOURNAL);
+                commitLogUpperBound = new LogDomainPositions(clUpper, jUpper);
             }
 
             metric.pendingFlushes.dec();
@@ -1247,7 +1254,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     {
         final OpOrder.Barrier writeBarrier;
         final Map<ColumnFamilyStore, Memtable> memtables;
-        final FutureTask<CommitLogPosition> postFlushTask;
+        final FutureTask<LogDomainPositions> postFlushTask;
         final PostFlush postFlush;
         final boolean truncate;
 
@@ -1273,6 +1280,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             memtables = new LinkedHashMap<>();
 
             // submit flushes for the memtable for any indexed sub-cfses, and our own
+            LogDomainBounds previousBounds = data.getView().currentBounds;
             LogDomainBounds upperBounds = LogDomainBounds.unset();
             for (ColumnFamilyStore cfs : concatWithIndexes())
             {
@@ -1283,6 +1291,26 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 Memtable oldMemtable = cfs.data.switchMemtable(truncate, newMemtable, upperBounds);
                 oldMemtable.switchOut(writeBarrier, upperBounds);
                 memtables.put(cfs, oldMemtable);
+            }
+
+            // preset positions for domains we don't have memtables for
+            for (LogDomain domain : LogDomain.values())
+            {
+                boolean holdsDomain = false;
+                for (Memtable memtable : memtables.values())
+                {
+                    if (memtable.holds(domain))
+                    {
+                        holdsDomain = true;
+                        break;
+                    }
+                }
+                if (!holdsDomain)
+                {
+                    CommitLogPosition prev = previousBounds != null ? previousBounds.get(domain) : null;
+                    if (prev != null)
+                        upperBounds.forDomain(domain).set(new Memtable.LastCommitLogPosition(prev));
+                }
             }
 
             // we then ensure an atomic decision is made about the upper bound of the continuous range of records owned
@@ -1296,7 +1324,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             // since this happens after wiring up the commitLogUpperBound, we also know all operations with earlier
             // commit log segment position have also completed, i.e. the memtables are done and ready to flush
             writeBarrier.issue();
-            postFlush = new PostFlush(Iterables.get(memtables.values(), 0, null));
+            postFlush = new PostFlush(Iterables.get(memtables.values(), 0, null), upperBounds);
             postFlushTask = new FutureTask<>(postFlush);
         }
 
@@ -1528,7 +1556,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     }
 
     @Override
-    public Future<CommitLogPosition> signalFlushRequired(Memtable memtable, FlushReason reason)
+    public Future<LogDomainPositions> signalFlushRequired(Memtable memtable, FlushReason reason)
     {
         return switchMemtableIfCurrent(memtable, reason);
     }
@@ -2679,7 +2707,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         viewManager.stopBuild();
 
         final long truncatedAt;
-        final CommitLogPosition replayAfter;
+        final LogDomainPositions replayAfter;
 
         if (!noSnapshot &&
                ((keyspace.getMetadata().params.durableWrites && !memtableWritesAreDurable())  // need to clear dirty regions
@@ -2740,7 +2768,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
      * that cannot have dirty intervals in the commit log (i.e. one which is not durable, or where the memtable itself
      * performs durable writes).
      */
-    public Future<CommitLogPosition> dumpMemtable()
+    public Future<LogDomainPositions> dumpMemtable()
     {
         synchronized (data)
         {
