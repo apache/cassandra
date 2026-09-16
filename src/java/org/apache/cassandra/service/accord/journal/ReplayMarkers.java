@@ -53,18 +53,52 @@ public class ReplayMarkers
         return new File(getAccordJournalDirectory(), stopMarkerCrc);
     }
 
+    public enum State
+    {
+        DOES_NOT_EXIST, // The marker file can not be found
+        INVALID, // The marker file is corrupted or an exception was thrown while deserializing it from the file
+        VALID
+    }
+
+    /**
+     * Determines if the stopMarker is in a correct position with regard to the startMarker
+     * */
+    public static boolean isValid(StartMarker startMarker, StopMarker stopMarker)
+    {
+        State startMarkerState = startMarker.state;
+        State stopMarkerState = stopMarker.state;
+
+        // Initial state, when we first start up neither file exists yet
+        if (startMarkerState == State.DOES_NOT_EXIST && stopMarkerState == State.DOES_NOT_EXIST)
+            return true;
+
+        return startMarkerState == State.VALID && stopMarkerState == State.VALID && startMarker.getSegmentId() <= stopMarker.getSegmentId();
+    }
+
     public static class StartMarker
     {
+        public final State state;
         public final long segmentId;
 
-        public StartMarker(long segmentId)
+        private StartMarker(State state, long segmentId)
         {
+            this.state = state;
             this.segmentId = segmentId;
+        }
+
+        public static StartMarker validMarker(long segmentId)
+        {
+            return new StartMarker(State.VALID, segmentId);
+        }
+
+        public static StartMarker doesNotExistMarker()
+        {
+            return new StartMarker(State.DOES_NOT_EXIST, -1L);
         }
 
         public static StartMarker invalidMarker()
         {
-            return new StartMarker(-1L);
+            return new StartMarker(State.INVALID, -1L);
         }
 
         public long getSegmentId()
@@ -75,18 +109,30 @@ public class ReplayMarkers
 
     public static class StopMarker
     {
+        public final State state;
         public final long segmentId;
         public final long lastUniqueTimestamp;
 
-        public StopMarker(long segmentId, long lastUniqueTimestamp)
+        private StopMarker(State state, long segmentId, long lastUniqueTimestamp)
         {
+            this.state = state;
             this.segmentId = segmentId;
             this.lastUniqueTimestamp = lastUniqueTimestamp;
         }
 
+        public static StopMarker validMarker(long segmentId, long lastUniqueTimestamp)
+        {
+            return new StopMarker(State.VALID, segmentId, lastUniqueTimestamp);
+        }
+
+        public static StopMarker doesNotExistMarker()
+        {
+            return new StopMarker(State.DOES_NOT_EXIST, -1L, -1L);
+        }
+
         public static StopMarker invalidMarker()
         {
-            return new StopMarker(-1L, -1L);
+            return new StopMarker(State.INVALID, -1L, -1L);
         }
 
         public long getSegmentId()
@@ -175,7 +221,7 @@ public class ReplayMarkers
         if (!file.exists())
         {
             logger.debug("{} does not exist", file);
-            return StopMarker.invalidMarker();
+            return StopMarker.doesNotExistMarker();
         }
 
         try (FileInputStreamPlus in = new FileInputStreamPlus(file))
@@ -192,7 +238,7 @@ public class ReplayMarkers
                 return StopMarker.invalidMarker();
             }
 
-            return new StopMarker(segmentId, lastUniqueTimestamp);
+            return StopMarker.validMarker(segmentId, lastUniqueTimestamp);
         }
         catch (IOException e)
         {
@@ -206,7 +252,7 @@ public class ReplayMarkers
         if (!file.exists())
         {
             logger.debug("{} does not exist", file);
-            return StartMarker.invalidMarker();
+            return StartMarker.doesNotExistMarker();
         }
 
         try (FileInputStreamPlus in = new FileInputStreamPlus(file))
@@ -221,7 +267,7 @@ public class ReplayMarkers
                 return StartMarker.invalidMarker();
             }
 
-            return new StartMarker(segmentId);
+            return StartMarker.validMarker(segmentId);
         }
         catch (IOException e)
         {
@@ -235,7 +281,7 @@ public class ReplayMarkers
         if (!file.exists())
         {
             logger.debug("{} does not exist", file);
-            return StopMarker.invalidMarker();
+            return StopMarker.doesNotExistMarker();
         }
 
         try (FileInputStreamPlus in = new FileInputStreamPlus(file))
@@ -243,7 +289,7 @@ public class ReplayMarkers
             StringBuilder sb = new StringBuilder(8);
             for (int b = in.read(); b >= 0 ; b = in.read())
                 sb.append((char)b);
-            return new StopMarker(Long.parseLong(sb.toString()), -1L);
+            return StopMarker.validMarker(Long.parseLong(sb.toString()), -1L);
         }
         catch (IOException e)
         {
@@ -262,7 +308,7 @@ public class ReplayMarkers
         if (!file.exists())
         {
             logger.debug("{} does not exist", file);
-            return StartMarker.invalidMarker();
+            return StartMarker.doesNotExistMarker();
         }
 
         try (FileInputStreamPlus in = new FileInputStreamPlus(file))
@@ -270,7 +316,7 @@ public class ReplayMarkers
             StringBuilder sb = new StringBuilder(8);
             for (int b = in.read(); b >= 0 ; b = in.read())
                 sb.append((char)b);
-            return new StartMarker(Long.parseLong(sb.toString()));
+            return StartMarker.validMarker(Long.parseLong(sb.toString()));
         }
         catch (IOException e)
         {

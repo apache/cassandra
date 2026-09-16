@@ -191,6 +191,7 @@ import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.DRAIN;
 import static org.apache.cassandra.db.SystemKeyspace.BootstrapState.COMPLETED;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadBookkeeping;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteBookkeeping;
+import static org.apache.cassandra.service.accord.journal.ReplayMarkers.isValid;
 import static org.apache.cassandra.service.accord.topology.AccordTopology.tcmIdToAccord;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -539,7 +540,7 @@ public class AccordService implements IAccordService, Shutdownable
             long startMarkerSegmentId = startMarker.getSegmentId();
             long stopMarkerSegmentId = stopMarker.getSegmentId();
 
-            if (stopMarkerSegmentId < startMarkerSegmentId)
+            if (!isValid(startMarker, stopMarker))
             {
                 switch (getAccord().journal.stopMarkerFailurePolicy)
                 {
