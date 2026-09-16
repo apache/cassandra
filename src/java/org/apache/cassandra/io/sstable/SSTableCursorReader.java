@@ -608,7 +608,7 @@ public class SSTableCursorReader implements AutoCloseable
         serializationHeader = reader.header;
         sstableHasDroppedColumns = anyDroppedColumn(deserializationHelper, serializationHeader);
 
-        dataReader = reader.openDataReaderForScan(diskAccessMode);
+        dataReader = reader.openDataReaderForBulkScan(diskAccessMode);
         // the HEADER decides whether this sstable can contain static rows: after
         // ALTER TABLE ... DROP of the last static column, current metadata has no static
         // columns but older sstables legitimately still carry static rows

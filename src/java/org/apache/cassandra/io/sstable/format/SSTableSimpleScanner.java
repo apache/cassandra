@@ -78,7 +78,7 @@ implements ISSTableScanner
     {
         assert sstable != null;
 
-        this.dfile = sstable.openDataReaderForScan(diskAccessMode);
+        this.dfile = sstable.openDataReaderForBulkScan(diskAccessMode);
         this.sstable = sstable;
         this.tableMetadata = sstable.metadata();
         this.sizeInBytes = boundsList.stream().mapToLong(ppb -> ppb.upperPosition - ppb.lowerPosition).sum();

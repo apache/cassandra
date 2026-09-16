@@ -31,6 +31,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.NativeLibrary;
 
 public class ComponentContext implements AutoCloseable
 {
@@ -80,6 +81,7 @@ public class ComponentContext implements AutoCloseable
 
         assert size == channel.size() : String.format("Entire sstable streaming expects %s file size to be %s but got %s.",
                                                       component, size, channel.size());
+        NativeLibrary.trySetSequential(NativeLibrary.getfd(channel), toTransfer.path());
         return channel;
     }
 
