@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -13,17 +14,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 #
-#
-#
-# See python driver docs: six have to be installed before
-# cythonizing the driver, perhaps only on old pips.
-# http://datastax.github.io/python-driver/installation.html#cython-based-extensions
-six>=1.12.0
-# 3.25.0 (2017) cannot be built with the current pip/setuptools in the shared CI test
-# image (its ez_setup.py path is broken); 3.29.0 is what the cassandra-5.0 CI pins.
--e git+https://github.com/apache/cassandra-python-driver.git@3.29.0#egg=cassandra-driver
-# Used ccm version is tracked by cassandra-test branch in ccm repo. Please create a PR there for fixes or upgrades to new releases.
--e git+https://github.com/apache/cassandra-ccm.git@cassandra-test#egg=ccm
-coverage
-pytest
+# Creates the tarball artifact
+
+$(dirname -- "$0")/_docker_run.sh bullseye-build.docker build-artifacts.sh $1
+exit $?
