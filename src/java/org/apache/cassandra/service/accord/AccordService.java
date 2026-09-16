@@ -1543,8 +1543,13 @@ public class AccordService implements IAccordService, Shutdownable
         {
             DefaultProgressLog.setDebugDeletion(txnId -> {
                 String stack = Threads.prettyPrintStackTrace(Thread.currentThread(), true, ";").intern();
-                AccordCommandStore commandStore = ((SafeTask<?>) TaskRunner.get().accordActiveSelfTask()).commandStore();
-                List<AccordJournal.DebugEntry> debug = ((AccordJournal)commandStore.journal).debugCommand(commandStore.id(), txnId);
+                SafeTask<?> task = (SafeTask<?>) TaskRunner.get().accordActiveSelfTask();
+                List<AccordJournal.DebugEntry> debug = null;
+                if (task != null)
+                {
+                    AccordCommandStore commandStore = ((SafeTask<?>) TaskRunner.get().accordActiveSelfTask()).commandStore();
+                    debug = ((AccordJournal)commandStore.journal).debugCommand(commandStore.id(), txnId);
+                }
                 return new DebugDeletion(stack, debug);
             });
         }

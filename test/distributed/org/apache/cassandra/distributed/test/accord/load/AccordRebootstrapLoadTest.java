@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.distributed.api.Feature;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.LOGBACK_CONFIGURATION_FILE;
 import static org.apache.cassandra.distributed.test.accord.load.LoadSettings.ycsbZipfian;
 
 public class AccordRebootstrapLoadTest extends AccordLoadTestBase
@@ -38,6 +39,7 @@ public class AccordRebootstrapLoadTest extends AccordLoadTestBase
 
     public void setupCluster(int nodeCount)
     {
+        LOGBACK_CONFIGURATION_FILE.setString("test/conf/logback-dtest-info.xml");
         setupCluster(nodeCount, config -> {
             config.with(Feature.NETWORK, Feature.GOSSIP)
                   .set("accord.shard_durability_target_splits", "8")
