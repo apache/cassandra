@@ -1447,9 +1447,12 @@ public abstract class ReadCommand extends AbstractReadQuery
             if (hasIndex)
             {
                 IndexMetadata index = deserializeIndexMetadata(in, version, tableMetadata);
-                Index.Group indexGroup =  Keyspace.openAndGetStore(tableMetadata).indexManager.getIndexGroup(index);
-                if (indexGroup != null)
-                    indexQueryPlan = indexGroup.queryPlanFor(rowFilter);
+                if (index != null)
+                {
+                    Index.Group indexGroup = Keyspace.openAndGetStore(tableMetadata).indexManager.getIndexGroup(index);
+                    if (indexGroup != null)
+                        indexQueryPlan = indexGroup.queryPlanFor(rowFilter);
+                }
             }
 
             return deserializer.deserialize(in, version, schemaVersion, isDigest, digestVersion, acceptsTransient, potentialTxnConflicts, tableMetadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
@@ -1505,6 +1508,10 @@ public abstract class ReadCommand extends AbstractReadQuery
             return deserialize(kind.accordSelectionDeserializer.apply(key), flags, tableMetadata.epoch, 0, 0, tableMetadata, in, version);
         }
 
+        /**
+         * @return the index the command was built with, or {@code null} if this node does not know that index yet
+         */
+        @Nullable
         private IndexMetadata deserializeIndexMetadata(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
             try

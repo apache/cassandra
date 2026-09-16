@@ -45,6 +45,7 @@ Merged from 6.0:
  * Avoid megamorphic calls when serializing and deserializing fixed-length values (CASSANDRA-21536)
  * Avoid megamorphic calls for Cell.timestamp/ttl/path/localDeletionTimeAsUnsignedInt methods (CASSANDRA-21526)
 Merged from 5.0:
+ * A read on a replica that does not know the index yet fails with a NullPointerException (CASSANDRA-21658)
  * Release hints write buffer when the write executor shuts down (CASSANDRA-21657)
  * Fix concurrent SAI vector inserts failing once jvector's per-graph pool limit is exceeded (CASSANDRA-21644)
  * Unwrap LongType properly when calculating min/max terms in V1SSTableIndex (CASSANDRA-21635)
