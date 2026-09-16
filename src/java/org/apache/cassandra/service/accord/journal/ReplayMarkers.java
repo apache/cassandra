@@ -20,32 +20,102 @@ package org.apache.cassandra.service.accord.journal;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.zip.CRC32;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NativeLibrary;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordJournalDirectory;
+import static org.apache.cassandra.utils.Crc.crc32;
 
 public class ReplayMarkers
 {
+    private static final Logger logger = LoggerFactory.getLogger(ReplayMarkers.class);
+
+    public static final String startMarkerCrc = "startedCrc.marker";
+    public static final String stopMarkerCrc = "stoppedCrc.marker";
+    public static final String startMarker = "started";
+    public static final String stopMarker = "stopped";
+
     public static File startMarker()
     {
-        return new File(getAccordJournalDirectory(), "started");
+        return new File(getAccordJournalDirectory(), startMarkerCrc);
     }
 
     public static File safeStopMarker()
     {
-        return new File(getAccordJournalDirectory(), "stopped");
+        return new File(getAccordJournalDirectory(), stopMarkerCrc);
     }
 
-    // TODO (required): add checksummed version and default to this (but support unchecksummed for manual editing)
-    static void writeMarker(File file, long timestamp)
+    public static class StartMarker
     {
-        try (FileOutputStreamPlus out = new FileOutputStreamPlus(file))
+        public final long segmentId;
+
+        public StartMarker(long segmentId)
         {
-            out.writeBytes(Long.toString(timestamp));
+            this.segmentId = segmentId;
+        }
+
+        public static StartMarker invalidMarker() {
+            return new StartMarker(-1L);
+        }
+
+        public long getSegmentId()
+        {
+            return segmentId;
+        }
+    }
+
+    public static class StopMarker
+    {
+        public final long segmentId;
+        public final long lastUniqueTimestamp;
+
+        public StopMarker(long segmentId, long lastUniqueTimestamp)
+        {
+            this.segmentId = segmentId;
+            this.lastUniqueTimestamp = lastUniqueTimestamp;
+        }
+
+        public static StopMarker invalidMarker()
+        {
+            return new StopMarker(-1L, -1L);
+        }
+
+        public long getSegmentId()
+        {
+            return segmentId;
+        }
+
+        public long getLastUniqueTimestamp()
+        {
+            return lastUniqueTimestamp;
+        }
+    }
+
+    public static void writeStartMarker(File file, long segmentId)
+    {
+        File tempFile = new File(file.path() + ".tmp");
+
+        try
+        {
+            try (FileOutputStreamPlus out = new FileOutputStreamPlus(tempFile))
+            {
+                CRC32 crc = crc32();
+                out.writeLong(segmentId);
+                FBUtilities.updateChecksumLong(crc, segmentId);
+                out.writeInt((int) crc.getValue());
+                out.flush();
+                out.sync();
+            }
+
+            tempFile.move(file);
         }
         catch (IOException e)
         {
@@ -54,31 +124,162 @@ public class ReplayMarkers
         trySyncJournalDirectory();
     }
 
-    public static long readStartMarker()
+    public static void writeStopMarker(File file, long segmentId, long lastUniqueTimestamp)
     {
-        return readMarker(startMarker());
+        File tempFile = new File(file.path() + ".tmp");
+
+        try
+        {
+            try (FileOutputStreamPlus out = new FileOutputStreamPlus(tempFile))
+            {
+                CRC32 crc = crc32();
+                out.writeLong(segmentId);
+                FBUtilities.updateChecksumLong(crc, segmentId);
+                out.writeLong(lastUniqueTimestamp);
+                FBUtilities.updateChecksumLong(crc, lastUniqueTimestamp);
+                out.writeInt((int) crc.getValue());
+                out.flush();
+                out.sync();
+            }
+
+            tempFile.move(file);
+        }
+        catch (IOException e)
+        {
+            throw new UncheckedIOException(e);
+        }
+        trySyncJournalDirectory();
     }
 
-    public static long readStopMarker()
+    public static StartMarker readStartMarker()
     {
-        return readMarker(safeStopMarker());
+        File crcFile = new File(getAccordJournalDirectory(), startMarkerCrc);
+        if (crcFile.exists())
+            return readCrcStartMarker(crcFile);
+        else
+            return readStartMarker(new File(getAccordJournalDirectory(), startMarker));
     }
 
-    public static long readMarker(File file)
+    public static StopMarker readStopMarker()
+    {
+        File crcFile = new File(getAccordJournalDirectory(), stopMarkerCrc);
+        if (crcFile.exists())
+            return readCrcStopMarker(crcFile);
+        else
+            return readStopMarker(new File(getAccordJournalDirectory(), stopMarker));
+    }
+
+    public static StopMarker readCrcStopMarker(File file)
     {
         if (!file.exists())
-            return -1L;
+        {
+            logger.debug("{} does not exist", file);
+            return StopMarker.invalidMarker();
+        }
+
+        try (FileInputStreamPlus in = new FileInputStreamPlus(file))
+        {
+            CRC32 crc = crc32();
+            long segmentId = in.readLong();
+            FBUtilities.updateChecksumLong(crc, segmentId);
+            long lastUniqueTimestamp = in.readLong();
+            FBUtilities.updateChecksumLong(crc, lastUniqueTimestamp);
+            int checksum = in.readInt();
+            if (in.read() != -1 || (int) crc.getValue() != checksum)
+            {
+                logger.warn("{} is corrupted", file);
+                return StopMarker.invalidMarker();
+            }
+
+            return new StopMarker(segmentId, lastUniqueTimestamp);
+        }
+        catch (IOException e)
+        {
+            logger.warn("Encountered IO exception while reading {}", file, e);
+            return StopMarker.invalidMarker();
+        }
+    }
+
+    public static StartMarker readCrcStartMarker(File file)
+    {
+        if (!file.exists())
+        {
+            logger.debug("{} does not exist", file);
+            return StartMarker.invalidMarker();
+        }
+
+        try (FileInputStreamPlus in = new FileInputStreamPlus(file))
+        {
+            CRC32 crc = crc32();
+            long segmentId = in.readLong();
+            FBUtilities.updateChecksumLong(crc, segmentId);
+            int checksum = in.readInt();
+            if (in.read() != -1 || (int) crc.getValue() != checksum)
+            {
+                logger.warn("{} is corrupted", file);
+                return StartMarker.invalidMarker();
+            }
+
+            return new StartMarker(segmentId);
+        }
+        catch (IOException e)
+        {
+            logger.warn("Encountered IO exception while reading {}", file, e);
+            return StartMarker.invalidMarker();
+        }
+    }
+
+    public static StopMarker readStopMarker(File file)
+    {
+        if (!file.exists())
+        {
+            logger.debug("{} does not exist", file);
+            return StopMarker.invalidMarker();
+        }
 
         try (FileInputStreamPlus in = new FileInputStreamPlus(file))
         {
             StringBuilder sb = new StringBuilder(8);
             for (int b = in.read(); b >= 0 ; b = in.read())
                 sb.append((char)b);
-            return Long.parseLong(sb.toString());
+            return new StopMarker(Long.parseLong(sb.toString()), -1L);
         }
         catch (IOException e)
         {
-            throw new UncheckedIOException(e);
+            logger.warn("Encountered IO exception while reading {}", file, e);
+            return StopMarker.invalidMarker();
+        }
+        catch (NumberFormatException e)
+        {
+            logger.warn("Encountered NumberFormatException exception while reading {}", file, e);
+            return StopMarker.invalidMarker();
+        }
+    }
+
+    public static StartMarker readStartMarker(File file)
+    {
+        if (!file.exists())
+        {
+            logger.debug("{} does not exist", file);
+            return StartMarker.invalidMarker();
+        }
+
+        try (FileInputStreamPlus in = new FileInputStreamPlus(file))
+        {
+            StringBuilder sb = new StringBuilder(8);
+            for (int b = in.read(); b >= 0 ; b = in.read())
+                sb.append((char)b);
+            return new StartMarker(Long.parseLong(sb.toString()));
+        }
+        catch (IOException e)
+        {
+            logger.warn("Encountered IO exception while reading {}", file, e);
+            return StartMarker.invalidMarker();
+        }
+        catch (NumberFormatException e)
+        {
+            logger.warn("Encountered NumberFormatException exception while reading {}", file, e);
+            return StartMarker.invalidMarker();
         }
     }
 
@@ -90,7 +291,14 @@ public class ReplayMarkers
     private static void trySyncDirectory(String path)
     {
         int fd = NativeLibrary.tryOpenDirectory(path);
-        NativeLibrary.trySync(fd);
+        try
+        {
+            NativeLibrary.trySync(fd);
+        }
+        finally
+        {
+            NativeLibrary.tryCloseFD(fd);
+        }
     }
 
     public static File saveDirectory()
