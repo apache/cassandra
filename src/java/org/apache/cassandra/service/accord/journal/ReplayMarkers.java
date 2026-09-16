@@ -116,12 +116,12 @@ public class ReplayMarkers
             }
 
             tempFile.move(file);
-            trySyncJournalDirectory();
         }
         catch (IOException e)
         {
             throw new UncheckedIOException(e);
         }
+        trySyncJournalDirectory();
     }
 
     public static void writeStopMarker(File file, long segmentId, long lastUniqueTimestamp)
@@ -143,12 +143,12 @@ public class ReplayMarkers
             }
 
             tempFile.move(file);
-            trySyncJournalDirectory();
         }
         catch (IOException e)
         {
             throw new UncheckedIOException(e);
         }
+        trySyncJournalDirectory();
     }
 
     public static StartMarker readStartMarker()
