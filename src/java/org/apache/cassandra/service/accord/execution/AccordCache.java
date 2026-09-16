@@ -177,7 +177,7 @@ public class AccordCache
     private boolean shrinkingOn = true;
     private boolean tryShrinkOrEvict;
 
-    public AccordCache(AccordCacheEntry.SaveExecutor saveExecutor, long maxSizeInBytes)
+    AccordCache(AccordCacheEntry.SaveExecutor saveExecutor, long maxSizeInBytes)
     {
         this.saveExecutor = saveExecutor;
         this.maxSizeInBytes = maxSizeInBytes;

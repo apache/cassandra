@@ -98,9 +98,9 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
     {
         CassandraRelevantProperties.ACCORD_AGENT_CLASS.setString(InterceptAgent.class.getName());
         // enable most expensive debugging checks
-        CassandraRelevantProperties.ACCORD_KEY_PARANOIA_CPU.setString(Invariants.Paranoia.QUADRATIC.name());
-        CassandraRelevantProperties.ACCORD_KEY_PARANOIA_MEMORY.setString(Invariants.Paranoia.QUADRATIC.name());
-        CassandraRelevantProperties.ACCORD_KEY_PARANOIA_COSTFACTOR.setString(Invariants.ParanoiaCostFactor.HIGH.name());
+        CassandraRelevantProperties.ACCORD_PARANOIA_CPU.setString(Invariants.Paranoia.QUADRATIC.name());
+        CassandraRelevantProperties.ACCORD_PARANOIA_MEMORY.setString(Invariants.Paranoia.QUADRATIC.name());
+        CassandraRelevantProperties.ACCORD_PARANOIA_COSTFACTOR.setString(Invariants.ParanoiaCostFactor.HIGH.name());
 
         overridePrimitiveTypeSupport(AsciiType.instance, AbstractTypeGenerators.TypeSupport.of(AsciiType.instance, SourceDSL.strings().ascii().ofLengthBetween(1, 10), stringComparator(AsciiType.instance)));
         overridePrimitiveTypeSupport(UTF8Type.instance, AbstractTypeGenerators.TypeSupport.of(UTF8Type.instance, Generators.utf8(1, 10), stringComparator(UTF8Type.instance)));

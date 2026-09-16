@@ -24,8 +24,17 @@ import java.util.List;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import accord.primitives.PartialDeps;
+import accord.primitives.Range;
+import accord.primitives.Routable;
 import accord.primitives.SaveStatus;
+import accord.primitives.Txn;
+import accord.primitives.TxnId;
 
+import org.apache.cassandra.service.accord.AccordTestUtils;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -165,6 +174,42 @@ public class AccordCommandStageFailureTest extends AccordCommandFailureTestBase
             }
         }
         assertConsistent(problems);
+    }
+
+    /**
+     * Not a fault-injection test, but a guard on the accessors the fault-injection work introduced: the paths that
+     * acquire a command once an operation is under way must not raise a log fault, and
+     * {@code SafeCommandStore.unsafeGetNoCleanup} therefore refuses a command it does not reference rather than cleaning
+     * it up. Some callers legitimately ask about a command they may not have, and must keep getting null instead:
+     * {@code Commands.updateWaitingOn} inspects each dependency a newly Stable command waits on, and the range
+     * dependencies it iterates are (unlike keys) not part of the execution context, so most often they are simply not
+     * there - see {@code unsafeIfReferencedNoCleanup}.
+     *
+     * <p>A Stable commit whose dependencies include a range transaction the store has never seen must therefore succeed,
+     * leaving the command waiting on it.
+     */
+    @Test
+    public void commitWaitingOnAnUnreferencedRangeDependencyTest()
+    {
+        try (Harness harness = new Harness("ks", "tbl"))
+        {
+            Fixture txn = newTxn(harness, nextKey++);
+            TxnId rangeDep = AccordTestUtils.txnId(1, clock.incrementAndGet(), 1, Txn.Kind.ExclusiveSyncPoint, Routable.Domain.Range);
+            PartialDeps deps;
+            try (PartialDeps.Builder builder = PartialDeps.builder(txn.route, true))
+            {
+                for (Range range : harness.store.unsafeGetRangesForEpoch().currentRanges())
+                    builder.add(range, rangeDep);
+                deps = builder.build();
+            }
+            Fixture withRangeDep = new Fixture(txn.txnId, txn.txn, txn.route, txn.partialRoute, txn.partialTxn, deps, txn.key);
+
+            assertNull(preaccept(harness, withRangeDep));
+            assertNull(accept(harness, withRangeDep));
+            assertNull("a Stable commit must not fail because a dependency is not in the execution context",
+                       commit(harness, withRangeDep, SaveStatus.Stable));
+            assertEquals(SaveStatus.Stable, status(harness, txn.txnId));
+        }
     }
 
     /**

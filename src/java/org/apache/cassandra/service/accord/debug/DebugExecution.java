@@ -33,6 +33,8 @@ import org.apache.cassandra.service.accord.execution.Task;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.WithResources;
 
+import one.profiler.Span;
+
 import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_ACCORD_JOURNAL_SANITY_CHECK_ENABLED;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -62,6 +64,7 @@ public class DebugExecution
         final LogLinearHistogram cleanup = new LogLinearHistogram(REPORT_MAX_LATENCY_MICROS);
         final LogLinearHistogram taskTotal = new LogLinearHistogram(REPORT_MAX_LATENCY_MICROS);
 
+        long span;
         long lockedAt, lockedAtCpu;
         long unlockedAt, unlockedAtCpu;
         int depth;
@@ -76,6 +79,7 @@ public class DebugExecution
             if (++depth > 1)
                 return;
 
+            span = Span.start();
             lockedAt = nanoTime();
             lockedAtCpu = nowCpu();
             if (lockAt > 0)
@@ -108,6 +112,7 @@ public class DebugExecution
                 report("Held lock for {}us with cpu time only {}us", lockedForMicros, lockedForCpuMicros);
             }
             locked.increment(lockedForMicros);
+            Span.end(span, "AccordExecutorCriticalSection");
         }
     }
 

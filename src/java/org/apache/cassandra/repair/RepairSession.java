@@ -421,12 +421,21 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         terminate(reason);
         taskExecutor.shutdown();
     }
+
+    @Override
     public void onRemove(InetAddressAndPort endpoint)
     {
         convict(endpoint, Double.MAX_VALUE);
     }
 
+    @Override
     public void onRestart(InetAddressAndPort endpoint, EndpointState epState)
+    {
+        convict(endpoint, Double.MAX_VALUE);
+    }
+
+    @Override
+    public void onDead(InetAddressAndPort endpoint, EndpointState state)
     {
         convict(endpoint, Double.MAX_VALUE);
     }

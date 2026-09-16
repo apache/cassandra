@@ -178,7 +178,7 @@ public class CommandStoreSerializers
         }
     }
 
-    static class ReducingRangeMapSerializer<T, Map extends ReducingRangeMap<T>> extends AbstractReducingRangeMapSerializer<T, Map> implements UnversionedSerializer<Map>
+    public static class ReducingRangeMapSerializer<T, Map extends ReducingRangeMap<T>> extends AbstractReducingRangeMapSerializer<T, Map> implements UnversionedSerializer<Map>
     {
         final UnversionedSerializer<T> defaultValueSerializer;
 

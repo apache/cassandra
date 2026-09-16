@@ -997,7 +997,7 @@ public class ClusterMetadataService
     public boolean maybeFetchLogFromPeerOrCMSAsync(MessageDelivery messaging, Message<?> message, Runnable onFetchSuccess)
     {
         ClusterMetadata metadata = metadata();
-        if (metadata.epoch.isEqualOrAfter(metadata.epoch))
+        if (metadata.epoch.isEqualOrAfter(message.epoch()))
             return false;
         Future<ClusterMetadata> f = fetchLogFromPeerOrCMSAsync(metadata, message.from(), message.epoch());
         f.addCallback((success, failure) -> {

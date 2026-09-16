@@ -35,10 +35,8 @@ import org.slf4j.LoggerFactory;
 import accord.local.Node;
 import accord.utils.Invariants;
 
-import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -164,13 +162,12 @@ public class EndpointMapping implements AccordEndpointMapper
             return NodeStatus.UNKNOWN;
 
         if (!epState.isAlive())
-            return NodeStatus.UNHEALTHY;
+            return NodeStatus.UNAVAILABLE;
 
-        VersionedValue event = epState.getApplicationState(ApplicationState.SEVERITY);
-        if (event == null)
-            return NodeStatus.HEALTHY; // should we delineate this status better?
+        if (Gossiper.isShutdown(epState))
+            return NodeStatus.UNREADABLE;
 
-        return Double.parseDouble(event.value) == 0.0 ? NodeStatus.UNHEALTHY : NodeStatus.HEALTHY;
+        return NodeStatus.HEALTHY;
     }
 
     public static class Builder

@@ -266,14 +266,16 @@ public class AccordConfig
     public String fetch_txn = "2s*attempts <= 60s";
     public String fetch_syncpoint = "5s*attempts <= 60s";
     public String expire_txn = "5s*attempts <= 60s";
-    public String expire_syncpoint = "60s*attempts<=300s";
+    public String expire_syncpoint = "15s*attempts<=300s";
     public String expire_epoch_wait = "10s";
     // we don't want to wait ages for durability as it blocks other durability progress; even this might be too long, as we can always retry
     public String expire_durability = "10s*attempts <= 30s";
     public String slow_syncpoint_preaccept = "10s";
     public String slow_txn_preaccept = "30ms <= p50*2 <= 1000ms";
     public String slow_read = "30ms <= p50*2 <= 1000ms";
-    public StringRetryStrategy retry_syncpoint = new StringRetryStrategy("10s*attempt <= 600s");
+    public String slow_status_check = "30ms <= p50*2 <= 1000ms";
+    public StringRetryStrategy retry_syncpoint = new StringRetryStrategy("500ms*attempt <= 10s");
+    public StringRetryStrategy retry_background_syncpoint = new StringRetryStrategy("10s*attempt <= 600s");
     public StringRetryStrategy retry_durability = new StringRetryStrategy("10s*attempt <= 600s");
     public StringRetryStrategy retry_bootstrap = new StringRetryStrategy("10s*attempt <= 600s");
     public StringRetryStrategy retry_join_bootstrap = new StringRetryStrategy("30s*attempt,attempts=5");
@@ -281,6 +283,7 @@ public class AccordConfig
     public StringRetryStrategy retry_fetch_topology = new StringRetryStrategy("200ms...1s*attempt <= 1s,retries=100");
     public StringRetryStrategy retry_journal_index_ready = new StringRetryStrategy("100ms");
 
+    public volatile DurationSpec.IntMillisecondsBound coordinator_exclusive_time_slice = new DurationSpec.IntMillisecondsBound("250ms");
     public volatile DurationSpec.IntSecondsBound fast_path_update_delay = null;
 
     public volatile int shard_durability_target_splits = 8;

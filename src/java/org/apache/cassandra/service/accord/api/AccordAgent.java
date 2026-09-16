@@ -25,8 +25,6 @@ import java.util.function.BiConsumer;
 
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -102,6 +100,7 @@ import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.expir
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.expireTxn;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.fetch;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.recover;
+import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryBackgroundSyncPoint;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryBootstrap;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryDurability;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryFetchTopology;
@@ -360,7 +359,7 @@ public class AccordAgent implements Agent, OwnershipEventListener
             }
         }
 
-        startTime = nonClashingStartTime(startTime, replicas, node.id(), ONE_SECOND, random);
+        startTime = nonClashingStartTime(startTime, replicas, node.id(), coordinatorExclusiveTimeSlice(), random);
         long delayMicros = Math.max(1, startTime - nowMicros);
         Invariants.require(delayMicros < TimeUnit.HOURS.toMicros(1L), "unexpectedly long coordination recovery delay proposed: %d (start %d, now %d)", delayMicros, startTime, nowMicros, txnId, promised);
         return units.convert(delayMicros, MICROSECONDS);
@@ -385,26 +384,24 @@ public class AccordAgent implements Agent, OwnershipEventListener
         return elapsed >= maxWait;
     }
 
-    @VisibleForTesting
-    public static long nonClashingStartTime(long startTime, SortedList<Node.Id> nodes, Node.Id id, long granularity, RandomSource random)
+    public static long nonClashingStartTime(long startTime, @Nullable SortedList<Node.Id> nodes, Node.Id id, long timeSlicePerNode, RandomSource random)
     {
-        long perSecondStartTime;
-        if (nodes != null)
-        {
-            int position = nodes.indexOf(id);
-            perSecondStartTime = position * (SECONDS.toMicros(1) / nodes.size());
-        }
-        else
-        {
-            // we've raced with topology update, this should be rare so just pick a random start time
-            perSecondStartTime = random.nextLong(granularity);
-        }
+        int replicaIndex = nodes == null ? -1 : nodes.indexOf(id);
+        if (replicaIndex < 0) // we've raced with topology update, this should be rare so just use a completely random start time
+            return startTime + random.nextLong(timeSlicePerNode * (nodes == null ? 10 : nodes.size()));
 
-        // TODO (expected): make this a configurable calculation on normal request latencies (like ContentionStrategy)
-        long subSecondRemainder = startTime % granularity;
-        long newStartTime = startTime - subSecondRemainder + perSecondStartTime;
+        return nonClashingStartTime(startTime, replicaIndex, nodes.size(), timeSlicePerNode);
+    }
+
+    public static long nonClashingStartTime(long startTime, int replicaIndex, int replicaCount, long timeSlicePerNode)
+    {
+        long window = replicaCount * timeSlicePerNode;
+        long offsetWithinWindow = (replicaIndex % replicaCount) * timeSlicePerNode;
+
+        long remainder = startTime % window;
+        long newStartTime = startTime - remainder + offsetWithinWindow;
         if (newStartTime < startTime)
-            newStartTime += granularity;
+            newStartTime += window;
         return newStartTime;
     }
 
@@ -460,6 +457,23 @@ public class AccordAgent implements Agent, OwnershipEventListener
     public long retrySyncPointDelay(Node node, int attempt, TimeUnit units)
     {
         return retrySyncPoint.computeWait(attempt, units);
+    }
+
+    @Override
+    public long retryBackgroundSyncPointDelay(Node node, int attempt, int replicaIndex, int replicaCount, TimeUnit units)
+    {
+        long nowMicros = node.elapsed(MICROSECONDS);
+        long waitMicros = retryBackgroundSyncPoint.computeWait(attempt, MICROSECONDS);
+        long startTime = nonClashingStartTime(nowMicros + waitMicros, replicaIndex, replicaCount, coordinatorExclusiveTimeSlice());
+        return units.convert(Math.max(1, startTime - nowMicros), MICROSECONDS);
+    }
+
+    private long coordinatorExclusiveTimeSlice()
+    {
+        AccordConfig config = this.config;
+        if (config == null || config.coordinator_exclusive_time_slice == null)
+            return ONE_SECOND;
+        return Math.max(1, config.coordinator_exclusive_time_slice.to(MICROSECONDS));
     }
 
     @Override

@@ -435,7 +435,7 @@ public class AccordSyncPropagatorTest
             {
                 if (self.equals(id)) return NodeStatus.HEALTHY;
 
-                return !nodeRuns.computeIfAbsent(id, ignore -> Gens.bools().biasedRepeatingRuns(.01, rs.nextInt(3, 15))).next(rs) ? NodeStatus.HEALTHY : NodeStatus.UNHEALTHY;
+                return !nodeRuns.computeIfAbsent(id, ignore -> Gens.bools().biasedRepeatingRuns(.01, rs.nextInt(3, 15))).next(rs) ? NodeStatus.HEALTHY : NodeStatus.UNAVAILABLE;
             }
 
             @Override

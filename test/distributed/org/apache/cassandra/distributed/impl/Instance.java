@@ -869,6 +869,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         JVMStabilityInspector.replaceKiller(new InstanceKiller(Instance.this::shutdown));
 
         StorageService.instance.registerDaemon(CassandraDaemon.getInstanceForTesting());
+
+        awaitTurnToRegister(config.num());
+
         if (config.has(GOSSIP))
         {
             try
@@ -889,8 +892,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         {
             Stream<?> peers = cluster.stream().filter(IInstance::isValid);
             Schema.instance.saveSystemKeyspace();
-            ClusterMetadataService.instance().processor().fetchLogAndWait();
+            int nodeId = config.num();
+
+            ClusterMetadataService cms = ClusterMetadataService.instance();
+            cms.processor().fetchLogAndWait();
             NodeId self = Register.maybeRegister();
+
             RegistrationStatus.instance.onRegistration();
             if (!AccordService.isSetupOrStarting())
                 AccordService.localStartup(self);
@@ -938,6 +945,28 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         PaxosState.startAutoRepairs();
         StorageService.instance.doAutoRepairSetup();
         CassandraDaemon.getInstanceForTesting().completeSetup();
+    }
+
+    /**
+     * Block until the next NodeId the cluster will allocate is our instance number to improve debuggability
+     */
+    private static void awaitTurnToRegister(int nodeId) throws InterruptedException
+    {
+        Logger logger = LoggerFactory.getLogger(Instance.class);
+        ClusterMetadataService cms = ClusterMetadataService.instance();
+        cms.processor().fetchLogAndWait();
+        long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        while (cms.metadata().myNodeId() == NodeId.UNREGISTERED && cms.metadata().directory.nextId < nodeId)
+        {
+            if (System.nanoTime() - deadlineNanos > 0)
+            {
+                logger.warn("Timed out waiting to register as NodeId {}; next id to allocate is {}. Registering anyway.",
+                            nodeId, cms.metadata().directory.nextId);
+                return;
+            }
+            Thread.sleep(10);
+            cms.processor().fetchLogAndWait();
+        }
     }
 
     @Override

@@ -22,6 +22,7 @@ import java.util.Map;
 
 import javax.annotation.Nullable;
 
+import accord.api.TopologySorter;
 import accord.local.Node;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -37,11 +38,26 @@ public interface AccordEndpointMapper
     default @Nullable InetAddressAndPort mappedEndpointOrNull(Node.Id id) { return mappedEndpointOrNull(id, null); }
     @Nullable InetAddressAndPort mappedEndpointOrNull(Node.Id id, @Nullable Object logIdentityIfUnmapped);
 
-    enum NodeStatus { UNKNOWN, UNHEALTHY, HEALTHY }
+    enum NodeStatus
+    {
+        REMOVED(TopologySorter.NodeStatus.UNAVAILABLE),
+        UNKNOWN(TopologySorter.NodeStatus.UNAVAILABLE),
+        UNAVAILABLE(TopologySorter.NodeStatus.UNAVAILABLE),
+        UNREADABLE(TopologySorter.NodeStatus.UNREADABLE),
+        HEALTHY(TopologySorter.NodeStatus.HEALTHY);
+
+        public final TopologySorter.NodeStatus accordStatus;
+
+        NodeStatus(TopologySorter.NodeStatus accordStatus)
+        {
+            this.accordStatus = accordStatus;
+        }
+    }
 
     default boolean isRemoved(Node.Id id) { return removedNodes().containsKey(id); }
     Map<Node.Id, Long> removedNodes();
 
     NodeStatus nodeStatus(Node.Id id);
+
     default void updateMapping(ClusterMetadata metadata) {}
 }

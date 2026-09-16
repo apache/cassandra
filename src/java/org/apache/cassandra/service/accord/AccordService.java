@@ -322,6 +322,8 @@ public class AccordService implements IAccordService, Shutdownable
 
     @GuardedBy("this")
     private volatile State state = State.INIT;
+
+    private volatile BootstrapReason rebootstrapOnStart;
     private final Condition isShutdown = Condition.newOneTimeCondition();
 
     private static final IAccordService NOOP_SERVICE = new NoOpAccordService();
@@ -450,14 +452,16 @@ public class AccordService implements IAccordService, Shutdownable
     public static IAccordService instance()
     {
         IAccordService i = instance;
-        Invariants.require(i != null, "AccordService was not started");
+        if (i == null)
+            throw new IllegalStateException("AccordService was not started");
         return i;
     }
 
     public static IAccordService unsafeInstance()
     {
         IAccordService i = unsafeInstance;
-        Invariants.require(i != null, "AccordService was not started");
+        if (i == null)
+            throw new IllegalStateException("AccordService was not started");
         return i;
     }
 
@@ -656,9 +660,8 @@ public class AccordService implements IAccordService, Shutdownable
             node.commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start());
             if (rebootstrap != null)
             {
-                // rebootstrap expects the durability service to process visibility sync points for command stores
-                node.durability().start();
-                getBlocking(node.commandStores().rebootstrap(node, rebootstrap));
+                // cannot rebootstrap until we register for topology updates, to ensure we keep up to date with advancement of epochs
+                rebootstrapOnStart = rebootstrap;
             }
             else
             {
@@ -722,21 +725,39 @@ public class AccordService implements IAccordService, Shutdownable
         fastPathCoordinator.start();
         ClusterMetadataService.instance().log().addListener(fastPathCoordinator);
 
+        // we write the start marker before starting durability service because
+        // even though we have not initialised the request handler we can self deliver
+        // and count our self response to any global durability decision
+        journal.writeStartMarker();
+
         // we set ourselves to STARTED before starting progress logs as this is the condition we use to decide if we
         // start the progress log on command store initialisation (so creates a synchronisation point)
-        journal.writeStartMarker();
         state = State.STARTED;
-        instance = requestInstance = this;
-        node.commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start());
 
+        // TODO (required): we need to refuse self-delivery of messages until rebootstrap starts
+        // durability requires TCM registration so we learn of new epochs that could block agreement of new sync points
         node.durability().shards().reconfigure(Ints.checkedCast(getAccordShardDurabilityTargetSplits()),
                                                Ints.checkedCast(getAccordShardDurabilityMaxSplits()),
                                                Ints.checkedCast(getAccordShardDurabilityCycle(SECONDS)), SECONDS);
         node.durability().global().setGlobalCycleTime(Ints.checkedCast(getAccordGlobalDurabilityCycle(SECONDS)), SECONDS);
+        node.durability().start();
 
-        // Only enable durability scheduling
-        if (!node.durability().isStarted())
-            node.durability().start();
+        // we start progress log before rebootstrap to help reduce the time to recover transactions we miss during the
+        // period between deciding our log bound and ensuring it has reached a global quorum
+        node.commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start());
+
+        BootstrapReason rebootstrap = rebootstrapOnStart;
+        if (rebootstrap != null)
+        {
+            // rebootstrap requires durability service (which requires TCM)
+            rebootstrapOnStart = null;
+            logger.info("Rebootstrapping ({}) in epoch {}", rebootstrap, node.epoch());
+            getBlocking(node.commandStores().rebootstrap(node, rebootstrap));
+            logger.info("Rebootstrap ({}) complete in epoch {}", rebootstrap, node.epoch());
+        }
+
+        // until rebootstrap completes we don't have consistent state, so cannot answer peers
+        instance = requestInstance = this;
 
         // trigger catchup only after our progress mechanisms are initialised
         catchup();
@@ -1543,8 +1564,13 @@ public class AccordService implements IAccordService, Shutdownable
         {
             DefaultProgressLog.setDebugDeletion(txnId -> {
                 String stack = Threads.prettyPrintStackTrace(Thread.currentThread(), true, ";").intern();
-                AccordCommandStore commandStore = ((SafeTask<?>) TaskRunner.get().accordActiveSelfTask()).commandStore();
-                List<AccordJournal.DebugEntry> debug = ((AccordJournal)commandStore.journal).debugCommand(commandStore.id(), txnId);
+                SafeTask<?> task = (SafeTask<?>) TaskRunner.get().accordActiveSelfTask();
+                List<AccordJournal.DebugEntry> debug = null;
+                if (task != null)
+                {
+                    AccordCommandStore commandStore = ((SafeTask<?>) TaskRunner.get().accordActiveSelfTask()).commandStore();
+                    debug = ((AccordJournal)commandStore.journal).debugCommand(commandStore.id(), txnId);
+                }
                 return new DebugDeletion(stack, debug);
             });
         }

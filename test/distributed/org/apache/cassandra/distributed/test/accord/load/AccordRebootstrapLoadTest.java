@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.distributed.api.Feature;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.LOGBACK_CONFIGURATION_FILE;
 import static org.apache.cassandra.distributed.test.accord.load.LoadSettings.ycsbZipfian;
 
 public class AccordRebootstrapLoadTest extends AccordLoadTestBase
@@ -38,6 +39,7 @@ public class AccordRebootstrapLoadTest extends AccordLoadTestBase
 
     public void setupCluster(int nodeCount)
     {
+        LOGBACK_CONFIGURATION_FILE.setString("test/conf/logback-dtest-info.xml");
         setupCluster(nodeCount, config -> {
             config.with(Feature.NETWORK, Feature.GOSSIP)
                   .set("accord.shard_durability_target_splits", "8")
@@ -47,7 +49,15 @@ public class AccordRebootstrapLoadTest extends AccordLoadTestBase
                   .set("accord.command_store_shard_count", "8")
                   .set("accord.queue_thread_count", "4")
                   .set("accord.queue_shard_count", "1")
-                  .set("accord.catchup_on_start_fail_latency", "2m");
+                  .set("accord.catchup_on_start_fail_latency", "2m")
+                  // repair retries are disabled by default (RetrySpec.DEFAULT_MAX_ATTEMPTS == DISABLED), which makes a
+                  // single lost VALIDATION_RSP/SYNC_RSP strand the repair - and therefore the rebootstrap that waits on
+                  // it - forever. Accord relies on repair for its bootstrap data fetch, so enable them here.
+                  .set("repair.retries.max_attempts", "3")
+                  .set("repair.retries.base_sleep_time", "200ms")
+                  .set("repair.retries.max_sleep_time", "1s")
+                  .set("repair.retries.merkle_tree_response.base_sleep_time", "5s")
+                  .set("repair.retries.merkle_tree_response.max_sleep_time", "30s");
         });
     }
 
@@ -57,7 +67,7 @@ public class AccordRebootstrapLoadTest extends AccordLoadTestBase
         testLoad(new LoadSettings.Builder()
                  .setKeySelector(ycsbZipfian(100_000))
                  .setRatePerSecond(200)
-                 .setClusterChaosInterval(5000)
+                 .setClusterChaosInterval(2000)
                  .setClusterChaosConcurrency(2)
                  .setTotalClusterChaos(5)
                  .build());

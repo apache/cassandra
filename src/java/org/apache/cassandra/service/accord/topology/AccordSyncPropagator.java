@@ -59,6 +59,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMapper.NodeStatus;
 import org.apache.cassandra.utils.CollectionSerializers;
 import org.apache.cassandra.utils.NoSpamLogger;
 
@@ -332,17 +333,16 @@ public class AccordSyncPropagator implements TopologyListener
             return false;
 
         // was the endpoint removed from membership?
-        AccordEndpointMapper.NodeStatus nodeStatus = endpointMapper.nodeStatus(to);
+        NodeStatus nodeStatus = endpointMapper.nodeStatus(to);
         switch (nodeStatus)
         {
             default: throw new UnhandledEnum(nodeStatus);
-            case UNHEALTHY:
-                if (!endpointMapper.isRemoved(to))
-                {
-                    noSpamLogger.warn("Node{} is not alive, unable to notify of {}", to, notification);
-                    scheduleRetry(to, notification);
-                    return false;
-                }
+            case UNREADABLE:
+            case UNAVAILABLE:
+                noSpamLogger.warn("Node{} is not alive, unable to notify of {}", to, notification);
+                scheduleRetry(to, notification);
+                return false;
+            case REMOVED:
                 // fall through to UNKNOWN, as we have been removed from the cluster in the latest epoch
             case UNKNOWN:
                 // endpoint is not a member of the latest epoch

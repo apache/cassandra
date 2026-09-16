@@ -98,7 +98,7 @@ import org.apache.cassandra.service.accord.debug.CoordinationKinds;
 import org.apache.cassandra.service.accord.debug.TxnKindsAndDomains;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.EstimatedHistogram;
-import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static accord.coordinate.Coordination.CoordinationKind.Client;
@@ -117,8 +117,17 @@ import static org.apache.cassandra.service.accord.debug.AccordTracing.BucketMode
 
 public class AccordLoadTestBase extends AccordTestBase
 {
-    private static long CHAOS_TIMEOUT_NANOS = TimeUnit.MINUTES.toNanos(10L);
+    private static long CHAOS_WARN_NANOS = TimeUnit.MINUTES.toNanos(2L);
+    private static long CHAOS_FAIL_NANOS = TimeUnit.MINUTES.toNanos(10L);
     private static final Logger logger = LoggerFactory.getLogger(AccordLoadTestBase.class);
+
+    static
+    {
+        // this is a bit ugly, but to avoid specifying unique parameters for load tests that will cause strain on CI
+        // simply allow us to override and disable paranoia for this test
+        if (!CassandraRelevantProperties.ACCORD_PARANOIA_PERMIT_TEST_OVERRIDE.getBoolean())
+            CassandraRelevantProperties.ACCORD_PARANOID.setBoolean(false);
+    }
 
     @Before
     public void setup()
@@ -161,6 +170,12 @@ public class AccordLoadTestBase extends AccordTestBase
     public void testLoad(final LoadSettings settings) throws Exception
     {
         Cluster cluster = SHARED_CLUSTER;
+        // make the repair-retry configuration visible in the log: with retries disabled a lost merkle tree response
+        // silently strands the repair (and any rebootstrap waiting on it)
+        cluster.get(1).runOnInstance(() -> LoggerFactory.getLogger(AccordLoadTestBase.class)
+                                                       .info("repair retries: {} (merkle tree retries enabled: {})",
+                                                             org.apache.cassandra.config.DatabaseDescriptor.getRepairRetrySpec(),
+                                                             org.apache.cassandra.config.DatabaseDescriptor.getRepairRetrySpec().isMerkleTreeRetriesEnabled()));
         cluster.schemaChange("CREATE TABLE " + qualifiedAccordTableName + " (k int, v int, PRIMARY KEY(k)) WITH transactional_mode = 'full'");
 //        long seed = new SecureRandom().nextLong();
         long seed = 3705626102508196273L;
@@ -258,6 +273,7 @@ public class AccordLoadTestBase extends AccordTestBase
             final AtomicBoolean pauseOrStop = new AtomicBoolean();
             final WaitQueue waitQueue = WaitQueue.newWaitQueue();
             final Random random = new Random();
+            final Random chaosRandom = new Random(seed);
             final Semaphore completed = new Semaphore(0);
             final AtomicIntegerArray coordinatorIndexes = new AtomicIntegerArray(clientCount);
             final Set<Integer> chaosCandidates = new ConcurrentSkipListSet<>();
@@ -281,90 +297,111 @@ public class AccordLoadTestBase extends AccordTestBase
                 coordinatorIndexes.set(client, client + 1);
                 clients.add(clientExecutor.submit(() -> {
                     final Semaphore inFlight = new Semaphore(settings.clientConcurrency);
-                    while (true)
+                    long sleep = 100;
+                    try
                     {
-                        while (pauseOrStop.get())
+                        while (true)
                         {
-                            if (stop.get())
-                                break;
-
-                            WaitQueue.Signal signal = waitQueue.register();
-                            if (pauseOrStop.get()) signal.awaitThrowUncheckedOnInterrupt();
-                            else signal.cancel();
-                        }
-
-                        int coordinatorIdx = coordinatorIndexes.get(clientIndex);
-                        ICoordinator coordinator = cluster.coordinator(coordinatorIdx);
-                        try
-                        {
-                            rateLimiters.get(clientIndex).acquire();
-                            inFlight.acquire();
-                            long commandStart = System.nanoTime();
-                            IntArrayList keys = new IntArrayList(settings.keysPerOperation, -1);
-                            for (int i = 0 ; i < settings.keysPerOperation ; ++i)
+                            while (pauseOrStop.get())
                             {
-                                int k = settings.keySelector.getAsInt();
-                                if (!keys.containsInt(k))
-                                    keys.add(k);
+                                if (stop.get())
+                                    break;
+
+                                WaitQueue.Signal signal = waitQueue.register();
+                                if (pauseOrStop.get()) signal.awaitThrowUncheckedOnInterrupt();
+                                else signal.cancel();
                             }
-                            if (!keys.intStream().allMatch(initialised::get))
+
+                            int coordinatorIdx = coordinatorIndexes.get(clientIndex);
+                            ICoordinator coordinator = cluster.coordinator(coordinatorIdx);
+                            try
                             {
-                                coordinator.executeWithResult((success, fail) -> {
-                                    inFlight.release();
-                                    completed.release();
-                                    if (fail == null)
-                                    {
-                                        long elapsed = System.nanoTime() - commandStart;
-                                        writeHistogram.get().add(NANOSECONDS.toMicros(elapsed));
-                                        synchronized (initialised)
+                                rateLimiters.get(clientIndex).acquire();
+                                inFlight.acquire();
+                                long commandStart = System.nanoTime();
+                                IntArrayList keys = new IntArrayList(settings.keysPerOperation, -1);
+                                for (int i = 0 ; i < settings.keysPerOperation ; ++i)
+                                {
+                                    int k = settings.keySelector.getAsInt();
+                                    if (!keys.containsInt(k))
+                                        keys.add(k);
+                                }
+                                if (!keys.intStream().allMatch(initialised::get))
+                                {
+                                    coordinator.executeWithResult((success, fail) -> {
+                                        inFlight.release();
+                                        completed.release();
+                                        if (fail == null)
                                         {
-                                            keys.forEachInt(initialised::set);
+                                            long elapsed = System.nanoTime() - commandStart;
+                                            writeHistogram.get().add(NANOSECONDS.toMicros(elapsed));
+                                            synchronized (initialised)
+                                            {
+                                                keys.forEachInt(initialised::set);
+                                            }
                                         }
-                                    }
-                                    else
-                                    {
-                                        logger.error("{}", fail.toString());
-                                    }
-                                }, "UPDATE " + qualifiedAccordTableName + " SET v = 0 WHERE k IN ?", ConsistencyLevel.SERIAL, ConsistencyLevel.QUORUM, keys);
+                                        else
+                                        {
+                                            logger.error("{}", fail.toString());
+                                        }
+                                    }, "UPDATE " + qualifiedAccordTableName + " SET v = 0 WHERE k IN ?", ConsistencyLevel.SERIAL, ConsistencyLevel.QUORUM, keys);
+                                }
+                                else if (random.nextFloat() < settings.readRatio)
+                                {
+                                    coordinator.executeWithResult((success, fail) -> {
+                                        inFlight.release();
+                                        completed.release();
+                                        if (fail == null)
+                                            readHistogram.get().add(NANOSECONDS.toMicros(System.nanoTime() - commandStart));
+                                    }, "BEGIN TRANSACTION\n" +
+                                       "SELECT * FROM " + qualifiedAccordTableName + " WHERE k IN ?;\n" +
+                                       "COMMIT TRANSACTION;", ConsistencyLevel.SERIAL, keys
+                                    );
+                                }
+                                else
+                                {
+                                    coordinator.executeWithResult((success, fail) -> {
+                                        inFlight.release();
+                                        completed.release();
+                                        if (fail == null)
+                                        {
+                                            long elapsed = System.nanoTime() - commandStart;
+                                            writeHistogram.get().add(NANOSECONDS.toMicros(elapsed));
+                                        }
+                                        else
+                                            logger.error("{}", fail.toString());
+                                    }, "BEGIN TRANSACTION\n" +
+                                       //                               "UPDATE " + qualifiedAccordTableName + " SET v = ? WHERE k = ?;\n" +
+                                       "UPDATE " + qualifiedAccordTableName + " SET v += ? WHERE k IN ?;\n" +
+                                       "COMMIT TRANSACTION;", ConsistencyLevel.SERIAL, ConsistencyLevel.QUORUM, random.nextInt(100), keys);
+                                }
+                                sleep = 10;
                             }
-                            else if (random.nextFloat() < settings.readRatio)
+                            catch (Throwable t)
                             {
-                                coordinator.executeWithResult((success, fail) -> {
-                                    inFlight.release();
-                                    completed.release();
-                                    if (fail == null)
-                                        readHistogram.get().add(NANOSECONDS.toMicros(System.nanoTime() - commandStart));
-                                }, "BEGIN TRANSACTION\n" +
-                                   "SELECT * FROM " + qualifiedAccordTableName + " WHERE k IN ?;\n" +
-                                   "COMMIT TRANSACTION;", ConsistencyLevel.SERIAL, keys
-                                );
-                            }
-                            else
-                            {
-                                coordinator.executeWithResult((success, fail) -> {
-                                    inFlight.release();
-                                    completed.release();
-                                    if (fail == null)
-                                    {
-                                        long elapsed = System.nanoTime() - commandStart;
-                                        writeHistogram.get().add(NANOSECONDS.toMicros(elapsed));
-                                    }
-                                    else
-                                        logger.error("{}", fail.toString());
-                                }, "BEGIN TRANSACTION\n" +
-                                   //                               "UPDATE " + qualifiedAccordTableName + " SET v = ? WHERE k = ?;\n" +
-                                   "UPDATE " + qualifiedAccordTableName + " SET v += ? WHERE k IN ?;\n" +
-                                   "COMMIT TRANSACTION;", ConsistencyLevel.SERIAL, ConsistencyLevel.QUORUM, random.nextInt(100), keys);
+                                inFlight.release();
+                                boolean fail = true;
+                                if (t instanceof IllegalStateException)
+                                {
+                                    fail = !(t.getMessage().contains("Can't use shutdown node") || t.getMessage().contains("Accord service was not started"));
+                                }
+                                else if (t instanceof RejectedExecutionException)
+                                {
+                                    fail = false;
+                                }
+                                if (fail)
+                                    Throwables.maybeFail(t);
+
+                                Thread.sleep(sleep);
+                                sleep = Math.min(1000, sleep * 2);
                             }
                         }
-                        catch (RejectedExecutionException e)
-                        {
-                            inFlight.release();
-                        }
-                        catch (InterruptedException e)
-                        {
-                            throw new UncheckedInterruptedException(e);
-                        }
+                    }
+                    catch (Throwable t)
+                    {
+                        logger.error("Client failed exceptionally", t);
+                        stop.set(true);
+                        pauseOrStop.set(true);
                     }
                 }));
             }
@@ -424,7 +461,9 @@ public class AccordLoadTestBase extends AccordTestBase
                     flushCfk(cluster);
                 }
 
-                if ((nextChaosAt -= batchSize) <= 0)
+                // Chaos liveness is checked on every iteration (i.e. at least every batchPeriodNanos), not only
+                // when the operation counter trips: a stuck chaos operation stalls the workload, so gating this on
+                // completed-operation count means a hang silently postpones its own detection indefinitely.
                 {
                     Iterator<ChaosActive> iter = chaosActive.iterator();
                     while (iter.hasNext())
@@ -439,11 +478,18 @@ public class AccordLoadTestBase extends AccordTestBase
                         else
                         {
                             long elapsedNanos = Clock.Global.nanoTime() - chaos.startedAt;
-                            if (elapsedNanos >= CHAOS_TIMEOUT_NANOS)
-                                throw new AssertionError("Chaos " + chaos.kind + " has been running for " + NANOSECONDS.toSeconds(elapsedNanos) + "s with seed " + seed);
+                            if (elapsedNanos >= CHAOS_WARN_NANOS)
+                            {
+                                String message = "Chaos " + chaos + " has been running for " + NANOSECONDS.toSeconds(elapsedNanos) + "s with seed " + seed;
+                                if (elapsedNanos >= CHAOS_FAIL_NANOS) throw new AssertionError(message);
+                                else if (chaos.maybeWarn(elapsedNanos)) logger.warn(message);
+                            }
                         }
                     }
+                }
 
+                if ((nextChaosAt -= batchSize) <= 0)
+                {
                     if (chaosActive.size() < settings.clusterChaosConcurrency)
                     {
                         if (remainingClusterChaos > 0)
@@ -451,7 +497,7 @@ public class AccordLoadTestBase extends AccordTestBase
                             --remainingClusterChaos;
                             nextChaosAt += settings.clusterChaosInterval;
                             ClusterChaos chaos = clusterChaos.get();
-                            chaosActive.add(new ChaosActive(chaos, chaos(cluster, coordinatorIndexes, chaosCandidates, chaosExecutor, random, chaos, chaosHistory)));
+                            chaosActive.add(chaos(cluster, coordinatorIndexes, chaosCandidates, chaosExecutor, chaosRandom, chaos, chaosHistory));
                         }
                         else if (chaosActive.isEmpty() && (remainingTransactions <= 0 || !waitForTransactions))
                         {
@@ -547,52 +593,71 @@ public class AccordLoadTestBase extends AccordTestBase
         final ClusterChaos kind;
         final Future<?> future;
         final long startedAt;
+        final int node;
+        long warnedAtNanos;
 
-        private ChaosActive(ClusterChaos kind, Future<?> future)
+        private ChaosActive(ClusterChaos kind, Future<?> future, int node)
         {
             this.kind = kind;
             this.future = future;
+            this.node = node;
             this.startedAt = Clock.Global.nanoTime();
+        }
+
+        /** rate-limits the slow-chaos report to one per CHAOS_WARN_NANOS */
+        boolean maybeWarn(long elapsedNanos)
+        {
+            if (elapsedNanos - warnedAtNanos < CHAOS_WARN_NANOS)
+                return false;
+            warnedAtNanos = elapsedNanos;
+            return true;
+        }
+
+        @Override
+        public String toString()
+        {
+            return kind + " node " + node;
         }
     }
 
-    private static Future<?> chaos(Cluster cluster, AtomicIntegerArray coordinatorIndexes, Set<Integer> candidates, ExecutorService chaosExecutor, Random random, ClusterChaos chaos, List<String> history)
+    private static ChaosActive chaos(Cluster cluster, AtomicIntegerArray coordinatorIndexes, Set<Integer> candidates, ExecutorService chaosExecutor, Random random, ClusterChaos chaos, List<String> history)
     {
         List<Integer> snapshot = new ArrayList<>(candidates);
-        int nodeIdx;
+        int nodeId;
         {
             int i = random.nextInt(snapshot.size());
             Integer remove = snapshot.get(i);
             candidates.remove(remove);
             snapshot = new ArrayList<>(candidates);
             Invariants.require(snapshot.size() > 0);
-            nodeIdx = remove;
+            nodeId = remove;
         }
 
         for (int i = 0; i < coordinatorIndexes.length(); ++i)
         {
-            if (nodeIdx == coordinatorIndexes.get(i))
+            if (nodeId == coordinatorIndexes.get(i))
             {
                 int j = random.nextInt(snapshot.size());
                 int replaceIdx = snapshot.get(j);
-                coordinatorIndexes.set(j, replaceIdx);
+                coordinatorIndexes.set(i, replaceIdx);
             }
         }
 
-        String describe = String.format("%s node %d...", chaos, nodeIdx);
+        String describe = String.format("%s node %d...", chaos, nodeId);
         history.add(describe);
         System.out.println("========= BEGIN CHAOS ==========");
         System.out.println(describe);
         System.out.println(candidates);
         System.out.println("========= BEGIN CHAOS ==========");
+        Future<?> future;
         switch (chaos)
         {
             default: throw UnhandledEnum.unknown(chaos);
             case REBOOTSTRAP_INCOMPLETE:
             case REBOOTSTRAP_RESET:
             {
-                IInvokableInstance node = cluster.get(nodeIdx);
-                return node.asyncAcceptsOnInstance((Set<Integer> cnds) -> {
+                IInvokableInstance node = cluster.get(nodeId);
+                future = node.asyncAcceptsOnInstance((Set<Integer> cnds) -> {
                     try
                     {
                         Node accordNode = AccordService.instance().node();
@@ -600,37 +665,39 @@ public class AccordLoadTestBase extends AccordTestBase
                     }
                     finally
                     {
-                        Invariants.require(cnds.add(nodeIdx));
+                        Invariants.require(cnds.add(nodeId));
                         System.out.println("========== END CHAOS ===========");
                         System.out.println(describe);
                         System.out.println("========== END CHAOS ===========");
                     }
                 }).apply(candidates);
+                break;
             }
             case REBOOTSTRAP_IF_BEHIND:
             {
-                IInvokableInstance node = cluster.get(nodeIdx);
-                return node.asyncAcceptsOnInstance((Set<Integer> cmds) -> {
+                IInvokableInstance node = cluster.get(nodeId);
+                future = node.asyncAcceptsOnInstance((Set<Integer> cmds) -> {
                     try
                     {
                         AccordService.getBlocking(Catchup.rebootstrapIfBehind(AccordService.instance().node()));
                     }
                     finally
                     {
-                        Invariants.require(cmds.add(nodeIdx));
+                        Invariants.require(cmds.add(nodeId));
                         System.out.println("========== END CHAOS ===========");
-                        System.out.println(String.format("%s node %d...", chaos, nodeIdx));
+                        System.out.println(String.format("%s node %d...", chaos, nodeId));
                         System.out.println("========== END CHAOS ===========");
                     }
                 }).apply(candidates);
+                break;
             }
             case RESTART:
             case RESTART_AND_REBOOTSTRAP_INCOMPLETE:
             case RESTART_AND_REBOOTSTRAP_RESET:
             case RESTART_AND_REBOOTSTRAP_AFTER_TIMEOUT:
             {
-                return chaosExecutor.submit(() -> {
-                    IInvokableInstance node = cluster.get(nodeIdx);
+                future = chaosExecutor.submit(() -> {
+                    IInvokableInstance node = cluster.get(nodeId);
                     try
                     {
                         node.shutdown().get();
@@ -657,18 +724,21 @@ public class AccordLoadTestBase extends AccordTestBase
                     }
                     finally
                     {
-                        Invariants.require(candidates.add(nodeIdx));
+                        Invariants.require(candidates.add(nodeId));
                         node.config().set("accord.catchup_on_start_success_latency", "60s");
                         node.config().set("accord.catchup_on_start_fail_latency", "120s");
                         node.config().set("accord.catchup_on_start_on_timeout", "IGNORE");
                         node.config().set("accord.journal.replay", "PART_NON_DURABLE");
                         System.out.println("========== END CHAOS ===========");
-                        System.out.println(String.format("%s node %d...", chaos, nodeIdx));
+                        System.out.println(String.format("%s node %d...", chaos, nodeId));
                         System.out.println("========== END CHAOS ===========");
                     }
                 });
+                break;
             }
         }
+
+        return new ChaosActive(chaos, future, nodeId);
     }
 
 

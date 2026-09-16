@@ -39,8 +39,6 @@ import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Sortable;
 
-import static org.apache.cassandra.service.accord.topology.AccordEndpointMapper.NodeStatus.HEALTHY;
-
 public class AccordTopologySorter implements TopologySorter
 {
     public static class Supplier implements TopologySorter.Supplier
@@ -103,9 +101,9 @@ public class AccordTopologySorter implements TopologySorter
     }
 
     @Override
-    public boolean isFaulty(Node.Id node)
+    public NodeStatus status(Node.Id node)
     {
-        return mapper.nodeStatus(node) != HEALTHY;
+        return mapper.nodeStatus(node).accordStatus;
     }
 
     private static class SortableEndpoints extends ArrayList<InetAddressAndPort> implements Sortable<InetAddressAndPort, SortableEndpoints>
