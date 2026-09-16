@@ -62,7 +62,8 @@ public class ReplayMarkers
             this.segmentId = segmentId;
         }
 
-        public static StartMarker invalidMarker() {
+        public static StartMarker invalidMarker()
+        {
             return new StartMarker(-1L);
         }
 
