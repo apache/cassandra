@@ -21,14 +21,13 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.NoSuchElementException;
 
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
+import org.apache.cassandra.db.partitions.SingletonUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
@@ -71,6 +70,8 @@ public abstract class ReadResponse
     //   - IN_MEMORY_MAX_SIZE: maximum accumulated unshared heap size (in bytes) of the in-memory Unfiltered objects.
     // ONE/LOCAL_ONE reads use separate higher limits: the local read is consumed directly
     // without waiting for cross-replica interactions, so it is worth keeping more of it in memory.
+    // NOTE: the limits won't be enforced across a range tombstone span (for correctness reasons),
+    // so in rare pathological cases we may consume more.
     static final int IN_MEMORY_MAX_ROWS = CassandraRelevantProperties.DATA_RESPONSE_IN_MEMORY_MAX_ROWS.getInt();
     static final long IN_MEMORY_MAX_SIZE = CassandraRelevantProperties.DATA_RESPONSE_IN_MEMORY_MAX_SIZE.getSizeInBytes();
     static final int IN_MEMORY_MAX_ROWS_CL_ONE = CassandraRelevantProperties.DATA_RESPONSE_IN_MEMORY_MAX_ROWS_CL_ONE.getInt();
@@ -478,7 +479,7 @@ public abstract class ReadResponse
         {
             UnfilteredRowIterator prefixIter = unfilteredIteratorAsRead(prefix, command.columnFilter(), suffix.isReverseOrder());
             UnfilteredRowIterator combined = UnfilteredRowIterators.concat(prefixIter, suffix);
-            UnfilteredPartitionIterator partitionIter = new SingletonUnfilteredPartitionIterator(command.metadata(), combined);
+            UnfilteredPartitionIterator partitionIter = new SingletonUnfilteredPartitionIterator(combined);
             return LocalDataResponse.build(partitionIter, command.columnFilter());
         }
 
@@ -553,6 +554,9 @@ public abstract class ReadResponse
 
                 if (!insideOpenMarker)
                 {
+                    // We check the limits before consuming the next element because, to measure its heap size,
+                    // we have to consume it from the original iterator. Once consumed, we cannot easily put it back.
+                    // We do not keep a row in memory for long and pass it to serialization
                     if (inMemoryMaxRows > 0 && unfilteredCount >= inMemoryMaxRows)
                         return overflow(true);
                     if (inMemoryMaxHeapSize > 0 && accumulatedHeapSize >= inMemoryMaxHeapSize)
@@ -628,7 +632,7 @@ public abstract class ReadResponse
                 return EmptyIterators.unfilteredPartition(command.metadata());
 
             UnfilteredRowIterator inMemoryIter = unfilteredIteratorAsRead(partition, command.columnFilter(), command.isReversed());
-            return new SingletonUnfilteredPartitionIterator(command.metadata(), inMemoryIter);
+            return new SingletonUnfilteredPartitionIterator(inMemoryIter);
         }
 
         // Iterating an ImmutableBTreePartition partition does not give back the iterator the buffer deserialized read produced.
@@ -681,46 +685,6 @@ public abstract class ReadResponse
         protected ByteBuffer getSerializedData()
         {
             throw new UnsupportedOperationException("InMemoryDataResponse cannot be serialized over the network");
-        }
-    }
-
-    private static class SingletonUnfilteredPartitionIterator extends AbstractUnfilteredPartitionIterator
-    {
-        private final TableMetadata metadata;
-        private final UnfilteredRowIterator partition;
-        private boolean returned = false;
-
-        private SingletonUnfilteredPartitionIterator(TableMetadata metadata, UnfilteredRowIterator partition)
-        {
-            this.metadata = metadata;
-            this.partition = partition;
-        }
-
-        @Override
-        public TableMetadata metadata()
-        {
-            return metadata;
-        }
-
-        @Override
-        public boolean hasNext()
-        {
-            return !returned;
-        }
-
-        @Override
-        public UnfilteredRowIterator next()
-        {
-            if (returned)
-                throw new NoSuchElementException();
-            returned = true;
-            return partition;
-        }
-
-        @Override
-        public void close()
-        {
-            partition.close();
         }
     }
 

@@ -419,6 +419,7 @@ public class ReadResponseTest
     private class RandomPartition
     {
         private static final long ROW_TIMESTAMP = 10;
+        private static final long LOCAL_DELETION_TIME = 1700000000;
 
         final int key;
         final boolean reversed;
@@ -429,13 +430,15 @@ public class ReadResponseTest
         private final boolean contentColumns;
         // > 0: give every row a deletion of that timestamp, added after its cells so they survive in the row
         private final long shadowingTimestamp;
+        private final long shadowingLocalDeletionTime;
 
         RandomPartition(Random rnd)
         {
-            key = key();
+            key = rnd.nextInt();
             reversed = rnd.nextBoolean();
             contentColumns = rnd.nextBoolean();
             shadowingTimestamp = rnd.nextInt(3) == 0 ? ROW_TIMESTAMP + rnd.nextInt(2) * 10 : 0;
+            shadowingLocalDeletionTime = LOCAL_DELETION_TIME + rnd.nextInt(100);
 
             switch (rnd.nextInt(3))
             {
@@ -448,10 +451,11 @@ public class ReadResponseTest
                     staticRow = BTreeRow.emptyRow(Clustering.STATIC_CLUSTERING);
                     break;
                 default:
-                    staticRow = staticRow(metadataWithCollection, rnd.nextInt(100));
+                    staticRow = staticRow(metadataWithCollection, rnd.nextInt(100), ROW_TIMESTAMP);
             }
 
             PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(metadataWithCollection, ByteBufferUtil.bytes(key));
+            builder.nowInSec(LOCAL_DELETION_TIME + rnd.nextInt(100));
             if (rnd.nextInt(6) == 0)
                 builder.timestamp(1).delete();  // older than the rows below, so it does not shadow them
             builder.timestamp(ROW_TIMESTAMP);
@@ -475,7 +479,7 @@ public class ReadResponseTest
                 int start = rnd.nextInt(8);
                 Slice slice = Slice.make(Clustering.make(ByteBufferUtil.bytes(start)),
                                          Clustering.make(ByteBufferUtil.bytes(start + 1 + rnd.nextInt(3))));
-                builder.addRangeTombstone(new RangeTombstone(slice, DeletionTime.build(ROW_TIMESTAMP + 1, FBUtilities.nowInSeconds())));
+                builder.addRangeTombstone(new RangeTombstone(slice, DeletionTime.build(ROW_TIMESTAMP + 1, LOCAL_DELETION_TIME + rnd.nextInt(100))));
             }
 
             update = builder.build();
@@ -541,7 +545,7 @@ public class ReadResponseTest
                 }
             }
             // added last, so the cells above are kept even where it covers them
-            builder.addRowDeletion(Row.Deletion.regular(DeletionTime.build(shadowingTimestamp, FBUtilities.nowInSeconds())));
+            builder.addRowDeletion(Row.Deletion.regular(DeletionTime.build(shadowingTimestamp, shadowingLocalDeletionTime)));
             return builder.build();
         }
     }
@@ -1236,9 +1240,14 @@ public class ReadResponseTest
 
     private Row staticRow(TableMetadata metadata, int value)
     {
+        return staticRow(metadata, value, FBUtilities.timestampMicros());
+    }
+
+    private Row staticRow(TableMetadata metadata, int value, long timestamp)
+    {
         ColumnMetadata col = metadata.getColumn(ByteBufferUtil.bytes("s"));
         return BTreeRow.singleCellRow(Clustering.STATIC_CLUSTERING,
-                                      BufferCell.live(col, FBUtilities.timestampMicros(), ByteBufferUtil.bytes(value)));
+                                      BufferCell.live(col, timestamp, ByteBufferUtil.bytes(value)));
     }
 
     private UnfilteredPartitionIterator singlePartitionIterator(PartitionUpdate update)
