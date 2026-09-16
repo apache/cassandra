@@ -158,16 +158,26 @@ public class TrackedCompactionManager extends AbstractStrategyHolder
         return silo;
     }
 
+    @VisibleForTesting
     CompactionStrategyHolder getIfPresent(ImmutableSet<ShortMutationId> key)
     {
         return silos.get(key);
     }
 
+    @VisibleForTesting
     CompactionStrategyHolder getIfPresent(SSTableReader sstable)
     {
         return getIfPresent(keyOf(sstable));
     }
 
+    /**
+     * getOrCreate the compaction strategy holder for the given transfer id
+     *
+     * Although this method correctly synchronizes updates to the containing datastructure (silos) on the create path,
+     * it does return an object that's contained in a datastructure guarded by the object monitor. So callers need
+     * to use care when calling this and make sure they're adhering to this class thread safety requirements
+     */
+    @VisibleForTesting
     CompactionStrategyHolder getOrCreate(ImmutableSet<ShortMutationId> key)
     {
         CompactionStrategyHolder silo = silos.get(key);
