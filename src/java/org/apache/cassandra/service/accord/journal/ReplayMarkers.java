@@ -62,11 +62,11 @@ public class ReplayMarkers
 
     /**
      * Determines if the stopMarker is in a correct position with regard to the startMarker
-     * */
+     */
     public static boolean isValid(StartMarker startMarker, StopMarker stopMarker)
     {
-        State startMarkerState = startMarker.state;
-        State stopMarkerState = stopMarker.state;
+        State startMarkerState = startMarker.getState();
+        State stopMarkerState = stopMarker.getState();
 
         // Initial state, when we first start up neither file exists yet
         if (startMarkerState == State.DOES_NOT_EXIST && stopMarkerState == State.DOES_NOT_EXIST)
@@ -77,8 +77,8 @@ public class ReplayMarkers
 
     public static class StartMarker
     {
-        public final State state;
-        public final long segmentId;
+        private final State state;
+        private final long segmentId;
 
         private StartMarker(State state, long segmentId)
         {
@@ -101,6 +101,11 @@ public class ReplayMarkers
             return new StartMarker(State.INVALID, -1L);
         }
 
+        public State getState()
+        {
+            return state;
+        }
+
         public long getSegmentId()
         {
             return segmentId;
@@ -109,9 +114,9 @@ public class ReplayMarkers
 
     public static class StopMarker
     {
-        public final State state;
-        public final long segmentId;
-        public final long lastUniqueTimestamp;
+        private final State state;
+        private final long segmentId;
+        private final long lastUniqueTimestamp;
 
         private StopMarker(State state, long segmentId, long lastUniqueTimestamp)
         {
@@ -133,6 +138,11 @@ public class ReplayMarkers
         public static StopMarker invalidMarker()
         {
             return new StopMarker(State.INVALID, -1L, -1L);
+        }
+
+        public State getState()
+        {
+            return state;
         }
 
         public long getSegmentId()

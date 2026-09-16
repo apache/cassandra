@@ -546,15 +546,22 @@ public class AccordService implements IAccordService, Shutdownable
                 {
                     default: throw new UnhandledEnum(getAccord().journal.stopMarkerFailurePolicy);
                     case EXIT:
-                        throw new RuntimeException("Stop marker is older than start marker (" + stopMarkerSegmentId + '<' + startMarkerSegmentId + ") , so cannot assume we have a complete log of our votes in any consensus groups. Exiting.");
-
+                        throw new RuntimeException(
+                        "Start marker state: " + startMarker.getState() + " , start marker segmentId: " + startMarkerSegmentId +
+                        " , Stop marker state: " + stopMarker.getState() + " , stop marker segmentId: " + startMarkerSegmentId +
+                        " .Invalid start marker & stop marker state, so cannot assume we have a complete log of our votes in any consensus groups. Exiting");
                     case ALLOW_UNSAFE_STARTUP:
                     case UNSAFE_STARTUP:
-                        logger.warn("Stop marker is older than start marker ({}<{}), so cannot assume we have a complete log of our votes in any consensus groups. Continuing to startup as configured.", stopMarkerSegmentId, startMarkerSegmentId);
+                        logger.info("Start marker state: {}, start marker segmentId: {}, Stop marker state: {}, stop marker segmentId: {}. " +
+                                    "Invalid start marker & stop marker state, so cannot assume we have a complete log of our votes in any consensus groups. " +
+                                    "Continuing to startup as configured.",
+                                    startMarker.getState(), startMarkerSegmentId, stopMarker.getState(), stopMarkerSegmentId);
                         break;
 
                     case REBOOTSTRAP:
-                        logger.info("Stop marker is older than start marker ({}<{}). Rebootstrapping.", stopMarkerSegmentId, startMarkerSegmentId);
+                        logger.info("Start marker state: {}, start marker segmentId: {}, Stop marker state: {}, stop marker segmentId: {}. " +
+                                    "Invalid start marker & stop marker state. Rebootstrapping.",
+                                    startMarker.getState(), startMarkerSegmentId, stopMarker.getState(), stopMarkerSegmentId);
                         rebootstrap = true;
                 }
             }
