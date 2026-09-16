@@ -23,6 +23,7 @@ import java.util.Map;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.action.GossipHelper;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -39,6 +40,8 @@ public class NodeNotInRingTest extends TestBaseImpl
     @Test
     public void nodeNotInRingTest() throws Throwable
     {
+        DatabaseDescriptor.clientInitialization();
+
         try (Cluster cluster = builder().withNodes(3)
                                         .withConfig(config -> config.with(NETWORK, GOSSIP))
                                         .start())
