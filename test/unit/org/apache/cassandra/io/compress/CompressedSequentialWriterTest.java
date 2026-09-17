@@ -248,7 +248,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
     private void testWrite(File f, int bytesToTest, boolean useMemmap) throws IOException
     {
         final String filename = f.absolutePath();
-        MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(Collections.singletonList(BytesType.instance)));
+        MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
 
         byte[] dataPre = new byte[bytesToTest];
         byte[] rawPost = new byte[bytesToTest];
@@ -348,7 +348,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
 
         File f = FileUtils.createTempFile("testUncompressedChunks", "1");
         String filename = f.path();
-        MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(Collections.singletonList(BytesType.instance)));
+        MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
         compressionParameters = new CompressionParams(MockCompressor.class.getTypeName(),
                                                       MockCompressor.paramsFor(ratio, extra),
                                                       DEFAULT_CHUNK_LENGTH, ratio);
