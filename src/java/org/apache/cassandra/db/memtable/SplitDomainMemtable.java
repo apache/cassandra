@@ -322,7 +322,7 @@ public class SplitDomainMemtable implements Memtable
         catch (Throwable t)
         {
             Throwables.closeNonNullAndAddSuppressed(t, commitLogRows, journalRows);
-            throw Throwables.unchecked(t);
+            throw t;
         }
 
         try (UnfilteredRowIterator itr = merged)
@@ -349,7 +349,7 @@ public class SplitDomainMemtable implements Memtable
         catch (Throwable t)
         {
             Throwables.closeNonNullAndAddSuppressed(t, fromCommitLog, fromJournal);
-            throw Throwables.unchecked(t);
+            throw t;
         }
     }
 
@@ -367,7 +367,7 @@ public class SplitDomainMemtable implements Memtable
         catch (Throwable t)
         {
             Throwables.closeNonNullAndAddSuppressed(t, fromCommitLog, fromJournal);
-            throw Throwables.unchecked(t);
+            throw t;
         }
     }
 
@@ -397,7 +397,7 @@ public class SplitDomainMemtable implements Memtable
         catch (Throwable t)
         {
             Throwables.closeNonNullAndAddSuppressed(t, fromCommitLog, fromJournal);
-            throw Throwables.unchecked(t);
+            throw t;
         }
     }
 
