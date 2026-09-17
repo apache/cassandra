@@ -176,7 +176,15 @@ New features
     - New functions `format_bytes` and `format_time` were added. See CASSANDRA-19546.
     - It is possible to use Async-profiler for various profiling scenarios. See CASSANDRA-20854.
     - It is possible to provide custom startup check via Java SPI. See CASSANDRA-21093.
-
+    - Single partition data reads served by the coordinator's local replica no longer serialize and deserialize the
+      response when it is small enough. The rows are kept as an in-memory partition instead, which saves the CPU time
+      spent on serializing and deserializing them and avoids allocating the rows and cells twice.
+      A response that exceeds either per-request limit is serialized in full, as before.
+      The limits are set by the system properties cassandra.data_response_in_memory_max_rows and
+      cassandra.data_response_in_memory_max_size; reads at ONE/LOCAL_ONE use
+      cassandra.data_response_in_memory_max_rows_cl_one andcassandra.data_response_in_memory_max_size_cl_one.
+      A limit is disabled by setting it to 0, and setting both limits of a tier to 0 disables the in-memory path for that tier.
+      Note that the limits are not enforced in the middle of a range tombstone span, so a response may exceed them in that case.
 Upgrading
 ---------
     [The following is a placeholder, to be revised asap]
