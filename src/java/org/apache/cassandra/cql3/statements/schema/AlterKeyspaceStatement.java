@@ -341,18 +341,12 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
 
         boolean addsWitnesses = proposed.replicationStrategy.getReplicationFactor().hasTransientReplicas();
 
-        // A migrating keyspace has pending ranges, and reads for a pending range take the untracked
-        // path, see MigrationRouter#shouldUseTrackedForReads. Those reads would contact a transient
-        // replica, which RangeCommandIterator#executeNormal rejects outright. Migrating a pending range
-        // also relies on blocking read repair to converge the replicas, and a witness cannot take part.
         if (addsWitnesses && metadata.mutationTrackingMigrationState.isMigrating(keyspaceName))
             throw new ConfigurationException(String.format("Cannot add transient replicas to %s while its mutation " +
                                                            "tracking migration is in progress. Wait for the migration " +
                                                            "to complete, then alter the replication factor.",
                                                            keyspaceName));
 
-        // AlterSchema#maybeUpdateMutationTrackingMigrationState starts the migration after this
-        // statement validates, so the check above cannot see one this statement is about to start.
         if (addsWitnesses && proposed.params.replicationType.isTracked() && !current.params.replicationType.isTracked())
             throw new ConfigurationException(String.format("Cannot enable mutation tracking on %s and add transient " +
                                                            "replicas in the same statement, because doing so starts a " +
