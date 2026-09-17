@@ -29,6 +29,7 @@ import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.util.concurrent.Future; //checkstyle: permit this import
 import io.netty.util.concurrent.Promise; //checkstyle: permit this import
+//import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
 import org.slf4j.Logger;
@@ -65,6 +66,9 @@ import org.apache.cassandra.utils.memory.BufferPools;
 import static java.util.concurrent.TimeUnit.*;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.OUTBOUND;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.OUTBOUND_PRECONNECT;
+//import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.NOT_REQUIRED;
+//import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.OPTIONAL;
+//import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
 import static org.apache.cassandra.net.InternodeConnectionUtils.DISCARD_HANDLER_NAME;
 import static org.apache.cassandra.net.InternodeConnectionUtils.SSL_FACTORY_CONTEXT_DESCRIPTION;
 import static org.apache.cassandra.net.InternodeConnectionUtils.SSL_HANDLER_NAME;
@@ -119,7 +123,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
                                                                      SslFallbackConnectionType sslConnectionType)
     {
         return new OutboundConnectionInitiator<StreamingSuccess>(STREAMING, sslConnectionType, settings, AsyncPromise.withExecutor(eventLoop))
-               .initiate(eventLoop);
+                .initiate(eventLoop);
     }
 
     /**
@@ -133,13 +137,12 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
                                                               OutboundConnectionSettings settings, Promise<Result<MessagingSuccess>> result)
     {
         return new OutboundConnectionInitiator<>(type, sslConnectionType, settings, result)
-               .initiate(eventLoop);
+                .initiate(eventLoop);
     }
 
     private Future<Result<SuccessType>> initiate(EventLoop eventLoop)
     {
-        if (logger.isTraceEnabled())
-            logger.trace("creating outbound bootstrap to {}", settings);
+        logger.trace("creating outbound bootstrap to {}", settings);
 
         if (!settings.authenticator.authenticate(settings.to.getAddress(), settings.to.getPort(), null, OUTBOUND_PRECONNECT))
         {
@@ -154,20 +157,20 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         // and still guarantee that, if on timing out we raced with success, the successfully created channel is handled
         AtomicBoolean timedout = new AtomicBoolean();
         io.netty.util.concurrent.Future<Void> bootstrap = createBootstrap(eventLoop)
-                                 .connect()
-                                 .addListener(future -> {
-                                     eventLoop.execute(() -> {
-                                         if (!future.isSuccess())
-                                         {
-                                             if (future.isCancelled() && !timedout.get())
-                                                 resultPromise.cancel(true);
-                                             else if (future.isCancelled())
-                                                 resultPromise.tryFailure(new IOException("Timeout handshaking with " + settings.connectToId()));
-                                             else
-                                                 resultPromise.tryFailure(future.cause());
-                                         }
-                                     });
-                                 });
+                .connect()
+                .addListener(future -> {
+                    eventLoop.execute(() -> {
+                        if (!future.isSuccess())
+                        {
+                            if (future.isCancelled() && !timedout.get())
+                                resultPromise.cancel(true);
+                            else if (future.isCancelled())
+                                resultPromise.tryFailure(new IOException("Timeout handshaking with " + settings.connectToId()));
+                            else
+                                resultPromise.tryFailure(future.cause());
+                        }
+                    });
+                });
 
         ScheduledFuture<?> timeout = eventLoop.schedule(() -> {
             timedout.set(true);
@@ -188,14 +191,14 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
     private Bootstrap createBootstrap(EventLoop eventLoop)
     {
         Bootstrap bootstrap = settings.socketFactory
-                                      .newClientBootstrap(eventLoop, settings.tcpUserTimeoutInMS)
-                                      .option(ChannelOption.ALLOCATOR, GlobalBufferPoolAllocator.instance)
-                                      .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, settings.tcpConnectTimeoutInMS)
-                                      .option(ChannelOption.SO_KEEPALIVE, true)
-                                      .option(ChannelOption.SO_REUSEADDR, true)
-                                      .option(ChannelOption.TCP_NODELAY, settings.tcpNoDelay)
-                                      .option(ChannelOption.MESSAGE_SIZE_ESTIMATOR, NoSizeEstimator.instance)
-                                      .handler(new Initializer());
+                .newClientBootstrap(eventLoop, settings.tcpUserTimeoutInMS)
+                .option(ChannelOption.ALLOCATOR, GlobalBufferPoolAllocator.instance)
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, settings.tcpConnectTimeoutInMS)
+                .option(ChannelOption.SO_KEEPALIVE, true)
+                .option(ChannelOption.SO_REUSEADDR, true)
+                .option(ChannelOption.TCP_NODELAY, settings.tcpNoDelay)
+                .option(ChannelOption.MESSAGE_SIZE_ESTIMATOR, NoSizeEstimator.instance)
+                .handler(new Initializer());
 
         if (settings.socketSendBufferSizeInBytes > 0)
             bootstrap.option(ChannelOption.SO_SNDBUF, settings.socketSendBufferSizeInBytes);
@@ -221,14 +224,15 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
 
             // order of handlers: ssl -> server-authentication -> logger -> handshakeHandler
             if ((sslConnectionType == SslFallbackConnectionType.SERVER_CONFIG && settings.withEncryption())
-                || sslConnectionType == SslFallbackConnectionType.SSL || sslConnectionType == SslFallbackConnectionType.MTLS)
+                    || sslConnectionType == SslFallbackConnectionType.SSL || sslConnectionType == SslFallbackConnectionType.MTLS)
             {
                 SslContext sslContext = getSslContext(sslConnectionType);
                 // for some reason channel.remoteAddress() will return null
                 InetAddressAndPort address = settings.to;
                 InetSocketAddress peer = settings.encryption.require_endpoint_verification ? new InetSocketAddress(address.getAddress(), address.getPort()) : null;
                 SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
-                logger.trace("creating outbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
+                if (logger.isTraceEnabled())
+                    logger.trace("creating outbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
                 pipeline.addFirst(SSL_HANDLER_NAME, sslHandler);
             }
             pipeline.addLast("server-authentication", new ServerAuthenticationHandler(settings));
@@ -252,6 +256,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
             }
             return SSLFactory.getOrCreateSslContext(settings.encryption, requireClientAuth, ISslContextFactory.SocketType.CLIENT, SSL_FACTORY_CONTEXT_DESCRIPTION);
         }
+
 
     }
 
@@ -310,7 +315,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
             logger.trace("starting handshake with peer {}, msg = {}", settings.connectToId(), msg);
 
             AsyncChannelPromise.writeAndFlush(ctx, msg.encode(),
-                      future -> { if (!future.isSuccess()) exceptionCaught(ctx, future.cause()); });
+                    future -> { if (!future.isSuccess()) exceptionCaught(ctx, future.cause()); });
 
             ctx.fireChannelActive();
         }
@@ -517,14 +522,27 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         }
 
         boolean isSuccess() { return outcome == Outcome.SUCCESS; }
-        public SuccessType success() { return (SuccessType) this; }
+        public Success success() {
+            if (this.outcome == outcome.SUCCESS)
+                return (Success) this;
+            return null;
+        }
         static MessagingSuccess messagingSuccess(Channel channel, int messagingVersion, FrameEncoder.PayloadAllocator allocator) { return new MessagingSuccess(channel, messagingVersion, allocator); }
         static StreamingSuccess streamingSuccess(Channel channel, int messagingVersion) { return new StreamingSuccess(channel, messagingVersion); }
 
-        public Retry retry() { return (Retry) this; }
+        public Retry retry() {
+            if (this.outcome == outcome.RETRY)
+                return (Retry) this;
+            return null;
+        }
         static <SuccessType extends Success> Result<SuccessType> retry(int withMessagingVersion) { return new Retry<>(withMessagingVersion); }
 
-        public Incompatible incompatible() { return (Incompatible) this; }
+        public Incompatible incompatible()
+        {
+            if (this.outcome == outcome.INCOMPATIBLE)
+                return (Incompatible) this;
+            return null;
+        }
         static <SuccessType extends Success> Result<SuccessType> incompatible(int closestSupportedVersion, int maxMessagingVersion) { return new Incompatible(closestSupportedVersion, maxMessagingVersion); }
     }
 
