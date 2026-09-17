@@ -215,12 +215,8 @@ public class TrackedCompactionManager extends AbstractStrategyHolder
     /**
      * Drop every transfer silo that holds no sstables. Called from the paths that walk the map anyway, so teardown does
      * not depend on any particular removal notification arriving. The silo that holds normal writes is never pruned
-     *
-     * must be called with object monitor held
-     *
-     * @return true if anything was dropped
      */
-    private void pruneEmpty()
+    private synchronized void pruneEmpty()
     {
         Set<ImmutableSet<ShortMutationId>> empty = null;
         for (Map.Entry<ImmutableSet<ShortMutationId>, CompactionStrategyHolder> entry : silos.entrySet())
