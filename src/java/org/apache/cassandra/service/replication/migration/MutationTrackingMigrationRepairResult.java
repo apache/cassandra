@@ -38,6 +38,15 @@ public class MutationTrackingMigrationRepairResult
                                                  "the repair was not incremental, so it synced the pre-migration data " +
                                                  "without marking it repaired; migration requires incremental repair");
 
+    private static final MutationTrackingMigrationRepairResult NOT_ALL_REPLICAS =
+        new MutationTrackingMigrationRepairResult(Epoch.EMPTY, false,
+                                                 "not all replicas were included in the repair; " +
+                                                 "migration requires repairing all replicas");
+    private static final MutationTrackingMigrationRepairResult DATA_NOT_REPAIRED =
+        new MutationTrackingMigrationRepairResult(Epoch.EMPTY, false,
+                                                 "data repair was not performed; " +
+                                                 "migration requires repairing table data");
+
     public final Epoch minEpoch;
     public final boolean eligible;
 
@@ -65,11 +74,15 @@ public class MutationTrackingMigrationRepairResult
     public static MutationTrackingMigrationRepairResult fromRepair(Epoch minEpoch,
                                                                   boolean deadNodesExcluded,
                                                                   boolean isPreview,
-                                                                  boolean isIncremental)
+                                                                  boolean isIncremental,
+                                                                  boolean allReplicas,
+                                                                  boolean repairData)
     {
         if (deadNodesExcluded) return DEAD_NODES_EXCLUDED;
         if (isPreview) return PREVIEW;
         if (!isIncremental) return NOT_INCREMENTAL;
+        if (!allReplicas) return NOT_ALL_REPLICAS;
+        if (!repairData) return DATA_NOT_REPAIRED;
         return new MutationTrackingMigrationRepairResult(minEpoch, true, null);
     }
 }
