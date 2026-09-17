@@ -727,6 +727,16 @@ public final class Guardrails implements GuardrailsMBean
                    state -> CONFIG_PROVIDER.getOrCreate(state).getUnsetTrainingMinFrequencyEnabled(),
                    "unset minimum frequency of training for dictionary compressor");
 
+    public static MaxThreshold zstdCompressorLevelThreshold =
+    new MaxThreshold("zstd_compression_level",
+                     "Higher Zstd compression levels have detrimental " +
+                     "effects on CPU while yielding almost no improvement on compression ratio.",
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getZstdCompressorLevelWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getZstdCompressorLevelFailThreshold(),
+                     (isWarning, what, value, threshold) ->
+                     format("Value of Zstd compressor level is '%s', this exceeds the %s threshold of %s.",
+                            value, isWarning ? "warning" : "failure", threshold));
+
     private Guardrails()
     {
         MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
@@ -1969,6 +1979,24 @@ public final class Guardrails implements GuardrailsMBean
         {
             throw new RuntimeException("Unable to deserialize minimum_client_driver_versions_disallowed: " + t.getMessage());
         }
+    }
+
+    @Override
+    public int getZstdCompressorLevelWarnThreshold()
+    {
+        return DEFAULT_CONFIG.getZstdCompressorLevelWarnThreshold();
+    }
+
+    @Override
+    public int getZstdCompressorLevelFailThreshold()
+    {
+        return DEFAULT_CONFIG.getZstdCompressorLevelFailThreshold();
+    }
+
+    @Override
+    public void setZstdCompressorLevelThreshold(int warn, int fail)
+    {
+        DEFAULT_CONFIG.setZstdCompressorLevelThreshold(warn, fail);
     }
 
     private static String toCSV(Set<String> values)

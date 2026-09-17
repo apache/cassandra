@@ -35,6 +35,8 @@ import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.io.compress.ICompressor;
+import org.apache.cassandra.io.compress.ZstdCompressorBase;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -247,6 +249,17 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
         {
             Guardrails.unsetTrainingMinFrequency.ensureEnabled(state);
         }
+    }
+
+    protected void validateZstdCompressorLevel(TableParams params)
+    {
+        if (SchemaConstants.isSystemKeyspace(keyspaceName) || !params.compression.isEnabled())
+            return;
+
+        ICompressor compressor = params.compression.getSstableCompressor();
+        if (compressor instanceof ZstdCompressorBase)
+            Guardrails.zstdCompressorLevelThreshold.guard(((ZstdCompressorBase) compressor).compressionLevel(),
+                                                          "Zstd compression level", false, state);
     }
 
     private void grantPermissionsOnResource(IResource resource, AuthenticatedUser user)

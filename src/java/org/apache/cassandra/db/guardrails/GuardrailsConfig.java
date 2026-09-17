@@ -731,4 +731,22 @@ public interface GuardrailsConfig
      * driver version is below the specified minimum.
      */
     Map<String, String> getMinimumClientDriverVersionsDisallowed();
+
+    /**
+     * @return the warning threshold for the Zstd compressor level
+     */
+    int getZstdCompressorLevelWarnThreshold();
+
+    /**
+     * @return the failure threshold for the Zstd compressor level
+     */
+    int getZstdCompressorLevelFailThreshold();
+
+    /**
+     * Sets warning and failure thresholds for the Zstd compressor levels.
+     *
+     * @param warn value to set for warn threshold
+     * @param fail value to set for fail threshold
+     */
+    void setZstdCompressorLevelThreshold(int warn, int fail);
 }

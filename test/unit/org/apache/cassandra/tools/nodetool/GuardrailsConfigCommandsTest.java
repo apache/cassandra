@@ -255,7 +255,8 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     "sai_vector_term_size_threshold               [32KiB, 16KiB]\n" +
     "secondary_indexes_per_table_threshold        [-1, -1]      \n" +
     "tables_threshold                             [-1, -1]      \n" +
-    "vector_dimensions_threshold                  [-1, -1]      \n";
+    "vector_dimensions_threshold                  [-1, -1]      \n" +
+    "zstd_compressor_level_threshold              [-1, -1]      \n";
 
     private static final String ALL_THRESHOLDS_GETTER_VERBOSE_OUTPUT =
     "collection_list_size_fail_threshold               null \n" +
@@ -320,7 +321,9 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     "tables_fail_threshold                             -1   \n" +
     "tables_warn_threshold                             -1   \n" +
     "vector_dimensions_fail_threshold                  -1   \n" +
-    "vector_dimensions_warn_threshold                  -1   \n";
+    "vector_dimensions_warn_threshold                  -1   \n" +
+    "zstd_compressor_level_fail_threshold              -1   \n" +
+    "zstd_compressor_level_warn_threshold              -1   \n";
 
     private static final String ALL_VALUES_GETTER_OUTPUT =
     "keyspace_properties_disallowed               []   \n" +

@@ -633,6 +633,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
             TableParams paramsForValidation = attrs.asNewTableParams(keyspaceName);
             validateDefaultTimeToLive(paramsForValidation);
+            validateZstdCompressorLevel(paramsForValidation);
             validateMinimumTrainingFrequencyForDictionaryCompressor(paramsForValidation);
         }
 
