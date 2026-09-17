@@ -714,7 +714,7 @@ public final class Guardrails implements GuardrailsMBean
                    state -> CONFIG_PROVIDER.getOrCreate(state).getNonPartitionRestrictedQueryEnabled(),
                    "Non-partition key restricted query");
 
-    public static EnableFlag unsetTrainingMinFrequency =
+    public static final EnableFlag unsetTrainingMinFrequency =
     new EnableFlag("unset_training_min_frequency_enabled",
                    format("Table uses ZstdDictionaryCompressor without %s set. Unlimited training frequency may degrade " +
                           "compression quality and accumulate dictionaries in %s.%s. " +
@@ -726,6 +726,16 @@ public final class Guardrails implements GuardrailsMBean
                    state -> CONFIG_PROVIDER.getOrCreate(state).getUnsetTrainingMinFrequencyWarned(),
                    state -> CONFIG_PROVIDER.getOrCreate(state).getUnsetTrainingMinFrequencyEnabled(),
                    "unset minimum frequency of training for dictionary compressor");
+
+    public static final MaxThreshold zstdCompressionLevelThreshold =
+    new MaxThreshold("zstd_compression_level",
+                     "Higher Zstd compression levels have detrimental " +
+                     "effects on CPU and memory usage while yielding almost no improvement on compression ratio.",
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getZstdCompressionLevelWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getZstdCompressionLevelFailThreshold(),
+                     (isWarning, what, value, threshold) ->
+                     format("Value of Zstd compression level is '%s', this exceeds the %s threshold of %s.",
+                            value, isWarning ? "warning" : "failure", threshold));
 
     private Guardrails()
     {
@@ -1969,6 +1979,24 @@ public final class Guardrails implements GuardrailsMBean
         {
             throw new RuntimeException("Unable to deserialize minimum_client_driver_versions_disallowed: " + t.getMessage());
         }
+    }
+
+    @Override
+    public int getZstdCompressionLevelWarnThreshold()
+    {
+        return DEFAULT_CONFIG.getZstdCompressionLevelWarnThreshold();
+    }
+
+    @Override
+    public int getZstdCompressionLevelFailThreshold()
+    {
+        return DEFAULT_CONFIG.getZstdCompressionLevelFailThreshold();
+    }
+
+    @Override
+    public void setZstdCompressionLevelThreshold(int warn, int fail)
+    {
+        DEFAULT_CONFIG.setZstdCompressionLevelThreshold(warn, fail);
     }
 
     private static String toCSV(Set<String> values)
