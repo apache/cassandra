@@ -18,7 +18,6 @@
 package org.apache.cassandra.io.sstable.metadata;
 
 import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
@@ -59,6 +58,8 @@ import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.streamhist.StreamingTombstoneHistogramBuilder;
 import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
 
+import static org.apache.cassandra.db.marshal.AbstractType.EMPTY_ABSTRACT_TYPE_ARRAY;
+
 public class MetadataCollector implements PartitionStatisticsCollector
 {
     public static final double NO_COMPRESSION_RATIO = -1.0;
@@ -97,7 +98,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                  NO_COMPRESSION_RATIO,
                                  defaultTombstoneDropTimeHistogram(),
                                  0,
-                                 Collections.emptyList(),
+                                 EMPTY_ABSTRACT_TYPE_ARRAY,
                                  Slice.ALL,
                                  true,
                                  ActiveRepairService.UNREPAIRED_SSTABLE,
@@ -170,7 +171,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
     {
         this.comparator = comparator;
         this.originatingHostId = originatingHostId;
-        AbstractType<?>[] clusteringTypes = comparator.subtypes().toArray(AbstractType[]::new);
+        AbstractType<?>[] clusteringTypes = comparator.subtypes();
         this.minClusteringDescriptor = new ClusteringDescriptor(clusteringTypes).resetMaxStart();
         this.maxClusteringDescriptor = new ClusteringDescriptor(clusteringTypes).resetMinEnd();
     }

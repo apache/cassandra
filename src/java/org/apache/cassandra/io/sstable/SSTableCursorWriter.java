@@ -68,7 +68,6 @@ public class SSTableCursorWriter implements AutoCloseable
     private static final ColumnMetadata[] EMPTY_COL_META = new ColumnMetadata[0];
     private final SortedTableWriter<?,?> ssTableWriter;
     private final SequentialWriter dataWriter;
-    private final SortedTableWriter.AbstractIndexWriter indexWriter;
     private final DeletionTime.Serializer deletionTimeSerializer;
     private final MetadataCollector metadataCollector;
     private final SerializationHeader serializationHeader;
@@ -160,7 +159,6 @@ public class SSTableCursorWriter implements AutoCloseable
     {
         this.ssTableWriter = ssTableWriter;
         this.dataWriter = dataWriter;
-        this.indexWriter = indexWriter;
         this.deletionTimeSerializer = DeletionTime.getSerializer(desc.version);
         this.metadataCollector = metadataCollector;
         this.serializationHeader = serializationHeader;

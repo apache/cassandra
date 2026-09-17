@@ -19,7 +19,6 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
-import java.util.List;
 
 import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.DeletionTime;
@@ -108,9 +107,9 @@ public class IndexInfo
         public static final long WIDTH_BASE = 64 * 1024;
 
         private final Version version;
-        private final List<AbstractType<?>> clusteringTypes;
+        private final AbstractType<?>[] clusteringTypes;
 
-        public Serializer(Version version, List<AbstractType<?>> clusteringTypes)
+        public Serializer(Version version, AbstractType<?>[] clusteringTypes)
         {
             this.version = version;
             this.clusteringTypes = clusteringTypes;

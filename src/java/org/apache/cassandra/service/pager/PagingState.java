@@ -19,7 +19,6 @@ package org.apache.cassandra.service.pager;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -369,7 +368,7 @@ public class PagingState
             this.protocolVersion = protocolVersion;
         }
 
-        private static List<AbstractType<?>> makeClusteringTypes(TableMetadata metadata)
+        private static AbstractType<?>[] makeClusteringTypes(TableMetadata metadata)
         {
             // This is the types that will be used when serializing the clustering in the paging state. We can't really use the actual clustering
             // types however because we can't guarantee that there won't be a schema change between when we send the paging state and get it back,
@@ -377,9 +376,8 @@ public class PagingState
             // (say timestamp -> blob). So we simply use a list of BytesTypes (for both reading and writting), which may be slightly inefficient
             // for fixed-width types, but avoid any risk during schema changes.
             int size = metadata.clusteringColumns().size();
-            List<AbstractType<?>> l = new ArrayList<>(size);
-            for (int i = 0; i < size; i++)
-                l.add(BytesType.instance);
+            AbstractType<?>[] l = new AbstractType<?>[size];
+            Arrays.fill(l, BytesType.instance);
             return l;
         }
 
