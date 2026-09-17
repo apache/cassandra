@@ -175,13 +175,6 @@ public final class CreateTableStatement extends AlterSchemaStatement
         TableMetadata table = builder.build();
         table.validate();
 
-        // TODO (review): This can be removed right? ReadRepair is effectively not done anymore so the setting doesn't matter
-//        if (keyspace.replicationStrategy.hasTransientReplicas()
-//            && table.params.readRepair != ReadRepairStrategy.NONE)
-//        {
-//            throw ire("read_repair must be set to 'NONE' for transiently replicated keyspaces");
-//        }
-
         if (!table.params.compression.isEnabled() && !SchemaConstants.isSystemKeyspace(table.keyspace))
             Guardrails.uncompressedTablesEnabled.ensureEnabled(state);
 

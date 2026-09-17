@@ -61,6 +61,7 @@ public enum CassandraRelevantProperties
     ALLOW_UNSAFE_JOIN("cassandra.allow_unsafe_join"),
     ALLOW_UNSAFE_REPLACE("cassandra.allow_unsafe_replace"),
     ALLOW_UNSAFE_TRANSIENT_CHANGES("cassandra.allow_unsafe_transient_changes"),
+    ALLOW_UNSAFE_WITNESS_PROMOTION("cassandra.allow_unsafe_witness_promotion"),
     APPROXIMATE_TIME_PRECISION_MS("cassandra.approximate_time_precision_ms", "2"),
     ASYNC_PROFILER_ENABLED("cassandra.async_profiler.enabled", "false"),
     ASYNC_PROFILER_UNSAFE_MODE("cassandra.async_profiler.unsafe_mode", "false"),

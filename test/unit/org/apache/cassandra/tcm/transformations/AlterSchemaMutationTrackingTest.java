@@ -34,14 +34,18 @@ import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.ReplicationFactor;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.service.replication.migration.KeyspaceMigrationInfo;
 import org.apache.cassandra.service.replication.migration.MutationTrackingMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 
 import static org.apache.cassandra.cql3.CQLTester.schemaChange;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -373,6 +377,134 @@ public class AlterSchemaMutationTrackingTest
             KeyspaceMigrationInfo actualInfo = actual.getKeyspaceInfo(keyspace);
             assertEquals(expectedInfo, actualInfo);
         }
+    }
+
+    @Test
+    public void testReadRepairAllowedOnWitnessKeyspace()
+    {
+        String ksName = nextKsName();
+        schemaChange("CREATE KEYSPACE " + ksName +
+                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3/1'}" +
+                     " AND replication_type = 'tracked'");
+
+        // CREATE TABLE with a repairing strategy
+        schemaChange(String.format("CREATE TABLE %s.created (pk int PRIMARY KEY, val int)" +
+                                   " WITH read_repair = 'BLOCKING'", ksName));
+        assertEquals(ReadRepairStrategy.BLOCKING, readRepairOf(ksName, "created"));
+
+        // ALTER TABLE from NONE to a repairing strategy
+        schemaChange(String.format("CREATE TABLE %s.altered (pk int PRIMARY KEY, val int)" +
+                                   " WITH read_repair = 'NONE'", ksName));
+        schemaChange(String.format("ALTER TABLE %s.altered WITH read_repair = 'BLOCKING'", ksName));
+        assertEquals(ReadRepairStrategy.BLOCKING, readRepairOf(ksName, "altered"));
+
+        // CREATE TABLE LIKE a source whose strategy is repairing
+        schemaChange(String.format("CREATE TABLE %s.copied LIKE %s.created", ksName, ksName));
+        assertEquals(ReadRepairStrategy.BLOCKING, readRepairOf(ksName, "copied"));
+    }
+
+    private static ReadRepairStrategy readRepairOf(String keyspace, String table)
+    {
+        return ClusterMetadata.current()
+                              .schema
+                              .getKeyspaceMetadata(keyspace)
+                              .getTableOrViewNullable(table)
+                              .params
+                              .readRepair;
+    }
+
+    /**
+     * Adding a full replica before dropping the witness keeps the replica count while the data is
+     * redistributed. The full repair the client warning asks for after the first step is what
+     * populates the promoted replica.
+     */
+    @Test
+    public void testRemoveWitnessesByAddingAFullReplicaFirst()
+    {
+        String ksName = nextKsName();
+        schemaChange("CREATE KEYSPACE " + ksName +
+                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3/1'}" +
+                     " AND replication_type = 'tracked'");
+
+        schemaChange("ALTER KEYSPACE " + ksName +
+                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '4/1'}");
+        ReplicationFactor intermediate = ClusterMetadata.current().schema.getKeyspaceMetadata(ksName)
+                                                      .replicationStrategy.getReplicationFactor();
+        assertEquals(3, intermediate.fullReplicas);
+        assertEquals(1, intermediate.transientReplicas());
+
+        schemaChange("ALTER KEYSPACE " + ksName +
+                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3'}");
+        ReplicationFactor finalRf = ClusterMetadata.current().schema.getKeyspaceMetadata(ksName)
+                                                 .replicationStrategy.getReplicationFactor();
+        assertEquals(3, finalRf.fullReplicas);
+        assertFalse(finalRf.hasTransientReplicas());
+    }
+
+    @Test
+    public void testSecondaryIndexesAllowedWithWitnesses()
+    {
+        // index first, then witnesses
+        String indexFirstKs = nextKsName();
+        schemaChange("CREATE KEYSPACE " + indexFirstKs +
+                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3'}" +
+                     " AND replication_type = 'tracked'");
+        schemaChange(String.format("CREATE TABLE %s.tbl (pk int PRIMARY KEY, val int)", indexFirstKs));
+        schemaChange(String.format("CREATE INDEX ON %s.tbl (val)", indexFirstKs));
+
+        schemaChange("ALTER KEYSPACE " + indexFirstKs +
+                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3/1'}");
+
+        assertTrue(ClusterMetadata.current().schema.getKeyspaceMetadata(indexFirstKs)
+                                 .replicationStrategy.getReplicationFactor().hasTransientReplicas());
+
+        // witnesses first, then index
+        String witnessFirstKs = nextKsName();
+        schemaChange("CREATE KEYSPACE " + witnessFirstKs +
+                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3/1'}" +
+                     " AND replication_type = 'tracked'");
+        schemaChange(String.format("CREATE TABLE %s.tbl (pk int PRIMARY KEY, val int)", witnessFirstKs));
+        schemaChange(String.format("CREATE INDEX ON %s.tbl (val)", witnessFirstKs));
+
+        assertFalse(ClusterMetadata.current().schema.getKeyspaceMetadata(witnessFirstKs)
+                                  .getTableOrViewNullable("tbl").indexes.isEmpty());
+    }
+
+    @Test
+    public void testWitnessPromotionSkippableAtRuntime()
+    {
+        String ksName = nextKsName();
+        schemaChange("CREATE KEYSPACE " + ksName +
+                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3/1'}" +
+                     " AND replication_type = 'tracked'");
+        String promote = "ALTER KEYSPACE " + ksName +
+                         " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3'}";
+
+        assertThatThrownBy(() -> schemaChange(promote))
+            .hasRootCauseInstanceOf(ConfigurationException.class);
+
+        StorageService.instance.setAllowUnsafeWitnessPromotion(true);
+        try
+        {
+            assertTrue(StorageService.instance.getAllowUnsafeWitnessPromotion());
+            schemaChange(promote);
+            assertFalse(ClusterMetadata.current().schema.getKeyspaceMetadata(ksName)
+                                      .replicationStrategy.getReplicationFactor().hasTransientReplicas());
+        }
+        finally
+        {
+            StorageService.instance.setAllowUnsafeWitnessPromotion(false);
+        }
+
+        // Cleared again, so a second keyspace is still protected
+        String stillGuarded = nextKsName();
+        schemaChange("CREATE KEYSPACE " + stillGuarded +
+                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3/1'}" +
+                     " AND replication_type = 'tracked'");
+        assertThatThrownBy(() ->
+            schemaChange("ALTER KEYSPACE " + stillGuarded +
+                         " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3'}"))
+            .hasRootCauseInstanceOf(ConfigurationException.class);
     }
 
     /**

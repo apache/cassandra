@@ -234,6 +234,10 @@ public class ReplicaPlans
 
         EndpointsForToken replicas = metadata.placements.get(keyspace.getMetadata().params.replication).reads.forToken(key.getToken()).get();
 
+        // A transient replica holds no data for the range it witnesses, so it would resolve against nothing
+        // and write a value that discards every prior increment.
+        replicas = replicas.filter(Replica::isFull);
+
         // CASSANDRA-13043: filter out those endpoints not accepting clients yet, maybe because still bootstrapping
         replicas = replicas.filter(replica -> StorageService.instance.isRpcReady(replica.endpoint()));
 
