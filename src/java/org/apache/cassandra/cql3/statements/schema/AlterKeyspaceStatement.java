@@ -339,15 +339,15 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         if (allow_unsafe_transient_changes)
             return;
 
-        boolean addsWitnesses = proposed.replicationStrategy.getReplicationFactor().hasTransientReplicas();
+        boolean proposesWitnesses = proposed.replicationStrategy.getReplicationFactor().hasTransientReplicas();
 
-        if (addsWitnesses && metadata.mutationTrackingMigrationState.isMigrating(keyspaceName))
+        if (proposesWitnesses && metadata.mutationTrackingMigrationState.isMigrating(keyspaceName))
             throw new ConfigurationException(String.format("Cannot add transient replicas to %s while its mutation " +
                                                            "tracking migration is in progress. Wait for the migration " +
                                                            "to complete, then alter the replication factor.",
                                                            keyspaceName));
 
-        if (addsWitnesses && proposed.params.replicationType.isTracked() && !current.params.replicationType.isTracked())
+        if (proposesWitnesses && proposed.params.replicationType.isTracked() && !current.params.replicationType.isTracked())
             throw new ConfigurationException(String.format("Cannot enable mutation tracking on %s and add transient " +
                                                            "replicas in the same statement, because doing so starts a " +
                                                            "migration. Set replication_type = 'tracked' first, wait for " +

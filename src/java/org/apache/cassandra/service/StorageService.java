@@ -5600,12 +5600,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return PaxosRepair.getSkipPaxosRepairCompatibilityCheck();
     }
 
+    @Override
     public void setAllowUnsafeWitnessPromotion(boolean allow)
     {
         AlterKeyspaceStatement.setAllowUnsafeWitnessPromotion(allow);
         logger.info("AllowUnsafeWitnessPromotion set to {} via jmx", allow);
     }
 
+    @Override
     public boolean getAllowUnsafeWitnessPromotion()
     {
         return AlterKeyspaceStatement.getAllowUnsafeWitnessPromotion();
