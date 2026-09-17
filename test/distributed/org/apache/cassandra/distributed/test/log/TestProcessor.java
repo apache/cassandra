@@ -28,6 +28,7 @@ import java.util.function.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.Epoch;
@@ -57,8 +58,22 @@ public class TestProcessor implements Processor
     @Override
     public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry retryPolicy)
     {
-        maybePause(transform);
-        waitIfPaused();
+        if (maybePause(transform))
+        {
+            // Block the calling thread, this happens at most once per registered predicate but if there are many
+            // of these the InternalMetadataStage can become saturated by paused threads. This can impact other
+            // work, most notably responding to TCM_CURRENT_EPOCH_REQ messages issued by ProgressBarrier.
+            waitIfPaused();
+        }
+        else if (isPaused())
+        {
+            // Any commit that arrives while already paused must not park the calling thread, so reject immediately
+            // instead, with a retriable (non-rejected) failure. Callers should already know how to retry such a
+            // failure.
+            logger.debug("Test processor is paused; rejecting unrelated commit of {} instead of blocking", transform.kind());
+            return Commit.Result.failed(ExceptionCode.SERVER_ERROR,
+                                        "TestProcessor is paused for an unrelated transformation; retry elsewhere");
+        }
         Commit.Result commited = delegate.commit(entryId, transform, lastKnown, retryPolicy);
         testCommitPredicates(transform, commited);
         return commited;
@@ -106,8 +121,9 @@ public class TestProcessor implements Processor
         commitPredicates.add(fn);
     }
 
-    private void maybePause(Transformation transform)
+    private boolean maybePause(Transformation transform)
     {
+        boolean paused = false;
         Iterator<Predicate<Transformation>> iter = waitPredicates.iterator();
 
         while (iter.hasNext())
@@ -116,8 +132,10 @@ public class TestProcessor implements Processor
             {
                 pause();
                 iter.remove();
+                paused = true;
             }
         }
+        return paused;
     }
 
     private void testCommitPredicates(Transformation transform, Commit.Result result)

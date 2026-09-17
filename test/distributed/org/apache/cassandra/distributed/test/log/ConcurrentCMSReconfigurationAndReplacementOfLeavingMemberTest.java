@@ -1,0 +1,83 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.cassandra.distributed.test.log;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+import org.junit.Test;
+
+import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.Constants;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
+
+import static org.apache.cassandra.distributed.shared.ClusterUtils.addInstance;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.startHostReplacement;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+public class ConcurrentCMSReconfigurationAndReplacementOfLeavingMemberTest extends ConcurrentCMSReconfigurationAndNodeOperationTestBase
+{
+    @Test
+    public void test() throws Exception
+    {
+        try (Cluster cluster = newCluster())
+        {
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+            IInvokableInstance firstCMS = cluster.get(1);
+            initialCMSSetup(cluster, firstCMS, 3);
+
+            // nodes 1, 2 & 3 are now CMS members, prepare another reconfiguration which will remove node 3
+            // but force it to halt before the first step is committed by pausing commits on the node
+            // driving it (node1)
+            Future<NodeToolResult> inFlightReconfig = beginAndPauseReconfiguration(executor, firstCMS, 2, "REMOVALS: [/127.0.0.3");
+
+            // Now the reconfiguration which is active in cluster metadata includes node3, try replacing it.
+            // node1 is still paused so cannot receive commit requests itself, but it can still participate
+            // in consensus decisions with node2
+            IInvokableInstance nodeToRemove = cluster.get(3);
+            nodeToRemove.shutdown().get();
+
+            // The startup of the replacement node fails *after* messaging/gossip threads have started, so we configure it
+            // *not* to mark itself as shutdown on failure because this causes it to be skipped by the cluster shutdown
+            // at the end of the test. If not properly terminated, the instance remains technically alive and able to
+            // communicate with instances started by subsequent tests and interfere with the startup of those other clusters.
+            IInvokableInstance replacingNode = addInstance(cluster, nodeToRemove.config(),
+                                                           c -> c.set("auto_bootstrap", true)
+                                                                 .set(Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN, false));
+            try
+            {
+                startHostReplacement(nodeToRemove, replacingNode, (ignore1_, ignore2_) -> {});
+                fail("Instance replacement should fail");
+            }
+            catch (Exception e)
+            {
+                assertTrue(e.getMessage().contains("Can not commit transformation: \"INVALID\"(Can not add a new in-progress sequence for Reconfigure CMS"));
+            }
+
+            // the replacement has failed, unpause node1 to allow it to continue with the inflight CMS
+            // reconfiguration, which will succeed.
+            ClusterUtils.unpauseCommits(firstCMS);
+            inFlightReconfig.get().asserts().success();
+        }
+    }
+}
