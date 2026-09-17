@@ -26,7 +26,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.ComplexColumnData;
@@ -174,7 +173,7 @@ public class ComplexColumnCursorReadTest extends CQLTester
                 cursor.pauseAtEmptyComplexColumns(true);
 
             PartitionDescriptor pHeader = new PartitionDescriptor(sstable.getPartitioner().createReusableKey(0));
-            UnfilteredDescriptor rHeader = new UnfilteredDescriptor(sstable.header.clusteringTypes().toArray(AbstractType[]::new));
+            UnfilteredDescriptor rHeader = new UnfilteredDescriptor(sstable.header.clusteringTypes());
             byte[] transfer = new byte[4096];
 
             int state = cursor.readPartitionHeader(pHeader);
@@ -367,7 +366,7 @@ public class ComplexColumnCursorReadTest extends CQLTester
              DataOutputBuffer valueSink = new DataOutputBuffer())
         {
             PartitionDescriptor pHeader = new PartitionDescriptor(sstable.getPartitioner().createReusableKey(0));
-            UnfilteredDescriptor rHeader = new UnfilteredDescriptor(sstable.header.clusteringTypes().toArray(AbstractType[]::new));
+            UnfilteredDescriptor rHeader = new UnfilteredDescriptor(sstable.header.clusteringTypes());
             byte[] transfer = new byte[4096];
 
             int state = cursor.readPartitionHeader(pHeader);

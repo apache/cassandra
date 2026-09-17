@@ -21,7 +21,6 @@ package org.apache.cassandra.test.microbench.sstable;
 import java.io.IOException;
 
 import org.apache.cassandra.db.DeletionTime;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.ReusableCellLivenessInfo;
 import org.apache.cassandra.io.sstable.PartitionDescriptor;
@@ -46,7 +45,7 @@ public class SSTableCursorPipeUtil
     public static void copySSTable(SSTableCursorReader reader, SSTableCursorWriter writer) throws Throwable
     {
         PartitionDescriptor pHeader = new PartitionDescriptor(reader.ssTableReader().getPartitioner().createReusableKey(0));
-        UnfilteredDescriptor unfilteredDescriptor = new UnfilteredDescriptor(reader.ssTableReader().header.clusteringTypes().toArray(AbstractType[]::new));
+        UnfilteredDescriptor unfilteredDescriptor = new UnfilteredDescriptor(reader.ssTableReader().header.clusteringTypes());
         int readerState = PARTITION_START;
         boolean first = true;
 

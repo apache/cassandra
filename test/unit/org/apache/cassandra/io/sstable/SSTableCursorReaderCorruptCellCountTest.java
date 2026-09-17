@@ -25,7 +25,6 @@ import org.junit.Test;
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -112,7 +111,7 @@ public class SSTableCursorReaderCorruptCellCountTest extends CQLTester
         try (SSTableCursorReader cursor = new SSTableCursorReader(sstable))
         {
             PartitionDescriptor pHeader = new PartitionDescriptor(sstable.getPartitioner().createReusableKey(0));
-            UnfilteredDescriptor rHeader = new UnfilteredDescriptor(sstable.header.clusteringTypes().toArray(AbstractType[]::new));
+            UnfilteredDescriptor rHeader = new UnfilteredDescriptor(sstable.header.clusteringTypes());
 
             int state = cursor.readPartitionHeader(pHeader);
             assertEquals("expected the single row to open directly", ROW_START, state);
@@ -152,7 +151,7 @@ public class SSTableCursorReaderCorruptCellCountTest extends CQLTester
         try (SSTableCursorReader cursor = new SSTableCursorReader(sstable))
         {
             PartitionDescriptor pHeader = new PartitionDescriptor(sstable.getPartitioner().createReusableKey(0));
-            UnfilteredDescriptor rHeader = new UnfilteredDescriptor(sstable.header.clusteringTypes().toArray(AbstractType[]::new));
+            UnfilteredDescriptor rHeader = new UnfilteredDescriptor(sstable.header.clusteringTypes());
             byte[] transfer = new byte[4096];
 
             int state = cursor.readPartitionHeader(pHeader);

@@ -524,7 +524,7 @@ public class CursorCompactor extends CompactionInfo.Holder
         purger = new Purger(type, controller);
 
         lastWrittenPartition = new PartitionDescriptor(metadata.partitioner.createReusableKey(0));
-        lastWrittenUnfiltered = new UnfilteredDescriptor(metadata.comparator.subtypes().toArray(AbstractType[]::new));
+        lastWrittenUnfiltered = new UnfilteredDescriptor(metadata.comparator.subtypes());
         // A steal moves a descriptor between cursors, and to the write-side instance built from
         // the table comparator above. Each parses a clustering with its own clusteringTypes, so
         // all of them must parse identically.
