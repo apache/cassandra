@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.Test;
@@ -32,13 +31,67 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.fail;
 
 public class ClusteringComparatorTest
 {
     @Test
+    public void clusteringTypesAreSharedNotCopied()
+    {
+        AbstractType<?>[] types = { LongType.instance, Int32Type.instance };
+        ClusteringComparator comparator = new ClusteringComparator(types);
+
+        assertSame(types, comparator.subtypes());
+        assertSame(comparator.subtypes(), comparator.subtypes());
+        assertSame(LongType.instance, comparator.subtype(0));
+
+        assertEquals(0, new ClusteringComparator().subtypes().length);
+        assertSame(new ClusteringComparator().subtypes(), new ClusteringComparator().subtypes());
+    }
+
+    @Test
+    public void mutationOfTheSharedClusteringTypesIsDetected()
+    {
+        AbstractType<?>[] types = { LongType.instance, Int32Type.instance };
+        ClusteringComparator comparator = new ClusteringComparator(types);
+
+        types[0] = Int32Type.instance;
+        try
+        {
+            comparator.subtypes();
+            fail("mutating the clustering types of a comparator must be detected");
+        }
+        catch (AssertionError e)
+        {
+            // expected
+        }
+
+        types[0] = LongType.instance;
+        assertSame(types, comparator.subtypes());
+    }
+
+    @Test
+    public void equalsAndHashCodeAreContentBased()
+    {
+        ClusteringComparator a = new ClusteringComparator(LongType.instance, Int32Type.instance);
+        ClusteringComparator b = new ClusteringComparator(LongType.instance, Int32Type.instance);
+        ClusteringComparator different = new ClusteringComparator(LongType.instance);
+
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+        assertNotEquals(a, different);
+
+        ClusteringComparator empty1 = new ClusteringComparator();
+        ClusteringComparator empty2 = new ClusteringComparator();
+        assertEquals(empty1, empty2);
+        assertEquals(empty1.hashCode(), empty2.hashCode());
+    }
+
+    @Test
     public void compareLong()
     {
-        Iterable<AbstractType<?>> types;
         ClusteringComparator comparator = new ClusteringComparator(LongType.instance);
         for (int i=0;i<1000; i++) {
             long l1 = ThreadLocalRandom.current().nextLong();
@@ -103,7 +156,7 @@ public class ClusteringComparatorTest
     {
         Clustering<ByteBuffer> clustering = Clustering.make(ByteBufferUtil.bytes(v1));
         DataOutputBuffer out = new DataOutputBuffer();
-        Clustering.serializer.serialize(clustering, out, 0, List.of(types));
+        Clustering.serializer.serialize(clustering, out, 0, types);
         return out.asNewBuffer();
     }
 
@@ -111,7 +164,7 @@ public class ClusteringComparatorTest
     {
         Clustering<ByteBuffer> clustering = Clustering.make(ByteBufferUtil.bytes(v1));
         DataOutputBuffer out = new DataOutputBuffer();
-        Clustering.serializer.serialize(clustering, out, 0, List.of(types));
+        Clustering.serializer.serialize(clustering, out, 0, types);
         return out.asNewBuffer();
     }
 }

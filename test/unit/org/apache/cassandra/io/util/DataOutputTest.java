@@ -42,6 +42,7 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class DataOutputTest
 {
@@ -389,6 +390,57 @@ public class DataOutputTest
         testRead(test, canon);
         test.close();
         Assert.assertTrue(file.tryDelete());
+    }
+
+    @Test
+    public void testWriteUnsignedShort() throws IOException
+    {
+        int[] values = new int[]{ 0, 1, 0x7F, 0xFF, Short.MAX_VALUE, Short.MAX_VALUE + 1, 0xFFFE, FBUtilities.MAX_UNSIGNED_SHORT };
+
+        for (int value : values)
+        {
+            ByteArrayOutputStream canonBytes = new ByteArrayOutputStream();
+            DataOutput canon = new DataOutputStream(canonBytes);
+            canon.writeShort(value);
+
+            try (DataOutputBuffer buffered = new DataOutputBuffer())
+            {
+                buffered.writeUnsignedShort(value);
+                Assert.assertArrayEquals(canonBytes.toByteArray(), buffered.toByteArray());
+                try (DataInputBuffer in = new DataInputBuffer(buffered.toByteArray()))
+                {
+                    Assert.assertEquals(value, in.readUnsignedShort());
+                }
+            }
+
+            ByteArrayOutputStream unbufferedBytes = new ByteArrayOutputStream();
+            try (DataOutputStreamPlus unbuffered = new WrappedDataOutputStreamPlus(unbufferedBytes))
+            {
+                unbuffered.writeUnsignedShort(value);
+            }
+            Assert.assertArrayEquals(canonBytes.toByteArray(), unbufferedBytes.toByteArray());
+        }
+    }
+
+    @Test
+    public void testWriteUnsignedShortOutOfRange() throws IOException
+    {
+        for (int value : new int[]{ Integer.MIN_VALUE, -1, FBUtilities.MAX_UNSIGNED_SHORT + 1, Integer.MAX_VALUE })
+        {
+            try (DataOutputBuffer out = new DataOutputBuffer())
+            {
+                try
+                {
+                    out.writeUnsignedShort(value);
+                    Assert.fail("Expected IllegalArgumentException for " + value);
+                }
+                catch (IllegalArgumentException e)
+                {
+                    // expected
+                }
+                Assert.assertEquals(0, out.getLength());
+            }
+        }
     }
 
     private DataInput testWrite(DataOutputPlus test) throws IOException

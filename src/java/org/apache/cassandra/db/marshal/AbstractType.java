@@ -67,6 +67,8 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 {
     private final static int VARIABLE_LENGTH = -1;
 
+    public static final AbstractType<?>[] EMPTY_ABSTRACT_TYPE_ARRAY = new AbstractType<?>[0];
+
     public final Comparator<ByteBuffer> reverseComparator;
 
     public enum ComparisonType
