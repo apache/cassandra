@@ -108,10 +108,6 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         newKeyspace.params.validate(keyspaceName, state, metadata);
         newKeyspace.replicationStrategy.validate(metadata);
 
-        validateNoRangeMovements();
-        validateTransientReplication(keyspace, newKeyspace);
-        validateWitnessTransitions(metadata, keyspace, newKeyspace);
-
         // Because we used to not properly validate unrecognized options, we only log a warning if we find one.
         try
         {
@@ -163,6 +159,11 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
             if (!DatabaseDescriptor.getMutationTrackingEnabled())
                 throw ire(DISABLED_MESSAGE);
         }
+
+        ClusterMetadata metadata = ClusterMetadata.current();
+        validateNoRangeMovements(metadata);
+        validateTransientReplication(keyspace, newKeyspace);
+        validateWitnessTransitions(metadata, keyspace, newKeyspace);
     }
 
     @Override
@@ -183,12 +184,11 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         return clientWarnings;
     }
 
-    private void validateNoRangeMovements()
+    private void validateNoRangeMovements(ClusterMetadata metadata)
     {
         if (allow_alter_rf_during_range_movement)
             return;
 
-        ClusterMetadata metadata = ClusterMetadata.current();
         NodeId nodeId = metadata.directory.peerId(FBUtilities.getBroadcastAddressAndPort());
         Set<InetAddressAndPort> notNormalEndpoints = metadata.directory.states.entrySet().stream().filter(e -> !e.getKey().equals(nodeId)).filter(e -> {
             switch (e.getValue())
