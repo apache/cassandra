@@ -20,6 +20,7 @@ package org.apache.cassandra.service.paxos;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -462,6 +463,8 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             if (replica != dataNode && !participants.electorate.isPending(replica.endpoint()))
                 summaryHostIds[summaryIndex++] = metadata.directory.peerId(replica.endpoint()).id();
         }
+        if (summaryIndex < summaryHostIds.length)
+            summaryHostIds = Arrays.copyOf(summaryHostIds, summaryIndex);
 
         for (int i = 0, size = participants.sizeOfPoll() ; i < size ; ++i)
         {
@@ -498,7 +501,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
     static Replica selectDataNode(Participants participants, InetAddressAndPort local)
     {
         Replica localReplica = participants.lookup(local);
-        if (localReplica != null && localReplica.isFull())
+        if (localReplica != null && localReplica.isFull() && !participants.electorate.isPending(local))
             return localReplica;
 
         for (int i = 0, size = participants.sizeOfPoll() ; i < size ; i++)

@@ -17,6 +17,7 @@
 
 package org.apache.cassandra.service.paxos;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
@@ -104,14 +105,19 @@ public class PaxosWitnessDataNodeTest
 
     private static Paxos.Participants participants(Predicate<Replica> isAlive)
     {
-        return participants(KEYSPACE, isAlive);
+        return participants(KEYSPACE, ByteBufferUtil.bytes(1), isAlive);
     }
 
     private static Paxos.Participants participants(String keyspace, Predicate<Replica> isAlive)
     {
+        return participants(keyspace, ByteBufferUtil.bytes(1), isAlive);
+    }
+
+    private static Paxos.Participants participants(String keyspace, ByteBuffer key, Predicate<Replica> isAlive)
+    {
         TableMetadata table = Schema.instance.getTableMetadata(keyspace, TABLE);
         assertNotNull("test schema was not created", table);
-        Token token = table.partitioner.getToken(ByteBufferUtil.bytes(1));
+        Token token = table.partitioner.getToken(key);
         return Paxos.Participants.get(ClusterMetadata.current(), table, token, ConsistencyLevel.SERIAL, isAlive);
     }
 
@@ -204,6 +210,31 @@ public class PaxosWitnessDataNodeTest
         assertNotNull(dataNode);
         assertTrue(dataNode.isFull());
         assertNotEquals(dead, dataNode.endpoint());
+    }
+
+    @Test
+    public void testPendingNodeNotSelectedAsDataNode() throws Exception
+    {
+        InetAddressAndPort node4 = ClusterMetadataTestHelper.addr(4);
+        ClusterMetadataTestHelper.register(node4, "datacenter1", "rack1");
+        ClusterMetadataTestHelper.joinPartially(node4, new Murmur3Partitioner.LongToken(Long.MAX_VALUE / 4));
+
+        try
+        {
+            TableMetadata table = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
+            Token token = new Murmur3Partitioner.LongToken(Long.MIN_VALUE / 4);
+            Paxos.Participants participants = Paxos.Participants.get(ClusterMetadata.current(), table, token, ConsistencyLevel.SERIAL, replica -> true);
+            assertTrue(participants.electorate.isPending(node1));
+
+            Replica dataNode = selectDataNode(participants, node1);
+            assertNotNull(dataNode);
+            assertTrue(dataNode.isFull());
+            assertNotEquals(node1, dataNode.endpoint());
+        }
+        finally
+        {
+            ClusterMetadataTestHelper.commit(ClusterMetadataTestHelper.getBootstrapPlan(node4).finishJoin);
+        }
     }
 
     /**
