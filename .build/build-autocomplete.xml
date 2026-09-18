@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one
+  or more contributor license agreements.  See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.  The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+      http://www.apache.org/licenses/LICENSE-2.0
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<project name="autocomplete">
+    <property name="autocomplete.dir" location="${build.dir}/autocomplete"/>
+    <property name="autocomplete.tmp.dir" location="${tmp.dir}/autocomplete"/>
+
+    <target name="check-gen-autocomplete" depends="build">
+        <uptodate property="autocomplete.current" targetfile="${autocomplete.dir}/nodetool">
+            <srcfiles dir="${build.classes.main}" includes="org/apache/cassandra/tools/**/*.class"/>
+            <srcfiles dir="${build.dir.lib}" includes="**/picocli-*.jar"/>
+            <srcfiles dir="${build.helpers.dir}" includes="build-autocomplete.xml,header.txt"/>
+        </uptodate>
+    </target>
+
+    <target name="gen-autocomplete" depends="check-gen-autocomplete" unless="autocomplete.current"
+            description="Generate shell autocomplete script">
+        <mkdir dir="${autocomplete.tmp.dir}"/>
+        <java classname="picocli.AutoComplete" fork="true" failonerror="true" classpathref="cassandra.classpath">
+            <sysproperty key="picocli.autocomplete.systemExitOnError" value="true"/>
+            <arg value="-f"/>
+            <arg value="-n"/>
+            <arg value="nodetool"/>
+            <arg value="-o"/>
+            <arg value="${autocomplete.tmp.dir}/nodetool.tmp"/>
+            <arg value="org.apache.cassandra.tools.nodetool.NodetoolCommand"/>
+        </java>
+        <replaceregexp file="${autocomplete.tmp.dir}/nodetool.tmp"
+                       match="^#!/usr/bin/env bash\r?\n" replace="" byline="false"/>
+        <echo file="${autocomplete.tmp.dir}/nodetool" message="#!/usr/bin/env bash&#10;"/>
+        <concat destfile="${autocomplete.tmp.dir}/nodetool" append="true">
+            <file file="${build.helpers.dir}/header.txt"/>
+            <file file="${autocomplete.tmp.dir}/nodetool.tmp"/>
+        </concat>
+        <move file="${autocomplete.tmp.dir}/nodetool" tofile="${autocomplete.dir}/nodetool"/>
+        <delete dir="${autocomplete.tmp.dir}"/>
+        <echo message="Nodetool autocomplete script generated at ${autocomplete.dir}/nodetool"/>
+        <echo message="Source this file in Bash or Zsh to enable nodetool autocomplete."/>
+    </target>
+</project>
