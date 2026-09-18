@@ -205,15 +205,14 @@ public class AutoRepair
             RepairTurn turn = AutoRepairUtils.myTurnToRunRepair(repairType, myId);
             if (turn == MY_TURN || turn == MY_TURN_DUE_TO_PRIORITY || turn == MY_TURN_FORCE_REPAIR)
             {
-                // When this run was triggered by a force repair, consume the force-repair flag in the
-                // finally below, whether the repair succeeds or throws. Otherwise a failed force repair
-                // leaves force_repair=true and, because it bypasses min_repair_interval, the node would
-                // re-run repair on every subsequent cycle until it happens to succeed. A normal repair
-                // (MY_TURN / MY_TURN_DUE_TO_PRIORITY) must never clear the flag, so a force repair that
-                // was requested while a normal repair is running is still honored afterwards.
                 boolean forceRepairTurn = turn == MY_TURN_FORCE_REPAIR;
+                boolean repairSucceeded = false;
                 try
                 {
+                    if (forceRepairTurn)
+                    {
+                        AutoRepairUtils.clearForceRepair(repairType, myId);
+                    }
                     repairState.recordTurn(turn);
                     repairState.setBytesAlreadyRepaired(0L);
                     repairState.setKeyspaceRepairPlansAlreadyRepaired(0);
@@ -278,19 +277,18 @@ public class AutoRepair
                     }
 
                     cleanupAndUpdateStats(turn, repairType, repairState, myId, startTimeInMillis, collectedRepairStats);
+                    // Reached only if the whole repair run above completed without throwing. On the
+                    // success path cleanupAndUpdateStats has already advanced repair_finish_ts (via
+                    // updateFinishAutoRepairHistory), so the record is no longer ongoing.
+                    repairSucceeded = true;
                 }
                 finally
                 {
-                    // Only consume the flag when this run was itself triggered by a force repair.
-                    // A normal repair must never clear it. clearForceRepair sets force_repair=false only;
-                    // unlike updateFinishAutoRepairHistory it deliberately does NOT advance repair_finish_ts
-                    // (the timestamp of the last SUCCESSFUL repair, which drives min_repair_interval). On
-                    // failure this releases the flag so the node stops bypassing min_repair_interval and
-                    // re-running repair every cycle, while the "last successful repair" time stays truthful
-                    // instead of being bumped to now.
-                    if (forceRepairTurn)
+                    // finalizeForceRepairFailure ends the ongoing state (rewinds repair_start_ts to the
+                    // existing repair_finish_ts) without recording the failed attempt as a successful repair.
+                    if (forceRepairTurn && !repairSucceeded)
                     {
-                        AutoRepairUtils.clearForceRepair(repairType, myId);
+                        AutoRepairUtils.finalizeForceRepairFailure(repairType, myId);
                     }
                 }
             }
