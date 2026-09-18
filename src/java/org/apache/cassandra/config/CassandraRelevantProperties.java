@@ -221,6 +221,13 @@ public enum CassandraRelevantProperties
     DATA_RESPONSE_IN_MEMORY_MAX_ROWS_CL_ONE("cassandra.data_response_in_memory_max_rows_cl_one", "512"),
     DATA_RESPONSE_IN_MEMORY_MAX_SIZE("cassandra.data_response_in_memory_max_size", "16KiB"),
     DATA_RESPONSE_IN_MEMORY_MAX_SIZE_CL_ONE("cassandra.data_response_in_memory_max_size_cl_one", "64KiB"),
+    /**
+     * How stale a drain of the per-thread histogram update buffers may be before a metrics read redoes it. A read
+     * walks every thread's buffer, and a scrape reads thousands of histograms in a row, so without a window each of
+     * them repeats the walk to find buffers the first read already drained. Zero makes every read drain, which is
+     * what tests asserting on values recorded moments earlier need.
+     */
+    DECAYING_ESTIMATED_HISTOGRAM_RELAXED_FLUSH_WINDOW_MS("cassandra.dehr_relaxed_flush_window_ms", "50"),
     DECAYING_ESTIMATED_HISTOGRAM_RESERVOIR_STRIPE_COUNT("cassandra.dehr_stripe_count", "2"),
     DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES("default.provide.overlapping.tombstones"),
     /** determinism properties for testing */
