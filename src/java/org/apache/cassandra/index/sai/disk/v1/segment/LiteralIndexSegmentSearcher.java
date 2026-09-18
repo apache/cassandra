@@ -19,6 +19,7 @@
 package org.apache.cassandra.index.sai.disk.v1.segment;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Map;
 
 import com.google.common.base.MoreObjects;
@@ -34,10 +35,12 @@ import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
+import org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.metrics.MulticastQueryEventListeners;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 /**
@@ -65,8 +68,9 @@ public class LiteralIndexSegmentSearcher extends IndexSegmentSearcher
         Map<String,String> map = metadata.componentMetadatas.get(IndexComponent.TERMS_DATA).attributes;
         String footerPointerString = map.get(SAICodecUtils.FOOTER_POINTER);
         long footerPointer = footerPointerString == null ? -1 : Long.parseLong(footerPointerString);
+        boolean isV2 = LiteralIndexWriter.POSTINGS_FORMAT_V2.equals(map.get(LiteralIndexWriter.POSTINGS_FORMAT));
 
-        reader = new LiteralIndexSegmentTermsReader(index.identifier(), indexFiles.termsData(), indexFiles.postingLists(), root, footerPointer);
+        reader = new LiteralIndexSegmentTermsReader(index.identifier(), indexFiles.termsData(), indexFiles.postingLists(), root, footerPointer, isV2);
     }
 
     @Override
@@ -82,12 +86,42 @@ public class LiteralIndexSegmentSearcher extends IndexSegmentSearcher
         if (logger.isTraceEnabled())
             logger.trace(index.identifier().logMessage("Searching on expression '{}'..."), expression);
 
+        QueryEventListener.TrieIndexEventListener listener = MulticastQueryEventListeners.of(queryContext, perColumnEventListener);
+
+        if (expression.getIndexOperator() == Expression.IndexOperator.LIKE_PREFIX)
+        {
+            ByteBuffer prefixValue = expression.lower().value.encoded;
+            ByteComparable start = v -> index.termType().asComparableBytes(prefixValue, v);
+            ByteBuffer successor = prefixSuccessor(prefixValue);
+            ByteComparable end = successor == null ? null : v -> index.termType().asComparableBytes(successor, v);
+            return toPrimaryKeyIterator(reader.prefixMatch(start, end, listener, queryContext), queryContext);
+        }
+
         if (!expression.getIndexOperator().isEquality())
             throw new IllegalArgumentException(index.identifier().logMessage("Unsupported expression: " + expression));
 
         ByteComparable term = v -> index.termType().asComparableBytes(expression.lower().value.encoded, v);
-        QueryEventListener.TrieIndexEventListener listener = MulticastQueryEventListeners.of(queryContext, perColumnEventListener);
         return toPrimaryKeyIterator(reader.exactMatch(term, listener, queryContext), queryContext);
+    }
+
+    /**
+     * Computes the lexicographic successor of the given raw prefix bytes: the byte array with its last non-{@code 0xFF}
+     * byte incremented and any trailing {@code 0xFF} bytes removed. Returns null (an unbounded upper bound) when every
+     * byte is {@code 0xFF}.
+     */
+    private static ByteBuffer prefixSuccessor(ByteBuffer prefix)
+    {
+        byte[] bytes = ByteBufferUtil.getArray(prefix);
+        int last = bytes.length - 1;
+        while (last >= 0 && (bytes[last] & 0xFF) == 0xFF)
+            last--;
+
+        if (last < 0)
+            return null;
+
+        byte[] successor = java.util.Arrays.copyOf(bytes, last + 1);
+        successor[last]++;
+        return ByteBuffer.wrap(successor);
     }
 
     @Override
