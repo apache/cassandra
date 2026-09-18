@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.rows;
 
+import java.io.IOException;
 import java.util.function.Function;
 
 import com.google.common.collect.ImmutableList;
@@ -26,6 +27,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.db.LivenessInfo;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 
 import static org.quicktheories.QuickTheory.qt;
 import static org.quicktheories.generators.SourceDSL.integers;
@@ -33,6 +35,25 @@ import static org.quicktheories.generators.SourceDSL.longs;
 
 public class EncodingStatsTest
 {
+    @Test
+    public void testSerializedSize() throws IOException
+    {
+        long epoch = EncodingStats.NO_STATS.minLocalDeletionTime;
+        long[] localDeletionTimes = { 0, epoch - 1, epoch, epoch + 1,
+                                     Integer.MAX_VALUE, Integer.MAX_VALUE + 1L,
+                                     epoch + Integer.MAX_VALUE, epoch + Integer.MAX_VALUE + 1,
+                                     Cell.MAX_DELETION_TIME, Cell.INVALID_DELETION_TIME, Cell.NO_DELETION_TIME };
+        for (long localDeletionTime : localDeletionTimes)
+        {
+            EncodingStats stats = new EncodingStats(EncodingStats.TIMESTAMP_EPOCH, localDeletionTime, 0);
+            try (DataOutputBuffer out = new DataOutputBuffer())
+            {
+                EncodingStats.serializer.serialize(stats, out);
+                Assert.assertEquals(stats.toString(), out.getLength(), EncodingStats.serializer.serializedSize(stats));
+            }
+        }
+    }
+
     @Test
     public void testCollectWithNoStats()
     {

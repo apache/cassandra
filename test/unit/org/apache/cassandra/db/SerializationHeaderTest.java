@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.concurrent.Callable;
@@ -42,6 +43,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.exceptions.UnknownColumnException;
@@ -52,6 +54,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -65,6 +68,34 @@ public class SerializationHeaderTest
     static
     {
         DatabaseDescriptor.daemonInitialization();
+    }
+
+    @Test
+    public void testLocalDeletionTimeSerializedSize() throws IOException
+    {
+        TableMetadata metadata = TableMetadata.builder(KEYSPACE, "testLocalDeletionTimeSerializedSize")
+                                              .addPartitionKeyColumn("k", Int32Type.instance)
+                                              .build();
+        long epoch = EncodingStats.NO_STATS.minLocalDeletionTime;
+        long[] minLocalDeletionTimes = { 0, epoch, Cell.MAX_DELETION_TIME };
+        long[] localDeletionTimes = { 0, epoch - 1, epoch, epoch + 1,
+                                     Integer.MAX_VALUE, Integer.MAX_VALUE + 1L,
+                                     epoch + Integer.MAX_VALUE, epoch + Integer.MAX_VALUE + 1,
+                                     Cell.MAX_DELETION_TIME, Cell.INVALID_DELETION_TIME, Cell.NO_DELETION_TIME };
+        for (long minLocalDeletionTime : minLocalDeletionTimes)
+        {
+            EncodingStats stats = new EncodingStats(EncodingStats.TIMESTAMP_EPOCH, minLocalDeletionTime, 0);
+            SerializationHeader header = new SerializationHeader(true, metadata, metadata.regularAndStaticColumns(), stats);
+            for (long localDeletionTime : localDeletionTimes)
+            {
+                try (DataOutputBuffer out = new DataOutputBuffer())
+                {
+                    header.writeLocalDeletionTime(localDeletionTime, out);
+                    Assert.assertEquals("minLocalDeletionTime=" + minLocalDeletionTime + ", localDeletionTime=" + localDeletionTime,
+                                        out.getLength(), header.localDeletionTimeSerializedSize(localDeletionTime));
+                }
+            }
+        }
     }
 
     /**
