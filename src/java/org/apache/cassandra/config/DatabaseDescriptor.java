@@ -1240,6 +1240,9 @@ public class DatabaseDescriptor
                                                            conf.progress_barrier_default_consistency_level, progressBarrierCLsArr));
         }
 
+        if (conf.cms_reconfiguration_wait_timeout.toMilliseconds() <= 0)
+            throw new ConfigurationException("cms_reconfiguration_wait_timeout must be positive, but was " + conf.cms_reconfiguration_wait_timeout, false);
+
         if (conf.native_transport_min_backoff_on_queue_overload.toMilliseconds() <= 0)
             throw new ConfigurationException(" be positive");
 
@@ -6334,6 +6337,21 @@ public class DatabaseDescriptor
             logger.info("Setting cms_commit_retry_max_delay to {}ms", delayInMillis);
             conf.cms_commit_retry_max_delay = new DurationSpec.LongMillisecondsBound(delayInMillis);
             applyCMS();
+        }
+    }
+
+    public static DurationSpec getCmsReconfigurationWaitTimeout()
+    {
+        return conf.cms_reconfiguration_wait_timeout;
+    }
+
+    public static void setCmsReconfigurationWaitTimeout(long timeoutInMillis)
+    {
+        Preconditions.checkArgument(timeoutInMillis > 0, "cms_reconfiguration_wait_timeout must be positive, but was %sms", timeoutInMillis);
+        if (timeoutInMillis != conf.cms_reconfiguration_wait_timeout.to(TimeUnit.MILLISECONDS))
+        {
+            logger.info("Setting cms_reconfiguration_wait_timeout to {}ms", timeoutInMillis);
+            conf.cms_reconfiguration_wait_timeout = new DurationSpec.LongMillisecondsBound(timeoutInMillis);
         }
     }
 

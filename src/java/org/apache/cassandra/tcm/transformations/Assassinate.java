@@ -65,7 +65,10 @@ public class Assassinate extends PrepareLeave
         if (!metadata.directory.isRegistered(endpoint))
             return;
 
-        ReconfigureCMS.maybeReconfigureCMS(metadata, endpoint);
+        metadata = ReconfigureCMS.maybeReconfigureCMS(metadata, endpoint);
+        // Check again since maybeReconfigureCMS may have retried after a delay
+        if (!metadata.directory.isRegistered(endpoint))
+            return;
 
         NodeId nodeId = metadata.directory.peerId(endpoint);
         Collection<Token> tokens = metadata.tokenMap.tokens(nodeId);

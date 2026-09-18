@@ -84,10 +84,8 @@ class OnClusterLeave extends OnClusterChangeTopology
         public SubmitPrepareLeave(ClusterActions actions, int on)
         {
             super("Prepare Leave", actions, on, () -> {
-                ClusterMetadata metadata = ClusterMetadata.current();
-                ReconfigureCMS.maybeReconfigureCMS(metadata, getBroadcastAddressAndPort());
+                ClusterMetadata metadata = ReconfigureCMS.maybeReconfigureCMS(ClusterMetadata.current(), getBroadcastAddressAndPort());
 
-                metadata = ClusterMetadata.current();
                 ClusterMetadataService.instance().commit(new PrepareLeave(metadata.myNodeId(),
                                                                           false,
                                                                           ClusterMetadataService.instance().placementProvider(),
