@@ -553,7 +553,7 @@ public class CQL3CasRequest implements CASRequest
             txnConditions.add(condition.asTxnCondition());
         // CAS forbids empty conditions
         checkState(!txnConditions.isEmpty());
-        return conditions.size() == 1 ? txnConditions.get(0) : new TxnCondition.BooleanGroup(TxnCondition.Kind.AND, txnConditions);
+        return txnConditions.size() == 1 ? txnConditions.get(0) : new TxnCondition.BooleanGroup(TxnCondition.Kind.AND, txnConditions);
     }
 
     private List<TxnWrite.Fragment> createWriteFragments(ClientState state)
