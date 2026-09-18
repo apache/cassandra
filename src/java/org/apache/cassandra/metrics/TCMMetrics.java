@@ -61,6 +61,7 @@ public class TCMMetrics
     public final Meter progressBarrierRetries;
     // TODO: we eventually want to rely on (currently non-existing) metric that tracks paxos topology retries for all Paxos.
     public final Meter repairPaxosTopologyRetries;
+    public final Meter cmsReconfigurationRetries;
     public final Timer progressBarrierLatency;
     public final Meter progressBarrierCLRelax;
     public final Meter coordinatorBehindSchema;
@@ -115,6 +116,7 @@ public class TCMMetrics
         servedCMSLogEntries = Metrics.histogram(factory.createMetricName("ServedCMSLogEntries"), false);
         fetchLogRetries = Metrics.meter(factory.createMetricName("FetchLogRetries"));
         repairPaxosTopologyRetries = Metrics.meter(factory.createMetricName("RepairCMSPaxosTopologyRetries"));
+        cmsReconfigurationRetries = Metrics.meter(factory.createMetricName("CMSReconfigurationRetries"));
         logEntryFetchRate = Metrics.meter(factory.createMetricName("LogEntryFetchRate"));
 
         commitRejectionLatency = Metrics.timer(factory.createMetricName("CommitRejectionLatency"));
