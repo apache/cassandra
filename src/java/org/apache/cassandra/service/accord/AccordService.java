@@ -192,6 +192,7 @@ import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.DRAIN;
 import static org.apache.cassandra.db.SystemKeyspace.BootstrapState.COMPLETED;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadBookkeeping;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteBookkeeping;
+import static org.apache.cassandra.service.accord.journal.ReplayMarkers.isValid;
 import static org.apache.cassandra.service.accord.topology.AccordTopology.tcmIdToAccord;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -538,26 +539,38 @@ public class AccordService implements IAccordService, Shutdownable
 
         boolean rebootstrap = false;
         {
-            long startMarker = ReplayMarkers.readStartMarker();
-            long stopMarker = ReplayMarkers.readStopMarker();
-            if (stopMarker < startMarker)
+            ReplayMarkers.StartMarker startMarker = ReplayMarkers.readStartMarker();
+            ReplayMarkers.StopMarker stopMarker = ReplayMarkers.readStopMarker();
+            long startMarkerSegmentId = startMarker.getSegmentId();
+            long stopMarkerSegmentId = stopMarker.getSegmentId();
+
+            if (!isValid(startMarker, stopMarker))
             {
                 switch (getAccord().journal.stopMarkerFailurePolicy)
                 {
                     default: throw new UnhandledEnum(getAccord().journal.stopMarkerFailurePolicy);
                     case EXIT:
-                        throw new RuntimeException("Stop marker is older than start marker (" + stopMarker + '<' + startMarker + ") , so cannot assume we have a complete log of our votes in any consensus groups. Exiting.");
-
+                        throw new RuntimeException(
+                        "Start marker state: " + startMarker.getState() + " , start marker segmentId: " + startMarkerSegmentId +
+                        " , Stop marker state: " + stopMarker.getState() + " , stop marker segmentId: " + stopMarkerSegmentId +
+                        " .Invalid start marker & stop marker state, so cannot assume we have a complete log of our votes in any consensus groups. Exiting");
                     case ALLOW_UNSAFE_STARTUP:
                     case UNSAFE_STARTUP:
-                        logger.warn("Stop marker is older than start marker ({}<{}), so cannot assume we have a complete log of our votes in any consensus groups. Continuing to startup as configured.", stopMarker, startMarker);
+                        logger.info("Start marker state: {}, start marker segmentId: {}, Stop marker state: {}, stop marker segmentId: {}. " +
+                                    "Invalid start marker & stop marker state, so cannot assume we have a complete log of our votes in any consensus groups. " +
+                                    "Continuing to startup as configured.",
+                                    startMarker.getState(), startMarkerSegmentId, stopMarker.getState(), stopMarkerSegmentId);
                         break;
 
                     case REBOOTSTRAP:
-                        logger.info("Stop marker is older than start marker ({}<{}). Rebootstrapping.", stopMarker, startMarker);
+                        logger.info("Start marker state: {}, start marker segmentId: {}, Stop marker state: {}, stop marker segmentId: {}. " +
+                                    "Invalid start marker & stop marker state. Rebootstrapping.",
+                                    startMarker.getState(), startMarkerSegmentId, stopMarker.getState(), stopMarkerSegmentId);
                         rebootstrap = true;
                 }
             }
+
+            node.uniqueNow(stopMarker.getLastUniqueTimestamp());
         }
 
         logger.info("Starting background compaction of system_accord");
@@ -683,7 +696,6 @@ public class AccordService implements IAccordService, Shutdownable
         WatermarkCollector.fetchAndReportWatermarksAsync(topology())
                           .addCallback((success, failure) -> {
                               topologyService.afterStartup(node);
-
                           });
 
         fastPathCoordinator.start();
@@ -1238,16 +1250,30 @@ public class AccordService implements IAccordService, Shutdownable
         AccordCommandStores commandStores = (AccordCommandStores)node.commandStores();
         Set<TableId> tableIds = commandStores.shutdownStores();
         commandStores.waitForQuiescence();
-        journal.writeSafeStopMarker();
+
+        // Only write the stop marker, if the start marker was also written
+        if (state == State.STARTED)
+            journal.writeSafeStopMarker(node.uniqueNow());
+
         scheduler.shutdownNow();
-        toFuture(flushCaches()).map(ignore -> {
-            return AccordColumnFamilyStores.commandsForKey.forceFlush(DRAIN);
-        });
+        long deadlineNanos = nanoTime() + DatabaseDescriptor.getAccord().shutdown_grace_period.toDuration().toNanos();
+
+        List<Future<?>> flushes = new ArrayList<>();
+        flushes.add(toFuture(flushCaches()).flatMap(ignore -> AccordColumnFamilyStores.commandsForKey.forceFlush(DRAIN)));
+
         for (TableId tableId : tableIds)
         {
             ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(tableId);
             if (cfs != null)
-                cfs.forceFlush(DRAIN);
+                flushes.add(cfs.forceFlush(DRAIN));
+        }
+
+        for (Future<?> f : flushes)
+        {
+            if (!f.awaitUntilThrowUncheckedOnInterrupt(deadlineNanos))
+                logger.error("Timeout waiting for Accord flushes during stop");
+            else if (f.cause() != null)
+                logger.error("Failed to flush Accord state during stop", f.cause());
         }
 
         state = State.STOPPED;
