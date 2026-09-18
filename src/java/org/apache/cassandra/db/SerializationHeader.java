@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -56,7 +57,7 @@ public class SerializationHeader
     private final boolean isForSSTable;
 
     private final AbstractType<?> keyType;
-    private final List<AbstractType<?>> clusteringTypes;
+    private final AbstractType<?>[] clusteringTypes;
 
     private final RegularAndStaticColumns columns;
     private final EncodingStats stats;
@@ -67,7 +68,7 @@ public class SerializationHeader
 
     private SerializationHeader(boolean isForSSTable,
                                 AbstractType<?> keyType,
-                                List<AbstractType<?>> clusteringTypes,
+                                AbstractType<?>[] clusteringTypes,
                                 RegularAndStaticColumns columns,
                                 EncodingStats stats,
                                 Map<ByteBuffer, AbstractType<?>> typeMap)
@@ -77,7 +78,7 @@ public class SerializationHeader
 
     private SerializationHeader(boolean isForSSTable,
                                 AbstractType<?> keyType,
-                                List<AbstractType<?>> clusteringTypes,
+                                AbstractType<?>[] clusteringTypes,
                                 RegularAndStaticColumns columns,
                                 EncodingStats stats,
                                 Map<ByteBuffer, AbstractType<?>> typeMap,
@@ -191,7 +192,8 @@ public class SerializationHeader
         return keyType;
     }
 
-    public List<AbstractType<?>> clusteringTypes()
+    /** Shared with {@link ClusteringComparator#subtypes()}, or owned when deserialized; must not be mutated. */
+    public AbstractType<?>[] clusteringTypes()
     {
         return clusteringTypes;
     }
@@ -313,7 +315,7 @@ public class SerializationHeader
     @Override
     public String toString()
     {
-        return String.format("SerializationHeader[key=%s, cks=%s, columns=%s, stats=%s, typeMap=%s]", keyType, clusteringTypes, columns, stats, typeMap);
+        return String.format("SerializationHeader[key=%s, cks=%s, columns=%s, stats=%s, typeMap=%s]", keyType, Arrays.toString(clusteringTypes), columns, stats, typeMap);
     }
 
     /**
@@ -323,13 +325,13 @@ public class SerializationHeader
     public static class Component extends MetadataComponent
     {
         private final AbstractType<?> keyType;
-        private final List<AbstractType<?>> clusteringTypes;
+        private final AbstractType<?>[] clusteringTypes;
         private final Map<ByteBuffer, AbstractType<?>> staticColumns;
         private final Map<ByteBuffer, AbstractType<?>> regularColumns;
         private final EncodingStats stats;
 
         private Component(AbstractType<?> keyType,
-                          List<AbstractType<?>> clusteringTypes,
+                          AbstractType<?>[] clusteringTypes,
                           Map<ByteBuffer, AbstractType<?>> staticColumns,
                           Map<ByteBuffer, AbstractType<?>> regularColumns,
                           EncodingStats stats)
@@ -397,7 +399,7 @@ public class SerializationHeader
 
             Component that = (Component)o;
             return Objects.equals(this.keyType, that.keyType)
-                && Objects.equals(this.clusteringTypes, that.clusteringTypes)
+                && Arrays.equals(this.clusteringTypes, that.clusteringTypes)
                 && Objects.equals(this.staticColumns, that.staticColumns)
                 && Objects.equals(this.regularColumns, that.regularColumns)
                 && Objects.equals(this.stats, that.stats);
@@ -406,14 +408,14 @@ public class SerializationHeader
         @Override
         public int hashCode()
         {
-            return Objects.hash(keyType, clusteringTypes, staticColumns, regularColumns, stats);
+            return 31 * Objects.hash(keyType, staticColumns, regularColumns, stats) + Arrays.hashCode(clusteringTypes);
         }
 
         @Override
         public String toString()
         {
             return String.format("SerializationHeader.Component[key=%s, cks=%s, statics=%s, regulars=%s, stats=%s]",
-                                 keyType, clusteringTypes, staticColumns, regularColumns, stats);
+                                 keyType, Arrays.toString(clusteringTypes), staticColumns, regularColumns, stats);
         }
 
         public AbstractType<?> getKeyType()
@@ -421,7 +423,8 @@ public class SerializationHeader
             return keyType;
         }
 
-        public List<AbstractType<?>> getClusteringTypes()
+        /** Shared, as in {@link SerializationHeader#clusteringTypes()}; must not be mutated. */
+        public AbstractType<?>[] getClusteringTypes()
         {
             return clusteringTypes;
         }
@@ -560,7 +563,7 @@ public class SerializationHeader
             EncodingStats stats = EncodingStats.serializer.deserialize(in);
 
             AbstractType<?> keyType = metadata.partitionKeyType;
-            List<AbstractType<?>> clusteringTypes = metadata.comparator.subtypes();
+            AbstractType<?>[] clusteringTypes = metadata.comparator.subtypes();
 
             Columns statics, regulars;
             if (selection == null)
@@ -602,7 +605,7 @@ public class SerializationHeader
             EncodingStats.serializer.serialize(header.stats, out);
 
             typeSerializer.serialize(header.keyType, out);
-            typeSerializer.serializeList(header.clusteringTypes, out);
+            typeSerializer.serializeArray(header.clusteringTypes, out);
 
             writeColumnsWithTypes(header.staticColumns, out);
             writeColumnsWithTypes(header.regularColumns, out);
@@ -614,7 +617,7 @@ public class SerializationHeader
             EncodingStats stats = EncodingStats.serializer.deserialize(in);
 
             AbstractType<?> keyType = typeSerializer.deserialize(in);
-            List<AbstractType<?>> clusteringTypes = typeSerializer.deserializeList(in);
+            AbstractType<?>[] clusteringTypes = typeSerializer.deserializeArray(in);
 
             Map<ByteBuffer, AbstractType<?>> staticColumns = readColumnsWithType(in);
             Map<ByteBuffer, AbstractType<?>> regularColumns = readColumnsWithType(in);
@@ -628,7 +631,7 @@ public class SerializationHeader
             int size = EncodingStats.serializer.serializedSize(header.stats);
 
             size += typeSerializer.serializedSize(header.keyType);
-            size += typeSerializer.serializedListSize(header.clusteringTypes);
+            size += typeSerializer.serializedArraySize(header.clusteringTypes);
 
             size += sizeofColumnsWithTypes(header.staticColumns);
             size += sizeofColumnsWithTypes(header.regularColumns);

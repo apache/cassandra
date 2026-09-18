@@ -28,7 +28,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReusableLivenessInfo;
 import org.apache.cassandra.db.UnfilteredValidation;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.rows.ReusableCellLivenessInfo;
 import org.apache.cassandra.io.sstable.PartitionDescriptor;
 import org.apache.cassandra.io.sstable.SSTableCursorReader;
@@ -82,7 +81,7 @@ class StatefulCursor extends SSTableCursorReader
         // true on SSTableCursorReader for exactly this reason; no override needed here.
         currPartition = new PartitionDescriptor(reader.getPartitioner().createReusableKey(0));
         prevPartition = new PartitionDescriptor(reader.getPartitioner().createReusableKey(0));
-        unfiltered = new UnfilteredDescriptor(reader.header.clusteringTypes().toArray(AbstractType[]::new));
+        unfiltered = new UnfilteredDescriptor(reader.header.clusteringTypes());
     }
 
     public int readPartitionHeader()

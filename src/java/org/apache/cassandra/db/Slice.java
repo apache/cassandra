@@ -19,7 +19,6 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.Objects;
 
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -292,19 +291,19 @@ public class Slice
 
     public static class Serializer
     {
-        public void serialize(Slice slice, DataOutputPlus out, int version, List<AbstractType<?>> types) throws IOException
+        public void serialize(Slice slice, DataOutputPlus out, int version, AbstractType<?>[] types) throws IOException
         {
             ClusteringBound.serializer.serialize(slice.start, out, version, types);
             ClusteringBound.serializer.serialize(slice.end, out, version, types);
         }
 
-        public long serializedSize(Slice slice, int version, List<AbstractType<?>> types)
+        public long serializedSize(Slice slice, int version, AbstractType<?>[] types)
         {
             return ClusteringBound.serializer.serializedSize(slice.start, version, types)
                    + ClusteringBound.serializer.serializedSize(slice.end, version, types);
         }
 
-        public Slice deserialize(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException
+        public Slice deserialize(DataInputPlus in, int version, AbstractType<?>[] types) throws IOException
         {
             ClusteringBound<byte[]> start = (ClusteringBound<byte[]>) ClusteringBound.serializer.deserialize(in, version, types);
             ClusteringBound<byte[]> end = (ClusteringBound<byte[]>) ClusteringBound.serializer.deserialize(in, version, types);

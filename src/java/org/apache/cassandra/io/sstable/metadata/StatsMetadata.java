@@ -19,7 +19,6 @@ package org.apache.cassandra.io.sstable.metadata;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.UUID;
 
 import org.apache.commons.lang3.ArrayUtils;
@@ -83,7 +82,7 @@ public class StatsMetadata extends MetadataComponent
     public final EncodingStats encodingStats;
 
     // Used to serialize min/max clustering. Can be null if the metadata was deserialized from a legacy version
-    private final List<AbstractType<?>> clusteringTypes;
+    private final AbstractType<?>[] clusteringTypes;
 
     /**
      * This boolean is used as an approximation of whether a given key can be guaranteed not to have partition
@@ -111,7 +110,7 @@ public class StatsMetadata extends MetadataComponent
                          double compressionRatio,
                          TombstoneHistogram estimatedTombstoneDropTime,
                          int sstableLevel,
-                         List<AbstractType<?>> clusteringTypes,
+                         AbstractType<?>[] clusteringTypes,
                          Slice coveredClustering,
                          boolean hasLegacyCounterShards,
                          long repairedAt,
@@ -391,7 +390,7 @@ public class StatsMetadata extends MetadataComponent
 
         private int improvedMinMaxSize(Version version, StatsMetadata component, int size)
         {
-            size += typeSerializer.serializedListSize(component.clusteringTypes);
+            size += typeSerializer.serializedArraySize(component.clusteringTypes);
             size += Slice.serializer.serializedSize(component.coveredClustering,
                                                     version.correspondingMessagingVersion(),
                                                     component.clusteringTypes);
@@ -514,7 +513,7 @@ public class StatsMetadata extends MetadataComponent
         private void serializeImprovedMinMax(Version version, StatsMetadata component, DataOutputPlus out) throws IOException
         {
             assert component.clusteringTypes != null;
-            typeSerializer.serializeList(component.clusteringTypes, out);
+            typeSerializer.serializeArray(component.clusteringTypes, out);
             Slice.serializer.serialize(component.coveredClustering,
                                        out,
                                        version.correspondingMessagingVersion(),
@@ -573,7 +572,7 @@ public class StatsMetadata extends MetadataComponent
             int sstableLevel = in.readInt();
             long repairedAt = in.readLong();
 
-            List<AbstractType<?>> clusteringTypes = null;
+            AbstractType<?>[] clusteringTypes = null;
             Slice coveredClustering = Slice.ALL;
             if (version.hasLegacyMinMax())
             {
@@ -596,7 +595,7 @@ public class StatsMetadata extends MetadataComponent
             else if (version.hasImprovedMinMax())
             {
                 // improvedMinMax will be in this place when legacyMinMax is removed
-                clusteringTypes = typeSerializer.deserializeList(in);
+                clusteringTypes = typeSerializer.deserializeArray(in);
                 coveredClustering = Slice.serializer.deserialize(in, version.correspondingMessagingVersion(), clusteringTypes);
             }
 
@@ -636,7 +635,7 @@ public class StatsMetadata extends MetadataComponent
             if (version.hasImprovedMinMax() && version.hasLegacyMinMax())
             {
                 // improvedMinMax will be in this place until legacyMinMax is removed
-                clusteringTypes = typeSerializer.deserializeList(in);
+                clusteringTypes = typeSerializer.deserializeArray(in);
                 coveredClustering = Slice.serializer.deserialize(in, version.correspondingMessagingVersion(), clusteringTypes);
             }
 

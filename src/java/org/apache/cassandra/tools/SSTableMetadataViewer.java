@@ -22,7 +22,6 @@ import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -403,7 +402,7 @@ public class SSTableMetadataViewer
         {
             EncodingStats encodingStats = header.getEncodingStats();
             AbstractType<?> keyType = header.getKeyType();
-            List<AbstractType<?>> clusteringTypes = header.getClusteringTypes();
+            AbstractType<?>[] clusteringTypes = header.getClusteringTypes();
             Map<ByteBuffer, AbstractType<?>> staticColumns = header.getStaticColumns();
             Map<String, String> statics = staticColumns.entrySet().stream()
                     .collect(Collectors.toMap(e -> UTF8Type.instance.getString(e.getKey()),

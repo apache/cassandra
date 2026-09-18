@@ -26,7 +26,6 @@ import org.junit.Test;
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -224,7 +223,7 @@ public class SSTableCursorReaderCopyCellValueTest extends CQLTester
         {
             byte[] transfer = new byte[4096];
             PartitionDescriptor pHeader = new PartitionDescriptor(sstable.getPartitioner().createReusableKey(0));
-            UnfilteredDescriptor rHeader = new UnfilteredDescriptor(sstable.header.clusteringTypes().toArray(AbstractType[]::new));
+            UnfilteredDescriptor rHeader = new UnfilteredDescriptor(sstable.header.clusteringTypes());
 
             int state = cursor.readPartitionHeader(pHeader);
             byte[] copied = null;
