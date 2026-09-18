@@ -260,7 +260,7 @@ public final class Guardrails implements GuardrailsMBean
                            "Filtering query with intersection on mutable columns at consistency level requiring coordinator reconciliation");
 
     /**
-     * Guardrail on the number of elements returned within page.
+     * Guardrail on the requested page size in rows.
      */
     public static final MaxThreshold pageSize =
     new MaxThreshold("page_size",
@@ -271,6 +271,20 @@ public final class Guardrails implements GuardrailsMBean
                      isWarning ? format("Query for table %s with page size %s exceeds warning threshold of %s.",
                                         what, value, threshold)
                                : format("Aborting query for table %s, page size %s exceeds fail threshold of %s.",
+                                        what, value, threshold));
+
+    /**
+     * Guardrail on the requested page size in bytes.
+     */
+    public static final MaxThreshold pageSizeInBytes =
+    new MaxThreshold("page_size_in_bytes",
+                     null,
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getPageSizeInBytesWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getPageSizeInBytesFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     isWarning ? format("Query for table %s with page size %s bytes exceeds warning threshold of %s bytes.",
+                                        what, value, threshold)
+                               : format("Aborting query for table %s, page size %s bytes exceeds fail threshold of %s bytes.",
                                         what, value, threshold));
 
     /**
@@ -1144,6 +1158,26 @@ public final class Guardrails implements GuardrailsMBean
     public void setPageSizeThreshold(int warn, int fail)
     {
         DEFAULT_CONFIG.setPageSizeThreshold(warn, fail);
+    }
+
+    @Override
+    @Nullable
+    public String getPageSizeInBytesWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getPageSizeInBytesWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getPageSizeInBytesFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getPageSizeInBytesFailThreshold());
+    }
+
+    @Override
+    public void setPageSizeInBytesThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setPageSizeInBytesThreshold(sizeFromString(warnSize), sizeFromString(failSize));
     }
 
     @Override
