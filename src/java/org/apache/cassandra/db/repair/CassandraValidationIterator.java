@@ -55,6 +55,7 @@ import org.apache.cassandra.metrics.TopPartitionTracker;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.ValidationPartitionIterator;
+import org.apache.cassandra.replication.ValidationOffsets;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
@@ -115,7 +116,17 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
     }
 
     @VisibleForTesting
-    public static synchronized Refs<SSTableReader> getSSTablesToValidate(ColumnFamilyStore cfs, SharedContext ctx, Collection<Range<Token>> ranges, TimeUUID parentId, boolean isIncremental) throws NoSuchRepairSessionException
+    public static Refs<SSTableReader> getSSTablesToValidate(ColumnFamilyStore cfs, SharedContext ctx, Collection<Range<Token>> ranges, TimeUUID parentId, boolean isIncremental) throws NoSuchRepairSessionException
+    {
+        return getSSTablesToValidate(cfs, ctx, ranges, parentId, isIncremental, null);
+    }
+
+    /**
+     * @param validationOffsets non-null only for the tracked keyspace validation path. When present, it overrides the classic predicate below: an SSTable is included if it's already repaired, or
+     * every offset it carries is covered by {@code validationOffsets}.
+     */
+    @VisibleForTesting
+    public static synchronized Refs<SSTableReader> getSSTablesToValidate(ColumnFamilyStore cfs, SharedContext ctx, Collection<Range<Token>> ranges, TimeUUID parentId, boolean isIncremental, ValidationOffsets validationOffsets) throws NoSuchRepairSessionException
     {
         Refs<SSTableReader> sstables;
 
@@ -124,7 +135,12 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         Set<SSTableReader> sstablesToValidate = new HashSet<>();
 
         com.google.common.base.Predicate<SSTableReader> predicate;
-        if (prs.isPreview())
+        if (validationOffsets != null)
+        {
+            // Repaired data is durably reconciled across the whole replica set, so we don't even need to check the offsets.
+            predicate = s -> s.isRepaired() || validationOffsets.containsAll(s.getCoordinatorLogOffsets());
+        }
+        else if (prs.isPreview())
         {
             predicate = prs.previewKind.predicate();
         }
@@ -175,7 +191,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
     private final long estimatedPartitions;
     private final Map<Range<Token>, Long> rangePartitionCounts;
 
-    public CassandraValidationIterator(ColumnFamilyStore cfs, SharedContext ctx, Collection<Range<Token>> ranges, TimeUUID parentId, TimeUUID sessionID, boolean isIncremental, long nowInSec, boolean dontPurgeTombstones, TopPartitionTracker.Collector topPartitionCollector) throws IOException, NoSuchRepairSessionException
+    public CassandraValidationIterator(ColumnFamilyStore cfs, SharedContext ctx, Collection<Range<Token>> ranges, TimeUUID parentId, TimeUUID sessionID, boolean isIncremental, long nowInSec, boolean dontPurgeTombstones, ValidationOffsets validationOffsets, TopPartitionTracker.Collector topPartitionCollector) throws IOException, NoSuchRepairSessionException
     {
         this.cfs = cfs;
 
@@ -195,13 +211,19 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         }
         else
         {
-            if (!isIncremental)
+            if (!isIncremental && validationOffsets == null)
             {
                 // flush first so everyone is validating data that is as similar as possible
                 cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.VALIDATION);
                 // Note: we also flush for incremental repair during the anti-compaction process.
             }
-            sstables = getSSTablesToValidate(cfs, ctx, ranges, parentId, isIncremental);
+            // For the tracked keyspace validation (validationOffsets != null), deliberately do NOT force a
+            // flush: forcing memtable contents to disk right before selecting SSTables is a real
+            // side effect on what's supposed to be a read-only preview, and it can pull writes issued
+            // after the offset out of memtable and into a straddling SSTable purely due to scheduling
+            // (see the "several SSTables" issue this fixes). Once the validation also reads the journal, any
+            // data still sitting in memtable is covered there instead of needing to be flushed here.
+            sstables = getSSTablesToValidate(cfs, ctx, ranges, parentId, isIncremental, validationOffsets);
         }
 
         // Persistent memtables will not flush or snapshot to sstables, make an sstable with their data.
