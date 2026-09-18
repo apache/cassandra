@@ -26,6 +26,8 @@ import java.util.Map.Entry;
 
 import javax.management.InstanceNotFoundException;
 
+import com.google.common.base.Throwables;
+
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.CacheServiceMBean;
@@ -73,7 +75,7 @@ public class Info extends AbstractCommand
         catch (RuntimeException e)
         {
             // offheap-metrics introduced in 2.1.3 - older versions do not have the appropriate mbeans
-            if (!(e.getCause() instanceof InstanceNotFoundException))
+            if (!(Throwables.getRootCause(e) instanceof InstanceNotFoundException))
                 throw e;
         }
 
@@ -152,7 +154,7 @@ public class Info extends AbstractCommand
         }
         catch (RuntimeException e)
         {
-            if (!(e.getCause() instanceof InstanceNotFoundException))
+            if (!(Throwables.getRootCause(e) instanceof InstanceNotFoundException))
                 throw e;
 
             // Chunk cache is not on.
@@ -168,7 +170,7 @@ public class Info extends AbstractCommand
         }
         catch (RuntimeException e)
         {
-            if (!(e.getCause() instanceof InstanceNotFoundException))
+            if (!(Throwables.getRootCause(e) instanceof InstanceNotFoundException))
                 throw e;
 
             // network cache is not on.

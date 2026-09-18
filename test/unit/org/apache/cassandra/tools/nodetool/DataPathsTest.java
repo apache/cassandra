@@ -21,12 +21,12 @@ import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.tools.ToolRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class DataPathsTest extends CQLTester
+public class DataPathsTest extends CQLNodetoolProtocolTester
 {
     private static final String SUBCOMMAND = "datapaths";
     
@@ -40,7 +40,7 @@ public class DataPathsTest extends CQLTester
     @Test
     public void testAllOutput()
     {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(SUBCOMMAND);
+        ToolRunner.ToolResult tool = invokeNodetool(SUBCOMMAND);
         tool.assertOnCleanExit();
         assertThat(tool.getStdout()).contains("Keyspace: system_schema");
         assertThat(StringUtils.countMatches(tool.getStdout(), "Keyspace:")).isGreaterThan(1);
@@ -51,7 +51,7 @@ public class DataPathsTest extends CQLTester
     @Test
     public void testSelectedKeyspace()
     {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(SUBCOMMAND, "system_traces");
+        ToolRunner.ToolResult tool = invokeNodetool(SUBCOMMAND, "system_traces");
         tool.assertOnCleanExit();
         assertThat(tool.getStdout()).contains("Keyspace: system_traces");
         assertThat(StringUtils.countMatches(tool.getStdout(), "Keyspace:")).isEqualTo(1);
@@ -62,7 +62,7 @@ public class DataPathsTest extends CQLTester
     @Test
     public void testSelectedMultipleKeyspaces()
     {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(SUBCOMMAND, "system_traces", "system_auth");
+        ToolRunner.ToolResult tool = invokeNodetool(SUBCOMMAND, "system_traces", "system_auth");
         tool.assertOnCleanExit();
         assertThat(tool.getStdout()).contains("Keyspace: system_traces");
         assertThat(tool.getStdout()).contains("Keyspace: system_auth");
@@ -74,7 +74,7 @@ public class DataPathsTest extends CQLTester
     @Test
     public void testSelectedTable()
     {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(SUBCOMMAND, "system_auth.roles");
+        ToolRunner.ToolResult tool = invokeNodetool(SUBCOMMAND, "system_auth.roles");
         tool.assertOnCleanExit();
         assertThat(tool.getStdout()).contains("Keyspace: system_auth");
         assertThat(StringUtils.countMatches(tool.getStdout(), "Keyspace:")).isEqualTo(1);
@@ -86,7 +86,7 @@ public class DataPathsTest extends CQLTester
     @Test
     public void testSelectedMultipleTables()
     {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(SUBCOMMAND, "system_auth.roles", "system_auth.role_members");
+        ToolRunner.ToolResult tool = invokeNodetool(SUBCOMMAND, "system_auth.roles", "system_auth.role_members");
         tool.assertOnCleanExit();
         assertThat(tool.getStdout()).contains("Keyspace: system_auth");
         assertThat(StringUtils.countMatches(tool.getStdout(), "Keyspace:")).isEqualTo(1);
@@ -99,21 +99,21 @@ public class DataPathsTest extends CQLTester
     @Test
     public void testFormatArgJson()
     {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(SUBCOMMAND, "--format", "json");
+        ToolRunner.ToolResult tool = invokeNodetool(SUBCOMMAND, "--format", "json");
         tool.assertOnCleanExit();
     }
 
     @Test
     public void testFormatArgYaml()
     {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(SUBCOMMAND, "--format", "yaml");
+        ToolRunner.ToolResult tool = invokeNodetool(SUBCOMMAND, "--format", "yaml");
         tool.assertOnCleanExit();
     }
 
     @Test
     public void testFormatArgBad()
     {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(SUBCOMMAND, "--format", "bad");
+        ToolRunner.ToolResult tool = invokeNodetool(SUBCOMMAND, "--format", "bad");
         assertThat(tool.getStdout()).contains("arguments for -F are yaml and json only.");
     }
 }

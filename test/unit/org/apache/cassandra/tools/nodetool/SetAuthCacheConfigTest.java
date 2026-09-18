@@ -35,6 +35,8 @@ import org.apache.cassandra.tools.ToolRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+// TODO: CASSANDRA-XXXXX Test needs to be migrated to CQLNodetoolProtocolTester
+//  once nodetool supports passing authentication credentials.
 public class SetAuthCacheConfigTest extends CQLTester
 {
     @BeforeClass

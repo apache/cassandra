@@ -87,8 +87,8 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
                                                Map.of(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME, TRAINING_MAX_DICTIONARY_SIZE,
                                                       TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME, TRAINING_MAX_TOTAL_SAMPLE_SIZE)))
         .as("Should disallow manual training when using lz4")
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("does not support dictionary compression");
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("is not enabled or SSTable compressor is not a dictionary compressor");
 
         // Re-enable dictionary compression
         CompressionParams dictParams = CompressionParams.zstd(CompressionParams.DEFAULT_CHUNK_LENGTH, true,

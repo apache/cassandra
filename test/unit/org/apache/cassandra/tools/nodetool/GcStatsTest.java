@@ -23,9 +23,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.yaml.snakeyaml.Yaml;
 
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.service.GCInspector;
-import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.apache.cassandra.tools.nodetool.stats.GcStatsHolder;
 import org.apache.cassandra.utils.JsonUtils;
@@ -38,7 +37,7 @@ import static org.apache.cassandra.tools.nodetool.stats.GcStatsHolder.RESERVED_D
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
-public class GcStatsTest extends CQLTester
+public class GcStatsTest extends CQLNodetoolProtocolTester
 {
     @BeforeClass
     public static void setUp() throws Exception
@@ -51,7 +50,7 @@ public class GcStatsTest extends CQLTester
     @Test
     public void testDefaultGcStatsOutput()
     {
-        ToolResult tool = ToolRunner.invokeNodetool("gcstats");
+        ToolResult tool = invokeNodetool("gcstats");
         tool.assertOnCleanExit();
         String output = tool.getStdout();
         for (String value : GcStatsHolder.columnDescriptionMap.values())
@@ -62,7 +61,7 @@ public class GcStatsTest extends CQLTester
     public void testJsonGcStatsOutput()
     {
         asList("-F", "--format").forEach(arg -> {
-            ToolResult tool = ToolRunner.invokeNodetool("gcstats", arg, "json");
+            ToolResult tool = invokeNodetool("gcstats", arg, "json");
             tool.assertOnCleanExit();
             String json = tool.getStdout();
             assertThatCode(() -> JsonUtils.JSON_OBJECT_MAPPER.readTree(json)).doesNotThrowAnyException();
@@ -76,7 +75,7 @@ public class GcStatsTest extends CQLTester
     public void testYamlGcStatsOutput()
     {
         asList("-F", "--format").forEach(arg -> {
-            ToolResult tool = ToolRunner.invokeNodetool("gcstats", arg, "yaml");
+            ToolResult tool = invokeNodetool("gcstats", arg, "yaml");
             tool.assertOnCleanExit();
             String yamlOutput = tool.getStdout();
             Yaml yaml = new Yaml();
@@ -90,7 +89,7 @@ public class GcStatsTest extends CQLTester
     @Test
     public void testInvalidFormatOption()
     {
-        ToolResult tool = ToolRunner.invokeNodetool("gcstats", "-F", "invalid_format");
+        ToolResult tool = invokeNodetool("gcstats", "-F", "invalid_format");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout()).contains("arguments for -F are json, yaml, table only.");
     }
@@ -98,7 +97,7 @@ public class GcStatsTest extends CQLTester
     @Test
     public void testWithoutNoOption()
     {
-        ToolResult tool = ToolRunner.invokeNodetool("gcstats");
+        ToolResult tool = invokeNodetool("gcstats");
         tool.assertOnCleanExit();
 
         for (String value : GcStatsHolder.columnDescriptionMap.values())
@@ -108,7 +107,7 @@ public class GcStatsTest extends CQLTester
     @Test
     public void testWithHumanReadableOption()
     {
-        ToolResult tool = ToolRunner.invokeNodetool("gcstats", "--human-readable", "-F", "table");
+        ToolResult tool = invokeNodetool("gcstats", "--human-readable", "-F", "table");
         tool.assertOnCleanExit();
         String gcStatsOutput = tool.getStdout();
 

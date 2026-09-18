@@ -23,13 +23,11 @@ import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 
-import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
-
-public class CompactTest extends CQLTester
+public class CompactTest extends CQLNodetoolProtocolTester
 {
     @BeforeClass
     public static void setup() throws Throwable
@@ -88,7 +86,7 @@ public class CompactTest extends CQLTester
         invokeNodetool("compact", "--partition", Long.toString(42), keyspace(), "doesnotexist")
         .asserts()
         .failure()
-        .errorContains(String.format("java.lang.IllegalArgumentException: Unknown keyspace/cf pair (%s.doesnotexist)", keyspace()));
+        .errorContains(String.format("Unknown keyspace/cf pair (%s.doesnotexist)", keyspace()));
     }
 
     @Test
