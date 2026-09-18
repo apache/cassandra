@@ -26,6 +26,7 @@ import java.util.Random;
 
 import com.github.luben.zstd.Zstd;
 import com.github.luben.zstd.ZstdDictTrainer;
+import com.google.common.collect.ImmutableMap;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -73,6 +74,44 @@ public class ZstdDictionaryCompressorTest
         {
             testDictionary.close();
         }
+    }
+
+    /**
+     * A compressor with no dictionary yet - the state every dictionary-compressed table is in until one is trained -
+     * falls through to the implementations inherited from ZstdCompressorBase, so it must pool native contexts just
+     * as the plain compressor does. This is why the pooling lives in the base rather than in ZstdCompressor.
+     */
+    @Test
+    public void dictionarylessCompressorPoolsNativeContexts() throws Exception
+    {
+        // a level of its own, so the per-level cached instance is not one another test has already exercised
+        ZstdDictionaryCompressor compressor =
+            ZstdDictionaryCompressor.create(ImmutableMap.of(ZstdCompressorBase.COMPRESSION_LEVEL_OPTION_NAME, "11"));
+
+        assertThat(compressor.pooledCompressContexts()).describedAs("no context before the first chunk").isZero();
+        assertThat(compressor.pooledDecompressContexts()).isZero();
+
+        for (int i = 0; i < 16; i++)
+        {
+            ByteBuffer input = ByteBuffer.allocateDirect(compressibleData.length);
+            input.put(compressibleData);
+            input.flip();
+
+            ByteBuffer compressed = ByteBuffer.allocateDirect(compressor.initialCompressedBufferLength(compressibleData.length));
+            compressor.compress(input, compressed);
+            compressed.flip();
+
+            ByteBuffer decompressed = ByteBuffer.allocateDirect(compressibleData.length);
+            compressor.uncompress(compressed, decompressed);
+            decompressed.flip();
+
+            byte[] result = new byte[decompressed.remaining()];
+            decompressed.get(result);
+            assertThat(result).isEqualTo(compressibleData);
+        }
+
+        assertThat(compressor.pooledCompressContexts()).describedAs("one compression context, reused").isEqualTo(1);
+        assertThat(compressor.pooledDecompressContexts()).describedAs("one decompression context, reused").isEqualTo(1);
     }
 
     @Test

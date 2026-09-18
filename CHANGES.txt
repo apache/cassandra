@@ -1,4 +1,9 @@
 6.0-alpha3
+ * Implement Zstd compression level guardrail (CASSANDRA-21021)
+ * Fix Compression dictionary distribution silently leaving a node on a stale dictionary (CASSANDRA-21681)
+ * ZstdCompressionDictionary reference leak when opening dictionary-compressed SSTables concurrently (CASSANDRA-21680)
+ * Avoid ZstdDictionary to allocate a native zstd context per chunk (CASSANDRA-21677)
+ * Avoid ZstdDictionaryCompressor to allocate a native zstd context per chunk (CASSANDRA-21672)
  * Throw InvalidRequestException instead of crashing on malformed IN marker values (CASSANDRA-21648)
  * Avoid serialization and deserialization for coordinator-local single partition data read (CASSANDRA-21354)
  * Allow nodetool cms reconfigure to ignore nodes via --ignore, excluding them from the new CMS (CASSANDRA-21627)

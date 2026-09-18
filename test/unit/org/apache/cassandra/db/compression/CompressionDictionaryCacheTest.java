@@ -18,6 +18,11 @@
 
 package org.apache.cassandra.db.compression;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -395,6 +400,92 @@ public class CompressionDictionaryCacheTest
             assertThat(shortLivedCache.getCurrent())
             .as("Current dictionary should be null after expiration when not accessed")
             .isNull();
+        }
+    }
+
+    // Regression tests for CASSANDRA-21047 dictionary-ref leak (ZstdCompressionDictionary$Tidy):
+    // add() must return the CANONICAL cached instance so callers never reference (and tryRef) a
+    // "loser" instance whose lazily-created selfRef the cache does not own and therefore never releases.
+
+    @Test
+    public void testAddReturnsCanonicalInstanceForDuplicateId()
+    {
+        ZstdCompressionDictionary winner = createTestDictionary(2);
+        ZstdCompressionDictionary loser = createTestDictionary(2); // same DictId, distinct instance
+
+        assertThat(cache.add(winner))
+        .as("add() returns the instance it caches on a miss")
+        .isSameAs(winner);
+
+        assertThat(cache.add(loser))
+        .as("add() of a duplicate-id instance must return the canonical cached winner, not the loser")
+        .isSameAs(winner);
+
+        assertThat(loser.selfRef())
+        .as("the losing instance must never acquire a selfRef the cache does not own (else it leaks)")
+        .isNull();
+
+        closeQuietly(loser);
+    }
+
+    @Test
+    public void testConcurrentAddSameIdReturnsSingleCanonicalInstance() throws InterruptedException
+    {
+        final int threads = 16;
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        try
+        {
+            CountDownLatch start = new CountDownLatch(1);
+            CountDownLatch done = new CountDownLatch(threads);
+            List<ZstdCompressionDictionary> created = Collections.synchronizedList(new ArrayList<>());
+            Set<CompressionDictionary> returned = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
+            for (int i = 0; i < threads; i++)
+            {
+                pool.submit(() -> {
+                    ZstdCompressionDictionary d = createTestDictionary(42); // all race on the same DictId
+                    created.add(d);
+                    try
+                    {
+                        start.await();
+                        returned.add(cache.add(d));
+                    }
+                    catch (InterruptedException e)
+                    {
+                        Thread.currentThread().interrupt();
+                    }
+                    finally
+                    {
+                        done.countDown();
+                    }
+                });
+            }
+
+            start.countDown(); // release all threads at once to maximise the race
+            assertThat(done.await(30, TimeUnit.SECONDS)).as("all add() threads finished").isTrue();
+
+            assertThat(returned)
+            .as("all concurrent add()s of the same dictId converge on exactly one canonical instance")
+            .hasSize(1);
+
+            CompressionDictionary canonical = returned.iterator().next();
+            assertThat(canonical.selfRef()).as("the canonical winner owns a selfRef").isNotNull();
+
+            int withSelfRef = 0;
+            for (ZstdCompressionDictionary d : created)
+                if (d.selfRef() != null)
+                    withSelfRef++;
+            assertThat(withSelfRef)
+            .as("only the cached winner may own a selfRef; every loser must be selfRef==null (no leak)")
+            .isEqualTo(1);
+
+            for (ZstdCompressionDictionary d : created)
+                if (d != canonical)
+                    closeQuietly(d);
+        }
+        finally
+        {
+            pool.shutdownNow();
         }
     }
 
