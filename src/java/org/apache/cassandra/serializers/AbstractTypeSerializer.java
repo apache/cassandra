@@ -20,8 +20,9 @@ package org.apache.cassandra.serializers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
+
+import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -54,10 +55,10 @@ public class AbstractTypeSerializer
     public List<AbstractType<?>> deserializeList(DataInputPlus in) throws IOException
     {
         int size = (int) in.readUnsignedVInt();
-        List<AbstractType<?>> types = new ArrayList<>(size);
+        ImmutableList.Builder<AbstractType<?>> types = ImmutableList.builderWithExpectedSize(size);
         for (int i = 0; i < size; i++)
             types.add(deserialize(in));
-        return types;
+        return types.build();
     }
 
     public long serializedSize(AbstractType<?> type)
