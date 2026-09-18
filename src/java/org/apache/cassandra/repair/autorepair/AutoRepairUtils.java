@@ -155,10 +155,13 @@ public class AutoRepairUtils
     , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_START_TS,
     COL_REPAIR_TYPE, COL_HOST_ID);
 
+    // NOTE: this deliberately updates only repair_finish_ts and does NOT clear force_repair. The
+    // force-repair flag is consumed exclusively by clearForceRepair, and only when the run was itself
+    // triggered by a force repair, so a normal repair never clears a pending force-repair request.
     final static String RECORD_FINISH_REPAIR_HISTORY = String.format(
-    "UPDATE %s.%s SET %s= ?, %s=false WHERE %s = ? AND %s = ?"
+    "UPDATE %s.%s SET %s= ? WHERE %s = ? AND %s = ?"
     , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_FINISH_TS,
-    COL_FORCE_REPAIR, COL_REPAIR_TYPE, COL_HOST_ID);
+    COL_REPAIR_TYPE, COL_HOST_ID);
 
     final static String CLEAR_DELETE_HOSTS = String.format(
     "UPDATE %s.%s SET %s= {} WHERE %s = ? AND %s = ?"
@@ -168,6 +171,16 @@ public class AutoRepairUtils
     final static String SET_FORCE_REPAIR = String.format(
     "UPDATE %s.%s SET %s=true  WHERE %s = ? AND %s = ?"
     , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_FORCE_REPAIR,
+    COL_REPAIR_TYPE, COL_HOST_ID);
+
+    final static String CLEAR_FORCE_REPAIR = String.format(
+    "UPDATE %s.%s SET %s=false WHERE %s = ? AND %s = ?"
+    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_FORCE_REPAIR,
+    COL_REPAIR_TYPE, COL_HOST_ID);
+
+    final static String END_ONGOING_FORCE_REPAIR = String.format(
+    "UPDATE %s.%s SET %s = ? WHERE %s = ? AND %s = ?"
+    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_START_TS,
     COL_REPAIR_TYPE, COL_HOST_ID);
 
     final static String SELECT_LAST_REPAIR_TIME_FOR_NODE = String.format(
@@ -191,6 +204,8 @@ public class AutoRepairUtils
     static ModificationStatement addHostIDToDeleteHostsStatement;
     static ModificationStatement clearDeleteHostsStatement;
     static ModificationStatement setForceRepairStatement;
+    static ModificationStatement clearForceRepairStatement;
+    static ModificationStatement endOngoingForceRepairStatement;
     static ConsistencyLevel internalQueryCL;
 
     public enum RepairTurn
@@ -225,6 +240,10 @@ public class AutoRepairUtils
                                                                                                                            .forInternalCalls());
         setForceRepairStatement = (ModificationStatement) QueryProcessor.getStatement(SET_FORCE_REPAIR, ClientState
                                                                                                         .forInternalCalls());
+        clearForceRepairStatement = (ModificationStatement) QueryProcessor.getStatement(CLEAR_FORCE_REPAIR, ClientState
+                                                                                                            .forInternalCalls());
+        endOngoingForceRepairStatement = (ModificationStatement) QueryProcessor.getStatement(END_ONGOING_FORCE_REPAIR, ClientState
+                                                                                                                        .forInternalCalls());
         clearDeleteHostsStatement = (ModificationStatement) QueryProcessor.getStatement(CLEAR_DELETE_HOSTS, ClientState
                                                                                                             .forInternalCalls());
         delStatementRepairHistory = (ModificationStatement) QueryProcessor.getStatement(DEL_AUTO_REPAIR_HISTORY, ClientState
@@ -409,6 +428,51 @@ public class AutoRepairUtils
                                         Dispatcher.RequestTime.forImmediateExecution());
 
         logger.info("Set force repair repair type: {}, node: {}", repairType, hostId);
+    }
+
+    /**
+     * Clear the force repair flag for the given node.
+     * <p>
+     * This is called once a repair run for the node completes, whether it succeeded or failed, so that
+     * a force repair is consumed exactly once. Unlike {@link #updateFinishAutoRepairHistory}, it does not
+     * advance {@code repair_finish_ts}: a failed forced repair must not be recorded as a successful one,
+     * but it must also not leave {@code force_repair=true}, which (since force repair bypasses
+     * min_repair_interval) would make the node re-run repair on every subsequent cycle.
+     *
+     * @param repairType the repair type
+     * @param hostId the host id whose force repair flag should be cleared
+     */
+    public static void clearForceRepair(RepairType repairType, UUID hostId)
+    {
+        clearForceRepairStatement.execute(QueryState.forInternalCalls(),
+                                          QueryOptions.forInternalCalls(internalQueryCL,
+                                                                        Lists.newArrayList(ByteBufferUtil.bytes(repairType.toString()),
+                                                                                           ByteBufferUtil.bytes(hostId))),
+                                          Dispatcher.RequestTime.forImmediateExecution());
+    }
+
+    /**
+     * Finalize a FAILED forced repair for the given node by ending its "ongoing" state.
+     * <p>
+     * This method ends that ongoing state without recording a success: it rewinds {@code repair_start_ts}
+     * back to the existing {@code repair_finish_ts} (so {@code isRepairRunning()} becomes false), while
+     * leaving {@code repair_finish_ts}, the time of the last SUCCESSFUL repair.
+     *
+     * @param repairType the repair type
+     * @param hostId the host id whose failed force repair should be finalized
+     */
+    public static void finalizeForceRepairFailure(RepairType repairType, UUID hostId)
+    {
+        // Read the genuine last-successful finish time and rewind repair_start_ts to it.
+        long lastFinishTime = getLastRepairTimeForNode(repairType, hostId);
+        endOngoingForceRepairStatement.execute(QueryState.forInternalCalls(),
+                                               QueryOptions.forInternalCalls(internalQueryCL,
+                                                                             Lists.newArrayList(ByteBufferUtil.bytes(lastFinishTime),
+                                                                                                ByteBufferUtil.bytes(repairType.toString()),
+                                                                                                ByteBufferUtil.bytes(hostId))),
+                                               Dispatcher.RequestTime.forImmediateExecution());
+        logger.info("Finalized failed force repair for {} (repair type {}): ended ongoing state (rewound repair_start_ts) without advancing repair_finish_ts",
+                    hostId, repairType);
     }
 
     /**
