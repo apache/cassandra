@@ -32,7 +32,6 @@ import org.apache.cassandra.db.compaction.CompactionPipelineCounts;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 
 import static org.junit.Assert.assertEquals;
@@ -40,55 +39,22 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-/**
- * A cell value whose decoded length exceeds {@code max_value_size} must be refused by compaction,
- * not copied. {@link org.apache.cassandra.db.marshal.AbstractType#read} applies two checks to a
- * variable-length value's length — reject a negative one, reject one above the limit — and both
- * compaction paths have to apply both: the iterator path reaches them through
- * {@code Cell.Serializer.deserialize}, the cursor path mirrors them in
- * {@code SSTableCursorReader.copyCellContents}.
- * <p>
- * The differential harness cannot cover this. It compares the outputs of two runs that both
- * succeeded, and the correct behaviour here is that neither run produces an output at all. So the
- * assertion has to be absolute, which is what this suite's {diskAccessMode, cursor} parameter rows
- * give: the same refusal is required of both paths.
- * <p>
- * Two scenarios, because the cursor reaches its single check — in {@code copyCellContents} — from two
- * different merge shapes: a value streamed from reader to writer, and a value copied into the
- * compactor's temp buffer because a same-timestamp tie sent the merge into
- * {@code resolveRegular}'s value comparison. Both refuse; the second is the one the memtable can
- * silently take away.
- * <p>
- * The oversized length is produced by writing a value that is legal under the configured limit and
- * then lowering the limit before compacting, rather than by corrupting a length vint — which is the
- * shape real corruption takes, but is not something CQL can write. The check being exercised is the
- * same one either way: it tests the decoded length against
- * {@code DatabaseDescriptor.getMaxValueSize()} at read time.
- */
+/** A cell value larger than {@code max_value_size} must be refused by compaction on both paths. */
 public class CompactionMaxValueSizeTest extends SimpleCompactionTest
 {
-    /** Twice LOWERED_LIMIT, and far under the 256MiB default the value is written under. */
+    /** The value size written, larger than the lowered limit and under the default. */
     private static final int VALUE_SIZE = 2 << 20;
 
-    /**
-     * Below VALUE_SIZE, and a whole number of mebibytes: {@link DatabaseDescriptor#setMaxValueSize}
-     * stores its argument as an {@code IntMebibytesBound}, so it divides by 1MiB and a sub-mebibyte
-     * limit truncates to a limit of ZERO — under which every non-empty variable-length value is
-     * refused and the scenario would no longer be about an oversized one. The limit is also global
-     * while it is lowered, so it has to stay large enough that ordinary reads elsewhere are
-     * unaffected. {@link #runRefusalScenario} asserts the effective limit after lowering rather than
-     * trusting this constant.
-     */
+    /** The limit lowered to before compacting, below VALUE_SIZE. */
     private static final int LOWERED_LIMIT = 1 << 20;
 
-    /** The explicit timestamp both halves of the comparison scenario are written at. */
+    /** The timestamp both halves of the comparison scenario are written at. */
     private static final long TIE_TIMESTAMP = 5000L;
 
     @Test
     public void testOversizedCellValueIsRefusedWhenCopiedStraightThrough() throws Throwable
     {
-        // Distinct partitions: nothing ties, so each value is streamed from the reader straight to
-        // the writer and copyCellContents is reached from SSTableCursorWriter.
+        // Distinct partitions, so each value is streamed straight through to the writer.
         runRefusalScenario((table, cfs) -> {
             execute("INSERT INTO " + table + " (pk, ck, v) VALUES (?, ?, ?)", 0L, 0L, oversizedValue(1));
             cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
@@ -100,12 +66,8 @@ public class CompactionMaxValueSizeTest extends SimpleCompactionTest
     @Test
     public void testOversizedCellValueIsRefusedWhenBufferedForComparison() throws Throwable
     {
-        // One partition, one clustering, two same-timestamp values in different sstables. The merge
-        // reaches the value comparison the shared decision defers to the compactor, which copies a
-        // value into one of the compactor's temp buffers rather than streaming it to the
-        // writer, so copyCellContents is reached from the compactor instead. Only reachable across
-        // sstables: within one flush the memtable reconciles the pair and the comparison never
-        // happens, which is what assertSameTimestampTie pins.
+        // One clustering, two same-timestamp values in different sstables, so the merge compares
+        // values and buffers one rather than streaming it through.
         runRefusalScenario((table, cfs) -> {
             execute("INSERT INTO " + table + " (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP " + TIE_TIMESTAMP,
                     0L, 0L, oversizedValue(1));
@@ -126,19 +88,14 @@ public class CompactionMaxValueSizeTest extends SimpleCompactionTest
      * Builds the table, runs {@code writes}, lowers {@code max_value_size} below the value size,
      * compacts, and asserts the refusal.
      *
-     * @param expectedRows rows the inputs hold, asserted again after the refusal to show the
-     *                     sstables were not damaged
-     * @param sameTimestampTie whether this scenario's two inputs must collide at one clustering on
-     *                         one timestamp; asserted, so the scenario cannot stop reaching the
-     *                         value comparison and silently duplicate the straight-through one
+     * @param expectedRows rows the inputs hold
+     * @param sameTimestampTie whether the two inputs collide at one clustering on one timestamp
      */
     private void runRefusalScenario(Writes writes, int expectedRows, boolean sameTimestampTie) throws Throwable
     {
         String keyspace = createKeyspace("CREATE KEYSPACE %s with replication = { 'class' : " +
                                          "'SimpleStrategy', 'replication_factor' : 1 } and durable_writes = false");
-        // blob is variable-length, which is what puts a length vint on the wire ahead of the value;
-        // a fixed-length type carries no vint and its length is never decoded, so neither path has
-        // anything to check.
+        // blob is variable-length, so its length is decoded and checked.
         String table = createTable(keyspace, "CREATE TABLE %s ( pk bigint, ck bigint, v blob, PRIMARY KEY(pk, ck))");
         execute("use " + keyspace + ";");
         Keyspace.system().forEach(k -> k.getColumnFamilyStores().forEach(ColumnFamilyStore::disableAutoCompaction));
@@ -170,13 +127,11 @@ public class CompactionMaxValueSizeTest extends SimpleCompactionTest
                        "not a truncated one: requested=" + LOWERED_LIMIT + " effective=" +
                        effectiveLimit + " value=" + VALUE_SIZE,
                        effectiveLimit > 0 && effectiveLimit < VALUE_SIZE);
-            // Bracketed here rather than inside compactExpectingRefusal, whose catch(Throwable)
-            // would swallow the assertion. The counter still moves on a refused compaction: the
-            // pipeline is selected in AbstractCompactionPipeline.create, and the value-size check
-            // that refuses runs afterwards, inside the pipeline.
             CompactionPipelineCounts pipelines = CompactionPipelineCounts.mark();
             thrown = compactExpectingRefusal(cfs);
-            CompactionPipelineCounts.assertPipelineRan(cursorCompactionEnabled && BigFormat.isSelected(), pipelines);
+            CompactionPipelineCounts.assertPipelineRan(cursorCompactionEnabled &&
+                                                       DatabaseDescriptor.getSelectedSSTableFormat().supportsCursorCompaction(),
+                                                       pipelines);
         }
         finally
         {
@@ -186,28 +141,21 @@ public class CompactionMaxValueSizeTest extends SimpleCompactionTest
         CorruptSSTableException refusal = findCorruptSSTableException(thrown);
         assertNotNull("compaction must refuse an oversized value with a CorruptSSTableException, " +
                       "but the failure was: " + describe(thrown), refusal);
-        // Both paths format the same message, by construction: the cursor's check was written to
-        // mirror AbstractType.read's wording. Asserting it separates this refusal from any other
-        // corruption the compaction might have reported instead.
+        // The refusal must be the max_value_size check, not some other corruption.
         assertTrue("the refusal must be the max_value_size check, but was: " + describe(thrown),
                    describe(thrown).contains("max_value_size"));
 
-        // A refused value must leave no output behind: the inputs are still the live set, and no
-        // partially written sstable was committed alongside them.
+        // A refused value must leave no output behind.
         assertEquals("a refused compaction must not commit an output sstable", inputs, descriptors(cfs));
 
-        // ...and the refusal must be a clean one rather than damage: with the limit restored every
-        // value decodes again at its full length. readValues projects v, so the values are really
-        // read rather than skipped.
+        // The inputs must still read at full length once the limit is restored.
         assertEquals("the input sstables must still be readable after the refusal",
                      expectedRows, readValues(table));
     }
 
     /**
      * Reads every row's blob and returns the row count, failing if any value does not decode to its
-     * written length. Projecting {@code v} matters: a query that does not select it leaves the column
-     * fetched-but-not-queried, and {@code Cell.Serializer.deserialize} then skips the value instead of
-     * decoding it, so the read would say nothing about the payload.
+     * written length.
      */
     private int readValues(String table) throws Throwable
     {
@@ -223,16 +171,7 @@ public class CompactionMaxValueSizeTest extends SimpleCompactionTest
         return rows;
     }
 
-    /**
-     * Every input carries exactly the tie timestamp, and the scenario resolves to the single row the
-     * two of them collide on, so the two oversized values really do meet at one clustering on one
-     * timestamp — which is what sends the merge into {@code resolveRegular}'s value comparison rather
-     * than letting it decide on the timestamp and skip the loser's value, where no length check runs.
-     * <p>
-     * Guards against a scenario drifting off its clustering or its timestamp, not against a
-     * deliberate rewrite: giving one of the two writes a TTL, for instance, moves the merge onto the
-     * expiring-beats-live rule while leaving every assertion here satisfied.
-     */
+    /** Asserts the two oversized values meet at one clustering on one timestamp, forcing a value comparison. */
     private static void assertSameTimestampTie(ColumnFamilyStore cfs, int expectedRows)
     {
         assertEquals("a same-timestamp tie resolves to the one row both writes target", 1, expectedRows);
@@ -248,13 +187,7 @@ public class CompactionMaxValueSizeTest extends SimpleCompactionTest
         }
     }
 
-    /**
-     * Runs the major compaction that must fail and returns what it threw.
-     * <p>
-     * Deliberately catches Throwable: the exception crosses a compaction executor thread and
-     * {@code FBUtilities.waitOnFutures} may wrap it, so the type is asserted on the cause chain by
-     * the caller rather than here.
-     */
+    /** Runs the major compaction that must fail and returns what it threw. */
     private Throwable compactExpectingRefusal(ColumnFamilyStore cfs)
     {
         try
@@ -282,7 +215,7 @@ public class CompactionMaxValueSizeTest extends SimpleCompactionTest
         return null;
     }
 
-    /** The whole cause chain's messages, so an assertion failure names the real reason. */
+    /** The whole cause chain's messages. */
     private static String describe(Throwable t)
     {
         StringBuilder sb = new StringBuilder();
