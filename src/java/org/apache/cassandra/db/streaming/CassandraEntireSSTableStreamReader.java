@@ -21,6 +21,8 @@ package org.apache.cassandra.db.streaming;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
 
 import com.google.common.base.Throwables;
@@ -28,6 +30,7 @@ import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.sstable.Component;
@@ -37,11 +40,13 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.big.BigTableZeroCopyWriter;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataIntegrityMetadata;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
@@ -135,6 +140,8 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
                              prettyPrintMemory(totalSize));
             }
 
+            validateDataDigest(writer.descriptor, manifest);
+
             UnaryOperator<StatsMetadata> transform = stats -> stats.mutateLevel(header.sstableLevel)
                                                                    .mutateRepairedMetadata(messageHeader.repairedAt, messageHeader.pendingRepair, false);
             String description = String.format("level %s and repairedAt time %s and pendingRepair %s",
@@ -149,6 +156,37 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
                 e = writer.abort(e);
             Throwables.throwIfUnchecked(e);
             throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Validates the received {@code Data.db} against {@code Digest.crc32}.
+     * @throws IOException if a digest was streamed and the received data file does not match it
+     */
+    private void validateDataDigest(Descriptor descriptor, ComponentManifest manifest) throws IOException
+    {
+        if (!DatabaseDescriptor.getEntireSSTableStreamDigestValidationEnabled())
+            return;
+
+        List<Component> components = manifest.components();
+        if (!components.contains(Component.DATA) || !components.contains(Component.DIGEST))
+        {
+            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES,
+                             "Accepting zero-copy sstable stream from {} without validating CRC due to " +
+                             "missing {} or {} from streamed components: {}",
+                             session.peer, Component.DATA, Component.DIGEST, components);
+            return;
+        }
+
+        try
+        {
+            new DataIntegrityMetadata.FileDigestValidator(descriptor).validate();
+        }
+        catch (IOException e)
+        {
+            session.countEntireSSTableDigestMismatch();
+            throw new IOException(format("[Stream #%s] Digest mismatch for %s received from %s, aborting stream",
+                                         session.planId(), descriptor, session.peer), e);
         }
     }
 
