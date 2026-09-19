@@ -24,12 +24,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.jctools.queues.MpscUnboundedArrayQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -115,7 +115,8 @@ abstract class Flusher implements Runnable
     }
 
     protected final EventLoop eventLoop;
-    private final ConcurrentLinkedQueue<FlushItem<?>> queued = new ConcurrentLinkedQueue<>();
+    // Many request threads produce, but only the event loop this flusher belongs to consumes, so an MPSC queue is enough.
+    private final MpscUnboundedArrayQueue<FlushItem<?>> queued = new MpscUnboundedArrayQueue<>(256);
     protected final AtomicBoolean scheduled = new AtomicBoolean(false);
     protected final List<FlushItem<?>> processed = new ArrayList<>();
     private final HashSet<Channel> channels = new HashSet<>();
@@ -136,7 +137,7 @@ abstract class Flusher implements Runnable
 
     void enqueue(FlushItem<?> item)
     {
-       queued.add(item);
+       queued.offer(item);
     }
 
     FlushItem<?> poll()
