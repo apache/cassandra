@@ -1,4 +1,5 @@
 4.0.22
+ * Validate Digest.crc32 when zero-copy streaming SSTables (CASSANDRA-21694)
  * Avoid DNS lookup for hostname column in ClientsTable and GossipInfoTable (CASSANDRA-21539)
  * Separate memtable memory usage tracking from limit checking, and fixes a a flush writeBarrier deadlock (CASSANDRA-21019)
  * Fixes for fully-expired SSTable index notification in compaction (CASSANDRA-21577)
