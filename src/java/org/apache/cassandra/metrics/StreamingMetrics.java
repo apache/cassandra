@@ -47,6 +47,7 @@ public class StreamingMetrics
     public final Counter outgoingBytes;
     /* Measures the time taken for processing the incoming stream message after being deserialized, including the time to flush to disk. */
     public final Timer incomingProcessTime;
+    private final Counter entireSSTableDigestMismatches;
 
     public static StreamingMetrics get(InetAddressAndPort ip)
     {
@@ -79,5 +80,13 @@ public class StreamingMetrics
         incomingBytes = Metrics.counter(factory.createMetricName("IncomingBytes"));
         outgoingBytes= Metrics.counter(factory.createMetricName("OutgoingBytes"));
         incomingProcessTime = Metrics.timer(factory.createMetricName("IncomingProcessTime"));
+
+        entireSSTableDigestMismatches = Metrics.counter(factory.createMetricName("EntireSSTableDigestMismatches"));
+    }
+
+    /** An entire-sstable stream was rejected because the received data file did not match the streamed digest. */
+    public void countEntireSSTableDigestMismatch()
+    {
+        entireSSTableDigestMismatches.inc();
     }
 }
