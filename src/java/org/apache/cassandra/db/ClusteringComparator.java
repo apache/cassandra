@@ -53,8 +53,6 @@ import static org.apache.cassandra.utils.bytecomparable.ByteSource.TERMINATOR;
 public class ClusteringComparator implements Comparator<Clusterable>
 {
     private final AbstractType<?>[] clusteringTypes;
-    // Uncomment below to detect mutations of the clusteringTypes
-    // private final int clusteringTypesHash;
 
     private final Comparator<IndexInfo> indexComparator;
     private final Comparator<IndexInfo> indexReverseComparator;
@@ -67,8 +65,6 @@ public class ClusteringComparator implements Comparator<Clusterable>
     {
         // No defensive copy: callers must not retain/mutate the array after construction
         this.clusteringTypes = clusteringTypes.length == 0 ? EMPTY_ABSTRACT_TYPE_ARRAY : clusteringTypes;
-        // Uncomment below to detect mutations of the clusteringTypes
-        // this.clusteringTypesHash = Arrays.hashCode(this.clusteringTypes);
 
         this.indexComparator = (o1, o2) -> ClusteringComparator.this.compare((ClusteringPrefix<?>) o1.lastName,
                                                                              (ClusteringPrefix<?>) o2.lastName);
@@ -96,8 +92,6 @@ public class ClusteringComparator implements Comparator<Clusterable>
      */
     public AbstractType<?>[] subtypes()
     {
-        // Uncomment below to detect mutations of the clusteringTypes
-        // assert Arrays.hashCode(clusteringTypes) == clusteringTypesHash : "clustering types were mutated: " + this;
         return clusteringTypes;
     }
 

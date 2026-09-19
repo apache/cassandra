@@ -27,7 +27,6 @@ import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
-import static org.apache.cassandra.utils.FBUtilities.MAX_UNSIGNED_SHORT;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 /**
@@ -275,13 +274,6 @@ public interface DataOutputPlus extends DataOutput
     {
         write((v >>> 8) & 0xFF);
         write((v >>> 0) & 0xFF);
-    }
-
-    default void writeUnsignedShort(int v) throws IOException
-    {
-        if (v < 0 || v > MAX_UNSIGNED_SHORT)
-            throw new IllegalArgumentException(String.format("Value %d is outside of the unsigned short range [0, %d]", v, MAX_UNSIGNED_SHORT));
-        writeShort(v);
     }
 
     @Override

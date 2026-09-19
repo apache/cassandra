@@ -88,29 +88,6 @@ public class SerializationHeaderTest
         Assert.assertArrayEquals(new AbstractType<?>[]{ Int32Type.instance }, schemaTypes);
     }
 
-    /**
-     * The clustering types must reach {@link ClusteringPrefix.Deserializer} in the same container whether the
-     * header comes from the schema (flush, compaction) or from the Stats component (reads), and in no more than
-     * the two implementations HotSpot can still inline at that callsite
-     */
-    @Test
-    public void testClusteringTypesContainerDoesNotDependOnHeaderOrigin() throws Exception
-    {
-        Set<Class<?>> containers = new HashSet<>();
-        for (int clusteringColumns = 1; clusteringColumns <= 2; clusteringColumns++)
-        {
-            TableMetadata schema = schemaWithClusteringColumns(clusteringColumns);
-            SerializationHeader fromSchema = SerializationHeader.makeWithoutStats(schema);
-            SerializationHeader fromSSTable = deserializeHeader(fromSchema, schema);
-
-            Assert.assertEquals("header origin must not change the clustering types container",
-                                fromSchema.clusteringTypes().getClass(), fromSSTable.clusteringTypes().getClass());
-            containers.add(fromSchema.clusteringTypes().getClass());
-            containers.add(fromSSTable.clusteringTypes().getClass());
-        }
-        Assert.assertTrue("call site must stay bimorphic, got " + containers, containers.size() <= 2);
-    }
-
     @Test
     public void testComponentEqualityIsContentBased() throws Exception
     {

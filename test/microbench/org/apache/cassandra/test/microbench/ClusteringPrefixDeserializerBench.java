@@ -48,10 +48,10 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
- * Measures {@link ClusteringPrefix.Deserializer} with the clustering-type list implementations produced by the
- * memtable and SSTable paths. Before CASSANDRA-21587, adding the SSTable path introduces {@code ArrayList}; after
- * the fix, it shares the multi-column {@code ImmutableList} implementation used by the memtable path. Every
- * benchmark operation reads one non-empty component so that the header sources perform the same work.
+ * Measures {@link ClusteringPrefix.Deserializer} while rotating over 1 to 3 header sources: a two-column memtable
+ * header, a one-column memtable header, and a two-column header round-tripped through the SSTable metadata. This is
+ * what shapes the profile of the clustering-type lookup in {@code deserializeOne} (CASSANDRA-21587). Every operation
+ * reads one non-empty component, so all sources do the same work.
  */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
@@ -146,7 +146,7 @@ public class ClusteringPrefixDeserializerBench
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
             out.writeByte(ClusteringPrefix.Kind.INCL_START_BOUND.ordinal());
-            out.writeUnsignedShort(1);
+            out.writeShort(1);
             out.writeUnsignedVInt32(0);
             header.clusteringTypes()[0].writeValue(ByteBufferUtil.bytes(0), out);
 

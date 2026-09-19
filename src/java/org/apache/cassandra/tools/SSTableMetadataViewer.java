@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -419,7 +420,7 @@ public class SSTableMetadataViewer
             field("EncodingStats minTimestamp", toDateString(encodingStats.minTimestamp, tsUnit),
                     Long.toString(encodingStats.minTimestamp));
             field("KeyType", keyType.toString());
-            field("ClusteringTypes", clusteringTypes.toString());
+            field("ClusteringTypes", Arrays.toString(clusteringTypes));
             field("StaticColumns", FBUtilities.toString(statics));
             field("RegularColumns", FBUtilities.toString(regulars));
             if (stats != null)
