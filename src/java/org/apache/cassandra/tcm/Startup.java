@@ -681,7 +681,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                     break;
                 }
             case JOINED:
-                if (StorageService.isReplacingSameAddress())
+                if (StorageService.instance.isReplacing() && StorageService.isReplacingSameAddress())
                 {
                     if (DatabaseDescriptor.getAccordTransactionsEnabled())
                     {
