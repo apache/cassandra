@@ -3687,7 +3687,14 @@ public class StorageProxy implements StorageProxyMBean
     @Override
     public void loadPartitionDenylist()
     {
+        ensurePartitionDenylistEnabled();
         partitionDenylist.load();
+    }
+
+    @Override
+    public boolean getPartitionDenylistEnabled()
+    {
+        return DatabaseDescriptor.getPartitionDenylistEnabled();
     }
 
     @Override
@@ -3748,6 +3755,7 @@ public class StorageProxy implements StorageProxyMBean
     @Override
     public boolean denylistKey(String keyspace, String table, String partitionKeyAsString)
     {
+        ensurePartitionDenylistEnabled();
         if (!Schema.instance.getKeyspaces().contains(keyspace))
             return false;
 
@@ -3769,6 +3777,7 @@ public class StorageProxy implements StorageProxyMBean
     @Override
     public boolean removeDenylistKey(String keyspace, String table, String partitionKeyAsString)
     {
+        ensurePartitionDenylistEnabled();
         if (!Schema.instance.getKeyspaces().contains(keyspace))
             return false;
 
@@ -3785,6 +3794,7 @@ public class StorageProxy implements StorageProxyMBean
      */
     public boolean isKeyDenylisted(String keyspace, String table, String partitionKeyAsString)
     {
+        ensurePartitionDenylistEnabled();
         if (!Schema.instance.getKeyspaces().contains(keyspace))
             return false;
 
@@ -3794,6 +3804,12 @@ public class StorageProxy implements StorageProxyMBean
 
         final ByteBuffer bytes = cfs.metadata.get().partitionKeyType.fromString(partitionKeyAsString);
         return !partitionDenylist.isKeyPermitted(keyspace, table, bytes);
+    }
+
+    private void ensurePartitionDenylistEnabled()
+    {
+        if (!getPartitionDenylistEnabled())
+            throw new RuntimeException("Denylisting partitions is disabled");
     }
 
     @Override
