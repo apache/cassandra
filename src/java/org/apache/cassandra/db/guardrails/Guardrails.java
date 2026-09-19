@@ -355,6 +355,16 @@ public final class Guardrails implements GuardrailsMBean
                  "write consistency levels");
 
     /**
+     * Guardrail on if a client specifies a serial consistency level for CAS operations.
+     */
+    public static final Predicates<Boolean> serialConsistency =
+    new Predicates<>("warn_when_using_default_serial_consistency_on_cas",
+                     null,
+                     state -> x -> x && CONFIG_PROVIDER.getOrCreate(state).getWarnIfNoSerialConsistencyLevelProvidedForCASEnabled(),
+                     state -> x -> x && CONFIG_PROVIDER.getOrCreate(state).getFailIfNoSerialConsistencyLevelProvidedForCASEnabled(),
+                     (isWarning, value) -> "Query did not provide a serial consistency level.");
+
+    /**
      * Guardrail on the size of a partition.
      */
     public static final MaxThreshold partitionSize =
@@ -1507,6 +1517,30 @@ public final class Guardrails implements GuardrailsMBean
     public void setWriteConsistencyLevelsDisallowedCSV(String consistencyLevels)
     {
         DEFAULT_CONFIG.setWriteConsistencyLevelsDisallowed(fromCSV(consistencyLevels, ConsistencyLevel::fromString));
+    }
+
+    @Override
+    public boolean getWarnIfNoSerialConsistencyLevelProvidedForCASEnabled()
+    {
+        return DEFAULT_CONFIG.getWarnIfNoSerialConsistencyLevelProvidedForCASEnabled();
+    }
+
+    @Override
+    public void setWarnIfNoSerialConsistencyLevelProvidedForCASEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setWarnIfNoSerialConsistencyLevelProvidedForCASEnabled(enabled);
+    }
+
+    @Override
+    public boolean getFailIfNoSerialConsistencyLevelProvidedForCASEnabled()
+    {
+        return DEFAULT_CONFIG.getFailIfNoSerialConsistencyLevelProvidedForCASEnabled();
+    }
+
+    @Override
+    public void setFailIfNoSerialConsistencyLevelProvidedForCASEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setFailIfNoSerialConsistencyLevelProvidedForCASEnabled(enabled);
     }
 
     @Override
