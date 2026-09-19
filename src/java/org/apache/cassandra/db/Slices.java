@@ -40,6 +40,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 
+import static org.apache.cassandra.db.marshal.AbstractType.EMPTY_ABSTRACT_TYPE_ARRAY;
+
 /**
  * Represents the selection of multiple range of rows within a partition.
  * <p>
@@ -304,9 +306,9 @@ public abstract class Slices implements Iterable<Slice>
             if (size == 0)
                 return;
 
-            List<AbstractType<?>> types = slices == ALL
-                                        ? Collections.emptyList()
-                                        : ((ArrayBackedSlices)slices).comparator.subtypes();
+            AbstractType<?>[] types = slices == ALL
+                                      ? EMPTY_ABSTRACT_TYPE_ARRAY
+                                      : ((ArrayBackedSlices) slices).comparator.subtypes();
 
             for (Slice slice : slices)
                 Slice.serializer.serialize(slice, out, version, types);
@@ -319,9 +321,9 @@ public abstract class Slices implements Iterable<Slice>
             if (slices.size() == 0)
                 return size;
 
-            List<AbstractType<?>> types = slices instanceof SelectAllSlices
-                                        ? Collections.emptyList()
-                                        : ((ArrayBackedSlices)slices).comparator.subtypes();
+            AbstractType<?>[] types = slices instanceof SelectAllSlices
+                                      ? EMPTY_ABSTRACT_TYPE_ARRAY
+                                      : ((ArrayBackedSlices) slices).comparator.subtypes();
 
             for (Slice slice : slices)
                 size += Slice.serializer.serializedSize(slice, version, types);

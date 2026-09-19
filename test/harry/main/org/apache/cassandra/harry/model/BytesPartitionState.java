@@ -572,7 +572,7 @@ public class BytesPartitionState
             selectionOrder = symbolListBuilder.buildAndClear();
             regularAndStaticColumns = symbolListBuilder.addAll(staticColumns).addAll(regularColumns).buildAndClear();
 
-            clusteringComparator = new ClusteringComparator(clusteringColumns.stream().map(Symbol::rawType).collect(Collectors.toList()));
+            clusteringComparator = new ClusteringComparator(clusteringColumns.stream().map(Symbol::rawType).toArray(AbstractType<?>[]::new));
 
             List<Comparator<Object>> pkComparators = new ArrayList<>(partitionColumns.size());
             for (var p : partitionColumns)

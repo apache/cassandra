@@ -38,7 +38,6 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.PartitionDescriptor;
 import org.apache.cassandra.io.sstable.SSTableCursorReader;
@@ -112,7 +111,7 @@ public class SSTableReadingFileCursorBench
         Arrays.fill(counters, 0);
         int state = PARTITION_START;
         PartitionDescriptor pHeader = new PartitionDescriptor(cursor.ssTableReader().getPartitioner().createReusableKey(0));
-        UnfilteredDescriptor rHeader = new UnfilteredDescriptor(cursor.ssTableReader().header.clusteringTypes().toArray(AbstractType[]::new));
+        UnfilteredDescriptor rHeader = new UnfilteredDescriptor(cursor.ssTableReader().header.clusteringTypes());
         while (state != DONE) {
             state = cursor.readPartitionHeader(pHeader);
             counters[0]++;

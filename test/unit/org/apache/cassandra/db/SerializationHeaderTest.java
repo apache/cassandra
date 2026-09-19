@@ -20,6 +20,8 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -35,6 +37,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.LongType;
@@ -52,6 +55,8 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -65,6 +70,72 @@ public class SerializationHeaderTest
     static
     {
         DatabaseDescriptor.daemonInitialization();
+    }
+
+    /** The schema, the header and its component all share one clustering-type array (no copy). */
+    @Test
+    public void testClusteringTypesSharingContract()
+    {
+        TableMetadata schema = TableMetadata.builder(KEYSPACE, "testClusteringTypesSharingContract")
+                                            .addPartitionKeyColumn("k", Int32Type.instance)
+                                            .addClusteringColumn("c", Int32Type.instance)
+                                            .build();
+
+        AbstractType<?>[] schemaTypes = schema.comparator.subtypes();
+        SerializationHeader header = SerializationHeader.makeWithoutStats(schema);
+        Assert.assertSame(schemaTypes, header.clusteringTypes());
+        Assert.assertSame(schemaTypes, header.toComponent().getClusteringTypes());
+        Assert.assertArrayEquals(new AbstractType<?>[]{ Int32Type.instance }, schemaTypes);
+    }
+
+    @Test
+    public void testComponentEqualityIsContentBased() throws Exception
+    {
+        Function<String, TableMetadata> schema = name -> TableMetadata.builder(KEYSPACE, name)
+                                                                      .addPartitionKeyColumn("k", Int32Type.instance)
+                                                                      .addClusteringColumn("c1", Int32Type.instance)
+                                                                      .addClusteringColumn("c2", LongType.instance)
+                                                                      .addRegularColumn("v", Int32Type.instance)
+                                                                      .build();
+
+        // distinct TableMetadata instances, hence distinct clusteringTypes arrays with equal content
+        SerializationHeader.Component component = SerializationHeader.makeWithoutStats(schema.apply("t")).toComponent();
+        SerializationHeader.Component same = SerializationHeader.makeWithoutStats(schema.apply("t")).toComponent();
+        Assert.assertEquals(component, same);
+        Assert.assertEquals(component.hashCode(), same.hashCode());
+
+        TableMetadata otherClustering = TableMetadata.builder(KEYSPACE, "t")
+                                                    .addPartitionKeyColumn("k", Int32Type.instance)
+                                                    .addClusteringColumn("c1", Int32Type.instance)
+                                                    .addRegularColumn("v", Int32Type.instance)
+                                                    .build();
+        Assert.assertNotEquals(component, SerializationHeader.makeWithoutStats(otherClustering).toComponent());
+
+        SSTableFormat<?, ?> format = DatabaseDescriptor.getSelectedSSTableFormat();
+        try (DataOutputBuffer out = new DataOutputBuffer())
+        {
+            SerializationHeader.serializer.serialize(format.getLatestVersion(), component, out);
+            SerializationHeader.Component deserialized =
+                SerializationHeader.serializer.deserialize(format.getLatestVersion(), new DataInputBuffer(out.buffer(), true));
+            Assert.assertEquals(component, deserialized);
+            Assert.assertEquals(component.hashCode(), deserialized.hashCode());
+        }
+    }
+
+    @Test
+    public void testToStringRendersClusteringTypes() throws UnknownColumnException
+    {
+        TableMetadata schema = TableMetadata.builder(KEYSPACE, "testToStringRendersClusteringTypes")
+                                            .addPartitionKeyColumn("k", Int32Type.instance)
+                                            .addClusteringColumn("c1", Int32Type.instance)
+                                            .addClusteringColumn("c2", LongType.instance)
+                                            .build();
+
+        SerializationHeader.Component component = SerializationHeader.makeWithoutStats(schema).toComponent();
+        String expectedTypes = Int32Type.instance + ", " + LongType.instance;
+        Assert.assertTrue(component.toString(), component.toString().contains("cks=[" + expectedTypes + ']'));
+        Assert.assertTrue(component.toHeader(schema).toString(),
+                          component.toHeader(schema).toString().contains("cks=[" + expectedTypes + ']'));
     }
 
     /**
@@ -321,6 +392,27 @@ public class SerializationHeaderTest
             if (readerWithRegular != null)
                 readerWithRegular.selfRef().close();
             FileUtils.deleteRecursive(dir);
+        }
+    }
+
+    private static TableMetadata schemaWithClusteringColumns(int clusteringColumns)
+    {
+        TableMetadata.Builder builder = TableMetadata.builder(KEYSPACE, "testClusteringTypesContainer" + clusteringColumns)
+                                                     .addPartitionKeyColumn("k", Int32Type.instance);
+        for (int i = 0; i < clusteringColumns; i++)
+            builder.addClusteringColumn("c" + i, Int32Type.instance);
+        return builder.build();
+    }
+
+    private static SerializationHeader deserializeHeader(SerializationHeader header, TableMetadata schema) throws Exception
+    {
+        SSTableFormat<?, ?> format = DatabaseDescriptor.getSelectedSSTableFormat();
+        try (DataOutputBuffer out = new DataOutputBuffer())
+        {
+            SerializationHeader.serializer.serialize(format.getLatestVersion(), header.toComponent(), out);
+            return SerializationHeader.serializer.deserialize(format.getLatestVersion(),
+                                                              new DataInputBuffer(out.buffer(), true))
+                                                 .toHeader(schema);
         }
     }
 

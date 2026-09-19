@@ -346,7 +346,7 @@ public class StatefulCursorTest extends CQLTester
      */
     private static void driveReader(SSTableReader sstable, boolean overDeclareRowBody) throws Exception
     {
-        AbstractType<?>[] clusteringTypes = sstable.header.clusteringTypes().toArray(AbstractType[]::new);
+        AbstractType<?>[] clusteringTypes = sstable.header.clusteringTypes();
         UnfilteredDescriptor unfiltered = overDeclareRowBody
                                          ? new UnfilteredDescriptor(clusteringTypes)
                                            {
