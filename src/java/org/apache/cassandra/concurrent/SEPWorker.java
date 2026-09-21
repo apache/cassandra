@@ -174,11 +174,27 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                 }
 
                 task = assigned.tasks.poll();
+                // if using LwtKeyPrioritizingTaskQueue, the poll() task can be null, as all the task may be targeting
+                // an in use key
                 currentTask.lazySet(task);
 
                 // if we do have tasks assigned, nobody will change our state so we can simply set it to WORKING
                 // (which is also a state that will never be interrupted externally)
                 set(Work.WORKING);
+                if (task == null)
+                {
+                    // A task permit and work permit were claimed, but no task is runnable yet (all waiting tasks are contended LWTs).
+                    // Return both permits and reset assigned:
+                    assigned.returnTaskPermit();
+                    assigned.returnWorkPermit();
+                    currentTask.lazySet(null);
+                    assigned = null;
+                    if (!selfAssign())
+                    {
+                        startSpinning();
+                    }
+                    continue;
+                }
                 boolean shutdown;
                 SEPExecutor.TakeTaskPermitResult status = null; // make sure set if shutdown check short circuits
                 while (true)
@@ -190,7 +206,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
 
                     // we know there is work waiting, as we have a work permit, so poll() will always succeed
                     task.run();
-                    assigned.onCompletion();
+                    assigned.onCompletion(task);
                     task = null;
 
                     if (shutdown = assigned.shuttingDown)
@@ -200,6 +216,12 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                         break;
 
                     task = assigned.tasks.poll();
+                    if (task == null)
+                    {
+                        // We took a task permit, but no task was eligible. Return the permit and exit inner loop:
+                        assigned.returnTaskPermit();
+                        break;
+                    }
                     currentTask.lazySet(task);
                 }
 
@@ -241,7 +263,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
             if (task != null)
             {
                 logger.error("Failed to execute task, unexpected exception killed worker", t);
-                assigned.onCompletion();
+                assigned.onCompletion(task);
             }
             else
             {
