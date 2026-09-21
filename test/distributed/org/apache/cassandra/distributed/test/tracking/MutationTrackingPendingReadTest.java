@@ -33,6 +33,7 @@ import java.util.function.BooleanSupplier;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.junit.Assert;
@@ -80,15 +81,19 @@ import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.Offsets;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.tracked.PartialTrackedIndexRead;
 import org.apache.cassandra.service.reads.tracked.PartialTrackedRead;
+import org.apache.cassandra.service.reads.tracked.TrackedDataResponse;
 import org.apache.cassandra.service.reads.tracked.TrackedLocalReads;
+import org.apache.cassandra.service.reads.tracked.TrackedRead;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static java.lang.String.format;
@@ -599,6 +604,87 @@ public class MutationTrackingPendingReadTest
             {
                 executor.shutdownNow();
             }
+        }
+    }
+
+    /**
+     * Reconciliation hands a read the mutation ids other replicas reported and this node lacks, and
+     * {@link TrackedLocalReads#acknowledgeReconcile} takes the read's coordinator out of its map before handing off,
+     * so neither expiry nor abort can reach that read afterwards. Augmenting with an id the local mutation journal
+     * holds no record of throws, and {@link PartialTrackedRead}'s own javadoc for that case names a newly activated
+     * transfer - an ordinary production event - alongside a bug, so the failure handler is the only thing left that
+     * can close the read. A read that is never closed never closes its {@link ReadExecutionController}, and an
+     * {@link OpOrder.Group} that never closes blocks every subsequent memtable flush and compaction of the table for
+     * the life of the node.
+     */
+    @Test
+    public void testFailedAugmentClosesTheReconciledRead() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(2)
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK)
+                                                            .with(Feature.GOSSIP)
+                                                            .set("mutation_tracking.enabled", true))
+                                      .start())
+        {
+            String keyspaceName = "failed_augment_close_test";
+            String tableName = "tbl";
+            cluster.schemaChange(format("CREATE KEYSPACE %s WITH replication = " +
+                                        "{'class': 'SimpleStrategy', 'replication_factor': 2} " +
+                                        "AND replication_type='tracked';", keyspaceName));
+            cluster.schemaChange(format("CREATE TABLE %s.%s (k int, c int, v int, primary key (k, c));", keyspaceName, tableName));
+
+            // the read stage rethrows the augment failure the assertions below are about once it has failed the read's
+            // promise, and that rethrow reaches the uncaught exception handler
+            cluster.setUncaughtExceptionsFilter(t -> t.getMessage() != null && t.getMessage().startsWith("Missing mutation"));
+
+            // the read below takes node 2 as its only summary node, and a summary from a node that is down never
+            // arrives, so its reconciliation stays pending until this test acknowledges it by hand
+            cluster.get(2).shutdown().get();
+
+            cluster.get(1).runOnInstance(() -> {
+                TableMetadata metadata = Schema.instance.getTableMetadata(keyspaceName, tableName);
+                ColumnFamilyStore cfs = Keyspace.open(keyspaceName).getColumnFamilyStore(tableName);
+                ClusterMetadata clusterMetadata = ClusterMetadata.current();
+                NodeId summaryNode = Iterables.getOnlyElement(Sets.difference(clusterMetadata.directory.peerIds(),
+                                                                             Collections.singleton(clusterMetadata.myNodeId())));
+
+                TrackedRead.Id readId = TrackedRead.Id.nextId();
+                PartitionRangeReadCommand command = PartitionRangeReadCommand.allDataRead(metadata, FBUtilities.nowInSeconds());
+                AsyncPromise<TrackedDataResponse> promise =
+                    MutationTrackingService.instance().localReads().beginRead(readId,
+                                                                             clusterMetadata,
+                                                                             command,
+                                                                             org.apache.cassandra.db.ConsistencyLevel.ONE,
+                                                                             new int[]{ summaryNode.id() },
+                                                                             Dispatcher.RequestTime.forImmediateExecution(),
+                                                                             TrackedLocalReads.Completer.DEFAULT);
+
+                // a reconciliation waits for one summary per summary node plus this node's own, so an empty
+                // summaryNodes above would have reconciled and completed the read inside beginRead, leaving the
+                // acknowledgement below no coordinator to find
+                Assert.assertFalse("The read reconciled without a summary from its summary node, so the " +
+                                   "acknowledgement below is a no-op and this test would have passed without " +
+                                   "asserting anything",
+                                   promise.isDone());
+
+                // an id the journal cannot hold a record for, since it is allocated here and never written
+                DecoratedKey dk = metadata.partitioner.decorateKey(bytes(1));
+                MutationId unwritten = MutationTrackingService.instance().nextMutationId(keyspaceName, dk.getToken());
+                Log2OffsetsMap.Mutable augmenting = new Log2OffsetsMap.Mutable();
+                augmenting.add(new ShortMutationId(unwritten));
+                MutationTrackingService.instance().localReads().acknowledgeReconcile(readId, augmenting);
+
+                awaitCondition(promise::isDone, "Acknowledging the reconciliation neither completed nor failed the read");
+                Assert.assertNotNull("Expected the read to fail on the mutation missing from the journal", promise.cause());
+                Assert.assertTrue("Expected the read to fail on the mutation missing from the journal, got " + promise.cause(),
+                                  promise.cause().getMessage().contains("Missing mutation"));
+
+                OpOrder.Barrier barrier = cfs.readOrdering.newBarrier();
+                barrier.issue();
+                awaitCondition(barrier.getSyncPoint()::isFinished,
+                               "Failing to augment the read left its ReadExecutionController open, so its " +
+                               "OpOrder.Group blocks every flush and compaction of " + tableName + " from here on");
+            });
         }
     }
 }
