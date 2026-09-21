@@ -55,7 +55,6 @@ import org.apache.cassandra.schema.Triggers;
 import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
-import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.transport.Event.SchemaChange;
@@ -193,12 +192,6 @@ public final class CopyTableStatement extends AlterSchemaStatement
         // Guardrail to check whether creation of new COMPACT STORAGE tables is allowed
         if (sourceTableMeta.isCompactTable())
             Guardrails.compactTablesEnabled.ensureEnabled(state);
-
-        if (sourceKeyspaceMeta.replicationStrategy.hasTransientReplicas()
-            && sourceTableMeta.params.readRepair != ReadRepairStrategy.NONE)
-        {
-            throw ire("read_repair must be set to 'NONE' for transiently replicated keyspaces");
-        }
 
         if (!sourceTableMeta.params.compression.isEnabled())
             Guardrails.uncompressedTablesEnabled.ensureEnabled(state);
