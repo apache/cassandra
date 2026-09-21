@@ -137,7 +137,7 @@ public class PaxosRows
         Cell cell = row.getCell(COMMIT_MUTATION_ID);
         if (cell == null)
             return MutationId.none();
-        return MutationId.fromByteBuffer(cell.buffer().duplicate());
+        return MutationId.fromByteBuffer(cell.buffer());
     }
 
     public static TableId getTableId(Row row)
