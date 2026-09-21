@@ -44,7 +44,7 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
-import org.apache.cassandra.service.accord.topology.AccordFastPath;
+import org.apache.cassandra.service.accord.topology.AccordNodeInfos;
 import org.apache.cassandra.service.accord.topology.AccordTopology;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.Location;
@@ -120,7 +120,7 @@ public class AccordTopologyTest
                                          Shard.create(AccordTopology.fullRange(tableId, partitioner), NODE_LIST, NODE_SET));
         Assert.assertEquals(expected, topology);
 
-        topology = AccordTopology.createAccordTopology(metadata.transformer().withFastPathStatusSince(new Id(1), AccordFastPath.Status.UNAVAILABLE, 1, 1).build().metadata);
+        topology = AccordTopology.createAccordTopology(metadata.transformer().withAccordDownStatusSince(new Id(1), AccordNodeInfos.Status.MAYBE_DOWN, 1, 1).build().metadata);
 
         Set<Node.Id> fastPath = new HashSet<>(NODE_SET);
         fastPath.remove(new Node.Id(1));
@@ -146,8 +146,8 @@ public class AccordTopologyTest
         Assert.assertEquals(expected, topology);
 
         metadata = metadata.transformer()
-                           .withFastPathStatusSince(new Id(1), AccordFastPath.Status.UNAVAILABLE, 1, 1)
-                           .withFastPathStatusSince(new Id(2), AccordFastPath.Status.UNAVAILABLE, 1, 1)
+                           .withAccordDownStatusSince(new Id(1), AccordNodeInfos.Status.MAYBE_DOWN, 1, 1)
+                           .withAccordDownStatusSince(new Id(2), AccordNodeInfos.Status.MAYBE_DOWN, 1, 1)
                            .build().metadata;
         topology = AccordTopology.createAccordTopology(metadata);
 

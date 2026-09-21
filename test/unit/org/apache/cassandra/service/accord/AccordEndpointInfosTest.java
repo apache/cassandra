@@ -24,19 +24,20 @@ import org.quicktheories.generators.SourceDSL;
 
 import accord.local.Node;
 
-import org.apache.cassandra.service.accord.topology.EndpointMapping;
+import org.apache.cassandra.service.accord.topology.AccordEndpointInfos;
+import org.apache.cassandra.service.accord.topology.AccordNodeInfos;
 import org.apache.cassandra.utils.CassandraGenerators;
 
 import static org.quicktheories.QuickTheory.qt;
 
 
-public class EndpointMappingTest
+public class AccordEndpointInfosTest
 {
     @Test
     public void identityTest() throws Throwable
     {
         qt().forAll(CassandraGenerators.INET_ADDRESS_AND_PORT_GEN, SourceDSL.integers().between(1, Integer.MAX_VALUE).map(Node.Id::new)).checkAssert((endpoint, id) -> {
-            EndpointMapping mapping = EndpointMapping.builder(1).add(endpoint, id).build();
+            AccordEndpointInfos mapping = AccordEndpointInfos.builder(1, 1, AccordNodeInfos.EMPTY).add(endpoint, id).build();
             Assertions.assertThat(mapping.mappedEndpointOrNull(id)).isEqualTo(endpoint);
         });
     }

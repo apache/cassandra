@@ -30,28 +30,28 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializers;
 import org.apache.cassandra.tcm.serialization.Version;
 
-public class AccordMarkRejoiningTest
+public class AccordUnmarkStaleTest
 {
     @Test
     public void shouldSerializeEmpty() throws IOException
     {
         DataOutputBuffer buffer = new DataOutputBuffer();
-        AsymmetricMetadataSerializers.testSerde(buffer, AccordMarkRejoining.serializer, new AccordMarkRejoining(Collections.emptySet()), Version.MIN_ACCORD_VERSION);
+        AsymmetricMetadataSerializers.testSerde(buffer, AccordUnmarkStale.serializer, new AccordUnmarkStale(Collections.emptySet()), Version.MIN_ACCORD_VERSION);
     }
 
     @Test
     public void shouldSerializeSingleton() throws IOException
     {
         DataOutputBuffer buffer = new DataOutputBuffer();
-        AccordMarkRejoining markStale = new AccordMarkRejoining(Collections.singleton(NodeId.fromString("1")));
-        AsymmetricMetadataSerializers.testSerde(buffer, AccordMarkRejoining.serializer, markStale, Version.MIN_ACCORD_VERSION);
+        AccordUnmarkStale markStale = new AccordUnmarkStale(Collections.singleton(NodeId.fromString("1")));
+        AsymmetricMetadataSerializers.testSerde(buffer, AccordUnmarkStale.serializer, markStale, Version.MIN_ACCORD_VERSION);
     }
 
     @Test
     public void shouldSerializeMulti() throws IOException
     {
         DataOutputBuffer buffer = new DataOutputBuffer();
-        AccordMarkRejoining markStale = new AccordMarkRejoining(ImmutableSet.of(NodeId.fromString("1"), NodeId.fromString("2")));
-        AsymmetricMetadataSerializers.testSerde(buffer, AccordMarkRejoining.serializer, markStale, Version.MIN_ACCORD_VERSION);
+        AccordUnmarkStale markStale = new AccordUnmarkStale(ImmutableSet.of(NodeId.fromString("1"), NodeId.fromString("2")));
+        AsymmetricMetadataSerializers.testSerde(buffer, AccordUnmarkStale.serializer, markStale, Version.MIN_ACCORD_VERSION);
     }
 }

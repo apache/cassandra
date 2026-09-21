@@ -28,8 +28,8 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.transformations.AccordMarkHardRemoved;
-import org.apache.cassandra.tcm.transformations.AccordMarkRejoining;
 import org.apache.cassandra.tcm.transformations.AccordMarkStale;
+import org.apache.cassandra.tcm.transformations.AccordUnmarkStale;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 public class AccordOperations implements AccordOperationsMBean
@@ -56,7 +56,7 @@ public class AccordOperations implements AccordOperationsMBean
         ClusterMetadata metadata = ClusterMetadata.current();
 
         info.put("EPOCH", Long.toString(metadata.epoch.getEpoch()));
-        String staleReplicas = metadata.accordStaleReplicas.stale().stream().sorted().map(Object::toString).collect(Collectors.joining(","));
+        String staleReplicas = metadata.accordNodeInfos.stale().stream().sorted().map(Object::toString).collect(Collectors.joining(","));
         info.put("STALE_REPLICAS", staleReplicas);
         return info;
     }
@@ -102,6 +102,6 @@ public class AccordOperations implements AccordOperationsMBean
 
     public void accordMarkRejoining(Set<NodeId> nodeIds)
     {
-        cms.commit(new AccordMarkRejoining(nodeIds));
+        cms.commit(new AccordUnmarkStale(nodeIds));
     }
 }

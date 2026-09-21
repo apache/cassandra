@@ -40,7 +40,7 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.accord.AccordService;
-import org.apache.cassandra.service.accord.topology.AccordFastPath;
+import org.apache.cassandra.service.accord.topology.AccordNodeInfos;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -106,8 +106,8 @@ public class AccordSimpleFastPathTest extends TestBaseImpl
             int node3Id = cluster.get(3).callOnInstance(() -> ClusterMetadata.current().directory.peerId(FBUtilities.getBroadcastAddressAndPort()).id());
             long preShutDownEpoch = cluster.stream().map(ii -> ii.callOnInstance(() -> {
                 ClusterMetadata cm = ClusterMetadata.current();
-                AccordFastPath accordFastPath = cm.accordFastPath;
-                Assert.assertEquals(idSet(), accordFastPath.unavailableIds());
+                AccordNodeInfos nodeInfos = cm.accordNodeInfos;
+                Assert.assertEquals(idSet(), nodeInfos.excludedFromFastQuorum());
 
                 long epoch = cm.epoch.getEpoch();
                 TopologyManager tm = AccordService.instance().topology();
@@ -135,9 +135,9 @@ public class AccordSimpleFastPathTest extends TestBaseImpl
                 ii.runOnInstance(() -> {
                     ClusterMetadataService.instance().fetchLogFromCMS(Epoch.create(preShutDownEpoch + 1));
                     ClusterMetadata cm = ClusterMetadata.current();
-                    AccordFastPath accordFastPath = cm.accordFastPath;
+                    AccordNodeInfos nodeInfos = cm.accordNodeInfos;
                     Assert.assertEquals(preShutDownEpoch + 1, cm.epoch.getEpoch());
-                    Assert.assertEquals(idSet(node3Id), accordFastPath.unavailableIds());
+                    Assert.assertEquals(idSet(node3Id), nodeInfos.excludedFromFastQuorum());
                 });
 
             }

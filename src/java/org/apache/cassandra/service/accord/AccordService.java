@@ -142,13 +142,13 @@ import org.apache.cassandra.service.accord.journal.AccordJournal;
 import org.apache.cassandra.service.accord.journal.ReplayMarkers;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
-import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
-import org.apache.cassandra.service.accord.topology.AccordFastPathCoordinator;
+import org.apache.cassandra.service.accord.topology.AccordEndpointInfos;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMap;
+import org.apache.cassandra.service.accord.topology.AccordNodeInfoCoordinator;
 import org.apache.cassandra.service.accord.topology.AccordSyncPropagator;
 import org.apache.cassandra.service.accord.topology.AccordSyncPropagator.Notification;
 import org.apache.cassandra.service.accord.topology.AccordTopology;
 import org.apache.cassandra.service.accord.topology.AccordTopologyService;
-import org.apache.cassandra.service.accord.topology.EndpointMapping;
 import org.apache.cassandra.service.accord.topology.FetchTopologies;
 import org.apache.cassandra.service.accord.topology.WatermarkCollector;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
@@ -213,6 +213,7 @@ import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordRea
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteBookkeeping;
 import static org.apache.cassandra.service.accord.topology.AccordTopology.tcmIdToAccord;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
+import static org.apache.cassandra.tcm.ClusterMetadataService.State.GOSSIP;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class AccordService implements IAccordService, Shutdownable
@@ -311,9 +312,9 @@ public class AccordService implements IAccordService, Shutdownable
 
     private final Node node;
     private final AccordMessageSink messageSink;
-    private final AccordEndpointMapper endpointMapper;
+    private final AccordEndpointMap endpointMapper;
     private final AccordTopologyService topologyService;
-    private final AccordFastPathCoordinator fastPathCoordinator;
+    private final AccordNodeInfoCoordinator nodeStatusCoordinator;
     private final AccordScheduler scheduler;
     private final AccordDataStore dataStore;
     private final AccordJournal journal;
@@ -396,8 +397,10 @@ public class AccordService implements IAccordService, Shutdownable
     public synchronized static void localStartup(NodeId tcmId)
     {
         Invariants.require(instance == null);
-        if (!DatabaseDescriptor.getAccordTransactionsEnabled())
+        if (!DatabaseDescriptor.getAccordTransactionsEnabled() || ClusterMetadataService.state() == GOSSIP)
         {
+            if (DatabaseDescriptor.getAccordTransactionsEnabled())
+                logger.error("Accord cannot be enabled in GOSSIP mode");
             unsafeSetNoop();
         }
         else
@@ -492,10 +495,10 @@ public class AccordService implements IAccordService, Shutdownable
         final RequestCallbacks callbacks = new RequestCallbacks(time, scheduler);
         this.dataStore = new AccordDataStore();
         this.journal = new AccordJournal(DatabaseDescriptor.getAccord().journal);
-        this.endpointMapper = new EndpointMapping.Updateable();
+        this.endpointMapper = new AccordEndpointInfos.Updateable();
         this.messageSink = new AccordMessageSink(endpointMapper, callbacks);
         this.topologyService = new AccordTopologyService(localId, endpointMapper);
-        this.fastPathCoordinator = AccordFastPathCoordinator.create(localId, endpointMapper);
+        this.nodeStatusCoordinator = AccordNodeInfoCoordinator.create(localId, endpointMapper);
         this.node = new Node(localId,
                              messageSink,
                              topologyService,
@@ -722,8 +725,7 @@ public class AccordService implements IAccordService, Shutdownable
 
                           });
 
-        fastPathCoordinator.start();
-        ClusterMetadataService.instance().log().addListener(fastPathCoordinator);
+        nodeStatusCoordinator.start();
 
         // we write the start marker before starting durability service because
         // even though we have not initialised the request handler we can self deliver
@@ -752,12 +754,26 @@ public class AccordService implements IAccordService, Shutdownable
             // rebootstrap requires durability service (which requires TCM)
             rebootstrapOnStart = null;
             logger.info("Rebootstrapping ({}) in epoch {}", rebootstrap, node.epoch());
-            getBlocking(node.commandStores().rebootstrap(node, rebootstrap));
+            EpochReady ready = node.commandStores().rebootstrap(node, null, rebootstrap);
+
+            // once every store is refusing to process requests we are safe to open up the network (we wrote the start marker earlier)
+            getBlocking(ready.refusing());
+            instance = requestInstance = this;
+
+            // Once each store is processing some requests, we can advertise ourselves as up but UNREADABLE
+            getBlocking(ready.notRefusing());
+            nodeStatusCoordinator.declareStartedUnreadable();
+
+            getBlocking(ready.reads());
             logger.info("Rebootstrap ({}) complete in epoch {}", rebootstrap, node.epoch());
         }
+        else
+        {
+            instance = requestInstance = this;
+            nodeStatusCoordinator.declareStartedUnreadable();
+        }
 
-        // until rebootstrap completes we don't have consistent state, so cannot answer peers
-        instance = requestInstance = this;
+        nodeStatusCoordinator.declareReady();
 
         // trigger catchup only after our progress mechanisms are initialised
         catchup();
@@ -810,7 +826,7 @@ public class AccordService implements IAccordService, Shutdownable
                                 case REBOOTSTRAP:
                                 case REBOOTSTRAP_AND_CATCHUP:
                                     logger.error("Could not catchup with peers; rebootstrapping", failed);
-                                    getBlocking(node.commandStores().rebootstrap(node, CATCHUP));
+                                    getBlocking(node.commandStores().rebootstrap(node, CATCHUP).reads);
                                     if (onError == REBOOTSTRAP)
                                         return;
                                     ++attempts;
@@ -851,7 +867,7 @@ public class AccordService implements IAccordService, Shutdownable
                         case REBOOTSTRAP_AND_CATCHUP:
                             if (result == null) logger.info("Catchup was slow, rebootstrapping after {} attempts", attempts);
                             else logger.info("Catchup was incomplete for {}, rebootstrapping after {} attempts", result.ranges, attempts);
-                            getBlocking(node.commandStores().rebootstrap(node, result == null ? null : result.ranges, CATCHUP));
+                            getBlocking(node.commandStores().rebootstrap(node, result == null ? null : result.ranges, CATCHUP).reads);
                             if (onTimeout == REBOOTSTRAP)
                                 return;
                             ++attempts;
@@ -1477,7 +1493,7 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @VisibleForTesting
-    public AccordEndpointMapper endpointMapper()
+    public AccordEndpointMap endpointMapper()
     {
         return endpointMapper;
     }

@@ -82,7 +82,7 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
-import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMap;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnDataKeyValue;
@@ -128,7 +128,7 @@ public class AccordInteropExecution implements ReadCoordinator
     private final BiConsumer<? super Result, Throwable> callback;
     private final ExclusiveAsyncExecutor executor;
     private final ConsistencyLevel consistencyLevel;
-    private final AccordEndpointMapper endpointMapper;
+    private final AccordEndpointMap endpointMapper;
 
     private final Topologies executes;
     private final Topologies allTopologies;
@@ -142,7 +142,7 @@ public class AccordInteropExecution implements ReadCoordinator
     private volatile long uniqueHlc;
 
     public AccordInteropExecution(Node node, TxnId txnId, Txn txn, AccordUpdate.Kind updateKind, FullRoute<?> route, Ballot ballot, Timestamp executeAt, Deps deps, BiConsumer<? super Result, Throwable> callback,
-                                  ExclusiveAsyncExecutor executor, ConsistencyLevel consistencyLevel, AccordEndpointMapper endpointMapper) throws TopologyException
+                                  ExclusiveAsyncExecutor executor, ConsistencyLevel consistencyLevel, AccordEndpointMap endpointMapper) throws TopologyException
     {
         requireArgument(!txn.read().keys().isEmpty() || updateKind == AccordUpdate.Kind.UNRECOVERABLE_REPAIR);
         // TODO (required): this does not support privileged coordinator optimisation, as must apply local stable before any other message is sent

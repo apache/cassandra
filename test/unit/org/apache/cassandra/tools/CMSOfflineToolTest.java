@@ -51,8 +51,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.service.accord.topology.AccordFastPath;
-import org.apache.cassandra.service.accord.topology.AccordStaleReplicas;
+import org.apache.cassandra.service.accord.topology.AccordNodeInfos;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.tcm.CMSMembership;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -105,12 +104,11 @@ public class CMSOfflineToolTest extends OfflineToolUtils
                                    directory,
                                    new TokenMap(partitioner),
                                    DataPlacements.empty(),
-                                   AccordFastPath.EMPTY,
+                                   AccordNodeInfos.EMPTY,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
                                    ConsensusMigrationState.EMPTY,
                                    ImmutableMap.of(),
-                                   AccordStaleReplicas.EMPTY,
                                    CMSMembership.EMPTY);
     }
 

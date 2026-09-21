@@ -395,9 +395,9 @@ public class AccordAgent implements Agent, OwnershipEventListener
 
     public static long nonClashingStartTime(long startTime, int replicaIndex, int replicaCount, long timeSlicePerNode)
     {
+        Invariants.require(replicaIndex >= 0 && replicaIndex < replicaCount);
         long window = replicaCount * timeSlicePerNode;
-        long offsetWithinWindow = (replicaIndex % replicaCount) * timeSlicePerNode;
-
+        long offsetWithinWindow = replicaIndex * timeSlicePerNode;
         long remainder = startTime % window;
         long newStartTime = startTime - remainder + offsetWithinWindow;
         if (newStartTime < startTime)

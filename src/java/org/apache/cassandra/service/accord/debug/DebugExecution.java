@@ -29,6 +29,7 @@ import accord.local.Command;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.metrics.LogLinearHistogram;
+import org.apache.cassandra.service.accord.execution.SafeTask;
 import org.apache.cassandra.service.accord.execution.Task;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.WithResources;
@@ -42,6 +43,7 @@ public class DebugExecution
 {
     private static final Logger logger = LoggerFactory.getLogger(DebugExecution.class);
     public static final boolean DEBUG_EXECUTION = CassandraRelevantProperties.ACCORD_DEBUG_EXECUTION.getBoolean(false);
+    public static final boolean REPORT_EXECUTION = CassandraRelevantProperties.ACCORD_DEBUG_EXECUTION_REPORT.getBoolean(true);
     private static final long REPORT_MIN_LATENCY_MICROS = 50_000;
     private static final long REPORT_CPU_RATIO = 2;
     private static final long REPORT_MAX_LATENCY_MICROS = 100_000;
@@ -80,15 +82,18 @@ public class DebugExecution
                 return;
 
             span = Span.start();
-            lockedAt = nanoTime();
-            lockedAtCpu = nowCpu();
-            if (lockAt > 0)
+            if (REPORT_EXECUTION)
             {
-                long waitingToLockForMicros = (lockedAt - lockAt)/1000;
-                waitingToLock.increment(waitingToLockForMicros);
-                if (waitingToLockForMicros > REPORT_MAX_LATENCY_MICROS)
+                lockedAt = nanoTime();
+                lockedAtCpu = nowCpu();
+                if (lockAt > 0)
                 {
-                    report("Took {}us to aquire executor lock", waitingToLockForMicros);
+                    long waitingToLockForMicros = (lockedAt - lockAt)/1000;
+                    waitingToLock.increment(waitingToLockForMicros);
+                    if (waitingToLockForMicros > REPORT_MAX_LATENCY_MICROS)
+                    {
+                        report("Took {}us to aquire executor lock", waitingToLockForMicros);
+                    }
                 }
             }
         }
@@ -98,21 +103,25 @@ public class DebugExecution
             if (--depth > 0)
                 return;
 
-            // TODO (expected): specialise this for despatch loop, which can reasonably handle longer lock hold periods
-            unlockedAt = nanoTime();
-            unlockedAtCpu = nowCpu();
-            long lockedForMicros = (unlockedAt - lockedAt)/1000;
-            long lockedForCpuMicros = (unlockedAtCpu - lockedAtCpu)/1000;
-            if (lockedForMicros >= REPORT_MAX_LATENCY_MICROS)
+            if (REPORT_EXECUTION)
             {
-                report("Held lock for {}us (cpu:{}us)", lockedForMicros, lockedForCpuMicros);
+                // TODO (expected): specialise this for despatch loop, which can reasonably handle longer lock hold periods
+                unlockedAt = nanoTime();
+                unlockedAtCpu = nowCpu();
+                long lockedForMicros = (unlockedAt - lockedAt)/1000;
+                long lockedForCpuMicros = (unlockedAtCpu - lockedAtCpu)/1000;
+                if (lockedForMicros >= REPORT_MAX_LATENCY_MICROS)
+                {
+                    report("Held lock for {}us (cpu:{}us)", lockedForMicros, lockedForCpuMicros);
+                }
+                else if (lockedForMicros >= REPORT_MIN_LATENCY_MICROS && (lockedForCpuMicros == 0 || (lockedForMicros / lockedForCpuMicros) >= REPORT_CPU_RATIO))
+                {
+                    report("Held lock for {}us with cpu time only {}us", lockedForMicros, lockedForCpuMicros);
+                }
+                locked.increment(lockedForMicros);
             }
-            else if (lockedForMicros >= REPORT_MIN_LATENCY_MICROS && (lockedForCpuMicros == 0 || (lockedForMicros / lockedForCpuMicros) >= REPORT_CPU_RATIO))
-            {
-                report("Held lock for {}us with cpu time only {}us", lockedForMicros, lockedForCpuMicros);
-            }
-            locked.increment(lockedForMicros);
-            Span.end(span, "AccordExecutorCriticalSection");
+            if (span != 0)
+                Span.endIfProfiled(span, "AccordExecutorCriticalSection");
         }
     }
 
@@ -137,34 +146,43 @@ public class DebugExecution
 
         public void onSetTask(Task next)
         {
-            if (next == null) setTaskAt = 0;
-            else setTaskAt = nanoTime();
+            if (REPORT_EXECUTION)
+            {
+                if (next == null) setTaskAt = 0;
+                else setTaskAt = nanoTime();
+            }
         }
 
         public void onComplete(Task completed)
         {
-            long readyAt = setTaskAt;
-            long runningAt = DebugTask.get(completed).runningAt;
-            if (waitingAt > setTaskAt)
+            if (REPORT_EXECUTION)
             {
-                readyAt = waitingAt;
-                long waitingMicros = (runningAt - waitingAt)/1000;
-                owner.sequentialExecutorWaitingToRunLatency.increment(waitingMicros);
-                if (waitingMicros > REPORT_MAX_LATENCY_MICROS)
-                    report("{} spent {}us blocked by a direct execution on queue {}", completed, waitingMicros, commandStoreId);
+                long readyAt = setTaskAt;
+                long runningAt = DebugTask.get(completed).runningAt;
+                if (waitingAt > setTaskAt)
+                {
+                    readyAt = waitingAt;
+                    long waitingMicros = (runningAt - waitingAt)/1000;
+                    owner.sequentialExecutorWaitingToRunLatency.increment(waitingMicros);
+                    if (waitingMicros > REPORT_MAX_LATENCY_MICROS)
+                        report("{} spent {}us blocked by a direct execution on queue {}", completed, waitingMicros, commandStoreId);
+                }
+                long atHeadMicros = (runningAt - readyAt)/1000;
+                owner.sequentialExecutorSetHeadToRunLatency.increment(atHeadMicros);
+                if (atHeadMicros > REPORT_MAX_LATENCY_MICROS)
+                {
+                    report("{} spent {}us at head of queue {}", completed, atHeadMicros, commandStoreId);
+                }
+                this.prev = completed;
             }
-            long atHeadMicros = (runningAt - readyAt)/1000;
-            owner.sequentialExecutorSetHeadToRunLatency.increment(atHeadMicros);
-            if (atHeadMicros > REPORT_MAX_LATENCY_MICROS)
-            {
-                report("{} spent {}us at head of queue {}", completed, atHeadMicros, commandStoreId);
-            }
-            this.prev = completed;
         }
 
         public void onWaiting()
         {
-            waitingAt = nanoTime();
+            if (REPORT_EXECUTION)
+            {
+                waitingAt = nanoTime();
+            }
         }
     }
 
@@ -184,6 +202,7 @@ public class DebugExecution
             this.task = task;
         }
 
+        long runningAtSpan;
         public List<Command> sanityCheck; // for AccordTask only
         long polledAt, preRunAt, runningAt, runCompleteAt, completeAt, completedAt;
         long releasedRangeScannerAt, releasedStateAt;
@@ -202,60 +221,86 @@ public class DebugExecution
 
         public void onRunning()
         {
-            thread = Thread.currentThread();
-            runningAtCpu = nowCpu();
-            runningAt = nanoTime();
+            runningAtSpan = Span.start();
+            if (REPORT_EXECUTION)
+            {
+                thread = Thread.currentThread();
+                runningAtCpu = nowCpu();
+                runningAt = nanoTime();
+            }
         }
 
         public void onRunComplete()
         {
-            runCompleteAtCpu = nowCpu();
-            runCompleteAt = nanoTime();
+            if (REPORT_EXECUTION)
+            {
+                runCompleteAtCpu = nowCpu();
+                runCompleteAt = nanoTime();
+            }
+            if (runningAtSpan != 0)
+            {
+                if (task instanceof SafeTask<?>)
+                    Span.endIfProfiled(runningAtSpan, ((SafeTask<?>) task).commandStore().toString());
+                else
+                    Span.endIfProfiled(runningAtSpan, task.getClass().getSimpleName());
+            }
         }
 
         public void onReleasedRangeScanner()
         {
-            releasedRangeScannerAt = nanoTime();
+            if (REPORT_EXECUTION)
+            {
+                releasedRangeScannerAt = nanoTime();
+            }
         }
 
         public void onReleasedState()
         {
-            releasedStateAt = nanoTime();
+            if (REPORT_EXECUTION)
+            {
+                releasedStateAt = nanoTime();
+            }
         }
 
         public void onComplete()
         {
-            completeAt = nanoTime();
+            if (REPORT_EXECUTION)
+            {
+                completeAt = nanoTime();
+            }
         }
 
         public void onCompleted(DebugExecutor owner)
         {
-            completedAt = nanoTime();
-            if (runningAt > 0 && polledAt > 0)
+            if (REPORT_EXECUTION)
             {
-                long pollToRunMicros = (runningAt - polledAt)/1000;
-                owner.pollToRun.increment(pollToRunMicros);
-                long runningMicros = -1;
-                if (runCompleteAt > 0)
+                completedAt = nanoTime();
+                if (runningAt > 0 && polledAt > 0)
                 {
-                    runningMicros = (runCompleteAt - runningAt) / 1000;
-                    owner.running.increment(runningMicros);
-                }
-                long runToCleanMicros = (completeAt - runCompleteAt) / 1000;
-                owner.runToCleanup.increment(runToCleanMicros);
-                long cleanupMicros = (completedAt - completeAt) / 1000;
-                owner.cleanup.increment(cleanupMicros);
-                long totalMicros = (completedAt - polledAt)/1000;
-                owner.taskTotal.increment(totalMicros);
-                long totalCpu = (runCompleteAtCpu - runningAtCpu)/1000;
-                if (totalMicros > REPORT_MAX_LATENCY_MICROS || totalCpu > REPORT_CPU_MICROS || (totalMicros > REPORT_MIN_LATENCY_MICROS && (totalCpu == 0 || totalMicros/totalCpu >= REPORT_CPU_RATIO)))
-                {
-                    String reason = "";
-                    if (totalMicros > REPORT_MAX_LATENCY_MICROS) reason += "LONG TIME ";
-                    if (totalCpu > REPORT_CPU_MICROS) reason += "HIGH CPU ";
-                    if ((totalMicros > REPORT_MIN_LATENCY_MICROS && (totalCpu == 0 || (totalMicros/totalCpu) >= REPORT_CPU_RATIO))) reason += "LOW RATIO ";
-                    report("{}{}: total {}us cpu:{}us ({}), pollToRun {}us, running {}us, runToClean {}us, cleanup {}us",
-                           reason, task, totalMicros, totalCpu, thread, pollToRunMicros, runningMicros, runToCleanMicros, cleanupMicros);
+                    long pollToRunMicros = (runningAt - polledAt)/1000;
+                    owner.pollToRun.increment(pollToRunMicros);
+                    long runningMicros = -1;
+                    if (runCompleteAt > 0)
+                    {
+                        runningMicros = (runCompleteAt - runningAt) / 1000;
+                        owner.running.increment(runningMicros);
+                    }
+                    long runToCleanMicros = (completeAt - runCompleteAt) / 1000;
+                    owner.runToCleanup.increment(runToCleanMicros);
+                    long cleanupMicros = (completedAt - completeAt) / 1000;
+                    owner.cleanup.increment(cleanupMicros);
+                    long totalMicros = (completedAt - polledAt)/1000;
+                    owner.taskTotal.increment(totalMicros);
+                    long totalCpu = (runCompleteAtCpu - runningAtCpu)/1000;
+                    if (totalMicros > REPORT_MAX_LATENCY_MICROS || totalCpu > REPORT_CPU_MICROS || (totalMicros > REPORT_MIN_LATENCY_MICROS && (totalCpu == 0 || totalMicros/totalCpu >= REPORT_CPU_RATIO)))
+                    {
+                        String reason = "";
+                        if (totalMicros > REPORT_MAX_LATENCY_MICROS) reason += "LONG TIME ";
+                        if (totalCpu > REPORT_CPU_MICROS) reason += "HIGH CPU ";
+                        if ((totalMicros > REPORT_MIN_LATENCY_MICROS && (totalCpu == 0 || (totalMicros/totalCpu) >= REPORT_CPU_RATIO))) reason += "LOW RATIO ";
+                        report("{}{}: total {}us cpu:{}us ({}), pollToRun {}us, running {}us, runToClean {}us, cleanup {}us",
+                               reason, task, totalMicros, totalCpu, thread, pollToRunMicros, runningMicros, runToCleanMicros, cleanupMicros);
+                    }
                 }
             }
         }

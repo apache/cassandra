@@ -28,21 +28,22 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
-import org.apache.cassandra.service.accord.topology.AccordFastPath;
+import org.apache.cassandra.service.accord.topology.AccordNodeInfos;
+import org.apache.cassandra.service.accord.topology.AccordNodeInfos.Status;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
-public class ReconfigureAccordFastPath implements Transformation
+public class AccordChangeDownStatus implements Transformation
 {
     private final Node.Id node;
-    private final AccordFastPath.Status status;
+    private final Status status;
     private final long updateTimeMillis;
     private final long updateDelayMillis;
 
-    public ReconfigureAccordFastPath(Node.Id node, AccordFastPath.Status status, long updateTimeMillis, long updateDelayMillis)
+    public AccordChangeDownStatus(Node.Id node, Status status, long updateTimeMillis, long updateDelayMillis)
     {
         this.node = node;
         this.status = status;
@@ -57,9 +58,13 @@ public class ReconfigureAccordFastPath implements Transformation
 
     public Result execute(ClusterMetadata metadata)
     {
+        // rejections are safe here, as they fire before we commit to the new epoch and prevent a no-op epoch being issued
+        if (!metadata.accordNodeInfos.shouldUpdateDownStatus(node, status, updateTimeMillis, updateDelayMillis))
+            return new Rejected(ExceptionCode.INVALID, String.format("%s is already recorded as %s", node, metadata.accordNodeInfos.status(node)));
+
         try
         {
-            return Transformation.success(metadata.transformer().withFastPathStatusSince(node, status, updateTimeMillis, updateDelayMillis), LockedRanges.AffectedRanges.EMPTY);
+            return Transformation.success(metadata.transformer().withAccordDownStatusSince(node, status, updateTimeMillis, updateDelayMillis), LockedRanges.AffectedRanges.EMPTY);
         }
         catch (InvalidRequestException e)
         {
@@ -70,7 +75,7 @@ public class ReconfigureAccordFastPath implements Transformation
     @Override
     public String toString()
     {
-        return "ReconfigureAccordFastPath{" +
+        return "AccordChangeDownStatus{" +
                "node=" + node +
                ", status=" + status +
                ", updateTimeMillis=" + updateTimeMillis +
@@ -78,30 +83,29 @@ public class ReconfigureAccordFastPath implements Transformation
                '}';
     }
 
-    public static final AsymmetricMetadataSerializer<Transformation, ReconfigureAccordFastPath> serializer = new AsymmetricMetadataSerializer<Transformation, ReconfigureAccordFastPath>()
+    public static final AsymmetricMetadataSerializer<Transformation, AccordChangeDownStatus> serializer = new AsymmetricMetadataSerializer<Transformation, AccordChangeDownStatus>()
     {
         public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException
         {
-            ReconfigureAccordFastPath update = (ReconfigureAccordFastPath) t;
+            AccordChangeDownStatus update = (AccordChangeDownStatus) t;
             TopologySerializers.nodeId.serialize(update.node, out);
-            AccordFastPath.Status.serializer.serialize(update.status, out, version);
+            AccordNodeInfos.Status.serializer.serialize(update.status, out, version);
             out.writeUnsignedVInt(update.updateTimeMillis);
             out.writeUnsignedVInt(update.updateDelayMillis);
-
         }
 
-        public ReconfigureAccordFastPath deserialize(DataInputPlus in, Version version) throws IOException
+        public AccordChangeDownStatus deserialize(DataInputPlus in, Version version) throws IOException
         {
-            return new ReconfigureAccordFastPath(TopologySerializers.nodeId.deserialize(in),
-                                          AccordFastPath.Status.serializer.deserialize(in, version),
-                                          in.readUnsignedVInt(), in.readUnsignedVInt());
+            return new AccordChangeDownStatus(TopologySerializers.nodeId.deserialize(in),
+                                              AccordNodeInfos.Status.serializer.deserialize(in, version),
+                                              in.readUnsignedVInt(), in.readUnsignedVInt());
         }
 
         public long serializedSize(Transformation t, Version version)
         {
-            ReconfigureAccordFastPath update = (ReconfigureAccordFastPath) t;
+            AccordChangeDownStatus update = (AccordChangeDownStatus) t;
             return TopologySerializers.nodeId.serializedSize(update.node) +
-                   AccordFastPath.Status.serializer.serializedSize(update.status, version) +
+                   AccordNodeInfos.Status.serializer.serializedSize(update.status, version) +
                    TypeSizes.sizeofUnsignedVInt(update.updateTimeMillis) +
                    TypeSizes.sizeofUnsignedVInt(update.updateDelayMillis);
         }
