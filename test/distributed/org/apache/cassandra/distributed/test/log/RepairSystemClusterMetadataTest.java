@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test.log;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 import org.junit.Test;
 
@@ -36,6 +37,18 @@ public class RepairSystemClusterMetadataTest extends TestBaseImpl
         {
             cluster.get(1).nodetoolResult("cms", "reconfigure", "3");
             cluster.get(4).nodetoolResult("repair", "-force", "-st", "-1", "-et", "3074457345618258601", "system_cluster_metadata").asserts().success();
+        }
+    }
+
+    @Test
+    public void testHostTargetedRepair() throws IOException, ExecutionException, InterruptedException
+    {
+        try (Cluster cluster = init(builder().withNodes(6).withConfig(c -> c.with(Feature.NETWORK, Feature.GOSSIP))
+                                             .start()))
+        {
+            cluster.get(1).nodetoolResult("cms", "reconfigure", "3").asserts().success();
+            cluster.get(2).shutdown().get();
+            cluster.get(3).nodetoolResult("repair", "-force", "-hosts", "127.0.0.3", "-hosts", "127.0.0.4", "system_cluster_metadata").asserts().success();
         }
     }
 }
