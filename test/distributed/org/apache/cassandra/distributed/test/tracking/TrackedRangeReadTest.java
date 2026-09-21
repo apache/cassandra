@@ -572,4 +572,36 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
         assertTrackedMatchesOracle("e_rejected_row_behind_a_tombstone", TABLE, writes, FILTER, 2,
                                    (keyspace, oracle) -> assertEveryReplicaCanAnswerAlone(keyspace, FILTER, oracle));
     }
+
+    /**
+     * A reconciled range read whose per partition limit is reached on a row covered by a range tombstone that has not
+     * closed yet. ReadCommand.completeRead pairs the counter enforcing the limit with an RTBoundCloser, because a
+     * counter that stops inside an open range tombstone drops its closing bound; the closer appends that bound lazily,
+     * on the pull after the counter has stopped.
+     * <p>
+     * So an extending read must not stop its own counter on that same row one level higher up: the lazy pull never
+     * happens, the bound is never appended, and the {@code PROCESSED} {@code RTBoundValidator} the counter sits above
+     * sees the partition close with a range tombstone still open. It throws inside the response rather than answering,
+     * which the client sees as a timeout rather than as a failure.
+     * <p>
+     * ck = 3 is the row reconciliation delivers and the row the limit stops on, and the range tombstone covering
+     * [2, 6] is still open there because ck = 5 is behind it.
+     */
+    @Test
+    public void testRangeReadWhosePerPartitionLimitFallsInsideARangeTombstone()
+    {
+        String[] writes =
+        {
+            "*:INSERT INTO %s.tbl (pk0, pk1, ck, v) VALUES (1, 'a', 1, 10) USING TIMESTAMP 10",
+            "*:DELETE FROM %s.tbl USING TIMESTAMP 20 WHERE pk0 = 1 AND pk1 = 'a' AND ck >= 2 AND ck <= 6",
+            // the data replica misses this: reconciliation has to deliver it, which is what makes the completed read
+            // an extending one
+            "!1:INSERT INTO %s.tbl (pk0, pk1, ck, v) VALUES (1, 'a', 3, 30) USING TIMESTAMP 30",
+            // still inside the tombstone, so the tombstone is open when the limit stops on ck = 3
+            "*:INSERT INTO %s.tbl (pk0, pk1, ck, v) VALUES (1, 'a', 5, 50) USING TIMESTAMP 50"
+        };
+        String select = "SELECT pk0, pk1, ck, v FROM %s.tbl PER PARTITION LIMIT 2";
+        assertTrackedMatchesOracle("h_per_partition_limit_inside_rt", TABLE, writes, select, UNPAGED,
+                                   (keyspace, oracle) -> assertDataReplicaCannotAnswerAlone(keyspace, select, oracle));
+    }
 }
