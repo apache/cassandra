@@ -19,7 +19,7 @@
 package org.apache.cassandra.distributed.test.cql3;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 
 import org.junit.Test;
@@ -62,11 +62,10 @@ public class MultiNodeTableWalkWithMutationTrackingTest extends MultiNodeTableWa
         // READ_AFTER_WRITE = true;
     }
 
-    // TODO: Remove this override entirely when range reads and indexing are working properly together.
     @Override
     protected List<CreateIndexDDL.Indexer> supportedIndexers()
     {
-        return Collections.singletonList(CreateIndexDDL.SAI);
+        return Arrays.asList(CreateIndexDDL.LEGACY, CreateIndexDDL.SAI);
     }
 
     @Override
