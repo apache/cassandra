@@ -235,6 +235,11 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
     private static final String TABLE_WITH_FROZEN_SET =
         "CREATE TABLE %s.tbl (pk0 int, pk1 text, ck int, fs frozen<set<int>>, PRIMARY KEY ((pk0, pk1), ck)) WITH read_repair = 'NONE'";
 
+    /** {@code v} is indexed and {@code w} is not, so a filter on {@code w} is left for the read to apply itself. */
+    private static final String TABLE_WITH_INDEXED_VALUE =
+        "CREATE TABLE %s.tbl (pk0 int, pk1 text, ck int, v int, w int, PRIMARY KEY ((pk0, pk1), ck)) WITH read_repair = 'NONE';" +
+        "CREATE INDEX tbl_v ON %s.tbl(v) USING 'SAI'";
+
     private static final String FILTER = "SELECT pk0, pk1, ck, v FROM %s.tbl WHERE v > 100 ALLOW FILTERING";
 
     /**
@@ -603,5 +608,11 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
         String select = "SELECT pk0, pk1, ck, v FROM %s.tbl PER PARTITION LIMIT 2";
         assertTrackedMatchesOracle("h_per_partition_limit_inside_rt", TABLE, writes, select, UNPAGED,
                                    (keyspace, oracle) -> assertDataReplicaCannotAnswerAlone(keyspace, select, oracle));
+    }
+
+    @Test
+    public void testIndexedRangeReadHandedAKeyPastTheScannedRange()
+    {
+        indexedRangeReadHandedAKeyPastTheScannedRange("j_indexed_key_past_the_scan", TABLE_WITH_INDEXED_VALUE);
     }
 }

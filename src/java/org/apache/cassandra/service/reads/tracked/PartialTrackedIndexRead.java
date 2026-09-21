@@ -448,7 +448,7 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
 
     private abstract class AbstractIndexPrepared extends Prepared
     {
-        protected DecoratedKey maxKey;
+        protected final DecoratedKey maxKey;
         protected final SortedSet<Match> materializedMatches;
         // there may be additional matches for keys we've already scanned, this allows us to read them before
         // starting a short read
@@ -539,7 +539,10 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
                 // TODO: maybe we should immediately start a follow up read if it's likely this key will be included in the response
                 if (!followUpReads.containsKey(key) && indexNewKey(update))
                 {
-                    maxKey = maxKey(maxKey, update.partitionKey());
+                    // maxKey is left alone on purpose. It is the last key this read scanned, so everything up to it
+                    // has a read behind it and the follow up read resumes after it. A key reconciliation hands us
+                    // beyond maxKey gets a read of its own, but the keys between the two do not, so moving maxKey up
+                    // to it would claim a span this read never scanned.
                     Future<FollowUpRead<Match, Searcher>> followUpRead = FollowUpRead.start(command, update.partitionKey(), consistencyLevel, requestTime);
                     followUpReads.put(key, followUpRead);
                 }
@@ -669,6 +672,7 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
      */
     private class MergingStoppingMatchIterator extends AbstractIterator<Match>
     {
+        /** The last key the local scan reached, or null when it materialized nothing and reached no key at all. */
         private final DecoratedKey maxKey;
         private final PeekingIterator<Match> materializedIterator;
         private final CloseablePeekingIterator<Match> additionalIterator;
@@ -700,11 +704,19 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
                 }
                 else
                 {
+                    // Nothing beyond maxKey was scanned, so there is no read behind a match past it. Stop here and
+                    // let the follow up read cover the rest: it resumes at maxKey, so it also covers what the
+                    // materialized iterator still holds, all of which sorts after this match and so past maxKey too.
+                    // A null maxKey means nothing was scanned at all, so no match has a read behind it.
+                    if (maxKey == null || additionalIterator.peek().key().compareTo(maxKey) > 0)
+                    {
+                        Preconditions.checkArgument(command.isRangeRequest());
+                        followUpRequired = true;
+                        return endOfData();
+                    }
+
                     Match match = additionalIterator.next();
                     searcher.matchComparator().consumeDuplicates(match, materializedIterator);
-
-                    DecoratedKey key = match.key();
-                    Preconditions.checkArgument(key.compareTo(maxKey) <= 0);
                     return match;
                 }
             }
@@ -716,7 +728,7 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
             {
                 Match match = additionalIterator.next();
                 DecoratedKey key = match.key();
-                if (key.compareTo(maxKey) > 0)
+                if (maxKey == null || key.compareTo(maxKey) > 0)
                 {
                     Preconditions.checkArgument(command.isRangeRequest());
                     followUpRequired = true;
@@ -768,8 +780,10 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
         protected AbstractBounds<PartitionPosition> followUpBounds()
         {
             Preconditions.checkState(command.isRangeRequest());
-            Preconditions.checkNotNull(maxKey);
             AbstractBounds<PartitionPosition> bounds = command.dataRange().keyRange();
+            // no key was scanned, so the follow up read has the whole range left to cover
+            if (maxKey == null)
+                return bounds;
             return bounds.inclusiveRight()
                    ? new Range<>(maxKey, bounds.right)
                    : new ExcludingBounds<>(maxKey, bounds.right);
