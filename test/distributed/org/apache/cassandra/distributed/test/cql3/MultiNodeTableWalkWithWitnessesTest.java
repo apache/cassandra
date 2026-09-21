@@ -18,11 +18,8 @@
 
 package org.apache.cassandra.distributed.test.cql3;
 
-import java.util.List;
-
 import accord.utils.RandomSource;
 
-import org.apache.cassandra.cql3.ast.CreateIndexDDL;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.schema.TableMetadata;
@@ -36,26 +33,6 @@ public class MultiNodeTableWalkWithWitnessesTest extends MultiNodeTableWalkWithM
 
         // Enable transient replication replication
         c.set("transient_replication_enabled", "true");
-    }
-
-    @Override
-    protected List<CreateIndexDDL.Indexer> supportedIndexers()
-    {
-        // TODO (expected): Implement supported indexers for witnesses
-        return List.of();
-    }
-
-    /**
-     * A range read that crosses from a fully replicated range into a witnessed one is answered as if it were full
-     * throughout, so a full table scan here can lose a partition depending on the seed. That is a defect in the
-     * generic replica plan, not in the tracked read path, and it is fixed by "Split a range read where full
-     * replication ends and witnessing begins"; until then this walk runs the partition restricted reads it always
-     * ran.
-     */
-    @Override
-    protected boolean allowRangeReads()
-    {
-        return false;
     }
 
     protected class WitnessState extends MultiNodeTableWalkBase.MultiNodeState
