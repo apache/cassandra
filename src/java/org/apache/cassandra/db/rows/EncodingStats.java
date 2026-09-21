@@ -295,7 +295,7 @@ public class EncodingStats implements IMeasurableMemory
         public int serializedSize(EncodingStats stats)
         {
             return TypeSizes.sizeofUnsignedVInt(stats.minTimestamp - TIMESTAMP_EPOCH)
-                   + TypeSizes.sizeofUnsignedVInt(stats.minLocalDeletionTime - DELETION_TIME_EPOCH)
+                   + TypeSizes.sizeofUnsignedVInt((int)(stats.minLocalDeletionTime - DELETION_TIME_EPOCH))
                    + TypeSizes.sizeofUnsignedVInt(stats.minTTL - TTL_EPOCH);
         }
 

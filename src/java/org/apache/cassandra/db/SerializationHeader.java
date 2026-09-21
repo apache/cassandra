@@ -264,7 +264,7 @@ public class SerializationHeader
 
     public long localDeletionTimeSerializedSize(long localDeletionTime)
     {
-        return TypeSizes.sizeofUnsignedVInt(localDeletionTime - stats.minLocalDeletionTime);
+        return TypeSizes.sizeofUnsignedVInt((int) (localDeletionTime - stats.minLocalDeletionTime));
     }
 
     public long ttlSerializedSize(int ttl)
