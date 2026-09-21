@@ -118,6 +118,7 @@ public class GuardrailsOptions implements GuardrailsConfig
         validateRoleNamePolicy(config.role_name_policy);
         validateAndSanitizeClientDriverVersions(config.minimum_client_driver_versions_warned, "minimum_client_driver_versions_warned");
         validateAndSanitizeClientDriverVersions(config.minimum_client_driver_versions_disallowed, "minimum_client_driver_versions_disallowed");
+        validateMaxIntThreshold(config.zstd_compression_level_warn_threshold, config.zstd_compression_level_fail_threshold, "zstd_compression_level");
     }
 
     @Override
@@ -1427,6 +1428,32 @@ public class GuardrailsOptions implements GuardrailsConfig
     public Map<String, String> getMinimumClientDriverVersionsDisallowed()
     {
         return config.minimum_client_driver_versions_disallowed;
+    }
+
+    @Override
+    public int getZstdCompressionLevelWarnThreshold()
+    {
+        return config.zstd_compression_level_warn_threshold;
+    }
+
+    @Override
+    public int getZstdCompressionLevelFailThreshold()
+    {
+        return config.zstd_compression_level_fail_threshold;
+    }
+
+    @Override
+    public void setZstdCompressionLevelThreshold(int warn, int fail)
+    {
+        validateMaxIntThreshold(warn, fail, "zstd_compression_level");
+        updatePropertyWithLogging("zstd_compression_level_warn_threshold",
+                                  warn,
+                                  () -> config.zstd_compression_level_warn_threshold,
+                                  x -> config.zstd_compression_level_warn_threshold = x);
+        updatePropertyWithLogging("zstd_compression_level_fail_threshold",
+                                  fail,
+                                  () -> config.zstd_compression_level_fail_threshold,
+                                  x -> config.zstd_compression_level_fail_threshold = x);
     }
 
     public void setMinimumClientDriverVersionsWarned(Map<String, String> versions)

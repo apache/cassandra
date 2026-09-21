@@ -537,6 +537,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         data.subscribe(StorageService.instance.sstablesTracker);
         data.subscribe(SnapshotManager.instance);
 
+        // Created here, ahead of the `if (data.loadsstables)` block below, because the SSTableReader.openAll()
+        // call in it reads back owner.compressionDictionaryManager() for every dictionary-compressed sstable it
+        // opens. Were this still null by then, each such sstable would leak a dictionary reference (CASSANDRA-21047).
+        compressionDictionaryManager = new CompressionDictionaryManager(this, registerBookeeping);
+
         Collection<SSTableReader> sstables = null;
         // scan for sstables corresponding to this cf and load them
         if (data.loadsstables)
@@ -592,7 +597,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         streamManager = new CassandraStreamManager(this);
         repairManager = new CassandraTableRepairManager(this);
         sstableImporter = new SSTableImporter(this);
-        compressionDictionaryManager = new CompressionDictionaryManager(this, registerBookeeping);
 
         if (DatabaseDescriptor.isClientOrToolInitialized() || SchemaConstants.isSystemKeyspace(getKeyspaceName()))
             topPartitions = null;

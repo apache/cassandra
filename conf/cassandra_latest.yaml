@@ -2399,6 +2399,14 @@ drop_compact_storage_enabled: false
 # CMS size would be below this threshold. The CMS size is the aggregate replication factor across all datacenters.
 # The check is skipped when the cluster has fewer nodes than the threshold. Defaults to -1 to disable.
 # minimum_cms_size_fail_threshold: -1
+#
+# Guardrail to warn or fail when creating or altering a table with a specific Zstd compressor level.
+# Zstd compressor level goes from -131072 to 22. The higher the level, the more CPU- and memory-intensive
+# compression becomes, with level 22 being the most demanding of both.
+# The value of this guardrail lower than -1 is illegal, that is, this guardrail does not take
+# negative Zstd compressor levels into consideration, except -1 which means the guardrail is disabled.
+# zstd_compression_level_warn_threshold: -1
+# zstd_compression_level_fail_threshold: -1
 
 #role_name_policy:
 #  # Implementation class of a validator. When not in form of FQCN, the

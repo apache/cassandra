@@ -1275,4 +1275,20 @@ public interface GuardrailsMBean
      * @param enabled {@code true} to reject, {@code false} to allow.
      */
     void setPreparedStatementsRequireParametersEnabled(boolean enabled);
+
+    /**
+     * @return The threshold to warn when creating a table with a Zstd compression level above it.
+     */
+    int getZstdCompressionLevelWarnThreshold();
+
+    /**
+     * @return The threshold to fail when creating a table with a Zstd compression level above it.
+     */
+    int getZstdCompressionLevelFailThreshold();
+
+    /**
+     * @param warn The threshold to warn when creating a table with a Zstd compression level above it. -1 means disabled.
+     * @param fail The threshold to prevent creating a table with a Zstd compression level above it. -1 means disabled.
+     */
+    void setZstdCompressionLevelThreshold(int warn, int fail);
 }

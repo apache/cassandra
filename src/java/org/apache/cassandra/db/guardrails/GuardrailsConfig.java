@@ -757,4 +757,22 @@ public interface GuardrailsConfig
      * @param enabled {@code true} to reject, {@code false} to allow.
      */
     void setPreparedStatementsRequireParametersEnabled(boolean enabled);
+
+    /**
+     * @return the warning threshold for the Zstd compressor level
+     */
+    int getZstdCompressionLevelWarnThreshold();
+
+    /**
+     * @return the failure threshold for the Zstd compressor level
+     */
+    int getZstdCompressionLevelFailThreshold();
+
+    /**
+     * Sets warning and failure thresholds for the Zstd compressor levels.
+     *
+     * @param warn value to set for warn threshold
+     * @param fail value to set for fail threshold
+     */
+    void setZstdCompressionLevelThreshold(int warn, int fail);
 }

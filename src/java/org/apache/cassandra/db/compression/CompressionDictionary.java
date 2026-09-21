@@ -254,10 +254,11 @@ public interface CompressionDictionary
 
         CompressionDictionary dictionary = kind.createDictionary(dictId, dict, checksum);
 
-        // update the dictionary manager if it exists
         if (manager != null)
         {
-            manager.add(dictionary);
+            CompressionDictionary canonical = manager.add(dictionary);
+            if (canonical != null)
+                dictionary = canonical;
         }
 
         return dictionary;

@@ -88,6 +88,16 @@ public class CompressionDictionaryEventHandler implements ICompressionDictionary
                 }
 
                 CompressionDictionary dictionary = SystemDistributedKeyspace.retrieveCompressionDictionary(keyspaceName, tableName, cfs.metadata().id.toLongString(), dictionaryId.id);
+                if (dictionary == null)
+                {
+                    // cache.add(null) is a no-op, so without this the node keeps writing with the dictionary it
+                    // already has and nothing anywhere says so. The periodic refresh is the only recovery, and
+                    // it runs on compression_dictionary_refresh_interval - an hour by default.
+                    logger.info("Notified of compression dictionary {} for {}.{} but could not read it back; " +
+                                "this node keeps using its current dictionary until the next periodic refresh.",
+                                dictionaryId, keyspaceName, tableName);
+                    return;
+                }
                 cache.add(dictionary);
             }
             catch (Exception e)

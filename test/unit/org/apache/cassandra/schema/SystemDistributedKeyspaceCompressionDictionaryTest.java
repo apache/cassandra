@@ -24,6 +24,7 @@ import java.util.UUID;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -31,6 +32,11 @@ import org.apache.cassandra.db.compression.CompressionDictionary;
 import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
 import org.apache.cassandra.db.compression.ZstdCompressionDictionary;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -180,6 +186,31 @@ public class SystemDistributedKeyspaceCompressionDictionaryTest extends CQLTeste
         assertThat(nonExistentById)
         .as("Should return null for non-existent dictionary ID")
         .isNull();
+    }
+
+    @Test
+    public void testMissingDictionaryDoesNotWarn()
+    {
+        Logger logger = (Logger) LoggerFactory.getLogger(SystemDistributedKeyspace.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+
+        try
+        {
+            assertThat(SystemDistributedKeyspace.retrieveLatestCompressionDictionary(TEST_KEYSPACE, TEST_TABLE, "nonexistingid")).isNull();
+            assertThat(SystemDistributedKeyspace.retrieveLightweightLatestCompressionDictionary(TEST_KEYSPACE, TEST_TABLE, "nonexistingid")).isNull();
+            assertThat(SystemDistributedKeyspace.retrieveCompressionDictionary(TEST_KEYSPACE, TEST_TABLE, "nonexistingid", 999L)).isNull();
+
+            assertThat(appender.list)
+            .as("a table with no dictionary yet is an ordinary state, not a read failure, and must not warn")
+            .noneMatch(event -> event.getLevel() == Level.WARN);
+        }
+        finally
+        {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
     }
 
     @Test

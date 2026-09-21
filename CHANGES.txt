@@ -11,6 +11,11 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Implement Zstd compression level guardrail (CASSANDRA-21021)
+ * Fix Compression dictionary distribution silently leaving a node on a stale dictionary (CASSANDRA-21681)
+ * ZstdCompressionDictionary reference leak when opening dictionary-compressed SSTables concurrently (CASSANDRA-21680)
+ * Avoid ZstdDictionary to allocate a native zstd context per chunk (CASSANDRA-21677)
+ * Avoid ZstdDictionaryCompressor to allocate a native zstd context per chunk (CASSANDRA-21672)
  * Don't replicate transformations to LEFT nodes (CASSANDRA-21652)
  * Don't fail host specific repairs against system_cluster_metadata (CASSANDRA-21651)
  * During major upgrade, if a node has replacement arguments it attempts to bootstrap even if already bootstrapped (CASSANDRA-21634)
