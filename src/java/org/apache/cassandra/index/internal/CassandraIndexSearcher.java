@@ -119,6 +119,9 @@ public abstract class CassandraIndexSearcher<Match extends Index.IndexMatch> imp
         @Override
         public void insertRow(Row row)
         {
+            if (row.isStatic() && !indexedColumn().isStatic() && !indexedColumn().isPartitionKey())
+                return;
+
             if (!expression.isSatisfiedBy(command.metadata(), key, row, nowInSec()))
                 return;
 
