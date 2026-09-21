@@ -38,11 +38,13 @@ public class DataStorageSpecTest
     @Test
     public void testConversions()
     {
+        assertEquals(0, new DataStorageSpec.LongBytesBound("0").toBytes());
         assertEquals(10, new DataStorageSpec.LongBytesBound("10B").toBytes());
         assertEquals(10240, new DataStorageSpec.LongBytesBound("10KiB").toBytes());
         assertEquals(10485760, new DataStorageSpec.LongBytesBound("10MiB").toBytes());
         assertEquals(1073741824, new DataStorageSpec.LongBytesBound("1GiB").toBytes());
 
+        assertEquals(0, new DataStorageSpec.LongMebibytesBound("0").toMebibytes());
         assertEquals(1024, new DataStorageSpec.LongMebibytesBound("1GiB").toMebibytes());
         assertEquals(10485760, new DataStorageSpec.LongMebibytesBound("10MiB").toBytes());
         assertEquals(10240, new DataStorageSpec.LongMebibytesBound("10MiB").toKibibytes());
@@ -167,6 +169,8 @@ public class DataStorageSpecTest
     @Test
     public void testInvalidInputs()
     {
+        assertThatThrownBy(() -> new DataStorageSpec.LongBytesBound("-0")).isInstanceOf(IllegalArgumentException.class)
+                                                                          .hasMessageContaining("Invalid data storage: -0");
         assertThatThrownBy(() -> new DataStorageSpec.LongBytesBound("10")).isInstanceOf(IllegalArgumentException.class)
                                                                           .hasMessageContaining("Invalid data storage: 10");
         assertThatThrownBy(() -> new DataStorageSpec.LongBytesBound("-10bps")).isInstanceOf(IllegalArgumentException.class)
@@ -221,6 +225,12 @@ public class DataStorageSpecTest
     @Test
     public void testEquals()
     {
+        assertEquals(new DataStorageSpec.LongBytesBound("0"), new DataStorageSpec.LongBytesBound("0B"));
+        assertEquals(new DataStorageSpec.IntBytesBound("0"), new DataStorageSpec.IntBytesBound("0B"));
+        assertEquals(new DataStorageSpec.IntMebibytesBound("0"), new DataStorageSpec.IntMebibytesBound("0MiB"));
+        assertEquals(new DataStorageSpec.LongMebibytesBound("0"), new DataStorageSpec.LongMebibytesBound("0MiB"));
+        assertEquals(new DataStorageSpec.IntKibibytesBound("0"), new DataStorageSpec.IntKibibytesBound("0KiB"));
+
         assertEquals(new DataStorageSpec.LongBytesBound("10B"), new DataStorageSpec.LongBytesBound("10B"));
 
         assertEquals(new DataStorageSpec.LongBytesBound.LongBytesBound("10KiB"), new DataStorageSpec.LongBytesBound.LongBytesBound("10240B"));

@@ -44,7 +44,7 @@ public abstract class DurationSpec
     /**
      * The Regexp used to parse the duration provided as String.
      */
-    private static final Pattern UNITS_PATTERN = Pattern.compile(("^(\\d+)(d|h|s|ms|us|µs|ns|m)$"));
+    private static final Pattern UNITS_PATTERN = Pattern.compile(("^(\\d+)(d|h|s|ms|us|µs|ns|m)?$"));
 
     private final long quantity;
 
@@ -67,18 +67,26 @@ public abstract class DurationSpec
     private DurationSpec(String value, TimeUnit minUnit)
     {
         Matcher matcher = UNITS_PATTERN.matcher(value);
+        IllegalArgumentException ex = new IllegalArgumentException("Invalid duration: " + value + " Accepted units:" + acceptedUnits(minUnit) +
+                                                                   " where case matters and only non-negative values.");
 
         if (matcher.find())
         {
             quantity = Long.parseLong(matcher.group(1));
-            unit = fromSymbol(matcher.group(2));
+
+            String symbol = matcher.group(2);
+            if (symbol != null)
+                unit = fromSymbol(symbol);
+            else if (quantity == 0L) // accept 0 if it's without a unit
+                unit = minUnit;
+            else
+                throw ex;
 
             // this constructor is used only by extended classes for min unit; upper bound and min unit are guarded there accordingly
         }
         else
         {
-            throw new IllegalArgumentException("Invalid duration: " + value + " Accepted units:" + acceptedUnits(minUnit) +
-                                               " where case matters and only non-negative values.");
+            throw ex;
         }
     }
 
