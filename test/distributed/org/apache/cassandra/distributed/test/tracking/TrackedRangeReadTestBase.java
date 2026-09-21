@@ -23,20 +23,32 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.BiConsumer;
 
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 
@@ -260,6 +272,52 @@ public abstract class TrackedRangeReadTestBase extends TestBaseImpl
     protected static Object[][] nodeLocal(String keyspace, int node, String select)
     {
         return cluster.get(node).executeInternal(withKeyspace(select, keyspace));
+    }
+
+    /**
+     * The nodes that are full replicas of the partition {@code (pk0, pk1)}, decided by the same question
+     * {@code Keyspace.applyInternalTracked} asks before it writes: is the token in one of this node's full local
+     * ranges. Every table the harness uses has that partition key, and reading the answer out of the replication
+     * strategy rather than off a hardcoded ring means the model cannot drift from the placement the writes actually
+     * got. With no transient replicas every node's full local ranges cover the ring, so this is always all three
+     * nodes.
+     */
+    protected static Set<Integer> fullReplicasFor(String keyspace, int pk0, String pk1)
+    {
+        Set<Integer> full = new TreeSet<>();
+        for (int node = 1; node <= REPLICAS; node++)
+        {
+            boolean isFull = cluster.get(node).callOnInstance(() -> {
+                AbstractReplicationStrategy strategy = Keyspace.open(keyspace).getReplicationStrategy();
+                Token token = DatabaseDescriptor.getPartitioner()
+                                                .getToken(CompositeType.build(ByteBufferAccessor.instance,
+                                                                              Int32Type.instance.decompose(pk0),
+                                                                              UTF8Type.instance.decompose(pk1)));
+                for (Range<Token> range : strategy.getLocalRanges(ClusterMetadata.current()).onlyFull().ranges())
+                    if (range.contains(token))
+                        return true;
+                return false;
+            });
+            if (isFull)
+                full.add(node);
+        }
+        return full;
+    }
+
+    /**
+     * The rows of {@code rows} that node {@code node} can possibly hold in its own memtables and sstables: the ones
+     * whose partition it is a full replica of. With no transient replicas that is every row.
+     * <p>
+     * The first two columns of every row are {@code pk0} and {@code pk1}, which every select the harness hands to a
+     * placement aware check begins with.
+     */
+    protected static Object[][] materializedOn(String keyspace, int node, Object[][] rows)
+    {
+        List<Object[]> held = new ArrayList<>();
+        for (Object[] row : rows)
+            if (fullReplicasFor(keyspace, (Integer) row[0], (String) row[1]).contains(node))
+                held.add(row);
+        return held.toArray(new Object[0][]);
     }
 
     /**

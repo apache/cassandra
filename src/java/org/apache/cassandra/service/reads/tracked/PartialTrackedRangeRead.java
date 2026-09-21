@@ -519,10 +519,25 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
                 return followUpReadInfo.firstKey().compareTo(lastMatchingKey) < 0;
             }
 
+            /**
+             * Whether there are keys the read still has room to return rows from.
+             * <p>
+             * The keys reconciliation flagged were all inside the range this read has already scanned, and the row
+             * filter dropped them out of it, so a follow up that resumes the scan at {@link #followUpBounds} will
+             * never revisit them: they are read here or not at all. That makes them worth reading whenever the read
+             * has not already filled its limit, however far through its range it got - which is the one thing short
+             * read protection has no reason to check, since it exists to notice a read that stopped early and this
+             * read did not stop early, it discarded a partition it should have kept.
+             */
+            private boolean hasUnreturnedFollowupKeys()
+            {
+                return !followUpReadInfo.isEmpty() && !mergedResultCounter.isDone();
+            }
+
             @Override
             protected boolean followUpRequired()
             {
-                return hasInterleavedFollowupKeys() || super.followUpRequired();
+                return hasInterleavedFollowupKeys() || hasUnreturnedFollowupKeys() || super.followUpRequired();
             }
 
             @Override
@@ -558,7 +573,7 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
             @Override
             protected CompletedRead extendRead(UnfilteredPartitionIterator iterator)
             {
-                return new FilteredCompletedRead(command, iterator, shortReadSupport, data.isEmpty() ? data.lastKey() : null, followUpReadInfo);
+                return new FilteredCompletedRead(command, iterator, shortReadSupport, data.isEmpty() ? null : data.lastKey(), followUpReadInfo);
             }
         }
 
