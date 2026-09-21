@@ -83,6 +83,19 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
         return key.compareTo(finalKey) < 0;
     }
 
+    /**
+     * Where a further round of follow up reads should resume. When this round started a range read of its own, that
+     * read is the authority on how far through the range it got, and a null answer from it means that range held no
+     * partition at all rather than that it was exhausted - a read that reached the end answers with the bounds above
+     * its last key. Otherwise this round started no range read, so its own bounds are what is still outstanding.
+     */
+    private AbstractBounds<PartitionPosition> nextBounds(AtomicReference<PartialTrackedRead> partialRead)
+    {
+        if (partialRead == null)
+            return followUpBounds;
+        return ((PartialTrackedRangeRead) partialRead.get()).followUpBounds();
+    }
+
     public void start()
     {
         ClusterMetadata metadata = ClusterMetadata.current();
@@ -105,7 +118,9 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
         SortedMap<DecoratedKey, FollowUpReadInfo> nextKeys = followUpKeys.hasNext() ? followUpReadInfo.tailMap(followUpKeys.next()) : Collections.emptySortedMap();
 
         AtomicReference<PartialTrackedRead> partialRead;
-        if (remaining > 0)
+        // a null followUpBounds means the read this one follows up on materialized no partition at all, so its range
+        // is known to be empty and re-reading it would only rescan it; only the follow up keys above are worth chasing
+        if (remaining > 0 && followUpBounds != null)
         {
             partialRead = new AtomicReference<>();
             TrackedRead.Range rangeRead = makeFollowUpRead(command, followUpBounds, remaining, consistencyLevel, requestTime);
@@ -146,14 +161,10 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
 
                 // although we check for interleaved keys in the initial read, we always query for them in the follow up, so
                 // we just use normal short read protection checks here
-                if (followUpReadRequired(command, mergedResultCounter, initialIteratorExhausted, partitionsFetched))
+                AbstractBounds<PartitionPosition> nextBounds = nextBounds(partialRead);
+                if (followUpReadRequired(command, mergedResultCounter, initialIteratorExhausted, partitionsFetched)
+                    && (nextBounds != null || !nextKeys.isEmpty()))
                 {
-                    AbstractBounds<PartitionPosition> nextBounds =  this.followUpBounds;
-                    if (partialRead != null)
-                    {
-                        PartialTrackedRangeRead followUpRangeRead = (PartialTrackedRangeRead) partialRead.get();
-                        nextBounds = followUpRangeRead.followUpBounds();
-                    }
                     FilteredFollowupRead followUp = new FilteredFollowupRead(response, toQuery(command, mergedResultCounter), consistencyLevel, requestTime, nextKeys, command, nextBounds, null);
                     followUp.start();
                     followUp.addCallback((result, failure) -> {

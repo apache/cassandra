@@ -317,7 +317,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             logger.trace("Locally coordinating {}", readId);
             Stage.READ.submit(() -> {
                 AsyncPromise<TrackedDataResponse> promise =
-                    MutationTrackingService.instance().localReads().beginRead(readId, ClusterMetadata.current(), command, consistencyLevel, summaryNodes, requestTime, completer);
+                    MutationTrackingService.instance().localReads().beginRead(readId, ClusterMetadata.current(), command, consistencyLevel, summaryNodes, requestTime, partialReadConsumer, completer);
                 promise.addCallback((response, error) -> {
                     if (error != null)
                     {

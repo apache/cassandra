@@ -70,6 +70,20 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
 
     protected final PartitionRangeReadCommand command;
 
+    /**
+     * Where a follow up read of this range should resume, written once, by {@link #prepareInternal}, from the
+     * {@link ShortReadSupport} of the read's only {@link RangePrepared}. Kept here rather than read back off the state
+     * because {@link #followUpBounds()} is answered for a read that has already completed, and completing a read closes
+     * it. Volatile because {@link #followUpBounds()} is called without the read's lock, from another thread, possibly
+     * after the read is closed.
+     * <p>
+     * Null when the read materialized no partition at all, which is the only case
+     * {@link ShortReadSupport.Builder#build()} leaves it unset for. A read that scanned its range to the end has
+     * non-null bounds - {@code (lastPartitionKey, right]} - not null ones, so null means the range is known to hold
+     * nothing rather than that the range has been exhausted.
+     */
+    private volatile AbstractBounds<PartitionPosition> followUpBounds;
+
     private PartialTrackedRangeRead(ReadExecutionController executionController, ColumnFamilyStore cfs, long startTimeNanos, PartitionRangeReadCommand command)
     {
         super(executionController, cfs, startTimeNanos);
@@ -290,11 +304,6 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
                 return extendRead(iterator);
             return CompletedRead.simple(iterator, command, command.nowInSec());
         }
-
-        AbstractBounds<PartitionPosition> followUpBounds()
-        {
-            return shortReadSupport.followUpBounds;
-        }
     }
 
     abstract Materializer createMaterializer();
@@ -309,7 +318,9 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
         // onto heap at partition granularity until the limits of the read are reached.
 
         Materializer materializer = createMaterializer();
-        return materializer.materialize(initialData);
+        RangePrepared prepared = materializer.materialize(initialData);
+        followUpBounds = prepared.shortReadSupport.followUpBounds;
+        return prepared;
     }
 
     UnfilteredRowIterator queryPartition(AbstractBTreePartition partition)
@@ -321,8 +332,7 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
 
     public AbstractBounds<PartitionPosition> followUpBounds()
     {
-        RangeCompleted completed = (RangeCompleted) state().asCompleted();
-        return completed.followUpBounds();
+        return followUpBounds;
     }
 
     protected static TrackedRead.Range makeFollowUpRead(PartitionRangeReadCommand command, AbstractBounds<PartitionPosition> followUpBounds, int toQuery, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)

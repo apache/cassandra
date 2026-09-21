@@ -90,6 +90,38 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
         assertRows(pagingResult, row((short) 24199), row((short) 24199), row((short) 21485));
     }
 
+    /**
+     * The read still has range left when it chases a flagged key, so FilteredFollowupRead starts a range read of its
+     * own and its callback asks nextBounds where that read stopped - which needs the partial read startLocal delivers
+     * to its consumer.
+     */
+    @Test
+    public void testRangeFilterOnFrozenSetNoLimit()
+    {
+        String keyspace = "range_filter_on_frozen_set_no_limit";
+        createTrackedKeyspace(keyspace);
+
+        cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk0 int, pk1 boolean, ck0 inet, v1 int, v4 frozen<set<bigint>>, PRIMARY KEY ((pk0, pk1), ck0)) WITH CLUSTERING ORDER BY (ck0 DESC) AND read_repair = 'NONE'", keyspace));
+        cluster.forEach(i -> i.nodetoolResult("disableautocompaction", keyspace, "tbl").asserts().success());
+
+        cluster.get(1).executeInternal(withKeyspace("UPDATE %s.tbl USING TIMESTAMP 3 SET v4={-4237118076428244729, -1815831816430314156} " +
+                                                    "WHERE pk0 = -1256431887 AND pk1 = true AND ck0 IN ('c50:5c4d:35cb:1739:f958:8f83:5d95:963d', '7bf6:c19e:d3f2:8679:b3b3:377f:1ac8:1416', 'd035:5ffc:960c:1b8c:f4ed:a2cf:73f6:af9c')", keyspace));
+        cluster.get(1).executeInternal(withKeyspace("INSERT INTO %s.tbl (pk0, pk1, ck0, v4) VALUES (-639885536, false, '238.234.202.249', {8383242616920701144}) USING TIMESTAMP 4", keyspace));
+
+        String select = withKeyspace("SELECT * FROM %s.tbl WHERE v1 = 3 ALLOW FILTERING", keyspace);
+        cluster.coordinator(3).executeWithPaging(select, ConsistencyLevel.ALL, 100);
+
+        select = withKeyspace("SELECT * FROM %s.tbl WHERE v1 <= 3 LIMIT 175 ALLOW FILTERING", keyspace);
+        cluster.coordinator(3).executeWithPaging(select, ConsistencyLevel.ALL, 1);
+
+        cluster.get(3).executeInternal(withKeyspace("UPDATE %s.tbl USING TIMESTAMP 7 SET v4={7721973864222015806} WHERE  pk0 = -1256431887 AND  pk1 = true AND  ck0 = 'b318:85d4:d6a0:907:ff1e:9262:9635:ccfa'", keyspace));
+        cluster.get(2).executeInternal(withKeyspace("DELETE FROM %s.tbl USING TIMESTAMP 8 WHERE  pk0 = -639885536 AND  pk1 = false", keyspace));
+
+        select = withKeyspace("SELECT pk0, pk1 FROM %s.tbl WHERE v4 > {-4237118076428244729, -1815831816430314156} ALLOW FILTERING", keyspace);
+        Iterator<Object[]> pagingResult = cluster.coordinator(2).executeWithPaging(select, ConsistencyLevel.ALL, 5000);
+        assertRows(pagingResult, row(-1256431887, true));
+    }
+
     /** Enough partitions that each of the three primary ranges holds a few dozen of them. */
     private static final int PARTITIONS = 100;
 
@@ -151,6 +183,17 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
         "CREATE TABLE %s.tbl (pk0 int, pk1 text, ck int, fs frozen<set<int>>, PRIMARY KEY ((pk0, pk1), ck)) WITH read_repair = 'NONE'";
 
     private static final String FILTER = "SELECT pk0, pk1, ck, v FROM %s.tbl WHERE v > 100 ALLOW FILTERING";
+
+    /**
+     * Node 1 holds (1,'a') with the value the filter rejects and node 2 the newer value it accepts; node 3 holds
+     * neither. Node 1 coordinates, so it is the data replica for its own stale view, and reconciliation has to
+     * deliver a mutation for a key that replica has already materialized and thrown away.
+     */
+    private static final String[] SOLE_PARTITION_STALE_ON_NODE_1 =
+    {
+        "1:INSERT INTO %s.tbl (pk0, pk1, ck, v) VALUES (1, 'a', 1, 1) USING TIMESTAMP 10",
+        "2:UPDATE %s.tbl USING TIMESTAMP 20 SET v = 500 WHERE pk0 = 1 AND pk1 = 'a' AND ck = 1"
+    };
 
     /**
      * As {@link #SOLE_PARTITION_STALE_ON_NODE_1}, plus a partition (2,'b') that node 1 already holds a matching
@@ -237,6 +280,60 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
         };
         String select = "SELECT pk0, pk1, ck, fs FROM %s.tbl WHERE fs > {1, 2} ALLOW FILTERING";
         assertTrackedMatchesOracle("b_frozen_set_other_direction", TABLE_WITH_FROZEN_SET, writes, select, UNPAGED,
+                                   (keyspace, oracle) -> assertDataReplicaCannotAnswerAlone(keyspace, select, oracle));
+    }
+
+    /**
+     * The same shape as {@link #testFilteredRangeReadWhereEveryLocalPartitionIsFilteredOut}, except that the
+     * mutation reconciliation hands the data replica does satisfy the row filter. That records a follow up key, so
+     * the read takes the FilteredFollowupRead path instead of finishing where it stands.
+     * <p>
+     * The LIMIT is not what opens the follow up path: {@code FilteredCompletedRead.followUpRequired} chases a flagged
+     * key whenever one interleaves with the partitions the read kept or the merged result is not yet full, and neither
+     * needs a limit - {@link #testFilteredRangeReadWithAStaticColumn} is this shape without one.
+     */
+    @Test
+    public void testFilteredRangeReadWhereReconciliationRestoresTheOnlyMatch()
+    {
+        String select = "SELECT pk0, pk1, ck, v FROM %s.tbl WHERE v > 100 LIMIT 10 ALLOW FILTERING";
+        assertTrackedMatchesOracle("c_reconciled_only_match", TABLE, SOLE_PARTITION_STALE_ON_NODE_1, select, UNPAGED,
+                                   (keyspace, oracle) -> assertDataReplicaCannotAnswerAlone(keyspace, select, oracle));
+    }
+
+    /**
+     * The same follow up path reached with a limit that merely exceeds the reconciled result set rather than
+     * dwarfing it: two rows come back and the limit is three. Reaching the path at all also needs the fix
+     * {@link #testUnlimitedFilteredRangeReadWhereAFlaggedKeySortsLast} covers, because the key reconciliation
+     * flagged here sorts after a partition the read kept.
+     */
+    @Test
+    public void testFilteredRangeReadWithALimitLargerThanTheReconciledResult()
+    {
+        String select = "SELECT pk0, pk1, ck, v FROM %s.tbl WHERE v > 100 LIMIT 3 ALLOW FILTERING";
+        assertTrackedMatchesOracle("c_limit_exceeds_result", TABLE, TWO_PARTITIONS_ONE_STALE_ON_NODE_1, select, UNPAGED,
+                                   (keyspace, oracle) -> assertDataReplicaCannotAnswerAlone(keyspace, select, oracle));
+    }
+
+    /**
+     * The control for the two methods above, and the axis that separates them from it: reconciliation contributes to
+     * a partition the data replica kept rather than to one it discarded, so nothing is recorded as a follow up key
+     * and the limit is filled by the merge itself. No follow up read is requested and FilteredFollowupRead is never
+     * constructed.
+     * <p>
+     * Node 2's row is the lowest clustering in the partition, so the two rows the limit admits are not the two the
+     * data replica holds, which is what the probe checks.
+     */
+    @Test
+    public void testFilteredRangeReadWithALimitTheReconciledResultSatisfies()
+    {
+        String[] writes =
+        {
+            "1:INSERT INTO %s.tbl (pk0, pk1, ck, v) VALUES (1, 'a', 2, 500) USING TIMESTAMP 10",
+            "1:INSERT INTO %s.tbl (pk0, pk1, ck, v) VALUES (1, 'a', 3, 600) USING TIMESTAMP 11",
+            "2:INSERT INTO %s.tbl (pk0, pk1, ck, v) VALUES (1, 'a', 1, 700) USING TIMESTAMP 12"
+        };
+        String select = "SELECT pk0, pk1, ck, v FROM %s.tbl WHERE v > 100 LIMIT 2 ALLOW FILTERING";
+        assertTrackedMatchesOracle("c_limit_satisfied", TABLE, writes, select, UNPAGED,
                                    (keyspace, oracle) -> assertDataReplicaCannotAnswerAlone(keyspace, select, oracle));
     }
 
