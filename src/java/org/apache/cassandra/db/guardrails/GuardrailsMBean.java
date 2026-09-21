@@ -1249,4 +1249,20 @@ public interface GuardrailsMBean
      * @param value JSON representation of a map of driver name to minimum version string.
      */
     void setMinimumClientDriverVersionsDisallowed(String value);
+
+    /**
+     * @return The threshold to warn when creating a table with a Zstd compression level above it.
+     */
+    int getZstdCompressorLevelWarnThreshold();
+
+    /**
+     * @return The threshold to fail when creating a table with a Zstd compression level above it.
+     */
+    int getZstdCompressorLevelFailThreshold();
+
+    /**
+     * @param warn The threshold to warn when creating a table with a Zstd compression level above it. -1 means disabled.
+     * @param fail The threshold to prevent creating a table with a Zstd compression level above it. -1 means disabled.
+     */
+    void setZstdCompressorLevelThreshold(int warn, int fail);
 }
