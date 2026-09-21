@@ -45,6 +45,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.IntegerInterval;
+import org.apache.cassandra.utils.SyncUtil;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
@@ -181,6 +182,7 @@ public abstract class CommitLogSegment
             throw new FSWriteError(e, logFile);
         }
 
+        SyncUtil.trySyncDir(logFile.getParentFile());
         buffer = createBuffer(commitLog);
     }
 
