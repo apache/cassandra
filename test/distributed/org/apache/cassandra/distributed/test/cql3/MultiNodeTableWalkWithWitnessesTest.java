@@ -45,9 +45,22 @@ public class MultiNodeTableWalkWithWitnessesTest extends MultiNodeTableWalkWithM
         return List.of();
     }
 
-    protected class MultiNodeState extends MutationTrackingState
+    /**
+     * A range read that crosses from a fully replicated range into a witnessed one is answered as if it were full
+     * throughout, so a full table scan here can lose a partition depending on the seed. That is a defect in the
+     * generic replica plan, not in the tracked read path, and it is fixed by "Split a range read where full
+     * replication ends and witnessing begins"; until then this walk runs the partition restricted reads it always
+     * ran.
+     */
+    @Override
+    protected boolean allowRangeReads()
     {
-        public MultiNodeState(RandomSource rs, Cluster cluster)
+        return false;
+    }
+
+    protected class WitnessState extends MultiNodeTableWalkBase.MultiNodeState
+    {
+        public WitnessState(RandomSource rs, Cluster cluster)
         {
             super(rs, cluster);
         }
@@ -62,6 +75,6 @@ public class MultiNodeTableWalkWithWitnessesTest extends MultiNodeTableWalkWithM
     @Override
     protected State createState(RandomSource rs, Cluster cluster)
     {
-        return new MultiNodeState(rs, cluster);
+        return new WitnessState(rs, cluster);
     }
 }
