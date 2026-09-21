@@ -291,6 +291,10 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
                 catch (Throwable t)
                 {
                     logger.error("Exception thrown during read completion", t);
+                    // the coordinator is already out of the map, so the purger can no longer abort this
+                    // read; nothing else would release its execution controller. close() is idempotent,
+                    // so this is harmless when completion closed the read before failing.
+                    read.close();
                     promise.tryFailure(t);
                     throw t;
                 }
