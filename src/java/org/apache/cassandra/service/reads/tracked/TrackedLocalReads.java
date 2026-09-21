@@ -163,9 +163,13 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         }
         catch (Exception e)
         {
-            controller.close();
             logger.trace("Aborting read {}", readId);
-            if (read != null) read.close();
+            // the read owns the controller once it has been created, and ReadExecutionController.close()
+            // is not idempotent: closing it here as well would release the read ordering group twice
+            if (read != null)
+                read.close();
+            else
+                controller.close();
             throw e;
         }
 
