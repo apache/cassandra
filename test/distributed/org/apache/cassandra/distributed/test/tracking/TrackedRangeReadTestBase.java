@@ -347,6 +347,43 @@ public abstract class TrackedRangeReadTestBase extends TestBaseImpl
             assertRows(nodeLocal(keyspace, node, select), oracle);
     }
 
+    /**
+     * An indexed range read that scans part of its range, because a page's limit is reached before the end of it,
+     * and is then handed a key past everything it scanned by reconciliation.
+     * <p>
+     * The read remembers the last key it scanned so that the matches it did not get to can be recognised as a short
+     * read, and so that the follow up read knows where to resume. Reconciliation used to move that key up to the one
+     * it delivered, which claimed the whole span up to it even though only that one partition was read. The matches
+     * left over from the index scan then fell inside the claimed span, so instead of being treated as a short read
+     * they were emitted with nothing behind them:
+     * <pre>
+     * java.lang.IllegalStateException: Received match for key without initial or followup read: 000400000003...
+     *     at org.apache.cassandra.service.reads.tracked.PartialTrackedIndexRead$FilteringCompletedIndexRead$UnfilteredResultIterator.computeNext(PartialTrackedIndexRead.java:807)
+     *     at org.apache.cassandra.db.partitions.PartitionIterators$Serializer.serialize(PartitionIterators.java:247)
+     *     at org.apache.cassandra.service.reads.tracked.PartialTrackedIndexRead$FilteringCompletedIndexRead.response(PartialTrackedIndexRead.java:838)
+     * </pre>
+     * The replica throws instead of responding, so the read never completes and the client sees a timeout.
+     * <p>
+     * With the default Murmur3 partitioner a range scan visits (3,'c'), then (2,'b'), then (1,'a'). A page size of
+     * one stops the scan after (3,'c') and leaves (2,'b') among the matches it did not get to, (1,'a') is the key
+     * reconciliation delivers, and (3,'c') is written with a value the row filter rejects so that the page's limit
+     * is still unspent when the read moves past it and reaches (2,'b').
+     */
+    protected static void indexedRangeReadHandedAKeyPastTheScannedRange(String name, String table)
+    {
+        String[] writes =
+        {
+            "*:INSERT INTO %s.tbl (pk0, pk1, ck, v, w) VALUES (3, 'c', 1, 100, 0) USING TIMESTAMP 10",
+            "*:INSERT INTO %s.tbl (pk0, pk1, ck, v, w) VALUES (2, 'b', 1, 100, 1) USING TIMESTAMP 11",
+            // the data replica misses it, so reconciliation has to deliver it, and last in token order, so it is
+            // past the scan
+            "!1:INSERT INTO %s.tbl (pk0, pk1, ck, v, w) VALUES (1, 'a', 1, 100, 1) USING TIMESTAMP 12"
+        };
+        String select = "SELECT pk0, pk1, ck, v, w FROM %s.tbl WHERE v = 100 AND w = 1 ALLOW FILTERING";
+        assertTrackedMatchesOracle(name, table, writes, select, 1,
+                                   (keyspace, oracle) -> assertDataReplicaCannotAnswerAlone(keyspace, select, oracle));
+    }
+
     public static String withKeyspace(String replaceIn, String keyspace)
     {
         return String.format(replaceIn, keyspace);
