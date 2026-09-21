@@ -58,9 +58,11 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
 /**
- * The cluster and the oracle harness the tracked range read cases are written in terms of. The cases themselves live
- * in {@link TrackedRangeReadTest}, so that a case is nothing but the data it writes, the query it runs and the
- * assertion it makes, and so that a second suite can be written against the same harness without moving any of it.
+ * The cluster, the two modes and the oracle harness the tracked range read cases are written in terms of. The cases
+ * themselves are split across sibling classes - {@link TrackedRangeReadTest} and
+ * {@link TrackedLegacyIndexedRangeReadTest} - because every case leaves behind the two keyspaces it created, and a
+ * keyspace's tables keep a memtable region and a set of table metrics for as long as the cluster is up, so how many
+ * cases one class holds is bounded by the heap of the one JVM that runs it.
  * <p>
  * Every case runs twice, once per {@link Mode}: once with three full replicas of every range, and once with
  * one of those three turned into a witness. A witness journals a mutation so that it can take part in
@@ -532,6 +534,54 @@ public abstract class TrackedRangeReadTestBase extends TestBaseImpl
         Assert.assertEquals(mode == Mode.FULL ? "A node is short under a mode where every node is a full replica"
                                               : "Not stressed: every replica holds the whole answer, so nothing is being witnessed",
                             mode == Mode.WITNESSES, someNodeShort);
+    }
+
+    /*
+     * The index shapes below are fixtures rather than cases: each takes the table, and where the index decides the
+     * query, the query too, from the sibling that asserts it, so one shape can be asserted against more than one index
+     * implementation without being written twice. TrackedLegacyIndexedRangeReadTest asserts all of them against legacy
+     * 2i, and TrackedRangeReadTest asserts the last of them against SAI.
+     */
+
+    /**
+     * A partition holding a static row and no clustering rows, which satisfies one expression of a two expression
+     * predicate and not the other. Every expression the index claims is stripped from the post index query filter, so
+     * what is left of the filter is all that stands between an index false positive and the answer, and this false
+     * positive has no clustering row for a row level filter to reject: it can only be dropped whole.
+     * <p>
+     * (1,'b') is that partition - the index matches it and its static value is not the one asked for.
+     */
+    protected static void staticOnlyPartitionDoesNotMatch(String name, String table, String select)
+    {
+        String[] writes =
+        {
+            "*:INSERT INTO %s.tbl (pk0, pk1, ck, s, v) VALUES (1, 'a', 1, 7, 10) USING TIMESTAMP 10",
+            // static only: no clustering row is ever written for this partition
+            "*:UPDATE %s.tbl USING TIMESTAMP 11 SET s = 3 WHERE pk0 = 1 AND pk1 = 'b'"
+        };
+        assertTrackedMatchesOracle(name, table, writes, select, UNPAGED,
+                                   (keyspace, oracle) -> assertEveryReplicaCanAnswerAlone(keyspace, select, oracle));
+    }
+
+    /** Enough static only partitions ahead of the match that dropping them has to survive a limit being reached. */
+    private static final String[] STATIC_ONLY_PARTITIONS =
+    {
+        "*:INSERT INTO %s.tbl (pk0, pk1, ck, s, v) VALUES (1, 'a', 1, 7, 10) USING TIMESTAMP 10",
+        "*:UPDATE %s.tbl USING TIMESTAMP 11 SET s = 3 WHERE pk0 = 1 AND pk1 = 'b'",
+        "*:UPDATE %s.tbl USING TIMESTAMP 12 SET s = 3 WHERE pk0 = 1 AND pk1 = 'c'",
+        "*:UPDATE %s.tbl USING TIMESTAMP 13 SET s = 3 WHERE pk0 = 1 AND pk1 = 'd'"
+    };
+
+    /**
+     * {@link #staticOnlyPartitionDoesNotMatch} with three dropped partitions rather than one, and only as much of the
+     * answer asked for as one of them would fill. Dropping a partition returns an empty page to a pager that reads a
+     * short page as the end of the result set, so the drop has to be invisible to the limit counter as well as to the
+     * answer, whether the limit is a page size or a LIMIT.
+     */
+    protected static void staticOnlyPartitionsAreDropped(String name, String table, String select, int pageSize)
+    {
+        assertTrackedMatchesOracle(name, table, STATIC_ONLY_PARTITIONS, select, pageSize,
+                                   (keyspace, oracle) -> assertEveryReplicaCanAnswerAlone(keyspace, select, oracle));
     }
 
     /**

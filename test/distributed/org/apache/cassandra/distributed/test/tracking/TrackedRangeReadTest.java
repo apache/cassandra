@@ -36,7 +36,8 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
 /**
  * Tracked range reads, each case run once per {@link Mode} against the oracle harness in
- * {@link TrackedRangeReadTestBase}.
+ * {@link TrackedRangeReadTestBase}. The cases whose index is SAI have a legacy 2i counterpart in
+ * {@link TrackedLegacyIndexedRangeReadTest}.
  */
 @RunWith(Parameterized.class)
 public class TrackedRangeReadTest extends TrackedRangeReadTestBase
