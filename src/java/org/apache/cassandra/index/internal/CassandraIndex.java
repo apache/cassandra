@@ -594,6 +594,11 @@ public abstract class CassandraIndex implements Index
                                                                clustering,
                                                                cell));
         Clustering<?> indexClustering = buildIndexClustering(rowKey.getKey(), clustering, cell);
+
+        // IndexEntry expects a different clustering format for static rows on partition key indexes, so we adjust it here
+        if (clustering.kind() == ClusteringPrefix.Kind.STATIC_CLUSTERING && indexedColumn.isPartitionKey())
+            clustering = Clustering.make(new ByteBuffer[baseCfs.getComparator().size()]);
+
         return new IndexEntry(indexKey, indexClustering, info.timestamp(), rowKey, clustering);
     }
 
