@@ -26,6 +26,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Queue;
 
+import com.google.common.io.ByteStreams;
+
 import org.apache.cassandra.Util;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -242,7 +244,7 @@ public class CassandraEntireSSTableStreamWriterTest
         {
             try (InputStream in = descriptor.fileFor(component).newInputStream())
             {
-                serializedFile.writeBytes(in.readAllBytes());
+                serializedFile.writeBytes(ByteStreams.toByteArray(in));
             }
         }
 
