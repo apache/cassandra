@@ -271,6 +271,23 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
         "CREATE TABLE %s.tbl (pk0 int, pk1 text, ck int, s int static, v int, PRIMARY KEY ((pk0, pk1), ck)) WITH read_repair = 'NONE';" +
         "CREATE INDEX tbl_ck ON %s.tbl(ck) USING 'legacy_local_table'";
 
+    /**
+     * A static column index over legacy 2i, which indexes the static row and nothing else. {@code s2} is a second
+     * static column that no query here projects, so a write can be made visible to an assertion about where it landed
+     * without changing any answer the assertions about answers are made against.
+     */
+    private static final String TABLE_WITH_LEGACY_INDEXED_STATIC =
+        "CREATE TABLE %s.tbl (pk0 int, pk1 text, ck int, s int static, s2 int static, v int, PRIMARY KEY ((pk0, pk1), ck)) WITH read_repair = 'NONE';" +
+        "CREATE INDEX tbl_s ON %s.tbl(s) USING 'legacy_local_table'";
+
+    /**
+     * A partition key column index over a table that also has a static column. Legacy 2i indexes the static row for
+     * such an index deliberately, so that a partition holding nothing but static data is still discoverable.
+     */
+    private static final String TABLE_WITH_INDEXED_PARTITION_KEY_AND_STATIC =
+        "CREATE TABLE %s.tbl (pk0 int, pk1 text, ck int, s int static, v int, PRIMARY KEY ((pk0, pk1), ck)) WITH read_repair = 'NONE';" +
+        "CREATE INDEX tbl_pk0 ON %s.tbl(pk0) USING 'legacy_local_table'";
+
     private static final String FILTER = "SELECT pk0, pk1, ck, v FROM %s.tbl WHERE v > 100 ALLOW FILTERING";
 
     /**
@@ -698,6 +715,90 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
         };
         String select = "SELECT pk0, pk1, ck, s, v FROM %s.tbl WHERE ck = 2 ALLOW FILTERING";
         assertTrackedMatchesOracle("g_indexed_clustering_with_static", TABLE_WITH_INDEXED_CLUSTERING_AND_STATIC,
+                                   writes, select, UNPAGED,
+                                   (keyspace, oracle) -> assertDataReplicaCannotAnswerAlone(keyspace, select, oracle));
+    }
+
+    /**
+     * As {@link #testIndexedRangeReadWhereAReconciledUpdateCarriesAStaticRow}, for an index on the static column
+     * itself, which is the other index legacy 2i builds an entry for a static row for. Such an entry is keyed on
+     * nothing but the base partition key and decodes to {@code Clustering.STATIC_CLUSTERING}, so the entry the tracked
+     * read builds for the same row, indexing the mutation reconciliation delivers itself, has to decode the same way.
+     * {@code IndexEntry#compare} orders a clustering that has no values ahead of every clustering that has them, so a
+     * second form of the one static row survives the set {@code PartialTrackedIndexRead} collects entries into,
+     * {@code CompositesSearcher} reads (1,'b') once per entry, and the client is handed that partition twice. Under a
+     * limit the duplicate also consumes a slot a real partition needed.
+     * <p>
+     * The repeated update has to reach node 1 by reconciliation alone, so it is dropped on its way in and left dropped
+     * for the read under test, which is why the reset below cannot sit in the probe. It sets the static column to the
+     * value and the timestamp it already has, so the two entries describe the same row and the answer is what it was
+     * without it.
+     */
+    @Test
+    public void testIndexedStaticColumnRangeReadWhereAReconciledUpdateRepeatsAStaticRow()
+    {
+        String[] writes =
+        {
+            // a clustering row under a static value the query does not ask for
+            "*:INSERT INTO %s.tbl (pk0, pk1, ck, s, v) VALUES (1, 'a', 1, 3, 10) USING TIMESTAMP 10",
+            "*:UPDATE %s.tbl USING TIMESTAMP 20 SET s = 7 WHERE pk0 = 1 AND pk1 = 'b'"
+        };
+        String select = "SELECT pk0, pk1, ck, s, v FROM %s.tbl WHERE s = 7";
+        try
+        {
+            assertTrackedMatchesOracle("g_indexed_static_repeated", TABLE_WITH_LEGACY_INDEXED_STATIC, writes, select,
+                                       UNPAGED, (keyspace, oracle) -> {
+                                           repeatTheStaticUpdateAwayFromTheDataReplica(keyspace);
+                                           assertEveryReplicaCanAnswerAlone(keyspace, select, oracle);
+                                       });
+        }
+        finally
+        {
+            cluster.filters().reset();
+        }
+    }
+
+    /**
+     * Sets {@code s = 7} on (1,'b') a second time from a coordinator that is not the data replica, at a consistency
+     * level that coordinator meets out of its own copy, so that keeping the mutation off node 1 cannot time the write
+     * out. The drop is inbound at node 1 rather than outbound at node 2 so that it holds however the mutation is
+     * routed, and the caller leaves it installed until the read under test has run.
+     */
+    private static void repeatTheStaticUpdateAwayFromTheDataReplica(String keyspace)
+    {
+        cluster.filters().inbound().verbs(org.apache.cassandra.net.Verb.MUTATION_REQ.id).to(1).drop();
+        cluster.coordinator(2).execute(withKeyspace("UPDATE %s.tbl USING TIMESTAMP 20 SET s = 7, s2 = 1 "
+                                                   + "WHERE pk0 = 1 AND pk1 = 'b'", keyspace), ConsistencyLevel.ONE);
+        // the repeat is the only write that sets s2, so node 1 holding the static row without it is node 1 missing the
+        // repeat, which is the precondition the case needs and the thing the drop above is there to produce
+        assertRows(nodeLocal(keyspace, 1, "SELECT pk0, pk1, s, s2 FROM %s.tbl WHERE pk0 = 1 AND pk1 = 'b'"),
+                   materializedOn(keyspace, 1, new Object[][]{ row(1, "b", 7, null) }));
+    }
+
+    /**
+     * As {@link #testIndexedRangeReadWhereAReconciledUpdateCarriesAStaticRow}, for an index on a partition key column,
+     * which does index the static row: legacy 2i keys that entry on nothing but the base partition key, so that a
+     * partition holding only static data is still discoverable. Such an entry decodes to a base clustering of nulls
+     * rather than to {@code Clustering.STATIC_CLUSTERING} - see {@code CassandraIndex#baseClustering} - and the
+     * tracked matcher has to build it the same way, because the searcher names the decoded clustering in a
+     * {@code ClusteringIndexNamesFilter} and the static clustering cannot be compared against clusterings that have
+     * values. The filter is built inside the read's completion, where a throw sends no failure response.
+     * <p>
+     * (1,'a') reaches the searcher with a static entry alongside a row entry, and (1,'b') with a static entry alone,
+     * which is the case that leaves the names filter with no row to name at all.
+     */
+    @Test
+    public void testIndexedPartitionKeyRangeReadWhereAReconciledUpdateCarriesAStaticRow()
+    {
+        String[] writes =
+        {
+            "1:INSERT INTO %s.tbl (pk0, pk1, ck, s, v) VALUES (1, 'a', 1, 7, 10) USING TIMESTAMP 10",
+            // node 1 coordinates, so these are the updates reconciliation delivers, static rows and all
+            "2:UPDATE %s.tbl USING TIMESTAMP 20 SET s = 8, v = 500 WHERE pk0 = 1 AND pk1 = 'a' AND ck = 2",
+            "2:UPDATE %s.tbl USING TIMESTAMP 30 SET s = 9 WHERE pk0 = 1 AND pk1 = 'b'"
+        };
+        String select = "SELECT pk0, pk1, ck, s, v FROM %s.tbl WHERE pk0 = 1 ALLOW FILTERING";
+        assertTrackedMatchesOracle("g_indexed_pk_with_static", TABLE_WITH_INDEXED_PARTITION_KEY_AND_STATIC,
                                    writes, select, UNPAGED,
                                    (keyspace, oracle) -> assertDataReplicaCannotAnswerAlone(keyspace, select, oracle));
     }
