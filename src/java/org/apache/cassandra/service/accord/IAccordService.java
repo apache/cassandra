@@ -65,7 +65,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.api.AccordTopologySorter;
 import org.apache.cassandra.service.accord.execution.AccordExecutor;
-import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMap;
 import org.apache.cassandra.service.accord.topology.AccordSyncPropagator;
 import org.apache.cassandra.service.accord.topology.AccordSyncPropagator.Notification;
 import org.apache.cassandra.service.accord.topology.AccordTopologyService;
@@ -187,7 +187,7 @@ public interface IAccordService
 
     void awaitDone(TableId id, long epoch);
 
-    AccordEndpointMapper endpointMapper();
+    AccordEndpointMap endpointMapper();
 
     AccordTopologyService topologyService();
 
@@ -351,7 +351,7 @@ public interface IAccordService
         }
 
         @Override
-        public AccordEndpointMapper endpointMapper()
+        public AccordEndpointMap endpointMapper()
         {
             throw new UnsupportedOperationException();
         }
@@ -421,7 +421,7 @@ public interface IAccordService
         }
 
         @Override
-        public AccordEndpointMapper endpointMapper()
+        public AccordEndpointMap endpointMapper()
         {
             return delegate.endpointMapper();
         }

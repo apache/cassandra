@@ -1012,6 +1012,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     () -> StorageService.instance.setIsShutdownUnsafeForTests(true),
                     CassandraDaemon.getInstanceForTesting()::destroyClientTransports);
 
+            error = parallelRun(error, executor, StorageService.instance::runPreShutdownHooks);
+
             if (config.has(GOSSIP) || config.has(NETWORK))
             {
                 StorageService.instance.shutdownServer();

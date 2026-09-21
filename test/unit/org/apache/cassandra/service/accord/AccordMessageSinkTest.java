@@ -53,13 +53,13 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.service.accord.AccordFetchCoordinator.AccordFetchRequest;
 import org.apache.cassandra.service.accord.api.AccordTimeService;
-import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMap;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 
 public class AccordMessageSinkTest
 {
     private static final Node.Id node = new Node.Id(1);
-    private static final AccordEndpointMapper mapping = SimpleAccordEndpointMapper.INSTANCE;
+    private static final AccordEndpointMap mapping = SimpleAccordEndpointMap.INSTANCE;
     private static final Topology topology = TopologyUtils.initialTopology(new Node.Id[] { node}, Ranges.of(IntKey.range(0, 100)), 1);
     private static final Topologies topologies = new Topologies.Single((TopologySorter) (StaticSorter)(a, b, ignore) -> 0, topology);
 

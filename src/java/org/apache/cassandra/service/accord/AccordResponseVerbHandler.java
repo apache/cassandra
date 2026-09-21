@@ -31,7 +31,7 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMap;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.NoSpamLogger.NoSpamLogStatement;
@@ -45,9 +45,9 @@ class AccordResponseVerbHandler<T extends Reply> implements IVerbHandler<T>
     private static final NoSpamLogStatement dropping = NoSpamLogger.getStatement(logger, "Dropping response {} from {}", 1L, TimeUnit.SECONDS);
 
     private final RequestCallbacks callbacks;
-    private final AccordEndpointMapper endpointMapper;
+    private final AccordEndpointMap endpointMapper;
 
-    AccordResponseVerbHandler(RequestCallbacks callbacks, AccordEndpointMapper endpointMapper)
+    AccordResponseVerbHandler(RequestCallbacks callbacks, AccordEndpointMap endpointMapper)
     {
         this.callbacks = callbacks;
         this.endpointMapper = endpointMapper;

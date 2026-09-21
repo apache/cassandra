@@ -43,7 +43,7 @@ import accord.primitives.Writes;
 import accord.topology.Topologies;
 
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMap;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 
@@ -58,7 +58,7 @@ public class AccordInteropAdapter extends TxnAdapter
     {
         final AccordInteropAdapter minimal, maximal, recovery;
 
-        public AccordInteropFactory(AccordEndpointMapper endpointMapper)
+        public AccordInteropFactory(AccordEndpointMap endpointMapper)
         {
             minimal = new AccordInteropAdapter(endpointMapper, Minimal, true);
             maximal = new AccordInteropAdapter(endpointMapper, Maximal, true);
@@ -74,10 +74,10 @@ public class AccordInteropAdapter extends TxnAdapter
         }
     };
 
-    private final AccordEndpointMapper endpointMapper;
+    private final AccordEndpointMap endpointMapper;
     private final boolean isUserFacing;
 
-    private AccordInteropAdapter(AccordEndpointMapper endpointMapper, Apply.Kind applyKind, boolean isUserFacing)
+    private AccordInteropAdapter(AccordEndpointMap endpointMapper, Apply.Kind applyKind, boolean isUserFacing)
     {
         super(applyKind);
         this.endpointMapper = endpointMapper;

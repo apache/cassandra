@@ -2091,8 +2091,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 case REBOOTSTRAP_CORRUPTED:
                 case REBOOTSTRAP_INCOMPLETE:
                     BootstrapReason reason = op == REBOOTSTRAP_CORRUPTED ? LOG_CORRUPTED : LOG_INCOMPLETE;
-                    allFunction = () -> node.commandStores().rebootstrap(node, reason);
-                    function = commandStore -> commandStore.rebootstrap(node, reason);
+                    allFunction = () -> node.commandStores().rebootstrap(node, reason).reads;
+                    function = commandStore -> commandStore.rebootstrap(node, reason).reads;
                     break;
                 case REBOOTSTRAP_IF_BEHIND:
                     allFunction = () -> Catchup.rebootstrapIfBehind(node, Arrays.asList(node.commandStores().all())).beginAsResult();

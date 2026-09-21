@@ -44,7 +44,7 @@ import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.RequestBookkeeping;
 import org.apache.cassandra.service.accord.TimeOnlyRequestBookkeeping.LatencyRequestBookkeeping;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMap;
 import org.apache.cassandra.service.accord.topology.AccordTopology;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -91,7 +91,7 @@ public class AccordRepair
         if (syncRemote != All && endpoints != null)
         {
             including = new ArrayList<>(endpoints.size());
-            AccordEndpointMapper mapper = AccordService.instance().endpointMapper();
+            AccordEndpointMap mapper = AccordService.instance().endpointMapper();
             for (InetAddressAndPort ep : endpoints)
             {
                 Node.Id id = mapper.mappedIdOrNull(ep);

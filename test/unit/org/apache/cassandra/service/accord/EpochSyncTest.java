@@ -95,7 +95,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.accord.api.TokenKey;
-import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMap;
 import org.apache.cassandra.service.accord.topology.AccordSyncPropagator;
 import org.apache.cassandra.service.accord.topology.AccordTopology;
 import org.apache.cassandra.service.accord.topology.AccordTopologyService;
@@ -222,7 +222,7 @@ public class EpochSyncTest
         private int nodeCounter = 0;
         private final ValidatingClusterMetadataService cms = ValidatingClusterMetadataService.createAndRegister(NodeVersion.CURRENT_METADATA_VERSION);
 
-        class Mapper implements AccordEndpointMapper
+        class Mapper implements AccordEndpointMap
         {
             @Override
             public Node.Id mappedIdOrNull(InetAddressAndPort endpoint, @Nullable Object logIdentityIfUnmapped)
@@ -236,11 +236,6 @@ public class EpochSyncTest
                 return address(id);
             }
 
-            @Override
-            public Map<Node.Id, Long> removedNodes()
-            {
-                return Map.of();
-            }
 
             @Override
             public NodeStatus nodeStatus(Node.Id id)
@@ -665,7 +660,7 @@ public class EpochSyncTest
             private final Epoch epoch;
             private Status status = Status.Init;
 
-            Instance(Node.Id id, long token, Epoch epoch, SimulatedMessageDelivery messagingService, AccordEndpointMapper mapper)
+            Instance(Node.Id id, long token, Epoch epoch, SimulatedMessageDelivery messagingService, AccordEndpointMap mapper)
             {
                 this.id = id;
                 this.token = token;

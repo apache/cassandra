@@ -40,6 +40,8 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.utils.Invariants;
+
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -59,8 +61,7 @@ import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.service.RetryStrategy;
-import org.apache.cassandra.service.accord.topology.AccordFastPath;
-import org.apache.cassandra.service.accord.topology.AccordStaleReplicas;
+import org.apache.cassandra.service.accord.topology.AccordNodeInfos;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.tcm.discovery.Discovery;
 import org.apache.cassandra.tcm.listeners.SchemaListener;
@@ -332,12 +333,11 @@ public class ClusterMetadataService
                                                     Directory.EMPTY,
                                                     new TokenMap(DatabaseDescriptor.getPartitioner()),
                                                     DataPlacements.empty(),
-                                                    AccordFastPath.EMPTY,
+                                                    AccordNodeInfos.EMPTY,
                                                     LockedRanges.EMPTY,
                                                     InProgressSequences.EMPTY,
                                                     ConsensusMigrationState.EMPTY,
                                                     Collections.emptyMap(),
-                                                    AccordStaleReplicas.EMPTY,
                                                     CMSMembership.EMPTY);
 
 
@@ -744,6 +744,11 @@ public class ClusterMetadataService
      */
     public <T1> T1 commit(Transformation transform, CommitSuccessHandler<T1> onSuccess, CommitFailureHandler<T1> onFailure)
     {
+        return commit(transform, onSuccess, onFailure, Long.MAX_VALUE);
+    }
+
+    public <T1> T1 commit(Transformation transform, CommitSuccessHandler<T1> onSuccess, CommitFailureHandler<T1> onFailure, long deadlineLimitNanos)
+    {
         if (commitsPaused.get())
             throw new IllegalStateException("Commits are paused, not trying to commit " + transform);
 
@@ -753,7 +758,7 @@ public class ClusterMetadataService
         // discover-own-commits via entry id in case of lost messages (in remote case) and Paxos re-proposals (in local case)
         Epoch highestConsecutive = log.waitForHighestConsecutive().epoch;
 
-        Retry retryPolicy = getRetryPolicy(transform.kind());
+        Retry retryPolicy = getRetryPolicy(transform.kind(), deadlineLimitNanos);
         logger.info("Committing {} with {}", transform.kind(), retryPolicy);
         Commit.Result result = processor.commit(entryIdGen.get(), transform, highestConsecutive, retryPolicy);
 
@@ -785,14 +790,20 @@ public class ClusterMetadataService
 
     private static Retry getRetryPolicy(Transformation.Kind kind)
     {
+        return getRetryPolicy(kind, Long.MAX_VALUE);
+    }
+
+    private static Retry getRetryPolicy(Transformation.Kind kind, long deadlineLimitNanos)
+    {
         Retry retryPolicy;
         if (kind == Transformation.Kind.STARTUP)
         {
+            Invariants.require(deadlineLimitNanos == Long.MAX_VALUE);
             retryPolicy = Retry.withNoTimeLimit(TCMMetrics.instance.commitRetries, Retry.unsafeRetryIndefinitely());
         }
         else if (kind == Transformation.Kind.SCHEMA_CHANGE)
         {
-            long deadlineNanos = nanoTime() + DatabaseDescriptor.getRpcTimeout(TimeUnit.NANOSECONDS);
+            long deadlineNanos = Math.min(deadlineLimitNanos, nanoTime() + DatabaseDescriptor.getRpcTimeout(TimeUnit.NANOSECONDS));
             retryPolicy = Retry.until(deadlineNanos, TCMMetrics.instance.commitRetries);
         }
         else
@@ -800,7 +811,7 @@ public class ClusterMetadataService
             // On non-CMS members, which send commit requests via messaging to the CMS members, the exponential backoff
             // with jitter works to desynchronize retry waves after a CMS await timeout. For CMS members committing
             // locally, it helps to space Paxos CAS retries in the local commit loop.
-            long deadlineNanos = nanoTime() + DatabaseDescriptor.getCmsCommitTimeout().to(TimeUnit.NANOSECONDS);
+            long deadlineNanos = Math.min(deadlineLimitNanos, nanoTime() + DatabaseDescriptor.getCmsCommitTimeout().to(TimeUnit.NANOSECONDS));
             RetryStrategy backoffWithJitter = DatabaseDescriptor.getCmsCommitRetryStrategy();
             retryPolicy = Retry.until(deadlineNanos, TCMMetrics.instance.commitRetries, backoffWithJitter);
         }

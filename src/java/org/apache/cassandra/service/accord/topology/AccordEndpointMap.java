@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.service.accord.topology;
 
-import java.util.Map;
-
 import javax.annotation.Nullable;
 
 import accord.api.TopologySorter;
@@ -29,15 +27,10 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.ClusterMetadata;
 
 /**
- * Maps network addresses to accord ids
+ * Maps network addresses to accord ids and vice versa
  */
-public interface AccordEndpointMapper
+public interface AccordEndpointMap
 {
-    default @Nullable Node.Id mappedIdOrNull(InetAddressAndPort endpoint) { return mappedIdOrNull(endpoint, null); }
-    @Nullable Node.Id mappedIdOrNull(InetAddressAndPort endpoint, @Nullable Object logIdentityIfUnmapped);
-    default @Nullable InetAddressAndPort mappedEndpointOrNull(Node.Id id) { return mappedEndpointOrNull(id, null); }
-    @Nullable InetAddressAndPort mappedEndpointOrNull(Node.Id id, @Nullable Object logIdentityIfUnmapped);
-
     enum NodeStatus
     {
         REMOVED(TopologySorter.NodeStatus.UNAVAILABLE),
@@ -52,12 +45,18 @@ public interface AccordEndpointMapper
         {
             this.accordStatus = accordStatus;
         }
+
+        public boolean isRemoved()
+        {
+            return this == REMOVED;
+        }
     }
 
-    default boolean isRemoved(Node.Id id) { return removedNodes().containsKey(id); }
-    Map<Node.Id, Long> removedNodes();
+    default @Nullable Node.Id mappedIdOrNull(InetAddressAndPort endpoint) { return mappedIdOrNull(endpoint, null); }
+    @Nullable Node.Id mappedIdOrNull(InetAddressAndPort endpoint, @Nullable Object logIdentityIfUnmapped);
+    default @Nullable InetAddressAndPort mappedEndpointOrNull(Node.Id id) { return mappedEndpointOrNull(id, null); }
+    @Nullable InetAddressAndPort mappedEndpointOrNull(Node.Id id, @Nullable Object logIdentityIfUnmapped);
 
     NodeStatus nodeStatus(Node.Id id);
-
     default void updateMapping(ClusterMetadata metadata) {}
 }

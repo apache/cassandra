@@ -19,11 +19,8 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
-import accord.local.DurableBefore;
 import accord.messages.GetDurableBefore;
 import accord.messages.GetDurableBefore.DurableBeforeReply;
-import accord.primitives.TxnId;
-import accord.utils.ReducingRangeMap;
 
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -51,32 +48,24 @@ public class GetDurableBeforeSerializers
         }
     };
 
-    public static final UnversionedSerializer<ReducingRangeMap<TxnId>> maxLocallyApplied =
-        new CommandStoreSerializers.ReducingRangeMapSerializer<>(CommandSerializers.txnId, TxnId[]::new,
-                                                                ReducingRangeMap.SerializerSupport::create,
-                                                                new ReducingRangeMap<>());
-
     public static final UnversionedSerializer<DurableBeforeReply> reply = new UnversionedSerializer<DurableBeforeReply>()
     {
         @Override
         public void serialize(DurableBeforeReply msg, DataOutputPlus out) throws IOException
         {
             CommandStoreSerializers.durableBefore.serialize(msg.durableBefore, out);
-            maxLocallyApplied.serialize(msg.maxLocallyApplied, out);
         }
 
         @Override
         public DurableBeforeReply deserialize(DataInputPlus in) throws IOException
         {
-            DurableBefore durableBefore = CommandStoreSerializers.durableBefore.deserialize(in);
-            return new DurableBeforeReply(durableBefore, maxLocallyApplied.deserialize(in));
+            return new DurableBeforeReply(CommandStoreSerializers.durableBefore.deserialize(in));
         }
 
         @Override
         public long serializedSize(DurableBeforeReply msg)
         {
-            return CommandStoreSerializers.durableBefore.serializedSize(msg.durableBefore)
-                   + maxLocallyApplied.serializedSize(msg.maxLocallyApplied);
+            return CommandStoreSerializers.durableBefore.serializedSize(msg.durableBefore);
         }
     };
 }

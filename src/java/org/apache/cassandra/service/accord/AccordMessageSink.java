@@ -50,7 +50,7 @@ import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.TimeoutStrategy;
-import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMap;
 
 import static accord.messages.MessageType.StandardMessage.ACCEPT_REQ;
 import static accord.messages.MessageType.StandardMessage.ACCEPT_RSP;
@@ -195,17 +195,17 @@ public class AccordMessageSink implements MessageSink
     }
 
     private final MessageDelivery messaging;
-    private final AccordEndpointMapper endpointMapper;
+    private final AccordEndpointMap endpointMapper;
     private final RequestCallbacks callbacks;
 
-    public AccordMessageSink(MessageDelivery messaging, AccordEndpointMapper endpointMapper, RequestCallbacks callbacks)
+    public AccordMessageSink(MessageDelivery messaging, AccordEndpointMap endpointMapper, RequestCallbacks callbacks)
     {
         this.messaging = messaging;
         this.endpointMapper = endpointMapper;
         this.callbacks = callbacks;
     }
 
-    public AccordMessageSink(AccordEndpointMapper endpointMapper, RequestCallbacks callbacks)
+    public AccordMessageSink(AccordEndpointMap endpointMapper, RequestCallbacks callbacks)
     {
         this(MessagingService.instance(), endpointMapper, callbacks);
     }

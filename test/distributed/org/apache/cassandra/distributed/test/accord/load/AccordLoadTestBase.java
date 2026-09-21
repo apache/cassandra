@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test.accord.load;
 
 import java.io.IOException;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Comparator;
@@ -96,6 +97,8 @@ import org.apache.cassandra.service.accord.debug.AccordTracing;
 import org.apache.cassandra.service.accord.debug.AccordTracing.Message;
 import org.apache.cassandra.service.accord.debug.CoordinationKinds;
 import org.apache.cassandra.service.accord.debug.TxnKindsAndDomains;
+import org.apache.cassandra.tcm.CMSOperations;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.Throwables;
@@ -162,14 +165,22 @@ public class AccordLoadTestBase extends AccordTestBase
     public void setupCluster(int nodeCount, Consumer<IInstanceConfig> configure)
     {
         Invariants.require(SHARED_CLUSTER == null);
+        CassandraRelevantProperties.SIMULATOR_STARTED.setString(Long.toString(MILLISECONDS.toSeconds(currentTimeMillis())));
         try { SHARED_CLUSTER = createCluster(nodeCount, builder -> builder.withDCs(nodeCount).withConfig(configure)); }
         catch (IOException e) { throw new RuntimeException(e); }
-        CassandraRelevantProperties.SIMULATOR_STARTED.setString(Long.toString(MILLISECONDS.toSeconds(currentTimeMillis())));
+        SHARED_CLUSTER.get(1).runOnInstance(() -> {
+            ClusterMetadata metadata = ClusterMetadata.current();
+            Map<String, Integer> rf = new HashMap<>();
+            for (String dc : metadata.directory.knownDatacenters())
+                rf.put(dc, 1);
+            CMSOperations.instance.reconfigureCMS(rf);
+        });
     }
 
     public void testLoad(final LoadSettings settings) throws Exception
     {
         Cluster cluster = SHARED_CLUSTER;
+        cluster.setUncaughtExceptionsFilter((instance, error) -> isExpectedDuringChaos(error));
         // make the repair-retry configuration visible in the log: with retries disabled a lost merkle tree response
         // silently strands the repair (and any rebootstrap waiting on it)
         cluster.get(1).runOnInstance(() -> LoggerFactory.getLogger(AccordLoadTestBase.class)
@@ -177,8 +188,7 @@ public class AccordLoadTestBase extends AccordTestBase
                                                              org.apache.cassandra.config.DatabaseDescriptor.getRepairRetrySpec(),
                                                              org.apache.cassandra.config.DatabaseDescriptor.getRepairRetrySpec().isMerkleTreeRetriesEnabled()));
         cluster.schemaChange("CREATE TABLE " + qualifiedAccordTableName + " (k int, v int, PRIMARY KEY(k)) WITH transactional_mode = 'full'");
-//        long seed = new SecureRandom().nextLong();
-        long seed = 3705626102508196273L;
+        long seed = new SecureRandom().nextLong();
         try
         {
             final ConcurrentHashMap<Verb, AtomicInteger> verbs = new ConcurrentHashMap<>();
@@ -534,6 +544,34 @@ public class AccordLoadTestBase extends AccordTestBase
         safeForEach(cluster, ignore -> run.run(), null);
     }
 
+    /**
+     * Chaos shuts nodes down under the workload, so a CMS member asked for a <i>consistent</i> log fetch can
+     * legitimately fail to assemble a SERIAL quorum. The requester is told (it gets a RequestFailure and tries another
+     * CMS member), but the exception escapes {@code FetchCMSLog.Handler.doVerb} and {@code InboundSink} rethrows
+     * anything not on its list of expected verb-handler failures, so the harness counts it as an uncaught exception and
+     * fails an otherwise-passing run (4-13 per run were observed). Matching is by name and stack frame, as the throwable
+     * comes from an instance classloader and so is not instanceof anything we can name here.
+     */
+    private static boolean isExpectedDuringChaos(Throwable error)
+    {
+        for (Throwable cause = error ; cause != null ; cause = cause.getCause())
+        {
+            if (!"org.apache.cassandra.exceptions.UnavailableException".equals(cause.getClass().getName()))
+                continue;
+
+            for (StackTraceElement frame : cause.getStackTrace())
+            {
+                if (frame.getClassName().startsWith("org.apache.cassandra.tcm.")
+                    || frame.getClassName().equals("org.apache.cassandra.schema.DistributedMetadataLogKeyspace"))
+                {
+                    logger.info("Ignoring expected {} from a metadata log fetch: {}", cause.getClass().getSimpleName(), cause.getMessage());
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     static <P> void safeForEach(Cluster cluster, IIsolatedExecutor.SerializableConsumer<P> consumer, P param)
     {
         for (IInvokableInstance i : cluster)
@@ -661,7 +699,7 @@ public class AccordLoadTestBase extends AccordTestBase
                     try
                     {
                         Node accordNode = AccordService.instance().node();
-                        AccordService.getBlocking(accordNode.commandStores().rebootstrap(accordNode, chaos == REBOOTSTRAP_RESET ? LOG_CORRUPTED : LOG_INCOMPLETE));
+                        AccordService.getBlocking(accordNode.commandStores().rebootstrap(accordNode, chaos == REBOOTSTRAP_RESET ? LOG_CORRUPTED : LOG_INCOMPLETE).reads);
                     }
                     finally
                     {

@@ -59,7 +59,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
-import org.apache.cassandra.service.accord.topology.AccordEndpointMapper.NodeStatus;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMap.NodeStatus;
 import org.apache.cassandra.utils.CollectionSerializers;
 import org.apache.cassandra.utils.NoSpamLogger;
 
@@ -193,13 +193,13 @@ public class AccordSyncPropagator implements TopologyListener
 
     private final PendingNodes pending = new PendingNodes();
     private final Node.Id self;
-    private final AccordEndpointMapper endpointMapper;
+    private final AccordEndpointMap endpointMapper;
     private final MessageDelivery messagingService;
     private final ScheduledExecutorPlus scheduler;
     private TestListener listener;
     private final ConcurrentHashMap<RetryKey, Notification> retryingNotifications = new ConcurrentHashMap<>();
 
-    public AccordSyncPropagator(Node.Id self, AccordEndpointMapper endpointMapper,
+    public AccordSyncPropagator(Node.Id self, AccordEndpointMap endpointMapper,
                                 MessageDelivery messagingService, ScheduledExecutorPlus scheduler)
     {
         this.self = self;
@@ -343,7 +343,8 @@ public class AccordSyncPropagator implements TopologyListener
                 scheduleRetry(to, notification);
                 return false;
             case REMOVED:
-                // fall through to UNKNOWN, as we have been removed from the cluster in the latest epoch
+                // fall through to UNKNOWN, as the node has been removed from the cluster in the latest epoch: nobody is
+                // going to answer, scheduleRetry has no attempt limit, and the epoch's sync must complete without it
             case UNKNOWN:
                 // endpoint is not a member of the latest epoch
                 pending.ack(to, notification);

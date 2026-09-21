@@ -230,7 +230,7 @@ public class AccordSyncPropagatorTest
         return cluster.instances.values().stream().anyMatch(i -> i.propagator.hasPending());
     }
 
-    private static class Cluster implements AccordEndpointMapper
+    private static class Cluster implements AccordEndpointMap
     {
         private final ImmutableBiMap<Node.Id, InetAddressAndPort> nodeToAddress;
         private final ImmutableMap<Node.Id, Instance> instances;
@@ -306,11 +306,6 @@ public class AccordSyncPropagatorTest
             return nodeToAddress.get(id);
         }
 
-        @Override
-        public Map<Node.Id, Long> removedNodes()
-        {
-            return Map.of();
-        }
 
         @Override
         public NodeStatus nodeStatus(Node.Id id)
@@ -404,13 +399,13 @@ public class AccordSyncPropagatorTest
             }
         }
 
-        private class FailureWrapper implements AccordEndpointMapper
+        private class FailureWrapper implements AccordEndpointMap
         {
-            private final AccordEndpointMapper wrapped;
+            private final AccordEndpointMap wrapped;
             private final Node.Id self;
             private final Map<Node.Id, Gen<Boolean>> nodeRuns = new HashMap<>();
 
-            private FailureWrapper(AccordEndpointMapper wrapped, Node.Id self)
+            private FailureWrapper(AccordEndpointMap wrapped, Node.Id self)
             {
                 this.wrapped = wrapped;
                 this.self = self;
@@ -438,11 +433,6 @@ public class AccordSyncPropagatorTest
                 return !nodeRuns.computeIfAbsent(id, ignore -> Gens.bools().biasedRepeatingRuns(.01, rs.nextInt(3, 15))).next(rs) ? NodeStatus.HEALTHY : NodeStatus.UNAVAILABLE;
             }
 
-            @Override
-            public Map<Node.Id, Long> removedNodes()
-            {
-                return Map.of();
-            }
         }
 
         private static class Listener implements AccordSyncPropagator.TestListener, TopologyListener

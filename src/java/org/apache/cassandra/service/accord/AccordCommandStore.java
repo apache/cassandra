@@ -226,7 +226,7 @@ public class AccordCommandStore extends CommandStore
         = AtomicReferenceFieldUpdater.newUpdater(AccordCommandStore.class, Termination.class, "terminated");
     static final AtomicLong nextSafeRedundantBeforeTicket = new AtomicLong();
 
-    public final String loggingId;
+    public volatile String loggingId;
     public final Journal journal;
     private final AccordExecutor sharedExecutor;
     private final ExclusiveExecutor exclusiveExecutor;
@@ -252,7 +252,6 @@ public class AccordCommandStore extends CommandStore
                               AccordExecutor sharedExecutor)
     {
         super(id, node, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch);
-        this.loggingId = String.format("[%s]", id);
         this.journal = journal;
         this.sharedExecutor = sharedExecutor;
         if (this.progressLog instanceof DefaultProgressLog)
@@ -1036,6 +1035,9 @@ public class AccordCommandStore extends CommandStore
     @Override
     public String toString()
     {
+        if (loggingId != null)
+            return loggingId;
+
         TableMetadata metadata = tableMetadata();
         StringBuilder sb = new StringBuilder("[");
         if (metadata != null)
@@ -1046,7 +1048,11 @@ public class AccordCommandStore extends CommandStore
           .append(executor().executorId).append(',')
           .append(node.id().id)
           .append(']');
-        return sb.toString();
+
+        String result = sb.toString();
+        if (metadata != null)
+            loggingId = result;
+        return result;
     }
 
     public static class DurablyAppliedTo
