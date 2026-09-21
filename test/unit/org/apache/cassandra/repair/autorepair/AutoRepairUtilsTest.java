@@ -214,6 +214,37 @@ public class AutoRepairUtilsTest extends CQLTester
     }
 
     @Test
+    public void testGetCurrentRepairStatusClassifiesOngoingForceByTurn()
+    {
+        QueryProcessor.executeInternal(String.format(
+        "TRUNCATE %s.%s", SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
+
+        UUID ongoingForce = UUID.randomUUID();
+        UUID ongoingNormal = UUID.randomUUID();
+
+        // Ongoing (start > finish), force_repair=false, forced turn -> ongoing FORCE repair.
+        QueryProcessor.executeInternal(String.format(
+        "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, repair_finish_ts, force_repair, repair_turn) VALUES ('%s', %s, 2000, 1000, false, '%s')",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType.toString(), ongoingForce, AutoRepairUtils.RepairTurn.MY_TURN_FORCE_REPAIR.name()));
+
+        // Ongoing (start > finish), force_repair=false, normal turn -> ongoing NORMAL repair.
+        QueryProcessor.executeInternal(String.format(
+        "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, repair_finish_ts, force_repair, repair_turn) VALUES ('%s', %s, 2000, 1000, false, '%s')",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType.toString(), ongoingNormal, AutoRepairUtils.RepairTurn.MY_TURN.name()));
+
+        CurrentRepairStatus status = AutoRepairUtils.getCurrentRepairStatus(repairType, AutoRepairUtils.getAutoRepairHistory(repairType), hostId);
+
+        assertNotNull(status);
+        assertTrue("forced turn must be classified as ongoing force repair despite force_repair=false",
+                   status.hostIdsWithOnGoingForceRepair.contains(ongoingForce));
+        assertFalse(status.hostIdsWithOnGoingRepair.contains(ongoingForce));
+        assertTrue(status.hostIdsWithOnGoingRepair.contains(ongoingNormal));
+        assertFalse(status.hostIdsWithOnGoingForceRepair.contains(ongoingNormal));
+    }
+
+    @Test
     public void testGetHostIdsInCurrentRing()
     {
         TreeSet<UUID> hosts = AutoRepairUtils.getHostIdsInCurrentRing(repairType);
@@ -349,7 +380,7 @@ public class AutoRepairUtilsTest extends CQLTester
         SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
         repairType.toString(), hostId));
 
-        AutoRepairUtils.updateStartAutoRepairHistory(repairType, hostId, 123, AutoRepairUtils.RepairTurn.MY_TURN);
+        AutoRepairUtils.updateStartAutoRepairHistory(repairType, hostId, 123, AutoRepairUtils.RepairTurn.MY_TURN, false);
 
         UntypedResultSet result = QueryProcessor.executeInternal(String.format(
         "SELECT repair_start_ts, repair_turn FROM %s.%s WHERE repair_type = '%s' AND host_id = %s",
@@ -360,6 +391,57 @@ public class AutoRepairUtilsTest extends CQLTester
         UntypedResultSet.Row row = result.one();
         assertEquals(123, row.getLong(COL_REPAIR_START_TS, 0));
         assertEquals(AutoRepairUtils.RepairTurn.MY_TURN.toString(), row.getString(COL_REPAIR_TURN));
+    }
+
+    @Test
+    public void testUpdateStartAutoRepairHistoryForceTurnPersistsForcedTurn()
+    {
+        QueryProcessor.executeInternal(String.format(
+        "INSERT INTO %s.%s (repair_type, host_id) VALUES ('%s', %s)",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType.toString(), hostId));
+
+        AutoRepairUtils.updateStartAutoRepairHistory(repairType, hostId, 123, AutoRepairUtils.RepairTurn.MY_TURN_FORCE_REPAIR, true);
+
+        UntypedResultSet result = QueryProcessor.executeInternal(String.format(
+        "SELECT repair_start_ts, repair_turn FROM %s.%s WHERE repair_type = '%s' AND host_id = %s",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType.toString(), hostId));
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertEquals(AutoRepairUtils.RepairTurn.MY_TURN_FORCE_REPAIR.toString(),
+                     result.one().getString(COL_REPAIR_TURN));
+    }
+
+    @Test
+    public void testHasOngoingForceRepair()
+    {
+        QueryProcessor.executeInternal(String.format(
+        "TRUNCATE %s.%s", SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
+
+        // No row -> false.
+        assertFalse(AutoRepairUtils.hasOngoingForceRepair(repairType, hostId));
+
+        // Ongoing (start > finish) with forced turn -> true.
+        QueryProcessor.executeInternal(String.format(
+        "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, repair_finish_ts, repair_turn) VALUES ('%s', %s, 2000, 1000, '%s')",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType.toString(), hostId, AutoRepairUtils.RepairTurn.MY_TURN_FORCE_REPAIR.name()));
+        assertTrue(AutoRepairUtils.hasOngoingForceRepair(repairType, hostId));
+
+        // Ongoing but NON-forced turn -> false (it's a normal in-progress repair, not a force repair).
+        QueryProcessor.executeInternal(String.format(
+        "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, repair_finish_ts, repair_turn) VALUES ('%s', %s, 2000, 1000, '%s')",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType.toString(), hostId, AutoRepairUtils.RepairTurn.MY_TURN.name()));
+        assertFalse(AutoRepairUtils.hasOngoingForceRepair(repairType, hostId));
+
+        // NOT ongoing (start <= finish) even with forced turn -> false (the force repair has finished).
+        QueryProcessor.executeInternal(String.format(
+        "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, repair_finish_ts, repair_turn) VALUES ('%s', %s, 1000, 2000, '%s')",
+        SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+        repairType.toString(), hostId, AutoRepairUtils.RepairTurn.MY_TURN_FORCE_REPAIR.name()));
+        assertFalse(AutoRepairUtils.hasOngoingForceRepair(repairType, hostId));
     }
 
     @Test
@@ -383,8 +465,8 @@ public class AutoRepairUtilsTest extends CQLTester
 
     /**
      * A normal repair finish records repair_finish_ts but must NOT clear a pending force_repair flag.
-     * The flag is consumed only by clearForceRepair, and only for runs triggered by a force repair, so
-     * a force repair requested while a normal repair is running is still honored on the next cycle.
+     * The flag is consumed only at the start of a forced run (atomically by the forced start-history
+     * write), so a force repair requested while a normal repair is running is still honored next cycle.
      */
     @Test
     public void testUpdateFinishAutoRepairHistoryPreservesForceRepair()
