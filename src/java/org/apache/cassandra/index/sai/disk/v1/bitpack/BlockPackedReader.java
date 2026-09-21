@@ -98,7 +98,7 @@ public class BlockPackedReader implements LongArray.Factory
     @Override
     public LongArray open()
     {
-        IndexInput indexInput = IndexFileUtils.instance.openInput(file);
+        IndexInput indexInput = IndexFileUtils.instance().openInput(file);
         return new AbstractBlockPackedReader(indexInput, blockBitsPerValue, blockShift, blockMask, valueCount)
         {
             @Override
