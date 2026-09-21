@@ -204,10 +204,6 @@ public class AutoRepair
                 boolean repairSucceeded = false;
                 try
                 {
-                    if (forceRepairTurn)
-                    {
-                        AutoRepairUtils.clearForceRepair(repairType, myId);
-                    }
                     repairState.recordTurn(turn);
                     repairState.setBytesAlreadyRepaired(0L);
                     repairState.setKeyspaceRepairPlansAlreadyRepaired(0);
@@ -221,7 +217,7 @@ public class AutoRepair
                     long startTimeInMillis = timeFunc.get();
                     logger.info("My host id: {}, my turn to run repair...repair primary-ranges only? {}", myId,
                                 config.getRepairPrimaryTokenRangeOnly(repairType));
-                    AutoRepairUtils.updateStartAutoRepairHistory(repairType, myId, timeFunc.get(), turn);
+                    AutoRepairUtils.updateStartAutoRepairHistory(repairType, myId, timeFunc.get(), turn, forceRepairTurn);
 
                     repairState.setRepairKeyspaceCount(0);
                     repairState.setRepairInProgress(true);
