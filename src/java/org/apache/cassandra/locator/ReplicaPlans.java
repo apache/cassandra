@@ -1074,6 +1074,15 @@ public class ReplicaPlans
         if (!left.epoch.equals(right.epoch))
             return null;
 
+        // A node can be a full replica of one range and a witness of the next. The merged plan keeps the left
+        // range's replicas, matched to the right range's by endpoint alone, so it would describe such a node as
+        // full for the whole merged range. A read that needs one full replica - a tracked read reads data from
+        // exactly one - would then ask a witness for data it does not keep, and get a short answer back.
+        // liveAndDown covers the read candidates too: candidatesForRead only ever filters it, so the candidates
+        // carry the same Replica instances, and any disagreement among them is a disagreement in liveAndDown.
+        if (!agreeOnTransience(left.liveAndDown(), right.liveAndDown()))
+            return null;
+
         EndpointsForRange mergedLiveAndDown = left.liveAndDown().keep(right.liveAndDown().endpoints());
         EndpointsForRange mergedCandidates = left.readCandidates().keep(right.readCandidates().endpoints());
         AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
@@ -1114,5 +1123,21 @@ public class ReplicaPlans
                                                 return forReadRepair(self, ClusterMetadata.current(), keyspace, tableId, consistencyLevel, token, FailureDetector.isReplicaAlive, ReadCoordinator.DEFAULT);
                                             },
                                             left.epoch);
+    }
+
+    /**
+     * True if every endpoint the two adjacent ranges have in common replicates them the same way, so that one
+     * collection of replicas can describe both.
+     */
+    private static boolean agreeOnTransience(EndpointsForRange left, EndpointsForRange right)
+    {
+        Map<InetAddressAndPort, Replica> rightByEndpoint = right.byEndpoint();
+        for (Replica replica : left)
+        {
+            Replica rightReplica = rightByEndpoint.get(replica.endpoint());
+            if (rightReplica != null && rightReplica.isTransient() != replica.isTransient())
+                return false;
+        }
+        return true;
     }
 }

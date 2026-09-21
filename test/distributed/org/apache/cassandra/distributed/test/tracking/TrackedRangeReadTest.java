@@ -22,9 +22,12 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 
@@ -32,8 +35,10 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
 /**
- * Tracked range reads, each case scored against the untracked oracle harness in {@link TrackedRangeReadTestBase}.
+ * Tracked range reads, each case run once per {@link Mode} against the oracle harness in
+ * {@link TrackedRangeReadTestBase}.
  */
+@RunWith(Parameterized.class)
 public class TrackedRangeReadTest extends TrackedRangeReadTestBase
 {
     @Test
@@ -179,10 +184,13 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
     private static final int PARTITIONS = 100;
 
     /**
-     * A full table scan from every coordinator, over a hundred partitions written at ALL. Every node is a full
-     * replica of the whole ring and so holds every partition, and the answer is the whole table whichever node
-     * coordinates it, which makes a short answer rows lost on the read path. It asserts the identity of every
-     * partition returned rather than a count, and that no partition comes back twice.
+     * A full table scan from every coordinator, over a hundred partitions written at ALL. The answer is the whole
+     * table in both modes, and the reason it is interesting differs between them: at {@code replication_factor: 3}
+     * every node is a full replica of the whole ring and every coordinator holds every partition, so a short answer
+     * is rows lost on the read path. Under {@code '3/1'} each node is the witness of one of the three primary
+     * ranges, so the scan covers a range that no one replica is full for, and a tracked read takes data from
+     * exactly one replica per range - whichever node coordinates, and whichever replica each of its range plans
+     * picks, the answer still has to be the whole table.
      */
     @Test
     public void testFullTableScanFromEveryCoordinator()
@@ -199,7 +207,7 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
             expected.put(pk, pk);
         }
 
-        assertEveryNodeHoldsEveryPartition(keyspace);
+        assertEveryNodeHoldsWhatTheModeSays(keyspace);
 
         for (int node = 1; node <= REPLICAS; node++)
         {
@@ -213,16 +221,30 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
 
     /**
      * The unstressed case check for {@link #testFullTableScanFromEveryCoordinator}, made with
-     * {@code executeInternal} so that it cannot reconcile away the state it is measuring. Every node is a full
-     * replica of the whole ring, so every node has to hold every partition: nothing is missing anywhere, and a
-     * short coordinated answer is the read path losing rows rather than data that was never written.
+     * {@code executeInternal} so that it cannot reconcile away the state it is measuring. The two modes want
+     * opposite things of it, and each is the claim that makes a short coordinated answer in that mode a defect:
+     * at {@code replication_factor: 3} every node has to hold every partition, so nothing is missing anywhere and
+     * losing a row is the read path's doing; under {@code '3/1'} no node may hold all of them, because a node that
+     * held the whole table would be witnessing none of it and a scan reading data from one replica would be right
+     * however the range was split. Holding none of them would be just as wrong, and means the node is a full
+     * replica of nothing.
      */
-    private static void assertEveryNodeHoldsEveryPartition(String keyspace)
+    private static void assertEveryNodeHoldsWhatTheModeSays(String keyspace)
     {
         for (int node = 1; node <= REPLICAS; node++)
         {
             int local = nodeLocal(keyspace, node, "SELECT pk FROM %s.tbl").length;
-            Assert.assertEquals("node " + node + " does not hold all " + PARTITIONS + " partitions", PARTITIONS, local);
+            if (mode == Mode.FULL)
+            {
+                Assert.assertEquals("node " + node + " does not hold all " + PARTITIONS + " partitions", PARTITIONS, local);
+            }
+            else
+            {
+                Assert.assertTrue("Not stressed: node " + node + " holds all " + PARTITIONS + " partitions, so it witnesses none of them",
+                                  local < PARTITIONS);
+                Assert.assertTrue("node " + node + " holds no data at all, so it is not a full replica of anything",
+                                  local > 0);
+            }
         }
     }
 
@@ -283,17 +305,31 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
         Arrays.copyOfRange(TOMBSTONED_PARTITION_BEFORE_THE_MATCH, 1, TOMBSTONED_PARTITION_BEFORE_THE_MATCH.length);
 
     /**
-     * Every replica holds a match in (1,'a') and a row in (2,'b') that the filter rejects; node 1, which coordinates
-     * the read, is the one replica that missed the newer value that makes (2,'b') match. With the default Murmur3
-     * partitioner (2,'b') sorts before (1,'a'), so the key reconciliation flags sorts ahead of the one partition the
+     * Every replica holds a match in (1,'a') and a row in (1,'z') that the filter rejects; node 1, which coordinates
+     * the read, is the one replica that missed the newer value that makes (1,'z') match. With the default Murmur3
+     * partitioner (1,'z') sorts before (1,'a'), so the key reconciliation flags sorts ahead of the one partition the
      * read kept, and the row it contributes belongs in front of the row already counted rather than after it.
      */
     private static final String[] INTERLEAVING_STALE_PARTITION_ON_NODE_1 =
     {
         "*:INSERT INTO %s.tbl (pk0, pk1, ck, v) VALUES (1, 'a', 1, 900) USING TIMESTAMP 10",
-        "*:INSERT INTO %s.tbl (pk0, pk1, ck, v) VALUES (2, 'b', 1, 1) USING TIMESTAMP 11",
-        "!1:UPDATE %s.tbl USING TIMESTAMP 20 SET v = 500 WHERE pk0 = 2 AND pk1 = 'b' AND ck = 1"
+        "*:INSERT INTO %s.tbl (pk0, pk1, ck, v) VALUES (1, 'z', 1, 1) USING TIMESTAMP 11",
+        "!1:UPDATE %s.tbl USING TIMESTAMP 20 SET v = 500 WHERE pk0 = 1 AND pk1 = 'z' AND ck = 1"
     };
+
+    /**
+     * The probe the cases built on {@link #INTERLEAVING_STALE_PARTITION_ON_NODE_1} run. Besides the unstressed case
+     * check it asserts the placement that fixture's two partitions are chosen for: the flagged key is read with what
+     * is left of the limit, so it is only read with nothing left if the read that flagged it is the read that counted
+     * the row spending the limit.
+     */
+    private static BiConsumer<String, Object[][]> interleavingProbe(String select)
+    {
+        return (keyspace, oracle) -> {
+            assertReadTogetherFromNode1(keyspace, row(1, "z"), row(1, "a"));
+            assertDataReplicaCannotAnswerAlone(keyspace, select, oracle);
+        };
+    }
 
     /**
      * A row filtered range read where the data replica filters out every partition it can see locally, and
@@ -489,7 +525,7 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
     {
         String select = "SELECT pk0, pk1, ck, v FROM %s.tbl WHERE v > 100 LIMIT 1 ALLOW FILTERING";
         assertTrackedMatchesOracle("l_interleaving_key_unpaged", TABLE, INTERLEAVING_STALE_PARTITION_ON_NODE_1, select, UNPAGED,
-                                   (keyspace, oracle) -> assertDataReplicaCannotAnswerAlone(keyspace, select, oracle));
+                                   interleavingProbe(select));
     }
 
     /**
@@ -501,7 +537,7 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
     public void testPagedFilteredRangeReadWhereAnInterleavingKeyDisplacesTheRowOnThePage()
     {
         assertTrackedMatchesOracle("l_interleaving_key_paged", TABLE, INTERLEAVING_STALE_PARTITION_ON_NODE_1, FILTER, 1,
-                                   (keyspace, oracle) -> assertDataReplicaCannotAnswerAlone(keyspace, FILTER, oracle));
+                                   interleavingProbe(FILTER));
     }
 
     /**
@@ -514,7 +550,7 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
     {
         String select = "SELECT pk0, pk1, count(*) FROM %s.tbl WHERE v > 100 GROUP BY pk0, pk1 ALLOW FILTERING";
         assertTrackedMatchesOracle("m_group_by_flagged_key", TABLE, INTERLEAVING_STALE_PARTITION_ON_NODE_1, select, 1,
-                                   (keyspace, oracle) -> assertDataReplicaCannotAnswerAlone(keyspace, select, oracle));
+                                   interleavingProbe(select));
     }
 
     /**

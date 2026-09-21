@@ -21,7 +21,6 @@ package org.apache.cassandra.distributed.test.cql3;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Predicate;
 
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -77,16 +76,6 @@ public class MultiNodeTableWalkWithMutationTrackingTest extends MultiNodeTableWa
         IGNORED_ISSUES.remove(AF_MULTI_NODE_MULTI_COLUMN_AND_NODE_LOCAL_WRITES);
     }
 
-    /**
-     * Whether to generate the reads that are not restricted to a single partition. These are the commands this commit
-     * restores, and a subclass that still has a range read defect of its own turns them off here rather than leaving
-     * the seed to decide whether its run is red.
-     */
-    protected boolean allowRangeReads()
-    {
-        return true;
-    }
-
     @Test
     public void test() throws IOException
     {
@@ -95,17 +84,16 @@ public class MultiNodeTableWalkWithMutationTrackingTest extends MultiNodeTableWa
             Property.StatefulBuilder statefulBuilder = stateful().withExamples(10).withSteps(400);
             preCheck(cluster, statefulBuilder);
 
-            Predicate<State> rangeReads = ignore -> allowRangeReads();
             statefulBuilder.check(commands(() -> rs -> createState(rs, cluster))
                                   .add(StatefulASTBase::insert)
-                                  .addIf(rangeReads, StatefulASTBase::fullTableScan)
-                                  .addIf(rangeReads.and(State::allowUsingTimestamp), StatefulASTBase::validateUsingTimestamp)
+                                  .add(StatefulASTBase::fullTableScan)
+                                  .addIf(State::allowUsingTimestamp, StatefulASTBase::validateUsingTimestamp)
                                   .addIf(State::hasPartitions, this::selectExisting)
-                                  .addAllIf(rangeReads.and(State::supportTokens), this::selectToken, this::selectTokenRange, StatefulASTBase::selectMinTokenRange)
+                                  .addAllIf(State::supportTokens, this::selectToken, this::selectTokenRange, StatefulASTBase::selectMinTokenRange)
                                   .addIf(State::hasEnoughMemtable, StatefulASTBase::flushTable)
                                   .addIf(State::hasEnoughSSTables, StatefulASTBase::compactTable)
-                                  .addIf(rangeReads.and(State::allowNonPartitionQuery), this::nonPartitionQuery)
-                                  .addIf(rangeReads.and(State::allowNonPartitionMultiColumnQuery), this::multiColumnQuery)
+                                  .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
+                                  .addIf(State::allowNonPartitionMultiColumnQuery, this::multiColumnQuery)
                                   .addIf(State::allowPartitionQuery, this::partitionRestrictedQuery)
                                   .addIf(State::allowClusteringBetweenQuery, this::clusteringBetweenQuery)
                                   .addIf(State::allowPartitionMultiColumnQuery, this::multiColumnPartitionQuery)
