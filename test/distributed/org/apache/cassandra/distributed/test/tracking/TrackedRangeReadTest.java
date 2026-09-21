@@ -804,6 +804,29 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
     }
 
     /**
+     * As {@link #testIndexedPartitionKeyRangeReadWhereAReconciledUpdateCarriesAStaticRow}, where the partition that
+     * ends up holding nothing but static data also carries tombstones the static write has to be reconciled against:
+     * a delete of the static column and of a row that was never written, aimed at a different replica than the static
+     * write, so the two reach the read from different places.
+     */
+    @Test
+    public void testIndexedPartitionKeyRangeReadWhereAStaticOnlyPartitionAlsoHasTombstones()
+    {
+        String[] writes =
+        {
+            "1:INSERT INTO %s.tbl (pk0, pk1, ck, s, v) VALUES (1, 'a', 1, 7, 10) USING TIMESTAMP 10",
+            // deletes the static column of (1,'b') along with a row of it that was never written
+            "2:DELETE v, s FROM %s.tbl USING TIMESTAMP 13 WHERE pk0 = 1 AND pk1 = 'b' AND ck = 1",
+            // and then writes the static column back from another replica, leaving only static data behind
+            "3:UPDATE %s.tbl USING TIMESTAMP 15 SET s = 9 WHERE pk0 = 1 AND pk1 = 'b'"
+        };
+        String select = "SELECT pk0, pk1, ck, s, v FROM %s.tbl WHERE pk0 = 1 ALLOW FILTERING";
+        assertTrackedMatchesOracle("g_indexed_pk_static_only_with_tombstones", TABLE_WITH_INDEXED_PARTITION_KEY_AND_STATIC,
+                                   writes, select, UNPAGED,
+                                   (keyspace, oracle) -> assertDataReplicaCannotAnswerAlone(keyspace, select, oracle));
+    }
+
+    /**
      * A reconciled range read whose per partition limit is reached on a row covered by a range tombstone that has not
      * closed yet. ReadCommand.completeRead pairs the counter enforcing the limit with an RTBoundCloser, because a
      * counter that stops inside an open range tombstone drops its closing bound; the closer appends that bound lazily,
