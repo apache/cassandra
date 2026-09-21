@@ -439,6 +439,91 @@ public class CassandraIndexTest extends CQLTester
     }
 
     @Test
+    public void indexOnStaticColumnWithRestrictedClustering() throws Throwable
+    {
+        // A static column index holds one entry per partition, keyed only by the base partition key, so a
+        // restriction on the base clustering columns can not be pushed down into the index read: pushed down it
+        // matches no entry at all, and every single partition read that also restricts the clustering returns
+        // nothing.
+        for (String order : new String[]{ "ASC", "DESC" })
+        {
+            createTable("CREATE TABLE %s (k int, c int, s int static, v int, PRIMARY KEY (k, c)) " +
+                        "WITH CLUSTERING ORDER BY (c " + order + ')');
+            createIndex("CREATE INDEX ON %s(s)");
+
+            execute("INSERT INTO %s (k, c, s, v) VALUES (0, 1, 9, 1)");
+            execute("INSERT INTO %s (k, c, s, v) VALUES (0, 2, 9, 2)");
+            execute("INSERT INTO %s (k, c, s, v) VALUES (0, 3, 9, 3)");
+            execute("INSERT INTO %s (k, c, s, v) VALUES (1, 1, 8, 1)");
+
+            for (boolean flushed : new boolean[]{ false, true })
+            {
+                if (flushed)
+                    flush();
+
+                // names filter, one clustering and several
+                assertRows(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 2 AND s = 9"), row(0, 2, 2));
+                assertRowsIgnoringOrder(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c IN (2, 3) AND s = 9"),
+                                        row(0, 2, 2), row(0, 3, 3));
+                // slice filter
+                assertRows(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c >= 2 AND c <= 2 AND s = 9"), row(0, 2, 2));
+                assertRowsIgnoringOrder(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c > 1 AND s = 9"),
+                                        row(0, 2, 2), row(0, 3, 3));
+                // no clustering restriction at all
+                assertRowsIgnoringOrder(execute("SELECT k, c, v FROM %s WHERE k = 0 AND s = 9"),
+                                        row(0, 1, 1), row(0, 2, 2), row(0, 3, 3));
+                // the clustering restriction is still applied, and still only within the matching partition
+                assertEmpty(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 4 AND s = 9"));
+                assertEmpty(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 2 AND s = 8"));
+            }
+        }
+    }
+
+    @Test
+    public void indexOnStaticCollectionWithRestrictedClustering() throws Throwable
+    {
+        // Same as above for the collection index kinds, whose index entries key a static column off the base
+        // partition key alone as well (CollectionValueIndex and CollectionKeyIndexBase both say so).
+        createTable("CREATE TABLE %s (k int, c int, s map<text, int> static, v int, PRIMARY KEY (k, c))");
+        createIndex("CREATE INDEX ON %s(s)");
+        createIndex("CREATE INDEX ON %s(KEYS(s))");
+        createIndex("CREATE INDEX ON %s(ENTRIES(s))");
+
+        execute("INSERT INTO %s (k, c, s, v) VALUES (0, 1, {'a': 9}, 1)");
+        execute("INSERT INTO %s (k, c, v) VALUES (0, 2, 2)");
+
+        for (boolean flushed : new boolean[]{ false, true })
+        {
+            if (flushed)
+                flush();
+
+            assertRows(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 2 AND s CONTAINS 9"), row(0, 2, 2));
+            assertRows(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 2 AND s CONTAINS KEY 'a'"), row(0, 2, 2));
+            assertRows(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 2 AND s['a'] = 9"), row(0, 2, 2));
+            assertRows(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c > 1 AND s CONTAINS 9"), row(0, 2, 2));
+
+            assertEmpty(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 3 AND s CONTAINS 9"));
+            assertEmpty(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 2 AND s CONTAINS 8"));
+        }
+
+        createTable("CREATE TABLE %s (k int, c int, s set<int> static, v int, PRIMARY KEY (k, c))");
+        createIndex("CREATE INDEX ON %s(s)");
+
+        execute("INSERT INTO %s (k, c, s, v) VALUES (0, 1, {9}, 1)");
+        execute("INSERT INTO %s (k, c, v) VALUES (0, 2, 2)");
+
+        for (boolean flushed : new boolean[]{ false, true })
+        {
+            if (flushed)
+                flush();
+
+            assertRows(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 2 AND s CONTAINS 9"), row(0, 2, 2));
+            assertRows(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c > 1 AND s CONTAINS 9"), row(0, 2, 2));
+            assertEmpty(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 3 AND s CONTAINS 9"));
+        }
+    }
+
+    @Test
     public void indexOnClusteringColumnWithoutRegularColumns() throws Throwable
     {
         Object[] row1 = row("k0", "c0");
