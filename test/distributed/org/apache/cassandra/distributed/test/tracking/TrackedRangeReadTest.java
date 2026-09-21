@@ -283,6 +283,19 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
         Arrays.copyOfRange(TOMBSTONED_PARTITION_BEFORE_THE_MATCH, 1, TOMBSTONED_PARTITION_BEFORE_THE_MATCH.length);
 
     /**
+     * Every replica holds a match in (1,'a') and a row in (2,'b') that the filter rejects; node 1, which coordinates
+     * the read, is the one replica that missed the newer value that makes (2,'b') match. With the default Murmur3
+     * partitioner (2,'b') sorts before (1,'a'), so the key reconciliation flags sorts ahead of the one partition the
+     * read kept, and the row it contributes belongs in front of the row already counted rather than after it.
+     */
+    private static final String[] INTERLEAVING_STALE_PARTITION_ON_NODE_1 =
+    {
+        "*:INSERT INTO %s.tbl (pk0, pk1, ck, v) VALUES (1, 'a', 1, 900) USING TIMESTAMP 10",
+        "*:INSERT INTO %s.tbl (pk0, pk1, ck, v) VALUES (2, 'b', 1, 1) USING TIMESTAMP 11",
+        "!1:UPDATE %s.tbl USING TIMESTAMP 20 SET v = 500 WHERE pk0 = 2 AND pk1 = 'b' AND ck = 1"
+    };
+
+    /**
      * A row filtered range read where the data replica filters out every partition it can see locally, and
      * reconciliation then hands it a mutation for one of those filtered partitions. The mutation does not satisfy
      * the row filter either, so no follow up read is needed, but the read was still augmented and therefore still
@@ -458,6 +471,49 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
         };
         String select = "SELECT pk0, pk1, ck, s, v FROM %s.tbl WHERE pk0 = 1 AND s = 7 LIMIT 10 ALLOW FILTERING";
         assertTrackedMatchesOracle("f_followup_key_not_matching", TABLE_WITH_STATIC, writes, select, UNPAGED,
+                                   (keyspace, oracle) -> assertDataReplicaCannotAnswerAlone(keyspace, select, oracle));
+    }
+
+    /**
+     * A flagged key that sorts ahead of the partitions the read kept, with a limit the initial result already fills.
+     * The row it contributes belongs in front of a row that was counted, so it displaces that row rather than
+     * extending the result past the limit, and the correct answer is the row the tracked read cannot see.
+     * <p>
+     * Interleaving is the one reason this path reads a flagged key with nothing left of the limit, which is why
+     * {@code FilteredFollowupRead} reads it under {@code command.limits().withoutState()} rather than under what the
+     * initial result left over: derived from the remainder it would be a limit of zero, and the partition would come
+     * back empty.
+     */
+    @Test
+    public void testFilteredRangeReadWhereAnInterleavingKeyDisplacesTheRowTheLimitAdmits()
+    {
+        String select = "SELECT pk0, pk1, ck, v FROM %s.tbl WHERE v > 100 LIMIT 1 ALLOW FILTERING";
+        assertTrackedMatchesOracle("l_interleaving_key_unpaged", TABLE, INTERLEAVING_STALE_PARTITION_ON_NODE_1, select, UNPAGED,
+                                   (keyspace, oracle) -> assertDataReplicaCannotAnswerAlone(keyspace, select, oracle));
+    }
+
+    /**
+     * The same defect without a LIMIT in the query at all: a page is a limit, and a page the initial result fills
+     * leaves the flagged key nothing to be read with. The row is not merely returned on the wrong page, it is lost -
+     * the next page resumes past the partition the first page returned, which sorts after the flagged key.
+     */
+    @Test
+    public void testPagedFilteredRangeReadWhereAnInterleavingKeyDisplacesTheRowOnThePage()
+    {
+        assertTrackedMatchesOracle("l_interleaving_key_paged", TABLE, INTERLEAVING_STALE_PARTITION_ON_NODE_1, FILTER, 1,
+                                   (keyspace, oracle) -> assertDataReplicaCannotAnswerAlone(keyspace, FILTER, oracle));
+    }
+
+    /**
+     * The same shape under GROUP BY, which is the case that also needs the limits' continuation state dropped. A
+     * grouping state names the clustering the range read left off at in some other partition, and the flagged key's
+     * read would resume that group against a partition it has nothing to do with.
+     */
+    @Test
+    public void testPagedGroupByRangeReadWhereAKeyIsFlagged()
+    {
+        String select = "SELECT pk0, pk1, count(*) FROM %s.tbl WHERE v > 100 GROUP BY pk0, pk1 ALLOW FILTERING";
+        assertTrackedMatchesOracle("m_group_by_flagged_key", TABLE, INTERLEAVING_STALE_PARTITION_ON_NODE_1, select, 1,
                                    (keyspace, oracle) -> assertDataReplicaCannotAnswerAlone(keyspace, select, oracle));
     }
 
