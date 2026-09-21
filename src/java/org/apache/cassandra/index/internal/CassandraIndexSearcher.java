@@ -119,6 +119,13 @@ public abstract class CassandraIndexSearcher<Match extends Index.IndexMatch> imp
         @Override
         public void insertRow(Row row)
         {
+            // Only an index on a static column, or one on a partition key column, indexes the static row, so the
+            // static row is not a candidate match for any other index. AbstractIndexer#insertRow skips it below,
+            // but the expression has to be skipped as well: evaluating one on a clustering column against a static
+            // row reads a clustering value out of a clustering that has none.
+            if (row.isStatic() && !indexedColumn().isStatic() && !indexedColumn().isPartitionKey())
+                return;
+
             if (!expression.isSatisfiedBy(command.metadata(), key, row, nowInSec()))
                 return;
 
