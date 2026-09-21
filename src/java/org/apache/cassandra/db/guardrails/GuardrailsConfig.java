@@ -134,13 +134,6 @@ public interface GuardrailsConfig
     boolean getUserTimestampsEnabled();
 
     /**
-     * Returns whether users are allowed access to the ALTER TABLE statement to mutate columns or not
-     *
-     * @return {@code true} if ALTER TABLE ADD/REMOVE/RENAME is allowed, {@code false} otherwise.
-     */
-    boolean getAlterTableEnabled();
-
-    /**
      * Returns whether tables can be uncompressed
      *
      * @return {@code true} if user's can disable compression, {@code false} otherwise.
@@ -174,6 +167,20 @@ public interface GuardrailsConfig
      * @return {@code true} if allowed, {@code false} otherwise.
      */
     boolean getDropKeyspaceEnabled();
+
+    /**
+     * Returns whether DDL statement is allowed
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getDDLEnabled();
+
+    /**
+     * Returns whether DCL statement is allowed
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getDCLEnabled();
 
     /**
      * @return The threshold to warn when page size exceeds given size.
