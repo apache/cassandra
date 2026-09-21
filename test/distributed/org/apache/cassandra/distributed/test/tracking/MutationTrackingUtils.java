@@ -163,12 +163,6 @@ public class MutationTrackingUtils
         }
     }
 
-    public static void assertIdsForKey(IInvokableInstance node, String keyspaceName, String tableName, int key, Set<MutationId> expected)
-    {
-        MutationSummary summary = summaryForKey(node, keyspaceName, tableName, key);
-        assertSummaryContents(summary, expected);
-    }
-
     /**
      * Checks that nodes have seen the same ids, regardless of whether they agree on their reconciliation status
      */

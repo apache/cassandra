@@ -531,7 +531,12 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         try
         {
             Preconditions.checkArgument(!mutation.id().isNone());
-            return getOrCreateShards(mutation.getKeyspaceName()).startWriting(mutation);
+            boolean started = getOrCreateShards(mutation.getKeyspaceName()).startWriting(mutation);
+            // we've already received this mutation, so we reject the write. There may still be reconciliation
+            // listening for it though, so notify them that it's received
+            if (!started)
+                incomingMutations.invokeListeners(mutation.id());
+            return started;
         }
         finally
         {
@@ -552,7 +557,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
      * gone there is nothing left to reconcile it against, and the only thing that still has to happen is for the
      * record to reach the memtable so the data is not lost.
      *
-     * @return true if the record was registered with a shard, false if no shard covers it
+     * @return true if the record was registered with a shard, false if no shard covers it or it was already witnessed
      */
     public boolean startWritingForReplay(Mutation mutation)
     {
