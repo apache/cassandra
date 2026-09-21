@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.transport;
 
+import java.nio.ByteBuffer;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
@@ -32,6 +33,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.concurrent.LocalAwareExecutorPlus;
+import org.apache.cassandra.concurrent.PrioritizableTask;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.metrics.ClientMetrics;
@@ -126,7 +128,7 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
         // Importantly, the authExecutor will handle the AUTHENTICATE message which may be CPU intensive.
         LocalAwareExecutorPlus executor = isAuthQuery ? authExecutor : requestExecutor;
 
-        executor.submit(new RequestProcessor<>(channel, request, forFlusher, param, backpressure));
+        executor.submit(new RequestProcessor<>(channel, request, forFlusher, param, backpressure, RequestClassifier.classify(request)));
         ClientMetrics.instance.markRequestDispatched();
     }
 
@@ -291,23 +293,37 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
      * is the only way we can keep it not wrapped into a callable on SEPExecutor submission path. And we need this
      * functionality for tracking time purposes.
      */
-    public class RequestProcessor<P> implements DebuggableTask.RunnableDebuggableTask
+    public class RequestProcessor<P> implements DebuggableTask.RunnableDebuggableTask, PrioritizableTask
     {
         private final Channel channel;
         private final Message.Request request;
         private final FlushItemConverter<P> forFlusher;
         private final P flusherParam;
         private final Overload backpressure;
+        private final RequestClassifier.RequestMetadata metadata;
 
         private volatile long startTimeNanos;
 
-        public RequestProcessor(Channel channel, Message.Request request, FlushItemConverter<P> forFlusher, P flusherParam, Overload backpressure)
+        public RequestProcessor(Channel channel, Message.Request request, FlushItemConverter<P> forFlusher, P flusherParam, Overload backpressure, RequestClassifier.RequestMetadata metadata)
         {
             this.channel = channel;
             this.request = request;
             this.forFlusher = forFlusher;
             this.flusherParam = flusherParam;
             this.backpressure = backpressure;
+            this.metadata = metadata;
+        }
+
+        @Override
+        public boolean isLWT()
+        {
+            return metadata.isLWT();
+        }
+
+        @Override
+        public ByteBuffer partitionKey()
+        {
+            return metadata.partitionKey;
         }
 
         @Override

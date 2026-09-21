@@ -62,7 +62,6 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS
 public class Config
 {
     private static final Logger logger = LoggerFactory.getLogger(Config.class);
-
     public static Set<String> splitCommaDelimited(String src)
     {
         if (src == null)
@@ -77,6 +76,7 @@ public class Config
         }
         return builder.build();
     }
+
     /*
      * Prefix for Java properties for internal Cassandra configuration options
      */
@@ -122,6 +122,7 @@ public class Config
     @Replaces(oldName = "max_hint_window_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
     public volatile DurationSpec.IntMillisecondsBound max_hint_window = new DurationSpec.IntMillisecondsBound("3h");
     public String hints_directory;
+    public boolean enable_lwt_partition_prioritization = false;
     public boolean hint_window_persistent_enabled = true;
 
     public volatile boolean force_new_prepared_statement_behaviour = false;
