@@ -20,6 +20,9 @@ package org.apache.cassandra.service.reads.tracked;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.function.Consumer;
+
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -80,6 +83,24 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         Dispatcher.RequestTime requestTime,
         TrackedLocalReads.Completer completer)
     {
+        return beginRead(readId, metadata, command, consistencyLevel, summaryNodes, requestTime, null, completer);
+    }
+
+    /**
+     * @param partialReadConsumer if non null, handed the read as soon as it has been begun, so a caller coordinating
+     *                            this read locally can interrogate it once it has completed. Only reads this node
+     *                            coordinates itself can supply one.
+     */
+    public AsyncPromise<TrackedDataResponse> beginRead(
+        TrackedRead.Id readId,
+        ClusterMetadata metadata,
+        ReadCommand command,
+        ConsistencyLevel consistencyLevel,
+        int[] summaryNodes,
+        Dispatcher.RequestTime requestTime,
+        @Nullable Consumer<PartialTrackedRead> partialReadConsumer,
+        TrackedLocalReads.Completer completer)
+    {
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().id);
         SpeculativeRetryPolicy retry = cfs.metadata().params.speculativeRetry;
@@ -108,7 +129,7 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         }
         // TODO: confirm all summaryNodes are present in the replica plan
         AsyncPromise<TrackedDataResponse> promise = new AsyncPromise<>();
-        beginReadInternal(readId, command, replicaPlan, summaryNodes, requestTime, promise, completer);
+        beginReadInternal(readId, command, replicaPlan, summaryNodes, requestTime, promise, partialReadConsumer, completer);
         return promise;
     }
 
@@ -119,6 +140,7 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
                                    int[] summaryNodes,
                                    Dispatcher.RequestTime requestTime,
                                    AsyncPromise<TrackedDataResponse> promise,
+                                   @Nullable Consumer<PartialTrackedRead> partialReadConsumer,
                                    TrackedLocalReads.Completer completer)
     {
         PartialTrackedRead read = null;
@@ -149,6 +171,9 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
 
         Coordinator coordinator = new Coordinator(readId, promise, read, replicaPlan.consistencyLevel(), requestTime, completer);
         coordinators.put(readId, coordinator);
+
+        if (partialReadConsumer != null)
+            partialReadConsumer.accept(read);
 
         // TODO (expected): reconsider the approach to tracked mutation metrics
         ReadRepairMetrics.trackedReconcile.mark();
