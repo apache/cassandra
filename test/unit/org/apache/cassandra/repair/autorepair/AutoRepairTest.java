@@ -384,12 +384,12 @@ public class AutoRepairTest extends CQLTester
     }
 
     /**
-     * clearForceRepair (invoked at the START of a repair run to consume the force flag) must clear
-     * force_repair without advancing repair_finish_ts, so that a forced repair is not mistakenly recorded
-     * as a successful one for the purposes of min_repair_interval.
+     * updateStartAutoRepairHistory(forceTurn=true) must, in a single atomic row UPDATE, mark the record
+     * ongoing, persist the forced turn, and clear force_repair - without advancing repair_finish_ts (so a
+     * forced run is not mistakenly recorded as a successful one for min_repair_interval).
      */
     @Test
-    public void testClearForceRepairClearsFlagWithoutAdvancingFinishTs()
+    public void testStartForceRepairHistoryClearsFlagAtomicallyWithoutAdvancingFinishTs()
     {
         RepairType repairType = RepairType.FULL;
         UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
@@ -400,26 +400,25 @@ public class AutoRepairTest extends CQLTester
             "TRUNCATE %s.%s",
             SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
 
-        // A node with force_repair=true and a known repair_finish_ts.
+        // A node with force_repair=true and a known repair_finish_ts (earlier than the start we will write).
         QueryProcessor.executeInternal(String.format(
             "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, repair_finish_ts, force_repair) VALUES (?, ?, ?, ?, true)",
             SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY),
-            repairType.toString(), myId, new java.util.Date(now - 1000), new java.util.Date(now));
+            repairType.toString(), myId, new java.util.Date(now - 2000), new java.util.Date(now - 1000));
 
         assertTrue(AutoRepairUtils.isForceRepairSetForNode(repairType, myId));
         long finishBefore = AutoRepairUtils.getLastRepairFinishTimeForNode(repairType, myId);
 
-        // Simulate the start-of-run consumption of the flag (as AutoRepair.repair does).
-        AutoRepairUtils.clearForceRepair(repairType, myId);
+        // Start a forced run: single atomic write sets start_ts, forced turn, and force_repair=false.
+        AutoRepairUtils.updateStartAutoRepairHistory(repairType, myId, now, AutoRepairUtils.RepairTurn.MY_TURN_FORCE_REPAIR, true);
 
         // The force_repair flag is cleared ...
         assertFalse(AutoRepairUtils.isForceRepairSetForNode(repairType, myId));
-        // ... but repair_finish_ts is left untouched. That column records when a repair last finished
-        // SUCCESSFULLY and is what min_repair_interval measures against. Advancing it here would make a
-        // failed forced repair look like a completed one and wrongly throttle the next real repair, so
-        // clearForceRepair writes only force_repair and the timestamp keeps its previous value.
-        assertEquals("clearForceRepair must not advance repair_finish_ts",
+        // ... repair_finish_ts untouched ...
+        assertEquals("forced start write must not advance repair_finish_ts",
                      finishBefore, AutoRepairUtils.getLastRepairFinishTimeForNode(repairType, myId));
+        // ... and the record is an in-progress force repair (ongoing + forced turn).
+        assertTrue(AutoRepairUtils.hasOngoingForceRepair(repairType, myId));
     }
 
     /**
@@ -622,5 +621,66 @@ public class AutoRepairTest extends CQLTester
         // fresh force repair.
         assertEquals(AutoRepairUtils.RepairTurn.MY_TURN_FORCE_REPAIR,
                      AutoRepairUtils.myTurnToRunRepair(repairType, myId));
+    }
+
+    @Test
+    public void testForceRepairResumesAfterCrashViaOngoingMarker()
+    {
+        RepairType repairType = RepairType.FULL;
+        UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
+
+        QueryProcessor.executeInternal(String.format(
+            "TRUNCATE %s.%s",
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
+
+        // Durable state left by the atomic forced start write, then a crash before completion:
+        // ongoing (start 2000 > finish 1000), forced turn persisted, force_repair already cleared.
+        QueryProcessor.executeInternal(String.format(
+            "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, repair_finish_ts, force_repair, repair_turn) VALUES ('%s', %s, 2000, 1000, false, '%s')",
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY,
+            repairType.toString(), myId, AutoRepairUtils.RepairTurn.MY_TURN_FORCE_REPAIR.name()));
+
+        // Flag is cleared, yet the forced-in-progress marker is detectable from history ...
+        assertFalse(AutoRepairUtils.isForceRepairSetForNode(repairType, myId));
+        assertTrue(AutoRepairUtils.hasOngoingForceRepair(repairType, myId));
+        // ... and the run resumes as a force repair.
+        assertEquals(AutoRepairUtils.RepairTurn.MY_TURN_FORCE_REPAIR,
+                     AutoRepairUtils.myTurnToRunRepair(repairType, myId));
+    }
+
+    @Test
+    public void testSuccessfulForceRepairConsumesFlagAndLeavesNoOngoingForce()
+    {
+        RepairType repairType = RepairType.FULL;
+        UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
+        long now = System.currentTimeMillis();
+
+        DurationSpec.LongSecondsBound repairTaskMinDuration = DatabaseDescriptor.getAutoRepairConfig().getRepairTaskMinDuration();
+        DatabaseDescriptor.getAutoRepairConfig().setRepairTaskMinDuration("0s");
+        try
+        {
+            QueryProcessor.executeInternal(String.format(
+                "TRUNCATE %s.%s",
+                SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
+
+            QueryProcessor.executeInternal(String.format(
+                "INSERT INTO %s.%s (repair_type, host_id, repair_start_ts, repair_finish_ts, force_repair) VALUES (?, ?, ?, ?, true)",
+                SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY),
+                repairType.toString(), myId, new java.util.Date(now - 1000), new java.util.Date(now));
+
+            assertTrue(AutoRepairUtils.isForceRepairSetForNode(repairType, myId));
+
+            AutoRepair.instance.repair(repairType);
+
+            // Flag consumed, and no in-progress force repair remains (the run finished successfully).
+            assertFalse("force_repair must be consumed after a successful force repair",
+                        AutoRepairUtils.isForceRepairSetForNode(repairType, myId));
+            assertFalse("no ongoing force repair should remain after a successful run",
+                        AutoRepairUtils.hasOngoingForceRepair(repairType, myId));
+        }
+        finally
+        {
+            DatabaseDescriptor.getAutoRepairConfig().setRepairTaskMinDuration(repairTaskMinDuration.toString());
+        }
     }
 }
