@@ -524,6 +524,60 @@ public class CassandraIndexTest extends CQLTester
     }
 
     @Test
+    public void indexOnPartitionKeyColumnWithUpdatedStaticRow() throws Throwable
+    {
+        // An index on a partition key column indexes every row of the partition, the static row included, which is
+        // why insertRow and updateRow both let the static row through. A static row can be created with nothing
+        // live in it and be made live by a later update merging into it, so an index that wrote the entry on insert
+        // alone would leave such a partition with no entry and the query would skip it.
+        createTable("CREATE TABLE %s (k1 int, k2 int, c int, s int static, v int, PRIMARY KEY ((k1, k2), c))");
+        createIndex("CREATE INDEX ON %s(k1)");
+
+        // deleting the static column creates the static row with nothing live in it, so it has no entry yet
+        execute("DELETE s FROM %s USING TIMESTAMP 13 WHERE k1 = 0 AND k2 = 1");
+        execute("UPDATE %s USING TIMESTAMP 15 SET s = 9 WHERE k1 = 0 AND k2 = 1");
+        // a partition whose static row was live from the start, which the insert path already indexed
+        execute("UPDATE %s USING TIMESTAMP 10 SET s = 6 WHERE k1 = 0 AND k2 = 2");
+        execute("UPDATE %s USING TIMESTAMP 20 SET s = 7 WHERE k1 = 0 AND k2 = 2");
+        // and one the query must not return
+        execute("UPDATE %s USING TIMESTAMP 15 SET s = 9 WHERE k1 = 1 AND k2 = 1");
+
+        for (boolean flushed : new boolean[]{ false, true })
+        {
+            if (flushed)
+                flush();
+
+            // restricting one column of the partition key is only answerable with the index
+            assertRowsIgnoringOrder(execute("SELECT k1, k2, c, s, v FROM %s WHERE k1 = 0"),
+                                    row(0, 1, null, 9, null),
+                                    row(0, 2, null, 7, null));
+            assertRows(execute("SELECT k1, k2, c, s, v FROM %s WHERE k1 = 1"), row(1, 1, null, 9, null));
+        }
+    }
+
+    @Test
+    public void indexOnClusteringColumnWithUpdatedStaticRow() throws Throwable
+    {
+        // An index on a clustering column indexes no static row, in updateRow as much as in insertRow: the static
+        // row has no value for the indexed column, so a partition with nothing but a static row is not a match.
+        createTable("CREATE TABLE %s (k int, c1 int, c2 int, s int static, v int, PRIMARY KEY (k, c1, c2))");
+        createIndex("CREATE INDEX ON %s(c1)");
+
+        execute("DELETE s FROM %s USING TIMESTAMP 13 WHERE k = 0");
+        execute("UPDATE %s USING TIMESTAMP 15 SET s = 9 WHERE k = 0");
+        execute("INSERT INTO %s (k, c1, c2, s, v) VALUES (1, 5, 5, 8, 1) USING TIMESTAMP 15");
+        execute("UPDATE %s USING TIMESTAMP 20 SET s = 7 WHERE k = 1");
+
+        for (boolean flushed : new boolean[]{ false, true })
+        {
+            if (flushed)
+                flush();
+
+            assertRows(execute("SELECT k, c1, c2, s, v FROM %s WHERE c1 = 5"), row(1, 5, 5, 7, 1));
+        }
+    }
+
+    @Test
     public void indexOnClusteringColumnWithoutRegularColumns() throws Throwable
     {
         Object[] row1 = row("k0", "c0");
