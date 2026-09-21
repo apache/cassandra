@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test.tracking;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -35,6 +36,12 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
+import net.bytebuddy.implementation.MethodDelegation;
+import net.bytebuddy.implementation.bind.annotation.SuperCall;
+import net.bytebuddy.implementation.bind.annotation.This;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -70,6 +77,7 @@ import org.apache.cassandra.db.tracked.TrackedKeyspaceWriteHandler;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IInstanceInitializer;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
@@ -97,6 +105,7 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static java.lang.String.format;
+import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.assertMatchingSummaryIdSpaceForKey;
 import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.decodeSummary;
@@ -685,6 +694,124 @@ public class MutationTrackingPendingReadTest
                                "Failing to augment the read left its ReadExecutionController open, so its " +
                                "OpOrder.Group blocks every flush and compaction of " + tableName + " from here on");
             });
+        }
+    }
+
+    /**
+     * beginReadInternal opens a {@link ReadExecutionController} and hands it to the read it begins, and the read owns
+     * it from there on: {@link PartialTrackedRead#close()} closes it. {@link ReadExecutionController#close()} is not
+     * idempotent - it closes the base table's {@link OpOrder.Group}, the index controller and the index write context
+     * unconditionally - so an abort that closes the controller as well as the read releases that group twice. One
+     * release too many takes a group holding a running operation to the count that means finished, and the next flush
+     * barrier then reports drained while that operation is still reading the memtable being flushed.
+     *
+     * Everything thrown between beginTrackedRead returning and the read's coordinator being registered reaches that
+     * abort path - the secondary summary, the delta against it and the transfer id merge are all inside it - and the
+     * secondary summary is the one made to throw here.
+     */
+    @Test
+    public void testAbortedReadReleasesItsExecutionControllerOnce() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(2)
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK)
+                                                            .with(Feature.GOSSIP)
+                                                            .set("mutation_tracking.enabled", true))
+                                      .withInstanceInitializer(FailSecondarySummary.install(1))
+                                      .start())
+        {
+            String keyspaceName = "aborted_read_controller_test";
+            String tableName = "tbl";
+            cluster.schemaChange(format("CREATE KEYSPACE %s WITH replication = " +
+                                        "{'class': 'SimpleStrategy', 'replication_factor': 2} " +
+                                        "AND replication_type='tracked';", keyspaceName));
+            cluster.schemaChange(format("CREATE TABLE %s.%s (k int, c int, v int, primary key (k, c));", keyspaceName, tableName));
+
+            cluster.get(1).runOnInstance(() -> {
+                TableMetadata metadata = Schema.instance.getTableMetadata(keyspaceName, tableName);
+                ColumnFamilyStore cfs = Keyspace.open(keyspaceName).getColumnFamilyStore(tableName);
+
+                // drain the table's read ordering first, so the operations the assertions below count are this test's
+                // own and the group they land on is empty to begin with
+                OpOrder.Barrier drained = cfs.readOrdering.newBarrier();
+                drained.issue();
+                awaitCondition(drained.getSyncPoint()::isFinished,
+                               "An operation on " + tableName + "'s read ordering outlived the read that started it, " +
+                               "so the assertions below cannot tell one release too many from one live read");
+
+                // one read of this test's own, so a correctly aborted read leaves the group holding exactly it, while
+                // a doubly released one empties the group with this read still running
+                OpOrder.Group concurrentRead = cfs.readOrdering.start();
+
+                FailSecondarySummary.failingTable = tableName;
+                try
+                {
+                    MutationTrackingService.instance().localReads().beginRead(TrackedRead.Id.nextId(),
+                                                                             ClusterMetadata.current(),
+                                                                             PartitionRangeReadCommand.allDataRead(metadata, FBUtilities.nowInSeconds()),
+                                                                             org.apache.cassandra.db.ConsistencyLevel.ONE,
+                                                                             new int[0],
+                                                                             Dispatcher.RequestTime.forImmediateExecution(),
+                                                                             TrackedLocalReads.Completer.DEFAULT);
+                    Assert.fail("The read began without its secondary summary failing, so it never took the abort " +
+                                "path and this test would have passed without asserting anything");
+                }
+                catch (RuntimeException e)
+                {
+                    Assert.assertEquals(FailSecondarySummary.MESSAGE, e.getMessage());
+                }
+                finally
+                {
+                    FailSecondarySummary.failingTable = null;
+                }
+
+                OpOrder.Barrier barrier = cfs.readOrdering.newBarrier();
+                barrier.issue();
+                Assert.assertFalse("Aborting the read released the read ordering group it shares with a running read " +
+                                   "twice, so a flush of " + tableName + " would proceed underneath that read",
+                                   barrier.getSyncPoint().isFinished());
+
+                concurrentRead.close();
+                Assert.assertTrue("The barrier did not finish once the only read left on its group closed, so it was " +
+                                  "never waiting on that read and the assertion above held for the wrong reason",
+                                  barrier.getSyncPoint().isFinished());
+            });
+        }
+    }
+
+    /**
+     * Fails the secondary summary beginReadInternal takes after its read has begun, which is the summary taken with
+     * pending mutations included.
+     */
+    public static class FailSecondarySummary
+    {
+        public static final String MESSAGE = "Failing the secondary summary for test";
+
+        // assigned inside each instance's classloader, since that is the copy of this class the injected body reads
+        public static volatile String failingTable = null;
+
+        @SuppressWarnings("resource")
+        public static IInstanceInitializer install(int... nodes)
+        {
+            return (ClassLoader cl, ThreadGroup tg, int num, int generation) -> {
+                for (int node : nodes)
+                    if (node == num)
+                        new ByteBuddy().rebase(PartitionRangeReadCommand.class)
+                                       .method(named("createMutationSummaryInternal"))
+                                       .intercept(MethodDelegation.to(FailSecondarySummary.class))
+                                       .make()
+                                       .load(cl, ClassLoadingStrategy.Default.INJECTION);
+            };
+        }
+
+        @SuppressWarnings("unused")
+        public static MutationSummary createMutationSummaryInternal(boolean includePending,
+                                                                    @This PartitionRangeReadCommand command,
+                                                                    @SuperCall Callable<MutationSummary> zuper) throws Exception
+        {
+            if (includePending && command.metadata().name.equals(failingTable))
+                throw new RuntimeException(MESSAGE);
+
+            return zuper.call();
         }
     }
 }
