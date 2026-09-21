@@ -35,10 +35,11 @@ public class RequestClassifier
 {
     public static RequestMetadata classify(Message.Request request)
     {
-        if (request instanceof ExecuteMessage execute)
+        if (request instanceof ExecuteMessage)
         {
+            ExecuteMessage execute = (ExecuteMessage) request;
             QueryHandler.Prepared prepared = QueryProcessor.instance.getPrepared(execute.statementId);
-            if (prepared == null)
+            if (prepared == null || prepared.statement == null)
                 return RequestMetadata.UNKNOWN;
 
             CQLStatement statement = prepared.statement;
@@ -49,14 +50,16 @@ public class RequestClassifier
             {
                 execute.options.prepare(statement.getBindVariables());
 
-                if (statement instanceof ModificationStatement mod)
+                if (statement instanceof ModificationStatement)
                 {
+                    ModificationStatement mod = (ModificationStatement) statement;
                     List<ByteBuffer> keys = mod.buildPartitionKeyNames(execute.options, ClientState.forInternalCalls());
                     if (keys != null && !keys.isEmpty())
                         routingKey = keys.get(0);
                 }
-                else if (statement instanceof BatchStatement batch)
+                else if (statement instanceof BatchStatement)
                 {
+                    BatchStatement batch = (BatchStatement) statement;
                     List<ModificationStatement> statements = batch.getStatements();
                     if (statements != null && !statements.isEmpty())
                     {
@@ -83,11 +86,17 @@ public class RequestClassifier
         if (statement instanceof SelectStatement)
             return RequestKind.READ;
 
-        if (statement instanceof ModificationStatement mod)
+        if (statement instanceof ModificationStatement)
+        {
+            ModificationStatement mod = (ModificationStatement) statement;
             return mod.hasConditions() ? RequestKind.LWT : RequestKind.WRITE;
+        }
 
-        if (statement instanceof BatchStatement batch)
+        if (statement instanceof BatchStatement)
+        {
+            BatchStatement batch = (BatchStatement) statement;
             return batch.hasConditions() ? RequestKind.LWT : RequestKind.WRITE;
+        }
 
         return RequestKind.UNKNOWN;
     }
@@ -123,7 +132,6 @@ public class RequestClassifier
         WRITE,
         LWT,
         TRANSACTION,
-        // If the request is unprepared query, we don't know the kind of request, so we classify it as UNKNOWN
         UNKNOWN;
     }
 }
