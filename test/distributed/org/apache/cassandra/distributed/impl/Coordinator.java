@@ -151,9 +151,28 @@ public class Coordinator implements ICoordinator
         if (pageSize <= 0)
             throw new IllegalArgumentException("Page size should be strictly positive but was " + pageSize);
 
+        return executeWithPagingWithResult(query, consistencyLevelOrigin, pageSize, false, boundValues);
+    }
+
+    @Override
+    public QueryResult executeWithPagingInBytesWithResult(String query, ConsistencyLevel consistencyLevelOrigin, int pageSizeInBytes, Object... boundValues)
+    {
+        if (pageSizeInBytes <= 0)
+            throw new IllegalArgumentException("Page size in bytes should be strictly positive but was " + pageSizeInBytes);
+
+        return executeWithPagingWithResult(query, consistencyLevelOrigin, pageSizeInBytes, true, boundValues);
+    }
+
+    private QueryResult executeWithPagingWithResult(String query,
+                                                    ConsistencyLevel consistencyLevelOrigin,
+                                                    int pageSize,
+                                                    boolean pageSizeInBytes,
+                                                    Object... boundValues)
+    {
         return instance.sync(() -> {
             ClientState clientState = CoordinatorHelper.makeFakeClientState();
             ConsistencyLevel consistencyLevel = ConsistencyLevel.valueOf(consistencyLevelOrigin.name());
+            PageSize requestedPageSize = pageSizeInBytes ? PageSize.inBytes(pageSize) : PageSize.inRows(pageSize);
             CQLStatement prepared = QueryProcessor.getStatement(query, clientState);
             final List<ByteBuffer> boundBBValues = new ArrayList<>();
             for (Object boundValue : boundValues)
@@ -169,7 +188,7 @@ public class Coordinator implements ICoordinator
             QueryOptions initialOptions = QueryOptions.create(toCassandraCL(consistencyLevel),
                                                               boundBBValues,
                                                               false,
-                                                              PageSize.inRows(pageSize),
+                                                              requestedPageSize,
                                                               null,
                                                               null,
                                                               ProtocolVersion.CURRENT,
@@ -192,7 +211,7 @@ public class Coordinator implements ICoordinator
                     QueryOptions nextOptions = QueryOptions.create(toCassandraCL(consistencyLevel),
                                                                    boundBBValues,
                                                                    true,
-                                                                   PageSize.inRows(pageSize),
+                                                                   requestedPageSize,
                                                                    rows.result.metadata.getPagingState(),
                                                                    null,
                                                                    ProtocolVersion.CURRENT,
