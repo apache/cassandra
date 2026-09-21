@@ -109,7 +109,7 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
             DecoratedKey key = followUpKeys.next();
             FollowUpReadInfo info = followUpReadInfo.get(key);
             remaining -= info.potentialMatches;
-            SinglePartitionReadCommand cmd = SinglePartitionReadCommand.fromRangeRead(key, command, command.limits().forShortReadRetry(toQuery));
+            SinglePartitionReadCommand cmd = SinglePartitionReadCommand.fromRangeRead(key, command, command.limits().withoutState());
             TrackedRead.Partition read = TrackedRead.Partition.create(metadata, cmd, consistencyLevel, requestTime);
             read.start(requestTime);
             futures.add(read.future());
