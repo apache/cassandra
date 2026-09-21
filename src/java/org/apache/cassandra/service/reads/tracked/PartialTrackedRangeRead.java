@@ -44,8 +44,10 @@ import org.apache.cassandra.db.partitions.AbstractBTreePartition;
 import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.SimpleBTreePartition;
+import org.apache.cassandra.db.partitions.SingletonUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -475,6 +477,12 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
                 filter = command.rowFilter().filter(command().metadata(), command().nowInSec());
             }
 
+            private void markFiltered(DecoratedKey key)
+            {
+                data.remove(key);
+                filteredKeys.add(key);
+            }
+
             @Override
             UnfilteredPartitionIterator filter(UnfilteredPartitionIterator iterator)
             {
@@ -483,15 +491,44 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
                     @Override
                     protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
                     {
-                        if (Transformation.apply(partition, filter).isEmpty())
+                        DecoratedKey key = partition.partitionKey();
+
+                        UnfilteredPartitionIterator filtered = Transformation.apply(new SingletonUnfilteredPartitionIterator(partition), filter);
+                        if (!filtered.hasNext())
                         {
-                            DecoratedKey key = partition.partitionKey();
-                            data.remove(key);
-                            filteredKeys.add(key);
-                            partition.close();
+                            markFiltered(key);
                             return null;
                         }
-                        return partition;
+
+                        return Transformation.apply(filtered.next(), new Transformation<UnfilteredRowIterator>()
+                        {
+                            int rows = 0;
+
+                            @Override
+                            protected void onClose()
+                            {
+                                if (rows == 0)
+                                    markFiltered(key);
+                                super.onClose();
+                            }
+
+                            @Override
+                            protected Row applyToRow(Row row)
+                            {
+                                if (row.hasLiveData(command.nowInSec(), command.metadata().enforceStrictLiveness()))
+                                    rows++;
+                                return super.applyToRow(row);
+                            }
+
+                            @Override
+                            protected Row applyToStatic(Row row)
+                            {
+                                if (command.selectsFullPartition()
+                                    && row.hasLiveData(command.nowInSec(), command.metadata().enforceStrictLiveness()))
+                                    rows++;
+                                return super.applyToStatic(row);
+                            }
+                        });
                     }
                 });
             }
