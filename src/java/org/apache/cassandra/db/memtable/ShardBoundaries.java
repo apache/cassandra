@@ -77,7 +77,7 @@ public class ShardBoundaries
             return EMPTY_RANGE_ARRAY;
 
         IPartitioner partitioner = boundaries[0].getPartitioner();
-        Range<PartitionPosition>[]  ranges = new Range[boundaries.length + 1];
+        Range<PartitionPosition>[] ranges = new Range[boundaries.length + 1];
         int rangeIndex = 0;
         PartitionPosition minimum = partitioner.getMinimumToken().minKeyBound();
 

@@ -22,6 +22,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.CassandraTestBase;
 import org.apache.cassandra.CassandraTestBase.DDDaemonInitialization;
+import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 
 import static org.junit.Assert.assertFalse;
@@ -148,23 +149,18 @@ public class RangeIntersectsBoundsTest extends CassandraTestBase
         assertFalse(some.intersects(bl));
         assertFalse(some.intersects(ra));
 
-        assertTrue(someWrapped.intersects(lr));
+        assertFalse(someWrapped.intersects(lr));
         assertTrue(someWrapped.intersects(br));
         assertTrue(someWrapped.intersects(bi));
         assertTrue(someWrapped.intersects(ba));
         assertTrue(someWrapped.intersects(la));
-        assertTrue(someWrapped.intersects(li));
+        assertFalse(someWrapped.intersects(li));
         assertFalse(someWrapped.intersects(ii));
         assertFalse(someWrapped.intersects(ir));
         assertTrue(someWrapped.intersects(bb));
         assertTrue(someWrapped.intersects(aa));
-        // TODO (CASSANDRA-18216): bl=(3,4) and ra=(8,9) are empty on integer tokens (no value between adjacent
-        // integers), so assertFalse is accidentally correct here. With PartitionPosition (where multiple keys can
-        // share a token), these intervals are non-empty and the wrapping range (8,4] would intersect them. The
-        // wrapping branch in Range.intersects(ExcludingBounds) returns false for these cases; revisit if
-        // ExcludingBounds is ever used with PartitionPosition on wrapping ranges.
-        assertFalse(someWrapped.intersects(bl));
-        assertFalse(someWrapped.intersects(ra));
+        assertTrue(someWrapped.intersects(bl));
+        assertTrue(someWrapped.intersects(ra));
 
         Range<Token> range = new Range<>(Murmur3Partitioner.MINIMUM, new Murmur3Partitioner.LongToken(-1));
         ExcludingBounds<Token> bounds = new ExcludingBounds<>(new Murmur3Partitioner.LongToken(-3248873570005575792L), Murmur3Partitioner.MINIMUM);
@@ -239,11 +235,7 @@ public class RangeIntersectsBoundsTest extends CassandraTestBase
         assertFalse(someWrapped.intersects(ir));
         assertTrue(someWrapped.intersects(bb));
         assertTrue(someWrapped.intersects(aa));
-        // TODO (CASSANDRA-18216): bl=[3,4) includes 3, and (8,4] wrapping contains 3 — they intersect. This
-        // assertFalse matches the wrapping branch in Range.intersects(IncludingExcludingBounds) which returns
-        // false when this.right == that.right (both 4). The branch is semantically wrong for this case but is
-        // dead code for SAI (shard ranges never wrap). Ported as-is from DS fork PR #298.
-        assertFalse(someWrapped.intersects(bl));
+        assertTrue(someWrapped.intersects(bl));
         assertTrue(someWrapped.intersects(ra));
     }
 
@@ -273,5 +265,32 @@ public class RangeIntersectsBoundsTest extends CassandraTestBase
 
         assertTrue(range.intersects(incExcBoundsMatch));
         assertFalse(range.intersects(incExcBoundsNoMatch));
+    }
+
+    @Test
+    public void wrappingRangeIntersectsTest()
+    {
+        // (100, max] + [min, -100]
+        Range<Token> wrapping = new Range<>(new LongToken(100), new LongToken(-100));
+
+        // inside the upper segment, sharing its left endpoint with the range
+        assertFalse(wrapping.intersects(new ExcludingBounds<>(new LongToken(50), new LongToken(100))));
+        assertTrue(wrapping.intersects(new ExcludingBounds<>(new LongToken(50), new LongToken(101))));
+        assertTrue(wrapping.intersects(new ExcludingBounds<>(new LongToken(100), new LongToken(200))));
+        assertTrue(wrapping.intersects(new IncludingExcludingBounds<>(new LongToken(100), new LongToken(200))));
+
+        // inside the lower segment, sharing its right endpoint with the range
+        assertTrue(wrapping.intersects(new ExcludingBounds<>(new LongToken(-200), new LongToken(-100))));
+        assertTrue(wrapping.intersects(new IncludingExcludingBounds<>(new LongToken(-200), new LongToken(-100))));
+
+        // in the gap between the two segments; only the included left endpoint of [-100, 100) is in the range
+        assertFalse(wrapping.intersects(new ExcludingBounds<>(new LongToken(-100), new LongToken(100))));
+        assertTrue(wrapping.intersects(new IncludingExcludingBounds<>(new LongToken(-100), new LongToken(100))));
+        assertFalse(wrapping.intersects(new ExcludingBounds<>(new LongToken(-50), new LongToken(50))));
+        assertFalse(wrapping.intersects(new IncludingExcludingBounds<>(new LongToken(-50), new LongToken(50))));
+
+        // right endpoint at the minimum, i.e. unbounded on the right
+        assertTrue(wrapping.intersects(new ExcludingBounds<>(new LongToken(200), Murmur3Partitioner.MINIMUM)));
+        assertTrue(wrapping.intersects(new IncludingExcludingBounds<>(new LongToken(200), Murmur3Partitioner.MINIMUM)));
     }
 }
