@@ -109,7 +109,7 @@ public class PrepareReplace implements Transformation
         StartReplace start = new StartReplace(replaced, replacement, transitionPlan.addToWrites(), unlockKey);
         MidReplace mid = new MidReplace(replaced, replacement, transitionPlan.moveReads(), unlockKey);
         FinishReplace finish =
-            new FinishReplace(replaced, replacement, transitionPlan.removeFromWrites(), unlockKey, !UnlockSequence.isSupportedBy(prev));
+            new FinishReplace(replaced, replacement, transitionPlan.removeFromWrites(), unlockKey, !RetireSingleNodeSequence.isSupportedBy(prev));
         transitionPlan.assertPreExistingWriteReplica(prev.placements);
 
         Set<Token> tokens = new HashSet<>(prev.tokenMap.tokens(replaced));
@@ -383,7 +383,7 @@ public class PrepareReplace implements Transformation
                 NodeId replacement = NodeId.serializer.deserialize(in, version);
                 PlacementDeltas delta = PlacementDeltas.serializer.deserialize(in, version);
                 LockedRanges.Key lockKey = LockedRanges.Key.serializer.deserialize(in, version);
-                // UnlockSequence step which follows after FinishReplace was introduced in TBD_UNLOCK_STEP
+                // RetireSingleNodeSequence step which follows after FinishReplace was introduced in TBD_UNLOCK_STEP
                 // to support mutation tracking, and unlock now happens in that step.
                 // TODO (now): confirm the correct Version to use here.
                 boolean unlock = version.isBefore(Version.TBD_UNLOCK_STEP) || in.readBoolean();

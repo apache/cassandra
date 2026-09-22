@@ -109,7 +109,7 @@ public class PrepareMove implements Transformation
         StartMove startMove = new StartMove(nodeId, transitionPlan.addToWrites(), lockKey);
         MidMove midMove = new MidMove(nodeId, transitionPlan.moveReads(), lockKey);
         FinishMove finishMove =
-            new FinishMove(nodeId, tokens, transitionPlan.removeFromWrites(), lockKey, !UnlockSequence.isSupportedBy(prev));
+            new FinishMove(nodeId, tokens, transitionPlan.removeFromWrites(), lockKey, !RetireSingleNodeSequence.isSupportedBy(prev));
         transitionPlan.assertPreExistingWriteReplica(prev.placements);
 
         Move sequence = Move.newSequence(prev.nextEpoch(),
@@ -296,7 +296,7 @@ public class PrepareMove implements Transformation
                 for (int i = 0; i < numTokens; i++)
                     tokens.add(Token.metadataSerializer.deserialize(in, partitioner, version));
 
-                // UnlockSequence step which follows after FinishMove was introduced in TBD_UNLOCK_STEP
+                // RetireSingleNodeSequence step which follows after FinishMove was introduced in TBD_UNLOCK_STEP
                 // to support mutation tracking, and unlock now happens in that step.
                 // TODO (now): confirm the correct Version to use here.
                 boolean unlock = version.isBefore(Version.TBD_UNLOCK_STEP) || in.readBoolean();

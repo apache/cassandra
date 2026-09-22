@@ -30,14 +30,14 @@ import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
-public class UnlockSequence implements Transformation
+public class RetireSingleNodeSequence implements Transformation
 {
     public static final Serializer serializer = new Serializer();
 
     private final NodeId nodeId;
     private final LockedRanges.Key lockKey;
 
-    public UnlockSequence(NodeId nodeId, LockedRanges.Key lockKey)
+    public RetireSingleNodeSequence(NodeId nodeId, LockedRanges.Key lockKey)
     {
         this.nodeId = nodeId;
         this.lockKey = lockKey;
@@ -47,16 +47,16 @@ public class UnlockSequence implements Transformation
     {
         // for simulation testing only, this forces range unlocking to be performed by the
         // FINISH_(JOIN|LEAVE|REPLACE|MOVE) step of a MultiStepOperation, rather than by a
-        // distinct UNLOCK_SEQUENCE step.
+        // distinct RETIRE_SINGLE_NODE_SEQUENCE step.
         if (CassandraRelevantProperties.TCM_SIMULATION_ONLY_SEQUENCE_UNLOCKING.getBoolean())
             return false;
-        return metadata.directory.commonSerializationVersion.isAtLeast(Kind.UNLOCK_SEQUENCE.introducedIn);
+        return metadata.directory.commonSerializationVersion.isAtLeast(Kind.RETIRE_SINGLE_NODE_SEQUENCE.introducedIn);
     }
 
     @Override
     public Kind kind()
     {
-        return Kind.UNLOCK_SEQUENCE;
+        return Kind.RETIRE_SINGLE_NODE_SEQUENCE;
     }
 
     @Override
@@ -86,8 +86,8 @@ public class UnlockSequence implements Transformation
     public boolean equals(Object o)
     {
         if (this == o) return true;
-        if (!(o instanceof UnlockSequence)) return false;
-        UnlockSequence that = (UnlockSequence) o;
+        if (!(o instanceof RetireSingleNodeSequence)) return false;
+        RetireSingleNodeSequence that = (RetireSingleNodeSequence) o;
         return this.nodeId.equals(that.nodeId) && this.lockKey.equals(that.lockKey);
     }
 
@@ -97,28 +97,28 @@ public class UnlockSequence implements Transformation
         return nodeId.hashCode() + 31 * lockKey.hashCode();
     }
 
-    public static final class Serializer implements AsymmetricMetadataSerializer<Transformation, UnlockSequence>
+    public static final class Serializer implements AsymmetricMetadataSerializer<Transformation, RetireSingleNodeSequence>
     {
         @Override
         public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException
         {
-            UnlockSequence unlock = (UnlockSequence) t;
+            RetireSingleNodeSequence unlock = (RetireSingleNodeSequence) t;
             NodeId.serializer.serialize(unlock.nodeId, out, version);
             LockedRanges.Key.serializer.serialize(unlock.lockKey, out, version);
         }
 
         @Override
-        public UnlockSequence deserialize(DataInputPlus in, Version version) throws IOException
+        public RetireSingleNodeSequence deserialize(DataInputPlus in, Version version) throws IOException
         {
             NodeId nodeId = NodeId.serializer.deserialize(in, version);
             LockedRanges.Key lockKey = LockedRanges.Key.serializer.deserialize(in, version);
-            return new UnlockSequence(nodeId, lockKey);
+            return new RetireSingleNodeSequence(nodeId, lockKey);
         }
 
         @Override
         public long serializedSize(Transformation t, Version version)
         {
-            UnlockSequence unlock = (UnlockSequence) t;
+            RetireSingleNodeSequence unlock = (RetireSingleNodeSequence) t;
             return NodeId.serializer.serializedSize(unlock.nodeId, version) +
                    LockedRanges.Key.serializer.serializedSize(unlock.lockKey, version);
         }

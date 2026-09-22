@@ -121,7 +121,7 @@ public class PrepareLeave implements Transformation
 
         StartLeave start = new StartLeave(leaving, startDelta, unlockKey);
         MidLeave mid = new MidLeave(leaving, midDelta, unlockKey);
-        FinishLeave leave = new FinishLeave(leaving, finishDelta, unlockKey, !UnlockSequence.isSupportedBy(prev));
+        FinishLeave leave = new FinishLeave(leaving, finishDelta, unlockKey, !RetireSingleNodeSequence.isSupportedBy(prev));
 
         UnbootstrapAndLeave plan = UnbootstrapAndLeave.newSequence(prev.nextEpoch(),
                                                                    unlockKey,
@@ -333,7 +333,7 @@ public class PrepareLeave implements Transformation
                 NodeId nodeId = NodeId.serializer.deserialize(in, version);
                 PlacementDeltas delta = PlacementDeltas.serializer.deserialize(in, version);
                 LockedRanges.Key lockKey = LockedRanges.Key.serializer.deserialize(in, version);
-                // UnlockSequence step which follows after FinishLeave was introduced in TBD_UNLOCK_STEP
+                // RetireSingleNodeSequence step which follows after FinishLeave was introduced in TBD_UNLOCK_STEP
                 // to support mutation tracking, and unlock now happens in that step.
                 // TODO (now): confirm the correct Version to use here.
                 boolean unlock = version.isBefore(Version.TBD_UNLOCK_STEP) || in.readBoolean();

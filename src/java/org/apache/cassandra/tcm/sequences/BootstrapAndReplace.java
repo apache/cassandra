@@ -68,7 +68,7 @@ import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareReplace;
-import org.apache.cassandra.tcm.transformations.UnlockSequence;
+import org.apache.cassandra.tcm.transformations.RetireSingleNodeSequence;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.vint.VIntCoding;
@@ -77,8 +77,8 @@ import static com.google.common.collect.ImmutableList.of;
 import static org.apache.cassandra.tcm.MultiStepOperation.Kind.REPLACE;
 import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_REPLACE;
 import static org.apache.cassandra.tcm.Transformation.Kind.MID_REPLACE;
+import static org.apache.cassandra.tcm.Transformation.Kind.RETIRE_SINGLE_NODE_SEQUENCE;
 import static org.apache.cassandra.tcm.Transformation.Kind.START_REPLACE;
-import static org.apache.cassandra.tcm.Transformation.Kind.UNLOCK_SEQUENCE;
 import static org.apache.cassandra.tcm.sequences.BootstrapAndJoin.bootstrap;
 import static org.apache.cassandra.tcm.sequences.SequenceState.continuable;
 import static org.apache.cassandra.tcm.sequences.SequenceState.error;
@@ -184,15 +184,15 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
     @Override
     public Transformation.Result applyTo(ClusterMetadata metadata)
     {
-        // FinishReplace unlocks the affected ranges and retires the sequence only in legacy (pre-UNLOCK_SEQUENCE) mode.
+        // FinishReplace unlocks the affected ranges and retires the sequence only in legacy (pre-RETIRE_SINGLE_NODE_SEQUENCE) mode.
         return finishReplace.unlocks()
              ? applyMultipleTransformations(metadata, next, of(startReplace, midReplace, finishReplace))
-             : applyMultipleTransformations(metadata, next, of(startReplace, midReplace, finishReplace, unlockSequence()));
+             : applyMultipleTransformations(metadata, next, of(startReplace, midReplace, finishReplace, retireSequence()));
     }
 
-    private UnlockSequence unlockSequence()
+    private RetireSingleNodeSequence retireSequence()
     {
-        return new UnlockSequence(startReplace.nodeId(), lockKey);
+        return new RetireSingleNodeSequence(startReplace.nodeId(), lockKey);
     }
 
     @Override
@@ -302,10 +302,10 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
                     logger.warn("Got exception committing finishReplace", e);
                     return halted();
                 }
-                if (finishReplace.unlocks()) // legacy sequence without a dedicated unlock step
+                if (finishReplace.unlocks()) // legacy sequence without a dedicated retire step
                     ClusterMetadataService.instance().ensureCMSPlacement(metadata);
                 break;
-            case UNLOCK_SEQUENCE:
+            case RETIRE_SINGLE_NODE_SEQUENCE:
                 try
                 {
                     if (MutationTrackingService.isEnabled())
@@ -315,12 +315,12 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
                                                                      finishReplace.delta(),
                                                                      startReplace.replaced());
                     }
-                    metadata = ClusterMetadataService.instance().commit(unlockSequence());
+                    metadata = ClusterMetadataService.instance().commit(retireSequence());
                 }
                 catch (Throwable e)
                 {
                     JVMStabilityInspector.inspectThrowable(e);
-                    logger.warn("Exception sealing obsoleted MT shards or committing unlockSequence", e);
+                    logger.warn("Exception sealing obsoleted MT shards or committing retireSequence", e);
                     return continuable();
                 }
                 ClusterMetadataService.instance().ensureCMSPlacement(metadata);
@@ -345,7 +345,7 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
         if (next == START_REPLACE)
             return ProgressBarrier.immediate();
         ClusterMetadata metadata = ClusterMetadata.current();
-        // By UNLOCK_SEQUENCE the replaced node has already been removed from the directory by FINISH_REPLACE, so there
+        // By RETIRE_SINGLE_NODE_SEQUENCE the replaced node has already been removed from the directory by FINISH_REPLACE, so there
         // is nothing left to exclude from the barrier.
         NodeAddresses replacedAddresses = metadata.directory.getNodeAddresses(startReplace.replaced());
         Predicate<InetAddressAndPort> filter = replacedAddresses == null
@@ -360,7 +360,7 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
         DataPlacements placements = metadata.placements;
         switch (next)
         {
-            case UNLOCK_SEQUENCE:
+            case RETIRE_SINGLE_NODE_SEQUENCE:
                 // FINISH_REPLACE has already been enacted - it's too late to be reverting anything, so we just unlock.
                 return metadata.transformer().with(metadata.lockedRanges.unlock(lockKey));
             // need to undo MID_REPLACE and START_REPLACE, but PREPARE_REPLACE doesn't affect placements
@@ -422,7 +422,7 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
                 return 1;
             case FINISH_REPLACE:
                 return 2;
-            case UNLOCK_SEQUENCE:
+            case RETIRE_SINGLE_NODE_SEQUENCE:
                 return 3;
             default:
                 throw new IllegalStateException(String.format("Step %s is invalid for sequence %s ", next, REPLACE));
@@ -440,7 +440,7 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
             case 2:
                 return FINISH_REPLACE;
             case 3:
-                return UNLOCK_SEQUENCE;
+                return RETIRE_SINGLE_NODE_SEQUENCE;
             default:
                 throw new IllegalStateException(String.format("Step %s is invalid for sequence %s ", index, REPLACE));
         }

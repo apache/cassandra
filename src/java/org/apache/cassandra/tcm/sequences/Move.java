@@ -73,7 +73,7 @@ import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
-import org.apache.cassandra.tcm.transformations.UnlockSequence;
+import org.apache.cassandra.tcm.transformations.RetireSingleNodeSequence;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -84,8 +84,8 @@ import static com.google.common.collect.ImmutableList.of;
 import static org.apache.cassandra.tcm.MultiStepOperation.Kind.MOVE;
 import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_MOVE;
 import static org.apache.cassandra.tcm.Transformation.Kind.MID_MOVE;
+import static org.apache.cassandra.tcm.Transformation.Kind.RETIRE_SINGLE_NODE_SEQUENCE;
 import static org.apache.cassandra.tcm.Transformation.Kind.START_MOVE;
-import static org.apache.cassandra.tcm.Transformation.Kind.UNLOCK_SEQUENCE;
 import static org.apache.cassandra.tcm.sequences.SequenceState.continuable;
 import static org.apache.cassandra.tcm.sequences.SequenceState.error;
 
@@ -195,15 +195,15 @@ public class Move extends MultiStepOperation<Epoch>
     @Override
     public Transformation.Result applyTo(ClusterMetadata metadata)
     {
-        // FinishMove unlocks the affected ranges and retires the sequence only in legacy (pre-UNLOCK_SEQUENCE) mode.
+        // FinishMove unlocks the affected ranges and retires the sequence only in legacy (pre-RETIRE_SINGLE_NODE_SEQUENCE) mode.
         return finishMove.unlocks()
              ? applyMultipleTransformations(metadata, next, of(startMove, midMove, finishMove))
-             : applyMultipleTransformations(metadata, next, of(startMove, midMove, finishMove, unlockSequence()));
+             : applyMultipleTransformations(metadata, next, of(startMove, midMove, finishMove, retireSequence()));
     }
 
-    private UnlockSequence unlockSequence()
+    private RetireSingleNodeSequence retireSequence()
     {
-        return new UnlockSequence(startMove.nodeId(), lockKey);
+        return new RetireSingleNodeSequence(startMove.nodeId(), lockKey);
     }
 
     @Override
@@ -325,19 +325,19 @@ public class Move extends MultiStepOperation<Epoch>
                     JVMStabilityInspector.inspectThrowable(t);
                     return continuable();
                 }
-                if (finishMove.unlocks()) // legacy sequence without a dedicated unlock step
+                if (finishMove.unlocks()) // legacy sequence without a dedicated retire step
                     ClusterMetadataService.instance().ensureCMSPlacement(metadata);
                 break;
-            case UNLOCK_SEQUENCE:
+            case RETIRE_SINGLE_NODE_SEQUENCE:
                 try
                 {
                     // TODO (required): mutation tracking shard sealing for move is not yet implemented
-                    metadata = ClusterMetadataService.instance().commit(unlockSequence());
+                    metadata = ClusterMetadataService.instance().commit(retireSequence());
                 }
                 catch (Throwable t)
                 {
                     JVMStabilityInspector.inspectThrowable(t);
-                    logger.warn("Exception committing unlockSequence", t);
+                    logger.warn("Exception committing retireSequence", t);
                     return continuable();
                 }
                 ClusterMetadataService.instance().ensureCMSPlacement(metadata);
@@ -371,7 +371,7 @@ public class Move extends MultiStepOperation<Epoch>
 
         switch (next)
         {
-            case UNLOCK_SEQUENCE:
+            case RETIRE_SINGLE_NODE_SEQUENCE:
                 // FINISH_MOVE has already been enacted - it's too late to be reverting anything, so we just unlock.
                 return metadata.transformer().with(metadata.lockedRanges.unlock(lockKey));
             case FINISH_MOVE:
@@ -518,7 +518,7 @@ public class Move extends MultiStepOperation<Epoch>
                 return 1;
             case FINISH_MOVE:
                 return 2;
-            case UNLOCK_SEQUENCE:
+            case RETIRE_SINGLE_NODE_SEQUENCE:
                 return 3;
             default:
                 throw new IllegalStateException(String.format("Step %s is invalid for sequence %s ", next, MOVE));
@@ -536,7 +536,7 @@ public class Move extends MultiStepOperation<Epoch>
             case 2:
                 return FINISH_MOVE;
             case 3:
-                return UNLOCK_SEQUENCE;
+                return RETIRE_SINGLE_NODE_SEQUENCE;
             default:
                 throw new IllegalStateException(String.format("Step %s is invalid for sequence %s ", index, MOVE));
         }

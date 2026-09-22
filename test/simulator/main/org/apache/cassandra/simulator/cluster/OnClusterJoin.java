@@ -114,11 +114,11 @@ class OnClusterJoin extends OnClusterChangeTopology
                 boolean res = bootstrapAndJoin.executeNext().isContinuable();
                 assert res;
 
-                // On UNLOCK_SEQUENCE-supporting clusters FINISH_JOIN no longer unlocks/retires the sequence;
-                // drain the trailing UNLOCK_SEQUENCE step so the range lock is released.
+                // On RETIRE_SINGLE_NODE_SEQUENCE-supporting clusters FINISH_JOIN no longer unlocks/retires the
+                // sequence; drain the trailing RETIRE_SINGLE_NODE_SEQUENCE step so the range lock is released.
                 ClusterMetadata after = ClusterMetadata.current();
                 MultiStepOperation<?> trailing = after.inProgressSequences.get(after.myNodeId());
-                if (trailing != null && trailing.nextStep() == Transformation.Kind.UNLOCK_SEQUENCE)
+                if (trailing != null && trailing.nextStep() == Transformation.Kind.RETIRE_SINGLE_NODE_SEQUENCE)
                     assert trailing.executeNext().isContinuable();
             });
         }
