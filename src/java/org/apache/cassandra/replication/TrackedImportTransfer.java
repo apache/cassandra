@@ -403,13 +403,17 @@ public class TrackedImportTransfer extends CoordinatedTransfer
     {
         if (o == null || getClass() != o.getClass()) return false;
         TrackedImportTransfer that = (TrackedImportTransfer) o;
-        return Objects.equals(keyspace, that.keyspace) && Objects.equals(range, that.range) && cl == that.cl && Objects.equals(streamResults, that.streamResults);
+        return Objects.equals(keyspace, that.keyspace) &&
+               sinceEpoch == that.sinceEpoch &&
+               Objects.equals(range, that.range) &&
+               cl == that.cl &&
+               Objects.equals(streamResults, that.streamResults);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(keyspace, range, cl, streamResults);
+        return Objects.hash(keyspace, sinceEpoch, range, cl, streamResults);
     }
 
     @Override
@@ -417,6 +421,7 @@ public class TrackedImportTransfer extends CoordinatedTransfer
     {
         return "TrackedImportTransfer{" +
                "keyspace='" + keyspace + '\'' +
+               ", sinceEpoch=" + sinceEpoch +
                ", range=" + range +
                ", cl=" + cl +
                ", streamResults=" + streamResults +

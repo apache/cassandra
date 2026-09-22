@@ -757,7 +757,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         return count[0];
     }
 
-    // TODO (expected): what? this is not the way; this should grab an immutable snapshot instead
+    // TODO (expected): this should grab an immutable snapshot instead
     public Iterable<Shard> getShards()
     {
         List<Shard> shards = new ArrayList<>();

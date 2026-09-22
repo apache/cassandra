@@ -234,6 +234,7 @@ public class ActivationRequest
                ", transferId=" + transferId +
                ", coordinatorId=" + coordinatorId +
                ", keyspace='" + keyspace + '\'' +
+               ", sinceEpoch=" + sinceEpoch +
                ", range=" + range +
                ", planId=" + planId +
                '}';
@@ -244,12 +245,20 @@ public class ActivationRequest
     {
         if (o == null || getClass() != o.getClass()) return false;
         ActivationRequest that = (ActivationRequest) o;
-        return operation == that.operation && Objects.equals(pair, that.pair) && phase == that.phase && Objects.equals(transferId, that.transferId) && Objects.equals(coordinatorId, that.coordinatorId) && Objects.equals(keyspace, that.keyspace) && Objects.equals(range, that.range) && Objects.equals(planId, that.planId);
+        return operation == that.operation &&
+               Objects.equals(pair, that.pair) &&
+               phase == that.phase &&
+               Objects.equals(transferId, that.transferId) &&
+               Objects.equals(coordinatorId, that.coordinatorId) &&
+               Objects.equals(keyspace, that.keyspace) &&
+               sinceEpoch == that.sinceEpoch &&
+               Objects.equals(range, that.range) &&
+               Objects.equals(planId, that.planId);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(operation, pair, phase, transferId, coordinatorId, keyspace, range, planId);
+        return Objects.hash(operation, pair, phase, transferId, coordinatorId, keyspace, sinceEpoch, range, planId);
     }
 }
