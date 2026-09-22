@@ -325,13 +325,14 @@ public class Move extends MultiStepOperation<Epoch>
                     JVMStabilityInspector.inspectThrowable(t);
                     return continuable();
                 }
-                ClusterMetadataService.instance().ensureCMSPlacement(metadata);
+                if (finishMove.unlocks()) // legacy sequence without a dedicated unlock step
+                    ClusterMetadataService.instance().ensureCMSPlacement(metadata);
                 break;
             case UNLOCK_SEQUENCE:
                 try
                 {
                     // TODO (required): mutation tracking shard sealing for move is not yet implemented
-                    ClusterMetadataService.instance().commit(unlockSequence());
+                    metadata = ClusterMetadataService.instance().commit(unlockSequence());
                 }
                 catch (Throwable t)
                 {
@@ -339,6 +340,7 @@ public class Move extends MultiStepOperation<Epoch>
                     logger.warn("Exception committing unlockSequence", t);
                     return continuable();
                 }
+                ClusterMetadataService.instance().ensureCMSPlacement(metadata);
                 break;
             default:
                 return error(new IllegalStateException("Can't proceed with join from " + next));

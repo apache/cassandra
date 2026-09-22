@@ -302,8 +302,8 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
                     logger.warn("Got exception committing finishReplace", e);
                     return halted();
                 }
-                ClusterMetadataService.instance().ensureCMSPlacement(metadata);
-
+                if (finishReplace.unlocks()) // legacy sequence without a dedicated unlock step
+                    ClusterMetadataService.instance().ensureCMSPlacement(metadata);
                 break;
             case UNLOCK_SEQUENCE:
                 try
@@ -315,7 +315,7 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
                                                                      finishReplace.delta(),
                                                                      startReplace.replaced());
                     }
-                    ClusterMetadataService.instance().commit(unlockSequence());
+                    metadata = ClusterMetadataService.instance().commit(unlockSequence());
                 }
                 catch (Throwable e)
                 {
@@ -323,7 +323,7 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
                     logger.warn("Exception sealing obsoleted MT shards or committing unlockSequence", e);
                     return continuable();
                 }
-
+                ClusterMetadataService.instance().ensureCMSPlacement(metadata);
                 break;
             default:
                 return error(new IllegalStateException("Can't proceed with replacement from " + next));
