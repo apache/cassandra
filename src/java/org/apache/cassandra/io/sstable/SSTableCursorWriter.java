@@ -157,7 +157,6 @@ public class SSTableCursorWriter implements AutoCloseable
         Descriptor desc,
         SortedTableWriter<?,?> ssTableWriter,
         SequentialWriter dataWriter,
-        SortedTableWriter.AbstractIndexWriter indexWriter,
         MetadataCollector metadataCollector,
         SerializationHeader serializationHeader)
     {
@@ -183,7 +182,6 @@ public class SSTableCursorWriter implements AutoCloseable
         this(ssTableWriter.descriptor,
              ssTableWriter,
              ssTableWriter.dataWriter,
-             ssTableWriter.indexWriter,
              ssTableWriter.metadataCollector,
              ssTableWriter.partitionWriter.getHeader());
     }
