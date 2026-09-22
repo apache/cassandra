@@ -21,9 +21,11 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -1634,4 +1636,88 @@ public class LogTransactionTest extends AbstractTransactionalTest
             txnFile.abort(); // this should complete the txn
             txnFile.trackNew(dummySSTable()); // expect an IllegalStateException here
         }
-    }}
+    }
+
+    @Test
+    public void testBigFormatSSTableLastModifiedTimestampNeverChangesOnPartialDeletes() throws IOException
+    {
+        assertLastModifiedTimestampNeverChangesOnPartialDeletes(BigFormat.getInstance());
+    }
+
+    @Test
+    public void testBtiFormatSSTableLastModifiedTimestampNeverChangesOnPartialDeletes() throws IOException
+    {
+        assertLastModifiedTimestampNeverChangesOnPartialDeletes(DatabaseDescriptor.getSSTableFormats().get(BtiFormat.NAME));
+    }
+
+    // Verifies that a format's deletion of an sstable's component files never lets the highest
+    // update time among the sstable's files change, even mid-deletion.
+    private static void assertLastModifiedTimestampNeverChangesOnPartialDeletes(SSTableFormat<?, ?> format) throws IOException
+    {
+        // 1) create an sstable's real component files
+        File dataDir = new File(Files.createTempDirectory("LastModifiedOnPartialDeletesTest").toFile());
+        Descriptor realDesc = new Descriptor(dataDir, "ks", "cf", new SequenceBasedSSTableId(1), format);
+
+        Map<Component, File> realFiles = new HashMap<>();
+        for (Component component : format.allComponents())
+        {
+            File file = realDesc.fileFor(component);
+            file.parent().createDirectoriesIfNotExists();
+            assertTrue(file.createFileIfNotExists());
+            realFiles.put(component, file);
+        }
+
+        // 2) change the update times so that DATA ends up with the highest one
+        long base = System.currentTimeMillis();
+        long offset = 0;
+        for (Component component : realFiles.keySet())
+        {
+            if (!component.equals(SSTableFormat.Components.DATA))
+                assertTrue(realFiles.get(component).trySetLastModified(base + (offset++) * 1000));
+        }
+        assertTrue(realFiles.get(SSTableFormat.Components.DATA).trySetLastModified(base + realFiles.size() * 1000));
+
+        // 3) get the highest timestamp and save it
+        long expectedMaxUpdateTime = realFiles.values().stream().mapToLong(File::lastModified).max().getAsLong();
+
+        Set<Component> deleted = new HashSet<>();
+        List<String> violations = new ArrayList<>();
+        Descriptor stubDesc = stubDeletionOrder(realDesc, realFiles, component ->
+        {
+            deleted.add(component);
+            long remainingMax = realFiles.entrySet().stream()
+                                          .filter(e -> !deleted.contains(e.getKey()))
+                                          .mapToLong(e -> e.getValue().lastModified())
+                                          .max().orElse(-1);
+            if (remainingMax >= 0 && remainingMax != expectedMaxUpdateTime)
+                violations.add("after deleting " + component + ": last-modified calculation changed from "
+                               + expectedMaxUpdateTime + " to " + remainingMax);
+        });
+
+        // 4) run the real delete path and confirm each partial delete preserved the invariant
+        format.delete(stubDesc);
+
+        assertTrue("expected no violations, got: " + violations, violations.isEmpty());
+        assertEquals(realFiles.size(), deleted.size());
+    }
+
+    private static Descriptor stubDeletionOrder(Descriptor realDesc, Map<Component, File> realFiles, Consumer<Component> onDelete)
+    {
+        return new Descriptor(realDesc.version, realDesc.directory, realDesc.ksname,
+                               realDesc.cfname, realDesc.id)
+        {
+            @Override
+            public File fileFor(Component component)
+            {
+                return new File(realFiles.get(component).toPath())
+                {
+                    @Override
+                    public void deleteIfExists()
+                    {
+                        onDelete.accept(component);
+                    }
+                };
+            }
+        };
+    }
+}
