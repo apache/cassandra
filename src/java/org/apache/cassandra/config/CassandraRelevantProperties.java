@@ -669,8 +669,9 @@ public enum CassandraRelevantProperties
     /** Number of generated examples the randomized differential soak runs; must be > 0. */
     TEST_DIFFERENTIAL_EXAMPLES("cassandra.test.differential.examples"),
     /**
-     * Upper bound of the randomized soak's per-example hub-partition row count; the floor is a quarter
-     * of it. Zero disables hub partitions, which then fails the soak's own promoted-index assertion.
+     * Upper bound of the randomized soak's per-example row count for its wide partitions; the floor is
+     * a quarter of it. Zero disables the wide partitions, which then fails the soak's own promoted-index
+     * assertion.
      */
     TEST_DIFFERENTIAL_HUB_ROWS_PER_ROUND("cassandra.test.differential.hub_rows_per_round", "120"),
     /**
