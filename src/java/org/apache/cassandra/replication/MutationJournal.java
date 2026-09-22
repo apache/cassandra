@@ -973,6 +973,12 @@ public class MutationJournal
         segment -> !((StaticOffsetRanges) segment.keyStats()).isFullyCovered(durablyReconciled));
     }
 
+    @VisibleForTesting
+    public void truncateForTesting()
+    {
+        journal.truncateForTesting();
+    }
+
     public long getDiskSpaceUsed()
     {
         return journal.getDiskSpaceUsed();

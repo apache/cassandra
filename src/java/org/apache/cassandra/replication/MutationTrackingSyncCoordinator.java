@@ -19,6 +19,7 @@
 package org.apache.cassandra.replication;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -335,6 +336,22 @@ public class MutationTrackingSyncCoordinator
     public Range<Token> getRange()
     {
         return range;
+    }
+
+    /**
+     * Return the union of captured targets across all shards this coordinator managed, as a flat map keyed by 
+     * globally unique {@link CoordinatorLogId}. Intended for consumers that need the offset IR waited for every
+     * live replica to reach.
+     * <p>
+     * Callers should only invoke this after the completion future resolves successfully. Targets are captured before 
+     * sync requests dispatch (see {@link #captureTargets}), but the caller usually wants the post-IR state.
+     */
+    public Map<CoordinatorLogId, Offsets.Immutable> getCapturedTargets()
+    {
+        Map<CoordinatorLogId, Offsets.Immutable> merged = new HashMap<>();
+        for (ShardSyncState state : shardStates.values())
+            merged.putAll(state.targets);
+        return merged;
     }
 
     public void awaitCompletion() throws Exception
