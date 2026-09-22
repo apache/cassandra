@@ -32,8 +32,6 @@ import java.util.concurrent.locks.LockSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.base.Preconditions;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -70,6 +68,7 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -708,7 +707,7 @@ public final class SealingCoordinator
         public static AsyncPromise<Set<ShardMetadata>> fetch(
             String keyspace, long beforeEpoch, Range<Token> range, Set<InetAddressAndPort> endpoints)
         {
-            Preconditions.checkArgument(!endpoints.isEmpty());
+            checkArgument(!endpoints.isEmpty());
             AsyncPromise<Set<ShardMetadata>> promise = new AsyncPromise<>();
             Set<ShardMetadata> merged = ConcurrentHashMap.newKeySet();
 
@@ -838,6 +837,8 @@ public final class SealingCoordinator
         public static AsyncPromise<Void> initiate(
             String keyspace, long sinceEpoch, Range<Token> range, List<InetAddressAndPort> endpoints)
         {
+            checkArgument(!endpoints.isEmpty());
+
             AsyncPromise<Void> promise = new AsyncPromise<>();
 
             RequestCallback<Response> callback = new RequestCallback<>()
@@ -961,6 +962,8 @@ public final class SealingCoordinator
         public static AsyncPromise<Boolean> poll(
             String keyspace, long sinceEpoch, Range<Token> range, List<InetAddressAndPort> endpoints)
         {
+            checkArgument(!endpoints.isEmpty());
+
             AsyncPromise<Boolean> promise = new AsyncPromise<>();
 
             RequestCallback<Response> callback = new RequestCallback<>()
@@ -1084,6 +1087,8 @@ public final class SealingCoordinator
         public static AsyncPromise<Log2OffsetsMap.Mutable> capture(
             String keyspace, long sinceEpoch, Range<Token> range, List<InetAddressAndPort> endpoints)
         {
+            checkArgument(!endpoints.isEmpty());
+
             AsyncPromise<Log2OffsetsMap.Mutable> promise = new AsyncPromise<>();
             Log2OffsetsMap.Mutable union = new Log2OffsetsMap.Mutable();
 
@@ -1333,6 +1338,8 @@ public final class SealingCoordinator
         public static AsyncPromise<Void> complete(
             String keyspace, long sinceEpoch, Range<Token> range, List<InetAddressAndPort> endpoints)
         {
+            checkArgument(!endpoints.isEmpty());
+
             AsyncPromise<Void> promise = new AsyncPromise<>();
 
             RequestCallback<Response> callback = new RequestCallback<>()

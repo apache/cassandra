@@ -121,6 +121,7 @@ public class TrackedRepairTransfer extends CoordinatedTransfer
     {
         return "TrackedRepairTransfer{" +
                "keyspace='" + keyspace + '\'' +
+               ", sinceEpoch=" + sinceEpoch +
                ", range=" + range +
                ", streamResults=" + streamResults +
                '}';
