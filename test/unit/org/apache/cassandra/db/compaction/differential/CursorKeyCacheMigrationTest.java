@@ -28,6 +28,7 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.compaction.CompactionTask;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
@@ -37,7 +38,6 @@ import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -52,9 +52,19 @@ public class CursorKeyCacheMigrationTest extends DifferentialCompactionTester
     /** A key cache capacity the scenario's entries fit inside. */
     private static final long KEY_CACHE_CAPACITY_BYTES = 1L << 20;
 
+    /** Small enough that the fixture's partitions span several index blocks, so entries are indexed. */
+    private static final int COLUMN_INDEX_SIZE_KIB = 1;
+
+    /** Every Nth partition gets a surviving partition-level tombstone. */
+    private static final int DELETE_STRIDE = 7;
+
+    /** Deletion timestamps: older than the rows, so the rows survive and the deletion is retained. */
+    private static final long DELETE_TIMESTAMP_BASE = 1000L;
+
     private SSTableFormat<?, ?> originalFormat;
     private boolean originalMigrate;
     private int originalColumnIndexCacheSize;
+    private int originalColumnIndexSize;
     private long originalKeyCacheCapacity;
 
     @Before
@@ -67,6 +77,10 @@ public class CursorKeyCacheMigrationTest extends DifferentialCompactionTester
         // Forces a promoted row index.
         originalColumnIndexCacheSize = DatabaseDescriptor.getColumnIndexCacheSizeInKiB();
         DatabaseDescriptor.setColumnIndexCacheSize(0);
+        // Small index blocks, so the fixture's partitions span more than one block and their cached
+        // entries carry the partition deletion.
+        originalColumnIndexSize = DatabaseDescriptor.getColumnIndexSizeInKiB();
+        DatabaseDescriptor.setColumnIndexSizeInKiB(COLUMN_INDEX_SIZE_KIB);
         // Enable the key cache regardless of the yaml, since this scenario is about what it holds.
         originalKeyCacheCapacity = CacheService.instance.keyCache.getCapacity();
         if (originalKeyCacheCapacity == 0)
@@ -78,6 +92,7 @@ public class CursorKeyCacheMigrationTest extends DifferentialCompactionTester
     public void restore()
     {
         DatabaseDescriptor.setColumnIndexCacheSize(originalColumnIndexCacheSize);
+        DatabaseDescriptor.setColumnIndexSizeInKiB(originalColumnIndexSize);
         DatabaseDescriptor.setMigrateKeycacheOnCompaction(originalMigrate);
         DatabaseDescriptor.setSelectedSSTableFormat(originalFormat);
         CacheService.instance.keyCache.setCapacity(originalKeyCacheCapacity);
@@ -115,22 +130,42 @@ public class CursorKeyCacheMigrationTest extends DifferentialCompactionTester
         assertOutputFormatIsSelected(output);
 
         int migrated = 0;
-        for (DecoratedKey key : hot)
+        int deletionsVerified = 0;
+        for (int pk = 0; pk < hot.size(); pk++)
         {
+            DecoratedKey key = hot.get(pk);
             AbstractRowIndexEntry cached = ((KeyCacheSupport<?>) output).getCachedPosition(key, false);
             if (cached == null)
                 continue;
             migrated++;
 
-            // The cached entry must name the same data position a fresh index lookup does.
-            AbstractRowIndexEntry looked = output.getRowIndexEntry(key, SSTableReader.Operator.EQ);
-            assertNotNull("the migrated key " + key + " is not in the output's index at all", looked);
-            assertEquals("the key cache entry for " + key + " points at a different partition than " +
-                         "the output's own index does", looked.position, cached.position);
+            // A multi-block entry carries the partition deletion. Compare it against what this test
+            // wrote, not against getRowIndexEntry: that method consults the same key cache and would
+            // hand back this very entry, so the check would compare the value to itself. A reused
+            // DeletionTime aliased into the cache reports a later partition's value, not this one's.
+            if (cached.isIndexed())
+            {
+                DeletionTime cachedDeletion = cached.deletionTime();
+                if (pk % DELETE_STRIDE == 0)
+                {
+                    assertEquals("the key cache entry for pk " + pk + " lost its own partition " +
+                                 "deletion; a reused DeletionTime leaked into the cache",
+                                 DELETE_TIMESTAMP_BASE + pk, cachedDeletion.markedForDeleteAt());
+                    deletionsVerified++;
+                }
+                else
+                {
+                    assertTrue("the key cache entry for pk " + pk + " gained a partition deletion it " +
+                               "never had; a reused DeletionTime leaked into the cache",
+                               cachedDeletion.isLive());
+                }
+            }
         }
 
         assertTrue("no hot key reached the output's key cache, so BigTableWriter.maybeCacheKey " +
                    "never stored anything and this scenario proved nothing", migrated > 0);
+        assertTrue("no hot, multi-block, partition-deleted key reached the cache, so this scenario " +
+                   "did not exercise the DeletionTime aliasing path", deletionsVerified > 0);
     }
 
     /** How many of these keys any live sstable currently holds a cached position for. */
@@ -172,6 +207,14 @@ public class CursorKeyCacheMigrationTest extends DifferentialCompactionTester
                     execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)", pk, ck + round * 8, padding);
             flush();
         }
+
+        // Give a spread of partitions a partition-level tombstone with a distinct, old timestamp.
+        // Older than the rows, so the rows survive and the partition keeps a non-LIVE deletion; that
+        // is the entry the key cache must snapshot rather than alias to the cursor's reused instance.
+        for (int pk = 0; pk < PARTITIONS; pk += DELETE_STRIDE)
+            execute("DELETE FROM %s USING TIMESTAMP ? WHERE pk = ?", DELETE_TIMESTAMP_BASE + pk, pk);
+        flush();
+
         assertTrue("the fixture needs inputs", cfs.getLiveSSTables().size() >= 2);
         return cfs;
     }

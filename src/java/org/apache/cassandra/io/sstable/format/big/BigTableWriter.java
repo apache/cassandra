@@ -109,6 +109,8 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
      * Index.db on a hit.
      *
      * @param key the partition's key; may be a reusable instance, the cache keeps a retainable copy
+     * @param partitionLevelDeletion the partition's deletion; may be a reusable instance, so the
+     *        cache keeps an immutable snapshot rather than aliasing it
      */
     public void maybeCacheKey(DecoratedKey key, long dataFilePosition, long indexFilePosition,
                               DeletionTime partitionLevelDeletion, long headerLength,
@@ -117,9 +119,16 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
         if (!shouldCacheKey(key))
             return;
 
+        // The cursor path hands in a reusable DeletionTime that the next partition overwrites, and the
+        // cached entry outlives this partition. Snapshot it so the cache never aliases the shared one.
+        DeletionTime cachedDeletion = partitionLevelDeletion.isLive()
+                                      ? DeletionTime.LIVE
+                                      : DeletionTime.build(partitionLevelDeletion.markedForDeleteAt(),
+                                                           partitionLevelDeletion.localDeletionTime());
+
         cachedKeys.put(key.retainable(), RowIndexEntry.create(dataFilePosition,
                                                  indexFilePosition,
-                                                 partitionLevelDeletion,
+                                                 cachedDeletion,
                                                  headerLength,
                                                  columnIndexCount,
                                                  indexedPartSize,
