@@ -30,15 +30,14 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 /**
- * A reusable {@link ClusteringPrefix} view over a {@link ClusteringDescriptor}'s serialized
- * clustering bytes. {@link #reset} wraps the descriptor's array in place and parses the
- * component boundaries; it copies nothing.
+ * A {@link ClusteringPrefix} view over a copy of a {@link ClusteringDescriptor}'s serialized
+ * clustering bytes. {@link #snapshotOf} copies the bytes and parses the component boundaries, so
+ * the view stays valid after the descriptor is reused.
  *
  * Only the methods {@link org.apache.cassandra.db.ClusteringComparator#asByteComparable} calls
- * are supported, plus {@link #retainable}: kind, size, get and accessor. Every other method
- * throws {@link UnsupportedOperationException}. get(i) returns one shared window, re-positioned
- * per call, so a caller must consume one component at a time. Use two views to compare two
- * prefixes.
+ * are supported: kind, size, get and accessor. Every other method throws
+ * {@link UnsupportedOperationException}. get(i) returns one shared window, re-positioned per call,
+ * so a caller must consume one component at a time. Use two views to compare two prefixes.
  */
 public class ClusteringDescriptorPrefixView implements ClusteringPrefix<ByteBuffer>
 {
@@ -47,21 +46,16 @@ public class ClusteringDescriptorPrefixView implements ClusteringPrefix<ByteBuff
     private ClusteringPrefix.Kind kind;
     private int[] offsets = new int[8];
     private int[] lengths = new int[8]; // -1 = null component, 0 = empty
-    private byte[] backing;
     private ByteBuffer window;
-    private int limit;
-    /** True when this view owns its byte copy, so the bytes outlive the descriptor. */
-    private boolean owned;
 
-    public ClusteringDescriptorPrefixView(AbstractType<?>[] types)
+    private ClusteringDescriptorPrefixView(AbstractType<?>[] types)
     {
         this.types = types;
     }
 
     /**
-     * Returns a view that owns a copy of the descriptor's bytes. It stays valid after the
-     * descriptor is reused, so a consumer that retains the prefix must use this instead of
-     * {@link #reset}.
+     * Returns a view over a copy of the descriptor's bytes. It stays valid after the descriptor is
+     * reused.
      */
     public static ClusteringDescriptorPrefixView snapshotOf(ClusteringDescriptor descriptor, AbstractType<?>[] types)
     {
@@ -82,36 +76,9 @@ public class ClusteringDescriptorPrefixView implements ClusteringPrefix<ByteBuff
         byte[] copy = Arrays.copyOf(bytes, length);
         view.kind = kind;
         view.size = size;
-        view.owned = true;
-        view.backing = copy;
         view.window = ByteBuffer.wrap(copy);
         view.parse(copy.length);
         return view;
-    }
-
-    /**
-     * Points this view at the descriptor's live bytes and parses them. The view stays correct only
-     * until the descriptor is written again, so a consumer that retains it must call
-     * {@link #retainable}.
-     *
-     * @throws IllegalStateException if this view owns a copy, which {@link #snapshotOf} returns
-     */
-    public ClusteringDescriptorPrefixView reset(ClusteringDescriptor descriptor)
-    {
-        if (owned)
-            throw new IllegalStateException("a snapshot owns its bytes and cannot be reset");
-
-        this.kind = descriptor.clusteringKind();
-        this.size = descriptor.clusteringColumnsBound();
-        byte[] bytes = descriptor.clusteringBytes();
-        int limit = descriptor.clusteringLength();
-        if (backing != bytes || window == null)
-        {
-            backing = bytes;
-            window = ByteBuffer.wrap(bytes);
-        }
-        parse(limit);
-        return this;
     }
 
     // Wire format, as the cursor reader stores it: one vint block header per 32 components
@@ -119,7 +86,6 @@ public class ClusteringDescriptorPrefixView implements ClusteringPrefix<ByteBuff
     // or as a vint length followed by the bytes.
     private void parse(int limit)
     {
-        this.limit = limit;
         if (offsets.length < size)
         {
             offsets = new int[size];
@@ -226,13 +192,12 @@ public class ClusteringDescriptorPrefixView implements ClusteringPrefix<ByteBuff
     }
 
     /**
-     * Returns a prefix whose bytes outlive the descriptor. A view that already owns its bytes
-     * returns itself.
+     * A snapshot already owns a copy of its bytes, so it is its own retainable form.
      */
     @Override
     public ClusteringPrefix<?> retainable()
     {
-        return owned ? this : snapshot(types, kind, size, backing, limit);
+        return this;
     }
 
     @Override

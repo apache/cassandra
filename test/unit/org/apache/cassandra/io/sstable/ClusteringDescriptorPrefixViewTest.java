@@ -126,8 +126,6 @@ public class ClusteringDescriptorPrefixViewTest
                 ClusteringComparator comparator = new ClusteringComparator(example.types);
                 ClusteringPrefix<byte[]> reference = referenceOf(descriptor, example.types);
 
-                assertSamePrefix("reset", reference,
-                                 new ClusteringDescriptorPrefixView(example.types).reset(descriptor), comparator);
                 // snapshotOf re-parses a copy of the bytes
                 assertSamePrefix("snapshotOf", reference,
                                  ClusteringDescriptorPrefixView.snapshotOf(descriptor, example.types), comparator);
@@ -152,7 +150,7 @@ public class ClusteringDescriptorPrefixViewTest
             TestDescriptor descriptor = new TestDescriptor(types);
             descriptor.load(ClusteringPrefix.Kind.CLUSTERING, count, serialize(types, values));
 
-            ClusteringDescriptorPrefixView view = new ClusteringDescriptorPrefixView(types).reset(descriptor);
+            ClusteringDescriptorPrefixView view = ClusteringDescriptorPrefixView.snapshotOf(descriptor, types);
             assertSamePrefix("size " + count, referenceOf(descriptor, types), view, new ClusteringComparator(types));
 
             // asserted absolutely, not against either implementation
@@ -188,49 +186,9 @@ public class ClusteringDescriptorPrefixViewTest
                          ClusteringDescriptorPrefixView.snapshotOf(descriptor, types), comparator);
     }
 
-    /** reset re-parses without re-wrapping when the backing array is unchanged, and re-wraps for a
-     *  different descriptor's array. */
+    /** A snapshot must survive the source descriptor being overwritten. */
     @Test
-    public void resetRewrapsOnlyOnANewBackingArray()
-    {
-        AbstractType<?>[] types = { Int32Type.instance, UTF8Type.instance, LongType.instance };
-        ClusteringComparator comparator = new ClusteringComparator(types);
-
-        TestDescriptor first = new TestDescriptor(types);
-        first.load(ClusteringPrefix.Kind.CLUSTERING, 3,
-                   serialize(types, values(Int32Type.instance.decompose(1),
-                                           UTF8Type.instance.decompose("a"),
-                                           LongType.instance.decompose(2L))));
-        byte[] backing = first.clusteringBytes();
-
-        ClusteringDescriptorPrefixView view = new ClusteringDescriptorPrefixView(types);
-        view.reset(first);
-        assertSamePrefix("first parse", referenceOf(first, types), view, comparator);
-
-        // same array, new content and length: must take the already-wrapped path and honour the new limit
-        first.load(ClusteringPrefix.Kind.INCL_END_BOUND, 2,
-                   serialize(types, values(null, UTF8Type.instance.decompose("bbbbbbbb"))));
-        assertSame("the reload must not have resized the descriptor, or the backing == bytes branch " +
-                   "is not the one being covered",
-                   backing, first.clusteringBytes());
-        view.reset(first);
-        assertSamePrefix("same backing array", referenceOf(first, types), view, comparator);
-
-        // A different descriptor owns a different array, so the view must re-wrap.
-        TestDescriptor second = new TestDescriptor(types);
-        second.load(ClusteringPrefix.Kind.CLUSTERING, 3,
-                    serialize(types, values(ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                            UTF8Type.instance.decompose("c"),
-                                            LongType.instance.decompose(-9L))));
-        assertNotSame(first.clusteringBytes(), second.clusteringBytes());
-        view.reset(second);
-        assertSamePrefix("new backing array", referenceOf(second, types), view, comparator);
-    }
-
-    /** A snapshot and a {@code retainable()} from a live view must both survive the source
-     *  descriptor being overwritten. */
-    @Test
-    public void retainedViewsSurviveTheDescriptorBeingOverwritten()
+    public void aSnapshotSurvivesTheDescriptorBeingOverwritten()
     {
         AbstractType<?>[] types = { Int32Type.instance, UTF8Type.instance };
         ClusteringComparator comparator = new ClusteringComparator(types);
@@ -243,9 +201,6 @@ public class ClusteringDescriptorPrefixViewTest
         byte[] backing = descriptor.clusteringBytes();
 
         ClusteringDescriptorPrefixView snapshot = ClusteringDescriptorPrefixView.snapshotOf(descriptor, types);
-        ClusteringDescriptorPrefixView live = new ClusteringDescriptorPrefixView(types).reset(descriptor);
-        ClusteringPrefix<?> retained = live.retainable();
-        assertNotSame("retainable() on a live view must copy", live, retained);
 
         // same length: the descriptor is rewritten in place
         descriptor.load(ClusteringPrefix.Kind.CLUSTERING, 2,
@@ -255,8 +210,6 @@ public class ClusteringDescriptorPrefixViewTest
                    "would pass this test by accident",
                    backing, descriptor.clusteringBytes());
         assertSamePrefix("snapshot after an in-place overwrite", expected, snapshot, comparator);
-        assertSamePrefix("retainable after an in-place overwrite", expected,
-                         (ClusteringDescriptorPrefixView) retained, comparator);
 
         // And one that replaces the array outright.
         descriptor.load(ClusteringPrefix.Kind.CLUSTERING, 2,
@@ -264,13 +217,11 @@ public class ClusteringDescriptorPrefixViewTest
                                                 UTF8Type.instance.decompose(repeat('x', 300)))));
         assertNotSame(backing, descriptor.clusteringBytes());
         assertSamePrefix("snapshot after a resizing overwrite", expected, snapshot, comparator);
-        assertSamePrefix("retainable after a resizing overwrite", expected,
-                         (ClusteringDescriptorPrefixView) retained, comparator);
     }
 
-    /** A view that already owns its bytes returns itself and refuses to be re-pointed. */
+    /** A snapshot already owns its bytes, so it is its own retainable form. */
     @Test
-    public void anOwnedViewIsItsOwnRetainableAndRejectsReset()
+    public void aSnapshotIsItsOwnRetainable()
     {
         AbstractType<?>[] types = { Int32Type.instance };
         TestDescriptor descriptor = new TestDescriptor(types);
@@ -279,14 +230,6 @@ public class ClusteringDescriptorPrefixViewTest
 
         ClusteringDescriptorPrefixView snapshot = ClusteringDescriptorPrefixView.snapshotOf(descriptor, types);
         assertSame(snapshot, snapshot.retainable());
-        try
-        {
-            snapshot.reset(descriptor);
-            fail("a snapshot owns its bytes and must refuse reset");
-        }
-        catch (IllegalStateException expected)
-        {
-        }
     }
 
     // ------------------------------------------------------------------------------------------
