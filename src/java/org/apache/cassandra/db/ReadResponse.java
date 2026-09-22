@@ -54,6 +54,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ExpMovingAverage;
 import org.apache.cassandra.utils.MovingAverage;
+import org.apache.cassandra.utils.Throwables;
 
 import static org.apache.cassandra.db.RepairedDataInfo.NO_OP_REPAIRED_DATA_INFO;
 
@@ -440,11 +441,12 @@ public abstract class ReadResponse
                 return new InMemoryDataResponse(null, rdi.getDigest(), rdi.isConclusive());
             }
 
-            ImmutableBTreePartition partition;
+            ImmutableBTreePartition partition = null;
             ByteBuffer serialized = null;
             // Closing rowIter is our job, LimitedUnfilteredRowIterator deliberately never closes what it wraps.
             // The only exception is the overflow path, where serialize() takes it over, hence no try-with-resources.
             UnfilteredRowIterator rowIter = iter.next();
+            Throwable failure = null;
             try
             {
                 LimitedUnfilteredRowIterator limitedIter = new LimitedUnfilteredRowIterator(rowIter, inMemoryMaxRows, inMemoryMaxHeapSize);
@@ -459,11 +461,14 @@ public abstract class ReadResponse
                     rowIter = null;
                 }
             }
-            finally
+            catch (Throwable t)
             {
-                if (rowIter != null)
-                    rowIter.close();
+                failure = t;
             }
+
+            if (rowIter != null)
+                failure = Throwables.close(failure, rowIter);
+            Throwables.maybeFail(failure);
 
             // Capture digest after consuming and closing the iterator so any RepairedDataInfo transformations are reflected.
             if (serialized != null)

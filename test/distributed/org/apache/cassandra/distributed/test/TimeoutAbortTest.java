@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Consumer;
 
 import org.junit.Test;
 
@@ -27,37 +28,55 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_READ_ITERATION_DELAY_MS;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.psjava.util.AssertStatus.assertTrue;
+import static org.junit.Assert.fail;
 
 public class TimeoutAbortTest extends TestBaseImpl
 {
+    private static final String[] UNEXPECTED_RT_BOUND_ERRORS = { "open RT bound", "Range Tombstones to be closed" };
+
     @Test
     public void timeoutTest() throws IOException, InterruptedException
     {
         TEST_READ_ITERATION_DELAY_MS.setInt(5000);
+        timeoutTestWithAssertionConsumer(1000, errors -> assertFalse(errors.toString(), errors.stream().anyMatch(s -> s.contains("open RT bound"))));
+    }
+
+    @Test
+    public void timeoutMidRangeTombstoneTest() throws IOException, InterruptedException
+    {
+        TEST_READ_ITERATION_DELAY_MS.setInt(1000);
+        timeoutTestWithAssertionConsumer(0, errors -> {
+            for (String unexpectedError : UNEXPECTED_RT_BOUND_ERRORS)
+                assertFalse("a truncated range tombstone was reported as an error: " + errors,
+                            errors.stream().anyMatch(s -> s.contains(unexpectedError) && s.contains("ERROR")));
+        });
+    }
+
+    private static void timeoutTestWithAssertionConsumer(long sleepMillis, Consumer<List<String>> assertionConsumer) throws IOException, InterruptedException
+    {
         try (Cluster cluster = init(Cluster.build(1).start()))
         {
             cluster.schemaChange(withKeyspace("create table %s.tbl (id int, ck1 int, ck2 int, d int, primary key (id, ck1, ck2))"));
             cluster.coordinator(1).execute(withKeyspace("delete from %s.tbl using timestamp 5 where id = 1 and ck1 = 77 "), ConsistencyLevel.ALL);
             cluster.get(1).flush(KEYSPACE);
-            Thread.sleep(1000);
+            if (sleepMillis > 0) Thread.sleep(sleepMillis);
             for (int i = 0; i < 100; i++)
                 cluster.coordinator(1).execute(withKeyspace("insert into %s.tbl (id, ck1, ck2, d) values (1,77,?,1) using timestamp 10"), ConsistencyLevel.ALL, i);
             cluster.get(1).flush(KEYSPACE);
-            boolean caughtException = false;
             try
             {
                 cluster.coordinator(1).execute(withKeyspace("select * from %s.tbl where id=1 and ck1 = 77"), ConsistencyLevel.ALL);
+                fail("the read should not have completed; the iteration delay must abort it");
             }
             catch (Exception e)
             {
-                assertTrue(e.getClass().getName().contains("ReadTimeoutException"));
-                caughtException = true;
+                assertEquals("expected a ReadTimeoutException, got " + e.getClass().getName() + ": " + e.getMessage(),
+                             "org.apache.cassandra.exceptions.ReadTimeoutException", e.getClass().getName());
             }
-            assertTrue(caughtException);
             List<String> errors = cluster.get(1).logs().grepForErrors().getResult();
-            assertFalse(errors.toString(), errors.stream().anyMatch(s -> s.contains("open RT bound")));
+            assertionConsumer.accept(errors);
         }
     }
 }

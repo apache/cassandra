@@ -805,6 +805,92 @@ public class ReadResponseTest
         }
     }
 
+    private static class FailingRowIterator implements WrappingUnfilteredRowIterator
+    {
+        static final class ConsumeFailure extends RuntimeException {}
+        static final class CloseFailure extends RuntimeException {}
+
+        private final UnfilteredRowIterator wrapped;
+        private final int failAfterRows;
+        private int returned = 0;
+
+        FailingRowIterator(UnfilteredRowIterator wrapped, int failAfterRows)
+        {
+            this.wrapped = wrapped;
+            this.failAfterRows = failAfterRows;
+        }
+
+        @Override
+        public UnfilteredRowIterator wrapped()
+        {
+            return wrapped;
+        }
+
+        @Override
+        public Unfiltered next()
+        {
+            if (returned++ == failAfterRows)
+                throw new ConsumeFailure();
+            return wrapped.next();
+        }
+
+        @Override
+        public void close()
+        {
+            wrapped.close();
+            throw new CloseFailure();
+        }
+    }
+
+    @Test
+    public void inMemoryResponseCloseFailureDoesNotMaskConsumeFailure()
+    {
+        int partitionKey = key();
+        ReadCommand command = command(partitionKey, metadataWithClustering);
+        StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
+        PartitionUpdate update = buildMultiRowUpdate(metadataWithClustering, partitionKey, 5);
+
+        // fails on the 3rd unfiltered, so the failure lands mid-partition, where a read abort lands
+        FailingRowIterator rowIter = new FailingRowIterator(update.unfilteredIterator(), 2);
+        try
+        {
+            ReadResponse.createInMemoryDataResponse(singlePartitionIterator(rowIter), command, rdi, 10, 0);
+            fail("the consume failure should have propagated");
+        }
+        catch (FailingRowIterator.CloseFailure masked)
+        {
+            throw new AssertionError("the close failure replaced the consume failure expected by the caller", masked);
+        }
+        catch (FailingRowIterator.ConsumeFailure expected)
+        {
+            assertEquals("the close failure must be attached as suppressed, not dropped",
+                         1, expected.getSuppressed().length);
+            assertTrue("unexpected suppressed exception: " + expected.getSuppressed()[0],
+                       expected.getSuppressed()[0] instanceof FailingRowIterator.CloseFailure);
+        }
+    }
+
+    @Test
+    public void inMemoryResponseCloseFailurePropagatesOnTheNormalPath()
+    {
+        int partitionKey = key();
+        ReadCommand command = command(partitionKey, metadataWithClustering);
+        StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
+        PartitionUpdate update = buildMultiRowUpdate(metadataWithClustering, partitionKey, 5);
+
+        FailingRowIterator rowIter = new FailingRowIterator(update.unfilteredIterator(), Integer.MAX_VALUE);
+        try
+        {
+            ReadResponse.createInMemoryDataResponse(singlePartitionIterator(rowIter), command, rdi, 10, 0);
+            fail("the close failure should have propagated");
+        }
+        catch (FailingRowIterator.CloseFailure expected)
+        {
+            assertEquals("nothing was in flight, so nothing should be suppressed",
+                         0, expected.getSuppressed().length);
+        }
+    }
+
     @Test
     public void inMemoryResponseWithOverflowMatchesLocalDataResponse()
     {
