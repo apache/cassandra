@@ -47,6 +47,7 @@ import org.apache.cassandra.db.partitions.SimpleBTreePartition;
 import org.apache.cassandra.db.partitions.SingletonUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -473,41 +474,10 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
                 filter = command.rowFilter().filter(command().metadata(), command().nowInSec());
             }
 
-            /**
-             * Whether anything in the materialized copy of a partition can satisfy the row filter.
-             * <p>
-             * Asked of a fresh iterator over the materialized copy, so the iterator handed downstream is left
-             * unconsumed, and asked at partition granularity, because that is where {@link RowFilter} evaluates its
-             * partition key and static column expressions, and where it learns the partition key to evaluate its row
-             * expressions against. Applying the filter straight to a row iterator skips all of that, so a partition
-             * the coordinator will discard survives here and spends the read's limit.
-             * <p>
-             * The surviving content is then checked directly rather than through
-             * {@link UnfilteredRowIterator#isEmpty()}, which reports a partition as non empty when it carries a
-             * partition level deletion. Neither a partition level deletion nor a range tombstone can satisfy a row
-             * filter, so a partition holding only those matches nothing.
-             */
-            private boolean matchesFilter(DecoratedKey key)
+            private void markFiltered(DecoratedKey key)
             {
-                UnfilteredRowIterator materialized = queryPartition(data.get(key));
-                try (UnfilteredPartitionIterator filtered = Transformation.apply(new SingletonUnfilteredPartitionIterator(materialized), filter))
-                {
-                    if (!filtered.hasNext())
-                        return false;
-
-                    try (UnfilteredRowIterator partition = filtered.next())
-                    {
-                        if (!partition.staticRow().isEmpty())
-                            return true;
-
-                        while (partition.hasNext())
-                        {
-                            if (partition.next().isRow())
-                                return true;
-                        }
-                        return false;
-                    }
-                }
+                data.remove(key);
+                filteredKeys.add(key);
             }
 
             @Override
@@ -519,18 +489,43 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
                     protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
                     {
                         DecoratedKey key = partition.partitionKey();
-                        if (!matchesFilter(key))
+
+                        UnfilteredPartitionIterator filtered = Transformation.apply(new SingletonUnfilteredPartitionIterator(partition), filter);
+                        if (!filtered.hasNext())
                         {
-                            data.remove(key);
-                            filteredKeys.add(key);
-                            partition.close();
+                            markFiltered(key);
                             return null;
                         }
-                        // the only consumer of what this returns is the limit counter, and the limit belongs to the
-                        // rows the query can return, not to the rows the partition happens to hold. matchesFilter has
-                        // already evaluated the filter's partition level expressions against this partition, so what
-                        // is left to apply here is its row level ones.
-                        return Transformation.apply(partition, filter);
+
+                        return Transformation.apply(filtered.next(), new Transformation<UnfilteredRowIterator>()
+                        {
+                            int rows = 0;
+
+                            @Override
+                            protected void onClose()
+                            {
+                                if (rows == 0)
+                                    markFiltered(key);
+                                super.onClose();
+                            }
+
+                            @Override
+                            protected Row applyToRow(Row row)
+                            {
+                                if (row.hasLiveData(command.nowInSec(), command.metadata().enforceStrictLiveness()))
+                                    rows++;
+                                return super.applyToRow(row);
+                            }
+
+                            @Override
+                            protected Row applyToStatic(Row row)
+                            {
+                                if (command.selectsFullPartition()
+                                    && row.hasLiveData(command.nowInSec(), command.metadata().enforceStrictLiveness()))
+                                    rows++;
+                                return super.applyToStatic(row);
+                            }
+                        });
                     }
                 });
             }

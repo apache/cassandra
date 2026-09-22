@@ -538,6 +538,35 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
     }
 
     /**
+     * Identical to {@link #testFilteredRangeReadWhereAnInterleavingKeyDisplacesTheRowTheLimitAdmits},
+     * except that the stale interleaving partition (1,'z') also carries a static column.
+     * <p>
+     * Under commit 1949ec15e237, {@code matchesFilter} checks {@code !partition.staticRow().isEmpty()},
+     * which incorrectly returns {@code true} for (1,'z') on node 1 even though its only clustering row
+     * does not satisfy {@code v > 100}. Because it returns {@code true}, (1,'z') is never added to
+     * {@code filteredKeys}. When reconciliation delivers the update from node 2 that makes (1,'z')
+     * match, {@code canAcceptUpdate} does not see (1,'z') in {@code filteredKeys}, so it fails to
+     * record it in {@code followUpReadInfo} and does not trigger {@link FilteredFollowupRead}.
+     * The row in (1,'z') that should displace (1,'a') is lost.
+     */
+    @Test
+    public void testFilteredRangeReadWhereInterleavingKeyWithStaticRowDisplacesTheRowTheLimitAdmits()
+    {
+        String[] writes =
+        {
+            "*:INSERT INTO %s.tbl (pk0, pk1, ck, s, v) VALUES (1, 'a', 1, 7, 900) USING TIMESTAMP 10",
+            "*:INSERT INTO %s.tbl (pk0, pk1, ck, s, v) VALUES (1, 'z', 1, 7, 1) USING TIMESTAMP 11",
+            "!1:UPDATE %s.tbl USING TIMESTAMP 20 SET v = 500 WHERE pk0 = 1 AND pk1 = 'z' AND ck = 1"
+        };
+        String select = "SELECT pk0, pk1, ck, s, v FROM %s.tbl WHERE v > 100 LIMIT 1 ALLOW FILTERING";
+        assertTrackedMatchesOracle("l_interleaving_key_with_static_unpaged", TABLE_WITH_STATIC, writes, select, UNPAGED,
+                                   (keyspace, oracle) -> {
+                                       assertReadTogetherFromNode1(keyspace, row(1, "z"), row(1, "a"));
+                                       assertDataReplicaCannotAnswerAlone(keyspace, select, oracle);
+                                   });
+    }
+
+    /**
      * A flagged key that sorts ahead of the partitions the read kept, with a limit the initial result already fills.
      * The row it contributes belongs in front of a row that was counted, so it displaces that row rather than
      * extending the result past the limit, and the correct answer is the row the tracked read cannot see.
