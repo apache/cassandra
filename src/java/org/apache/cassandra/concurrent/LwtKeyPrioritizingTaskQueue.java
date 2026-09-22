@@ -26,6 +26,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.locks.ReentrantLock;
 
+/**
+ * This implementation of TaskQueue lets only one LWT task per partition key.
+ */
 public class LwtKeyPrioritizingTaskQueue implements TaskQueue
 {
     private final ConcurrentLinkedQueue<Runnable> queue = new ConcurrentLinkedQueue<>();
@@ -63,7 +66,8 @@ public class LwtKeyPrioritizingTaskQueue implements TaskQueue
 
     /**
      * @return For this implementation, poll means grab and return the first task that is actually allowed to run
-     * right now, unlike FIFO style, which would return the 0th index element
+     * right now(so it may also return null if there are all LWT tasks on same key), unlike FIFO style, which would
+     * return the 0th index element
      */
     @Override
     public Runnable poll()
@@ -103,6 +107,10 @@ public class LwtKeyPrioritizingTaskQueue implements TaskQueue
         }
     }
 
+    /**
+     * For this implementation, remove the LWT key from the active set so that other tasks targeting the same key can be executed.
+     * @param task
+     */
     @Override
     public void onTaskCompleted(Runnable task)
     {
