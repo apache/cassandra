@@ -155,10 +155,18 @@ public class AutoRepairUtils
     , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_START_TS,
     COL_REPAIR_TYPE, COL_HOST_ID);
 
-    final static String RECORD_FINISH_REPAIR_HISTORY = String.format(
-    "UPDATE %s.%s SET %s= ?, %s=false WHERE %s = ? AND %s = ?"
-    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_FINISH_TS,
+    // Force-repair variant of RECORD_START_REPAIR_HISTORY: in addition to repair_start_ts and repair_turn,
+    // it clears force_repair in the SAME single-row UPDATE.
+    final static String RECORD_START_FORCE_REPAIR_HISTORY = String.format(
+    "UPDATE %s.%s SET %s= ?, repair_turn = ?, %s=false WHERE %s = ? AND %s = ?"
+    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_START_TS,
     COL_FORCE_REPAIR, COL_REPAIR_TYPE, COL_HOST_ID);
+
+    // NOTE: this deliberately updates only repair_finish_ts and does NOT clear force_repair.
+    final static String RECORD_FINISH_REPAIR_HISTORY = String.format(
+    "UPDATE %s.%s SET %s= ? WHERE %s = ? AND %s = ?"
+    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_FINISH_TS,
+    COL_REPAIR_TYPE, COL_HOST_ID);
 
     final static String CLEAR_DELETE_HOSTS = String.format(
     "UPDATE %s.%s SET %s= {} WHERE %s = ? AND %s = ?"
@@ -170,6 +178,11 @@ public class AutoRepairUtils
     , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_FORCE_REPAIR,
     COL_REPAIR_TYPE, COL_HOST_ID);
 
+    final static String END_ONGOING_FORCE_REPAIR = String.format(
+    "UPDATE %s.%s SET %s = ? WHERE %s = ? AND %s = ?"
+    , SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_START_TS,
+    COL_REPAIR_TYPE, COL_HOST_ID);
+
     final static String SELECT_LAST_REPAIR_TIME_FOR_NODE = String.format(
     "SELECT %s FROM %s.%s WHERE %s = ? AND %s = ?", COL_REPAIR_FINISH_TS, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
     SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE, COL_HOST_ID);
@@ -178,19 +191,26 @@ public class AutoRepairUtils
     "SELECT %s FROM %s.%s WHERE %s = ? AND %s = ?", COL_FORCE_REPAIR, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
     SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE, COL_HOST_ID);
 
+    final static String SELECT_ONGOING_FORCE_REPAIR_FOR_NODE = String.format(
+    "SELECT %s, %s, %s FROM %s.%s WHERE %s = ? AND %s = ?", COL_REPAIR_START_TS, COL_REPAIR_FINISH_TS, COL_REPAIR_TURN,
+    SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE, COL_HOST_ID);
+
     static ModificationStatement delStatementRepairHistory;
     static SelectStatement selectStatementRepairHistory;
     static ModificationStatement delStatementPriorityStatus;
     static SelectStatement selectStatementRepairPriority;
     static SelectStatement selectLastRepairTimeForNode;
     static SelectStatement selectForceRepairForNode;
+    static SelectStatement selectOngoingForceRepairForNode;
     static ModificationStatement addPriorityHost;
     static ModificationStatement insertNewRepairHistoryStatement;
     static ModificationStatement recordStartRepairHistoryStatement;
+    static ModificationStatement recordStartForceRepairHistoryStatement;
     static ModificationStatement recordFinishRepairHistoryStatement;
     static ModificationStatement addHostIDToDeleteHostsStatement;
     static ModificationStatement clearDeleteHostsStatement;
     static ModificationStatement setForceRepairStatement;
+    static ModificationStatement endOngoingForceRepairStatement;
     static ConsistencyLevel internalQueryCL;
 
     public enum RepairTurn
@@ -211,6 +231,8 @@ public class AutoRepairUtils
                                                                                                                       .forInternalCalls());
         selectForceRepairForNode = (SelectStatement) QueryProcessor.getStatement(SELECT_FORCE_REPAIR_FOR_NODE, ClientState
                                                                                                                .forInternalCalls());
+        selectOngoingForceRepairForNode = (SelectStatement) QueryProcessor.getStatement(SELECT_ONGOING_FORCE_REPAIR_FOR_NODE, ClientState
+                                                                                                                              .forInternalCalls());
         delStatementPriorityStatus = (ModificationStatement) QueryProcessor.getStatement(DEL_REPAIR_PRIORITY, ClientState
                                                                                                               .forInternalCalls());
         addPriorityHost = (ModificationStatement) QueryProcessor.getStatement(ADD_PRIORITY_HOST, ClientState
@@ -219,12 +241,16 @@ public class AutoRepairUtils
                                                                                                                          .forInternalCalls());
         recordStartRepairHistoryStatement = (ModificationStatement) QueryProcessor.getStatement(RECORD_START_REPAIR_HISTORY, ClientState
                                                                                                                              .forInternalCalls());
+        recordStartForceRepairHistoryStatement = (ModificationStatement) QueryProcessor.getStatement(RECORD_START_FORCE_REPAIR_HISTORY, ClientState
+                                                                                                                                       .forInternalCalls());
         recordFinishRepairHistoryStatement = (ModificationStatement) QueryProcessor.getStatement(RECORD_FINISH_REPAIR_HISTORY, ClientState
                                                                                                                                .forInternalCalls());
         addHostIDToDeleteHostsStatement = (ModificationStatement) QueryProcessor.getStatement(ADD_HOST_ID_TO_DELETE_HOSTS, ClientState
                                                                                                                            .forInternalCalls());
         setForceRepairStatement = (ModificationStatement) QueryProcessor.getStatement(SET_FORCE_REPAIR, ClientState
                                                                                                         .forInternalCalls());
+        endOngoingForceRepairStatement = (ModificationStatement) QueryProcessor.getStatement(END_ONGOING_FORCE_REPAIR, ClientState
+                                                                                                                        .forInternalCalls());
         clearDeleteHostsStatement = (ModificationStatement) QueryProcessor.getStatement(CLEAR_DELETE_HOSTS, ClientState
                                                                                                             .forInternalCalls());
         delStatementRepairHistory = (ModificationStatement) QueryProcessor.getStatement(DEL_AUTO_REPAIR_HISTORY, ClientState
@@ -301,7 +327,8 @@ public class AutoRepairUtils
             {
                 if (history.isRepairRunning())
                 {
-                    if (history.forceRepair)
+                    boolean forcedRun = MY_TURN_FORCE_REPAIR.name().equals(history.repairTurn) || history.forceRepair;
+                    if (forcedRun)
                     {
                         hostIdsWithOnGoingForceRepair.add(history.hostId);
                     }
@@ -412,11 +439,36 @@ public class AutoRepairUtils
     }
 
     /**
-     * Check if force repair is set for the given node.
+     * Finalize a FAILED forced repair for the given node by ending its "ongoing" state.
+     * <p>
+     * This method ends that ongoing state without recording a success: it rewinds {@code repair_start_ts}
+     * back to the existing {@code repair_finish_ts} (so {@code isRepairRunning()} becomes false), while
+     * leaving {@code repair_finish_ts}, the time of the last SUCCESSFUL repair.
+     *
+     * @param repairType the repair type
+     * @param hostId the host id whose failed force repair should be finalized
+     */
+    public static void finalizeForceRepairFailure(RepairType repairType, UUID hostId)
+    {
+        // Read the genuine last-successful finish time and rewind repair_start_ts to it.
+        long lastFinishTime = getLastRepairTimeForNode(repairType, hostId);
+        endOngoingForceRepairStatement.execute(QueryState.forInternalCalls(),
+                                               QueryOptions.forInternalCalls(internalQueryCL,
+                                                                             Lists.newArrayList(ByteBufferUtil.bytes(lastFinishTime),
+                                                                                                ByteBufferUtil.bytes(repairType.toString()),
+                                                                                                ByteBufferUtil.bytes(hostId))),
+                                               Dispatcher.RequestTime.forImmediateExecution());
+        logger.info("Finalized failed force repair for {} (repair type {}): ended ongoing state (rewound repair_start_ts) without advancing repair_finish_ts",
+                    hostId, repairType);
+    }
+
+    /**
+     * Check whether a force repair has been requested for the given node, i.e. whether the
+     * {@code force_repair} flag is set.
      *
      * @param repairType the repair type to check
      * @param hostId the host id to check
-     * @return true if force repair is set for this node
+     * @return true if force repair is requested (flag set) for this node
      */
     public static boolean isForceRepairSetForNode(RepairType repairType, UUID hostId)
     {
@@ -432,6 +484,37 @@ public class AutoRepairUtils
 
         UntypedResultSet.Row one = result.one();
         return one.has(COL_FORCE_REPAIR) && one.getBoolean(COL_FORCE_REPAIR);
+    }
+
+    /**
+     * Check whether the given node has a force repair currently in progess, determined from the history
+     * row rather than the {@code force_repair} flag: the record is ongoing
+     * ({@code repair_start_ts > repair_finish_ts}) and its persisted {@code repair_turn} is
+     * {@link RepairTurn#MY_TURN_FORCE_REPAIR}.
+     *
+     * @param repairType the repair type to check
+     * @param hostId the host id to check
+     * @return true if this node has an in-progress force repair
+     */
+    public static boolean hasOngoingForceRepair(RepairType repairType, UUID hostId)
+    {
+        ResultMessage.Rows rows = selectOngoingForceRepairForNode.execute(QueryState.forInternalCalls(),
+                                                                          QueryOptions.forInternalCalls(internalQueryCL,
+                                                                                                        Lists.newArrayList(
+                                                                                                        ByteBufferUtil.bytes(repairType.toString()),
+                                                                                                        ByteBufferUtil.bytes(hostId))),
+                                                                          Dispatcher.RequestTime.forImmediateExecution());
+        UntypedResultSet result = UntypedResultSet.create(rows.result);
+        if (result.isEmpty())
+            return false;
+
+        UntypedResultSet.Row one = result.one();
+        long startTs = one.has(COL_REPAIR_START_TS) ? one.getLong(COL_REPAIR_START_TS) : 0;
+        long finishTs = one.has(COL_REPAIR_FINISH_TS) ? one.getLong(COL_REPAIR_FINISH_TS) : 0;
+        boolean ongoing = startTs > finishTs;
+        boolean forcedTurn = one.has(COL_REPAIR_TURN)
+                             && MY_TURN_FORCE_REPAIR.name().equals(one.getString(COL_REPAIR_TURN));
+        return ongoing && forcedTurn;
     }
 
     public static long getLastRepairTimeForNode(RepairType repairType, UUID hostId)
@@ -1028,15 +1111,25 @@ public class AutoRepairUtils
                                                                                            ByteBufferUtil.bytes(hostId))), Dispatcher.RequestTime.forImmediateExecution());
     }
 
-    static void updateStartAutoRepairHistory(RepairType repairType, UUID myId, long timestamp, RepairTurn turn)
+    /**
+     * Record the start of a repair run in this node's history row: sets {@code repair_start_ts} (which,
+     * being greater than {@code repair_finish_ts}, marks the record "ongoing") and persists the
+     * {@code repair_turn}. This is the durable "repair in progress" marker used by {@link #myTurnToRunRepair}
+     * to resume after a restart.
+     * <p>
+     * {@code forceTurn} dermins if it's a force repair or not. When true the persisted turn is a force repair
+     * ({@link RepairTurn#MY_TURN_FORCE_REPAIR}) AND the{@code force_repair} flag is cleared.
+     */
+    static void updateStartAutoRepairHistory(RepairType repairType, UUID myId, long timestamp, RepairTurn turn, boolean forceTurn)
     {
-        recordStartRepairHistoryStatement.execute(QueryState.forInternalCalls(),
-                                                  QueryOptions.forInternalCalls(internalQueryCL,
-                                                                                Lists.newArrayList(ByteBufferUtil.bytes(timestamp),
-                                                                                                   ByteBufferUtil.bytes(turn.name()),
-                                                                                                   ByteBufferUtil.bytes(repairType.toString()),
-                                                                                                   ByteBufferUtil.bytes(myId)
-                                                                                )), Dispatcher.RequestTime.forImmediateExecution());
+        ModificationStatement stmt = forceTurn ? recordStartForceRepairHistoryStatement : recordStartRepairHistoryStatement;
+        stmt.execute(QueryState.forInternalCalls(),
+                     QueryOptions.forInternalCalls(internalQueryCL,
+                                                   Lists.newArrayList(ByteBufferUtil.bytes(timestamp),
+                                                                      ByteBufferUtil.bytes(turn.name()),
+                                                                      ByteBufferUtil.bytes(repairType.toString()),
+                                                                      ByteBufferUtil.bytes(myId)
+                                                   )), Dispatcher.RequestTime.forImmediateExecution());
     }
 
     static void updateFinishAutoRepairHistory(RepairType repairType, UUID myId, long timestamp)
