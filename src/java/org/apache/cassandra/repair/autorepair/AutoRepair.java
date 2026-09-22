@@ -452,6 +452,11 @@ public class AutoRepair
             logger.info("Force repair is set for this node, bypassing min_repair_interval check");
             return false;
         }
+        if (AutoRepairUtils.hasOngoingForceRepair(repairType, myId))
+        {
+            logger.info("An in-progress force repair needs to resume for this node, bypassing min_repair_interval check");
+            return false;
+        }
         return tooSoonToRunRepair(repairType, repairState, config, myId);
     }
 
