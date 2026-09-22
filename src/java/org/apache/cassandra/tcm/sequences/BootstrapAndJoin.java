@@ -311,8 +311,8 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
                     logger.warn("Exception committing finishJoin", e);
                     return continuable();
                 }
-                ClusterMetadataService.instance().ensureCMSPlacement(metadata);
-
+                if (finishJoin.unlocks()) // legacy sequence without a dedicated unlock step
+                    ClusterMetadataService.instance().ensureCMSPlacement(metadata);
                 break;
             case UNLOCK_SEQUENCE:
                 try
@@ -323,7 +323,7 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
                                                                   latestModification.getEpoch(),
                                                                   finishJoin.delta());
                     }
-                    ClusterMetadataService.instance().commit(unlockSequence());
+                    metadata = ClusterMetadataService.instance().commit(unlockSequence());
                 }
                 catch (Throwable e)
                 {
@@ -331,7 +331,7 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
                     logger.warn("Exception sealing obsoleted MT shards or committing unlockSequence", e);
                     return continuable();
                 }
-
+                ClusterMetadataService.instance().ensureCMSPlacement(metadata);
                 break;
             default:
                 return error(new IllegalStateException("Can't proceed with join from " + next));
