@@ -61,9 +61,7 @@ public interface TaskQueue
         // We only enable LwtKeyPrioritizingTaskQueue on the Native-Transport-Requests pool
         if (executorName.contains("Native-Transport-Requests")
             && DatabaseDescriptor.getEnableLwtPartitionPrioritization())
-        {
             return new LwtKeyPrioritizingTaskQueue();
-        }
 
         return new StandardTaskQueue();
     }

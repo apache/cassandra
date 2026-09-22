@@ -76,7 +76,6 @@ public class Config
         }
         return builder.build();
     }
-
     /*
      * Prefix for Java properties for internal Cassandra configuration options
      */
