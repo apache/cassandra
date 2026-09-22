@@ -161,7 +161,7 @@ public class PrepareJoin implements Transformation
         StartJoin startJoin = new StartJoin(nodeId, transitionPlan.addToWrites(), lockKey);
         MidJoin midJoin = new MidJoin(nodeId, transitionPlan.moveReads(), lockKey);
         FinishJoin finishJoin =
-            new FinishJoin(nodeId, tokens, transitionPlan.removeFromWrites(), lockKey, !UnlockSequence.isSupportedBy(prev));
+            new FinishJoin(nodeId, tokens, transitionPlan.removeFromWrites(), lockKey, !RetireSingleNodeSequence.isSupportedBy(prev));
 
         BootstrapAndJoin plan = BootstrapAndJoin.newSequence(prev.nextEpoch(),
                                                              lockKey,
@@ -361,7 +361,7 @@ public class PrepareJoin implements Transformation
                 IPartitioner partitioner = ClusterMetadata.current().partitioner;
                 for (int i = 0; i < numTokens; i++)
                     tokens.add(Token.metadataSerializer.deserialize(in, partitioner, version));
-                // UnlockSequence step which follows after FinishJoin was introduced in TBD_UNLOCK_STEP
+                // RetireSingleNodeSequence step which follows after FinishJoin was introduced in TBD_UNLOCK_STEP
                 // to support mutation tracking, and unlock now happens in that step.
                 // TODO (now): confirm the correct Version to use here.
                 boolean unlock = version.isBefore(Version.TBD_UNLOCK_STEP) || in.readBoolean();

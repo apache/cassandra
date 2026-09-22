@@ -51,7 +51,7 @@ import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
-import org.apache.cassandra.tcm.transformations.UnlockSequence;
+import org.apache.cassandra.tcm.transformations.RetireSingleNodeSequence;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
@@ -59,8 +59,8 @@ import static com.google.common.collect.ImmutableList.of;
 import static org.apache.cassandra.tcm.MultiStepOperation.Kind.LEAVE;
 import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_LEAVE;
 import static org.apache.cassandra.tcm.Transformation.Kind.MID_LEAVE;
+import static org.apache.cassandra.tcm.Transformation.Kind.RETIRE_SINGLE_NODE_SEQUENCE;
 import static org.apache.cassandra.tcm.Transformation.Kind.START_LEAVE;
-import static org.apache.cassandra.tcm.Transformation.Kind.UNLOCK_SEQUENCE;
 import static org.apache.cassandra.tcm.sequences.SequenceState.continuable;
 import static org.apache.cassandra.tcm.sequences.SequenceState.error;
 
@@ -161,15 +161,15 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
     @Override
     public Transformation.Result applyTo(ClusterMetadata metadata)
     {
-        // FinishLeave unlocks the affected ranges and retires the sequence only in legacy (pre-UNLOCK_SEQUENCE) mode.
+        // FinishLeave unlocks the affected ranges and retires the sequence only in legacy (pre-RETIRE_SINGLE_NODE_SEQUENCE) mode.
         return finishLeave.unlocks()
              ? applyMultipleTransformations(metadata, next, of(startLeave, midLeave, finishLeave))
-             : applyMultipleTransformations(metadata, next, of(startLeave, midLeave, finishLeave, unlockSequence()));
+             : applyMultipleTransformations(metadata, next, of(startLeave, midLeave, finishLeave, retireSequence()));
     }
 
-    private UnlockSequence unlockSequence()
+    private RetireSingleNodeSequence retireSequence()
     {
-        return new UnlockSequence(startLeave.nodeId(), lockKey);
+        return new RetireSingleNodeSequence(startLeave.nodeId(), lockKey);
     }
 
     @Override
@@ -234,7 +234,7 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
                     return continuable();
                 }
                 break;
-            case UNLOCK_SEQUENCE:
+            case RETIRE_SINGLE_NODE_SEQUENCE:
                 try
                 {
                     if (MutationTrackingService.isEnabled() && streams.kind() != LeaveStreams.Kind.ASSASSINATE)
@@ -245,12 +245,12 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
                                                                    finishLeave.nodeId(),
                                                                    streams.kind());
                     }
-                    ClusterMetadataService.instance().commit(unlockSequence());
+                    ClusterMetadataService.instance().commit(retireSequence());
                 }
                 catch (Throwable t)
                 {
                     JVMStabilityInspector.inspectThrowable(t);
-                    logger.warn("Exception sealing obsoleted MT shards or committing unlockSequence", t);
+                    logger.warn("Exception sealing obsoleted MT shards or committing retireSequence", t);
                     return continuable();
                 }
                 break;
@@ -285,7 +285,7 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
         DataPlacements placements = metadata.placements;
         switch (next)
         {
-            case UNLOCK_SEQUENCE:
+            case RETIRE_SINGLE_NODE_SEQUENCE:
                 // FINISH_LEAVE has already been enacted - it's too late to be reverting anything, so we just unlock.
                 return metadata.transformer().with(metadata.lockedRanges.unlock(lockKey));
             // need to undo MID_LEAVE and START_LEAVE, but PrepareLeave doesn't affect placement
@@ -322,7 +322,7 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
                 return 1;
             case FINISH_LEAVE:
                 return 2;
-            case UNLOCK_SEQUENCE:
+            case RETIRE_SINGLE_NODE_SEQUENCE:
                 return 3;
             default:
                 throw new IllegalStateException(String.format("Step %s is invalid for sequence %s ", next, LEAVE));
@@ -340,7 +340,7 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
             case 2:
                 return FINISH_LEAVE;
             case 3:
-                return UNLOCK_SEQUENCE;
+                return RETIRE_SINGLE_NODE_SEQUENCE;
             default:
                 throw new IllegalStateException(String.format("Step %s is invalid for sequence %s ", index, LEAVE));
         }

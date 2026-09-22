@@ -156,7 +156,7 @@ public final class SealingCoordinator
      *    + (30,35] | {n35,n40,n50}     | e4 | ACTIVE
      *      (35,40] | {n40,n50,n60}     | e1 | ACTIVE
      *
-     * 6. UNLOCK_SEQUENCE:
+     * 6. RETIRE_SINGLE_NODE_SEQUENCE:
      *
      *      (10,20] | {n20,n30,n40}     | e0 | SEALED
      *    S (10,20] | {n20,n30,n35,n40} | e2 | SEALED
@@ -237,7 +237,7 @@ public final class SealingCoordinator
      *      (30,40] | {n40,$n40,n50,n60}| e1 | ACTIVE
      *    + (30,40] | {$n40,n50,n60}    | e3 | ACTIVE
      *
-     * 5. UNLOCK_SEQUENCE:
+     * 5. RETIRE_SINGLE_NODE_SEQUENCE:
      *
      *      (10,20] | {n20,n30,n40}     | e0 | SEALED
      *    S (10,20] | {n20,n30,n40,$n40}| e1 | SEALED
@@ -399,7 +399,7 @@ public final class SealingCoordinator
      *      (40,50] | {n50,n60,n70}     | e0 | ACTIVE
      *    + (30,50] | {n50,n60,n70}     | e3 | ACTIVE
      *
-     * 5. UNLOCK_SEQUENCE:
+     * 5. RETIRE_SINGLE_NODE_SEQUENCE:
      *
      *      (10,20] | {n20,n30,n40}     | e0 | SEALED
      *    S (10,20] | {n20,n30,n40,n50} | e1 | SEALED

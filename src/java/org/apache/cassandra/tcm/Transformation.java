@@ -58,9 +58,9 @@ import org.apache.cassandra.tcm.transformations.PrepareMove;
 import org.apache.cassandra.tcm.transformations.PrepareReplace;
 import org.apache.cassandra.tcm.transformations.ReconfigureAccordFastPath;
 import org.apache.cassandra.tcm.transformations.Register;
+import org.apache.cassandra.tcm.transformations.RetireSingleNodeSequence;
 import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.tcm.transformations.TriggerSnapshot;
-import org.apache.cassandra.tcm.transformations.UnlockSequence;
 import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.tcm.transformations.cms.AdvanceCMSReconfiguration;
@@ -279,11 +279,12 @@ public interface Transformation
 
         /*
          * Additional final step for JOIN/MOVE/LEAVE/REPLACE sequences that seal the
-         * intermediate mutation tracking shards before unlocking the affected ranges.
+         * intermediate mutation tracking shards before cleaning up the MSO from
+         * ClusterMetadata::inProgressSequences and unlocking the affected ranges.
          * See o.a.c.replication.SealingCoordinator comments for additional context.
          * TODO (now): what should be the correct introducedIn version for these?
          */
-        UNLOCK_SEQUENCE(45, Version.TBD_UNLOCK_STEP, () -> UnlockSequence.serializer),
+        RETIRE_SINGLE_NODE_SEQUENCE(45, Version.TBD_UNLOCK_STEP, () -> RetireSingleNodeSequence.serializer),
         ;
 
         /**

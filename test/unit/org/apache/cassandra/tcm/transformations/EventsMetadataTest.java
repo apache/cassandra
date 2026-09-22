@@ -136,7 +136,7 @@ public class EventsMetadataTest
 
         ClusterMetadataService.instance().commit(plan.midJoin);
         ClusterMetadataService.instance().commit(plan.finishJoin);
-        ClusterMetadataService.instance().commit(new UnlockSequence(nodeId, plan.lockKey));
+        ClusterMetadataService.instance().commit(new RetireSingleNodeSequence(nodeId, plan.lockKey));
 
         assertEquals(NodeState.JOINED, ClusterMetadata.current().directory.peerState(nodeId));
         assertTrue(ClusterMetadata.current().lockedRanges.locked.isEmpty());
@@ -171,7 +171,7 @@ public class EventsMetadataTest
         ClusterMetadataService.instance().commit(join.startJoin);
         ClusterMetadataService.instance().commit(join.midJoin);
         ClusterMetadataService.instance().commit(join.finishJoin);
-        ClusterMetadataService.instance().commit(new UnlockSequence(nodeId, join.lockKey));
+        ClusterMetadataService.instance().commit(new RetireSingleNodeSequence(nodeId, join.lockKey));
 
         ClusterMetadata before = ClusterMetadata.current();
         ClusterMetadataService.instance().commit(new PrepareLeave(nodeId, true, PrepareLeaveTest.dummyPlacementProvider, LeaveStreams.Kind.UNBOOTSTRAP));;
@@ -186,7 +186,7 @@ public class EventsMetadataTest
         ClusterMetadataService.instance().commit(leave.startLeave);
         ClusterMetadataService.instance().commit(leave.midLeave);
         ClusterMetadataService.instance().commit(leave.finishLeave);
-        ClusterMetadataService.instance().commit(new UnlockSequence(nodeId, leave.lockKey));
+        ClusterMetadataService.instance().commit(new RetireSingleNodeSequence(nodeId, leave.lockKey));
 
     }
 

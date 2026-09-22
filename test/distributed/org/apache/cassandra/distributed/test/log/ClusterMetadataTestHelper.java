@@ -97,7 +97,7 @@ import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
 import org.apache.cassandra.tcm.transformations.PrepareReplace;
 import org.apache.cassandra.tcm.transformations.Register;
-import org.apache.cassandra.tcm.transformations.UnlockSequence;
+import org.apache.cassandra.tcm.transformations.RetireSingleNodeSequence;
 import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.tcm.transformations.cms.AdvanceCMSReconfiguration;
 import org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfiguration;
@@ -535,7 +535,7 @@ public class ClusterMetadataTestHelper
                     BootstrapAndJoin plan = getBootstrapPlan(endpoint);
                     assert plan.next == Transformation.Kind.FINISH_JOIN;
                     commit(plan.finishJoin);
-                    maybeCommitUnlock(plan.startJoin.nodeId(), plan.lockKey);
+                    maybeCommitRetire(plan.startJoin.nodeId(), plan.lockKey);
                     idx++;
                     return this;
                 }
@@ -635,7 +635,7 @@ public class ClusterMetadataTestHelper
                     UnbootstrapAndLeave plan = getLeavePlan(endpoint);
                     assert plan.next == Transformation.Kind.FINISH_LEAVE;
                     commit(plan.finishLeave);
-                    maybeCommitUnlock(plan.startLeave.nodeId(), plan.lockKey);
+                    maybeCommitRetire(plan.startLeave.nodeId(), plan.lockKey);
                     idx++;
                     return this;
                 }
@@ -745,7 +745,7 @@ public class ClusterMetadataTestHelper
                     BootstrapAndReplace plan = getReplacePlan(replacement);
                     assert plan.next == Transformation.Kind.FINISH_REPLACE;
                     commit(plan.finishReplace);
-                    maybeCommitUnlock(plan.startReplace.nodeId(), plan.lockKey);
+                    maybeCommitRetire(plan.startReplace.nodeId(), plan.lockKey);
                     idx++;
                     return this;
                 }
@@ -824,7 +824,7 @@ public class ClusterMetadataTestHelper
                     Move plan = getMovePlan(endpoint);
                     assert plan.next == Transformation.Kind.FINISH_MOVE;
                     commit(plan.finishMove);
-                    maybeCommitUnlock(plan.startMove.nodeId(), plan.lockKey);
+                    maybeCommitRetire(plan.startMove.nodeId(), plan.lockKey);
                     idx++;
                     return this;
                 }
@@ -950,14 +950,14 @@ public class ClusterMetadataTestHelper
         return ClusterMetadataService.instance().commit(transform);
     }
 
-    // On UNLOCK_SEQUENCE-supporting clusters the FINISH step no longer unlocks/retires the sequence; a trailing
-    // UNLOCK_SEQUENCE step does. Commit it here so the step-driving helpers observe a retired sequence, matching
-    // the legacy (pre-UNLOCK_SEQUENCE) behaviour where FINISH did both.
-    private static void maybeCommitUnlock(NodeId nodeId, LockedRanges.Key lockKey) throws ExecutionException, InterruptedException
+    // On RETIRE_SINGLE_NODE_SEQUENCE-supporting clusters the FINISH step no longer unlocks/retires the sequence; a
+    // trailing RETIRE_SINGLE_NODE_SEQUENCE step does. Commit it here so the step-driving helpers observe a retired
+    // sequence, matching the legacy (pre-RETIRE_SINGLE_NODE_SEQUENCE) behaviour where FINISH did both.
+    private static void maybeCommitRetire(NodeId nodeId, LockedRanges.Key lockKey) throws ExecutionException, InterruptedException
     {
         MultiStepOperation<?> seq = ClusterMetadata.current().inProgressSequences.get(nodeId);
-        if (seq != null && seq.nextStep() == Transformation.Kind.UNLOCK_SEQUENCE)
-            commit(new UnlockSequence(nodeId, lockKey));
+        if (seq != null && seq.nextStep() == Transformation.Kind.RETIRE_SINGLE_NODE_SEQUENCE)
+            commit(new RetireSingleNodeSequence(nodeId, lockKey));
     }
 
     public static interface NodeOperations

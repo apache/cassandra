@@ -70,7 +70,7 @@ import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
-import org.apache.cassandra.tcm.transformations.UnlockSequence;
+import org.apache.cassandra.tcm.transformations.RetireSingleNodeSequence;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -82,8 +82,8 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.tcm.MultiStepOperation.Kind.JOIN;
 import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_JOIN;
 import static org.apache.cassandra.tcm.Transformation.Kind.MID_JOIN;
+import static org.apache.cassandra.tcm.Transformation.Kind.RETIRE_SINGLE_NODE_SEQUENCE;
 import static org.apache.cassandra.tcm.Transformation.Kind.START_JOIN;
-import static org.apache.cassandra.tcm.Transformation.Kind.UNLOCK_SEQUENCE;
 import static org.apache.cassandra.tcm.sequences.SequenceState.continuable;
 import static org.apache.cassandra.tcm.sequences.SequenceState.error;
 import static org.apache.cassandra.tcm.sequences.SequenceState.halted;
@@ -188,15 +188,15 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
     @Override
     public Transformation.Result applyTo(ClusterMetadata metadata)
     {
-        // FinishJoin unlocks the affected ranges and retires the sequence only in legacy (pre-UNLOCK_SEQUENCE) mode.
+        // FinishJoin unlocks the affected ranges and retires the sequence only in legacy (pre-RETIRE_SINGLE_NODE_SEQUENCE) mode.
         return finishJoin.unlocks()
              ? applyMultipleTransformations(metadata, next, of(startJoin, midJoin, finishJoin))
-             : applyMultipleTransformations(metadata, next, of(startJoin, midJoin, finishJoin, unlockSequence()));
+             : applyMultipleTransformations(metadata, next, of(startJoin, midJoin, finishJoin, retireSequence()));
     }
 
-    private UnlockSequence unlockSequence()
+    private RetireSingleNodeSequence retireSequence()
     {
-        return new UnlockSequence(startJoin.nodeId(), lockKey);
+        return new RetireSingleNodeSequence(startJoin.nodeId(), lockKey);
     }
 
     @Override
@@ -311,10 +311,10 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
                     logger.warn("Exception committing finishJoin", e);
                     return continuable();
                 }
-                if (finishJoin.unlocks()) // legacy sequence without a dedicated unlock step
+                if (finishJoin.unlocks()) // legacy sequence without a dedicated retire step
                     ClusterMetadataService.instance().ensureCMSPlacement(metadata);
                 break;
-            case UNLOCK_SEQUENCE:
+            case RETIRE_SINGLE_NODE_SEQUENCE:
                 try
                 {
                     if (MutationTrackingService.isEnabled())
@@ -323,12 +323,12 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
                                                                   latestModification.getEpoch(),
                                                                   finishJoin.delta());
                     }
-                    metadata = ClusterMetadataService.instance().commit(unlockSequence());
+                    metadata = ClusterMetadataService.instance().commit(retireSequence());
                 }
                 catch (Throwable e)
                 {
                     JVMStabilityInspector.inspectThrowable(e);
-                    logger.warn("Exception sealing obsoleted MT shards or committing unlockSequence", e);
+                    logger.warn("Exception sealing obsoleted MT shards or committing retireSequence", e);
                     return continuable();
                 }
                 ClusterMetadataService.instance().ensureCMSPlacement(metadata);
@@ -363,7 +363,7 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
         DataPlacements placements = metadata.placements;
         switch (next)
         {
-            case UNLOCK_SEQUENCE:
+            case RETIRE_SINGLE_NODE_SEQUENCE:
                 // FINISH_JOIN has already been enacted - it's too late to be reverting anything, so we just unlock.
                 return metadata.transformer().with(metadata.lockedRanges.unlock(lockKey));
             case FINISH_JOIN:
@@ -518,7 +518,7 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
                 return 1;
             case FINISH_JOIN:
                 return 2;
-            case UNLOCK_SEQUENCE:
+            case RETIRE_SINGLE_NODE_SEQUENCE:
                 return 3;
             default:
                 throw new IllegalStateException(String.format("Step %s is invalid for sequence %s ", next, JOIN));
@@ -536,7 +536,7 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
             case 2:
                 return FINISH_JOIN;
             case 3:
-                return UNLOCK_SEQUENCE;
+                return RETIRE_SINGLE_NODE_SEQUENCE;
             default:
                 throw new IllegalStateException(String.format("Step %s is invalid for sequence %s ", index, JOIN));
         }

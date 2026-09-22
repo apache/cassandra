@@ -58,7 +58,7 @@ import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
 import org.apache.cassandra.tcm.transformations.Register;
-import org.apache.cassandra.tcm.transformations.UnlockSequence;
+import org.apache.cassandra.tcm.transformations.RetireSingleNodeSequence;
 
 public class MetadataKeysTest extends CMSTestBase
 {
@@ -100,7 +100,7 @@ public class MetadataKeysTest extends CMSTestBase
 
                 checkDiff(sut.service, bootstrapAndJoin.finishJoin);
                 sut.service.commit(bootstrapAndJoin.finishJoin);
-                maybeCommitUnlock(sut.service, prepareJoin.nodeId(), bootstrapAndJoin.lockKey);
+                maybeCommitRetire(sut.service, prepareJoin.nodeId(), bootstrapAndJoin.lockKey);
             }
 
             {
@@ -117,7 +117,7 @@ public class MetadataKeysTest extends CMSTestBase
 
                 checkDiff(sut.service, bootstrapAndMove.finishMove);
                 sut.service.commit(bootstrapAndMove.finishMove);
-                maybeCommitUnlock(sut.service, prepareMove.nodeId(), bootstrapAndMove.lockKey);
+                maybeCommitRetire(sut.service, prepareMove.nodeId(), bootstrapAndMove.lockKey);
             }
 
             {
@@ -134,7 +134,7 @@ public class MetadataKeysTest extends CMSTestBase
 
                 checkDiff(sut.service, bootstrapAndLeave.finishLeave);
                 sut.service.commit(bootstrapAndLeave.finishLeave);
-                maybeCommitUnlock(sut.service, prepareLeave.nodeId(), bootstrapAndLeave.lockKey);
+                maybeCommitRetire(sut.service, prepareLeave.nodeId(), bootstrapAndLeave.lockKey);
             }
         }
     }
@@ -159,14 +159,14 @@ public class MetadataKeysTest extends CMSTestBase
         }
     }
 
-    private static void maybeCommitUnlock(ClusterMetadataService cms, NodeId nodeId, LockedRanges.Key lockKey)
+    private static void maybeCommitRetire(ClusterMetadataService cms, NodeId nodeId, LockedRanges.Key lockKey)
     {
         MultiStepOperation<?> seq = cms.metadata().inProgressSequences.get(nodeId);
-        if (seq != null && seq.nextStep() == Transformation.Kind.UNLOCK_SEQUENCE)
+        if (seq != null && seq.nextStep() == Transformation.Kind.RETIRE_SINGLE_NODE_SEQUENCE)
         {
-            UnlockSequence unlock = new UnlockSequence(nodeId, lockKey);
-            checkDiff(cms, unlock);
-            cms.commit(unlock);
+            RetireSingleNodeSequence retire = new RetireSingleNodeSequence(nodeId, lockKey);
+            checkDiff(cms, retire);
+            cms.commit(retire);
         }
     }
 
