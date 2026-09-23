@@ -532,10 +532,8 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         {
             Preconditions.checkArgument(!mutation.id().isNone());
             boolean started = getOrCreateShards(mutation.getKeyspaceName()).startWriting(mutation);
-            // If this is a duplicate mutation (already witnessed), notify any pending read
-            // reconciliation listeners. A listener can be registered between the first write's
-            // invokeListeners() call (which found no listeners) and this duplicate's arrival,
-            // causing the listener to never fire and the read to hang.
+            // we've already received this mutation, so we reject the write. There may still be reconciliation
+            // listening for it though, so notify them that it's received
             if (!started)
                 incomingMutations.invokeListeners(mutation.id());
             return started;
