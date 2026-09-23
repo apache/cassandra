@@ -245,6 +245,32 @@ public class RowsTest
     }
 
     @Test
+    public void complexLiveDataSize()
+    {
+        long now = 1000;
+        long timestamp = secondToTs(now);
+        Cell<?> live = BufferCell.live(m, timestamp, BB1, CellPath.create(BB1));
+        Cell<?> expiring = BufferCell.expiring(m, timestamp, 10, now, BB2, CellPath.create(BB2));
+        Cell<?> tombstone = BufferCell.tombstone(m, timestamp, now, CellPath.create(BB3));
+
+        for (DeletionTime deletion : new DeletionTime[]{ DeletionTime.LIVE,
+                                                        DeletionTime.build(timestamp - 1, now),
+                                                        DeletionTime.build(timestamp, now) })
+        {
+            Row.Builder builder = createBuilder(c1);
+            builder.addComplexDeletion(m, deletion);
+            builder.addCell(live);
+            builder.addCell(expiring);
+            builder.addCell(tombstone);
+            ComplexColumnData data = builder.build().getComplexColumnData(m);
+
+            boolean deleted = !deletion.isLive() && deletion.markedForDeleteAt() == timestamp;
+            Assert.assertEquals(deleted ? 0 : live.dataSize() + expiring.dataSize(), data.liveDataSize(now));
+            Assert.assertEquals(deleted ? 0 : live.dataSize(), data.liveDataSize(now + 10));
+        }
+    }
+
+    @Test
     public void collectStats()
     {
         long now = FBUtilities.nowInSeconds();

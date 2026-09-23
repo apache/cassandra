@@ -145,7 +145,13 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
     @Override
     public int liveDataSize(long nowInSec)
     {
-        return complexDeletion.isLive() ? dataSize() : 0;
+        int size = 0;
+        for (Cell<?> cell : this)
+        {
+            if (!complexDeletion.deletes(cell))
+                size += cell.liveDataSize(nowInSec);
+        }
+        return size;
     }
 
     @Override
