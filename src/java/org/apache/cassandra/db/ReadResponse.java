@@ -457,7 +457,7 @@ public abstract class ReadResponse
                     // if a per-request limit is crossed then fall back to the ordinary serialized representation.
                     (limitedIter.overflowedByRowLimit() ? ReadResponseMetrics.inMemoryRowLimitHits
                                                         : ReadResponseMetrics.inMemorySizeLimitHits).inc();
-                    // serialize() closes it too, on its failure path only partially, so make closing idempotent
+                    // make closing of the iterator idempotent to avoid double close
                     rowIter = new CloseOnceRowIterator(rowIter);
                     serialized = serialize(command, partition, rowIter);
                 }
