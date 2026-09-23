@@ -26,6 +26,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.exceptions.ReadTimeoutException;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_READ_ITERATION_DELAY_MS;
 import static org.junit.Assert.assertEquals;
@@ -73,7 +74,7 @@ public class TimeoutAbortTest extends TestBaseImpl
             catch (Exception e)
             {
                 assertEquals("expected a ReadTimeoutException, got " + e.getClass().getName() + ": " + e.getMessage(),
-                             "org.apache.cassandra.exceptions.ReadTimeoutException", e.getClass().getName());
+                             ReadTimeoutException.class.getName(), e.getClass().getName());
             }
             List<String> errors = cluster.get(1).logs().grepForErrors().getResult();
             assertionConsumer.accept(errors);

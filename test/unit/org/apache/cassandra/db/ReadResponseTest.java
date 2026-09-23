@@ -892,6 +892,34 @@ public class ReadResponseTest
     }
 
     @Test
+    public void inMemoryResponseCloseFailureDoesNotMaskSerializeFailureOnOverflow()
+    {
+        int partitionKey = key();
+        ReadCommand command = command(partitionKey, metadataWithClustering);
+        StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
+        PartitionUpdate update = buildMultiRowUpdate(metadataWithClustering, partitionKey, 5);
+
+        // fails past the row limit, so the failure lands in serialize() on the overflow path
+        FailingRowIterator rowIter = new FailingRowIterator(update.unfilteredIterator(), 3);
+        try
+        {
+            ReadResponse.createInMemoryDataResponse(singlePartitionIterator(rowIter), command, rdi, 2, 0);
+            fail("the serialize failure should have propagated");
+        }
+        catch (FailingRowIterator.CloseFailure masked)
+        {
+            throw new AssertionError("the close failure replaced the serialize failure expected by the caller", masked);
+        }
+        catch (FailingRowIterator.ConsumeFailure expected)
+        {
+            assertEquals("the close failure must be attached as suppressed once, not dropped nor doubled",
+                         1, expected.getSuppressed().length);
+            assertTrue("unexpected suppressed exception: " + expected.getSuppressed()[0],
+                       expected.getSuppressed()[0] instanceof FailingRowIterator.CloseFailure);
+        }
+    }
+
+    @Test
     public void inMemoryResponseWithOverflowMatchesLocalDataResponse()
     {
         // Row limit crossed: the whole response is serialized.

@@ -457,8 +457,9 @@ public abstract class ReadResponse
                     // if a per-request limit is crossed then fall back to the ordinary serialized representation.
                     (limitedIter.overflowedByRowLimit() ? ReadResponseMetrics.inMemoryRowLimitHits
                                                         : ReadResponseMetrics.inMemorySizeLimitHits).inc();
+                    // serialize() closes it too, on its failure path only partially, so make closing idempotent
+                    rowIter = new CloseOnceRowIterator(rowIter);
                     serialized = serialize(command, partition, rowIter);
-                    rowIter = null;
                 }
             }
             catch (Throwable t)
@@ -467,7 +468,16 @@ public abstract class ReadResponse
             }
 
             if (rowIter != null)
-                failure = Throwables.close(failure, rowIter);
+            {
+                try
+                {
+                    rowIter.close();
+                }
+                catch (Throwable t)
+                {
+                    failure = Throwables.merge(failure, t);
+                }
+            }
             Throwables.maybeFail(failure);
 
             // Capture digest after consuming and closing the iterator so any RepairedDataInfo transformations are reflected.
@@ -486,6 +496,33 @@ public abstract class ReadResponse
             UnfilteredRowIterator combined = UnfilteredRowIterators.concat(prefixIter, suffix);
             UnfilteredPartitionIterator partitionIter = new SingletonUnfilteredPartitionIterator(combined);
             return LocalDataResponse.build(partitionIter, command.columnFilter());
+        }
+
+        private static class CloseOnceRowIterator implements WrappingUnfilteredRowIterator
+        {
+            private final UnfilteredRowIterator wrapped;
+            private boolean closed;
+
+            CloseOnceRowIterator(UnfilteredRowIterator wrapped)
+            {
+                this.wrapped = wrapped;
+            }
+
+            @Override
+            public UnfilteredRowIterator wrapped()
+            {
+                return wrapped;
+            }
+
+            @Override
+            public void close()
+            {
+                if (closed)
+                    return;
+
+                closed = true;
+                wrapped.close();
+            }
         }
 
         private InMemoryDataResponse(ImmutableBTreePartition partition,
