@@ -61,6 +61,7 @@ public class ActivationRequest
     public final ShortMutationId transferId;
     public final NodeId coordinatorId;
     public final String keyspace;
+    public final long sinceEpoch;
     public final Range<Token> range;
 
     @Nullable
@@ -99,6 +100,7 @@ public class ActivationRequest
                              ShortMutationId transferId,
                              NodeId coordinatorId,
                              Range<Token> range,
+                             long sinceEpoch,
                              String keyspace,
                              TimeUUID planId)
     {
@@ -113,6 +115,7 @@ public class ActivationRequest
         this.coordinatorId = coordinatorId;
         this.phase = phase;
         this.keyspace = keyspace;
+        this.sinceEpoch = sinceEpoch;
         this.range = range;
         this.planId = planId;
     }
@@ -151,6 +154,7 @@ public class ActivationRequest
             NodeId.messagingSerializer.serialize(request.coordinatorId, out, version.messagingVersion());
             out.writeByte(request.phase.id);
             out.writeUTF(request.keyspace);
+            out.writeLong(request.sinceEpoch);
             Range.serializer.serialize(request.range, out, null);
             TimeUUID.Serializer.nullable.serialize(request.planId, out);
         }
@@ -167,10 +171,11 @@ public class ActivationRequest
             NodeId coordinatorId = NodeId.messagingSerializer.deserialize(in, version.messagingVersion());
             Phase phase = Phase.from(in.readByte());
             String keyspace = in.readUTF();
+            long sinceEpoch = in.readLong();
             Range<Token> range = Range.serializer.deserialize(in, null);
             TimeUUID planId = TimeUUID.Serializer.nullable.deserialize(in);
 
-            return new ActivationRequest(operation, Pair.create(sender, receiver), phase, id, coordinatorId, range, keyspace, planId);
+            return new ActivationRequest(operation, Pair.create(sender, receiver), phase, id, coordinatorId, range, sinceEpoch, keyspace, planId);
         }
 
         @Override
@@ -187,6 +192,7 @@ public class ActivationRequest
             size += NodeId.messagingSerializer.serializedSize(request.coordinatorId, version.messagingVersion());
             size += TypeSizes.BYTE_SIZE; // Enum ordinal
             size += TypeSizes.sizeof(request.keyspace);
+            size += TypeSizes.sizeof(request.sinceEpoch);
             size += Range.serializer.serializedSize(request.range, null);
             size += TimeUUID.Serializer.nullable.serializedSize(request.planId);
 
@@ -228,6 +234,7 @@ public class ActivationRequest
                ", transferId=" + transferId +
                ", coordinatorId=" + coordinatorId +
                ", keyspace='" + keyspace + '\'' +
+               ", sinceEpoch=" + sinceEpoch +
                ", range=" + range +
                ", planId=" + planId +
                '}';
@@ -238,12 +245,20 @@ public class ActivationRequest
     {
         if (o == null || getClass() != o.getClass()) return false;
         ActivationRequest that = (ActivationRequest) o;
-        return operation == that.operation && Objects.equals(pair, that.pair) && phase == that.phase && Objects.equals(transferId, that.transferId) && Objects.equals(coordinatorId, that.coordinatorId) && Objects.equals(keyspace, that.keyspace) && Objects.equals(range, that.range) && Objects.equals(planId, that.planId);
+        return operation == that.operation &&
+               Objects.equals(pair, that.pair) &&
+               phase == that.phase &&
+               Objects.equals(transferId, that.transferId) &&
+               Objects.equals(coordinatorId, that.coordinatorId) &&
+               Objects.equals(keyspace, that.keyspace) &&
+               sinceEpoch == that.sinceEpoch &&
+               Objects.equals(range, that.range) &&
+               Objects.equals(planId, that.planId);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(operation, pair, phase, transferId, coordinatorId, keyspace, range, planId);
+        return Objects.hash(operation, pair, phase, transferId, coordinatorId, keyspace, sinceEpoch, range, planId);
     }
 }

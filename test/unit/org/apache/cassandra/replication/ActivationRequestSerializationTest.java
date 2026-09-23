@@ -59,7 +59,7 @@ public class ActivationRequestSerializationTest extends CassandraTestBase
         String keyspace = "test_ks";
         Range<Token> range = new Range<>(new ByteOrderedPartitioner.BytesToken("key1".getBytes()), new ByteOrderedPartitioner.BytesToken("key100".getBytes()));
 
-        ActivationRequest activation = new ActivationRequest(StreamOperation.IMPORT, pair, phase, transferId, coordinatorId, range, keyspace, planId);
+        ActivationRequest activation = new ActivationRequest(StreamOperation.IMPORT, pair, phase, transferId, coordinatorId, range, 42L, keyspace, planId);
 
         try (DataOutputBuffer output = new DataOutputBuffer())
         {
@@ -78,7 +78,7 @@ public class ActivationRequestSerializationTest extends CassandraTestBase
         String keyspace = "test_ks";
         Range<Token> range = new Range<>(new ByteOrderedPartitioner.BytesToken("key1".getBytes()), new ByteOrderedPartitioner.BytesToken("key100".getBytes()));
 
-        ActivationRequest activation = new ActivationRequest(StreamOperation.IMPORT, pair, phase, transferId, coordinatorId, range, keyspace, planId);
+        ActivationRequest activation = new ActivationRequest(StreamOperation.IMPORT, pair, phase, transferId, coordinatorId, range, 42L, keyspace, planId);
 
         try (DataOutputBuffer output = new DataOutputBuffer())
         {

@@ -194,7 +194,7 @@ public class PendingLocalTransfer
             moved.add(SSTableReader.moveAndOpenSSTable(cfs, sstable.descriptor, cfs.getUniqueDescriptorFor(sstable.descriptor, dst), sstable.getComponents(), isCoordinator));
 
         // Add all SSTables atomically
-        cfs.getTracker().addSSTablesTracked(moved);
+        cfs.getTracker().addSSTablesFromTrackedTransfer(moved);
         activated = true;
 
         Consumer<Integer> onRowCacheInvalidation = invalidatedKeys -> {

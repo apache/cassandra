@@ -30,31 +30,31 @@ import org.apache.cassandra.utils.TimeUUID;
  * @see TrackedImportTransfer
  * @see PendingLocalTransfer
  */
-public class TransferFailed
+public class TransferFailedRequest
 {
     final TimeUUID planId;
 
-    public TransferFailed(TimeUUID planId)
+    public TransferFailedRequest(TimeUUID planId)
     {
         this.planId = planId;
     }
 
-    public static final VersionedSerializer<TransferFailed> serializer = new VersionedSerializer<>()
+    public static final VersionedSerializer<TransferFailedRequest> serializer = new VersionedSerializer<>()
     {
         @Override
-        public void serialize(TransferFailed t, DataOutputPlus out, Version version) throws IOException
+        public void serialize(TransferFailedRequest t, DataOutputPlus out, Version version) throws IOException
         {
             TimeUUID.Serializer.instance.serialize(t.planId, out, version.messagingVersion());
         }
 
         @Override
-        public TransferFailed deserialize(DataInputPlus in, Version version) throws IOException
+        public TransferFailedRequest deserialize(DataInputPlus in, Version version) throws IOException
         {
-            return new TransferFailed(TimeUUID.Serializer.instance.deserialize(in, version.messagingVersion()));
+            return new TransferFailedRequest(TimeUUID.Serializer.instance.deserialize(in, version.messagingVersion()));
         }
 
         @Override
-        public long serializedSize(TransferFailed t, Version version)
+        public long serializedSize(TransferFailedRequest t, Version version)
         {
             return TimeUUID.Serializer.instance.serializedSize(t.planId, version.messagingVersion());
         }

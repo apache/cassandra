@@ -54,6 +54,7 @@ import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.replication.MutationJournal;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
@@ -475,11 +476,13 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
             case JOINED:
                 if (StorageService.isReplacingSameAddress())
                 {
+                    // TODO (required): we need to support a mode that changes the NodeId when replacing the same address
+                    //      for accord transaction safety and for Mutation Tracking shard sealing
                     if (DatabaseDescriptor.getAccordTransactionsEnabled())
-                    {
-                        // TODO (required): we need to support a mode that changes the NodeId when replacing the same address for accord transaction safety
                         throw new IllegalStateException("Cannot replace same address when accord transactions are enabled.");
-                    }
+
+                    if (MutationTrackingService.isEnabled())
+                        throw new IllegalStateException("Cannot replace same address with mutation tracking enabled.");
 
                     ReplaceSameAddress.streamData(self, metadata, shouldBootstrap, finishJoiningRing);
                 }

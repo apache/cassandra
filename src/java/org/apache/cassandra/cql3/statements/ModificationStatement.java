@@ -861,8 +861,15 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             String keyspaceName = mutation.getKeyspaceName();
             Token token = mutation.key().getToken();
             MutationId id = MutationTrackingService.instance().nextMutationId(keyspaceName, token);
-            mutation = mutation.withMutationId(id);
-            mutation.apply();
+            try
+            {
+                mutation = mutation.withMutationId(id);
+                mutation.apply();
+            }
+            finally
+            {
+                MutationTrackingService.instance().completeLocalWrite(id);
+            }
         }
 
         for (IMutation mutation : routed.untrackedMutations)
