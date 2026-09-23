@@ -42,14 +42,16 @@ public class VersionSupportedFeaturesTest extends AbstractTestVersionSupportedFe
     }
 
     @Test
-    public void testZeroCopySplitInputSupportCrossesVersionFamilies()
+    public void testZeroCopySplitInputSupportedFromPa()
     {
+        assertFalse(getVersion("nb").supportsZeroCopySplitInput());
         assertFalse(getVersion("oa").supportsZeroCopySplitInput());
         assertTrue(getVersion("pa").supportsZeroCopySplitInput());
         assertTrue(getVersion("pb").supportsZeroCopySplitInput());
+        assertTrue(getVersion("pc").supportsZeroCopySplitInput());
         assertTrue(getVersion("qa").supportsZeroCopySplitInput());
-        assertFalse(getVersion("qb").supportsZeroCopySplitInput());
-        assertFalse(getVersion("pc").supportsZeroCopySplitInput());
+        assertTrue(getVersion("qb").supportsZeroCopySplitInput());
+        assertTrue(getVersion("ra").supportsZeroCopySplitInput());
     }
 
     @Override

@@ -160,12 +160,11 @@ import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
  * the {@link #UNCOMPRESSED_UNSUPPORTED_MESSAGE} refusal spells out what a misaligned CRC.db would cost.
  *
  * <h2>Older SSTable versions</h2>
- * Parents outside the explicit BIG versions this implementation has proved safe are refused: relabelling copied row
- * and CompressionInfo bytes from an unknown version can silently change their meaning. A child is stamped BIG
- * {@code qa}, whose Statistics.db records where a full scan must begin after a retained prefix. The new major is
- * deliberate: a pre-7.0 binary rejects the descriptor instead of accepting an unknown minor and scanning the retained
- * prefix from position zero. Splitting is also disabled unless storage compatibility mode is {@code NONE}, keeping
- * {@code qa} children out of a rolling upgrade with older nodes.
+ * BIG parents older than {@code pa} are refused. A child keeps its parent's version, or is stamped BIG {@code qa} when
+ * the parent predates the Statistics.db field recording where a full scan must begin after a retained prefix. The new
+ * major is deliberate: a pre-7.0 binary rejects the descriptor instead of accepting an unknown minor and scanning the
+ * retained prefix from position zero. Splitting is also disabled unless storage compatibility mode is {@code NONE},
+ * keeping marker-bearing children out of a rolling upgrade with older nodes.
  * <p>
  * A reader opened {@code MOVED_START} ({@code cloneWithNewStart}, i.e. an early-open reader of a running compaction)
  * is refused for an unrelated reason: its {@code getFirst()} has moved but its Data.db and index have not, so the
@@ -240,7 +239,7 @@ public final class ZeroCopySSTableSplitter
 
     /** Prefix of the refusal message when a safe split-version child cannot be produced. */
     private static final String SPLIT_PREFIX_VERSION_UNSUPPORTED_MESSAGE =
-        "ZeroCopySSTableSplitter requires a supported BIG pa, pb, or qa parent and storage compatibility mode NONE";
+        "ZeroCopySSTableSplitter requires a BIG parent of version pa or later and storage compatibility mode NONE";
 
     /** One {@code transferTo} slice, small because it is also the granularity of throttling and stop checks. */
     private static final int TRANSFER_SLICE = 4 << 20;
@@ -660,7 +659,7 @@ public final class ZeroCopySSTableSplitter
     /** One produced child sstable. */
     public static final class Child
     {
-        /** Descriptor of the child, in the parent's directory and stamped as BIG {@code qa}. */
+        /** Descriptor of the child, in the parent's directory and stamped with {@link #childVersion}. */
         public final Descriptor descriptor;
         /** The child's first partition key (minimal copy). */
         public final DecoratedKey first;
@@ -906,8 +905,8 @@ public final class ZeroCopySSTableSplitter
     }
 
     /**
-     * @return true iff this is a normally-opened, compressed BIG SSTable of an explicitly supported input version
-     *         from which a marker-capable {@code qa} child may be produced, with no compression dictionary
+     * @return true iff this is a normally-opened, compressed BIG SSTable of a supported input version from which a
+     *         marker-capable child may be produced, with no compression dictionary
      */
     public static boolean isSupported(SSTableReader parent)
     {
@@ -1018,15 +1017,16 @@ public final class ZeroCopySSTableSplitter
                                                     "index whose partition positions can be found and rewritten " +
                                                     "without deserialising a row.");
         if (!isSupportedParentVersion(parent.descriptor.version)
-            || !splitVersion().hasSplitPrefixMarker()
+            || !childVersion(parent.descriptor.version).hasSplitPrefixMarker()
             || DatabaseDescriptor.getStorageCompatibilityMode() != StorageCompatibilityMode.NONE)
             throw new UnsupportedOperationException(SPLIT_PREFIX_VERSION_UNSUPPORTED_MESSAGE + ": " +
                                                     parent.descriptor + " is version '" +
                                                     parent.descriptor.version.version + "' and the configured mode is " +
                                                     DatabaseDescriptor.getStorageCompatibilityMode() + ". A split " +
                                                     "child can begin after a retained compression-chunk prefix and " +
-                                                    "must be stamped '" + SPLIT_VERSION + "'; producing it during a " +
-                                                    "rolling upgrade would expose it to readers that ignore the marker.");
+                                                    "must be stamped with a version that records it; producing it " +
+                                                    "during a rolling upgrade would expose it to readers that " +
+                                                    "ignore the marker.");
         if (parent.openReason == SSTableReader.OpenReason.MOVED_START)
             throw new UnsupportedOperationException("cannot split " + parent.descriptor +
                                                     ": it is open as MOVED_START. cloneWithNewStart moves the " +
@@ -2564,14 +2564,20 @@ public final class ZeroCopySSTableSplitter
         return components;
     }
 
+    /** The parent's version if it can record a split prefix, otherwise {@code qa}. */
+    static Version childVersion(Version parent)
+    {
+        return parent.hasSplitPrefixMarker() ? parent : splitVersion();
+    }
+
     /**
-     * Fresh BIG {@code qa} descriptors in the parent's directory. Prefers the live ColumnFamilyStore's id generator
-     * so we cannot collide with a concurrent flush or compaction; the fallback is for offline use.
+     * Fresh BIG descriptors of {@link #childVersion} in the parent's directory. Prefers the live ColumnFamilyStore's
+     * id generator so we cannot collide with a concurrent flush or compaction; the fallback is for offline use.
      */
     static Supplier<Descriptor> descriptorAllocator(SSTableReader parent)
     {
         Descriptor template = parent.descriptor;
-        Version childVersion = splitVersion();
+        Version childVersion = childVersion(template.version);
         ColumnFamilyStore cfs = null;
         try
         {

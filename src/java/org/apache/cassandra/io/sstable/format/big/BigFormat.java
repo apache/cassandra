@@ -509,9 +509,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
             hasKeyRange = version.compareTo("oa") >= 0;
             hasUintDeletionTime = version.compareTo("oa") >= 0;
             hasTokenSpaceCoverage = version.compareTo("oa") >= 0;
-            // pb introduced the field during development and qa is its first released writer version. Format feature
-            // predicates remain monotonic so an older minor can read metadata written by a newer minor; the splitter's
-            // exact input allowlist is deliberately separate in supportsZeroCopySplitInput().
+            // pb introduced the field during development; qa is its first released writer version.
             hasSplitPrefixMarker = version.compareTo("pb") >= 0;
         }
 
@@ -626,9 +624,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         @Override
         public boolean supportsZeroCopySplitInput()
         {
-            // Split input layout is only understood for these versions. In particular, do not infer support from
-            // the version ordering: a future minor may change the copied component layout.
-            return version.equals("pa") || version.equals("pb") || version.equals("qa");
+            return version.compareTo("pa") >= 0;
         }
 
         @Override

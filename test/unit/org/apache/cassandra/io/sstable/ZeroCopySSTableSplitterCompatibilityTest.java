@@ -89,7 +89,7 @@ public class ZeroCopySSTableSplitterCompatibilityTest extends CQLTester
     }
 
     @Test
-    public void bigInputVersionMustBeExplicitlySupported() throws Throwable
+    public void bigInputVersionMustBeAtLeastPa() throws Throwable
     {
         SSTableReader current = compressedSSTable(BigFormat.NAME);
         assertTrue(BigFormat.is(current.descriptor.getFormat()));
@@ -102,22 +102,42 @@ public class ZeroCopySSTableSplitterCompatibilityTest extends CQLTester
 
         Set<Component> components = new LinkedHashSet<>(current.descriptor.discoverComponents());
         assertRelabelledVersionRejected(current, components, "oa");
-        assertRelabelledVersionRejected(current, components, "pc");
-        assertRelabelledVersionRejected(current, components, "qb");
     }
 
     @Test
     public void paParentProducesQaChildren() throws Throwable
     {
+        assertRelabelledParentSplitsTo("pa", "qa");
+    }
+
+    @Test
+    public void newerParentKeepsItsVersion() throws Throwable
+    {
+        assertRelabelledParentSplitsTo("qb", "qb");
+    }
+
+    @Test
+    public void childVersionKeepsMarkerBearingParentVersion()
+    {
+        BigFormat format = BigFormat.getInstance();
+        assertEquals("qa", ZeroCopySSTableSplitter.childVersion(format.getVersion("pa")).version);
+        assertEquals("pb", ZeroCopySSTableSplitter.childVersion(format.getVersion("pb")).version);
+        assertEquals("qa", ZeroCopySSTableSplitter.childVersion(format.getVersion("qa")).version);
+        assertEquals("qb", ZeroCopySSTableSplitter.childVersion(format.getVersion("qb")).version);
+        assertEquals("ra", ZeroCopySSTableSplitter.childVersion(format.getVersion("ra")).version);
+    }
+
+    private void assertRelabelledParentSplitsTo(String parentVersion, String childVersion) throws Throwable
+    {
         SSTableReader current = compressedSSTable(BigFormat.NAME);
         Set<Component> components = new LinkedHashSet<>(current.descriptor.discoverComponents());
-        Descriptor paDescriptor = new Descriptor("pa",
-                                                 current.descriptor.directory,
-                                                 current.descriptor.ksname,
-                                                 current.descriptor.cfname,
-                                                 SSTableIdFactory.instance.defaultBuilder()
-                                                                          .generator(Stream.empty()).get(),
-                                                 BigFormat.getInstance());
+        Descriptor parentDescriptor = new Descriptor(parentVersion,
+                                                     current.descriptor.directory,
+                                                     current.descriptor.ksname,
+                                                     current.descriptor.cfname,
+                                                     SSTableIdFactory.instance.defaultBuilder()
+                                                                              .generator(Stream.empty()).get(),
+                                                     BigFormat.getInstance());
         try
         {
             for (Component component : components)
@@ -125,27 +145,26 @@ public class ZeroCopySSTableSplitterCompatibilityTest extends CQLTester
                 if (!component.equals(SSTableFormat.Components.STATS))
                 {
                     Files.copy(current.descriptor.fileFor(component).toPath(),
-                               paDescriptor.fileFor(component).toPath());
+                               parentDescriptor.fileFor(component).toPath());
                 }
             }
-            new StatsComponent(StatsComponent.load(current.descriptor).metadata).save(paDescriptor);
+            new StatsComponent(StatsComponent.load(current.descriptor).metadata).save(parentDescriptor);
 
-            SSTableReader paReader = SSTableReader.open(getCurrentColumnFamilyStore(),
-                                                        paDescriptor,
-                                                        components,
-                                                        getCurrentColumnFamilyStore().metadata);
+            SSTableReader parentReader = SSTableReader.open(getCurrentColumnFamilyStore(),
+                                                            parentDescriptor,
+                                                            components,
+                                                            getCurrentColumnFamilyStore().metadata);
             try
             {
-                assertEquals("pa", paReader.descriptor.version.version);
-                assertFalse(paReader.descriptor.version.hasSplitPrefixMarker());
-                assertTrue(ZeroCopySSTableSplitter.isSupported(paReader));
+                assertEquals(parentVersion, parentReader.descriptor.version.version);
+                assertTrue(ZeroCopySSTableSplitter.isSupported(parentReader));
 
-                ZeroCopySSTableSplitter.Result result = ZeroCopySSTableSplitter.splitForTesting(paReader, 2);
+                ZeroCopySSTableSplitter.Result result = ZeroCopySSTableSplitter.splitForTesting(parentReader, 2);
                 try
                 {
                     assertEquals(2, result.children.size());
                     for (ZeroCopySSTableSplitter.Child child : result.children)
-                        assertEquals("qa", child.descriptor.version.version);
+                        assertEquals(childVersion, child.descriptor.version.version);
                 }
                 finally
                 {
@@ -159,13 +178,13 @@ public class ZeroCopySSTableSplitterCompatibilityTest extends CQLTester
             }
             finally
             {
-                paReader.selfRef().release();
+                parentReader.selfRef().release();
             }
         }
         finally
         {
             for (Component component : components)
-                paDescriptor.fileFor(component).deleteIfExists();
+                parentDescriptor.fileFor(component).deleteIfExists();
         }
     }
 
@@ -307,7 +326,7 @@ public class ZeroCopySSTableSplitterCompatibilityTest extends CQLTester
                 assertThatThrownBy(() -> ZeroCopySSTableSplitter.splitBySize(reader, 1024, null))
                     .isInstanceOf(UnsupportedOperationException.class)
                     .hasMessageContaining(version)
-                    .hasMessageContaining("supported BIG pa, pb, or qa");
+                    .hasMessageContaining("BIG parent of version pa or later");
                 assertEquals("a refused split must not create components", before, fileNames(descriptor.directory));
             }
             finally
