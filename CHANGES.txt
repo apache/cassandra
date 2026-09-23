@@ -1,4 +1,5 @@
 6.0-alpha3
+ * Fix use-after-free when Zstd dictionary compressor cache evicts concurrently with in-flight compression (CASSANDRA-21714)
  * Preserve the original exception when an in-memory local response fails to close (CASSANDRA-21710)
  * Generate autocompletion scripts for the nodetool command during the build (CASSANDRA-20794)
  * Implement Zstd compression level guardrail (CASSANDRA-21021)
