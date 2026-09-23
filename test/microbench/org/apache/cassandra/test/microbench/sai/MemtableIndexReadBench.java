@@ -40,6 +40,7 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.ShardBoundaries;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.QueryContext;
@@ -85,9 +86,13 @@ public class MemtableIndexReadBench extends AbstractMemtableIndexBench
     @Setup(Level.Iteration)
     public void setupIndexesAndExpressions() {
         Memtable memtable = cfs.getCurrentMemtable();
-        memtableIndex = (shardCount > 1)
-                        ? new ShardedMemtableIndex(index, cfs, shardCount, memtable):
-                        new UnshardedMemtableIndex(index, memtable);
+        if (shardCount > 1)
+        {
+            ShardBoundaries boundaries = cfs.localRangeSplits(shardCount);
+            memtableIndex = new ShardedMemtableIndex(index, boundaries, memtable);
+        }
+        else
+            memtableIndex = new UnshardedMemtableIndex(index, memtable);
 
         populateIndexData();
         populateExpressions();

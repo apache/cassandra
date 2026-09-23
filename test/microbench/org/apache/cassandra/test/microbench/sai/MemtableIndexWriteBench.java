@@ -40,6 +40,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.ShardBoundaries;
 import org.apache.cassandra.index.sai.memory.ShardedMemtableIndex;
 import org.apache.cassandra.index.sai.memory.UnshardedMemtableIndex;
 
@@ -77,9 +78,13 @@ public class MemtableIndexWriteBench extends AbstractMemtableIndexBench
     public void setupIndexes()
     {
         Memtable memtable = cfs.getCurrentMemtable();
-        memtableIndex = (shardCount > 1)
-                        ? new ShardedMemtableIndex(index, cfs, shardCount, memtable):
-                        new UnshardedMemtableIndex(index, memtable);
+        if (shardCount > 1)
+        {
+            ShardBoundaries boundaries = cfs.localRangeSplits(shardCount);
+            memtableIndex = new ShardedMemtableIndex(index, boundaries, memtable);
+        }
+        else
+            memtableIndex = new UnshardedMemtableIndex(index, memtable);
     }
 
     @Benchmark

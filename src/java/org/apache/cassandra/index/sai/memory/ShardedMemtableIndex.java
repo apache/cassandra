@@ -61,13 +61,10 @@ public class ShardedMemtableIndex implements MemtableIndex
 
     public static final String SHARDS_OPTION = "shards";
 
-    public ShardedMemtableIndex(StorageAttachedIndex index,
-                                Memtable.Owner owner,
-                                int shardCount,
-                                Memtable memtable)
+    public ShardedMemtableIndex(StorageAttachedIndex index, ShardBoundaries boundaries, Memtable memtable)
     {
         this.index = index;
-        this.boundaries = owner.localRangeSplits(shardCount);
+        this.boundaries = boundaries;
         this.shards = generateShards(boundaries.shardCount(), index);
         this.memtable = memtable;
     }

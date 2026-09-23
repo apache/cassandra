@@ -35,6 +35,7 @@ import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.ShardBoundaries;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.utils.Clock;
@@ -67,7 +68,10 @@ public class MemtableIndexManager
                                : liveMemtableIndexMap.computeIfAbsent(mt, memtable -> {
             int shardCount = index.shardCount();
             if (shardCount > 1)
-                return new ShardedMemtableIndex(index, index.baseCfs(), shardCount, memtable);
+            {
+                ShardBoundaries boundaries = index.baseCfs().localRangeSplits(shardCount);
+                return new ShardedMemtableIndex(index, boundaries, memtable);
+            }
             return new UnshardedMemtableIndex(index, memtable);
         });
     }

@@ -39,6 +39,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.memtable.ShardBoundaries;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
@@ -61,6 +62,7 @@ public class ShardedMemtableIndexTest extends SAIRandomizedTester
     private ColumnFamilyStore cfs;
     private IPartitioner partitioner;
     private StorageAttachedIndex index;
+    private ShardBoundaries boundaries;
     private ShardedMemtableIndex memtableIndex;
     private Map<DecoratedKey, Integer> keyMap;
     private Map<Integer, Integer> rowMap;
@@ -93,12 +95,13 @@ public class ShardedMemtableIndexTest extends SAIRandomizedTester
         IndexMetadata indexMetadata = IndexMetadata.fromSchemaMetadata("val_idx", IndexMetadata.Kind.CUSTOM, options);
 
         index = new StorageAttachedIndex(cfs, indexMetadata);
+        boundaries = cfs.localRangeSplits(8);
     }
 
     @Test
     public void onHeapAllocationTest()
     {
-        memtableIndex = new ShardedMemtableIndex(index, cfs, 8, cfs.getCurrentMemtable());
+        memtableIndex = new ShardedMemtableIndex(index, boundaries, cfs.getCurrentMemtable());
         assertEquals(8, memtableIndex.shardCount());
 
         assertEquals(0L, memtableIndex.writeCount());
@@ -114,7 +117,7 @@ public class ShardedMemtableIndexTest extends SAIRandomizedTester
     @Test
     public void randomQueryTest() throws Exception
     {
-        memtableIndex = new ShardedMemtableIndex(index, cfs, 8, cfs.getCurrentMemtable());
+        memtableIndex = new ShardedMemtableIndex(index, boundaries, cfs.getCurrentMemtable());
         assertEquals(8, memtableIndex.shardCount());
 
         for (int row = 0; row < getRandom().nextIntBetween(1000, 5000); row++)
@@ -161,7 +164,7 @@ public class ShardedMemtableIndexTest extends SAIRandomizedTester
     @Test
     public void indexIteratorTest()
     {
-        memtableIndex = new ShardedMemtableIndex(index, cfs, 8, cfs.getCurrentMemtable());
+        memtableIndex = new ShardedMemtableIndex(index, boundaries, cfs.getCurrentMemtable());
         assertEquals(8, memtableIndex.shardCount());
 
         Map<Integer, Set<DecoratedKey>> terms = buildTermMap();
