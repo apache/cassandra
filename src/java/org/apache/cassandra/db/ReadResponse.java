@@ -444,7 +444,9 @@ public abstract class ReadResponse
             ImmutableBTreePartition partition = null;
             ByteBuffer serialized = null;
             // Closing rowIter is our job, LimitedUnfilteredRowIterator deliberately never closes what it wraps.
-            // The only exception is the overflow path, where serialize() takes it over, hence no try-with-resources.
+            // On the overflow path the serializer closes it too. The CloseOnceRowIterator wrapper makes closing
+            // harmless. The close is explicit rather than try-with-resources so that failure when closing the
+            // iterator does not mask the exception being propagated.
             UnfilteredRowIterator rowIter = iter.next();
             Throwable failure = null;
             try
@@ -467,16 +469,13 @@ public abstract class ReadResponse
                 failure = t;
             }
 
-            if (rowIter != null)
+            try
             {
-                try
-                {
-                    rowIter.close();
-                }
-                catch (Throwable t)
-                {
-                    failure = Throwables.merge(failure, t);
-                }
+                rowIter.close();
+            }
+            catch (Throwable t)
+            {
+                failure = Throwables.merge(failure, t);
             }
             Throwables.maybeFail(failure);
 
