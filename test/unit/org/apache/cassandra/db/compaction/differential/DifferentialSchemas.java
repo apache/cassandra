@@ -1088,9 +1088,11 @@ public final class DifferentialSchemas
                 workload.execute(fullInsert, pk);
             workload.flush();
 
-            // round 2: rewrite subsets whose present-column counts straddle the 34/35/36 subset boundary
+            // round 2: rewrite subsets whose present-column counts straddle the 34/35/36 subset boundary.
+            // Only three distinct statements occur, so build them once instead of per row.
+            String[] subsetInserts = { buildInsert(34), buildInsert(35), buildInsert(36) };
             for (long pk = 0; pk < rows; pk++)
-                workload.execute(buildInsert(34 + (int) (pk % 3)), pk);
+                workload.execute(subsetInserts[(int) (pk % 3)], pk);
             workload.flush();
         }
     }

@@ -151,33 +151,6 @@ public abstract class DifferentialCompactionTester extends DifferentialCorpusDri
         return sb.toString();
     }
 
-    /** Sum of the per-sstable row counts across the live set (overlaps counted per sstable, as written). */
-    protected static long rowsOnDisk(ColumnFamilyStore cfs)
-    {
-        long rows = 0;
-        for (SSTableReader sstable : cfs.getLiveSSTables())
-            rows += sstable.getTotalRows();
-        return rows;
-    }
-
-    /** Sum of the compressed on-disk bytes across the live set: the real write volume. */
-    protected static long bytesOnDisk(ColumnFamilyStore cfs)
-    {
-        long bytes = 0;
-        for (SSTableReader sstable : cfs.getLiveSSTables())
-            bytes += sstable.onDiskLength();
-        return bytes;
-    }
-
-    /** Sum of the uncompressed data-length bytes across the live set: the logical payload size. */
-    protected static long uncompressedBytesOnDisk(ColumnFamilyStore cfs)
-    {
-        long bytes = 0;
-        for (SSTableReader sstable : cfs.getLiveSSTables())
-            bytes += sstable.uncompressedLength();
-        return bytes;
-    }
-
     /** Sum of the per-sstable row counts across a captured output. */
     protected static long outputRows(CapturedOutput out)
     {
@@ -261,12 +234,15 @@ public abstract class DifferentialCompactionTester extends DifferentialCorpusDri
      * Both paths agree in each run, so each run is a valid cursor-vs-iterator comparison. The purged output
      * must then carry strictly fewer rows than the retained one; the merge dedup is identical across the two
      * runs, so the row difference isolates purge, and a shape that purges nothing fails here rather than
-     * passing on a trivially equal comparison. Returns the (purge, when applicable) iterator capture.
+     * passing on a trivially equal comparison.
      */
-    protected CapturedOutput assertCursorMatchesIteratorForShape(ColumnFamilyStore cfs, DifferentialSchema schema) throws Exception
+    protected void assertCursorMatchesIteratorForShape(ColumnFamilyStore cfs, DifferentialSchema schema) throws Exception
     {
         if (!schema.expectsPurge())
-            return assertCursorMatchesIterator(cfs);
+        {
+            assertShapeLeftMergedOutput(schema, assertCursorMatchesIterator(cfs));
+            return;
+        }
 
         long now = FBUtilities.nowInSeconds() + PURGE_NOW_SKEW_SECONDS;
         // Anchor the retain baseline to the data on disk, not the wall clock. One below the earliest local
@@ -277,11 +253,22 @@ public abstract class DifferentialCompactionTester extends DifferentialCorpusDri
 
         CapturedOutput retained = assertCursorMatchesIterator(cfs, cfs.getLiveSSTables(), taskWithFixedNow(now), retainGcBefore);
         CapturedOutput purged = assertCursorMatchesIterator(cfs, cfs.getLiveSSTables(), taskWithFixedNow(now), now);
+        assertShapeLeftMergedOutput(schema, retained);
         assertTrue("purge shape '" + schema.name() + "' dropped no rows: the merge kept " + outputRows(retained) +
                    " rows with purge disabled and " + outputRows(purged) + " with purge at now=" + now +
                    "; the scenario purged nothing, so it does not exercise purge",
                    outputRows(purged) < outputRows(retained));
-        return purged;
+    }
+
+    /**
+     * Every corpus shape must leave at least one merged sstable to compare. An equal-but-empty comparison
+     * proves nothing, so this guards the corpus path itself rather than any single test.
+     */
+    private static void assertShapeLeftMergedOutput(DifferentialSchema schema, CapturedOutput output)
+    {
+        assertFalse("corpus shape '" + schema.name() + "' produced no output sstable: an equal-but-empty " +
+                    "comparison proves nothing; every shape must leave at least one merged sstable",
+                    output.sstables.isEmpty());
     }
 
     /**
@@ -895,21 +882,8 @@ public abstract class DifferentialCompactionTester extends DifferentialCorpusDri
                ",sum=" + stats.estimatedTombstoneDropTime.sum(Integer.MAX_VALUE);
     }
 
-    /**
-     * Whether {@link #assertEquivalentOutputs} rejects a run where both paths produced no output sstable.
-     * Off by default, because a scenario that legitimately purges to empty is valid; corpus drivers, which
-     * must always leave a merged sstable to compare, override this to true.
-     */
-    protected boolean requireNonEmptyOutput()
-    {
-        return false;
-    }
-
     protected void assertEquivalentOutputs(CapturedOutput iterator, CapturedOutput cursor)
     {
-        if (requireNonEmptyOutput() && iterator.sstables.isEmpty())
-            fail("both paths produced no output sstable: an equal-but-empty comparison proves nothing; " +
-                 "this scenario must leave at least one merged sstable");
         assertEquals("output sstable count differs between paths", iterator.sstables.size(), cursor.sstables.size());
         for (int i = 0; i < iterator.sstables.size(); i++)
             assertEquivalentSSTable(i, iterator.sstables.get(i), cursor.sstables.get(i));

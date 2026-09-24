@@ -66,13 +66,20 @@ public abstract class DifferentialCorpusDriver extends CQLTester
         DatabaseDescriptor.setSelectedSSTableFormat(savedSelectedFormat);
     }
 
-    /**
-     * Writes one corpus shape at the given scale through the differential workload, then guards it: the
-     * shape must leave overlapping live sstables that share a partition key to merge, and a shape that
-     * declares it spans multiple index blocks must actually produce a multi-block partition. Returns the
-     * table's store.
-     */
+    /** Writes and guards one corpus shape. See {@link #writeAndGuardShape(DifferentialSchema, int, boolean)}. */
     protected ColumnFamilyStore writeAndGuardShape(DifferentialSchema schema, int scale)
+    {
+        return writeAndGuardShape(schema, scale, true);
+    }
+
+    /**
+     * Writes one corpus shape at the given scale through the differential workload, then optionally guards
+     * it: the shape must leave overlapping live sstables that share a partition key to merge, and a shape
+     * that declares it spans multiple index blocks must actually produce a multi-block partition. Returns
+     * the table's store. A repeating burn regenerates identical data every round, so it passes {@code
+     * runGuards} false after the first round to skip the redundant full-sstable scans.
+     */
+    protected ColumnFamilyStore writeAndGuardShape(DifferentialSchema schema, int scale, boolean runGuards)
     {
         createTable(schema.tableDefinition());
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
@@ -80,9 +87,12 @@ public abstract class DifferentialCorpusDriver extends CQLTester
 
         schema.write(workload(), scale);
 
-        DifferentialShapeGuards.assertLiveSSTablesOverlap(cfs, schema);
-        if (schema.spansMultipleIndexBlocks())
-            DifferentialShapeGuards.assertSomePartitionSpansMultipleBlocks(cfs, schema);
+        if (runGuards)
+        {
+            DifferentialShapeGuards.assertLiveSSTablesOverlap(cfs, schema);
+            if (schema.spansMultipleIndexBlocks())
+                DifferentialShapeGuards.assertSomePartitionSpansMultipleBlocks(cfs, schema);
+        }
         return cfs;
     }
 }

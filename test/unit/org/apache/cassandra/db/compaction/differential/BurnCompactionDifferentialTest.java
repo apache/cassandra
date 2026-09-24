@@ -33,41 +33,39 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 import static org.junit.Assert.assertTrue;
 
 /**
- * Burn counterpart to {@link ParameterizedCompactionDifferentialTest}: runs the same
+ * Burn counterpart to {@link ParameterizedCompactionDifferentialTest}. It runs the same
  * {@link DifferentialSchemas#minimalCorpus() corpus} at a large scale, under BTI only, so at least
- * {@link #MIN_TOTAL_ROWS} rows flow through the cursor-vs-iterator differential in one run.
+ * {@link #MIN_TOTAL_ROWS} rows flow through the cursor-vs-iterator differential.
  *
- * <p>Kept a separate class from the fast matrix so the matrix stays fast. Three system properties drive it:
+ * <p>It is a separate class from the matrix so the matrix stays fast. Three system properties drive it:
  * <ul>
  *   <li>{@link CassandraRelevantProperties#TEST_COMPACTION_BURN_SCALE} sizes each shape (default
  *       {@link #DEFAULT_SCALE}).</li>
- *   <li>{@link CassandraRelevantProperties#TEST_COMPACTION_BURN_MINUTES} is a wall-clock budget. When it is
- *       greater than zero, the corpus repeats in rounds until the budget elapses, so the burn can soak for
- *       hours. Zero (the default) runs exactly one round, which keeps the normal {@code ant test} fast.</li>
- *   <li>{@link CassandraRelevantProperties#TEST_COMPACTION_BURN_CHECKPOINT} is the path of a durable progress
- *       file (default {@code build/test/logs/burn-checkpoint.tsv}).</li>
+ *   <li>{@link CassandraRelevantProperties#TEST_COMPACTION_BURN_MINUTES} is a wall-clock budget. Above zero,
+ *       the corpus repeats in rounds until the budget elapses, so the burn can soak for hours. Zero (the
+ *       default) runs one round and keeps {@code ant test} fast.</li>
+ *   <li>{@link CassandraRelevantProperties#TEST_COMPACTION_BURN_CHECKPOINT} is the path of the progress file
+ *       (default {@code build/test/logs/burn-checkpoint.tsv}).</li>
  * </ul>
  *
- * <p>Two properties let the burn run for a long time without failing, and lose no validated work if it does
- * fail:
+ * <p>Two design choices let the burn soak for a long time and lose no validated work if it fails:
  * <ul>
- *   <li><b>Flat memory.</b> Each shape's table is dropped as soon as its differential check passes, so heap
- *       does not grow across shapes or rounds. The run holds only one shape's data at a time, so scale and
- *       duration are free knobs rather than a slow march toward an out-of-memory error.</li>
- *   <li><b>Durable checkpoint.</b> After every shape the run appends one flushed, fsync'd line to the
- *       checkpoint file. If the JVM dies mid-run, that file is the preserved record of exactly which shapes
- *       passed and how many rows were validated.</li>
+ *   <li><b>Flat memory.</b> The run drops each shape's table once its check passes, so the heap holds only
+ *       one shape at a time. Scale and duration are then free knobs, not a march toward an out-of-memory
+ *       error.</li>
+ *   <li><b>Durable checkpoint.</b> The run appends one fsync'd line per shape. If the JVM dies, that file
+ *       records which shapes passed and how much data was validated.</li>
  * </ul>
  *
- * <p>To raise the scale or duration, run through the {@code test-isolated.sh} harness, which forwards every
- * {@code -Dcassandra.*} argument into the forked test JVM: {@code -Dcassandra.test.compaction_burn_scale=N}
- * and {@code -Dcassandra.test.compaction_burn_minutes=M} then reach the test. A bare {@code -D} on a raw ant
- * line does NOT reach the fork (the junit fork takes only an explicit jvmarg allowlist plus
- * {@code test.jvm.args}); outside the harness, pass them inside {@code -Dtest.jvm.args="..."}.
+ * <p>To raise scale or duration, run through {@code test-isolated.sh}. It forwards every {@code -Dcassandra.*}
+ * argument into the forked test JVM, so {@code -Dcassandra.test.compaction_burn_scale=N} and
+ * {@code -Dcassandra.test.compaction_burn_minutes=M} reach the test. On a raw ant line a bare {@code -D} does
+ * not reach the fork; pass it inside {@code -Dtest.jvm.args="..."} instead.
  */
 public class BurnCompactionDifferentialTest extends DifferentialCompactionTester
 {
@@ -80,13 +78,6 @@ public class BurnCompactionDifferentialTest extends DifferentialCompactionTester
     /** Digest-mode capture: the logical dump is streamed into a SHA-256, so capture memory stays flat. */
     @Override
     protected boolean scaleCapture()
-    {
-        return true;
-    }
-
-    /** Every corpus shape must leave a merged sstable to compare; an empty-vs-empty pass proves nothing. */
-    @Override
-    protected boolean requireNonEmptyOutput()
     {
         return true;
     }
@@ -134,7 +125,7 @@ public class BurnCompactionDifferentialTest extends DifferentialCompactionTester
                 for (DifferentialSchema schema : corpus)
                 {
                     shapeNum++;
-                    ShapeStats shape = runShape(schema, scale);
+                    ShapeStats shape = runShape(schema, scale, round);
                     totalRows += shape.rows;
                     totalBytes += shape.bytes;
                     totalUncompressed += shape.uncompressedBytes;
@@ -169,12 +160,13 @@ public class BurnCompactionDifferentialTest extends DifferentialCompactionTester
 
     /**
      * Writes one shape, asserts the cursor and iterator paths agree, then drops its table so its data does
-     * not stay resident into the next shape. Returns the rows and bytes compacted for this shape.
+     * not stay resident into the next shape. Returns the rows and bytes compacted for this shape. The
+     * structural guards run only on the first round, because every round regenerates identical data.
      */
-    private ShapeStats runShape(DifferentialSchema schema, int scale) throws Exception
+    private ShapeStats runShape(DifferentialSchema schema, int scale, int round) throws Exception
     {
-        ColumnFamilyStore cfs = writeAndGuardShape(schema, scale);
-        ShapeStats stats = new ShapeStats(rowsOnDisk(cfs), bytesOnDisk(cfs), uncompressedBytesOnDisk(cfs));
+        ColumnFamilyStore cfs = writeAndGuardShape(schema, scale, round == 1);
+        ShapeStats stats = ShapeStats.measure(cfs);
         assertCursorMatchesIteratorForShape(cfs, schema);
         // Flat memory: release this shape's sstables and memtable before the next shape allocates. The drop
         // must run while currentTable() is still this shape; writeAndGuardShape left it there and the
@@ -190,11 +182,26 @@ public class BurnCompactionDifferentialTest extends DifferentialCompactionTester
         final long bytes;             // compressed bytes on disk
         final long uncompressedBytes; // logical payload before compression
 
-        ShapeStats(long rows, long bytes, long uncompressedBytes)
+        private ShapeStats(long rows, long bytes, long uncompressedBytes)
         {
             this.rows = rows;
             this.bytes = bytes;
             this.uncompressedBytes = uncompressedBytes;
+        }
+
+        /** Sums the three totals across the live set in one pass. */
+        static ShapeStats measure(ColumnFamilyStore cfs)
+        {
+            long rows = 0;
+            long bytes = 0;
+            long uncompressed = 0;
+            for (SSTableReader sstable : cfs.getLiveSSTables())
+            {
+                rows += sstable.getTotalRows();
+                bytes += sstable.onDiskLength();
+                uncompressed += sstable.uncompressedLength();
+            }
+            return new ShapeStats(rows, bytes, uncompressed);
         }
     }
 
