@@ -601,27 +601,12 @@ public abstract class CassandraIndex implements Index
                                                                clustering,
                                                                cell));
         Clustering<?> indexClustering = buildIndexClustering(rowKey.getKey(), clustering, cell);
-        return new IndexEntry(indexKey, indexClustering, info.timestamp(), rowKey, baseClustering(clustering));
-    }
 
-    /**
-     * The base clustering an entry read back out of the index decodes to, which is what the searchers expect of an
-     * entry, however it was obtained.
-     * <p>
-     * A static row contributes no clustering values to its index clustering, so what an entry for one decodes to
-     * depends on what the index is on: an index on a partition key column rebuilds the base clustering with a builder
-     * handed the missing values as nulls, and an index on a static column returns Clustering#STATIC_CLUSTERING as it
-     * stands. ClusteringComparator#compare requires a value, null or not, for every clustering column and so cannot
-     * be handed the static clustering, while IndexEntry#compare reads a clustering with no values as saying the
-     * partition holds only static data and orders it ahead of every clustering that has values - so an entry built
-     * here in a form its own decodeEntry does not return is a second entry for a partition that already has one.
-     */
-    private Clustering<?> baseClustering(Clustering<?> clustering)
-    {
-        if (clustering.kind() != ClusteringPrefix.Kind.STATIC_CLUSTERING || indexedColumn.isStatic())
-            return clustering;
+        // IndexEntry expects a different clustering format for static rows on partition key indexes, so we adjust it here
+        if (clustering.kind() == ClusteringPrefix.Kind.STATIC_CLUSTERING && indexedColumn.isPartitionKey())
+            clustering = Clustering.make(new ByteBuffer[baseCfs.getComparator().size()]);
 
-        return Clustering.make(new ByteBuffer[baseCfs.getComparator().size()]);
+        return new IndexEntry(indexKey, indexClustering, info.timestamp(), rowKey, clustering);
     }
 
     /**
