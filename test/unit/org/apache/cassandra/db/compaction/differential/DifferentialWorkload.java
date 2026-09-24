@@ -19,12 +19,10 @@
 package org.apache.cassandra.db.compaction.differential;
 
 /**
- * The minimal surface a schema fixture needs to populate a table with data and cut it into sstables.
+ * The minimal surface a schema fixture needs to populate a table and cut it into sstables.
  *
- * <p>This interface is deliberately path-agnostic: it references no compaction, flush or read type, so
- * the fixture corpus that depends on it ({@link DifferentialSchema}, {@link DifferentialSchemas}) can be
- * hoisted into shared test infrastructure and reused by read-path and flush-path differential engines on
- * higher branches. An adapter supplies the actual execution and flush, delegating to CQLTester.
+ * <p>Path-agnostic: it names no compaction, flush or read type. An adapter supplies the execution
+ * and flush, delegating to CQLTester.
  */
 public interface DifferentialWorkload
 {

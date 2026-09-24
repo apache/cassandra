@@ -19,13 +19,8 @@
 package org.apache.cassandra.db.compaction.differential;
 
 /**
- * Review probe (audit Gap 7): runs the early-open boundary scenario under BTI while KEEPING
- * {@code requiresMidStreamReopen() == true}. The parent's sibling {@code BtiCursorEarlyOpenBoundaryTest}
- * overrides that gate to false, so it never asserts a mid-stream reopen actually fired under BTI.
- *
- * If this test passes, BTI does publish an OpenReason.EARLY reader mid-compaction on the cursor path
- * with the inherited fixture sizing, and the sibling's under-assertion is unnecessary. If it fails on
- * the midStream assertion, BTI has the code path but never fires it mid-stream at this fixture size.
+ * Runs the early-open boundary scenario under BTI with {@code requiresMidStreamReopen() == true},
+ * so it asserts a mid-stream OpenReason.EARLY reader is published on the cursor compaction path under BTI.
  */
 public class BtiCursorEarlyOpenMidStreamProbeTest extends CursorEarlyOpenBoundaryTest
 {

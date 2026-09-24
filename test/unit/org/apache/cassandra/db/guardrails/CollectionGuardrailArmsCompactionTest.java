@@ -45,9 +45,8 @@ import static org.junit.Assert.assertTrue;
 /**
  * The sibling {@link CollectionSizeGuardrailCompactionTest} covers exactly one arm of the collection
  * guardrail family on the cursor compaction path: the {@code collection_size} guardrail, WARN threshold
- * only, on a multi-cell {@code set<blob>}. Audit Gap 9 is that the remaining arms are never exercised on
- * the cursor path. This test covers the missing arms, and each asserts the cursor path reaches the same
- * verdict as the iterator path:
+ * only, on a multi-cell {@code set<blob>}. This test covers the remaining arms, and each asserts the
+ * cursor path reaches the same verdict as the iterator path:
  * <ul>
  *   <li>{@code items_per_collection} WARN, on a multi-cell {@code list<int>}.</li>
  *   <li>{@code items_per_collection} FAIL, on a multi-cell {@code list<int>}.</li>

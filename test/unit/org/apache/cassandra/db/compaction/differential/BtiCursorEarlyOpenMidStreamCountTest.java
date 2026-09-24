@@ -39,9 +39,9 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Review probe (audit Gap 7): counts, under BTI, how many OpenReason.EARLY readers are published on
- * the cursor compaction path BEFORE prepareToCommit (i.e. genuinely mid-stream), and reports the count.
- * Self-contained fixture so the exact count is observable, independent of the parent's private helpers.
+ * Counts, under BTI, the OpenReason.EARLY readers the cursor compaction path publishes before
+ * prepareToCommit (mid-stream) and at prepare time. Uses a self-contained fixture so the count does not
+ * depend on the parent's private helpers.
  */
 public class BtiCursorEarlyOpenMidStreamCountTest extends DifferentialCompactionTester
 {

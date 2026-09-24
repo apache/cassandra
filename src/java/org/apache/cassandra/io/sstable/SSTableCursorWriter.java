@@ -148,9 +148,8 @@ public class SSTableCursorWriter implements AutoCloseable
     // Format-specific index production. BIG writes promoted blocks, Index.db, a bloom filter and a
     // summary.
     private final CursorIndexWriter cursorIndexWriter;
-    // The last key written, copied in per partition. It is the underlying writer's last key, so an
-    // sstable opened early at a writer switch carries real bounds. Whatever keeps it past the next
-    // partition takes retainable(), which copies it.
+    // The last key written. Reused across partitions; a caller that keeps it past the next
+    // partition must take retainable().
     private final ReusableDecoratedKey lastKey;
 
     private SSTableCursorWriter(

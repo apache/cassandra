@@ -32,9 +32,9 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Covers audit Gap 10: the branch of {@code CursorCompactor.purgeTimestamp}
- * (CursorCompactor.java:521-524) that holds the purge/expiry reference back to
- * {@code controller.gcBefore} for accord-enabled and accord-migrating tables. The iterator's
+ * Pins the {@code CursorCompactor.purgeTimestamp} branch that holds the purge/expiry
+ * reference back to {@code controller.gcBefore} for accord-enabled and accord-migrating
+ * tables. The iterator's
  * equivalent is {@code CompactionIterator.purger()} (CompactionIterator.java:281-285). The
  * existing {@link AccordTableDifferentialCompactionTest} exercises only the accord-enabled arm; it
  * has no non-accord control, so a regression that dropped the override entirely (making the accord

@@ -36,9 +36,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
  * actually ran and that the output is in the selected format, then asserts byte + logical equivalence
  * against the iterator path.
  *
- * <p>The corpus itself carries no compaction, flush or read dependency, so the same fixtures can feed
- * read-path (20428) and flush-path (21554) differential engines on higher branches. The burn counterpart
- * is {@link BurnCompactionDifferentialTest}.
+ * <p>The burn counterpart is {@link BurnCompactionDifferentialTest}.
  */
 @RunWith(Parameterized.class)
 public class ParameterizedCompactionDifferentialTest extends DifferentialCompactionTester

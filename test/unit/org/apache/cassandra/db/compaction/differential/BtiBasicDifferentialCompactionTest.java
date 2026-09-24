@@ -53,9 +53,9 @@ import static org.junit.Assert.assertNull;
  * clustering-free table shape ({@link BasicDifferentialCompactionTest#noClusteringColumns}) is compacted
  * through the cursor path under BTI rather than only under the default BIG format.
  *
- * <p>The differential harness's slice read-back returns early for a zero-clustering table (its index has
- * no seek to route), so this class also reads the clustering-free cursor output back per partition through
- * an absolute point read and asserts the merged value, to flush out any latent bug in the clustering-free
+ * <p>The differential harness's slice read-back returns early for a zero-clustering table, because its
+ * index has no seek to route. This class therefore reads the clustering-free cursor output back per
+ * partition through an absolute point read and asserts each merged value, exercising the clustering-free
  * BTI write/read path.
  */
 public class BtiBasicDifferentialCompactionTest extends BasicDifferentialCompactionTest

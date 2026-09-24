@@ -56,7 +56,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Audit Gap 6: cursor compaction that reads one sstable format and writes the other.
+ * Cursor compaction that reads one sstable format and writes the other.
  *
  * <p>{@link org.apache.cassandra.db.compaction.CursorCompactor#isSupported} gates only on the selected
  * (output) format; it never inspects the input sstables' formats. Every other differential test sets the

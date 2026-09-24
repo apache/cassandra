@@ -228,7 +228,7 @@ public class IndexSummaryBuilder implements AutoCloseable
         }
         else if (dataEnd != 0 && keysWritten + 1 == nextSamplePosition)
         {
-            // this is the last key in this summary interval, so stash it
+            // the last key in this summary interval
             ReadableBoundary boundary = new ReadableBoundary(decoratedKey.retainable(), indexEnd, dataEnd,
                                                              (int) (offsets.length() / 4), entries.length());
             lastReadableByData.put(dataEnd, boundary);

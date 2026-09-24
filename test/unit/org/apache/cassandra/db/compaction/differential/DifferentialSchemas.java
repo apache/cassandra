@@ -35,8 +35,7 @@ public final class DifferentialSchemas
     }
 
     /**
-     * The minimal starter corpus, growing from the five shapes a review flagged as the coverage floor to
-     * the full set: clustering-free, simple clustering, static + clustering, a multi-cell collection,
+     * The minimal starter corpus: clustering-free, simple clustering, static + clustering, a multi-cell collection,
      * reversed clustering, two multi-block (wide-partition) shapes that force the block-navigation path,
      * a deletions shape covering every tombstone kind, compound clustering, a wide-column shape, a
      * range tombstone that spans index blocks, a four-input k-way merge, a mixed-type shape, expiring
@@ -112,8 +111,7 @@ public final class DifferentialSchemas
 
     /**
      * pk only, no clustering. The two rounds rewrite the SAME partition keys with different values, so
-     * the flushes genuinely overlap and the merge must reconcile per-partition (this is the shape the
-     * review flagged as uncovered).
+     * the flushes genuinely overlap and the merge must reconcile per-partition.
      */
     private static final class ClusteringFree extends BaseSchema
     {
