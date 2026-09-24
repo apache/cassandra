@@ -57,7 +57,7 @@ public class MixedCdcEnabledSchemaDisagreementTest extends TestBaseImpl
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k INT PRIMARY KEY, v INT)"));
 
             // node 3 is the only node with cdc_enabled=true; it's the one flipping cdc on.
-            cluster.get(3).schemaChangeInternal(withKeyspace("ALTER TABLE %s.tbl WITH cdc = true"));
+            cluster.schemaChange(withKeyspace("ALTER TABLE %s.tbl WITH cdc = true"), false, cluster.get(3));
 
             for (int i = 1; i <= 3; i++)
             {

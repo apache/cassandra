@@ -66,7 +66,6 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
-import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -482,18 +481,10 @@ public final class SchemaKeyspace
 
                     DecoratedKey key = partition.partitionKey();
                     Mutation.PartitionUpdateCollector puCollector = mutationMap.computeIfAbsent(key, k -> new Mutation.PartitionUpdateCollector(SchemaConstants.SCHEMA_KEYSPACE_NAME, key));
-                    puCollector.add(makeUpdateForSchema(partition, cmd.columnFilter()).withOnlyPresentColumns());
+                    puCollector.add(PartitionUpdate.fromIterator(partition, cmd.columnFilter()).withOnlyPresentColumns());
                 }
             }
         }
-    }
-
-    /**
-     * Creates a PartitionUpdate from a partition containing some schema table content.
-     */
-    private static PartitionUpdate makeUpdateForSchema(UnfilteredRowIterator partition, ColumnFilter filter)
-    {
-        return PartitionUpdate.fromIterator(partition, filter);
     }
 
     private static boolean isSystemKeyspaceSchemaPartition(DecoratedKey partitionKey)
