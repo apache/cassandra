@@ -101,6 +101,8 @@ public class BurnCompactionDifferentialTest extends DifferentialCompactionTester
         assertTrue("burn scale must be positive", scale > 0);
         int budgetMinutes = CassandraRelevantProperties.TEST_COMPACTION_BURN_MINUTES.getInt();
         assertTrue("burn minutes must not be negative", budgetMinutes >= 0);
+        long targetRows = CassandraRelevantProperties.TEST_COMPACTION_BURN_TARGET_ROWS.getLong();
+        assertTrue("burn target rows must not be negative", targetRows >= 0);
 
         List<DifferentialSchema> corpus = DifferentialSchemas.minimalCorpus();
         Path checkpointPath = Paths.get(CassandraRelevantProperties.TEST_COMPACTION_BURN_CHECKPOINT.getString());
@@ -114,9 +116,10 @@ public class BurnCompactionDifferentialTest extends DifferentialCompactionTester
         int round = 0;
         try (BurnCheckpoint checkpoint = BurnCheckpoint.open(checkpointPath))
         {
-            checkpoint.record(String.format("# burn start scale=%d minutes=%d shapes=%d", scale, budgetMinutes, corpus.size()));
-            logger.info("burn run starting at scale {} for {} minute(s) across {} corpus shapes; checkpoint at {}",
-                        scale, budgetMinutes, corpus.size(), checkpointPath.toAbsolutePath());
+            checkpoint.record(String.format("# burn start scale=%d minutes=%d target_rows=%d shapes=%d",
+                                            scale, budgetMinutes, targetRows, corpus.size()));
+            logger.info("burn run starting at scale {} for {} minute(s), target {} rows, across {} corpus shapes; checkpoint at {}",
+                        scale, budgetMinutes, targetRows, corpus.size(), checkpointPath.toAbsolutePath());
 
             do
             {
@@ -144,8 +147,14 @@ public class BurnCompactionDifferentialTest extends DifferentialCompactionTester
                                 shape.rows, shape.bytes, shape.uncompressedBytes,
                                 totalRows, totalBytes, totalUncompressed, elapsedSec);
                 }
+                // Keep going while either budget still wants more rounds: the time budget has not elapsed, or
+                // the row target has not been reached. With neither property set, the corpus runs exactly once.
+                boolean underTimeBudget = deadlineNanos != 0 && System.nanoTime() < deadlineNanos;
+                boolean underRowTarget = targetRows > 0 && totalRows < targetRows;
+                if (!underTimeBudget && !underRowTarget)
+                    break;
             }
-            while (deadlineNanos != 0 && System.nanoTime() < deadlineNanos);
+            while (true);
 
             checkpoint.record(String.format("# burn done rounds=%d cumulative_rows=%d cumulative_bytes=%d cumulative_uncompressed=%d",
                                             round, totalRows, totalBytes, totalUncompressed));

@@ -650,6 +650,7 @@ public enum CassandraRelevantProperties
     TEST_COMPACTION_BURN_CHECKPOINT("cassandra.test.compaction_burn_checkpoint", "build/test/logs/burn-checkpoint.tsv"),
     TEST_COMPACTION_BURN_MINUTES("cassandra.test.compaction_burn_minutes", "0"),
     TEST_COMPACTION_BURN_SCALE("cassandra.test.compaction_burn_scale"),
+    TEST_COMPACTION_BURN_TARGET_ROWS("cassandra.test.compaction_burn_target_rows", "0"),
     TEST_COMPRESSION("cassandra.test.compression"),
     TEST_COMPRESSION_ALGO("cassandra.test.compression.algo", "lz4"),
     TEST_DEBUG_REF_COUNT("cassandra.debugrefcount"),
