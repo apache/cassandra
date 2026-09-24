@@ -37,6 +37,7 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -242,6 +243,30 @@ public class RowsTest
         }
 
         return builder;
+    }
+
+    @Test
+    public void liveDataSizeIsUnchangedByPurgingExpiredLiveness()
+    {
+        long now = 1000;
+        long timestamp = secondToTs(now);
+        for (LivenessInfo liveness : new LivenessInfo[]{ LivenessInfo.EMPTY,
+                                                       LivenessInfo.create(timestamp),
+                                                       LivenessInfo.expiring(timestamp, 10, now) })
+        {
+            Row.Builder builder = createBuilder(c1);
+            builder.addPrimaryKeyLivenessInfo(liveness);
+            builder.addCell(BufferCell.live(v, timestamp, BB1));
+            Row row = builder.build();
+
+            for (long readNow : new long[]{ now + 9, now + 10 })
+            {
+                Row purged = row.purge(DeletionPurger.PURGE_ALL, readNow, false);
+                Assert.assertNotNull(purged);
+                Assert.assertEquals(purged.dataSize(), row.liveDataSize(readNow));
+                Assert.assertEquals(purged.liveDataSize(readNow), row.liveDataSize(readNow));
+            }
+        }
     }
 
     @Test

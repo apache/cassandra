@@ -570,8 +570,10 @@ public class BTreeRow extends AbstractRow
     @Override
     public int liveDataSize(long nowInSec)
     {
+        // Match Filter's replacement of expired row liveness with EMPTY before pager-side counting.
+        LivenessInfo liveLivenessInfo = primaryKeyLivenessInfo.isLive(nowInSec) ? primaryKeyLivenessInfo : LivenessInfo.EMPTY;
         int dataSize = clustering.dataSize()
-                       + primaryKeyLivenessInfo.dataSize()
+                       + liveLivenessInfo.dataSize()
                        + deletion.dataSize();
 
         return Ints.checkedCast(accumulate((cd, v) -> v + cd.liveDataSize(nowInSec), dataSize));
