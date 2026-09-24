@@ -38,7 +38,7 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
 public class AccordListPrependTest extends AccordTestBase
 {
-    private static final Logger logger = LoggerFactory.getLogger(AccordDeleteCommandStoreTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(AccordListPrependTest.class);
 
     @Override
     protected Logger logger()
