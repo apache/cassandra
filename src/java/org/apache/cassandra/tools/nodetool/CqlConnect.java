@@ -24,6 +24,7 @@ import com.google.common.base.Throwables;
 
 import org.apache.cassandra.config.CassandraRelevantEnv;
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.strategy.NodetoolConnectionException;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -70,6 +71,8 @@ public class CqlConnect extends AbstractCommand implements AutoCloseable
             if (diagnostic)
                 output.printInfo("Connecting to %s:%s via CQL...%n", host, port);
 
+            DatabaseDescriptor.clientInitialization(false);
+            DatabaseDescriptor.setNativeTransportMaxMessageSizeInBytes(DatabaseDescriptor.getNativeTransportMaxFrameSize());
             SimpleClient.Builder builder = SimpleClient.builder(host, port)
                                                        .protocolVersion(ProtocolVersion.V5)
                                                        .requestTimeoutSeconds(requestTimeoutSeconds());
