@@ -19,8 +19,6 @@
 package org.apache.cassandra.db.filter;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
 
 import org.junit.Test;
 
@@ -48,10 +46,10 @@ public class SliceTest
     @Test
     public void testIntersectsSingleSlice()
     {
-        List<AbstractType<?>> types = new ArrayList<>();
-        types.add(Int32Type.instance);
-        types.add(Int32Type.instance);
-        types.add(Int32Type.instance);
+        AbstractType<?>[] types = new AbstractType<?>[3];
+        types[0] = Int32Type.instance;
+        types[1] = Int32Type.instance;
+        types[2] = Int32Type.instance;
         ClusteringComparator cc = new ClusteringComparator(types);
 
         ClusteringPrefix.Kind sk = INCL_START_BOUND;
@@ -279,10 +277,10 @@ public class SliceTest
     @Test
     public void testDifferentMinMaxLengths()
     {
-        List<AbstractType<?>> types = new ArrayList<>();
-        types.add(Int32Type.instance);
-        types.add(Int32Type.instance);
-        types.add(Int32Type.instance);
+        AbstractType<?>[] types = new AbstractType<?>[3];
+        types[0] = Int32Type.instance;
+        types[1] = Int32Type.instance;
+        types[2] = Int32Type.instance;
         ClusteringComparator cc = new ClusteringComparator(types);
 
         ClusteringPrefix.Kind sk = INCL_START_BOUND;
@@ -321,10 +319,10 @@ public class SliceTest
     @Test
     public void testSliceNormalization()
     {
-        List<AbstractType<?>> types = new ArrayList<>();
-        types.add(Int32Type.instance);
-        types.add(Int32Type.instance);
-        types.add(Int32Type.instance);
+        AbstractType<?>[] types = new AbstractType<?>[3];
+        types[0] = Int32Type.instance;
+        types[1] = Int32Type.instance;
+        types[2] = Int32Type.instance;
         ClusteringComparator cc = new ClusteringComparator(types);
 
         assertSlicesNormalization(cc, slices(s(0, 2), s(2, 4)), slices(s(0, 4)));
@@ -337,9 +335,9 @@ public class SliceTest
     @Test
     public void testIsEmpty()
     {
-        List<AbstractType<?>> types = new ArrayList<>();
-        types.add(Int32Type.instance);
-        types.add(Int32Type.instance);
+        AbstractType<?>[] types = new AbstractType<?>[2];
+        types[0] = Int32Type.instance;
+        types[1] = Int32Type.instance;
         ClusteringComparator cc = new ClusteringComparator(types);
 
         assertFalse(Slice.isEmpty(cc, makeBound(INCL_START_BOUND, 5, 0), makeBound(INCL_END_BOUND, 5, 0)));
