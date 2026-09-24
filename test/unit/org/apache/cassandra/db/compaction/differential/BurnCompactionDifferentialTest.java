@@ -22,9 +22,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 import static org.junit.Assert.assertTrue;
@@ -56,19 +54,16 @@ public class BurnCompactionDifferentialTest extends DifferentialCompactionTester
         return true;
     }
 
-    private SSTableFormat<?, ?> originalFormat;
-
     @Before
     public void selectBti()
     {
-        originalFormat = DatabaseDescriptor.getSelectedSSTableFormat();
-        DatabaseDescriptor.setSelectedSSTableFormat("bti");
+        selectSSTableFormat("bti");
     }
 
     @After
     public void restoreFormat()
     {
-        DatabaseDescriptor.setSelectedSSTableFormat(originalFormat);
+        restoreSelectedFormat();
     }
 
     @Test
@@ -80,33 +75,8 @@ public class BurnCompactionDifferentialTest extends DifferentialCompactionTester
         long totalRows = 0;
         for (DifferentialSchema schema : DifferentialSchemas.minimalCorpus())
         {
-            createTable(schema.tableDefinition());
-            ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
-            cfs.disableAutoCompaction();
-
-            // adapter over this test's inherited CQLTester execute()/flush()
-            DifferentialWorkload workload = new DifferentialWorkload()
-            {
-                @Override
-                public void execute(String cql, Object... args)
-                {
-                    BurnCompactionDifferentialTest.this.execute(cql, args);
-                }
-
-                @Override
-                public void flush()
-                {
-                    BurnCompactionDifferentialTest.this.flush();
-                }
-            };
-            schema.write(workload, scale);
-
-            ParameterizedCompactionDifferentialTest.assertLiveSSTablesOverlap(cfs, schema);
-            if (schema.spansMultipleIndexBlocks())
-                ParameterizedCompactionDifferentialTest.assertSomePartitionSpansMultipleBlocks(cfs, schema);
-
+            ColumnFamilyStore cfs = writeAndGuardShape(schema, scale);
             totalRows += rowsOnDisk(cfs);
-
             assertCursorMatchesIterator(cfs);
         }
 

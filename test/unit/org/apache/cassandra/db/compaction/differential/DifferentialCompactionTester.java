@@ -480,6 +480,120 @@ public abstract class DifferentialCompactionTester extends CQLTester
                           DatabaseDescriptor.getSelectedSSTableFormat().supportsCursorCompaction());
     }
 
+    // ---- minimal-corpus driver support -------------------------------------------------------------
+    // The parameterized matrix and the burn test share this scaffolding: a workload adapter over the
+    // inherited CQLTester execute()/flush(), a save/restore of the selected sstable format, one
+    // orchestrator that writes a shape and guards it, and the two structural guards themselves.
+
+    /** The selected format saved by {@link #selectSSTableFormat}, restored by {@link #restoreSelectedFormat}. */
+    private SSTableFormat<?, ?> savedSelectedFormat;
+
+    /** Adapter that runs a {@link DifferentialWorkload} through this test's inherited CQLTester. */
+    protected DifferentialWorkload workload()
+    {
+        return new DifferentialWorkload()
+        {
+            @Override
+            public void execute(String cql, Object... args)
+            {
+                DifferentialCompactionTester.this.execute(cql, args);
+            }
+
+            @Override
+            public void flush()
+            {
+                DifferentialCompactionTester.this.flush();
+            }
+        };
+    }
+
+    /** Saves the selected sstable format, then selects {@code name}. Pair with {@link #restoreSelectedFormat}. */
+    protected void selectSSTableFormat(String name)
+    {
+        savedSelectedFormat = DatabaseDescriptor.getSelectedSSTableFormat();
+        DatabaseDescriptor.setSelectedSSTableFormat(name);
+    }
+
+    /** Restores the format saved by {@link #selectSSTableFormat}. */
+    protected void restoreSelectedFormat()
+    {
+        DatabaseDescriptor.setSelectedSSTableFormat(savedSelectedFormat);
+    }
+
+    /**
+     * Writes one corpus shape at the given scale through the differential workload, then guards it: the
+     * shape must leave overlapping live sstables to merge, and a shape that declares it spans multiple
+     * index blocks must actually produce a multi-block partition. Returns the table's store.
+     */
+    protected ColumnFamilyStore writeAndGuardShape(DifferentialSchema schema, int scale)
+    {
+        createTable(schema.tableDefinition());
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        schema.write(workload(), scale);
+
+        assertLiveSSTablesOverlap(cfs, schema);
+        if (schema.spansMultipleIndexBlocks())
+            assertSomePartitionSpansMultipleBlocks(cfs, schema);
+        return cfs;
+    }
+
+    /**
+     * Asserts at least two live sstables have overlapping key ranges, so a shape can never silently
+     * degrade into a non-overlapping no-op merge. The weak "&gt;= 2 sstables" count is not enough: two
+     * disjoint sstables would merge nothing.
+     */
+    protected static void assertLiveSSTablesOverlap(ColumnFamilyStore cfs, DifferentialSchema schema)
+    {
+        List<SSTableReader> live = new ArrayList<>(cfs.getLiveSSTables());
+        if (live.size() < 2)
+            throw new AssertionError("shape '" + schema.name() + "' must leave at least two sstables to " +
+                                     "merge; got " + live.size());
+        for (int i = 0; i < live.size(); i++)
+            for (int j = i + 1; j < live.size(); j++)
+                if (rangesOverlap(live.get(i), live.get(j)))
+                    return;
+        throw new AssertionError("shape '" + schema.name() + "' left " + live.size() + " sstables but none " +
+                                 "have overlapping key ranges: the merge would be a no-op concatenation, " +
+                                 "not a real reconciliation");
+    }
+
+    /** Two sstables overlap when neither's key range ends before the other's begins. */
+    private static boolean rangesOverlap(SSTableReader a, SSTableReader b)
+    {
+        return a.getFirst().compareTo(b.getLast()) <= 0 && b.getFirst().compareTo(a.getLast()) <= 0;
+    }
+
+    /**
+     * Asserts at least one partition of some live sstable carries a promoted row index of more than one
+     * block, proving the shape actually exercises the block-navigation path rather than silently shrinking
+     * to a single-block partition.
+     */
+    protected static void assertSomePartitionSpansMultipleBlocks(ColumnFamilyStore cfs, DifferentialSchema schema)
+    {
+        for (SSTableReader sstable : cfs.getLiveSSTables())
+        {
+            try (ISSTableScanner scanner = sstable.getScanner())
+            {
+                while (scanner.hasNext())
+                {
+                    DecoratedKey key;
+                    try (UnfilteredRowIterator partition = scanner.next())
+                    {
+                        key = partition.partitionKey();
+                    }
+                    AbstractRowIndexEntry entry = sstable.getRowIndexEntry(key, SSTableReader.Operator.EQ);
+                    if (entry != null && entry.blockCount() > 1)
+                        return;
+                }
+            }
+        }
+        throw new AssertionError("shape '" + schema.name() + "' declares it spans multiple index blocks, " +
+                                 "but no partition of the flushed sstables carries a promoted row index of " +
+                                 "more than one block: the block-navigation path is not being exercised");
+    }
+
     private static String listDataDir(Descriptor desc)
     {
         try (java.util.stream.Stream<Path> files = Files.list(desc.directory.toPath()))
