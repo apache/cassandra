@@ -52,8 +52,8 @@ class ShortReadRowsProtection extends Transformation implements MoreRows<Unfilte
     private int lastCounted = 0; // last seen recorded # before attempting to fetch more rows
     private int lastFetched = 0; // # rows returned by last attempt to get more (or by the original read command)
     private int lastQueried = 0; // # extra rows requested from the replica last time
-    private int lastBytesCounted = 0;
     private int lastQueriedBytes = DataLimits.NO_LIMIT;
+    private DataLimits.Counter lastRetryCounter;
 
     ShortReadRowsProtection(DecoratedKey partitionKey, ReadCommand command, Replica source,
                             Function<ReadCommand, UnfilteredPartitionIterator> commandExecutor,
@@ -126,11 +126,8 @@ class ShortReadRowsProtection extends Transformation implements MoreRows<Unfilte
         lastFetched = singleResultCounter.rowsCountedInCurrentPartition() - lastCounted;
         lastCounted = singleResultCounter.rowsCountedInCurrentPartition();
 
-        int bytesFetched = singleResultCounter.bytesCounted() - lastBytesCounted;
-        lastBytesCounted = singleResultCounter.bytesCounted();
-
-        // A retry exhausts the partition only if it reaches neither its row limit nor its byte limit.
-        if (lastQueried > 0 && lastFetched < lastQueried && bytesFetched < lastQueriedBytes)
+        // Count each retry separately: its byte limit includes static data returned again on that request.
+        if (lastQueried > 0 && lastFetched < lastQueried && lastRetryCounter.bytesCounted() < lastQueriedBytes)
             return null;
 
         /*
@@ -174,7 +171,8 @@ class ShortReadRowsProtection extends Transformation implements MoreRows<Unfilte
 
         SinglePartitionReadCommand cmd = makeFetchAdditionalRowsReadCommand(lastQueried);
         lastQueriedBytes = cmd.limits().bytes();
-        return UnfilteredPartitionIterators.getOnlyElement(commandExecutor.apply(cmd), cmd);
+        lastRetryCounter = cmd.limits().newCounter(cmd.nowInSec(), false, cmd.selectsFullPartition(), metadata.enforceStrictLiveness()).onlyCount();
+        return lastRetryCounter.applyTo(UnfilteredPartitionIterators.getOnlyElement(commandExecutor.apply(cmd), cmd));
     }
 
     private SinglePartitionReadCommand makeFetchAdditionalRowsReadCommand(int toQuery)

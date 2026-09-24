@@ -28,8 +28,11 @@ import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.SelectStatement;
+import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.ReadQuery;
+import org.apache.cassandra.db.aggregation.GroupingState;
+import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.PartitionIterator;
@@ -41,6 +44,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.db.filter.DataLimits.NO_LIMIT;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -86,6 +90,61 @@ public class BytePagingStaticColumnsTest extends CQLTester
         // TRIGGER: every child pager is exhausted after its static row, while further partitions remain.
         // ORACLE: GROUP BY must stop the subpage after one oversized static row and resume the remaining groups.
         assertSinglePartitionPages(query + " GROUP BY pk", PAGE_SIZE, false);
+    }
+
+    @Test
+    public void countersIncludeStaticBytesOnceOnResumedPages()
+    {
+        // HARNESS: use stored rows to test replica counters, before the coordinator can trim an oversized response.
+        createStaticPartitions();
+        for (int ck = 0; ck < 6; ck++)
+            execute("INSERT INTO %s (pk, ck, v) VALUES (0, ?, ?)", ck, ck);
+        ReadQuery query = readQuery("SELECT * FROM %s WHERE pk = 0 AND ck > 1");
+        int pageBytes;
+        try (ReadExecutionController controller = query.executionController();
+             PartitionIterator partitions = query.executeInternal(controller);
+             RowIterator partition = partitions.next())
+        {
+            pageBytes = partition.staticRow().dataSize() + 2 * partition.next().dataSize();
+        }
+
+        // TRIGGER: a resumed partition has already contributed a result, but returns its static data on this page too.
+        PageSize pageSize = PageSize.inBytes(pageBytes);
+        DataLimits cql = DataLimits.cqlLimits(NO_LIMIT);
+        DataLimits groups = readQuery("SELECT * FROM %s WHERE pk = 0 GROUP BY pk").limits();
+        GroupingState state = new GroupingState(ByteBufferUtil.bytes(0), Clustering.make(ByteBufferUtil.bytes(1)));
+        DataLimits resumedGroups = groups.forGroupByInternalPaging(state);
+        DataLimits[] limits = {
+        cql.forPaging(pageSize),
+        cql.forPaging(pageSize, ByteBufferUtil.bytes(0), NO_LIMIT - 2),
+        groups.forPaging(pageSize),
+        resumedGroups.forPaging(pageSize),
+        resumedGroups.forPaging(pageSize, ByteBufferUtil.bytes(0), NO_LIMIT)
+        };
+
+        // ORACLE: the budget holds exactly two regular rows and one copy of the static data in every counter variant.
+        for (DataLimits limit : limits)
+        {
+            DataLimits.Counter counter = limit.newCounter(query.nowInSec(), true, true, false);
+            List<Integer> returned = new ArrayList<>();
+            try (ReadExecutionController controller = query.executionController();
+                 PartitionIterator partitions = query.executeInternal(controller);
+                 RowIterator partition = counter.applyTo(partitions.next()))
+            {
+                while (partition.hasNext())
+                    returned.add(Int32Type.instance.compose(partition.next().clustering().bufferAt(0)));
+            }
+            assertThat(returned).as("rows returned by %s", limit).containsExactly(2, 3);
+            assertThat(counter.rowsCounted()).isEqualTo(2);
+            assertThat(counter.bytesCounted()).isEqualTo(pageBytes);
+        }
+    }
+
+    private ReadQuery readQuery(String cql)
+    {
+        String queryText = String.format(cql, KEYSPACE + '.' + currentTable());
+        SelectStatement statement = (SelectStatement) QueryProcessor.parseStatement(queryText).prepare(ClientState.forInternalCalls());
+        return statement.getQuery(QueryOptions.DEFAULT, FBUtilities.nowInSeconds());
     }
 
     private void createStaticPartitions()

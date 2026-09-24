@@ -247,6 +247,7 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
          * fetched on this page (before actually applying paging).
          */
         private final DataLimits curPageLimits;
+        private final DataLimits pageLimits;
 
         /**
          * The counter used to count data on the current page across all the traversed internal pagers. In contains
@@ -264,8 +265,8 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
             this.requestTime = requestTime;
             this.curPageLimits = limits.withCountedLimit(Math.min(limits.count(), remaining));
             // Child pagers account for unfinished groups; this counter only sums their counts.
-            this.curPageCounter = curPageLimits.withoutState().forPaging(pageSize)
-                                               .newCounter(nowInSec, true, true, false);
+            this.pageLimits = curPageLimits.withoutState().forPaging(pageSize);
+            this.curPageCounter = pageLimits.newCounter(nowInSec, true, true, false);
 
             if (logger.isTraceEnabled())
                 logger.trace("Fetching a new page - created {}", this);
@@ -292,7 +293,8 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
                 // We are done if:
                 // - we have reached the page size,
                 // - or in the case of GROUP BY if the current pager is not exhausted - which means that we read all the rows withing the limit before exhausting the pager
-                boolean isDone = curPageCounter.isDone() || (partitionIterator != null && limits.isGroupByLimit() && !curPager.isExhausted());
+                boolean isDone = !pageLimits.isExhausted(curPageCounter)
+                                 || (partitionIterator != null && limits.isGroupByLimit() && !curPager.isExhausted());
 
                 // move to the next non-empty partition (pager)
                 boolean isNewPartition = false;

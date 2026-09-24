@@ -31,6 +31,7 @@ import org.apache.cassandra.distributed.Cluster;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
 /**
@@ -123,6 +124,29 @@ public class ShortReadProtectionByteLimitTest extends TestBaseImpl
 
         assertEquals("byte-paged read silently dropped rows that short read protection gave up on too early",
                      expected.length, paged.length);
+    }
+
+    @Test
+    public void staticPayloadDoesNotExhaustShortReadRetries()
+    {
+        // HARNESS: reuse the replicas with a static value larger than each byte page.
+        String table = KEYSPACE + ".srp_static_byte_limit";
+        cluster.schemaChange(format("CREATE TABLE %s (pk int, ck int, s text static, v int, PRIMARY KEY (pk, ck))", table));
+        for (int node = 1; node <= NODES; node++)
+            cluster.get(node).executeInternal(format("INSERT INTO %s (pk, s) VALUES (0, ?) USING TIMESTAMP 0", table), VALUE);
+        for (int node = 2; node <= NODES; node++)
+            for (int ck = 0; ck < 12; ck++)
+                cluster.get(node).executeInternal(format("INSERT INTO %s (pk, ck, v) VALUES (0, ?, ?) USING TIMESTAMP 0", table), ck, ck);
+
+        // TRIGGER: the first six rows are shadowed, so several byte-limited retries are needed before a live row appears.
+        cluster.get(1).executeInternal(format("DELETE FROM %s USING TIMESTAMP 1 WHERE pk = 0 AND ck IN (0,1,2,3,4,5)", table));
+        Iterator<Object[]> results = cluster.coordinator(1).executeWithPagingInBytes(format("SELECT ck, s, v FROM %s WHERE pk = 0", table), ALL, 128);
+        Object[][] actual = Iterators.toArray(results, Object[].class);
+
+        // ORACLE: static bytes fill each retry; a short regular-row payload must not hide the six surviving rows.
+        assertEquals(6, actual.length);
+        for (int i = 0; i < actual.length; i++)
+            assertArrayEquals(new Object[]{ i + 6, VALUE, i + 6 }, actual[i]);
     }
 
     private static String repeat(char c, int count)

@@ -359,6 +359,12 @@ public abstract class DataLimits
             return (RowIterator) applyToPartition(partition);
         }
 
+        @Override
+        public Row applyToRow(Row row)
+        {
+            return super.applyToRow(row);
+        }
+
         /**
          * The number of results counted.
          * <p>
@@ -664,7 +670,7 @@ public abstract class DataLimits
                 // rows in the partition. However, if we only have the static row, it will be returned as one row
                 // so count it.
                 if (countPartitionsWithOnlyStaticData && hasLiveStaticRow && rowsInCurrentPartition == 0)
-                    incrementRowCount(staticRowBytes);
+                    incrementRowCount(0);
                 super.onPartitionClose();
             }
 
@@ -673,7 +679,9 @@ public abstract class DataLimits
              */
             protected void incrementRowCount(int rowSizeInBytes)
             {
-                bytesCounted += rowSizeInBytes;
+                // Charge static bytes with the first result so a large static row cannot prevent progress.
+                bytesCounted += rowSizeInBytes + staticRowBytes;
+                staticRowBytes = 0;
                 rowsCounted++;
                 rowsInCurrentPartition++;
                 if (bytesCounted >= bytesLimit || rowsCounted >= rowLimit)
@@ -821,19 +829,12 @@ public abstract class DataLimits
             @Override
             public void applyToPartition(DecoratedKey partitionKey, Row staticRow)
             {
+                super.applyToPartition(partitionKey, staticRow);
                 if (partitionKey.getKey().equals(lastReturnedKey))
                 {
                     rowsInCurrentPartition = perPartitionLimit - lastReturnedKeyRemaining;
-                    // lastReturnedKey is the last key for which we're returned rows in the first page.
-                    // So, since we know we have returned rows, we know we have accounted for the static row
-                    // if any already, so force hasLiveStaticRow to false so we make sure to not count it
-                    // once more.
+                    // Count static bytes on each page, but do not count a resumed static-only fragment as a result.
                     hasLiveStaticRow = false;
-                    staticRowBytes = 0;
-                }
-                else
-                {
-                    super.applyToPartition(partitionKey, staticRow);
                 }
             }
         }
@@ -1099,11 +1100,8 @@ public abstract class DataLimits
                     // The only case were we could have state.partitionKey() equals to the partition key
                     // is if some of the partition rows have been returned in the previous page but the
                     // partition was not exhausted (as the state partition key has not been updated yet).
-                    // Since we know we have returned rows, we know we have accounted for
-                    // the static row if any already, so force hasLiveStaticRow to false so we make sure to not count it
-                    // once more.
+                    // Do not count the static row as another result when continuing a partition.
                     hasLiveStaticRow = false;
-                    staticRowBytes = 0;
                     hasReturnedRowsFromCurrentPartition = true;
                     hasUnfinishedGroup = true;
                 }
@@ -1127,8 +1125,10 @@ public abstract class DataLimits
                     }
                     hasReturnedRowsFromCurrentPartition = false;
                     hasLiveStaticRow = !staticRow.isEmpty() && isLive(staticRow);
-                    staticRowBytes = hasLiveStaticRow ? staticRow.liveDataSize(nowInSec) : 0;
                 }
+                staticRowBytes = bytesLimit != NO_LIMIT && !staticRow.isEmpty() && isLive(staticRow)
+                                 ? staticRow.liveDataSize(nowInSec) : 0;
+
                 currentPartitionKey = partitionKey;
                 // If we are done we need to preserve the groupInCurrentPartition and rowsCountedInCurrentPartition
                 // because the pager need to retrieve the count associated to the last value it has returned.
@@ -1225,7 +1225,9 @@ public abstract class DataLimits
             {
                 rowsCountedInCurrentPartition++;
                 rowsCounted++;
-                bytesCounted += rowSizeInBytes;
+                // Static data is returned once per partition in each subpage.
+                bytesCounted += rowSizeInBytes + staticRowBytes;
+                staticRowBytes = 0;
                 if (rowsCounted >= rowLimit || bytesCounted >= bytesLimit)
                     stop();
             }
@@ -1264,7 +1266,7 @@ public abstract class DataLimits
                 // so count it.
                 if (countPartitionsWithOnlyStaticData && hasLiveStaticRow && !hasReturnedRowsFromCurrentPartition)
                 {
-                    incrementRowCount(staticRowBytes);
+                    incrementRowCount(0);
                     incrementGroupCount();
                     incrementGroupInCurrentPartitionCount();
                     hasUnfinishedGroup = false;
@@ -1409,7 +1411,8 @@ public abstract class DataLimits
                     groupInCurrentPartition = groupPerPartitionLimit - lastReturnedKeyRemaining;
                     hasReturnedRowsFromCurrentPartition = true;
                     hasLiveStaticRow = false;
-                    staticRowBytes = 0;
+                    staticRowBytes = bytesLimit != NO_LIMIT && !staticRow.isEmpty() && isLive(staticRow)
+                                     ? staticRow.liveDataSize(nowInSec) : 0;
                     hasUnfinishedGroup = state.hasClustering();
                 }
                 else
