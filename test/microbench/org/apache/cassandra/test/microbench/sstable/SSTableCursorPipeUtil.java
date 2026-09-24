@@ -113,9 +113,9 @@ public class SSTableCursorPipeUtil
 
     public static int copyRangeTombstone(SSTableCursorReader reader, SSTableCursorWriter writer, UnfilteredDescriptor unfilteredDescriptor, int unfilteredIndex) throws IOException
     {
-        int readerState = reader.readTombstoneMarker(unfilteredDescriptor);
+        reader.readTombstoneMarker(unfilteredDescriptor);
         writer.writeRangeTombstone(unfilteredDescriptor, unfilteredIndex == 0);
-        return readerState;
+        return reader.continueReading();
     }
 
     private final static byte[] copyColumnValueBuffer = new byte[4096]; // used to copy cell contents (maybe piecemeal if very large, since we don't have a direct read option)
