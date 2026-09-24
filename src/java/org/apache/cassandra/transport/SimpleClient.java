@@ -564,7 +564,17 @@ public class SimpleClient implements Closeable
             };
 
             CQLMessageHandler.ErrorHandler errorHandler = (error) -> {
-                throw new RuntimeException("Unexpected error", error);
+                logger.error("Error processing response, failing the pending request", error);
+                ErrorMessage message = ErrorMessage.fromExceptionNoStreamId(error);
+                try
+                {
+                    if (!responseHandler.responses.offer(message, 1, TimeUnit.SECONDS))
+                        logger.warn("No pending request to fail with error {}", error.getMessage());
+                }
+                catch (InterruptedException e)
+                {
+                    throw new UncheckedInterruptedException(e);
+                }
             };
 
             ClientResourceLimits.ResourceProvider resources = new ClientResourceLimits.ResourceProvider()
