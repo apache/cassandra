@@ -647,6 +647,9 @@ public enum CassandraRelevantProperties
     TEST_CASSANDRA_TESTTAG("cassandra.testtag", "cassandra.testtag_IS_UNDEFINED"),
     /** Generated examples for the ClusteringDescriptorPrefixView property test; the cost is flat in this range. */
     TEST_CLUSTERING_PREFIX_VIEW_EXAMPLES("cassandra.test.clustering_prefix_view.examples", "1000"),
+    TEST_COMPACTION_BURN_CHECKPOINT("cassandra.test.compaction_burn_checkpoint", "build/test/logs/burn-checkpoint.tsv"),
+    TEST_COMPACTION_BURN_MINUTES("cassandra.test.compaction_burn_minutes", "0"),
+    TEST_COMPACTION_BURN_SCALE("cassandra.test.compaction_burn_scale"),
     TEST_COMPRESSION("cassandra.test.compression"),
     TEST_COMPRESSION_ALGO("cassandra.test.compression.algo", "lz4"),
     TEST_DEBUG_REF_COUNT("cassandra.debugrefcount"),

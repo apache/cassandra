@@ -44,7 +44,6 @@ import org.junit.Assume;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
@@ -88,7 +87,7 @@ import static org.junit.Assert.fail;
  * Runs the same input sstables through both the iterator and cursor compaction paths and asserts
  * the outputs are byte-identical and logically identical.
  */
-public abstract class DifferentialCompactionTester extends CQLTester
+public abstract class DifferentialCompactionTester extends DifferentialCorpusDriver
 {
     /** Fixed "now" used for JSON dumps so rendering cannot depend on wall clock. */
     private static final long DUMP_NOW_SEC = 0;
@@ -126,13 +125,15 @@ public abstract class DifferentialCompactionTester extends CQLTester
         final Path dir;                 // copied component files, named by component
         final String json;              // logical dump, or a SHA-256 digest string in scale mode
         final String statsSummary;
+        final long totalRows;           // rows the output carries, for non-triviality guards (e.g. purge)
         final SortedMap<String, Long> componentSizes = new TreeMap<>();
 
-        CapturedSSTable(Path dir, String json, String statsSummary)
+        CapturedSSTable(Path dir, String json, String statsSummary, long totalRows)
         {
             this.dir = dir;
             this.json = json;
             this.statsSummary = statsSummary;
+            this.totalRows = totalRows;
         }
     }
 
@@ -148,6 +149,42 @@ public abstract class DifferentialCompactionTester extends CQLTester
         for (CapturedSSTable s : out.sstables)
             sb.append(s.json);
         return sb.toString();
+    }
+
+    /** Sum of the per-sstable row counts across the live set (overlaps counted per sstable, as written). */
+    protected static long rowsOnDisk(ColumnFamilyStore cfs)
+    {
+        long rows = 0;
+        for (SSTableReader sstable : cfs.getLiveSSTables())
+            rows += sstable.getTotalRows();
+        return rows;
+    }
+
+    /** Sum of the compressed on-disk bytes across the live set: the real write volume. */
+    protected static long bytesOnDisk(ColumnFamilyStore cfs)
+    {
+        long bytes = 0;
+        for (SSTableReader sstable : cfs.getLiveSSTables())
+            bytes += sstable.onDiskLength();
+        return bytes;
+    }
+
+    /** Sum of the uncompressed data-length bytes across the live set: the logical payload size. */
+    protected static long uncompressedBytesOnDisk(ColumnFamilyStore cfs)
+    {
+        long bytes = 0;
+        for (SSTableReader sstable : cfs.getLiveSSTables())
+            bytes += sstable.uncompressedLength();
+        return bytes;
+    }
+
+    /** Sum of the per-sstable row counts across a captured output. */
+    protected static long outputRows(CapturedOutput out)
+    {
+        long rows = 0;
+        for (CapturedSSTable s : out.sstables)
+            rows += s.totalRows;
+        return rows;
     }
 
     /** The rendered form of a text-typed cell holding {@code text}, for absolute assertions over {@link #allJson}. */
@@ -196,15 +233,55 @@ public abstract class DifferentialCompactionTester extends CQLTester
         return (cfs, txn, gcBefore) -> new CompactionTask(cfs, txn, gcBefore, true).setNowInSecondsSupplier(() -> nowInSeconds);
     }
 
+    /** The earliest local deletion time across the live set: below this, gcBefore purges nothing. */
+    protected static long minLocalDeletionTime(ColumnFamilyStore cfs)
+    {
+        long min = Long.MAX_VALUE;
+        for (SSTableReader sstable : cfs.getLiveSSTables())
+            min = Math.min(min, sstable.getSSTableMetadata().minLocalDeletionTime);
+        return min;
+    }
+
     /** Asserts at least one cell in the current live set has expired relative to nowInSeconds. */
     protected void assertSomethingExpiredAt(ColumnFamilyStore cfs, long nowInSeconds)
     {
-        long minLocalDeletionTime = Long.MAX_VALUE;
-        for (SSTableReader sstable : cfs.getLiveSSTables())
-            minLocalDeletionTime = Math.min(minLocalDeletionTime, sstable.getSSTableMetadata().minLocalDeletionTime);
+        long minLocalDeletionTime = minLocalDeletionTime(cfs);
         assertTrue("no cell in the live set has expired relative to the pinned now " + nowInSeconds +
                    "; the earliest local deletion time on disk is " + minLocalDeletionTime,
                    minLocalDeletionTime <= nowInSeconds);
+    }
+
+    /** Future skew for a purge shape's pinned "now", so its short-TTL cells and gc_grace=0 tombstones are past it. */
+    private static final long PURGE_NOW_SKEW_SECONDS = 3600;
+
+    /**
+     * Runs the differential for one corpus shape. Most shapes run once at the default gcBefore. A shape that
+     * {@link DifferentialSchema#expectsPurge() expects purge} runs twice with the SAME pinned future "now",
+     * varying only gcBefore: a retain run keeps every expired cell and tombstone, a purge run drops them.
+     * Both paths agree in each run, so each run is a valid cursor-vs-iterator comparison. The purged output
+     * must then carry strictly fewer rows than the retained one; the merge dedup is identical across the two
+     * runs, so the row difference isolates purge, and a shape that purges nothing fails here rather than
+     * passing on a trivially equal comparison. Returns the (purge, when applicable) iterator capture.
+     */
+    protected CapturedOutput assertCursorMatchesIteratorForShape(ColumnFamilyStore cfs, DifferentialSchema schema) throws Exception
+    {
+        if (!schema.expectsPurge())
+            return assertCursorMatchesIterator(cfs);
+
+        long now = FBUtilities.nowInSeconds() + PURGE_NOW_SKEW_SECONDS;
+        // Anchor the retain baseline to the data on disk, not the wall clock. One below the earliest local
+        // deletion time is below every deletion time by construction, so the retain run purges nothing no
+        // matter how long the writes and guards took. A wall-clock baseline drifts past short-TTL cells at
+        // burn scale and makes the retain run purge them too, which would falsely fail the guard below.
+        long retainGcBefore = minLocalDeletionTime(cfs) - 1;
+
+        CapturedOutput retained = assertCursorMatchesIterator(cfs, cfs.getLiveSSTables(), taskWithFixedNow(now), retainGcBefore);
+        CapturedOutput purged = assertCursorMatchesIterator(cfs, cfs.getLiveSSTables(), taskWithFixedNow(now), now);
+        assertTrue("purge shape '" + schema.name() + "' dropped no rows: the merge kept " + outputRows(retained) +
+                   " rows with purge disabled and " + outputRows(purged) + " with purge at now=" + now +
+                   "; the scenario purged nothing, so it does not exercise purge",
+                   outputRows(purged) < outputRows(retained));
+        return purged;
     }
 
     /**
@@ -478,120 +555,6 @@ public abstract class DifferentialCompactionTester extends CQLTester
         Assume.assumeTrue("cursor compaction does not support the selected sstable format; selected=" +
                           DatabaseDescriptor.getSelectedSSTableFormat().name(),
                           DatabaseDescriptor.getSelectedSSTableFormat().supportsCursorCompaction());
-    }
-
-    // ---- minimal-corpus driver support -------------------------------------------------------------
-    // The parameterized matrix and the burn test share this scaffolding: a workload adapter over the
-    // inherited CQLTester execute()/flush(), a save/restore of the selected sstable format, one
-    // orchestrator that writes a shape and guards it, and the two structural guards themselves.
-
-    /** The selected format saved by {@link #selectSSTableFormat}, restored by {@link #restoreSelectedFormat}. */
-    private SSTableFormat<?, ?> savedSelectedFormat;
-
-    /** Adapter that runs a {@link DifferentialWorkload} through this test's inherited CQLTester. */
-    protected DifferentialWorkload workload()
-    {
-        return new DifferentialWorkload()
-        {
-            @Override
-            public void execute(String cql, Object... args)
-            {
-                DifferentialCompactionTester.this.execute(cql, args);
-            }
-
-            @Override
-            public void flush()
-            {
-                DifferentialCompactionTester.this.flush();
-            }
-        };
-    }
-
-    /** Saves the selected sstable format, then selects {@code name}. Pair with {@link #restoreSelectedFormat}. */
-    protected void selectSSTableFormat(String name)
-    {
-        savedSelectedFormat = DatabaseDescriptor.getSelectedSSTableFormat();
-        DatabaseDescriptor.setSelectedSSTableFormat(name);
-    }
-
-    /** Restores the format saved by {@link #selectSSTableFormat}. */
-    protected void restoreSelectedFormat()
-    {
-        DatabaseDescriptor.setSelectedSSTableFormat(savedSelectedFormat);
-    }
-
-    /**
-     * Writes one corpus shape at the given scale through the differential workload, then guards it: the
-     * shape must leave overlapping live sstables to merge, and a shape that declares it spans multiple
-     * index blocks must actually produce a multi-block partition. Returns the table's store.
-     */
-    protected ColumnFamilyStore writeAndGuardShape(DifferentialSchema schema, int scale)
-    {
-        createTable(schema.tableDefinition());
-        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
-        cfs.disableAutoCompaction();
-
-        schema.write(workload(), scale);
-
-        assertLiveSSTablesOverlap(cfs, schema);
-        if (schema.spansMultipleIndexBlocks())
-            assertSomePartitionSpansMultipleBlocks(cfs, schema);
-        return cfs;
-    }
-
-    /**
-     * Asserts at least two live sstables have overlapping key ranges, so a shape can never silently
-     * degrade into a non-overlapping no-op merge. The weak "&gt;= 2 sstables" count is not enough: two
-     * disjoint sstables would merge nothing.
-     */
-    protected static void assertLiveSSTablesOverlap(ColumnFamilyStore cfs, DifferentialSchema schema)
-    {
-        List<SSTableReader> live = new ArrayList<>(cfs.getLiveSSTables());
-        if (live.size() < 2)
-            throw new AssertionError("shape '" + schema.name() + "' must leave at least two sstables to " +
-                                     "merge; got " + live.size());
-        for (int i = 0; i < live.size(); i++)
-            for (int j = i + 1; j < live.size(); j++)
-                if (rangesOverlap(live.get(i), live.get(j)))
-                    return;
-        throw new AssertionError("shape '" + schema.name() + "' left " + live.size() + " sstables but none " +
-                                 "have overlapping key ranges: the merge would be a no-op concatenation, " +
-                                 "not a real reconciliation");
-    }
-
-    /** Two sstables overlap when neither's key range ends before the other's begins. */
-    private static boolean rangesOverlap(SSTableReader a, SSTableReader b)
-    {
-        return a.getFirst().compareTo(b.getLast()) <= 0 && b.getFirst().compareTo(a.getLast()) <= 0;
-    }
-
-    /**
-     * Asserts at least one partition of some live sstable carries a promoted row index of more than one
-     * block, proving the shape actually exercises the block-navigation path rather than silently shrinking
-     * to a single-block partition.
-     */
-    protected static void assertSomePartitionSpansMultipleBlocks(ColumnFamilyStore cfs, DifferentialSchema schema)
-    {
-        for (SSTableReader sstable : cfs.getLiveSSTables())
-        {
-            try (ISSTableScanner scanner = sstable.getScanner())
-            {
-                while (scanner.hasNext())
-                {
-                    DecoratedKey key;
-                    try (UnfilteredRowIterator partition = scanner.next())
-                    {
-                        key = partition.partitionKey();
-                    }
-                    AbstractRowIndexEntry entry = sstable.getRowIndexEntry(key, SSTableReader.Operator.EQ);
-                    if (entry != null && entry.blockCount() > 1)
-                        return;
-                }
-            }
-        }
-        throw new AssertionError("shape '" + schema.name() + "' declares it spans multiple index blocks, " +
-                                 "but no partition of the flushed sstables carries a promoted row index of " +
-                                 "more than one block: the block-navigation path is not being exercised");
     }
 
     private static String listDataDir(Descriptor desc)
@@ -914,7 +877,7 @@ public abstract class DifferentialCompactionTester extends CQLTester
 
         // 6. copy components for byte comparison
         Files.createDirectories(dir);
-        CapturedSSTable captured = new CapturedSSTable(dir, json, statsSummary);
+        CapturedSSTable captured = new CapturedSSTable(dir, json, statsSummary, stats.totalRows);
         for (Component c : sstable.descriptor.discoverComponents())
         {
             Path source = sstable.descriptor.fileFor(c).toPath();
@@ -932,8 +895,21 @@ public abstract class DifferentialCompactionTester extends CQLTester
                ",sum=" + stats.estimatedTombstoneDropTime.sum(Integer.MAX_VALUE);
     }
 
+    /**
+     * Whether {@link #assertEquivalentOutputs} rejects a run where both paths produced no output sstable.
+     * Off by default, because a scenario that legitimately purges to empty is valid; corpus drivers, which
+     * must always leave a merged sstable to compare, override this to true.
+     */
+    protected boolean requireNonEmptyOutput()
+    {
+        return false;
+    }
+
     protected void assertEquivalentOutputs(CapturedOutput iterator, CapturedOutput cursor)
     {
+        if (requireNonEmptyOutput() && iterator.sstables.isEmpty())
+            fail("both paths produced no output sstable: an equal-but-empty comparison proves nothing; " +
+                 "this scenario must leave at least one merged sstable");
         assertEquals("output sstable count differs between paths", iterator.sstables.size(), cursor.sstables.size());
         for (int i = 0; i < iterator.sstables.size(); i++)
             assertEquivalentSSTable(i, iterator.sstables.get(i), cursor.sstables.get(i));

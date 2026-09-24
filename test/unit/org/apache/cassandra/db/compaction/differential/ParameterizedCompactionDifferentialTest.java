@@ -62,6 +62,13 @@ public class ParameterizedCompactionDifferentialTest extends DifferentialCompact
         return params;
     }
 
+    /** Every corpus shape must leave a merged sstable to compare; an empty-vs-empty pass proves nothing. */
+    @Override
+    protected boolean requireNonEmptyOutput()
+    {
+        return true;
+    }
+
     @Before
     public void selectFormat()
     {
@@ -78,6 +85,6 @@ public class ParameterizedCompactionDifferentialTest extends DifferentialCompact
     public void cursorMatchesIteratorForShape() throws Exception
     {
         ColumnFamilyStore cfs = writeAndGuardShape(schema, MATRIX_SCALE);
-        assertCursorMatchesIterator(cfs);
+        assertCursorMatchesIteratorForShape(cfs, schema);
     }
 }

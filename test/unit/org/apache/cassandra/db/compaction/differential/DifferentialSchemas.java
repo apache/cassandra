@@ -39,8 +39,15 @@ public final class DifferentialSchemas
      * the full set: clustering-free, simple clustering, static + clustering, a multi-cell collection,
      * reversed clustering, two multi-block (wide-partition) shapes that force the block-navigation path,
      * a deletions shape covering every tombstone kind, compound clustering, a wide-column shape, a
-     * range tombstone that spans index blocks, a four-input k-way merge, a mixed-type shape, and expiring
-     * (TTL) cells.
+     * range tombstone that spans index blocks, a four-input k-way merge, a mixed-type shape, expiring
+     * (TTL) cells, a single deep partition whose row count scales with {@code scale}, a purge shape
+     * whose expired cells and tombstones the merge must actually drop, a cross-sstable range-tombstone
+     * shape whose two partially-overlapping tombstone bands the merge must reconcile across multiple index
+     * blocks, a multi-block deletion shape whose partition- and range-level tombstones the cursor must
+     * navigate block to block, a multi-block purge shape whose expired interior cells collapse whole
+     * index blocks, a static column on a multi-block partition (including a static row surviving a
+     * partition delete), a shape whose single rows each exceed one index block, and a shape with more
+     * than 64 columns that exercises the large-superset column encoding.
      */
     public static List<DifferentialSchema> minimalCorpus()
     {
@@ -60,7 +67,15 @@ public final class DifferentialSchemas
                        new SpanningTombstone(),
                        new KWayMerge(),
                        new MixedTypes(),
-                       new TtlCells());
+                       new TtlCells(),
+                       new DeepPartition(),
+                       new Purge(),
+                       new CrossSSTableRangeTombstone(),
+                       new WideMultiBlockDeletion(),
+                       new WideMultiBlockPurge(),
+                       new StaticMultiBlock(),
+                       new SingleRowExceedsBlock(),
+                       new SuperWideColumns());
     }
 
     /** Base that carries the name and definition, so a shape only has to supply its writes. */
@@ -607,6 +622,475 @@ public final class DifferentialSchemas
                     else
                         workload.execute("UPDATE %s SET v1 = ? WHERE pk = ? AND ck = ?", "a2-" + ck, pk, ck);
                 }
+            workload.flush();
+        }
+    }
+
+    /**
+     * A single partition whose depth scales with {@code scale}: at the matrix size it already spans many
+     * column-index blocks, and at burn scale it becomes a very deep partition (the block-navigation path
+     * under real depth). Unlike {@link WideMultiBlock}, which scales the partition count and keeps a fixed
+     * depth, this shape scales the row count of one partition. The two rounds overwrite a mid-range window,
+     * so the flushes overlap deep inside the partition.
+     */
+    private static final class DeepPartition extends BaseSchema
+    {
+        // one partition, so all the scale goes into depth rather than breadth
+        private static final long PK = 0;
+
+        DeepPartition()
+        {
+            super("deep-partition", "CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck))");
+        }
+
+        @Override
+        public boolean spansMultipleIndexBlocks()
+        {
+            return true;
+        }
+
+        @Override
+        public void write(DifferentialWorkload workload, int scale)
+        {
+            long rows = (long) WIDE_ROWS_PER_PARTITION * scale;
+            for (long ck = 0; ck < rows; ck++)
+                workload.execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)", PK, ck, WIDE_PADDING + "-r1-" + ck);
+            workload.flush();
+
+            // overwrite the second quarter of the partition, so the two flushes overlap across many blocks
+            for (long ck = rows / 4; ck < rows / 2; ck++)
+                workload.execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?)", PK, ck, WIDE_PADDING + "-r2-" + ck);
+            workload.flush();
+        }
+    }
+
+    /**
+     * Purge coverage: {@code gc_grace_seconds = 0}, so expired cells and tombstones are purgeable the moment
+     * "now" passes them. Even rows are permanent (they survive purge and keep the merged output non-empty);
+     * odd rows carry a tiny TTL (they must expire); round 2 deletes a band of the permanent rows (the
+     * tombstone and the data it shadows must purge). A driver runs this with a pinned future "now" so the
+     * purge is deterministic, and guards that the merge actually drops rows.
+     */
+    private static final class Purge extends BaseSchema
+    {
+        private static final int BASE_PARTITIONS = 5;
+        private static final int ROWS_PER_PARTITION = 20;
+        // short enough that the pinned future "now" is always past it, so the cell is expired
+        private static final int SHORT_TTL = 1;
+        private static final long ROUND1_TS = 1000;
+        private static final long ROUND2_TS = 2000;
+        // round 2 deletes clusterings [0, DELETE_BAND) of every partition
+        private static final long DELETE_BAND = 4;
+
+        Purge()
+        {
+            super("purge", "CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck)) " +
+                           "WITH gc_grace_seconds = 0");
+        }
+
+        @Override
+        public boolean expectsPurge()
+        {
+            return true;
+        }
+
+        @Override
+        public void write(DifferentialWorkload workload, int scale)
+        {
+            long partitions = (long) BASE_PARTITIONS * scale;
+            for (long pk = 0; pk < partitions; pk++)
+                for (long ck = 0; ck < ROWS_PER_PARTITION; ck++)
+                {
+                    if (ck % 2 == 0)
+                        workload.execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP ?",
+                                         pk, ck, "live-" + ck, ROUND1_TS);
+                    else
+                        workload.execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP ? AND TTL " + SHORT_TTL,
+                                         pk, ck, "exp-" + ck, ROUND1_TS);
+                }
+            workload.flush();
+
+            // round 2: delete a band of the permanent rows, so a tombstone shadows live round-1 data
+            for (long pk = 0; pk < partitions; pk++)
+                workload.execute("DELETE FROM %s USING TIMESTAMP ? WHERE pk = ? AND ck >= ? AND ck < ?",
+                                 ROUND2_TS, pk, 0L, DELETE_BAND);
+            workload.flush();
+        }
+    }
+
+    /**
+     * Cross-sstable range-tombstone reconciliation over a multi-block partition. Sstable A carries a wide
+     * fill plus one range tombstone band; sstable B carries a second, partially-overlapping band at a newer
+     * timestamp, plus a point delete inside the first band and a live newer write. The merge must reconcile
+     * two range tombstones from different sstables: coalesce the overlap, keep the newer band where it
+     * supersedes, and carry every marker across index-block boundaries. This is the marker-boundary path
+     * that historically breaks the cursor (see the reverse block-cursor and NAMES exclusive-bound bugs).
+     */
+    private static final class CrossSSTableRangeTombstone extends BaseSchema
+    {
+        private static final int BASE_PARTITIONS = 2;
+        private static final long ROUND1_TS = 1000;
+        private static final long RT_A_TS = 1500;
+        private static final long ROUND2_TS = 2000;
+        // two bands, each many rows wide so they cross index blocks; B overlaps A and extends past it
+        private static final long RT_A_OPEN = 20;
+        private static final long RT_A_CLOSE = 100;
+        private static final long RT_B_OPEN = 60;
+        private static final long RT_B_CLOSE = 140;
+        // a point delete inside band A, before the overlap with band B
+        private static final long POINT_DELETE_CK = 30;
+
+        CrossSSTableRangeTombstone()
+        {
+            // large gc_grace so both tombstone bands survive compaction, deterministically
+            super("cross-sstable-range-tombstone",
+                  "CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck)) " +
+                  "WITH gc_grace_seconds = 864000");
+        }
+
+        @Override
+        public boolean spansMultipleIndexBlocks()
+        {
+            return true;
+        }
+
+        @Override
+        public void write(DifferentialWorkload workload, int scale)
+        {
+            long partitions = (long) BASE_PARTITIONS * scale;
+            writeWideFill(workload, partitions, ROUND1_TS);
+            // sstable A also carries the first range tombstone band
+            for (long pk = 0; pk < partitions; pk++)
+                workload.execute("DELETE FROM %s USING TIMESTAMP ? WHERE pk = ? AND ck >= ? AND ck < ?",
+                                 RT_A_TS, pk, RT_A_OPEN, RT_A_CLOSE);
+            workload.flush();
+
+            // sstable B: a newer overlapping band, a point delete inside band A, and a live newer write
+            for (long pk = 0; pk < partitions; pk++)
+            {
+                workload.execute("DELETE FROM %s USING TIMESTAMP ? WHERE pk = ? AND ck >= ? AND ck < ?",
+                                 ROUND2_TS, pk, RT_B_OPEN, RT_B_CLOSE);
+                workload.execute("DELETE FROM %s USING TIMESTAMP ? WHERE pk = ? AND ck = ?",
+                                 ROUND2_TS, pk, POINT_DELETE_CK);
+                workload.execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP ?",
+                                 pk, 0L, WIDE_PADDING + "-r2", ROUND2_TS);
+            }
+            workload.flush();
+        }
+    }
+
+    /**
+     * Deletion over a multi-block partition, with the tombstones retained (large gc_grace). Round 2 shadows
+     * round-1 data with a partition-level delete on some wide partitions and a block-spanning range delete on
+     * others, plus a live newer write for overlap. The cursor must keep emitting and skipping correctly block
+     * to block while a partition- or range-level deletion shadows the promoted multi-block index.
+     */
+    private static final class WideMultiBlockDeletion extends BaseSchema
+    {
+        private static final int BASE_PARTITIONS = 3;
+        private static final long ROUND1_TS = 1000;
+        private static final long ROUND2_TS = 2000;
+        // a range delete band wide enough to span several index blocks
+        private static final long RANGE_OPEN = 20;
+        private static final long RANGE_CLOSE = 140;
+
+        WideMultiBlockDeletion()
+        {
+            // large gc_grace so the tombstones are retained through compaction, deterministically
+            super("wide-multi-block-deletion",
+                  "CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck)) " +
+                  "WITH gc_grace_seconds = 864000");
+        }
+
+        @Override
+        public boolean spansMultipleIndexBlocks()
+        {
+            return true;
+        }
+
+        @Override
+        public void write(DifferentialWorkload workload, int scale)
+        {
+            long partitions = (long) BASE_PARTITIONS * scale;
+            writeWideFill(workload, partitions, ROUND1_TS);
+            workload.flush();
+
+            // round 2: partition-level and range-level deletions over the wide partitions, plus a live write
+            for (long pk = 0; pk < partitions; pk++)
+            {
+                if (pk % 3 == 0)
+                    // partition-level delete: shadows every block of the wide partition
+                    workload.execute("DELETE FROM %s USING TIMESTAMP ? WHERE pk = ?", ROUND2_TS, pk);
+                else if (pk % 3 == 1)
+                    // range delete spanning many blocks
+                    workload.execute("DELETE FROM %s USING TIMESTAMP ? WHERE pk = ? AND ck >= ? AND ck < ?",
+                                     ROUND2_TS, pk, RANGE_OPEN, RANGE_CLOSE);
+                else
+                    // a plain newer write, so the sstable also carries live overlap on this partition
+                    workload.execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP ?",
+                                     pk, 0L, WIDE_PADDING + "-r2", ROUND2_TS);
+            }
+            workload.flush();
+        }
+    }
+
+    /**
+     * Purge that collapses whole interior index blocks of a multi-block partition. Each wide partition keeps
+     * a live edge at each end (they survive purge and keep the merged output non-empty) and fills its
+     * interior with short-TTL cells that expire, so purge empties entire interior blocks and shifts the
+     * output block layout; the written promoted index must still match the iterator's. A mid-range window is
+     * rewritten in round 2, also expiring, so the two flushes overlap across blocks. {@code gc_grace = 0} so
+     * the expired cells purge the moment the pinned "now" passes them.
+     */
+    private static final class WideMultiBlockPurge extends BaseSchema
+    {
+        private static final int BASE_PARTITIONS = 2;
+        // short enough that the pinned future "now" is always past it, so the interior cells expire
+        private static final int SHORT_TTL = 1;
+        private static final long ROUND1_TS = 1000;
+        private static final long ROUND2_TS = 2000;
+        // the first and last EDGE rows of each partition are permanent; the interior expires
+        private static final long EDGE = 8;
+
+        WideMultiBlockPurge()
+        {
+            super("wide-multi-block-purge",
+                  "CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck)) " +
+                  "WITH gc_grace_seconds = 0");
+        }
+
+        @Override
+        public boolean spansMultipleIndexBlocks()
+        {
+            return true;
+        }
+
+        @Override
+        public boolean expectsPurge()
+        {
+            return true;
+        }
+
+        @Override
+        public void write(DifferentialWorkload workload, int scale)
+        {
+            long partitions = (long) BASE_PARTITIONS * scale;
+            for (long pk = 0; pk < partitions; pk++)
+                for (long ck = 0; ck < WIDE_ROWS_PER_PARTITION; ck++)
+                {
+                    if (ck < EDGE || ck >= WIDE_ROWS_PER_PARTITION - EDGE)
+                        // permanent edge row: survives purge, keeps a live block at each end of the partition
+                        workload.execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP ?",
+                                         pk, ck, WIDE_PADDING + "-edge-" + ck, ROUND1_TS);
+                    else
+                        // interior row on a tiny TTL: it expires, so purge empties this block
+                        workload.execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP ? AND TTL " + SHORT_TTL,
+                                         pk, ck, WIDE_PADDING + "-exp-" + ck, ROUND1_TS);
+                }
+            workload.flush();
+
+            // round 2: rewrite a mid-range interior window, also expiring, so the two flushes overlap on blocks
+            for (long pk = 0; pk < partitions; pk++)
+                for (long ck = WIDE_ROWS_PER_PARTITION / 4; ck < WIDE_ROWS_PER_PARTITION / 2; ck++)
+                    workload.execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP ? AND TTL " + SHORT_TTL,
+                                     pk, ck, WIDE_PADDING + "-exp2-" + ck, ROUND2_TS);
+            workload.flush();
+        }
+    }
+
+    /**
+     * A static column on a multi-block (promoted-index) partition. The static row sits at the partition
+     * head, before the promoted row index begins, so its liveness and deletion interplay with block
+     * navigation is a classic cursor divergence point. Every partition is wide enough to span many index
+     * blocks. Round 2 covers three cases across the partitions:
+     * <ul>
+     *   <li>{@code pk % 3 == 0}: rewrite the static row and a mid-range window of rows, so the static row
+     *       changes across rounds while the blocks overlap.</li>
+     *   <li>{@code pk % 3 == 1}: a partition delete older than a later static write, so a live static row
+     *       survives a partition deletion that shadows every regular row across all blocks.</li>
+     *   <li>{@code pk % 3 == 2}: rewrite the static row and apply a block-spanning range delete.</li>
+     * </ul>
+     * Large gc_grace retains the tombstones through compaction, deterministically.
+     */
+    private static final class StaticMultiBlock extends BaseSchema
+    {
+        private static final int BASE_PARTITIONS = 3;
+        private static final long ROUND1_TS = 1000;
+        private static final long ROUND2_TS = 2000;
+        // a static write newer than the round-2 partition delete, so the static row survives it
+        private static final long STATIC_SURVIVES_TS = 3000;
+        // a range delete band wide enough to span several index blocks
+        private static final long RANGE_OPEN = 20;
+        private static final long RANGE_CLOSE = 140;
+
+        StaticMultiBlock()
+        {
+            super("static-multi-block",
+                  "CREATE TABLE %s (pk bigint, s text static, ck bigint, v text, PRIMARY KEY (pk, ck)) " +
+                  "WITH gc_grace_seconds = 864000");
+        }
+
+        @Override
+        public boolean spansMultipleIndexBlocks()
+        {
+            return true;
+        }
+
+        @Override
+        public void write(DifferentialWorkload workload, int scale)
+        {
+            long partitions = (long) BASE_PARTITIONS * scale;
+            for (long pk = 0; pk < partitions; pk++)
+            {
+                workload.execute("INSERT INTO %s (pk, s) VALUES (?, ?) USING TIMESTAMP ?", pk, "static-r1-" + pk, ROUND1_TS);
+                for (long ck = 0; ck < WIDE_ROWS_PER_PARTITION; ck++)
+                    workload.execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP ?",
+                                     pk, ck, WIDE_PADDING + "-r1-" + ck, ROUND1_TS);
+            }
+            workload.flush();
+
+            for (long pk = 0; pk < partitions; pk++)
+            {
+                if (pk % 3 == 0)
+                {
+                    // rewrite the static row and a mid-range window of rows, so the blocks overlap
+                    workload.execute("INSERT INTO %s (pk, s) VALUES (?, ?) USING TIMESTAMP ?", pk, "static-r2-" + pk, ROUND2_TS);
+                    for (long ck = WIDE_ROWS_PER_PARTITION / 4; ck < WIDE_ROWS_PER_PARTITION / 2; ck++)
+                        workload.execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP ?",
+                                         pk, ck, WIDE_PADDING + "-r2-" + ck, ROUND2_TS);
+                }
+                else if (pk % 3 == 1)
+                {
+                    // partition delete, then a NEWER static write: the static row survives while the delete
+                    // shadows every regular row across all blocks
+                    workload.execute("DELETE FROM %s USING TIMESTAMP ? WHERE pk = ?", ROUND2_TS, pk);
+                    workload.execute("INSERT INTO %s (pk, s) VALUES (?, ?) USING TIMESTAMP ?", pk, "static-survives-" + pk, STATIC_SURVIVES_TS);
+                }
+                else
+                {
+                    // rewrite the static row and delete a block-spanning range of rows
+                    workload.execute("INSERT INTO %s (pk, s) VALUES (?, ?) USING TIMESTAMP ?", pk, "static-r2-" + pk, ROUND2_TS);
+                    workload.execute("DELETE FROM %s USING TIMESTAMP ? WHERE pk = ? AND ck >= ? AND ck < ?",
+                                     ROUND2_TS, pk, RANGE_OPEN, RANGE_CLOSE);
+                }
+            }
+            workload.flush();
+        }
+    }
+
+    /** ~5000-byte value, over the 4 KiB test column_index_size, so a single row exceeds one index block. */
+    private static final String OVERSIZED_PADDING = "x".repeat(5000);
+
+    /**
+     * A single row larger than one column-index block. Each row carries an ~5000-byte value, over the 4 KiB
+     * test column_index_size, so one row alone cuts a block and exercises the value-copy-across-chunks path.
+     * Round 2 overwrites the lower half so the flushes overlap across blocks, and both rounds write the last
+     * row at the SAME timestamp with different oversized values, a cross-sstable tie the merge must break by
+     * value comparison, identically on both paths.
+     */
+    private static final class SingleRowExceedsBlock extends BaseSchema
+    {
+        private static final int BASE_PARTITIONS = 2;
+        private static final int ROWS_PER_PARTITION = 6;
+        private static final long ROUND1_TS = 1000;
+        private static final long ROUND2_TS = 2000;
+        // both writes of the tie share this timestamp, so the merge must break the tie by value
+        private static final long TIE_TS = 3000;
+
+        SingleRowExceedsBlock()
+        {
+            super("single-row-exceeds-block", "CREATE TABLE %s (pk bigint, ck bigint, v text, PRIMARY KEY (pk, ck))");
+        }
+
+        @Override
+        public boolean spansMultipleIndexBlocks()
+        {
+            return true;
+        }
+
+        @Override
+        public void write(DifferentialWorkload workload, int scale)
+        {
+            long partitions = (long) BASE_PARTITIONS * scale;
+            long tieCk = ROWS_PER_PARTITION - 1;
+            for (long pk = 0; pk < partitions; pk++)
+            {
+                for (long ck = 0; ck < ROWS_PER_PARTITION; ck++)
+                    workload.execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP ?",
+                                     pk, ck, OVERSIZED_PADDING + "-r1-" + ck, ROUND1_TS);
+                // the last row's cross-sstable tie: this sstable's side of it
+                workload.execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP ?",
+                                 pk, tieCk, OVERSIZED_PADDING + "-tieA", TIE_TS);
+            }
+            workload.flush();
+
+            for (long pk = 0; pk < partitions; pk++)
+            {
+                // overwrite the lower half with newer oversized values, so the flushes overlap across blocks
+                for (long ck = 0; ck < ROWS_PER_PARTITION / 2; ck++)
+                    workload.execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP ?",
+                                     pk, ck, OVERSIZED_PADDING + "-r2-" + ck, ROUND2_TS);
+                // the other side of the tie: same (pk, ck) and timestamp, different value
+                workload.execute("INSERT INTO %s (pk, ck, v) VALUES (?, ?, ?) USING TIMESTAMP ?",
+                                 pk, tieCk, OVERSIZED_PADDING + "-tieB", TIE_TS);
+            }
+            workload.flush();
+        }
+    }
+
+    /**
+     * A table with more than 64 regular columns, past the point where the row encoding switches to the
+     * large-superset column-subset representation that the 50-column {@link WideColumns} shape never reaches.
+     * Round 1 sets every column. Round 2 rewrites subsets whose present-column counts straddle the
+     * superset/2 subset-encoding boundary (34, 35, 36 of 70), so the merge unions cells under the large
+     * encoding while the subset serialization flips between encoding present and absent columns.
+     */
+    private static final class SuperWideColumns extends BaseSchema
+    {
+        private static final int COLUMN_COUNT = 70;
+        private static final int BASE_ROWS = 12;
+
+        SuperWideColumns()
+        {
+            super("super-wide-columns", buildDefinition());
+        }
+
+        private static String buildDefinition()
+        {
+            StringBuilder ddl = new StringBuilder("CREATE TABLE %s (pk bigint PRIMARY KEY");
+            for (int i = 0; i < COLUMN_COUNT; i++)
+                ddl.append(", c").append(i).append(" int");
+            ddl.append(')');
+            return ddl.toString();
+        }
+
+        /** An INSERT that sets columns {@code [0, present)} to their index. */
+        private static String buildInsert(int present)
+        {
+            StringBuilder sql = new StringBuilder("INSERT INTO %s (pk");
+            for (int i = 0; i < present; i++)
+                sql.append(", c").append(i);
+            sql.append(") VALUES (?");
+            for (int i = 0; i < present; i++)
+                sql.append(", ").append(i);
+            sql.append(')');
+            return sql.toString();
+        }
+
+        @Override
+        public void write(DifferentialWorkload workload, int scale)
+        {
+            long rows = (long) BASE_ROWS * scale;
+
+            // round 1: every one of the 70 columns set
+            String fullInsert = buildInsert(COLUMN_COUNT);
+            for (long pk = 0; pk < rows; pk++)
+                workload.execute(fullInsert, pk);
+            workload.flush();
+
+            // round 2: rewrite subsets whose present-column counts straddle the 34/35/36 subset boundary
+            for (long pk = 0; pk < rows; pk++)
+                workload.execute(buildInsert(34 + (int) (pk % 3)), pk);
             workload.flush();
         }
     }

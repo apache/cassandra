@@ -54,4 +54,15 @@ public interface DifferentialSchema
     {
         return false;
     }
+
+    /**
+     * Whether the shape intends compaction to purge data: expired (short-TTL) cells and/or tombstones past
+     * {@code gc_grace_seconds}. A driver runs such a shape with a pinned future "now" so the purge decision
+     * is deterministic and identical on both paths, and it guards that the merge actually dropped rows.
+     * Defaults to false. This carries no compaction type; it only declares the shape's intent.
+     */
+    default boolean expectsPurge()
+    {
+        return false;
+    }
 }
