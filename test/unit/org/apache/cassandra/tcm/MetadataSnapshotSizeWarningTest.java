@@ -18,8 +18,10 @@
 
 package org.apache.cassandra.tcm;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -46,6 +48,13 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.listeners.MetadataSnapshotListener;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.transformations.ForceSnapshot;
+import org.apache.cassandra.utils.Clock.Global;
+import org.apache.cassandra.utils.NoSpamLogger;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -185,6 +194,93 @@ public class MetadataSnapshotSizeWarningTest
         }
         finally
         {
+            truncateSnapshotsTable();
+        }
+    }
+
+    /**
+     * Covers the CASSANDRA-21664 size warning: once the serialised snapshot reaches 75% of max_mutation_size,
+     * {@link MetadataSnapshots.SystemKeyspaceMetadataSnapshots#storeSnapshot} logs a rate-limited WARN so operators
+     * get notice before writes start failing. This test verifies that warning actually fires when a snapshot lands
+     * in the [75%, 100%) band — large enough to trigger the warning but still small enough to store successfully.
+     */
+    @Test
+    public void warningBandSnapshotStoresSuccessfullyAndLogsWarning() throws IOException
+    {
+        truncateSnapshotsTable();
+        Logger logger = null;
+        ListAppender<ILoggingEvent> listAppender = null;
+        try
+        {
+            // Advance NoSpamLogger's clock past the 5-minute suppression window to ensure the warning is
+            // not suppressed by previous test runs. The two existing oversize tests (which exceed 100% of
+            // max_mutation_size) also trigger this same warning before throwing, so without advancing the
+            // clock, running them before this test would suppress the warning and fail the assertion.
+            NoSpamLogger.unsafeSetClock(() -> Global.nanoTime() + TimeUnit.MINUTES.toNanos(10));
+
+            // Attach a ListAppender to capture log output from MetadataSnapshots
+            logger = (Logger) org.slf4j.LoggerFactory.getLogger(MetadataSnapshots.class);
+            listAppender = new ListAppender<>();
+            listAppender.start();
+            logger.addAppender(listAppender);
+
+            long failuresBefore = TCMMetrics.instance.snapshotStoreFailures.getCount();
+
+            // Calculate table count to land in the warning band [75%, 100%) of max_mutation_size. The
+            // per-table serialised cost is measured directly rather than assumed: a hardcoded 527-byte
+            // estimate held for the plain _jdkNN test variants but was ~39% low against the latest_jdkNN
+            // variants (different dependency versions), pushing the snapshot past 100% of the limit and
+            // into the oversize-throw path instead of the warning-band success path this test exercises.
+            // Two measurements at different table counts isolate the per-table slope from the fixed
+            // overhead of the rest of ClusterMetadata (schema keyspace, node states, epoch, ...), so the
+            // estimate self-corrects under any JDK, dependency profile, or future metadata format change.
+            int maxMutationSize = DatabaseDescriptor.getMaxMutationSize();
+            int calibrationLow = 200;
+            int calibrationHigh = 1000;
+            long sizeAtLow = MetadataSnapshots.toBytes(ClusterMetadataTestHelper.minimalForTesting(
+                Epoch.create(1), Murmur3Partitioner.instance, schemaWithTables(calibrationLow))).remaining();
+            long sizeAtHigh = MetadataSnapshots.toBytes(ClusterMetadataTestHelper.minimalForTesting(
+                Epoch.create(1), Murmur3Partitioner.instance, schemaWithTables(calibrationHigh))).remaining();
+            double bytesPerTable = (sizeAtHigh - sizeAtLow) / (double) (calibrationHigh - calibrationLow);
+            double overhead = sizeAtLow - calibrationLow * bytesPerTable;
+
+            double targetFraction = 0.80; // 80% of max_mutation_size
+            int tableCount = (int) ((maxMutationSize * targetFraction - overhead) / bytesPerTable);
+
+            MetadataSnapshots snapshots = new MetadataSnapshots.SystemKeyspaceMetadataSnapshots();
+            ClusterMetadata warningBand = ClusterMetadataTestHelper.minimalForTesting(Epoch.create(5), Murmur3Partitioner.instance, schemaWithTables(tableCount));
+
+            // Must not throw: the snapshot is below max_mutation_size, so the store should succeed
+            snapshots.storeSnapshot(warningBand);
+
+            // Verify the snapshot stored successfully and can be retrieved
+            assertEquals(warningBand, snapshots.getSnapshot(warningBand.epoch));
+
+            // Verify the failure counter was not incremented (unlike test 2, this store succeeded)
+            assertEquals("A warning-band snapshot must store successfully and not increment the failure counter",
+                         failuresBefore, TCMMetrics.instance.snapshotStoreFailures.getCount());
+
+            // Guard: verify the serialised size actually landed in the warning band [75%, 100%)
+            long recordedSize = TCMMetrics.instance.lastSnapshotSize.getValue();
+            double lowerBound = maxMutationSize * 0.75;
+            assertTrue("Serialised size " + recordedSize + " must be at least 75% of max_mutation_size " + maxMutationSize,
+                       recordedSize >= lowerBound);
+            assertTrue("Serialised size " + recordedSize + " must be below max_mutation_size " + maxMutationSize + " (test setup error if not)",
+                       recordedSize < maxMutationSize);
+
+            // Assert the WARN log was emitted
+            boolean foundWarning = listAppender.list.stream()
+                                                     .anyMatch(event -> event.getLevel() == Level.WARN
+                                                                        && event.getFormattedMessage().contains("Serialised cluster metadata snapshot")
+                                                                        && event.getFormattedMessage().contains("of the max_mutation_size limit"));
+            assertTrue("Expected a WARN log about snapshot size approaching max_mutation_size, but none was found. " +
+                       "Captured log events: " + listAppender.list.size(), foundWarning);
+        }
+        finally
+        {
+            if (logger != null && listAppender != null)
+                logger.detachAppender(listAppender);
+            NoSpamLogger.unsafeSetClock(Global::nanoTime);
             truncateSnapshotsTable();
         }
     }

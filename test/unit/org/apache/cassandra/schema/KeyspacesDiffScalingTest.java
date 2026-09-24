@@ -251,6 +251,37 @@ public class KeyspacesDiffScalingTest
         assertSame("the base table is still reachable", base, updated.getTableOrViewNullable(base.id));
     }
 
+    /** A view dropped from the new definition must no longer be resolvable by id, but the base table must remain. */
+    @Test
+    public void withAddedOrUpdatedRemovedViewIsGone()
+    {
+        TableMetadata base = table("ks", 0);
+        TableMetadata viewTable = table("ks", 1);
+        ViewMetadata view = new ViewMetadata(base.id, base.name, true, WhereClause.empty(), viewTable);
+
+        TableMetadata otherTable = table("ks", 2);
+        TableMetadata otherViewTable = table("ks", 3);
+        ViewMetadata otherView = new ViewMetadata(otherTable.id, otherTable.name, true, WhereClause.empty(), otherViewTable);
+
+        KeyspaceMetadata before = KeyspaceMetadata.create("ks", KeyspaceParams.simple(1),
+                                                          Tables.of(base, otherTable),
+                                                          Views.builder().put(view).put(otherView).build(),
+                                                          Types.none(), UserFunctions.none());
+        Keyspaces beforeKs = Keyspaces.of(before);
+
+        KeyspaceMetadata after = KeyspaceMetadata.create("ks", KeyspaceParams.simple(1),
+                                                         Tables.of(base, otherTable),
+                                                         Views.builder().put(otherView).build(),
+                                                         Types.none(), UserFunctions.none());
+
+        Keyspaces updated = beforeKs.withAddedOrUpdated(after);
+
+        assertNull("the removed view is no longer resolvable by id", updated.getTableOrViewNullable(viewTable.id));
+        assertSame("the base table is still reachable and unchanged", base, updated.getTableOrViewNullable(base.id));
+        assertSame("another table is still reachable", otherTable, updated.getTableOrViewNullable(otherTable.id));
+        assertSame("another view is still reachable", otherViewTable, updated.getTableOrViewNullable(otherViewTable.id));
+    }
+
     /** Other keyspaces, and every table in them, must be completely untouched by reference. */
     @Test
     public void withAddedOrUpdatedOtherKeyspacesUntouched()
