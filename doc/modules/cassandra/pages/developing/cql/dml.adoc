@@ -210,6 +210,59 @@ The `LIMIT` option to a `SELECT` statement limits the number of rows
 returned by a query. The `PER PARTITION LIMIT` option limits the
 number of rows returned for a given partition by the query. Both types of limits can be used in the same statement.
 
+[[result-paging]]
+=== Result paging
+
+Clients can retrieve a `SELECT` result in pages. Configure the page size through the client or driver; `LIMIT` and `PER PARTITION LIMIT` still control the total number of rows returned by the query.
+
+Row paging specifies the number of rows per page. Cassandra 6.0 also supports byte paging, which specifies a budget for the row data read per page. Byte paging requires a client that supports this feature and native protocol v5 or later. See the xref:cassandra:reference/native-protocol.adoc[native protocol specification] for capability discovery and request encoding. The xref:cassandra:managing/tools/cqlsh.adoc[cqlsh] `PAGING` command accepts row counts.
+
+The byte budget uses Cassandra's internal row-data size. A page can exceed that budget when it includes its last row, allowing a row larger than the budget to remain readable. The serialized response size and heap usage can differ from this measurement. Clients must use the returned paging state to continue, rather than infer completion from the size of a page.
+
+==== Aggregation subpages
+
+Aggregation queries, including `COUNT(*)` and `GROUP BY`, read their input in internal subpages. When the client omits a page size, `aggregation_subpage_size` controls the byte budget for those subpages and defaults to `2MiB`. Setting it to `0B` removes that configured byte limit.
+
+An explicit client row page size takes precedence over `aggregation_subpage_size`, subject to configured guardrails. Aggregation queries currently reject explicit client byte page sizes; their internal subpages can still use bytes when the client omits a page size.
+
+==== Rolling upgrades and downgrades
+
+Byte paging becomes active only when all cluster members run Cassandra 6.0 or later. An older node that is down still prevents activation until it is upgraded or removed from membership.
+
+While a 4.x or 5.0 node remains, a 6.0 coordinator accepts byte page requests and uses row pages instead. The fallback is 10,000 rows, reduced to the client's applicable positive `page_size_fail_threshold` when that threshold is smaller. For client byte requests, the coordinator returns a warning. Aggregation queries that would use configured byte subpages also fall back to rows and log a warning on the coordinator.
+
+The same fallback applies if an older node is recorded between page requests. The client can continue with its existing paging state. A zero row failure threshold does not create a zero-row fallback or reject an otherwise valid byte request; it continues to reject explicit client row page requests. The original byte request remains subject to the byte page-size guardrails.
+
+[[page-size-guardrails]]
+==== Page size guardrails
+
+The page-size guardrails in xref:cassandra:managing/configuration/cass_yaml_file.adoc[cassandra.yaml] apply independently to the client's requested unit:
+
+[cols="2,1,1",options="header"]
+|===
+|Settings |Unit |Disabled value
+|`page_size_warn_threshold`, `page_size_fail_threshold` |Rows |`-1`
+|`page_size_in_bytes_warn_threshold`, `page_size_in_bytes_fail_threshold` |Bytes, with units such as `B`, `KiB`, or `MiB` |`null`
+|===
+
+All four thresholds are disabled by default. Values strictly above a warning threshold produce a warning; values strictly above a failure threshold reject the request. Zero is an active threshold: `0` or `0B` applies to every positive request in the corresponding unit. When both thresholds are enabled, the warning threshold must not exceed the failure threshold.
+
+For example:
+
+[source,yaml]
+----
+page_size_warn_threshold: 1000
+page_size_fail_threshold: 5000
+page_size_in_bytes_warn_threshold: 1MiB
+page_size_in_bytes_fail_threshold: 4MiB
+----
+
+These checks apply to paged client requests. They do not treat an omitted client size or a server-selected aggregation subpage as a request for an unlimited page. Superusers and internal queries are exempt. Queries served without a pager, such as a row-paged query whose `LIMIT` fits within one page, do not apply the page-size checks.
+
+To change the thresholds at runtime, use `setPageSizeThreshold(warn, fail)` or `setPageSizeInBytesThreshold(warnSize, failSize)` on the `org.apache.cassandra.db:type=Guardrails` management bean. The byte setter accepts strings such as `"1MiB"` and `null` to disable a threshold.
+
+Page-size guardrails check the requested budget. Actual read-size checks use the separate `coordinator_read_size_*`, `local_read_size_*`, and `row_index_read_size_*` thresholds, which require `read_thresholds_enabled: true`.
+
 [[allow-filtering]]
 === Allowing filtering
 

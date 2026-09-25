@@ -27,6 +27,8 @@ import com.google.common.collect.Sets;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.PageSize;
+import org.apache.cassandra.db.aggregation.AggregationSpecification;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
@@ -50,7 +52,8 @@ public abstract class AbstractReadCommandBuilder
     protected long nowInSeconds;
 
     private int cqlLimit = -1;
-    private int pagingLimit = -1;
+    private PageSize pageSize = PageSize.NONE;
+    private int perPartitionLimit = -1;
     protected boolean reversed = false;
 
     protected Set<ColumnIdentifier> columns;
@@ -60,6 +63,8 @@ public abstract class AbstractReadCommandBuilder
     private ClusteringBound<?> upperClusteringBound;
 
     private NavigableSet<Clustering<?>> clusterings;
+
+    private AggregationSpecification aggregationSpecification;
 
     // Use Util.cmd() instead of this ctor directly
     AbstractReadCommandBuilder(ColumnFamilyStore cfs)
@@ -125,9 +130,15 @@ public abstract class AbstractReadCommandBuilder
         return this;
     }
 
-    public AbstractReadCommandBuilder withPagingLimit(int newLimit)
+    public AbstractReadCommandBuilder withPageSize(PageSize pageSize)
     {
-        this.pagingLimit = newLimit;
+        this.pageSize = pageSize;
+        return this;
+    }
+
+    public AbstractReadCommandBuilder withPerPartitionLimit(int perPartitionLimit)
+    {
+        this.perPartitionLimit = perPartitionLimit;
         return this;
     }
 
@@ -138,6 +149,12 @@ public abstract class AbstractReadCommandBuilder
 
         for (String column : columns)
             this.columns.add(ColumnIdentifier.getInterned(column, true));
+        return this;
+    }
+
+    public AbstractReadCommandBuilder withAggregationSpecification(AggregationSpecification spec)
+    {
+        this.aggregationSpecification = spec;
         return this;
     }
 
@@ -223,9 +240,21 @@ public abstract class AbstractReadCommandBuilder
 
     protected DataLimits makeLimits()
     {
-        DataLimits limits = cqlLimit < 0 ? DataLimits.NONE : DataLimits.cqlLimits(cqlLimit);
-        if (pagingLimit >= 0)
-            limits = limits.forPaging(pagingLimit);
+        DataLimits limits;
+        if (aggregationSpecification != null)
+        {
+            limits = DataLimits.groupByLimits(cqlLimit < 0 ? DataLimits.NO_LIMIT : cqlLimit,
+                                              perPartitionLimit < 0 ? DataLimits.NO_LIMIT : perPartitionLimit,
+                                              DataLimits.NO_LIMIT, DataLimits.NO_LIMIT,
+                                              aggregationSpecification);
+        }
+        else
+        {
+            limits = DataLimits.cqlLimits(cqlLimit < 0 ? DataLimits.NO_LIMIT : cqlLimit,
+                                          perPartitionLimit < 0 ? DataLimits.NO_LIMIT : perPartitionLimit);
+        }
+        if (pageSize.isDefined())
+            limits = limits.forPaging(pageSize);
         return limits;
     }
 
@@ -242,7 +271,7 @@ public abstract class AbstractReadCommandBuilder
         }
 
         @Override
-        public ReadCommand build()
+        public SinglePartitionReadCommand build()
         {
             return SinglePartitionReadCommand.create(cfs.metadata(), nowInSeconds, makeColumnFilter(), filter, makeLimits(), partitionKey, makeFilter());
         }

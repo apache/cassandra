@@ -622,7 +622,7 @@ public class QueryProcessor implements QueryHandler
             return null;
     }
 
-    public static UntypedResultSet executeInternalWithPaging(String query, int pageSize, Object... values)
+    public static UntypedResultSet executeInternalWithPaging(String query, PageSize pageSize, Object... values)
     {
         Prepared prepared = prepareInternal(query);
 
@@ -630,12 +630,12 @@ public class QueryProcessor implements QueryHandler
     }
 
     /**
-     * Executes with a non-prepared statement using paging.  Generally {@link #executeInternalWithPaging(String, int, Object...)}
+     * Executes with a non-prepared statement using paging.  Generally {@link #executeInternalWithPaging(String, PageSize, Object...)}
      * should be used instead of this, but this may be used in niche cases like
      * {@link SystemKeyspace#loadPreparedStatement(MD5Digest, SystemKeyspace.TriFunction)} where prepared statements are
      * being loaded into {@link #preparedStatements} so it doesn't make sense to prepare a statement in this context.
      */
-    public static UntypedResultSet executeOnceInternalWithPaging(String query, int pageSize, Object... values)
+    public static UntypedResultSet executeOnceInternalWithPaging(String query, PageSize pageSize, Object... values)
     {
         QueryState queryState = internalQueryState();
         CQLStatement statement = parseStatement(query, queryState.getClientState());
@@ -644,7 +644,7 @@ public class QueryProcessor implements QueryHandler
         return executeInternalWithPaging(statement, pageSize, values);
     }
 
-    private static UntypedResultSet executeInternalWithPaging(CQLStatement statement, int pageSize, Object... values)
+    private static UntypedResultSet executeInternalWithPaging(CQLStatement statement, PageSize pageSize, Object... values)
     {
         if (!(statement instanceof SelectStatement))
             throw new IllegalArgumentException("Only SELECTs can be paged");

@@ -56,6 +56,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.cql3.QueryHandler.Prepared;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -2054,7 +2055,7 @@ public final class SystemKeyspace
     public static int loadPreparedStatements(TriFunction<MD5Digest, String, String, Prepared> onLoaded, int pageSize)
     {
         String query = String.format("SELECT prepared_id, logged_keyspace, query_string FROM %s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, PREPARED_STATEMENTS);
-        UntypedResultSet resultSet = executeOnceInternalWithPaging(query, pageSize);
+        UntypedResultSet resultSet = executeOnceInternalWithPaging(query, PageSize.inRows(pageSize));
         int counter = 0;
 
         // As the cache size may be briefly exceeded before statements are evicted, we allow loading 110% the cache size
