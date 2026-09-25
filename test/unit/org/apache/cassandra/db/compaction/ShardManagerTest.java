@@ -208,6 +208,7 @@ public class ShardManagerTest
         Mockito.when(mock.getFirst()).thenReturn(keyAt(start));
         Mockito.when(mock.getLast()).thenReturn(keyAt(end));
         Mockito.when(mock.tokenSpaceCoverage()).thenReturn(reportedCoverage);
+        Mockito.when(mock.getEstimatedPartitionSize()).thenReturn(null); // partitionCount falls back to estimatedKeys
         Mockito.when(mock.estimatedKeys()).thenReturn(estimatedKeys);
         return mock;
     }
