@@ -51,10 +51,14 @@ public interface ShardManager
 
     static ShardManager create(ColumnFamilyStore cfs)
     {
+        return create(cfs, estimatedPartitionCount(cfs));
+    }
+
+    static ShardManager create(ColumnFamilyStore cfs, long estimatedPartitionCount)
+    {
         final ImmutableList<PartitionPosition> diskPositions = cfs.getDiskBoundaries().positions;
         ColumnFamilyStore.VersionedLocalRanges localRanges = cfs.localRangesWeighted();
         IPartitioner partitioner = cfs.getPartitioner();
-        long estimatedPartitionCount = estimatedPartitionCount(cfs);
 
         if (diskPositions != null && diskPositions.size() > 1)
             return new ShardManagerDiskAware(localRanges, diskPositions.stream()
@@ -83,6 +87,16 @@ public interface ShardManager
     }
 
     boolean isOutOfDate(long ringVersion);
+
+    /**
+     * As {@link #isOutOfDate(long)}. The default ignores the estimated partition count. Implementations whose span
+     * calculations depend on it must override this and also report out of date when the count has changed from the
+     * value the manager was created with.
+     */
+    default boolean isOutOfDate(long ringVersion, long estimatedPartitionCount)
+    {
+        return isOutOfDate(ringVersion);
+    }
 
     /**
      * The token range fraction spanned by the given range, adjusted for the local range ownership.
