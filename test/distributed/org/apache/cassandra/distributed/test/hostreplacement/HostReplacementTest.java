@@ -19,13 +19,17 @@
 package org.apache.cassandra.distributed.test.hostreplacement;
 
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -37,6 +41,8 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK;
@@ -203,6 +209,83 @@ public class HostReplacementTest extends TestBaseImpl
 
             validateRows(seed.coordinator(), expectedState);
             validateRows(replacingNode.coordinator(), expectedState);
+        }
+    }
+
+    private static final int HEALTHY_PK = 10;
+    private static final int CORRUPT_PK = 11;
+
+    /**
+     * With digest validation enabled, a single corrupted sstable must fail the entire stream session, so neither
+     * the corrupted sstable nor its healthy sibling should land on the replacing node.
+     */
+    @Test
+    public void replaceHostAbortsStreamingWhenDigestValidationCatchesCorruption() throws IOException, TimeoutException
+    {
+        TokenSupplier even = TokenSupplier.evenlyDistributedTokens(2);
+        try (Cluster cluster = Cluster.build(2)
+                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK)
+                                                        .set("entire_sstable_stream_digest_validation_enabled", true))
+                                      .withTokenSupplier(node -> even.token(node == 3 ? 2 : node))
+                                      .start())
+        {
+            IInvokableInstance node1 = cluster.get(1);
+            IInvokableInstance nodeToRemove = cluster.get(2);
+
+            setupCluster(cluster);
+            writeHealthyAndCorruptSSTables(cluster, node1);
+
+            stopUnchecked(nodeToRemove);
+
+            IInvokableInstance replacingNode = replaceHostAndStart(cluster, nodeToRemove);
+
+            replacingNode.logs().watchFor("Digest mismatch");
+
+            // the whole stream session is aborted on a digest mismatch, so neither sstable should have landed
+            AssertUtils.assertRows(replacingNode.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = " + HEALTHY_PK), EMPTY_ROWS);
+            AssertUtils.assertRows(replacingNode.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = " + CORRUPT_PK), EMPTY_ROWS);
+        }
+    }
+
+    /**
+     * Flushes two separate sstables on {@code node1} for {@code KEYSPACE.tbl}: one containing {@link #HEALTHY_PK}
+     * left untouched, and one containing {@link #CORRUPT_PK} that gets its Data.db corrupted.
+     */
+    static void writeHealthyAndCorruptSSTables(Cluster cluster, IInvokableInstance node1) throws IOException
+    {
+        node1.nodetoolResult("disableautocompaction").asserts().success();
+
+        cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk) VALUES (?)",
+                                       ConsistencyLevel.ALL,
+                                       HEALTHY_PK);
+        node1.flush(KEYSPACE);
+
+        cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk) VALUES (?)",
+                                       ConsistencyLevel.ALL,
+                                       CORRUPT_PK);
+        node1.flush(KEYSPACE);
+
+        corruptSSTable(node1, "tbl");
+    }
+
+    /** Flips a byte in the middle of the Data.db file of the most recently flushed sstable for the given table. */
+    static void corruptSSTable(IInvokableInstance instance, String table) throws IOException
+    {
+        String dataFilePath = instance.callOnInstance(() -> {
+            ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(table);
+            SSTableReader sstable = cfs.getLiveSSTables().stream()
+                                       .max(SSTableReader.maxTimestampAscending)
+                                       .orElseThrow();
+            return sstable.descriptor.fileFor(Components.DATA).absolutePath();
+        });
+
+        try (RandomAccessFile raf = new RandomAccessFile(dataFilePath, "rw"))
+        {
+            long corruptAt = raf.length() / 2;
+            raf.seek(corruptAt);
+            int b = raf.read();
+            raf.seek(corruptAt);
+            raf.write(b ^ 0xFF);
         }
     }
 
