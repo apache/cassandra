@@ -27,8 +27,14 @@ import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
+/**
+ * Note: the complete coverage for {@link SSTableOfflineRelevel} is composed of:
+ * - {@link SSTableOfflineRelevelTest}
+ * - {@link SSTableOfflineRelevelOnSSTablesTest}
+ */
 public class SSTableOfflineRelevelTest extends OfflineToolUtils
 {
+
     @Test
     public void testNoArgsPrintsHelp()
     {
@@ -73,4 +79,13 @@ public class SSTableOfflineRelevelTest extends OfflineToolUtils
         assertEquals(1, tool.getExitCode());
         assertCorrectEnvPostTest();
     }
+
+    @Test
+    public void testUnknownKeyspaceOrTable()
+    {
+        ToolResult tool = ToolRunner.invokeClass(SSTableOfflineRelevel.class, "unknown_ks", "unknown_table");
+        assertEquals(-1, tool.getExitCode());
+        assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Unknown keyspace/table unknown_ks.unknown_table"));
+    }
 }
+
