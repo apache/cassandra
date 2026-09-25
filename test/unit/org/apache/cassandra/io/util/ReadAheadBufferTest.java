@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Random;
 
 import org.junit.AfterClass;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.quicktheories.WithQuickTheories;
@@ -43,12 +42,17 @@ import org.apache.cassandra.utils.Pair;
 
 import static java.lang.Math.max;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_IO_TMPDIR;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
-public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
+public class ReadAheadBufferTest implements WithQuickTheories
 {
-    private static final int numFiles = 5;
-    private static final Logger logger = LoggerFactory.getLogger(ThreadLocalReadAheadBufferTest.class);
-    protected static final File[] files = new File[numFiles];
+    private static final Logger logger = LoggerFactory.getLogger(ReadAheadBufferTest.class);
+
+    private static final int BUFFER_SIZE = new DataStorageSpec.IntKibibytesBound("256KiB").toBytes(); 
+    private static final int NUM_FILES = 5;
+    protected static final File[] files = new File[NUM_FILES];
     protected static Integer seed;
 
     @BeforeClass
@@ -57,9 +61,10 @@ public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
         seed = new Random().nextInt();
         logger.info("Seed: {}", seed);
 
-        for (int i = 0; i < numFiles; i++)
+        Random seeded = new Random(seed);
+        for (int i = 0; i < NUM_FILES; i++)
         {
-            int size = new Random(seed).nextInt((Integer.MAX_VALUE - 1) / 8);
+            int size = seeded.nextInt((Integer.MAX_VALUE - 1) / 8);
             files[i] = writeFile(seed, size);
         }
     }
@@ -83,30 +88,94 @@ public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
     @Test
     public void testLastBlockReads()
     {
-        qt().withFixedSeed(seed).forAll(lastBlockReads())
-            .checkAssert(this::testReads);
+        qt().withFixedSeed(seed).forAll(lastBlockReads()).checkAssert(this::testReads);
     }
 
     @Test
     public void testReadsLikeChannelProxy()
     {
-        qt().withFixedSeed(seed).forAll(reads())
-            .checkAssert(this::testReads);
+        qt().withFixedSeed(seed).forAll(reads()).checkAssert(this::testReads);
+    }
+
+    @Test
+    public void allocateInitialisesBufferSizeFromCapacity()
+    {
+        try (ChannelProxy channel = new ChannelProxy(files[0]))
+        {
+            try (ReadAheadBuffer buffer = new ReadAheadBuffer(channel, BUFFER_SIZE, BufferType.OFF_HEAP))
+            {
+                assertFalse(buffer.hasBuffer());
+
+                buffer.allocateBuffer();
+
+                // Allocation must record the actual buffer size, not leave it unset.
+                assertTrue(buffer.hasBuffer());
+                assertEquals("allocate must initialise bufferSize from capacity", BUFFER_SIZE, buffer.bufferSize());
+            }
+        }
+    }
+
+    @Test
+    public void independentInstancesDoNotShareBuffer() throws CorruptBlockException
+    {
+        
+        File file = files[0];
+        try (ChannelProxy channel = new ChannelProxy(file))
+        {
+            try (ReadAheadBuffer a = new ReadAheadBuffer(channel, BUFFER_SIZE, BufferType.OFF_HEAP); ReadAheadBuffer b = new ReadAheadBuffer(channel, BUFFER_SIZE, BufferType.OFF_HEAP))
+            {
+                a.fill(0);
+
+                // Advance b to a different block if the file is large enough; else keep it on block 0.
+                long secondBlock = BUFFER_SIZE;
+                b.fill(channel.size() > secondBlock ? secondBlock : 0);
+
+                // a must still read block 0. A shared buffer would return b's block here.
+                int readSize = Math.min(100, (int) channel.size());
+                ByteBuffer expected = ByteBuffer.allocate(readSize);
+                channel.read(expected, 0);
+                expected.flip();
+
+                ByteBuffer actual = ByteBuffer.allocate(readSize);
+                a.read(actual, readSize);
+                actual.flip();
+
+                assertEquals(expected, actual);
+            }
+        }
+    }
+
+    @Test
+    public void closeFreesBufferAndIsIdempotent()
+    {
+        try (ChannelProxy channel = new ChannelProxy(files[0]))
+        {
+            ReadAheadBuffer buffer = new ReadAheadBuffer(channel, BUFFER_SIZE, BufferType.OFF_HEAP);
+            buffer.allocateBuffer();
+            assertTrue(buffer.hasBuffer());
+
+            buffer.close();
+            assertFalse("close must free the owned buffer", buffer.hasBuffer());
+
+            // A second close must not double-free.
+            buffer.close();
+            assertFalse(buffer.hasBuffer());
+        }
     }
 
     protected void testReads(InputData propertyInputs)
     {
         try (ChannelProxy channel = new ChannelProxy(propertyInputs.file);
-             ThreadLocalReadAheadBuffer tlrab = new ThreadLocalReadAheadBuffer(channel, new DataStorageSpec.IntKibibytesBound("256KiB").toBytes(), BufferType.OFF_HEAP); )
+             ReadAheadBuffer rab = new ReadAheadBuffer(channel, BUFFER_SIZE, BufferType.OFF_HEAP); )
         {
             for (Pair<Long, Integer> read : propertyInputs.positionsAndLengths)
             {
-                testRead(read, channel, tlrab);
+                testRead(read, channel, rab);
             }
         }
     }
 
-    protected static void testRead(Pair<Long, Integer> read, ChannelProxy bufferedChannel, ThreadLocalReadAheadBuffer tlrab)
+    protected static void testRead(Pair<Long, Integer> read, ChannelProxy bufferedChannel, ReadAheadBuffer rab)
     {
         int readSize = Math.min(read.right, (int) (bufferedChannel.size() - read.left));
         ByteBuffer buf1 = ByteBuffer.allocate(readSize);
@@ -118,12 +187,12 @@ public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
             int copied = 0;
             while (copied < readSize)
             {
-                tlrab.fill(read.left + copied);
+                rab.fill(read.left + copied);
                 int leftToRead = readSize - copied;
-                if (tlrab.remaining() >= leftToRead)
-                    copied += tlrab.read(buf2, leftToRead);
+                if (rab.remaining() >= leftToRead)
+                    copied += rab.read(buf2, leftToRead);
                 else
-                    copied += tlrab.read(buf2, tlrab.remaining());
+                    copied += rab.read(buf2, rab.remaining());
             }
         }
         catch (CorruptSSTableException | CorruptBlockException e)
@@ -131,7 +200,7 @@ public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
             throw new RuntimeException(e);
         }
 
-        Assert.assertEquals(buf1, buf2);
+        assertEquals(buf1, buf2);
     }
 
     protected Gen<InputData> reads()
@@ -145,15 +214,13 @@ public class ThreadLocalReadAheadBufferTest implements WithQuickTheories
 
     protected Gen<InputData> lastBlockReads()
     {
-        int blockSize = new DataStorageSpec.IntKibibytesBound("256KiB").toBytes();
         return arbitrary().pick(List.of(files))
                           .flatMap((file) ->
-                                   lists().of(longs().between(max(0, fileSize(file) - blockSize), fileSize(file)).zip(integers().between(1, 100), Pair::create))
+                                   lists().of(longs().between(max(0, fileSize(file) - BUFFER_SIZE), fileSize(file)).zip(integers().between(1, 100), Pair::create))
                                           .ofSizeBetween(5, 10)
                                           .map(positionsAndLengths -> new InputData(file, positionsAndLengths)));
     }
 
-    // need this because generators don't handle the IOException
     private long fileSize(File file)
     {
         try
