@@ -350,6 +350,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             }
             catch (InterruptedException e)
             {
+                Thread.currentThread().interrupt();
                 logger.error("Interrupted while waiting for tasks to be terminated", e);
             }
         }

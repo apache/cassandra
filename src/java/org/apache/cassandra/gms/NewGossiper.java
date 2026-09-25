@@ -83,6 +83,8 @@ public class NewGossiper
             }
             catch (InterruptedException | ExecutionException | TimeoutException e)
             {
+                if (e instanceof InterruptedException)
+                    Thread.currentThread().interrupt();
                 if (++tries >= maxTries)
                     break;
                 logger.warn("Got no response for shadow round");
