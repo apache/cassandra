@@ -77,7 +77,7 @@ public interface ShardManager
         if (cfs.metric == null)
             return INITIAL_ESTIMATED_PARTITION_COUNT;
         final Long estimation = cfs.metric.estimatedPartitionCount.getValue();
-        if (estimation == null || estimation == 0)
+        if (estimation == null || estimation <= 0)
             return INITIAL_ESTIMATED_PARTITION_COUNT;
         return estimation;
     }
