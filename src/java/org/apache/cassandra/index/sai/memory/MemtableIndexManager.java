@@ -35,6 +35,7 @@ import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.ShardBoundaries;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.utils.Clock;
@@ -61,10 +62,18 @@ public class MemtableIndexManager
     {
         MemtableIndex current = liveMemtableIndexMap.get(mt);
 
-        // We expect the relevant IndexMemtable to be present most of the time, so only make the
+        // We expect the relevant MemtableIndex to be present most of the time, so only make the
         // call to computeIfAbsent() if it's not. (see https://bugs.openjdk.java.net/browse/JDK-8161372)
         return current != null ? current
-                               : liveMemtableIndexMap.computeIfAbsent(mt, memtable -> new MemtableIndex(index, memtable));
+                               : liveMemtableIndexMap.computeIfAbsent(mt, memtable -> {
+            int shardCount = index.shardCount();
+            if (shardCount > 1)
+            {
+                ShardBoundaries boundaries = index.baseCfs().localRangeSplits(shardCount);
+                return new ShardedMemtableIndex(index, boundaries, memtable);
+            }
+            return new UnshardedMemtableIndex(index, memtable);
+        });
     }
 
     public long index(DecoratedKey key, Row row, Memtable mt)
