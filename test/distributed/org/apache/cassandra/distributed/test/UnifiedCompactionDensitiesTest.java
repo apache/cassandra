@@ -176,6 +176,7 @@ public class UnifiedCompactionDensitiesTest extends TestBaseImpl
             // sliver of the ring, and far enough from each other that no two slivers ever overlap.
             List<long[]> pairs = closeTokenPairs(rounds, 1L << 28, 1L << 36);
 
+            int[] tinyStreamed = new int[rounds];
             int[] tinyPerRound = new int[rounds];
             for (int round = 0; round < rounds; round++)
             {
@@ -199,6 +200,13 @@ public class UnifiedCompactionDensitiesTest extends TestBaseImpl
                 for (int k = 0; k < 2; k++)
                     assertEquals(1, cluster.get(2).executeInternal(withKeyspace("select id from %s.tbl where id = ?"), pair[k]).length);
 
+                // Count the tiny sstables before compaction gets a chance to run, to prove the repair
+                // actually produced the files this test is about.
+                tinyStreamed[round] = cluster.get(2).callOnInstance(() -> {
+                    ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl");
+                    return (int) cfs.getLiveSSTables().stream().filter(t -> t.onDiskLength() < 8 * 1024).count();
+                });
+
                 // Give background compaction on the receiving node ample opportunity to run. Under
                 // incremental repair some passes are consumed by pending-to-repaired promotion tasks.
                 cluster.get(2).runOnInstance(() -> {
@@ -216,8 +224,11 @@ public class UnifiedCompactionDensitiesTest extends TestBaseImpl
                 LoggerFactory.getLogger(getClass()).info("Round {}: node2 has {} tiny sstables", round, tinyPerRound[round]);
             }
 
-            assertTrue("Background compaction never consumed any repair-streamed tiny sstable; " +
-                       "tiny sstable count per repair round on the receiving node: " + Arrays.toString(tinyPerRound),
+            assertTrue("Repair never produced a tiny sstable on the receiving node, so this test exercised " +
+                       "nothing. Tiny sstable count after each repair: " + Arrays.toString(tinyStreamed),
+                       Arrays.stream(tinyStreamed).max().getAsInt() >= 1);
+            assertTrue("Background compaction never consumed any repair-streamed tiny sstable. " +
+                       "Tiny sstable count per repair round on the receiving node: " + Arrays.toString(tinyPerRound),
                        tinyPerRound[rounds - 1] < rounds);
 
             // Compacting the repair-streamed sstables must not lose or corrupt their data.
