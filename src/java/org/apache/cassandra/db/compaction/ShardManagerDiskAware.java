@@ -36,7 +36,6 @@ public class ShardManagerDiskAware extends ShardManagerNoDisks
      * share owned by the node.
      */
     private final double[] diskBoundaryPositions;
-    private final int[] diskStartRangeIndex;
     private final List<Token> diskBoundaries;
 
     public ShardManagerDiskAware(ColumnFamilyStore.VersionedLocalRanges localRanges, List<Token> diskBoundaries)
@@ -49,8 +48,6 @@ public class ShardManagerDiskAware extends ShardManagerNoDisks
         final List<Splitter.WeightedRange> ranges = localRanges;
         int diskIndex = 0;
         diskBoundaryPositions = new double[diskBoundaries.size()];
-        diskStartRangeIndex = new int[diskBoundaryPositions.length];
-        diskStartRangeIndex[0] = 0;
 
         for (int i = 0; i < localRangePositions.length; ++i)
         {
@@ -65,7 +62,6 @@ public class ShardManagerDiskAware extends ShardManagerNoDisks
                 if (leftPart > span)    // if the boundary falls on left or before it
                     leftPart = 0;
                 diskBoundaryPositions[diskIndex] = position + leftPart;
-                diskStartRangeIndex[diskIndex + 1] = i;
                 ++diskIndex;
                 diskBoundary = diskBoundaries.get(diskIndex);
             }
