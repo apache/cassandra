@@ -197,15 +197,24 @@ public interface ShardManager
         if (sstables.isEmpty())
             return 0;
         long onDiskLength = 0;
+        long partitionCount = 0;
         PartitionPosition min = null;
         PartitionPosition max = null;
         for (SSTableReader sstable : sstables)
         {
             onDiskLength += sstable.onDiskLength();
+            partitionCount += partitionCount(sstable);
             min = min == null || min.compareTo(sstable.getFirst()) > 0 ? sstable.getFirst() : min;
             max = max == null || max.compareTo(sstable.getLast()) < 0 ? sstable.getLast() : max;
         }
         double span = rangeSpanned(min, max);
+        if (partitionCount >= PER_PARTITION_SPAN_THRESHOLD && span >= MINIMUM_TOKEN_COVERAGE)
+            return onDiskLength / span;
+
+        // Apply the same per-partition minimum as rangeSpanned(SSTableReader), so that the output of compacting
+        // small sstables is sized by the floored span its inputs were selected with.
+        double perPartitionMinimum = Math.min(partitionCount * minimumPerPartitionSpan(), 1.0);
+        span = span > perPartitionMinimum ? span : perPartitionMinimum;
         if (span >= MINIMUM_TOKEN_COVERAGE)
             return onDiskLength / span;
         else
