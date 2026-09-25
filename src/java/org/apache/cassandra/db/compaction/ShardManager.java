@@ -34,6 +34,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.utils.EstimatedHistogram;
 
 public interface ShardManager
 {
@@ -146,7 +147,7 @@ public interface ShardManager
         else
             span = rangeSpanned(rdr.getFirst(), rdr.getLast());
 
-        long partitionCount = rdr.estimatedKeys();
+        long partitionCount = partitionCount(rdr);
         if (partitionCount >= PER_PARTITION_SPAN_THRESHOLD && span >= MINIMUM_TOKEN_COVERAGE)
             return span;
 
@@ -155,6 +156,22 @@ public interface ShardManager
         // the number of partitions in the table.
         double perPartitionMinimum = Math.min(partitionCount * minimumPerPartitionSpan(), 1.0);
         return span > perPartitionMinimum ? span : perPartitionMinimum; // The latter will be chosen if span is NaN too.
+    }
+
+    /**
+     * The number of partitions in the given sstable, read from its stats metadata, which stores the exact
+     * count for every sstable format. estimatedKeys() is not used here because the big format derives it from
+     * the index summary and cannot return fewer than min_index_interval (128 by default) keys, which is above
+     * PER_PARTITION_SPAN_THRESHOLD. See CASSANDRA-21615.
+     */
+    static long partitionCount(SSTableReader rdr)
+    {
+        EstimatedHistogram partitionSizes = rdr.getEstimatedPartitionSize();
+        if (partitionSizes != null && partitionSizes.count() > 0)
+            return partitionSizes.count();
+        // Fall back to estimatedKeys() if the histogram is absent or empty, clamped to 1 so rangeSpanned
+        // never computes a zero floor, which would give a zero span and an infinite density.
+        return Math.max(1, rdr.estimatedKeys());
     }
 
     default double rangeSpanned(PartitionPosition first, PartitionPosition last)
