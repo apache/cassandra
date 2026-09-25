@@ -44,8 +44,10 @@ import org.apache.cassandra.db.partitions.AbstractBTreePartition;
 import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.SimpleBTreePartition;
+import org.apache.cassandra.db.partitions.SingletonUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -69,6 +71,18 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
     }
 
     protected final PartitionRangeReadCommand command;
+
+    /**
+     * Where a follow up read of this range should resume, recorded off the {@link ShortReadSupport} as soon as it is
+     * built. Kept here rather than read back off the state because {@link #followUpBounds()} is answered for a read
+     * that has already completed, and completing a read closes it.
+     * <p>
+     * Null when the read materialized no partition at all, which is the only case
+     * {@link ShortReadSupport.Builder#build()} leaves it unset for. A read that scanned its range to the end has
+     * non-null bounds - {@code (lastPartitionKey, right]} - not null ones, so null means the range is known to hold
+     * nothing rather than that the range has been exhausted.
+     */
+    private volatile AbstractBounds<PartitionPosition> followUpBounds;
 
     private PartialTrackedRangeRead(ReadExecutionController executionController, ColumnFamilyStore cfs, long startTimeNanos, PartitionRangeReadCommand command)
     {
@@ -209,6 +223,7 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
         {
             this.data = data;
             this.shortReadSupport = shortReadSupport;
+            PartialTrackedRangeRead.this.followUpBounds = shortReadSupport.followUpBounds;
         }
 
         protected boolean canAcceptUpdate(PartitionUpdate update)
@@ -290,11 +305,6 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
                 return extendRead(iterator);
             return CompletedRead.simple(iterator, command, command.nowInSec());
         }
-
-        AbstractBounds<PartitionPosition> followUpBounds()
-        {
-            return shortReadSupport.followUpBounds;
-        }
     }
 
     abstract Materializer createMaterializer();
@@ -321,8 +331,7 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
 
     public AbstractBounds<PartitionPosition> followUpBounds()
     {
-        RangeCompleted completed = (RangeCompleted) state().asCompleted();
-        return completed.followUpBounds();
+        return followUpBounds;
     }
 
     protected static TrackedRead.Range makeFollowUpRead(PartitionRangeReadCommand command, AbstractBounds<PartitionPosition> followUpBounds, int toQuery, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
@@ -465,6 +474,12 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
                 filter = command.rowFilter().filter(command().metadata(), command().nowInSec());
             }
 
+            private void markFiltered(DecoratedKey key)
+            {
+                data.remove(key);
+                filteredKeys.add(key);
+            }
+
             @Override
             UnfilteredPartitionIterator filter(UnfilteredPartitionIterator iterator)
             {
@@ -473,15 +488,44 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
                     @Override
                     protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
                     {
-                        if (Transformation.apply(partition, filter).isEmpty())
+                        DecoratedKey key = partition.partitionKey();
+
+                        UnfilteredPartitionIterator filtered = Transformation.apply(new SingletonUnfilteredPartitionIterator(partition), filter);
+                        if (!filtered.hasNext())
                         {
-                            DecoratedKey key = partition.partitionKey();
-                            data.remove(key);
-                            filteredKeys.add(key);
-                            partition.close();
+                            markFiltered(key);
                             return null;
                         }
-                        return partition;
+
+                        return Transformation.apply(filtered.next(), new Transformation<UnfilteredRowIterator>()
+                        {
+                            int rows = 0;
+
+                            @Override
+                            protected void onClose()
+                            {
+                                if (rows == 0)
+                                    markFiltered(key);
+                                super.onClose();
+                            }
+
+                            @Override
+                            protected Row applyToRow(Row row)
+                            {
+                                if (row.hasLiveData(command.nowInSec(), command.metadata().enforceStrictLiveness()))
+                                    rows++;
+                                return super.applyToRow(row);
+                            }
+
+                            @Override
+                            protected Row applyToStatic(Row row)
+                            {
+                                if (command.selectsFullPartition()
+                                    && row.hasLiveData(command.nowInSec(), command.metadata().enforceStrictLiveness()))
+                                    rows++;
+                                return super.applyToStatic(row);
+                            }
+                        });
                     }
                 });
             }
@@ -519,10 +563,25 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
                 return followUpReadInfo.firstKey().compareTo(lastMatchingKey) < 0;
             }
 
+            /**
+             * Whether there are keys the read still has room to return rows from.
+             * <p>
+             * The keys reconciliation flagged were all inside the range this read has already scanned, and the row
+             * filter dropped them out of it, so a follow up that resumes the scan at {@link #followUpBounds} will
+             * never revisit them: they are read here or not at all. That makes them worth reading whenever the read
+             * has not already filled its limit, however far through its range it got - which is the one thing short
+             * read protection has no reason to check, since it exists to notice a read that stopped early and this
+             * read did not stop early, it discarded a partition it should have kept.
+             */
+            private boolean hasUnreturnedFollowupKeys()
+            {
+                return !followUpReadInfo.isEmpty() && !mergedResultCounter.isDone();
+            }
+
             @Override
             protected boolean followUpRequired()
             {
-                return hasInterleavedFollowupKeys() || super.followUpRequired();
+                return hasInterleavedFollowupKeys() || hasUnreturnedFollowupKeys() || super.followUpRequired();
             }
 
             @Override
@@ -558,7 +617,7 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
             @Override
             protected CompletedRead extendRead(UnfilteredPartitionIterator iterator)
             {
-                return new FilteredCompletedRead(command, iterator, shortReadSupport, data.isEmpty() ? data.lastKey() : null, followUpReadInfo);
+                return new FilteredCompletedRead(command, iterator, shortReadSupport, data.isEmpty() ? null : data.lastKey(), followUpReadInfo);
             }
         }
 

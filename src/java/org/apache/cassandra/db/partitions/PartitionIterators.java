@@ -19,6 +19,7 @@ package org.apache.cassandra.db.partitions;
 
 import java.io.IOError;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
@@ -103,35 +104,38 @@ public abstract class PartitionIterators
     }
 
     /**
-     * Merges multiple partition iterators with the requirement that there are no keys in common between any
-     * of the iterators
+     * Merges multiple partition iterators, reconciling any partition that appears in more than one of them.
+     * <p>
+     * Callers cannot assume the inputs are key disjoint. A tracked read answers a single range from several
+     * sub-reads - the data replica's own result, single partition follow up reads for keys reconciliation
+     * delivered, and short read protection follow ups - and under a per partition limit more than one of those
+     * can legitimately carry rows for the same partition.
+     * <p>
+     * See {@link RowIterators#merge} for what reconciling already filtered chunks can and cannot see.
      */
-    public static PartitionIterator mergeNonOverlapping(List<PartitionIterator> iterators)
+    public static PartitionIterator merge(List<PartitionIterator> iterators)
     {
         MergeIterator.Reducer<RowIterator, RowIterator> reducer = new MergeIterator.Reducer<>()
         {
-            RowIterator current;
+            final List<RowIterator> current = new ArrayList<>(iterators.size());
 
             @Override
             protected void onKeyChange()
             {
-                current = null;
+                current.clear();
             }
 
             @Override
             public void reduce(int idx, RowIterator partition)
             {
-                if (current != null)
-                {
-                    throw new IllegalStateException("Multiple partitions received for " + current.partitionKey());
-                }
-                current = partition;
+                current.add(partition);
             }
 
             @Override
             protected RowIterator getReduced()
             {
-                return current;
+                // copied because onKeyChange() clears this list before the merged iterator is consumed
+                return current.size() == 1 ? current.get(0) : RowIterators.merge(new ArrayList<>(current));
             }
         };
 
@@ -143,6 +147,13 @@ public abstract class PartitionIterators
             protected RowIterator computeNext()
             {
                 return mergeIterator.hasNext() ? mergeIterator.next() : endOfData();
+            }
+
+            @Override
+            public void close()
+            {
+                // closes the source iterators too, they are AutoCloseable
+                mergeIterator.close();
             }
         };
     }

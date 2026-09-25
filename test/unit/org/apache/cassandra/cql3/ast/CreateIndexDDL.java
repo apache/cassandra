@@ -103,7 +103,12 @@ public class CreateIndexDDL implements Element
         @Override
         public boolean supported(TableMetadata table, ColumnMetadata column)
         {
-            return standardSupported(table, column);
+            if (!standardSupported(table, column))
+                return false;
+            // An index of any kind on a vector column restricts that column to ANN queries
+            // (StatementRestrictions.VECTOR_INDEXES_ANN_ONLY_MESSAGE), and 2i cannot serve one, so indexing a vector
+            // here would only make the column unqueryable. SAI declines them below as well.
+            return !column.type.isVector();
         }
     };
 

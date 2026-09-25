@@ -423,7 +423,14 @@ public abstract class CassandraIndex implements Index
         public void updateRow(Row oldRow, Row newRow)
         {
             assert oldRow.isStatic() == newRow.isStatic();
-            if (newRow.isStatic() != indexedColumn().isStatic())
+            // An index on a static column, and one on a partition key column, are the two that index the static
+            // row, exactly as insertRow decides above. An index on a partition key column indexes every row of the
+            // partition, so the static row's entry has to be maintained here too, or a partition whose static row
+            // is only made live by an update merging into it never gets an entry at all.
+            if (newRow.isStatic() && !indexedColumn().isStatic() && !indexedColumn().isPartitionKey())
+                return;
+
+            if (!newRow.isStatic() && indexedColumn().isStatic())
                 return;
 
             if (isPrimaryKeyIndex())
@@ -594,6 +601,11 @@ public abstract class CassandraIndex implements Index
                                                                clustering,
                                                                cell));
         Clustering<?> indexClustering = buildIndexClustering(rowKey.getKey(), clustering, cell);
+
+        // IndexEntry expects a different clustering format for static rows on partition key indexes, so we adjust it here
+        if (clustering.kind() == ClusteringPrefix.Kind.STATIC_CLUSTERING && indexedColumn.isPartitionKey())
+            clustering = Clustering.make(new ByteBuffer[baseCfs.getComparator().size()]);
+
         return new IndexEntry(indexKey, indexClustering, info.timestamp(), rowKey, clustering);
     }
 

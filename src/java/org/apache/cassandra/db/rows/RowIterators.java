@@ -19,6 +19,8 @@ package org.apache.cassandra.db.rows;
 
 import java.io.IOError;
 import java.io.IOException;
+import java.util.Comparator;
+import java.util.List;
 
 import com.google.common.base.Preconditions;
 
@@ -33,6 +35,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.LivenessInfo;
+import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.transform.Transformation;
@@ -41,6 +44,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.WrappedException;
 
@@ -52,6 +56,90 @@ public abstract class RowIterators
     private static final Logger logger = LoggerFactory.getLogger(RowIterators.class);
 
     private RowIterators() {}
+
+    /**
+     * Merges iterators over the same partition, reconciling rows that share a clustering.
+     * <p>
+     * Unlike {@link UnfilteredRowIterators#merge}, the inputs here have already been filtered and purged, so all this
+     * merge is given is rows: a partition level deletion or a range tombstone one of the sub-reads applied has already
+     * been resolved against that sub-read's own rows and is gone from the wire format.
+     * <p>
+     * That is a limitation of the chunked format, not a property that makes it deletion safe. A deletion that lands
+     * between two sub-reads of the same tracked read is invisible here: if the data replica serializes {@code ck=1..5}
+     * of partition P, P is then deleted at a higher timestamp, and the follow up read of P returns nothing because
+     * everything it can see is purged, this merge returns the five rows and has no way to know they were deleted.
+     * Nothing prevents that. A deletion racing a single sub-read is handled outside this method - TrackedLocalReads
+     * takes a second mutation summary once the read has run and augments the read with the difference, before its
+     * rows are filtered - but the window between sub-reads is not closed, because a deletion in this format is the
+     * absence of a row and absence loses a union. Nothing writes the merged result back, so the exposure is a stale
+     * answer the next read corrects rather than a resurrection.
+     */
+    public static RowIterator merge(List<RowIterator> iterators)
+    {
+        Preconditions.checkArgument(!iterators.isEmpty());
+        if (iterators.size() == 1)
+            return iterators.get(0);
+
+        RowIterator first = iterators.get(0);
+        TableMetadata metadata = first.metadata();
+        DecoratedKey partitionKey = first.partitionKey();
+        boolean reversed = first.isReverseOrder();
+
+        RegularAndStaticColumns columns = first.columns();
+        Row staticRow = first.staticRow();
+        for (int i = 1; i < iterators.size(); i++)
+        {
+            RowIterator iterator = iterators.get(i);
+            columns = columns.mergeTo(iterator.columns());
+            Row otherStaticRow = iterator.staticRow();
+            if (!otherStaticRow.isEmpty())
+                staticRow = Rows.merge(staticRow, otherStaticRow);
+        }
+
+        // rows arrive in the iteration order of the partition, which a reversed command reverses
+        Comparator<Row> comparator = reversed
+                                     ? (l, r) -> metadata.comparator.compare(r.clustering(), l.clustering())
+                                     : (l, r) -> metadata.comparator.compare(l.clustering(), r.clustering());
+
+        MergeIterator<Row, Row> merged = MergeIterator.get(iterators, comparator, new MergeIterator.Reducer<Row, Row>()
+        {
+            Row row;
+
+            @Override
+            protected void onKeyChange()
+            {
+                row = null;
+            }
+
+            @Override
+            public void reduce(int idx, Row current)
+            {
+                row = row == null ? current : Rows.merge(row, current);
+            }
+
+            @Override
+            protected Row getReduced()
+            {
+                return row;
+            }
+        });
+
+        return new AbstractRowIterator(metadata, partitionKey, columns, reversed, staticRow)
+        {
+            @Override
+            protected Row computeNext()
+            {
+                return merged.hasNext() ? merged.next() : endOfData();
+            }
+
+            @Override
+            public void close()
+            {
+                // closes the source iterators too, they are AutoCloseable
+                merged.close();
+            }
+        };
+    }
 
     public static void digest(RowIterator iterator, Digest digest)
     {

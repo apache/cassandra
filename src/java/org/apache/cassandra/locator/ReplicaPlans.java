@@ -1074,6 +1074,10 @@ public class ReplicaPlans
         if (!left.epoch.equals(right.epoch))
             return null;
 
+        // don't merge ranges where replicas have different full/transient roles
+        if (!replicaRolesMatch(left.liveAndDown(), right.liveAndDown()))
+            return null;
+
         EndpointsForRange mergedLiveAndDown = left.liveAndDown().keep(right.liveAndDown().endpoints());
         EndpointsForRange mergedCandidates = left.readCandidates().keep(right.readCandidates().endpoints());
         AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
@@ -1114,5 +1118,20 @@ public class ReplicaPlans
                                                 return forReadRepair(self, ClusterMetadata.current(), keyspace, tableId, consistencyLevel, token, FailureDetector.isReplicaAlive, ReadCoordinator.DEFAULT);
                                             },
                                             left.epoch);
+    }
+
+    /**
+     * Checks the replicas in each EndpointsForRange have the same full/transient status
+     */
+    private static boolean replicaRolesMatch(EndpointsForRange left, EndpointsForRange right)
+    {
+        Map<InetAddressAndPort, Replica> rightByEndpoint = right.byEndpoint();
+        for (Replica replica : left)
+        {
+            Replica rightReplica = rightByEndpoint.get(replica.endpoint());
+            if (rightReplica != null && rightReplica.isFull() != replica.isFull())
+                return false;
+        }
+        return true;
     }
 }
