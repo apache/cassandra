@@ -77,8 +77,9 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.ChannelPromise;
+import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.nio.NioIoHandler;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageEncoder;
 import io.netty.handler.ssl.SslContext;
@@ -253,7 +254,8 @@ public class SimpleClient implements Closeable
     {
         // Configure the client.
         bootstrap = new Bootstrap()
-                    .group(new NioEventLoopGroup(new NamedThreadFactory("SimpleClient-nioEventLoopGroup")))
+                    .group(new MultiThreadIoEventLoopGroup(new NamedThreadFactory("SimpleClient-nioEventLoopGroup"),
+                                                           NioIoHandler.newFactory()))
                     .channel(io.netty.channel.socket.nio.NioSocketChannel.class)
                     .option(ChannelOption.TCP_NODELAY, true);
 

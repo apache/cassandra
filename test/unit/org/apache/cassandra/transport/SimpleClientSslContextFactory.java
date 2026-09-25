@@ -81,7 +81,10 @@ public class SimpleClientSslContextFactory extends FileBasedSslContextFactory
     public SslContext createNettySslContext(EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth, SocketType socketType,
                                             CipherSuiteFilter cipherFilter) throws SSLException
     {
-        SslContextBuilder builder = SslContextBuilder.forClient();
+        // endpointIdentificationAlgorithm(null) opts out of the endpoint verification Netty 4.2 enables by default
+        // on client contexts, the same way AbstractSslContextFactory does; endpoint verification is driven by
+        // require_endpoint_verification in SocketFactory#newSslHandler instead.
+        SslContextBuilder builder = SslContextBuilder.forClient().endpointIdentificationAlgorithm(null);
         // only provide a client certificate if keystore is present.
         if (hasOutboundKeystore())
         {
