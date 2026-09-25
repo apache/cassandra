@@ -100,10 +100,11 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
     }
 
     /**
-     * Caches a row-index entry for this key when it is hot in the transaction's originals, matching
-     * the key-cache migration {@link #createRowIndexEntry} performs on the iterator path.
+     * Caches a row-index entry for this key, but only when the key was already cached for one of the
+     * sstables being compacted. This keeps hot keys in the cache across compaction, the same as
+     * {@link #createRowIndexEntry} does on the iterator path.
      *
-     * <p>The cached entry is shallow: it carries no index blocks, so a hit on a multi-block
+     * <p>The cached entry is shallow: it holds no index blocks, so a lookup on a multi-block
      * partition reads the blocks from Index.db. It finds the same rows as the iterator path's full entry.
      *
      * @param key the partition's key; may be a reusable instance, so the cache keeps a retainable copy

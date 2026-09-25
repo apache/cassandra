@@ -32,25 +32,24 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Pins the {@code CursorCompactor.purgeTimestamp} branch that holds the purge/expiry
- * reference back to {@code controller.gcBefore} for accord-enabled and accord-migrating
- * tables. The iterator's
- * equivalent is {@code CompactionIterator.purger()} (CompactionIterator.java:281-285). The
- * existing {@link AccordTableDifferentialCompactionTest} exercises only the accord-enabled arm; it
- * has no non-accord control, so a regression that dropped the override entirely (making the accord
- * arm behave like the non-accord arm) would still pass it. This test pins the same data and the
- * same "now" across all three arms so the override's effect is visible as a difference between
- * arms, and asserts cursor == iterator inside each arm.
+ * Checks the {@code CursorCompactor.purgeTimestamp} branch that returns
+ * {@code controller.gcBefore} for accord-enabled and accord-migrating tables. The iterator's
+ * equivalent is {@code CompactionIterator.purger()} (CompactionIterator.java:281-285).
  *
- * What the override actually gates: {@code purgeTimestamp} feeds the {@code nowInSec} used for TTL
- * expiry and liveness (Purger.shouldPurge(LivenessInfo/CellLivenessInfo, nowInSec) and the
- * isLive/isExpired checks). A plain row/cell/range tombstone is purged on {@code localDeletionTime
- * < controller.gcBefore} regardless of {@code nowInSec}, so tombstone purge does NOT differ between
- * the arms — only the conversion of expiring cells to tombstones does. The observable signal is
- * therefore whether an expired TTL cell keeps its value (deferred) or has been rewritten as a cell
- * tombstone (expired at nowInSec).
+ * <p>{@link AccordTableDifferentialCompactionTest} runs only the accord-enabled arm and has no
+ * non-accord control. A regression that dropped the override, so the accord arm behaved like the
+ * non-accord arm, would still pass it. This test runs the same data and the same "now" through all
+ * three arms, so the override shows up as a difference between arms, and it asserts cursor ==
+ * iterator inside each arm.
  *
- * transactional_mode = 'test_unsafe' sets accordIsEnabled without routing CQL through accord.
+ * <p>What the override gates: {@code purgeTimestamp} sets the {@code nowInSec} used for TTL expiry
+ * and liveness (Purger.shouldPurge and the isLive/isExpired checks). A plain row, cell, or range
+ * tombstone is purged when {@code localDeletionTime < controller.gcBefore}, whatever {@code nowInSec}
+ * is, so tombstone purge does not differ between the arms. Only the rewrite of expiring cells into
+ * tombstones does. The visible signal is whether an expired TTL cell keeps its value (deferred) or
+ * is rewritten as a cell tombstone (expired at nowInSec).
+ *
+ * <p>transactional_mode = 'test_unsafe' sets accordIsEnabled without routing CQL through accord.
  * transactional_mode = 'off' with transactional_migration_from = 'full' leaves accordIsEnabled
  * false but makes migratingFromAccord() true. AccordService is started because the accord-enabled
  * arm's gcBefore derivation (CompactionTask.getCompactionController) reads the node's durability

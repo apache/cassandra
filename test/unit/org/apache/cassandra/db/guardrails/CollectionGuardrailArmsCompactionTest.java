@@ -229,7 +229,7 @@ public class CollectionGuardrailArmsCompactionTest extends DifferentialCompactio
      * Asserts the compaction emitted exactly one event of the given type and guardrail. The diagnostic
      * message is redacted (it carries user data), so the offending partition key is not in it; the count
      * of exactly one is what proves only the offending collection tripped and the within-threshold one in
-     * the same fixture stayed silent — a second offending collection would add a second event.
+     * the same fixture stayed silent; a second offending collection would add a second event.
      */
     private static void assertContainsExactlyOneEvent(List<String> events, GuardrailEventType type, String guardrail)
     {

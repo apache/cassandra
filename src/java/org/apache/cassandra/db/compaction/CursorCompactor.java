@@ -118,9 +118,9 @@ import static org.apache.cassandra.io.sstable.SSTableCursorReader.State.isState;
  * ignores gc grace for a key. See {@link #isSupported} and {@link #unsupportedMetadata} for
  * the full list of checks.
  * <p>
- *     This compaction implementation avoids garbage creation per partition/row/cell by utilizing reader/writer code
- *     which supports reusable copies of sstable entry components. The implementation consolidates and duplicates code
- *     from various classes to support the use of these reusable structures.
+ * To avoid creating garbage for each partition, row, and cell, this compactor reuses reader and
+ * writer objects that copy sstable components in place. That reuse is why some code here is
+ * duplicated from other classes.
  * </p>
  */
 public class CursorCompactor extends CompactionInfo.Holder

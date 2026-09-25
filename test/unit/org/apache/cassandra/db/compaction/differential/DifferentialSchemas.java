@@ -35,18 +35,29 @@ public final class DifferentialSchemas
     }
 
     /**
-     * The minimal starter corpus: clustering-free, simple clustering, static + clustering, a multi-cell collection,
-     * reversed clustering, two multi-block (wide-partition) shapes that force the block-navigation path,
-     * a deletions shape covering every tombstone kind, compound clustering, a wide-column shape, a
-     * range tombstone that spans index blocks, a four-input k-way merge, a mixed-type shape, expiring
-     * (TTL) cells, a single deep partition whose row count scales with {@code scale}, a purge shape
-     * whose expired cells and tombstones the merge must actually drop, a cross-sstable range-tombstone
-     * shape whose two partially-overlapping tombstone bands the merge must reconcile across multiple index
-     * blocks, a multi-block deletion shape whose partition- and range-level tombstones the cursor must
-     * navigate block to block, a multi-block purge shape whose expired interior cells collapse whole
-     * index blocks, a static column on a multi-block partition (including a static row surviving a
-     * partition delete), a shape whose single rows each exceed one index block, and a shape with more
-     * than 64 columns that exercises the large-superset column encoding.
+     * The minimal starter corpus. The returned list names each shape. The shapes cover:
+     * <ul>
+     *   <li>clustering-free, simple clustering, and compound clustering;</li>
+     *   <li>reversed clustering;</li>
+     *   <li>a static column with clustering;</li>
+     *   <li>a multi-cell collection;</li>
+     *   <li>a wide-column shape and a shape with more than 64 columns, to exercise the wide column encoding;</li>
+     *   <li>two wide-partition shapes that span many index blocks;</li>
+     *   <li>a deletions shape that covers every tombstone kind;</li>
+     *   <li>a range tombstone that spans index blocks;</li>
+     *   <li>a four-input merge;</li>
+     *   <li>a mixed-type shape;</li>
+     *   <li>expiring (TTL) cells;</li>
+     *   <li>a deep partition whose row count scales with {@code scale};</li>
+     *   <li>a purge shape whose expired cells and tombstones the merge must drop;</li>
+     *   <li>a cross-sstable range-tombstone shape whose two overlapping tombstone bands the merge must reconcile
+     *       across index blocks;</li>
+     *   <li>a wide-partition deletion shape whose partition- and range-level tombstones the cursor navigates
+     *       block to block;</li>
+     *   <li>a wide-partition purge shape whose expired interior cells collapse whole index blocks;</li>
+     *   <li>a static column on a wide partition, including a static row that survives a partition delete;</li>
+     *   <li>a shape whose single rows each exceed one index block.</li>
+     * </ul>
      */
     public static List<DifferentialSchema> minimalCorpus()
     {
