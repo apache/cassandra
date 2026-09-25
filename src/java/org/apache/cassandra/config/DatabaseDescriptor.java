@@ -2860,6 +2860,17 @@ public class DatabaseDescriptor
         return conf.stream_entire_sstables;
     }
 
+    public static boolean getEntireSSTableStreamDigestValidationEnabled()
+    {
+        return conf.entire_sstable_stream_digest_validation_enabled;
+    }
+
+    public static void setEntireSSTableStreamDigestValidationEnabled(boolean value)
+    {
+        conf.entire_sstable_stream_digest_validation_enabled = value;
+    }
+
+
     public static String getLocalDataCenter()
     {
         return localDC;
