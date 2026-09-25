@@ -183,6 +183,16 @@ public class ShardManagerTest
     }
 
     @Test
+    public void testOutOfDateOnPartitionCountChange()
+    {
+        weightedRanges.add(new Splitter.WeightedRange(1.0, new Range<>(minimumToken, minimumToken)));
+        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges, 10000L);
+
+        assertFalse(shardManager.isOutOfDate(-1, 10000L));
+        assertTrue(shardManager.isOutOfDate(-1, 20000L));
+    }
+
+    @Test
     public void testCombinedDensitySmallSSTables()
     {
         weightedRanges.add(new Splitter.WeightedRange(1.0, new Range<>(minimumToken, minimumToken)));
