@@ -103,7 +103,8 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
 
         int remaining = toQuery;
         PeekingIterator<DecoratedKey> followUpKeys = Iterators.peekingIterator(followUpReadInfo.keySet().iterator());
-        // query all keys that interleave with the range of keys from the original range read
+        // keys that sort before finalKey are read even when the budget is spent, since their rows can displace rows
+        // already in the answer; later keys only while budget remains, and the rest carry over as nextKeys
         while (followUpKeys.hasNext() && (remaining > 0 || interleavesWithOriginal(followUpKeys.peek())))
         {
             DecoratedKey key = followUpKeys.next();

@@ -554,23 +554,27 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
                 if (followUpReadInfo.isEmpty())
                     return false;
 
-                if (lastMatchingKey == null)  // null means there was no data and therefore no interleaving
+                if (lastMatchingKey == null)  // no data, so nothing to displace; same answer as hasRoomForFollowUpKeys
                     return true;
 
                 return followUpReadInfo.firstKey().compareTo(lastMatchingKey) < 0;
             }
 
             /**
-             * Whether there are keys the read still has room to return rows from.
+             * Whether there are keys to read again and the answer is still short of its limit, so their rows can be
+             * added wherever they sort.
              * <p>
-             * The keys reconciliation flagged were all inside the range this read has already scanned, and the row
-             * filter dropped them out of it, so a follow up that resumes the scan at {@link #followUpBounds} will
-             * never revisit them: they are read here or not at all. That makes them worth reading whenever the read
-             * has not already filled its limit, however far through its range it got - which is the one thing short
-             * read protection has no reason to check, since it exists to notice a read that stopped early and this
-             * read did not stop early, it discarded a partition it should have kept.
+             * A key in {@code followUpReadInfo} is one whose partition the row filter dropped during the scan, and for
+             * which a write this replica was missing, applied after the scan, could make the partition match. None of
+             * them is in the answer: the scan removed each from {@code data}, and
+             * {@link FilteredPrepared#canAcceptUpdate} refuses its writes, so the partition is read again from storage
+             * instead.
+             * <p>
+             * Short read protection would not read these keys. It reads only forward from {@link #followUpBounds}, and
+             * every one of them sorts at or before the last key the scan visited. Unless the query has a per partition
+             * limit, it also does not read at all when the scan ran to the end of its range.
              */
-            private boolean hasUnreturnedFollowupKeys()
+            private boolean hasRoomForFollowUpKeys()
             {
                 return !followUpReadInfo.isEmpty() && !mergedResultCounter.isDone();
             }
@@ -578,7 +582,7 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
             @Override
             protected boolean followUpRequired()
             {
-                return hasInterleavedFollowupKeys() || hasUnreturnedFollowupKeys() || super.followUpRequired();
+                return hasInterleavedFollowupKeys() || hasRoomForFollowUpKeys() || super.followUpRequired();
             }
 
             @Override
@@ -614,6 +618,9 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
             @Override
             protected CompletedRead extendRead(UnfilteredPartitionIterator iterator)
             {
+                // data also holds partitions the missing writes created or changed, and the row filter applied on
+                // completion can still drop its last key; that can only make hasInterleavedFollowupKeys read a key it
+                // did not need to, never skip one
                 return new FilteredCompletedRead(command, iterator, shortReadSupport, data.isEmpty() ? null : data.lastKey(), followUpReadInfo);
             }
         }
