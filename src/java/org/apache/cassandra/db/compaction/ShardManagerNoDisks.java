@@ -41,9 +41,12 @@ public class ShardManagerNoDisks implements ShardManager
 
     private final double minimumPerPartitionSpan;
 
+    private final long estimatedPartitionCount;
+
     public ShardManagerNoDisks(ColumnFamilyStore.VersionedLocalRanges localRanges, long estimatedPartitionCount)
     {
         this.localRanges = localRanges;
+        this.estimatedPartitionCount = estimatedPartitionCount;
         double position = 0;
         final List<Splitter.WeightedRange> ranges = localRanges;
         localRangePositions = new double[ranges.size()];
@@ -60,6 +63,12 @@ public class ShardManagerNoDisks implements ShardManager
     {
         return ringVersion != localRanges.ringVersion &&
                localRanges.ringVersion != ColumnFamilyStore.RING_VERSION_IRRELEVANT;
+    }
+
+    @Override
+    public boolean isOutOfDate(long ringVersion, long estimatedPartitionCount)
+    {
+        return this.estimatedPartitionCount != estimatedPartitionCount || isOutOfDate(ringVersion);
     }
 
     @Override
