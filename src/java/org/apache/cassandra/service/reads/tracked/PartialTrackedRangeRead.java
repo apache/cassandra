@@ -109,16 +109,10 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
             read = new PartialTrackedRangeRead.Simple(executionController, cfs, startTimeNanos, command);
         }
 
-        try
-        {
-            read.prepare(initialData);
-            return read;
-        }
-        catch (Throwable e)
-        {
-            read.close();
-            throw e;
-        }
+        // not closed if prepare throws: the controller belongs to whoever created it until this read is returned, and
+        // closing it here as well would release its read ordering group twice
+        read.prepare(initialData);
+        return read;
     }
 
     @Override

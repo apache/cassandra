@@ -17,6 +17,10 @@
  */
 package org.apache.cassandra.distributed.test.tracking;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -79,6 +83,9 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceInitializer;
 import org.apache.cassandra.distributed.api.IMessageFilters;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.Verb;
@@ -775,6 +782,173 @@ public class MutationTrackingPendingReadTest
                                   "never waiting on that read and the assertion above held for the wrong reason",
                                   barrier.getSyncPoint().isFinished());
             });
+        }
+    }
+
+    /**
+     * A tracked range read materializes its initial data in PartialTrackedRangeRead.create, once the read that owns the
+     * {@link ReadExecutionController} exists but before beginTrackedRead has returned it to beginReadInternal. A failure
+     * there, such as a compressed chunk failing its checksum, reaches beginReadInternal's abort with no read to close, so
+     * the abort closes the controller itself, and the read must not have closed it as well.
+     */
+    @Test
+    public void testReadFailingOnACorruptSSTableReleasesItsExecutionControllerOnce() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(2)
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK)
+                                                            .with(Feature.GOSSIP)
+                                                            .set("mutation_tracking.enabled", true))
+                                      .start())
+        {
+            String keyspaceName = "corrupt_read_controller_test";
+            String tableName = "tbl";
+            createTrackedTableWithCorruptSSTable(cluster, keyspaceName, tableName);
+
+            cluster.get(1).runOnInstance(() -> {
+                ColumnFamilyStore cfs = Keyspace.open(keyspaceName).getColumnFamilyStore(tableName);
+                drainReadOrdering(cfs);
+
+                // one read of this test's own, so a read released once leaves the group holding exactly it, while a
+                // doubly released one empties the group with this read still running
+                OpOrder.Group concurrentRead = cfs.readOrdering.start();
+                beginReadOfCorruptSSTable(cfs);
+
+                OpOrder.Barrier barrier = cfs.readOrdering.newBarrier();
+                barrier.issue();
+                Assert.assertFalse("The read that failed on the corrupt sstable released the read ordering group it " +
+                                   "shares with a running read twice, so a flush of " + tableName +
+                                   " would proceed underneath that read",
+                                   barrier.getSyncPoint().isFinished());
+
+                concurrentRead.close();
+                Assert.assertTrue("The barrier did not finish once the only read left on its group closed, so it was " +
+                                  "never waiting on that read and the assertion above held for the wrong reason",
+                                  barrier.getSyncPoint().isFinished());
+            });
+        }
+    }
+
+    /**
+     * With no other read on the table, releasing the failed read's {@link OpOrder.Group} twice takes its count below zero
+     * while it is still the group new reads join. OpOrder reads a negative count as expired, so every later
+     * readOrdering.start() on the table spins until a barrier replaces the group, and that barrier's issue() throws
+     * because the group it expires is already marked expired.
+     */
+    @Test
+    public void testReadFailingOnACorruptSSTableLeavesLaterReadsAbleToStart() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(2)
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK)
+                                                            .with(Feature.GOSSIP)
+                                                            .set("mutation_tracking.enabled", true))
+                                      .start())
+        {
+            String keyspaceName = "corrupt_read_ordering_test";
+            String tableName = "tbl";
+            createTrackedTableWithCorruptSSTable(cluster, keyspaceName, tableName);
+
+            cluster.get(1).runOnInstance(() -> {
+                ColumnFamilyStore cfs = Keyspace.open(keyspaceName).getColumnFamilyStore(tableName);
+                drainReadOrdering(cfs);
+                beginReadOfCorruptSSTable(cfs);
+
+                Thread laterRead = new Thread(() -> cfs.readOrdering.start().close(), "later-read-of-" + tableName);
+                laterRead.setDaemon(true);
+                laterRead.start();
+                Uninterruptibles.joinUninterruptibly(laterRead, 10, TimeUnit.SECONDS);
+                boolean laterReadStarted = !laterRead.isAlive();
+
+                // issue() replaces the group before it expires the old one, so it releases a read spinning on the old
+                // group even when expiring that group throws
+                OpOrder.Barrier barrier = cfs.readOrdering.newBarrier();
+                IllegalStateException issueFailure = null;
+                try
+                {
+                    barrier.issue();
+                }
+                catch (IllegalStateException e)
+                {
+                    issueFailure = e;
+                }
+                Uninterruptibles.joinUninterruptibly(laterRead, 60, TimeUnit.SECONDS);
+
+                String afterBarrier = format("issuing a barrier %s, and the later read %s once it had",
+                                             issueFailure == null ? "succeeded" : "threw " + issueFailure,
+                                             laterRead.isAlive() ? "was still waiting" : "started");
+                Assert.assertTrue("The read that failed on the corrupt sstable released its read ordering group twice, " +
+                                  "leaving the group current but looking expired, so a later read of " + tableName +
+                                  " could not start: " + afterBarrier,
+                                  laterReadStarted);
+                Assert.assertNull(afterBarrier, issueFailure);
+            });
+        }
+    }
+
+    // a tracked table whose only sstable on node 1 has a compressed chunk that fails its checksum when read
+    private static void createTrackedTableWithCorruptSSTable(Cluster cluster, String keyspaceName, String tableName)
+    {
+        cluster.schemaChange(format("CREATE KEYSPACE %s WITH replication = " +
+                                    "{'class': 'SimpleStrategy', 'replication_factor': 2} " +
+                                    "AND replication_type='tracked';", keyspaceName));
+        // every compressed chunk carries a checksum, which this crc_check_chance verifies on each read
+        cluster.schemaChange(format("CREATE TABLE %s.%s (k int, c int, v int, primary key (k, c)) " +
+                                    "WITH compression = {'class': 'LZ4Compressor'} AND crc_check_chance = 1.0;",
+                                    keyspaceName, tableName));
+        cluster.coordinator(1).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (1, 1, 1)", keyspaceName, tableName),
+                                       ConsistencyLevel.ALL);
+        cluster.get(1).flush(keyspaceName);
+        cluster.get(1).runOnInstance(() -> {
+            SSTableReader sstable = Iterables.getOnlyElement(Keyspace.open(keyspaceName).getColumnFamilyStore(tableName).getLiveSSTables());
+            // flip every bit of the first byte of the first compressed chunk
+            try (FileChannel data = sstable.descriptor.fileFor(SSTableFormat.Components.DATA).newReadWriteChannel())
+            {
+                ByteBuffer firstByte = ByteBuffer.allocate(1);
+                data.read(firstByte, 0);
+                firstByte.flip();
+                firstByte.put(0, (byte) ~firstByte.get(0));
+                data.write(firstByte, 0);
+            }
+            catch (IOException e)
+            {
+                throw new UncheckedIOException(e);
+            }
+        });
+    }
+
+    // drains the table's read ordering, so the operations a test then counts are its own and the group they land on is
+    // empty to begin with
+    private static void drainReadOrdering(ColumnFamilyStore cfs)
+    {
+        OpOrder.Barrier drained = cfs.readOrdering.newBarrier();
+        drained.issue();
+        awaitCondition(drained.getSyncPoint()::isFinished,
+                       "An operation on " + cfs.name + "'s read ordering outlived the read that started it, " +
+                       "so the assertions that follow cannot tell one release too many from one live read");
+    }
+
+    // begins a range read of the corrupt sstable, and checks it failed materializing the read's initial data: a read
+    // that fails before it is built leaves its controller with one owner, which releases it once whatever the code does
+    private static void beginReadOfCorruptSSTable(ColumnFamilyStore cfs)
+    {
+        try
+        {
+            MutationTrackingService.instance().localReads().beginRead(TrackedRead.Id.nextId(),
+                                                                     ClusterMetadata.current(),
+                                                                     PartitionRangeReadCommand.allDataRead(cfs.metadata(), FBUtilities.nowInSeconds()),
+                                                                     org.apache.cassandra.db.ConsistencyLevel.ONE,
+                                                                     new int[0],
+                                                                     Dispatcher.RequestTime.forImmediateExecution(),
+                                                                     TrackedLocalReads.Completer.DEFAULT);
+            Assert.fail("The read began without reading the corrupt sstable, so it never failed and this test would " +
+                        "have passed without asserting anything");
+        }
+        catch (CorruptSSTableException e)
+        {
+            for (StackTraceElement frame : e.getStackTrace())
+                if (frame.getClassName().equals(PartialTrackedRead.class.getName()) && frame.getMethodName().equals("prepare"))
+                    return;
+            throw new AssertionError("The corrupt sstable failed the read before the read was built, so no read owned " +
+                                     "its controller and this test would have passed without asserting anything", e);
         }
     }
 

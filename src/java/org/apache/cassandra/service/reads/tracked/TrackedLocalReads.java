@@ -161,11 +161,12 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
             // Include in summary any transfer IDs that were present for the read
             secondarySummary = merge(controller.getTransferIds(), secondarySummary);
         }
-        catch (Exception e)
+        catch (Throwable e)
         {
             logger.trace("Aborting read {}", readId);
-            // the read owns the controller once it has been created, and ReadExecutionController.close()
-            // is not idempotent: closing it here as well would release the read ordering group twice
+            // the read owns the controller once beginTrackedRead has returned the read, and
+            // ReadExecutionController.close() is not idempotent: closing it here as well would release the read
+            // ordering group twice. Errors are caught too, since nothing else releases the controller for them.
             if (read != null)
                 read.close();
             else
