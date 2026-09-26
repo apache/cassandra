@@ -42,6 +42,26 @@ public interface IDictionaryCompressor<T extends CompressionDictionary>
     // that once we train a dictionary for given table, then we can train again after at least 1 hour.
     String DEFAULT_TRAINING_MIN_FREQUENCY = "0m";
 
+    String AUTO_TRAINING_ENABLED = "auto_training_enabled";
+
+    /**
+     * For tables using {@code TimeWindowCompactionStrategy}, the maximum number of TWCS time windows, counted back
+     * from the newest, that auto-training may sample from. The resolver walks windows newest-first and stops as soon
+     * as it has gathered enough sample data to train on, but never reaches back more than this many windows. The
+     * default of 1 restricts sampling to the newest window only (strongest recency bias); raise it to allow training
+     * to draw on older windows when the newest one does not hold enough data on its own.
+     */
+    String AUTO_TRAINING_TWCS_MAX_WINDOWS = "auto_training_twcs_max_windows";
+    String DEFAULT_AUTO_TRAINING_TWCS_MAX_WINDOWS_VALUE = "1";
+
+    /**
+     * Minimum relative improvement in the compression ratio required to adopt a freshly trained
+     * dictionary over the current one (e.g., 0.15 means the candidate must compress the training
+     * sample at least 15% better). Set to 0 to adopt on any improvement.
+     */
+    String AUTO_TRAINING_IMPROVEMENT_THRESHOLD_NAME = "auto_training_improvement_threshold";
+    String DEFAULT_AUTO_TRAINING_IMPROVEMENT_THRESHOLD_VALUE = "0.15";
+
     /**
      * Returns a compressor instance configured with the specified compression dictionary.
      * <br>
