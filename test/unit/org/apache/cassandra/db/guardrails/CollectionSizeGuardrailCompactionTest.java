@@ -42,25 +42,10 @@ import static java.nio.ByteBuffer.allocate;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
-/**
- * The collection guardrails must reach the same verdict on both compaction pipelines.
- * <p>
- * {@code SortedTableWriter} applies them per row, from the merged {@code ComplexColumnData}.
- * {@code SSTableCursorWriter} never builds a row, so it measures each collection while it writes the
- * cells. This drives one merge that crosses the warning threshold down each pipeline and compares
- * what each one emitted. The messages are redacted, so they carry the measured size but neither the
- * table nor the key: equal messages therefore mean equal measurements, which holds only if the
- * cursor writer reproduces {@code Cell.dataSize} exactly.
- * <p>
- * A guardrail the cursor path never reached would emit nothing at all, so this needs the cursor path
- * to have really run rather than fallen back. {@code commitCompaction} asserts that.
- * <p>
- * This lives in the guardrails package for {@link GuardrailEvent}, which is package-private, and
- * extends the differential harness for its two-pipeline machinery.
- */
+/** The collection size guardrail reaches the same verdict on both compaction pipelines. */
 public class CollectionSizeGuardrailCompactionTest extends DifferentialCompactionTester
 {
-    /** Small enough that the two halves of one set cross it only once they merge. */
+    /** Small enough that the two halves of one set cross it only once merged. */
     private static final String WARN_THRESHOLD = "1024B";
     private static final String FAIL_THRESHOLD = "4096B";
 
@@ -89,10 +74,7 @@ public class CollectionSizeGuardrailCompactionTest extends DifferentialCompactio
         Guardrails.instance.setCollectionSizeThreshold(originalWarn, originalFail);
     }
 
-    /**
-     * A set whose two halves land in separate sstables. Neither half crosses the threshold on its
-     * own, so the flushes stay quiet and only the compaction has anything to report.
-     */
+    /** A set whose two halves land in separate sstables, neither crossing the threshold alone. */
     private ColumnFamilyStore twoHalvesOfOneCollection()
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v set<blob>)");
@@ -118,15 +100,11 @@ public class CollectionSizeGuardrailCompactionTest extends DifferentialCompactio
         return collector.drain();
     }
 
-    /**
-     * The merged set holds 1024 value bytes across two cells, which {@code Cell.dataSize} carries
-     * past the 1KiB threshold. Each pipeline compacts its own copy of the fixture, so neither run
-     * can disturb the other.
-     */
+    /** Both pipelines report the same size for a merged set that crosses the threshold. */
     @Test
     public void bothPipelinesReportTheSameOversizedCollection() throws Exception
     {
-        assumeBigFormatSelected();
+        assumeCursorSupportedFormatSelected();
 
         List<String> iterator = warningsFromOneCompaction(false);
         List<String> cursor = warningsFromOneCompaction(true);

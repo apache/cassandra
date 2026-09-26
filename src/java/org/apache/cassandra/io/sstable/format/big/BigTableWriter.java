@@ -32,11 +32,14 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
+import org.apache.cassandra.io.sstable.BigCursorIndexWriter;
+import org.apache.cassandra.io.sstable.CursorIndexWriter;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.Downsampling;
 import org.apache.cassandra.io.sstable.SSTable;
@@ -72,7 +75,8 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
 
     private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
     private final Map<DecoratedKey, AbstractRowIndexEntry> cachedKeys = new HashMap<>();
-    private final boolean shouldMigrateKeyCache;
+    private static final SSTableReader[] NO_ORIGINALS = new SSTableReader[0];
+    private final SSTableReader[] originals;
 
     public BigTableWriter(Builder builder, ILifecycleTransaction txn, SSTable.Owner owner)
     {
@@ -81,8 +85,69 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
         this.rowIndexEntrySerializer = builder.getRowIndexEntrySerializer();
         checkNotNull(this.rowIndexEntrySerializer);
 
-        this.shouldMigrateKeyCache = DatabaseDescriptor.shouldMigrateKeycacheOnCompaction()
-                                     && !txn.isOffline();
+        boolean migrateKeyCache = DatabaseDescriptor.shouldMigrateKeycacheOnCompaction() && !txn.isOffline();
+        // Empty unless the key cache is being migrated, so shouldCacheKey needs no second guard.
+        // LifecycleTransaction.originals() wraps a fresh set on each call, and shouldCacheKey scans
+        // this per partition. Safe to snapshot: the only cancel that drops a compaction's originals
+        // runs in CompactionTask.runMayThrow before this writer.
+        this.originals = migrateKeyCache ? txn.originals().toArray(NO_ORIGINALS) : NO_ORIGINALS;
+    }
+
+    @Override
+    public CursorIndexWriter newCursorIndexWriter(SerializationHeader header)
+    {
+        return new BigCursorIndexWriter(this, indexWriter, DeletionTime.getSerializer(descriptor.version));
+    }
+
+    /**
+     * Caches a row-index entry for this key, but only when the key was already cached for one of the
+     * sstables being compacted. This keeps hot keys in the cache across compaction, the same as
+     * {@link #createRowIndexEntry} does on the iterator path.
+     *
+     * <p>The cached entry is shallow: it holds no index blocks, so a lookup on a multi-block
+     * partition reads the blocks from Index.db. It finds the same rows as the iterator path's full entry.
+     *
+     * @param key the partition's key; may be a reusable instance, so the cache keeps a retainable copy
+     * @param partitionLevelDeletion the partition's deletion; may be a reusable instance, so the
+     *        cache keeps an immutable snapshot rather than aliasing it
+     */
+    public void maybeCacheKey(DecoratedKey key, long dataFilePosition, long indexFilePosition,
+                              DeletionTime partitionLevelDeletion, long headerLength,
+                              int columnIndexCount, int indexedPartSize)
+    {
+        if (!shouldCacheKey(key))
+            return;
+
+        // The cursor path hands in a reusable DeletionTime that the next partition overwrites, and the
+        // cached entry outlives this partition. Snapshot it so the cache never aliases the shared one.
+        DeletionTime cachedDeletion = partitionLevelDeletion.isLive()
+                                      ? DeletionTime.LIVE
+                                      : DeletionTime.build(partitionLevelDeletion.markedForDeleteAt(),
+                                                           partitionLevelDeletion.localDeletionTime());
+
+        cachedKeys.put(key.retainable(), RowIndexEntry.create(dataFilePosition,
+                                                 indexFilePosition,
+                                                 cachedDeletion,
+                                                 headerLength,
+                                                 columnIndexCount,
+                                                 indexedPartSize,
+                                                 null,
+                                                 null,
+                                                 rowIndexEntrySerializer.indexInfoSerializer(),
+                                                 descriptor.version));
+    }
+
+    /**
+     * True when one of the transaction's originals has a cached position for this key. The array is
+     * empty unless key cache migration is on, so that setting is already folded in.
+     */
+    private boolean shouldCacheKey(DecoratedKey key)
+    {
+        for (SSTableReader reader : originals)
+            if (reader instanceof KeyCacheSupport<?> && ((KeyCacheSupport<?>) reader).getCachedPosition(key, false) != null)
+                return true;
+
+        return false;
     }
 
     @Override
@@ -111,17 +176,8 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
 
         indexWriter.append(key, entry, dataWriter.position(), partitionWriter.buffer());
 
-        if (shouldMigrateKeyCache)
-        {
-            for (SSTableReader reader : txn.originals())
-            {
-                if (reader instanceof KeyCacheSupport<?> && ((KeyCacheSupport<?>) reader).getCachedPosition(key, false) != null)
-                {
-                    cachedKeys.put(key, entry);
-                    break;
-                }
-            }
-        }
+        if (shouldCacheKey(key))
+            cachedKeys.put(key, entry);
 
         return entry;
     }
