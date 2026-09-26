@@ -916,6 +916,12 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
                 }
                 else
                 {
+                    ComplexColumnData.Builder complexBuilder = this.complexBuilder != null
+                                                               ? this.complexBuilder
+                                                               : ComplexColumnData.builder();
+                    List<Iterator<Cell<?>>> complexCells = this.complexCells != null
+                                                          ? this.complexCells
+                                                          : new ArrayList<>(versions.length);
                     complexBuilder.newColumn(column);
                     complexCells.clear();
                     DeletionTime complexDeletion = DeletionTime.LIVE;
