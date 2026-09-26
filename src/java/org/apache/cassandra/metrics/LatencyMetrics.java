@@ -134,6 +134,9 @@ public class LatencyMetrics
          */
         this.latency.releasedLatencyCount += toRelease.latency.getCount();
 
+        // the child is about to be dropped, so what it still has buffered has to be applied now
+        HistogramUpdateBuffers.flush();
+
         DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot childSnapshot = (DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot) toRelease.latency.getSnapshot();
         DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot snapshot = (DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot) this.latency.getSnapshot();
 
