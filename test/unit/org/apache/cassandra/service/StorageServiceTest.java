@@ -21,6 +21,7 @@ package org.apache.cassandra.service;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -199,6 +200,32 @@ public class StorageServiceTest extends TestBaseImpl
         {
             storageService.setColumnIndexSizeInKiB(previousColumnIndexSize);
         }
+    }
+
+    @Test
+    public void testGracefulDisconnectGracePeriod()
+    {
+        StorageService storageService = StorageService.instance;
+        long originalGracePeriod = storageService.getGracefulDisconnectGracePeriod();
+        try
+        {
+            storageService.setGracefulDisconnectGracePeriod(3000);
+            Assertions.assertThat(3000).isEqualTo(storageService.getGracefulDisconnectGracePeriod());
+
+            Assertions.assertThatThrownBy(() -> storageService.setGracefulDisconnectGracePeriod(-1)).isInstanceOf(IllegalArgumentException.class);
+
+            Assertions.assertThat(3000).isEqualTo(storageService.getGracefulDisconnectGracePeriod());
+        }
+        finally
+        {
+            storageService.setGracefulDisconnectGracePeriod(originalGracePeriod);
+        }
+    }
+
+    @Test
+    public void testGracefulDisconnectEnabled()
+    {
+        Assertions.assertThat(StorageService.instance.getGracefulDisconnectEnabled()).isFalse();
     }
 
     @Test
