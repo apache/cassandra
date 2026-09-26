@@ -562,6 +562,30 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
+    public RandomAccessReader openDataReader(DiskAccessMode diskAccessMode)
+    {
+        return delegate.openDataReader(diskAccessMode);
+    }
+
+    @Override
+    public RandomAccessReader openDataReaderForScan()
+    {
+        return delegate.openDataReaderForScan();
+    }
+
+    @Override
+    public RandomAccessReader openDataReaderForScan(DiskAccessMode diskAccessMode)
+    {
+        return delegate.openDataReaderForScan(diskAccessMode);
+    }
+
+    @Override
+    public RandomAccessReader openDataReaderForScan(DiskAccessMode diskAccessMode, RateLimiter limiter)
+    {
+        return delegate.openDataReaderForScan(diskAccessMode, limiter);
+    }
+
+    @Override
     public void trySkipFileCacheBefore(DecoratedKey key)
     {
         delegate.trySkipFileCacheBefore(key);

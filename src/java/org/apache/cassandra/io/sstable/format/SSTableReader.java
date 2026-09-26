@@ -1445,19 +1445,25 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         return openDataReaderInternal(diskAccessMode, null, true);
     }
 
+    public RandomAccessReader openDataReaderForScan(DiskAccessMode diskAccessMode, RateLimiter limiter)
+    {
+        assert limiter != null;
+        return openDataReaderInternal(diskAccessMode, limiter, true);
+    }
+
     private RandomAccessReader openDataReaderInternal(@Nullable DiskAccessMode diskAccessMode,
                                                       @Nullable RateLimiter limiter,
-                                                      boolean forScan)
+                                                      boolean isScan)
     {
         if (canReuseDfile(diskAccessMode))
-            return dfile.createReader(limiter, forScan, OnReaderClose.RETAIN_FILE_OPEN);
+            return dfile.createReader(limiter, isScan, OnReaderClose.RETAIN_FILE_OPEN);
 
         FileHandle handle = dfile.toBuilder()
                                  .withDiskAccessMode(diskAccessMode)
                                  .complete();
         try
         {
-            return handle.createReader(limiter, forScan, OnReaderClose.CLOSE_FILE);
+            return handle.createReader(limiter, isScan, OnReaderClose.CLOSE_FILE);
         }
         catch (Throwable t)
         {

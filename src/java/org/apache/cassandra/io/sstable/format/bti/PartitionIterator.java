@@ -232,7 +232,7 @@ class PartitionIterator extends PartitionIndex.IndexPosIterator implements KeyRe
     private void seekDataInput(long pos) throws IOException
     {
         if (dataInput == null)
-            dataInput = dataFile.createReader(pos);
+            dataInput = dataFile.createReader(pos, true);
         else
             dataInput.seek(pos);
     }

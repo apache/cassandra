@@ -28,12 +28,12 @@ import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import sun.nio.ch.DirectBuffer;
 
-public final class DirectThreadLocalReadAheadBuffer extends ThreadLocalReadAheadBuffer
+public final class DirectReadAheadBuffer extends ReadAheadBuffer
 {
 
     private final int blockSize;
 
-    public DirectThreadLocalReadAheadBuffer(ChannelProxy channel, int bufferSize, int blockSize)
+    public DirectReadAheadBuffer(ChannelProxy channel, int bufferSize, int blockSize)
     {
         super(channel, () -> BufferUtil.allocateDirectAligned(BitUtil.align(bufferSize, blockSize), blockSize));
         this.blockSize = blockSize;
@@ -53,8 +53,8 @@ public final class DirectThreadLocalReadAheadBuffer extends ThreadLocalReadAhead
     @Override
     protected void cleanBuffer(ByteBuffer buffer)
     {
-        // Aligned buffers from BufferUtil.allocateDirectAligned are slices; clean the backing buffer (attachment)
+        // BufferUtil.allocateDirectAligned returns an aligned slice with no cleaner; free the backing
+        // allocation through the attachment, matching DirectThreadLocalByteBufferHolder.
         MemoryUtil.clean((ByteBuffer) ((DirectBuffer) buffer).attachment());
     }
-
 }
