@@ -181,7 +181,7 @@ public class AccordFailedKeyBatchTest
                         AccordCacheEntry<?, ?, ?> entry = store.cachesUnsafe().commandsForKeys().getUnsafe(k);
                         if (entry == null)
                             continue;
-                        if (entry.isInconsistent())
+                        if (entry.isUnsafeToRead())
                             inconsistent.add(k);
                         if (!entry.hasNoTasks())
                             claimed.add(k);
@@ -286,7 +286,7 @@ public class AccordFailedKeyBatchTest
                             continue;
                         if (!entry.hasNoTasks())
                             claimed.add(k);
-                        if (entry.isInconsistent())
+                        if (entry.isUnsafeToRead())
                             inconsistent.add(k);
                     }
                 });

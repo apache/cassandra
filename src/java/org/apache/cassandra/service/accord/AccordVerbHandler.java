@@ -33,7 +33,7 @@ import accord.utils.Invariants;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.accord.debug.AccordRemoteTracing;
-import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMap;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.net.ParamType.ACCORD_TRACING;
@@ -44,9 +44,9 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
     private static final NoSpamLogger.NoSpamLogStatement dropping = NoSpamLogger.getStatement(logger, "Dropping message {} from {}", 1L, TimeUnit.SECONDS);
 
     private final Node node;
-    private final AccordEndpointMapper endpointMapper;
+    private final AccordEndpointMap endpointMapper;
 
-    public AccordVerbHandler(Node node, AccordEndpointMapper endpointMapper)
+    public AccordVerbHandler(Node node, AccordEndpointMap endpointMapper)
     {
         this.node = node;
         this.endpointMapper = endpointMapper;

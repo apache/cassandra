@@ -21,15 +21,14 @@ package org.apache.cassandra.service.accord;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.Map;
 
 import accord.local.Node;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMap;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public enum SimpleAccordEndpointMapper implements AccordEndpointMapper
+public enum SimpleAccordEndpointMap implements AccordEndpointMap
 {
     INSTANCE;
 
@@ -55,11 +54,6 @@ public enum SimpleAccordEndpointMapper implements AccordEndpointMapper
         }
     }
 
-    @Override
-    public Map<Node.Id, Long> removedNodes()
-    {
-        return Map.of();
-    }
 
     @Override
     public NodeStatus nodeStatus(Node.Id id)

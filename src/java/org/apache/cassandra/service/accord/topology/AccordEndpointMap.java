@@ -18,29 +18,44 @@
 
 package org.apache.cassandra.service.accord.topology;
 
-import java.util.Map;
-
 import javax.annotation.Nullable;
 
+import accord.api.TopologySorter;
 import accord.local.Node;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.ClusterMetadata;
 
 /**
- * Maps network addresses to accord ids
+ * Maps network addresses to accord ids and vice versa
  */
-public interface AccordEndpointMapper
+public interface AccordEndpointMap
 {
+    enum NodeStatus
+    {
+        REMOVED(TopologySorter.NodeStatus.UNAVAILABLE),
+        UNKNOWN(TopologySorter.NodeStatus.UNAVAILABLE),
+        UNAVAILABLE(TopologySorter.NodeStatus.UNAVAILABLE),
+        UNREADABLE(TopologySorter.NodeStatus.UNREADABLE),
+        HEALTHY(TopologySorter.NodeStatus.HEALTHY);
+
+        public final TopologySorter.NodeStatus accordStatus;
+
+        NodeStatus(TopologySorter.NodeStatus accordStatus)
+        {
+            this.accordStatus = accordStatus;
+        }
+
+        public boolean isRemoved()
+        {
+            return this == REMOVED;
+        }
+    }
+
     default @Nullable Node.Id mappedIdOrNull(InetAddressAndPort endpoint) { return mappedIdOrNull(endpoint, null); }
     @Nullable Node.Id mappedIdOrNull(InetAddressAndPort endpoint, @Nullable Object logIdentityIfUnmapped);
     default @Nullable InetAddressAndPort mappedEndpointOrNull(Node.Id id) { return mappedEndpointOrNull(id, null); }
     @Nullable InetAddressAndPort mappedEndpointOrNull(Node.Id id, @Nullable Object logIdentityIfUnmapped);
-
-    enum NodeStatus { UNKNOWN, UNHEALTHY, HEALTHY }
-
-    default boolean isRemoved(Node.Id id) { return removedNodes().containsKey(id); }
-    Map<Node.Id, Long> removedNodes();
 
     NodeStatus nodeStatus(Node.Id id);
     default void updateMapping(ClusterMetadata metadata) {}

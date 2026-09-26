@@ -109,6 +109,9 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                 {
                     PrepareMessage prepareMessage = (PrepareMessage) message.payload;
                     logger.debug("Preparing, {}", prepareMessage);
+                    if (rejectIfShuttingDown(message))
+                        return;
+
                     ParticipateState state = new ParticipateState(ctx.clock(), message.from(), prepareMessage);
                     if (!ctx.repair().register(state))
                     {
@@ -200,6 +203,8 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                 {
                     ValidationRequest validationRequest = (ValidationRequest) message.payload;
                     logger.debug("Validating {}", validationRequest);
+                    if (rejectIfShuttingDown(message))
+                        return;
 
                     ParticipateState participate = ctx.repair().participate(desc.parentSessionId);
                     if (participate == null)
@@ -281,6 +286,8 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     // forwarded sync request
                     SyncRequest request = (SyncRequest) message.payload;
                     logger.debug("Syncing {}", request);
+                    if (rejectIfShuttingDown(message))
+                        return;
 
                     ParticipateState participate = ctx.repair().participate(desc.parentSessionId);
                     if (participate == null)
@@ -374,6 +381,20 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
             }
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * If we are shutting down we cannot participate in repair, and may leave a repair session hanging
+     * if we promise to deliver merkle trees and do not
+     */
+    private boolean rejectIfShuttingDown(Message<RepairMessage> message)
+    {
+        if (!StorageService.instance.isShutdown())
+            return false;
+
+        logger.info("Rejecting {} from {} as this node is shutting down", message.verb(), message.from());
+        sendFailureResponse(message);
+        return true;
     }
 
     private <I, T extends AbstractState<?, I>> boolean register(Message<RepairMessage> message,

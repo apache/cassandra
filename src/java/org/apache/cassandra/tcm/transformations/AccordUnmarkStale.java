@@ -41,13 +41,13 @@ import org.apache.cassandra.utils.CollectionSerializers;
 
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
 
-public class AccordMarkRejoining implements Transformation
+public class AccordUnmarkStale implements Transformation
 {
-    private static final Logger logger = LoggerFactory.getLogger(AccordMarkRejoining.class);
+    private static final Logger logger = LoggerFactory.getLogger(AccordUnmarkStale.class);
     
     private final Set<NodeId> ids;
 
-    public AccordMarkRejoining(Set<NodeId> ids)
+    public AccordUnmarkStale(Set<NodeId> ids)
     {
         this.ids = ids;
     }
@@ -55,7 +55,7 @@ public class AccordMarkRejoining implements Transformation
     @Override
     public Kind kind()
     {
-        return Kind.ACCORD_MARK_REJOINING;
+        return Kind.ACCORD_UNMARK_STALE;
     }
 
     @Override
@@ -68,7 +68,7 @@ public class AccordMarkRejoining implements Transformation
         SortedArrayList<Node.Id> accordIds = SortedArrayList.ofUnsorted(ids.stream().map(AccordTopology::tcmIdToAccord).toArray(Node.Id[]::new));
 
         for (Node.Id id : accordIds)
-            if (!prev.accordStaleReplicas.stale().contains(id))
+            if (!prev.accordNodeInfos.stale().contains(id))
                 return new Rejected(INVALID, String.format("Can not unmark node %s as it is not stale.", id));
 
         logger.info("Unmarking " + ids + ". They will now participate in durability status coordination...");
@@ -87,7 +87,7 @@ public class AccordMarkRejoining implements Transformation
     {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        AccordMarkRejoining that = (AccordMarkRejoining) o;
+        AccordUnmarkStale that = (AccordUnmarkStale) o;
         return Objects.equals(ids, that.ids);
     }
 
@@ -97,27 +97,27 @@ public class AccordMarkRejoining implements Transformation
         return Objects.hash(ids);
     }
 
-    public static final AsymmetricMetadataSerializer<Transformation, AccordMarkRejoining> serializer = new AsymmetricMetadataSerializer<>()
+    public static final AsymmetricMetadataSerializer<Transformation, AccordUnmarkStale> serializer = new AsymmetricMetadataSerializer<>()
     {
         @Override
         public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException
         {
-            assert t instanceof AccordMarkRejoining;
-            AccordMarkRejoining mark = (AccordMarkRejoining) t;
+            assert t instanceof AccordUnmarkStale;
+            AccordUnmarkStale mark = (AccordUnmarkStale) t;
             CollectionSerializers.serializeCollection(mark.ids, out, version, NodeId.serializer);
         }
 
         @Override
-        public AccordMarkRejoining deserialize(DataInputPlus in, Version version) throws IOException
+        public AccordUnmarkStale deserialize(DataInputPlus in, Version version) throws IOException
         {
-            return new AccordMarkRejoining(CollectionSerializers.deserializeSet(in, version, NodeId.serializer));
+            return new AccordUnmarkStale(CollectionSerializers.deserializeSet(in, version, NodeId.serializer));
         }
 
         @Override
         public long serializedSize(Transformation t, Version version)
         {
-            assert t instanceof AccordMarkRejoining;
-            AccordMarkRejoining mark = (AccordMarkRejoining) t;
+            assert t instanceof AccordUnmarkStale;
+            AccordUnmarkStale mark = (AccordUnmarkStale) t;
             return CollectionSerializers.serializedCollectionSize(mark.ids, version, NodeId.serializer);
         }
     };
