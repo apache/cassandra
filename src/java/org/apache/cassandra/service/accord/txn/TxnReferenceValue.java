@@ -92,7 +92,7 @@ public abstract class TxnReferenceValue
         @Override
         public String toString()
         {
-            return "Constant=" + value == null ? "null" : ByteBufferUtil.bytesToHex(value);
+            return "Constant=" + (value == null ? "null" : ByteBufferUtil.bytesToHex(value));
         }
 
         @Override
