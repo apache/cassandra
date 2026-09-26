@@ -47,7 +47,7 @@ cat >${DIST_DIR}/ci_summary.html <<EOL
 <h1>CI Summary ${BUILD_TAG}</h1>
 <h2>Build State</h2>
 <ul>
-  <li>sha:  $(git ls-files -s ${CASSANDRA_DIR} | git hash-object --stdin)</li>
+  <li>sha:  $(git -C ${CASSANDRA_DIR} ls-files -s | git hash-object --stdin)</li>
   <li>repo: $(git -C ${CASSANDRA_DIR} remote get-url origin)</li>
   <li>branch: $(git -C ${CASSANDRA_DIR} branch --remote --verbose --no-abbrev --contains | sed -rne 's/^[^\/]*\/([^\ ]+).*$/\1/p')</li>
   <li>date: $(date)</li>
@@ -60,7 +60,7 @@ cat >${DIST_DIR}/ci_summary.html <<EOL
   <li>profile_custom_regexp: ${PROFILE_CUSTOM_REGEXP}</li>
   <li>architecture: ${ARCHITECTURE}</li>
   <li>jdk: ${JDK}</li>
-  <li>dtest_repository: {DTEST_REPOSITORY}</li>
+  <li>dtest_repository: ${DTEST_REPOSITORY}</li>
   <li>dtest_branch: ${DTEST_BRANCH}</li>
 </ul>
 </body>
