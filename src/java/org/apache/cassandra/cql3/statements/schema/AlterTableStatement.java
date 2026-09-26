@@ -680,7 +680,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         @Override
         public boolean compatibleWith(ClusterMetadata metadata)
         {
-            return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
+            return metadata.directory.commonSerializationVersion.isAtLeast(attrs.minimumSerializationVersion());
         }
 
         public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
