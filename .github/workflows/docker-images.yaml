@@ -1,0 +1,280 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Build Docker images
+
+on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - '.build/docker/*.docker'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish to Apache registries (upstream release branches only)
+        type: boolean
+        default: false
+      force:
+        description: Rebuild existing tags, pull base images, and disable build layer reuse
+        type: boolean
+        default: false
+      image:
+        description: Dockerfile basename without .docker (empty selects all)
+        type: string
+        default: ''
+
+# Keep the existence check, native builds, and publication in one queue across
+# branches. Build-only runs use separate queues for each branch.
+concurrency:
+  group: cassandra-build-images-${{ github.repository == 'apache/cassandra' && (github.event_name == 'push' || inputs.publish) && 'true' || format('ci-{0}', github.ref) }}
+  queue: max
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  images:
+    # Fork branches build automatically; upstream pushes publish only from release branches.
+    if: >-
+      github.event_name == 'workflow_dispatch' || github.repository != 'apache/cassandra' ||
+      github.ref == 'refs/heads/trunk' || github.ref == 'refs/heads/cassandra-5.0' ||
+      github.ref == 'refs/heads/cassandra-6.0'
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.registry.outputs.matrix }}
+      changed: ${{ steps.registry.outputs.changed }}
+      publish: ${{ steps.mode.outputs.publish }}
+    steps:
+      - name: Select run mode
+        id: mode
+        env:
+          PUBLISH: ${{ (github.event_name == 'push' && github.repository == 'apache/cassandra') || inputs.publish || false }}
+          REPOSITORY: ${{ github.repository }}
+          REF: ${{ github.ref }}
+        run: |
+          if [[ "$PUBLISH" == true ]]; then
+            if [[ "$REPOSITORY" != apache/cassandra ]]; then
+              echo '::error::Forks can build images but cannot publish to Apache registries'
+              exit 1
+            fi
+            case "$REF" in
+              refs/heads/trunk|refs/heads/cassandra-5.0|refs/heads/cassandra-6.0) ;;
+              *) echo '::error::Publication requires an upstream release branch'; exit 1 ;;
+            esac
+          fi
+          echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Select images
+        id: images
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          IMAGE: ${{ inputs.image }}
+        run: |
+          if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+            args=(--all)
+            if [[ -n "$IMAGE" ]]; then
+              args+=(--image "$IMAGE")
+            fi
+          else
+            args=(--before "$BEFORE")
+          fi
+          matrix=$(python3 .build/ci/docker_image_matrix.py "${args[@]}")
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "changed=$(jq -r '.include | length > 0' <<< "$matrix")" >> "$GITHUB_OUTPUT"
+      - name: Check publishing credentials
+        if: steps.mode.outputs.publish == 'true' && steps.images.outputs.changed == 'true'
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          JFROG_USERNAME: ${{ secrets.JFROG_USERNAME }}
+          JFROG_TOKEN: ${{ secrets.JFROG_TOKEN }}
+        run: |
+          for secret in DOCKERHUB_USERNAME DOCKERHUB_TOKEN JFROG_USERNAME JFROG_TOKEN; do
+            if [[ -z "${!secret}" ]]; then
+              echo "::error::Missing repository secret: $secret"
+              exit 1
+            fi
+          done
+      - name: Set up Docker Buildx
+        if: steps.mode.outputs.publish == 'true' && steps.images.outputs.changed == 'true'
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Log in to Docker Hub
+        if: steps.mode.outputs.publish == 'true' && steps.images.outputs.changed == 'true'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Log in to JFrog
+        if: steps.mode.outputs.publish == 'true' && steps.images.outputs.changed == 'true'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: apache.jfrog.io
+          username: ${{ secrets.JFROG_USERNAME }}
+          password: ${{ secrets.JFROG_TOKEN }}
+      - name: Skip published images
+        id: registry
+        env:
+          MATRIX: ${{ steps.images.outputs.matrix }}
+          PUBLISH: ${{ steps.mode.outputs.publish }}
+          FORCE: ${{ inputs.force || false }}
+        run: |
+          if [[ "$PUBLISH" == true && "$FORCE" != true ]]; then
+            MATRIX=$(python3 .build/ci/docker_image_registry.py <<< "$MATRIX")
+          fi
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "changed=$(jq -r '.include | length > 0' <<< "$MATRIX")" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: images
+    if: needs.images.outputs.changed == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.images.outputs.matrix).include }}
+        platform:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.platform.runner }}
+    timeout-minutes: 360
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Log in to Docker Hub
+        if: needs.images.outputs.publish == 'true'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Log in to JFrog
+        if: needs.images.outputs.publish == 'true'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: apache.jfrog.io
+          username: ${{ secrets.JFROG_USERNAME }}
+          password: ${{ secrets.JFROG_TOKEN }}
+      - name: Build and push by digest
+        if: needs.images.outputs.publish == 'true'
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .build
+          file: ${{ matrix.image.dockerfile }}
+          platforms: linux/${{ matrix.platform.arch }}
+          pull: ${{ inputs.force || false }}
+          no-cache: ${{ inputs.force || false }}
+          provenance: true
+          sbom: true
+          outputs: >-
+            type=image,"name=docker.io/apache/cassandra-${{ matrix.image.name }},apache.jfrog.io/cassan-docker/apache/cassandra-${{ matrix.image.name }}",push-by-digest=true,name-canonical=true,push=true
+      - name: Build without publishing
+        if: needs.images.outputs.publish != 'true'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .build
+          file: ${{ matrix.image.dockerfile }}
+          platforms: linux/${{ matrix.platform.arch }}
+          pull: ${{ inputs.force || false }}
+          no-cache: ${{ inputs.force || false }}
+          outputs: type=cacheonly
+      - name: Export digest
+        if: needs.images.outputs.publish == 'true'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          if [[ ! "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo '::error::Build did not produce a SHA-256 digest'
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+      - name: Upload digest
+        if: needs.images.outputs.publish == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: digest-${{ matrix.image.name }}-${{ matrix.image.tag }}-${{ matrix.platform.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 7
+
+  publish:
+    needs: [images, build]
+    if: needs.images.outputs.publish == 'true' && needs.images.outputs.changed == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.images.outputs.matrix) }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Download digests
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: digest-${{ matrix.name }}-${{ matrix.tag }}-*
+          path: ${{ runner.temp }}/digests
+          merge-multiple: true
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Log in to Docker Hub
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Log in to JFrog
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: apache.jfrog.io
+          username: ${{ secrets.JFROG_USERNAME }}
+          password: ${{ secrets.JFROG_TOKEN }}
+      - name: Publish and verify both platforms
+        env:
+          IMAGE_NAME: ${{ matrix.name }}
+          IMAGE_TAG: ${{ matrix.tag }}
+        run: |
+          shopt -s nullglob
+          digests=("$RUNNER_TEMP"/digests/*)
+          if [[ ${#digests[@]} -ne 2 ]]; then
+            echo '::error::Expected two platform digests'
+            exit 1
+          fi
+          for registry in docker.io apache.jfrog.io/cassan-docker; do
+            image="$registry/apache/cassandra-$IMAGE_NAME"
+            sources=()
+            for digest in "${digests[@]}"; do
+              sources+=("$image@sha256:${digest##*/}")
+            done
+            docker buildx imagetools create --tag "$image:$IMAGE_TAG" "${sources[@]}"
+            python3 .build/ci/docker_image_registry.py --verify "$image:$IMAGE_TAG"
+          done
