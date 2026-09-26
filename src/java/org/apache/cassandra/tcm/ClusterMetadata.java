@@ -595,6 +595,9 @@ public class ClusterMetadata
                                                             MultiStepOperation<?> operation,
                                                             Directory directory)
     {
+        if (operation.kind() == MultiStepOperation.Kind.RECONFIGURE_CMS)
+            return false;
+
         return operation.affectedPeers(directory).contains(peer);
     }
 
