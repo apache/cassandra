@@ -25,11 +25,12 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DurationSpec;
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compression.CompressionDictionary.LightweightCompressionDictionary;
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData.CompressionDictionaryDataObject;
@@ -43,10 +44,9 @@ import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.Pair;
 
 import static java.lang.String.format;
-import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class CompressionDictionaryTrainingFrequencyTest extends CQLTester
+public class CompressionDictionaryTrainingFrequencyTest extends CQLNodetoolProtocolTester
 {
     private static final String tableName = "mytable";
 
@@ -55,6 +55,14 @@ public class CompressionDictionaryTrainingFrequencyTest extends CQLTester
     {
         requireNetwork();
         startJMXServer();
+    }
+
+    @After
+    public void afterCompressionDictionaryTest() throws Throwable
+    {
+        execute(format("TRUNCATE %s.%s",
+                       SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+                       SystemDistributedKeyspace.COMPRESSION_DICTIONARIES));
     }
 
     @Test
@@ -169,7 +177,7 @@ public class CompressionDictionaryTrainingFrequencyTest extends CQLTester
 
         // Test training command with --force since we have limited test data
         ToolRunner.ToolResult result = invokeNodetool("compressiondictionary", "train", "--force", keyspace(), tableName);
-        assertThat(result.getExitCode()).isEqualTo(1);
+        assertThat(result.getExitCode()).isEqualTo(2);
 
         assertThat(result.getStderr())
         .as("Should indicate training can not be triggered")
@@ -181,12 +189,12 @@ public class CompressionDictionaryTrainingFrequencyTest extends CQLTester
                                       .findFirst()
                                       .orElseThrow(() -> new RuntimeException("Unable to find failing message"));
 
-        String pattern = "Failed to trigger training: The next training or importing can occur only at least after " +
+        String pattern = "The next training or importing can occur only at least after " +
                          "(.*) from the last training which happened at (.*). " +
                          "You can train again no earlier than at (.*).";
         Matcher matcher = Pattern.compile(pattern).matcher(failingMessage);
 
-        assertThat(matcher.matches()).isTrue();
+        assertThat(matcher.find()).isTrue();
 
         DurationSpec.IntMinutesBound frequencySpec = new DurationSpec.IntMinutesBound(matcher.group(1));
         Instant lastTraining = Instant.parse(matcher.group(2));
@@ -199,7 +207,7 @@ public class CompressionDictionaryTrainingFrequencyTest extends CQLTester
     private void assertFailingImport(File file)
     {
         ToolRunner.ToolResult result = invokeNodetool("compressiondictionary", "import", file.absolutePath());
-        assertThat(result.getExitCode()).isEqualTo(1);
+        assertThat(result.getExitCode()).isEqualTo(2);
     }
 
     private void assertSuccessfulImport(File file)

@@ -174,6 +174,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileSystems;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.management.CommandInvokerService;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.MessagingService;
@@ -277,12 +278,14 @@ public abstract class CQLTester
      */
     private static boolean coordinatorExecution = false;
 
+    private static org.apache.cassandra.transport.Server managementServer;
     private static org.apache.cassandra.transport.Server server;
     private static JMXConnectorServer jmxServer;
     protected static String jmxHost;
     protected static int jmxPort;
     protected static MBeanServerConnection jmxConnection;
 
+    protected static int managementPort;
     protected static int nativePort;
     protected static final InetAddress nativeAddr;
     private static final Map<ClusterSettings, Cluster> clusters = new HashMap<>();
@@ -328,6 +331,7 @@ public abstract class CQLTester
 
         nativeAddr = InetAddress.getLoopbackAddress();
         nativePort = getAutomaticallyAllocatedPort(nativeAddr);
+        managementPort = getAutomaticallyAllocatedPort(nativeAddr);
     }
 
     private List<String> keyspaces = new ArrayList<>();
@@ -486,6 +490,7 @@ public abstract class CQLTester
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
         SnapshotManager.instance.registerMBean();
         SYSTEM_DISTRIBUTED_DEFAULT_RF.setInt(1);
+        CommandInvokerService.instance.start();
     }
 
     // So derived classes can get enough intialization to start setting DatabaseDescriptor options
@@ -505,6 +510,9 @@ public abstract class CQLTester
         if (server != null)
             server.stop();
 
+        if (managementServer != null)
+            managementServer.stop();
+
         // We use queryInternal for CQLTester so prepared statement will populate our internal cache (if reusePrepared is used; otherwise prepared
         // statements are not cached but re-prepared every time). So we clear the cache between test files to avoid accumulating too much.
         if (reusePrepared)
@@ -520,6 +528,8 @@ public abstract class CQLTester
             {
                 logger.warn("Error shutting down jmx", e);
             }
+
+            CommandInvokerService.instance.stop();
         }
     }
 
@@ -598,6 +608,29 @@ public abstract class CQLTester
         allArgs.add(String.valueOf(port));
         allArgs.add("-h");
         allArgs.add(host);
+        allArgs.addAll(args);
+        return allArgs;
+    }
+
+    public static List<String> buildNodetoolCqlArgs(List<String> args)
+    {
+        List<String> allArgs = new ArrayList<>();
+        allArgs.add("bin/nodetool");
+        allArgs.add("-p");
+        allArgs.add(Integer.toString(managementPort));
+        allArgs.add("-h");
+        allArgs.add(nativeAddr.getHostAddress());
+        allArgs.addAll(args);
+        return allArgs;
+    }
+
+    public static List<String> buildCqlshManagementArgs(List<String> args)
+    {
+        List<String> allArgs = new ArrayList<>();
+        allArgs.add("bin/cqlsh");
+        allArgs.add(nativeAddr.getHostAddress());
+        allArgs.add(Integer.toString(managementPort));
+        allArgs.add("-e");
         allArgs.addAll(args);
         return allArgs;
     }
@@ -722,6 +755,7 @@ public abstract class CQLTester
 
         startServices();
         startServer(serverConfigurator);
+        startManagementServer(server -> {});
     }
 
     protected static void requireNetworkWithoutDriver()
@@ -731,6 +765,7 @@ public abstract class CQLTester
 
         startServices();
         startServer(server -> {});
+        startManagementServer(server -> {});
     }
 
     private static void startServices()
@@ -766,6 +801,13 @@ public abstract class CQLTester
         clusterBuilderConfigurator = clusterConfigurator;
 
         startServer(serverConfigurator);
+
+        if (managementServer != null && managementServer.isRunning())
+        {
+            managementServer.stop();
+            managementServer = null;
+        }
+        startManagementServer(serverConfigurator);
     }
 
     private static void startServer(Consumer<Server.Builder> decorator)
@@ -776,6 +818,17 @@ public abstract class CQLTester
         server = serverBuilder.build();
         ClientMetrics.instance.init(server);
         server.start();
+    }
+
+    private static void startManagementServer(Consumer<Server.Builder> decorator)
+    {
+        managementPort = getAutomaticallyAllocatedPort(nativeAddr);
+        Server.Builder serverBuilder = new Server.Builder().withHost(nativeAddr)
+                                                           .withPort(managementPort)
+                                                           .withManagementConnectionFlag(true);
+        decorator.accept(serverBuilder);
+        managementServer = serverBuilder.build();
+        managementServer.start();
     }
 
     private static Cluster initClientCluster(User user, ProtocolVersion version, boolean useEncryption, boolean useClientCert)

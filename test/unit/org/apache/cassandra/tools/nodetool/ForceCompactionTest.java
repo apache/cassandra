@@ -29,7 +29,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.rows.Cell;
@@ -38,13 +39,12 @@ import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.tools.ToolRunner;
 
 import static org.apache.commons.lang3.ArrayUtils.addAll;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class ForceCompactionTest extends CQLTester
+public class ForceCompactionTest extends CQLNodetoolProtocolTester
 {
     private final static int NUM_PARTITIONS = 10;
     private final static int NUM_ROWS = 100;
@@ -54,6 +54,11 @@ public class ForceCompactionTest extends CQLTester
     {
         requireNetwork();
         startJMXServer();
+
+        // This ensures initialization happens before any transport classes (like Envelope.Decoder)
+        // are loaded, as they have static initializers that depend on DatabaseDescriptor.
+        if (!DatabaseDescriptor.isClientOrToolInitialized())
+            DatabaseDescriptor.clientInitialization(false);
     }
 
     @Before
@@ -251,7 +256,7 @@ public class ForceCompactionTest extends CQLTester
         if (cfs != null)
         {
             cfs.forceMajorCompaction();
-            ToolRunner.invokeNodetool(addAll(new String[]{ "forcecompact", cfs.keyspace.getName(), cfs.getTableName() },
+            invokeNodetool(addAll(new String[]{ "forcecompact", cfs.keyspace.getName(), cfs.getTableName() },
                                              partitionKeysIgnoreGcGrace)).assertOnCleanExit();
         }
     }
