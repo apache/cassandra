@@ -605,6 +605,19 @@ public class StorageServiceServerTest
         StorageService.instance.disableAuditLog();
     }
 
+    @Test
+    public void testSnitchSettersUpdateConfig()
+    {
+        DatabaseDescriptor.setDynamicSnitch(false);
+        Assert.assertFalse(DatabaseDescriptor.isDynamicSnitch());
+        DatabaseDescriptor.setDynamicSnitch(true);
+        Assert.assertTrue(DatabaseDescriptor.isDynamicSnitch());
+
+        DatabaseDescriptor.setEndpointSnitchClassName("org.apache.cassandra.locator.SimpleSnitch");
+        Assert.assertEquals("org.apache.cassandra.locator.SimpleSnitch",
+                            DatabaseDescriptor.getRawConfig().endpoint_snitch);
+    }
+
     /**
      Create a new AuditLogOptions instance with the log dir set appropriately to a temp dir for unit testing.
      */
