@@ -53,6 +53,7 @@ public class ValidatingSchemaQuery extends PartitionOperation
 
     final int clusteringComponents;
     final ValidatingStatement[] statements;
+    final SchemaStatement.Binder[] binders;
     final ConsistencyLevel cl;
     final int[] argumentIndex;
     final Object[] bindBuffer;
@@ -64,16 +65,19 @@ public class ValidatingSchemaQuery extends PartitionOperation
         this.cl = cl;
         argumentIndex = new int[statements[0].statement.getVariables().size()];
         bindBuffer = new Object[argumentIndex.length];
+        binders = new SchemaStatement.Binder[statements.length];
         int i = 0;
         for (ColumnDefinitions.Definition definition : statements[0].statement.getVariables())
             argumentIndex[i++] = spec.partitionGenerator.indexOf(definition.getName());
 
+        i = 0;
         for (ValidatingStatement statement : statements)
         {
             if (cl.isSerialConsistency())
                 statement.statement.setSerialConsistencyLevel(JavaDriverClient.from(cl));
             else
                 statement.statement.setConsistencyLevel(JavaDriverClient.from(cl));
+            binders[i++] = new SchemaStatement.Binder(statement.statement);
         }
         this.clusteringComponents = clusteringComponents;
     }
@@ -165,7 +169,7 @@ public class ValidatingSchemaQuery extends PartitionOperation
         int ccc = bounds.left.row.length;
         System.arraycopy(bounds.left.row, 0, bindBuffer, pkc, ccc);
         System.arraycopy(bounds.right.row, 0, bindBuffer, pkc + ccc, ccc);
-        return statements[statementIndex].statement.bind(bindBuffer);
+        return binders[statementIndex].bind(bindBuffer);
     }
 
     @Override
