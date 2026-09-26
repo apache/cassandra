@@ -19,49 +19,38 @@
 package org.apache.cassandra.io.util;
 
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.function.Supplier;
+
+import javax.annotation.concurrent.NotThreadSafe;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.CorruptBlockException;
-import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 
-import io.netty.util.concurrent.FastThreadLocal;
-
-public class ThreadLocalReadAheadBuffer implements Closeable
+/**
+ * A read-ahead buffer for sequential scans of a single file.
+ */
+@NotThreadSafe
+public class ReadAheadBuffer implements Closeable
 {
-
-    private static class Block
-    {
-        ByteBuffer buffer = null;
-        int index = -1;
-    }
-
     protected final ChannelProxy channel;
 
     private final Supplier<ByteBuffer> bufferSupplier;
-
-    private static final FastThreadLocal<Map<String, Block>> blockMap = new FastThreadLocal<>()
-    {
-        @Override
-        protected Map<String, Block> initialValue()
-        {
-            return new HashMap<>();
-        }
-    };
-
-    private volatile int bufferSize = -1;
     private final long channelSize;
 
-    public ThreadLocalReadAheadBuffer(ChannelProxy channel, int bufferSize, BufferType bufferType)
+    private ByteBuffer buffer;
+    private int index = -1;
+    private boolean released;
+
+    public ReadAheadBuffer(ChannelProxy channel, int bufferSize, BufferType bufferType)
     {
         this(channel, () -> bufferType.allocate(bufferSize));
     }
 
-    public ThreadLocalReadAheadBuffer(ChannelProxy channel, Supplier<ByteBuffer> bufferSupplier)
+    public ReadAheadBuffer(ChannelProxy channel, Supplier<ByteBuffer> bufferSupplier)
     {
         this.channel = channel;
         this.channelSize = channel.size();
@@ -70,41 +59,51 @@ public class ThreadLocalReadAheadBuffer implements Closeable
 
     public boolean hasBuffer()
     {
-        return block().buffer != null;
+        return buffer != null;
+    }
+
+    @VisibleForTesting
+    int bufferSize()
+    {
+        return buffer == null ? -1 : buffer.capacity();
     }
 
     public int remaining()
     {
-        return getBlock().buffer.remaining();
+        return allocatedBuffer().remaining();
     }
 
-    public void allocateBuffer()
+    @VisibleForTesting
+    void allocateBuffer()
     {
-        getBlock();
+        getBuffer();
     }
 
-    private Block getBlock()
+    private ByteBuffer getBuffer()
     {
-        Block block = block();
-        if (block.buffer == null)
+        if (released)
+            throw new IllegalStateException("read-ahead buffer for " + channel.filePath() + " has been released");
+
+        if (buffer == null)
         {
-            block.buffer = bufferSupplier.get();
-            block.buffer.clear();
-            if (bufferSize == -1)
-                bufferSize = block.buffer.capacity();
+            buffer = bufferSupplier.get();
+            buffer.clear();
         }
-        return block;
+        return buffer;
     }
 
-    private Block block()
+    private ByteBuffer allocatedBuffer()
     {
-        return blockMap.get().computeIfAbsent(channel.filePath(), k -> new Block());
+        if (buffer == null)
+            throw new IllegalStateException("read-ahead buffer for " + channel.filePath() + " is not allocated");
+
+        return buffer;
     }
 
     public void fill(long position) throws CorruptBlockException
     {
-        Block block = getBlock();
-        ByteBuffer blockBuffer = block.buffer;
+        ByteBuffer blockBuffer = getBuffer();
+        int bufferSize = blockBuffer.capacity();
         if (position >= channelSize)
             throw new CorruptBlockException(channel.filePath(), position, bufferSize);
 
@@ -113,11 +112,11 @@ public class ThreadLocalReadAheadBuffer implements Closeable
 
         long remaining = channelSize - blockPosition;
         int sizeToRead = (int) Math.min(remaining, bufferSize);
-        if (block.index != blockNo)
+        if (index != blockNo)
         {
             blockBuffer.flip();
             loadBlock(blockBuffer, blockPosition, sizeToRead);
-            block.index = blockNo;
+            index = blockNo;
         }
 
         blockBuffer.flip();
@@ -125,43 +124,22 @@ public class ThreadLocalReadAheadBuffer implements Closeable
         blockBuffer.position((int) (position - blockPosition));
     }
 
-    protected void loadBlock(ByteBuffer blockBuffer, long blockPosition, int sizeToRead)
+    protected void loadBlock(ByteBuffer blockBuffer, long blockPosition, int sizeToRead) throws CorruptBlockException
     {
         blockBuffer.limit(sizeToRead);
         if (channel.read(blockBuffer, blockPosition) != sizeToRead)
-            throw new CorruptSSTableException(null, channel.filePath());
+            throw new CorruptBlockException(channel.filePath(), blockPosition, sizeToRead);
     }
 
     public int read(ByteBuffer dest, int length)
     {
-        Block block = getBlock();
-        ByteBuffer blockBuffer = block.buffer;
+        ByteBuffer blockBuffer = allocatedBuffer();
         ByteBuffer tmp = blockBuffer.duplicate();
         tmp.limit(tmp.position() + length);
         dest.put(tmp);
         blockBuffer.position(blockBuffer.position() + length);
 
         return length;
-    }
-
-    public void clear(boolean deallocate)
-    {
-        // avoid calling block() here to reduce unintended allocations
-        Block block = blockMap.get().get(channel.filePath());
-        if (block == null)
-            return;
-
-        block.index = -1;
-        if (block.buffer == null)
-            return;
-
-        ByteBuffer blockBuffer = block.buffer;
-        blockBuffer.clear();
-        if (deallocate)
-        {
-            cleanBuffer(blockBuffer);
-            block.buffer = null;
-        }
     }
 
     protected void cleanBuffer(ByteBuffer buffer)
@@ -172,7 +150,13 @@ public class ThreadLocalReadAheadBuffer implements Closeable
     @Override
     public void close()
     {
-        clear(true);
-        blockMap.get().remove(channel.filePath());
+        released = true;
+        if (buffer == null)
+            return;
+
+        index = -1;
+        buffer.clear();
+        cleanBuffer(buffer);
+        buffer = null;
     }
 }

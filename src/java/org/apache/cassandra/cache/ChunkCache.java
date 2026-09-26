@@ -260,7 +260,8 @@ public class ChunkCache implements CacheLoader<ChunkCache.Key, ChunkCache.Buffer
         @Override
         public Rebufferer instantiateRebufferer(boolean isScan)
         {
-            return this;
+            // Bypass the cache for scans, so they don't evict hot data with chunks that may never be revisited.
+            return isScan ? source.instantiateRebufferer(isScan) : this;
         }
 
         @Override
