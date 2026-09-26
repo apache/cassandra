@@ -20,7 +20,6 @@ package org.apache.cassandra.concurrent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -67,7 +66,7 @@ public class SEPExecutor implements LocalAwareExecutorPlus, SEPExecutorMBean
     final Condition shutdown = newOneTimeCondition();
 
     // TODO: see if other queue implementations might improve throughput
-    protected final ConcurrentLinkedQueue<Runnable> tasks = new ConcurrentLinkedQueue<>();
+    protected final TaskQueue tasks;
 
     SEPExecutor(SharedExecutorPool pool, int maximumPoolSize, MaximumPoolSizeListener maximumPoolSizeListener, String jmxPath, String name)
     {
@@ -77,13 +76,14 @@ public class SEPExecutor implements LocalAwareExecutorPlus, SEPExecutorMBean
         this.maximumPoolSize = new AtomicInteger(maximumPoolSize);
         this.maximumPoolSizeListener = maximumPoolSizeListener;
         this.permits.set(combine(0, maximumPoolSize));
+        this.tasks = TaskQueue.create(name);
         this.metrics = new ThreadPoolMetrics(this, jmxPath, name).register();
         MBeanWrapper.instance.registerMBean(this, mbeanName);
     }
 
-    protected void onCompletion()
-    {
+    protected void onCompletion(Runnable task) {
         completedTasks.incrementAndGet();
+        tasks.onTaskCompleted(task);
     }
 
     @Override
@@ -199,6 +199,12 @@ public class SEPExecutor implements LocalAwareExecutorPlus, SEPExecutorMBean
     void returnWorkPermit()
     {
         permits.addAndGet(updateWorkPermits(0, 1));
+    }
+
+    // gives up a task permit when poll() found no runnable tasks
+    void returnTaskPermit()
+    {
+        permits.addAndGet(updateTaskPermits(0, 1));
     }
 
     @Override
