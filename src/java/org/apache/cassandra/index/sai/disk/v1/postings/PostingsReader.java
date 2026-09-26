@@ -52,6 +52,12 @@ public class PostingsReader implements OrdinalPostingList
     private final QueryEventListener.PostingListEventListener listener;
     private final BlocksSummary summary;
 
+    // Block range [startBlock, endBlock) this reader is scoped to, and the number of postings to read.
+    // For a full (V1) posting list these are 0, numBlocks and numPostings respectively.
+    private final int startBlock;
+    private final int endBlock;
+    private final long limit;
+
     // Current block index
     private int blockIndex;
     // Current posting index within block
@@ -70,12 +76,74 @@ public class PostingsReader implements OrdinalPostingList
 
     public PostingsReader(IndexInput input, BlocksSummary summary, QueryEventListener.PostingListEventListener listener) throws IOException
     {
+        this(input, summary, listener, 0, summary.numBlocks(), summary.numPostings);
+    }
+
+    /**
+     * Creates a reader scoped to a single block-aligned section of a posting list.
+     *
+     * @param startBlock    first block (inclusive) of the section; its {@code firstPosting} VLong is read fresh
+     * @param endBlock      last block (exclusive) of the section, used to bound skip-table binary search
+     * @param postingsCount number of postings to read from the section
+     */
+    private PostingsReader(IndexInput input, BlocksSummary summary, QueryEventListener.PostingListEventListener listener,
+                           int startBlock, int endBlock, long postingsCount) throws IOException
+    {
         this.input = input;
         this.seekingInput = new SeekingRandomAccessInput(input);
         this.listener = listener;
         this.summary = summary;
+        this.startBlock = startBlock;
+        this.endBlock = endBlock;
+        this.limit = postingsCount;
+        this.blockIndex = startBlock;
 
-        reBuffer();
+        if (postingsCount > 0)
+            reBuffer();
+    }
+
+    /**
+     * Opens a reader over the exact-match section ({@code [0, prefixIndex)}) of a V2 posting list.
+     */
+    public static PostingsReader exactSection(IndexInput input, BlocksSummary summary,
+                                              QueryEventListener.PostingListEventListener listener) throws IOException
+    {
+        int exactBlocks = blocksFor(summary.prefixIndex, summary.blockSize);
+        return new PostingsReader(input, summary, listener, 0, exactBlocks, summary.prefixIndex);
+    }
+
+    /**
+     * Opens a reader over the prefix section ({@code [prefixIndex, suffixIndex)}) of a V2 posting list.
+     * Returns null if there are no prefix postings.
+     */
+    public static PostingsReader prefixSection(IndexInput input, BlocksSummary summary,
+                                               QueryEventListener.PostingListEventListener listener) throws IOException
+    {
+        int prefixCount = summary.suffixIndex - summary.prefixIndex;
+        if (prefixCount <= 0)
+            return null;
+        int exactBlocks = blocksFor(summary.prefixIndex, summary.blockSize);
+        return new PostingsReader(input, summary, listener, exactBlocks, summary.numBlocks(), prefixCount);
+    }
+
+    /**
+     * Opens a reader over both exact and prefix sections ({@code [0, suffixIndex)}) of a V2 posting list.
+     * This reads exact and prefix postings in a single contiguous read, which is more efficient than
+     * two separate I/O operations. Returns null if there are no postings in either section.
+     */
+    public static PostingsReader combinedExactAndPrefixSections(IndexInput input, BlocksSummary summary,
+                                                                QueryEventListener.PostingListEventListener listener) throws IOException
+    {
+        int combinedCount = summary.suffixIndex; // Exact + prefix postings
+        if (combinedCount <= 0)
+            return null;
+        int combinedBlocks = blocksFor(summary.suffixIndex, summary.blockSize);
+        return new PostingsReader(input, summary, listener, 0, combinedBlocks, combinedCount);
+    }
+
+    private static int blocksFor(int postings, int blockSize)
+    {
+        return (postings + blockSize - 1) / blockSize;
     }
 
     @Override
@@ -88,17 +156,42 @@ public class PostingsReader implements OrdinalPostingList
     {
         private final IndexInput input;
         final int blockSize;
-        final int numPostings;
+        public final int numPostings;
+        // V2 section boundaries expressed as posting counts. For V1 / exact-only lists both equal numPostings.
+        public final int prefixIndex;
+        public final int suffixIndex;
         final LongArray offsets;
         final LongArray maxValues;
 
         public BlocksSummary(IndexInput input, long offset) throws IOException
         {
+            this(input, offset, false);
+        }
+
+        public BlocksSummary(IndexInput input, long offset, boolean isV2) throws IOException
+        {
             this.input = input;
             input.seek(offset);
+
+            int pIdx = -1;
+            int sIdx = -1;
+            if (isV2)
+            {
+                pIdx = input.readVInt();
+                sIdx = input.readVInt();
+            }
+
             this.blockSize = input.readVInt();
             //TODO This should need to change because we can potentially end up with postings of more than Integer.MAX_VALUE?
             this.numPostings = input.readVInt();
+
+            if (!isV2)
+            {
+                pIdx = numPostings;
+                sIdx = numPostings;
+            }
+            this.prefixIndex = pIdx;
+            this.suffixIndex = sIdx;
 
             SeekingRandomAccessInput randomAccessInput = new SeekingRandomAccessInput(input);
             int numBlocks = input.readVInt();
@@ -117,7 +210,12 @@ public class PostingsReader implements OrdinalPostingList
             this.maxValues = new LongArrayReader(lvValues, numBlocks);
         }
 
-        void close()
+        int numBlocks()
+        {
+            return Math.toIntExact(offsets.length());
+        }
+
+        public void close()
         {
             FileUtils.closeQuietly(input);
         }
@@ -164,7 +262,7 @@ public class PostingsReader implements OrdinalPostingList
     @Override
     public long size()
     {
-        return summary.numPostings;
+        return limit;
     }
 
     /**
@@ -206,7 +304,7 @@ public class PostingsReader implements OrdinalPostingList
 
     private long slowAdvance(long targetRowID) throws IOException
     {
-        while (totalPostingsRead < summary.numPostings)
+        while (totalPostingsRead < limit)
         {
             long segmentRowId = peekNext();
 
@@ -225,8 +323,8 @@ public class PostingsReader implements OrdinalPostingList
     // crossing blocks, the preceeding block index
     private int binarySearchBlocks(long targetRowID)
     {
-        int lowBlockIndex = blockIndex - 1;
-        int highBlockIndex = Math.toIntExact(summary.maxValues.length()) - 1;
+        int lowBlockIndex = Math.max(blockIndex - 1, startBlock);
+        int highBlockIndex = endBlock - 1;
 
         // in current block
         if (lowBlockIndex <= highBlockIndex && targetRowID <= summary.maxValues.get(lowBlockIndex))
@@ -253,7 +351,7 @@ public class PostingsReader implements OrdinalPostingList
                 // This following check is to see if we have a duplicate value in the last entry of the
                 // preceeding block. This check is only going to be successful if the entire current
                 // block is full of duplicates.
-                if (midBlockIndex > 0 && summary.maxValues.get(midBlockIndex - 1) == targetRowID)
+                if (midBlockIndex > startBlock && summary.maxValues.get(midBlockIndex - 1) == targetRowID)
                 {
                     // there is a duplicate in the preceeding block so restrict search to finish
                     // at that block
@@ -293,7 +391,7 @@ public class PostingsReader implements OrdinalPostingList
 
     private long peekNext() throws IOException
     {
-        if (totalPostingsRead >= summary.numPostings)
+        if (totalPostingsRead >= limit)
         {
             return END_OF_STREAM;
         }
@@ -329,7 +427,7 @@ public class PostingsReader implements OrdinalPostingList
         }
         input.seek(pointer);
 
-        long left = summary.numPostings - totalPostingsRead;
+        long left = limit - totalPostingsRead;
         assert left > 0;
 
         readFoRBlock(input);
@@ -340,7 +438,7 @@ public class PostingsReader implements OrdinalPostingList
 
     private void readFoRBlock(IndexInput in) throws IOException
     {
-        if (blockIndex == 0)
+        if (blockIndex == startBlock)
             actualPosting = in.readVLong();
 
         byte bitsPerValue = in.readByte();
