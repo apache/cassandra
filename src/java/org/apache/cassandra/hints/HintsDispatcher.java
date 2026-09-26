@@ -474,6 +474,7 @@ final class HintsDispatcher implements AutoCloseable
             }
             catch (InterruptedException e)
             {
+                Thread.currentThread().interrupt();
                 logger.warn("Hint dispatch was interrupted", e);
                 return INTERRUPTED;
             }

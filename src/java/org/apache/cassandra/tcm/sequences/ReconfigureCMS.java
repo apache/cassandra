@@ -382,6 +382,7 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
                 }
                 catch (InterruptedException t)
                 {
+                    Thread.currentThread().interrupt();
                     logger.info("Interrupted while repairing paxos topology, aborting.", t);
                     return;
                 }

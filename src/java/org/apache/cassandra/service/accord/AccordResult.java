@@ -89,6 +89,7 @@ public class AccordResult<V> extends AsyncFuture<V> implements BiConsumer<V, Thr
         }
         catch (InterruptedException e)
         {
+            Thread.currentThread().interrupt();
             tryFailure(e);
         }
 

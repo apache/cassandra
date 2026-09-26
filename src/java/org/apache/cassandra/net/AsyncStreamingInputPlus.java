@@ -207,7 +207,8 @@ public class AsyncStreamingInputPlus extends RebufferingInputStream implements S
             }
             catch (InterruptedException e)
             {
-                // ignore and rely on requestClose having been called
+                Thread.currentThread().interrupt();
+                // rely on requestClose having been called
             }
         }
     }

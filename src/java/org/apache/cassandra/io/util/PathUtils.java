@@ -388,6 +388,7 @@ public final class PathUtils
         }
         catch (InterruptedException e)
         {
+            Thread.currentThread().interrupt();
             return new IOException("Interrupted while executing command " + Arrays.toString(cmd), e);
         }
     }
