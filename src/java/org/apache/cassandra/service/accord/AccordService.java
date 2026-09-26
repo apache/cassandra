@@ -758,11 +758,17 @@ public class AccordService implements IAccordService, Shutdownable
 
             // once every store is refusing to process requests we are safe to open up the network (we wrote the start marker earlier)
             getBlocking(ready.refusing());
+
+            logger.info("Rebootstrap: Begin processing Accord messages from peers (unsafe queries will be rejected)");
             instance = requestInstance = this;
 
             // Once each store is processing some requests, we can advertise ourselves as up but UNREADABLE
             getBlocking(ready.notRefusing());
+            logger.info("Rebootstrap: Declare to peers that Accord node is UP but UNREADABLE");
             nodeStatusCoordinator.declareStartedUnreadable();
+
+            getBlocking(ready.coordinate());
+            logger.info("Rebootstrap: Coordination state has been successfully fetched from peers; now participating in quorum decisions");
 
             getBlocking(ready.reads());
             logger.info("Rebootstrap ({}) complete in epoch {}", rebootstrap, node.epoch());
@@ -773,10 +779,9 @@ public class AccordService implements IAccordService, Shutdownable
             nodeStatusCoordinator.declareStartedUnreadable();
         }
 
-        nodeStatusCoordinator.declareReady();
-
         // trigger catchup only after our progress mechanisms are initialised
         catchup();
+        nodeStatusCoordinator.declareReady();
     }
 
     void catchup()
@@ -826,7 +831,7 @@ public class AccordService implements IAccordService, Shutdownable
                                 case REBOOTSTRAP:
                                 case REBOOTSTRAP_AND_CATCHUP:
                                     logger.error("Could not catchup with peers; rebootstrapping", failed);
-                                    getBlocking(node.commandStores().rebootstrap(node, CATCHUP).reads);
+                                    getBlocking(rebootstrap(CATCHUP, false));
                                     if (onError == REBOOTSTRAP)
                                         return;
                                     ++attempts;
@@ -867,7 +872,7 @@ public class AccordService implements IAccordService, Shutdownable
                         case REBOOTSTRAP_AND_CATCHUP:
                             if (result == null) logger.info("Catchup was slow, rebootstrapping after {} attempts", attempts);
                             else logger.info("Catchup was incomplete for {}, rebootstrapping after {} attempts", result.ranges, attempts);
-                            getBlocking(node.commandStores().rebootstrap(node, result == null ? null : result.ranges, CATCHUP).reads);
+                            getBlocking(rebootstrap(CATCHUP, result == null ? null : result.ranges, false)); // see above
                             if (onTimeout == REBOOTSTRAP)
                                 return;
                             ++attempts;
@@ -1445,6 +1450,26 @@ public class AccordService implements IAccordService, Shutdownable
     public long minEpoch()
     {
         return node.topology().minEpoch();
+    }
+
+    public AsyncResult<Void> rebootstrap(BootstrapReason reason, boolean declareUnreadable)
+    {
+        return rebootstrap(reason, null, declareUnreadable);
+    }
+
+    public AsyncResult<Void> rebootstrap(BootstrapReason reason, @Nullable Ranges ranges, boolean declareUnreadable)
+    {
+        if (declareUnreadable)
+            nodeStatusCoordinator.declareStartedUnreadable();
+
+        EpochReady ready = node.commandStores().rebootstrap(node, ranges, reason);
+        // a reason that refuses requests is not finished until it stops refusing them, which is what
+        // EpochReady.coordinate reports; CATCHUP refuses nothing, and its readyToCoordinate polls for durability
+        // on a much longer schedule, so waiting for it here would hold up startup long after the catchup is done
+        AsyncResult<Void> done = reason == CATCHUP || reason == BootstrapReason.GAIN_OWNERSHIP ? ready.reads() : ready.coordinateAndReads();
+        if (declareUnreadable)
+            done.invokeIfSuccess(() -> nodeStatusCoordinator.declareReady());
+        return done;
     }
 
     public Node node()

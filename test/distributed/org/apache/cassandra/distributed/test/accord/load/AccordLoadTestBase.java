@@ -60,7 +60,6 @@ import org.slf4j.LoggerFactory;
 import accord.local.Catchup;
 import accord.local.CommandStore;
 import accord.local.ExecutionContext;
-import accord.local.Node;
 import accord.local.SafeCommand;
 import accord.primitives.PartialDeps;
 import accord.primitives.TxnId;
@@ -121,15 +120,18 @@ import static org.apache.cassandra.service.accord.debug.AccordTracing.BucketMode
 public class AccordLoadTestBase extends AccordTestBase
 {
     private static long CHAOS_WARN_NANOS = TimeUnit.MINUTES.toNanos(2L);
-    private static long CHAOS_FAIL_NANOS = TimeUnit.MINUTES.toNanos(10L);
+    private static long CHAOS_FAIL_NANOS = TimeUnit.MINUTES.toNanos(Long.getLong("chaos.fail.minutes", 10L));
     private static final Logger logger = LoggerFactory.getLogger(AccordLoadTestBase.class);
 
     static
     {
         // this is a bit ugly, but to avoid specifying unique parameters for load tests that will cause strain on CI
-        // simply allow us to override and disable paranoia for this test
+        // simply allow us to override and disable paranoia/debug for this test to reduce overheads
         if (!CassandraRelevantProperties.ACCORD_PARANOIA_PERMIT_TEST_OVERRIDE.getBoolean())
+        {
             CassandraRelevantProperties.ACCORD_PARANOID.setBoolean(false);
+            CassandraRelevantProperties.ACCORD_DEBUG.setBoolean(false);
+        }
     }
 
     @Before
@@ -179,6 +181,7 @@ public class AccordLoadTestBase extends AccordTestBase
 
     public void testLoad(final LoadSettings settings) throws Exception
     {
+        Runnable stopClients = null;
         Cluster cluster = SHARED_CLUSTER;
         cluster.setUncaughtExceptionsFilter((instance, error) -> isExpectedDuringChaos(error));
         // make the repair-retry configuration visible in the log: with retries disabled a lost merkle tree response
@@ -300,6 +303,28 @@ public class AccordLoadTestBase extends AccordTestBase
                 throw new IllegalArgumentException("If restarting, cannot have as many clients as nodes, as must reroute client requests during restart");
 
             int clientRatePerSecond = Math.min(settings.ratePerSecond, settings.minRatePerSecond) / clientCount;
+
+            stopClients = () -> {
+                stop.set(true);
+                pauseOrStop.set(true);
+                waitQueue.signalAll();
+                chaosExecutor.shutdownNow();
+                clientExecutor.shutdown();
+                try
+                {
+                    if (!clientExecutor.awaitTermination(1, TimeUnit.MINUTES))
+                    {
+                        logger.warn("Clients did not stop within a minute; interrupting them");
+                        clientExecutor.shutdownNow();
+                    }
+                }
+                catch (InterruptedException e)
+                {
+                    clientExecutor.shutdownNow();
+                    Thread.currentThread().interrupt();
+                }
+            };
+
             for (int client = 0 ; client < clientCount ; ++client)
             {
                 rateLimiters.set(client, RateLimiter.create(clientRatePerSecond));
@@ -310,7 +335,7 @@ public class AccordLoadTestBase extends AccordTestBase
                     long sleep = 100;
                     try
                     {
-                        while (true)
+                        while (!stop.get())
                         {
                             while (pauseOrStop.get())
                             {
@@ -532,10 +557,12 @@ public class AccordLoadTestBase extends AccordTestBase
         }
         catch (Throwable t)
         {
-            t.printStackTrace();
-            System.exit(1);
+            if (stopClients != null)
+                stopClients.run();
+            throw t;
         }
 
+        stopClients.run();
         logger.info("Workload completed successfully");
     }
 
@@ -698,8 +725,7 @@ public class AccordLoadTestBase extends AccordTestBase
                 future = node.asyncAcceptsOnInstance((Set<Integer> cnds) -> {
                     try
                     {
-                        Node accordNode = AccordService.instance().node();
-                        AccordService.getBlocking(accordNode.commandStores().rebootstrap(accordNode, chaos == REBOOTSTRAP_RESET ? LOG_CORRUPTED : LOG_INCOMPLETE).reads);
+                        AccordService.getBlocking(((AccordService) AccordService.instance()).rebootstrap(chaos == REBOOTSTRAP_RESET ? LOG_CORRUPTED : LOG_INCOMPLETE, true));
                     }
                     finally
                     {

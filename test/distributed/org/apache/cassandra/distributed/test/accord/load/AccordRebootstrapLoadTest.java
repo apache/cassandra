@@ -50,6 +50,9 @@ public class AccordRebootstrapLoadTest extends AccordLoadTestBase
                   .set("accord.queue_thread_count", "4")
                   .set("accord.queue_shard_count", "1")
                   .set("accord.catchup_on_start_fail_latency", "2m")
+                  .set("accord.retry_syncpoint", "1s*attempts <= 10s")
+                  .set("accord.retry_durability", "1s*attempts <= 10s")
+                  .set("accord.retry_background_syncpoint", "5s*attempts <= 30s")
                   // repair retries are disabled by default (RetrySpec.DEFAULT_MAX_ATTEMPTS == DISABLED), which makes a
                   // single lost VALIDATION_RSP/SYNC_RSP strand the repair - and therefore the rebootstrap that waits on
                   // it - forever. Accord relies on repair for its bootstrap data fetch, so enable them here.

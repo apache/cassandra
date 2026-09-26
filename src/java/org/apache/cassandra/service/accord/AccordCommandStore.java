@@ -809,12 +809,12 @@ public class AccordCommandStore extends CommandStore
                 return AsyncChains.success(null);
 
             return commandStore.chain(ExecutionContext.unsequenced(txnId, "Replay"), safeStore -> {
-                Replay replay = shouldReplay(txnId, safeStore.unsafeTryGet(txnId).current().participants());
+                Replay replay = shouldReplay(txnId, safeStore.unsafeGet(txnId).current().participants());
                 if (replay == Replay.NONE)
                     return null;
 
                 replay(safeStore, txnId, replay);
-                return safeStore.unsafeTryGet(txnId).current().route();
+                return safeStore.unsafeGet(txnId).current().route();
             });
         }
     }
