@@ -142,7 +142,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
             return false;
         }
 
-        try (RandomAccessReader dataFile = sstable.openDataReader();
+        try (RandomAccessReader dataFile = sstable.openDataReaderForScan();
              LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.INDEX_BUILD, sstable))
         {
             perSSTableFileLock = shouldWritePerSSTableFiles(sstable);

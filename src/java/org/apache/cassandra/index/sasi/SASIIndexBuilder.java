@@ -80,7 +80,7 @@ class SASIIndexBuilder extends SecondaryIndexBuilder
             SSTableReader sstable = e.getKey();
             Map<ColumnMetadata, ColumnIndex> indexes = e.getValue();
 
-            try (RandomAccessReader dataFile = sstable.openDataReader())
+            try (RandomAccessReader dataFile = sstable.openDataReaderForScan())
             {
                 PerSSTableIndexWriter indexWriter = SASIIndex.newWriter(keyValidator, sstable.descriptor, indexes, OperationType.COMPACTION);
                 targetDirectory = indexWriter.getDescriptor().directory.path();
