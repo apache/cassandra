@@ -3995,6 +3995,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // Flush system tables after stopping compactions since they modify
             // system tables (for example compactions can obsolete sstables and the tidiers in SSTableReader update
             // system tables, see SSTableReader.GlobalTidy)
+            // Keyspace.system() includes system_schema (SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES), so this
+            // also covers the coalesced/async system_schema flush (SchemaKeyspace.scheduleFlush()): any DDL
+            // applied before drain is guaranteed a synchronous flush here regardless of the coalesce window.
             flushes.clear();
             for (Keyspace keyspace : Keyspace.system())
             {

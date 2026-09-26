@@ -920,6 +920,8 @@ public class SnapshotsTest
                 tables = new ArrayList<>();
 
             tables.add(tableName);
+            // Sort to match the sorted order from getSchema() after CASSANDRA-21664 changed to BTreeMap
+            Collections.sort(tables);
             schema.put(keyspaceName, tables);
         }
 
@@ -1079,6 +1081,11 @@ public class SnapshotsTest
                     List<String> tables = new ArrayList<>();
                     for (TableMetadata tmd : ksm.tables)
                         tables.add(tmd.name);
+
+                    // Sort tables to make comparison order-independent. CASSANDRA-21664 changed Tables from
+                    // ImmutableMap (insertion order) to BTreeMap (sorted order), but table iteration order
+                    // is not a guaranteed contract. Sort here so tests pass regardless of internal ordering.
+                    Collections.sort(tables);
 
                     keyspacesWithTables.put(ksm.name, tables);
                 }

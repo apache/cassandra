@@ -231,7 +231,7 @@ public class AlterSchema implements Transformation
 
         }
 
-        DistributedSchema snapshotAfter = new DistributedSchema(newKeyspaces);
+        DistributedSchema snapshotAfter = new DistributedSchema(newKeyspaces, Epoch.EMPTY, prev.schema);
         ClusterMetadata.Transformer next = prev.transformer().with(snapshotAfter);
         if (!affectsPlacements.isEmpty())
         {
