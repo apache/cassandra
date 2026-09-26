@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import org.apache.cassandra.tools.NodeProbe;
 
 import picocli.CommandLine.Command;
@@ -52,6 +55,11 @@ public class Rebuild extends AbstractCommand
             description = "Use --exclude-local-dc to exclude nodes in local data center as source for streaming.")
     private boolean excludeLocalDatacenterNodes = false;
 
+    @Option(paramLabel = "specific_tables",
+    names = {"-tb", "--table"},
+    description = "Use -tb to scope the rebuild to particular table or set of tables")
+    private Set<String> tables = new HashSet<>();
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -61,6 +69,6 @@ public class Rebuild extends AbstractCommand
             throw new IllegalArgumentException("Cannot specify tokens without keyspace.");
         }
 
-        probe.rebuild(sourceDataCenterName, keyspace, tokens, specificSources, excludeLocalDatacenterNodes);
+        probe.rebuild(sourceDataCenterName, keyspace, tokens, specificSources, excludeLocalDatacenterNodes, tables);
     }
 }
