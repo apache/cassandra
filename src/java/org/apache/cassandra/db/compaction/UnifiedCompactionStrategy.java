@@ -298,14 +298,17 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
     private void maybeUpdateShardManager()
     {
-        if (shardManager != null && !shardManager.isOutOfDate(StorageService.instance.getTokenMetadata().getRingVersion()))
-            return; // the disk boundaries (and thus the local ranges too) have not changed since the last time we calculated
+        long estimatedPartitionCount = ShardManager.estimatedPartitionCount(cfs);
+        if (shardManager != null && !shardManager.isOutOfDate(StorageService.instance.getTokenMetadata().getRingVersion(),
+                                                              estimatedPartitionCount))
+            return; // the disk boundaries, local ranges and partition count estimate have not changed since the last time we calculated
 
         synchronized (this)
         {
             // Recheck after entering critical section, another thread may have beaten us to it.
-            while (shardManager == null || shardManager.isOutOfDate(StorageService.instance.getTokenMetadata().getRingVersion()))
-                shardManager = ShardManager.create(cfs);
+            while (shardManager == null || shardManager.isOutOfDate(StorageService.instance.getTokenMetadata().getRingVersion(),
+                                                                    estimatedPartitionCount))
+                shardManager = ShardManager.create(cfs, estimatedPartitionCount);
             // Note: this can just as well be done without the synchronization (races would be benign, just doing some
             // redundant work). For the current usages of this blocking is fine and expected to perform no worse.
         }

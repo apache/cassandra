@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -70,7 +71,7 @@ public class ShardManagerTest
     public void testRangeSpannedFullOwnership()
     {
         weightedRanges.add(new Splitter.WeightedRange(1.0, new Range<>(minimumToken, minimumToken)));
-        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges);
+        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges, 10000L);
 
         // sanity check
         assertEquals(0.4, tokenAt(0.1).size(tokenAt(0.5)), delta);
@@ -79,8 +80,12 @@ public class ShardManagerTest
         assertEquals(0.2, shardManager.rangeSpanned(range(0.3, 0.5)), delta);
 
         assertEquals(0.2, shardManager.rangeSpanned(mockedTable(0.5, 0.7, Double.NaN)), delta);
-        // single-partition correction
-        assertEquals(1.0, shardManager.rangeSpanned(mockedTable(0.3, 0.3, Double.NaN)), delta);
+        // single-token-span correction
+        assertEquals(0.02, shardManager.rangeSpanned(mockedTable(0.3, 0.3, Double.NaN, 200)), delta);
+        // small partition count correction
+        assertEquals(0.0001, shardManager.rangeSpanned(mockedTable(0.3, 0.30001, Double.NaN, 1)), delta);
+        assertEquals(0.001, shardManager.rangeSpanned(mockedTable(0.3, 0.30001, Double.NaN, 10)), delta);
+        assertEquals(0.01, shardManager.rangeSpanned(mockedTable(0.3, 0.31, Double.NaN, 10)), delta);
 
         // reported coverage
         assertEquals(0.1, shardManager.rangeSpanned(mockedTable(0.5, 0.7, 0.1)), delta);
@@ -89,7 +94,7 @@ public class ShardManagerTest
         assertEquals(0.2, shardManager.rangeSpanned(mockedTable(0.5, 0.7, -1)), delta);
 
         // correction over coverage
-        assertEquals(1.0, shardManager.rangeSpanned(mockedTable(0.3, 0.5, 1e-50)), delta);
+        assertEquals(0.02, shardManager.rangeSpanned(mockedTable(0.3, 0.5, 1e-50, 200)), delta);
     }
 
     @Test
@@ -105,7 +110,7 @@ public class ShardManagerTest
         weightedRanges.add(new Splitter.WeightedRange(1.0, new Range<>(tokenAt(0.98), tokenAt(1.0))));
         double total = weightedRanges.stream().mapToDouble(wr -> wr.range().left.size(wr.range().right)).sum();
 
-        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges);
+        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges, 10000L);
 
         // sanity check
         assertEquals(0.4, tokenAt(0.1).size(tokenAt(0.5)), delta);
@@ -119,10 +124,11 @@ public class ShardManagerTest
         assertEquals(0.1, shardManager.rangeSpanned(mockedTable(0.5, 0.8, Double.NaN)), delta);
 
         // single-partition correction
-        assertEquals(1.0, shardManager.rangeSpanned(mockedTable(0.3, 0.3, Double.NaN)), delta);
+        assertEquals(0.02 * total, shardManager.rangeSpanned(mockedTable(0.3, 0.3, Double.NaN, 200)), delta);
         // out-of-local-range correction
-        assertEquals(1.0, shardManager.rangeSpanned(mockedTable(0.6, 0.7, Double.NaN)), delta);
-        assertEquals(0.001, shardManager.rangeSpanned(mockedTable(0.6, 0.701, Double.NaN)), delta);
+        assertEquals(0.03, shardManager.rangeSpanned(mockedTable(0.6, 0.73, Double.NaN, 200)), delta);
+        // completely outside should use partition-based count
+        assertEquals(0.02 * total, shardManager.rangeSpanned(mockedTable(0.6, 0.7, Double.NaN, 200)), delta);
 
         // reported coverage
         assertEquals(0.1, shardManager.rangeSpanned(mockedTable(0.5, 0.7, 0.1)), delta);
@@ -131,7 +137,7 @@ public class ShardManagerTest
         assertEquals(0.1, shardManager.rangeSpanned(mockedTable(0.5, 0.8, -1)), delta);
 
         // correction over coverage, no recalculation
-        assertEquals(1.0, shardManager.rangeSpanned(mockedTable(0.5, 0.8, 1e-50)), delta);
+        assertEquals(0.02 * total, shardManager.rangeSpanned(mockedTable(0.5, 0.8, 1e-50, 200)), delta);
     }
 
     @Test
@@ -147,7 +153,7 @@ public class ShardManagerTest
         weightedRanges.add(new Splitter.WeightedRange(1.0, new Range<>(tokenAt(0.98), tokenAt(1.0))));
         double total = weightedRanges.stream().mapToDouble(wr -> wr.size()).sum();
 
-        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges);
+        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges, 10000L);
 
         // sanity check
         assertEquals(0.4, tokenAt(0.1).size(tokenAt(0.5)), delta);
@@ -161,10 +167,10 @@ public class ShardManagerTest
         assertEquals(0.06, shardManager.rangeSpanned(mockedTable(0.5, 0.8, Double.NaN)), delta);
 
         // single-partition correction
-        assertEquals(1.0, shardManager.rangeSpanned(mockedTable(0.3, 0.3, Double.NaN)), delta);
+        assertEquals(0.02 * total, shardManager.rangeSpanned(mockedTable(0.3, 0.3, Double.NaN, 200)), delta);
         // out-of-local-range correction
-        assertEquals(1.0, shardManager.rangeSpanned(mockedTable(0.6, 0.7, Double.NaN)), delta);
-        assertEquals(0.001, shardManager.rangeSpanned(mockedTable(0.6, 0.701, Double.NaN)), delta);
+        assertEquals(0.02 * total, shardManager.rangeSpanned(mockedTable(0.6, 0.7, Double.NaN, 200)), delta);
+        assertEquals(0.03, shardManager.rangeSpanned(mockedTable(0.6, 0.73, Double.NaN)), delta);
 
         // reported coverage
         assertEquals(0.1, shardManager.rangeSpanned(mockedTable(0.5, 0.7, 0.1)), delta);
@@ -173,7 +179,40 @@ public class ShardManagerTest
         assertEquals(0.06, shardManager.rangeSpanned(mockedTable(0.5, 0.8, -1)), delta);
 
         // correction over coverage, no recalculation
-        assertEquals(1.0, shardManager.rangeSpanned(mockedTable(0.5, 0.8, 1e-50)), delta);
+        assertEquals(0.02 * total, shardManager.rangeSpanned(mockedTable(0.5, 0.8, 1e-50, 200)), delta);
+    }
+
+    @Test
+    public void testOutOfDateOnPartitionCountChange()
+    {
+        weightedRanges.add(new Splitter.WeightedRange(1.0, new Range<>(minimumToken, minimumToken)));
+        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges, 10000L);
+
+        assertFalse(shardManager.isOutOfDate(-1, 10000L));
+        assertTrue(shardManager.isOutOfDate(-1, 20000L));
+    }
+
+    @Test
+    public void testCombinedDensitySmallSSTables()
+    {
+        weightedRanges.add(new Splitter.WeightedRange(1.0, new Range<>(minimumToken, minimumToken)));
+        ShardManager shardManager = new ShardManagerNoDisks(weightedRanges, 10000L);
+
+        // Two adjacent tiny sstables with four partitions in total get a span floor of 4 / 10000 of the ring.
+        SSTableReader tinyA = mockedTable(0.3, 0.3 + 1e-11, Double.NaN, 2);
+        SSTableReader tinyB = mockedTable(0.3 + 2e-11, 0.3 + 3e-11, Double.NaN, 2);
+        Mockito.when(tinyA.onDiskLength()).thenReturn(1024L);
+        Mockito.when(tinyB.onDiskLength()).thenReturn(1024L);
+        double expected = 2048 / 0.0004;
+        assertEquals(expected, shardManager.calculateCombinedDensity(ImmutableSet.of(tinyA, tinyB)), expected * 1e-6);
+
+        // Enough partitions in a narrow slice keep the raw span.
+        SSTableReader narrowA = mockedTable(0.3, 0.3 + 1e-5, Double.NaN, 5000);
+        SSTableReader narrowB = mockedTable(0.3, 0.3 + 1e-5, Double.NaN, 5000);
+        Mockito.when(narrowA.onDiskLength()).thenReturn(1L << 20);
+        Mockito.when(narrowB.onDiskLength()).thenReturn(1L << 20);
+        expected = (2L << 20) / 1e-5;
+        assertEquals(expected, shardManager.calculateCombinedDensity(ImmutableSet.of(narrowA, narrowB)), expected * 1e-6);
     }
 
     Token tokenAt(double pos)
@@ -194,10 +233,17 @@ public class ShardManagerTest
 
     SSTableReader mockedTable(double start, double end, double reportedCoverage)
     {
+        return mockedTable(start, end, reportedCoverage, ShardManager.PER_PARTITION_SPAN_THRESHOLD * 2);
+    }
+
+    SSTableReader mockedTable(double start, double end, double reportedCoverage, long estimatedKeys)
+    {
         SSTableReader mock = Mockito.mock(SSTableReader.class);
         Mockito.when(mock.getFirst()).thenReturn(keyAt(start));
         Mockito.when(mock.getLast()).thenReturn(keyAt(end));
         Mockito.when(mock.tokenSpaceCoverage()).thenReturn(reportedCoverage);
+        Mockito.when(mock.getEstimatedPartitionSize()).thenReturn(null); // partitionCount falls back to estimatedKeys
+        Mockito.when(mock.estimatedKeys()).thenReturn(estimatedKeys);
         return mock;
     }
 
