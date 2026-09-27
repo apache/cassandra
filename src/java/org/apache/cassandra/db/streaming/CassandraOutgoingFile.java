@@ -239,6 +239,7 @@ public class CassandraOutgoingFile implements OutgoingStream
      * constructed-but-never-transferred stream (e.g. an error while planning outgoing streams) so the status
      * cannot leak. See CASSANDRA-21520.
      */
+    @Override
     public void releaseStreamRebuildStatus()
     {
         if (shouldStreamEntireSSTable && !streamRebuildStatusReleased)

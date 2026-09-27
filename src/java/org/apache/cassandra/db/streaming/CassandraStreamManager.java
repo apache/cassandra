@@ -145,17 +145,17 @@ public class CassandraStreamManager implements TableStreamManager
             List<Range<Token>> normalizedFullRanges = Range.normalize(replicas.onlyFull().ranges());
             List<Range<Token>> normalizedAllRanges = Range.normalize(replicas.ranges());
             //Create outgoing file streams for ranges possibly skipping repaired ranges in sstables
-            for (SSTableReader sstable : refs)
+            for (SSTableReader sstable : new ArrayList<>(refs))
             {
                 List<Range<Token>> ranges = sstable.isRepaired() ? normalizedFullRanges : normalizedAllRanges;
                 List<SSTableReader.PartitionPositionBounds> sections = sstable.getPositionsForRanges(ranges);
 
-                Ref<SSTableReader> ref = refs.get(sstable);
                 if (sections.isEmpty())
                 {
-                    ref.release();
+                    refs.release(sstable);
                     continue;
                 }
+                Ref<SSTableReader> ref = refs.get(sstable);
                 streams.add(new CassandraOutgoingFile(session.getStreamOperation(), ref, sections, ranges,
                                                       sstable.estimatedKeysForRanges(ranges)));
             }
@@ -167,7 +167,7 @@ public class CassandraStreamManager implements TableStreamManager
             // Release the entire-sstable streaming status held by any already-constructed stream (their refs are
             // released below via refs.release()), so a planning failure cannot leak the status (CASSANDRA-21520).
             for (OutgoingStream stream : streams)
-                ((CassandraOutgoingFile) stream).releaseStreamRebuildStatus();
+                stream.releaseStreamRebuildStatus();
             refs.release();
             throw t;
         }
