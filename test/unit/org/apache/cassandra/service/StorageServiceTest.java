@@ -223,7 +223,7 @@ public class StorageServiceTest extends TestBaseImpl
     }
 
     @Test
-    public void testGracefulDisconnectEnabled()
+    public void testDefaultValueOfGracefulDisconnectEnabledIsFalse()
     {
         Assertions.assertThat(StorageService.instance.getGracefulDisconnectEnabled()).isFalse();
     }

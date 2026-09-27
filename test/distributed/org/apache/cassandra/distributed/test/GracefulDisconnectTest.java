@@ -53,6 +53,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 public class GracefulDisconnectTest
 {
 
+    private static final String GRACE_PERIOD = "4s";
+
     @BeforeClass
     public static void setUp() throws IOException
     {
@@ -288,10 +290,7 @@ public class GracefulDisconnectTest
                     cluster.get(1).nodetool("drain");
                 });
 
-                Message.Response response = client.execute(new org.apache.cassandra.transport.messages.QueryMessage(
-                "SELECT val FROM ks.tbl WHERE id = 1",
-                org.apache.cassandra.cql3.QueryOptions.DEFAULT
-                ));
+                Message.Response response = client.execute(new QueryMessage("SELECT val FROM ks.tbl WHERE id = 1", org.apache.cassandra.cql3.QueryOptions.DEFAULT));
 
                 assertThat(response)
                 .as("Query must succeed during drain without connection drop or timeout")
@@ -477,6 +476,7 @@ public class GracefulDisconnectTest
             }
         }
     }
+
     private static String selectVal(SimpleClient client)
     {
         Message.Response response = client.execute(new QueryMessage(

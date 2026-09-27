@@ -94,6 +94,11 @@ public class Server implements CassandraDaemon.Server
     public final InetSocketAddress socket;
     public final EncryptionOptions.TlsEncryptionPolicy tlsEncryptionPolicy;
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
+    // Gates request dispatch, separately from isRunning: isRunning flips to false the instant stop()
+    // is called (reentrancy guard + public status), but acceptingRequests stays true through the whole
+    // graceful-disconnect grace period, so requests keep being served normally on already-open
+    // connections until the grace period actually elapses (or every subscribed client closes early).
+    private final AtomicBoolean acceptingRequests = new AtomicBoolean(false);
     private final PipelineConfigurator pipelineConfigurator;
     private final EventLoopGroup workerGroup;
     private final Dispatcher dispatcher;
@@ -122,7 +127,7 @@ public class Server implements CassandraDaemon.Server
                                                           dispatcher);
 
         EventNotifier notifier = builder.eventNotifier != null ? builder.eventNotifier : new EventNotifier();
-        connectionTracker = new ConnectionTracker(isRunning::get);
+        connectionTracker = new ConnectionTracker(acceptingRequests::get);
         notifier.registerConnectionTracker(connectionTracker);
         StorageService.instance.register(notifier);
         Schema.instance.registerListener(notifier);
@@ -158,7 +163,7 @@ public class Server implements CassandraDaemon.Server
 
         channelGroup.forEach(channel ->
                              {
-                                 ClientMetrics.instance.connectionsDraining.set(channelGroup.size());
+                                 ClientMetrics.instance.connectionsDraining.incrementAndGet();
                                  channel.closeFuture().addListener(future -> ClientMetrics.instance.decrementConnectionsDraining());
                              }
         );
@@ -203,6 +208,7 @@ public class Server implements CassandraDaemon.Server
 
         connectionTracker.allChannels.add(bindFuture.channel());
         isRunning.set(true);
+        acceptingRequests.set(true);
     }
 
     /**
@@ -265,6 +271,11 @@ public class Server implements CassandraDaemon.Server
     {
         if (!force)
         {
+            if (DatabaseDescriptor.getGracefulDisconnectEnabled())
+                gracefulDisconnect();
+            else
+                stopAcceptingNewConnections();
+            acceptingRequests.set(false);
             long deadline = nanoTime() + DatabaseDescriptor.getNativeTransportTimeout(TimeUnit.NANOSECONDS);
             while (!dispatcher.isDone())
             {
@@ -276,7 +287,11 @@ public class Server implements CassandraDaemon.Server
                 LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
             }
         }
-
+        else
+        {
+            stopAcceptingNewConnections();
+            acceptingRequests.set(false);
+        }
         // Close opened connections
         connectionTracker.closeAll();
 
@@ -420,11 +435,13 @@ public class Server implements CassandraDaemon.Server
         int countConnectedClients()
         {
             /*
-              - When server is running: allChannels contains all clients' connections (channels)
-                plus one additional channel used for the server's own bootstrap.
-               - When server is stopped: the size is 0
+                  Count only channels associated with a ServerConnection. The server's
+                  bootstrap channel is not associated with a ServerConnection and is
+                  therefore excluded.
             */
-            return allChannels.size() != 0 ? allChannels.size() - 1 : 0;
+            return (int) allChannels.stream()
+                                    .filter(channel -> channel.pipeline().get(String.valueOf(ServerConnection.class)) != null)
+                                    .count();
         }
 
         int countConnectedClients(Predicate<ServerConnection> predicate)

@@ -28,11 +28,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CompletableFuture; // checkstyle: permit this import
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.SynchronousQueue; // checkstyle: permit this import
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
@@ -123,7 +123,7 @@ public class SimpleClient implements Closeable
     protected Channel channel;
     protected ChannelFuture lastWriteFuture;
     private final AtomicBoolean draining = new AtomicBoolean(false);
-    private volatile CompletableFuture<Void> inFlight = CompletableFuture.completedFuture(null);
+    private final AtomicInteger inFlight = new AtomicInteger();
     protected String compression;
 
     public static class Builder
@@ -348,11 +348,7 @@ public class SimpleClient implements Closeable
 
     public Message.Response execute(Message.Request request, boolean throwOnErrorResponse)
     {
-        if (draining.get())
-            throw new RuntimeException("Connection is draining (GRACEFUL_DISCONNECT received)");
-
-        CompletableFuture<Void> requestCompletion = new CompletableFuture<>();
-        inFlight = requestCompletion;
+        beginRequest();
         try
         {
             request.attach(connection);
@@ -360,8 +356,10 @@ public class SimpleClient implements Closeable
             Message.Response msg = responseHandler.responses.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS);
             if (msg == null)
                 throw new RuntimeException("timeout");
+
             if (throwOnErrorResponse && msg instanceof ErrorMessage)
-                throw new RuntimeException((Throwable)((ErrorMessage)msg).error);
+                throw new RuntimeException((Throwable) ((ErrorMessage) msg).error);
+
             return msg;
         }
         catch (InterruptedException e)
@@ -370,42 +368,71 @@ public class SimpleClient implements Closeable
         }
         finally
         {
-            requestCompletion.complete(null);
+            endRequest();
+        }
+    }
+
+    private void beginRequest()
+    {
+        synchronized (this)
+        {
+            if (draining.get())
+                throw new RuntimeException("Connection is draining (GRACEFUL_DISCONNECT received)");
+
+            inFlight.incrementAndGet();
+        }
+    }
+
+    private void endRequest()
+    {
+        synchronized (this)
+        {
+            if (inFlight.decrementAndGet() == 0 && draining.get())
+                channel.eventLoop().execute(channel::close);
         }
     }
 
     public Map<Message.Request, Message.Response> execute(List<Message.Request> requests)
     {
+        if (!version.isGreaterOrEqualTo(ProtocolVersion.V5))
+        {
+            Map<Message.Request, Message.Response> rrMap = new HashMap<>();
+
+            // V4 doesn't support batching.
+            for (Message.Request request : requests)
+                rrMap.put(request, execute(request));
+
+            return rrMap;
+        }
+
+        beginRequest();
         try
         {
             Map<Message.Request, Message.Response> rrMap = new HashMap<>();
 
-            if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+            for (int i = 0; i < requests.size(); i++)
             {
-                for (int i = 0; i < requests.size(); i++)
-                {
-                    Message.Request message = requests.get(i);
-                    message.setSource(new Envelope(Envelope.Header.dummy(i, message.type), null));
-                    message.attach(connection);
-                }
-                lastWriteFuture = channel.writeAndFlush(requests);
-
-                long deadline = currentTimeMillis() + TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS);
-                for (int i = 0; i < requests.size(); i++)
-                {
-                    Message.Response msg = responseHandler.responses.poll(deadline - currentTimeMillis(), TimeUnit.MILLISECONDS);
-                    if (msg == null)
-                        throw new RuntimeException("timeout");
-                    if (msg instanceof ErrorMessage)
-                        throw new RuntimeException((Throwable) ((ErrorMessage) msg).error);
-                    rrMap.put(requests.get(msg.getSource().header.streamId), msg);
-                }
+                Message.Request message = requests.get(i);
+                message.setSource(new Envelope(Envelope.Header.dummy(i, message.type), null));
+                message.attach(connection);
             }
-            else
+
+            lastWriteFuture = channel.writeAndFlush(requests);
+
+            long deadline = currentTimeMillis() + TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS);
+            for (int i = 0; i < requests.size(); i++)
             {
-                // V4 doesn't support batching
-                for (Message.Request request : requests)
-                    rrMap.put(request, execute(request));
+                Message.Response msg = responseHandler.responses.poll(
+                deadline - currentTimeMillis(),
+                TimeUnit.MILLISECONDS);
+
+                if (msg == null)
+                    throw new RuntimeException("timeout");
+
+                if (msg instanceof ErrorMessage)
+                    throw new RuntimeException((Throwable) ((ErrorMessage) msg).error);
+
+                rrMap.put(requests.get(msg.getSource().header.streamId), msg);
             }
 
             return rrMap;
@@ -413,6 +440,10 @@ public class SimpleClient implements Closeable
         catch (InterruptedException e)
         {
             throw new UncheckedInterruptedException(e);
+        }
+        finally
+        {
+            endRequest();
         }
     }
 
@@ -435,8 +466,14 @@ public class SimpleClient implements Closeable
 
     private void handleGracefulDisconnect()
     {
+        synchronized (this)
+    {
         draining.set(true);
-        inFlight.thenRun(() -> channel.eventLoop().execute(channel::close));
+
+        if (inFlight.get() == 0)
+            channel.eventLoop().execute(channel::close);
+    }
+
         channel.closeFuture().addListener(f -> bootstrap.group().shutdownGracefully());
     }
 
