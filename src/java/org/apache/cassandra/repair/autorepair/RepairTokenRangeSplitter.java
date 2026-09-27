@@ -522,7 +522,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
                 return Collections.emptyList();
             }
 
-            long memtableSize = cfs.getTracker().getView().getCurrentMemtable().getLiveDataSize();
+            long memtableSize = estimate.memtableSize;
             if (memtableSize > 0L)
             {
                 logger.debug("Included {}.{} range {}, had no unrepaired SSTables, but memtableSize={}, adding single repair assignment", estimate.keyspace, estimate.table, estimate.tokenRange, memtableSize);
