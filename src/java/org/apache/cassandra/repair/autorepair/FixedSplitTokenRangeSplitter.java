@@ -111,12 +111,7 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
             // This calculation is the best effort for the FixedSplitTokenRangeSplitter.
             // In practice, this metric may not give you an accurate view in case of uneven data distribution.
             long totalBytes = repairPlan.getEstimatedBytes();
-            long bytesPerRange = Math.max(1, totalBytes / splitsPerRange);
-            for (Range<Token> splitRange : allRanges)
-            {
-                // add repair assignment for each range entire keyspace's tables
-                repairAssignments.add(new RepairAssignment(splitRange, keyspaceName, tableNames, bytesPerRange));
-            }
+            addRepairAssignments(repairAssignments, allRanges, keyspaceName, tableNames, totalBytes);
         }
         else
         {
@@ -124,14 +119,21 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
             for (String tableName : tableNames)
             {
                 long totalBytes = repairPlan.getTableEstimatedBytes(AutoRepairUtils.getKeyspaceTableName(keyspaceName, tableName));
-                long bytesPerRange = Math.max(1, totalBytes / splitsPerRange);
-                for (Range<Token> splitRange : allRanges)
-                {
-                    repairAssignments.add(new RepairAssignment(splitRange, keyspaceName, Collections.singletonList(tableName), bytesPerRange));
-                }
+                addRepairAssignments(repairAssignments, allRanges, keyspaceName, Collections.singletonList(tableName), totalBytes);
             }
         }
         return new KeyspaceRepairAssignments(priority, keyspaceName, repairAssignments);
+    }
+
+    private static void addRepairAssignments(List<RepairAssignment> assignments, List<Range<Token>> ranges,
+                                             String keyspace, List<String> tables, long totalBytes)
+    {
+        // Preserve the total, including the remainder, even when there are more ranges than bytes.
+        for (int i = 0; i < ranges.size(); i++)
+        {
+            long bytes = totalBytes / ranges.size() + (i < totalBytes % ranges.size() ? 1 : 0);
+            assignments.add(new RepairAssignment(ranges.get(i), keyspace, tables, bytes));
+        }
     }
 
     @Override
