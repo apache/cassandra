@@ -18,10 +18,7 @@
 
 package org.apache.cassandra.locator;
 
-import java.io.DataInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -32,9 +29,9 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.HttpUtil;
 
 import static java.lang.String.format;
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 public abstract class AbstractCloudMetadataServiceConnector
 {
@@ -103,35 +100,16 @@ public abstract class AbstractCloudMetadataServiceConnector
                           Map<String, String> extraHeaders,
                           int expectedResponseCode) throws IOException
     {
-        HttpURLConnection conn = null;
-        try
-        {
-            // Populate the region and zone by introspection, fail if 404 on metadata
-            conn = (HttpURLConnection) new URL(url + query).openConnection();
-            extraHeaders.forEach(conn::setRequestProperty);
-            conn.setRequestMethod(method);
-            conn.setConnectTimeout(requestTimeoutMs);
-            if (conn.getResponseCode() != expectedResponseCode)
-                throw new HttpException(conn.getResponseCode(), conn.getResponseMessage());
+        HttpUtil.HttpConfig config = new HttpUtil.HttpConfig(requestTimeoutMs,
+                                                            0,
+                                                            extraHeaders);
 
-            // Read the information. I wish I could say (String) conn.getContent() here...
-            int cl = conn.getContentLength();
+        HttpUtil.HttpResponse response = HttpUtil.execute(url + query, method, config);
 
-            if (cl == -1)
-                return null;
+        if (response.getStatusCode() != expectedResponseCode)
+            throw new HttpException(response.getStatusCode(), response.getStatusMessage());
 
-            byte[] b = new byte[cl];
-            try (DataInputStream d = new DataInputStream((InputStream) conn.getContent()))
-            {
-                d.readFully(b);
-            }
-            return new String(b, UTF_8);
-        }
-        finally
-        {
-            if (conn != null)
-                conn.disconnect();
-        }
+        return response.getBody();
     }
 
     @Override
