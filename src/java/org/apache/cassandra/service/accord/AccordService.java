@@ -1243,26 +1243,15 @@ public class AccordService implements IAccordService, Shutdownable
         // Only write the stop marker, if the start marker was also written
         if (state == State.STARTED)
             journal.writeSafeStopMarker(node.uniqueNow());
-
         scheduler.shutdownNow();
-        long deadlineNanos = nanoTime() + DatabaseDescriptor.getAccord().shutdown_grace_period.toDuration().toNanos();
-
-        List<Future<?>> flushes = new ArrayList<>();
-        flushes.add(toFuture(flushCaches()).flatMap(ignore -> AccordColumnFamilyStores.commandsForKey.forceFlush(DRAIN)));
-
+        toFuture(flushCaches()).map(ignore -> {
+            return AccordColumnFamilyStores.commandsForKey.forceFlush(DRAIN);
+        });
         for (TableId tableId : tableIds)
         {
             ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(tableId);
             if (cfs != null)
-                flushes.add(cfs.forceFlush(DRAIN));
-        }
-
-        for (Future<?> f : flushes)
-        {
-            if (!f.awaitUntilThrowUncheckedOnInterrupt(deadlineNanos))
-                logger.error("Timeout waiting for Accord flushes during stop");
-            else if (f.cause() != null)
-                logger.error("Failed to flush Accord state during stop", f.cause());
+                cfs.forceFlush(DRAIN);
         }
 
         state = State.STOPPED;
