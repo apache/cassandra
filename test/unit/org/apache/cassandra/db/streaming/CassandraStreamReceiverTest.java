@@ -108,6 +108,24 @@ public class CassandraStreamReceiverTest extends CQLTester
     }
 
     @Test
+    public void testRestoreReplicaCountDoesNotRequireViewBuild()
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(MV_TABLE);
+        when(session.streamOperation()).thenReturn(StreamOperation.RESTORE_REPLICA_COUNT);
+        CassandraStreamReceiver receiver = new CassandraStreamReceiver(cfs, session, Collections.emptyList(), 1);
+        try
+        {
+            assertFalse(receiver.requiresWritePath(cfs));
+            when(session.streamOperation()).thenReturn(StreamOperation.OTHER);
+            assertTrue(receiver.requiresWritePath(cfs));
+        }
+        finally
+        {
+            receiver.abort();
+        }
+    }
+
+    @Test
     public void testRequiresWritePathRepairMVOnly()
     {
         // Given cdc_on_repaired_enabled and materialized_views_on_repair_enabled are true
