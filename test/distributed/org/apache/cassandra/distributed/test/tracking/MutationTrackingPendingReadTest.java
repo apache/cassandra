@@ -19,10 +19,12 @@ package org.apache.cassandra.distributed.test.tracking;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -34,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 import com.google.common.collect.ImmutableSet;
@@ -93,6 +96,7 @@ import org.apache.cassandra.replication.ActiveLogReconciler;
 import org.apache.cassandra.replication.CoordinatorLogId;
 import org.apache.cassandra.replication.Log2OffsetsMap;
 import org.apache.cassandra.replication.MutationId;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.Offsets;
@@ -616,6 +620,169 @@ public class MutationTrackingPendingReadTest
                                "Failing to augment the read left its ReadExecutionController open, so its " +
                                "OpOrder.Group blocks every flush and compaction of " + tableName + " from here on");
             });
+        }
+    }
+
+    /**
+     * A tracked index range read must complete and close when its follow up read fails during augmentation.
+     * When reconciliation delivers a key beyond the scanned range, the range read starts a follow up read
+     * and waits in {@code IndexPreComplete}. If the follow up read fails, the failure must propagate to the
+     * range read so its {@link ReadExecutionController} closes and releases the table's read {@link OpOrder.Group}.
+     */
+    @Test
+    public void testFollowUpReadAugmentFailureCompletesItsIndexRangeRead() throws Throwable
+    {
+        runFailedFollowUpRead("follow_up_augment_failure_test", false);
+    }
+
+    /**
+     * A tracked index range read must complete and close when its follow up read expires.
+     * When a summary node does not answer and the purger aborts the follow up read, the timeout
+     * must propagate to the range read so its {@link ReadExecutionController} closes.
+     */
+    @Test
+    public void testFollowUpReadExpiryCompletesItsIndexRangeRead() throws Throwable
+    {
+        runFailedFollowUpRead("follow_up_expiry_test", true);
+    }
+
+    private static void runFailedFollowUpRead(String keyspaceName, boolean expireFollowUp) throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(2)
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK)
+                                                            .with(Feature.GOSSIP)
+                                                            .set("mutation_tracking.enabled", true)
+                                                            .set("read_request_timeout", "2000ms")
+                                                            .set("range_request_timeout", "2000ms"))
+                                      .start())
+        {
+            String tableName = "tbl";
+            cluster.schemaChange(format("CREATE KEYSPACE %s WITH replication = " +
+                                        "{'class': 'SimpleStrategy', 'replication_factor': 2} " +
+                                        "AND replication_type='tracked';", keyspaceName));
+            cluster.schemaChange(format("CREATE TABLE %s.%s (k int, c int, v int, primary key (k, c));", keyspaceName, tableName));
+            cluster.schemaChange(format("CREATE INDEX tbl_v ON %s.%s(v) USING 'legacy_local_table';", keyspaceName, tableName));
+            cluster.coordinator(1).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (1, 0, 1)", keyspaceName, tableName), ConsistencyLevel.ALL);
+
+            cluster.setUncaughtExceptionsFilter(MutationTrackingPendingReadTest::isFailedFollowUpRead);
+
+            cluster.filters().verbs(Verb.MT_SUMMARY_REQ.id).from(1).to(2).drop();
+
+            cluster.get(1).runOnInstance(() -> {
+                TableMetadata metadata = Schema.instance.getTableMetadata(keyspaceName, tableName);
+                ColumnFamilyStore cfs = Keyspace.open(keyspaceName).getColumnFamilyStore(tableName);
+                awaitCondition(() -> cfs.getBuiltIndexes().contains("tbl_v"), "Index tbl_v was never built");
+                ClusterMetadata clusterMetadata = ClusterMetadata.current();
+                NodeId summaryNode = Iterables.getOnlyElement(Sets.difference(clusterMetadata.directory.peerIds(),
+                                                                             Collections.singleton(clusterMetadata.myNodeId())));
+                TrackedLocalReads localReads = MutationTrackingService.instance().localReads();
+                Map<TrackedRead.Id, ?> pendingReads = pendingLocalReads(localReads);
+
+                RowFilter rowFilter = RowFilter.create(false);
+                rowFilter.add(metadata.getColumn(bytes("v")), Operator.EQ, bytes(1));
+                PartitionRangeReadCommand command = PartitionRangeReadCommand.create(metadata,
+                                                                                     FBUtilities.nowInSeconds(),
+                                                                                     ColumnFilter.all(metadata),
+                                                                                     rowFilter,
+                                                                                     DataLimits.NONE,
+                                                                                     DataRange.allData(metadata.partitioner));
+
+                TrackedRead.Id rangeReadId = TrackedRead.Id.nextId();
+                AtomicReference<PartialTrackedRead> rangeRead = new AtomicReference<>();
+                AsyncPromise<TrackedDataResponse> promise =
+                    localReads.beginRead(rangeReadId,
+                                         clusterMetadata,
+                                         command,
+                                         org.apache.cassandra.db.ConsistencyLevel.ALL,
+                                         new int[]{ summaryNode.id() },
+                                         Dispatcher.RequestTime.forImmediateExecution(),
+                                         rangeRead::set,
+                                         TrackedLocalReads.Completer.DEFAULT);
+                Assert.assertFalse("The range read reconciled before its summary node answered", promise.isDone());
+                Assert.assertTrue("Expected an index read, got " + rangeRead.get(), rangeRead.get() instanceof PartialTrackedIndexRead);
+
+                DecoratedKey unscanned = metadata.partitioner.decorateKey(bytes(2));
+                MutationId written = MutationTrackingService.instance().nextMutationId(keyspaceName, unscanned.getToken());
+                SimpleBuilders.MutationBuilder builder = new SimpleBuilders.MutationBuilder(written, keyspaceName, unscanned);
+                builder.update(metadata).row(bytes(1)).add("v", 1);
+                builder.build().apply();
+                Assert.assertNotNull("The write never reached the mutation journal",
+                                     MutationJournal.instance().read(new ShortMutationId(written)));
+
+                Log2OffsetsMap.Mutable rangeAugmenting = new Log2OffsetsMap.Mutable();
+                rangeAugmenting.add(new ShortMutationId(written));
+                localReads.acknowledgeReconcile(rangeReadId, rangeAugmenting);
+
+                awaitCondition(() -> !pendingReads.isEmpty(), "The follow up read never began");
+                TrackedRead.Id followUpId = Iterables.getOnlyElement(pendingReads.keySet());
+                Assert.assertNotEquals(rangeReadId, followUpId);
+                Assert.assertFalse("The range read completed before its follow up read did", promise.isDone());
+
+                if (expireFollowUp)
+                {
+                    awaitCondition(() -> !pendingReads.containsKey(followUpId), "The follow up read never expired");
+                }
+                else
+                {
+                    MutationId unwritten = MutationTrackingService.instance().nextMutationId(keyspaceName, unscanned.getToken());
+                    Log2OffsetsMap.Mutable followUpAugmenting = new Log2OffsetsMap.Mutable();
+                    followUpAugmenting.add(new ShortMutationId(unwritten));
+                    localReads.acknowledgeReconcile(followUpId, followUpAugmenting);
+                }
+
+                boolean rangeReadCompleted = await(promise::isDone, 10);
+                OpOrder.Barrier barrier = cfs.readOrdering.newBarrier();
+                barrier.issue();
+                boolean drained = await(barrier.getSyncPoint()::isFinished, 10);
+
+                boolean drainedOnceRangeReadClosed = drained;
+                if (!drained)
+                {
+                    rangeRead.get().close();
+                    drainedOnceRangeReadClosed = await(barrier.getSyncPoint()::isFinished, 10);
+                }
+
+                Assert.assertTrue(format("The failed follow up read left its range read pending: range read completed=%s, " +
+                                         "barrier drained=%s, barrier drained once the range read was closed by hand=%s",
+                                         rangeReadCompleted, drained, drainedOnceRangeReadClosed),
+                                  rangeReadCompleted && drained);
+                Assert.assertNotNull("The range read succeeded without the follow up read it depended on", promise.cause());
+            });
+        }
+    }
+
+    private static boolean isFailedFollowUpRead(Throwable t)
+    {
+        for (Throwable cause = t; cause != null; cause = cause.getCause())
+        {
+            if (cause instanceof TimeoutException)
+                return true;
+            if (cause.getMessage() != null && cause.getMessage().startsWith("Missing mutation"))
+                return true;
+        }
+        return false;
+    }
+
+    private static boolean await(BooleanSupplier condition, long seconds)
+    {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(seconds);
+        while (!condition.getAsBoolean() && System.nanoTime() - deadline < 0)
+            Uninterruptibles.sleepUninterruptibly(10, TimeUnit.MILLISECONDS);
+        return condition.getAsBoolean();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<TrackedRead.Id, ?> pendingLocalReads(TrackedLocalReads localReads)
+    {
+        try
+        {
+            Field coordinators = TrackedLocalReads.class.getDeclaredField("coordinators");
+            coordinators.setAccessible(true);
+            return (Map<TrackedRead.Id, ?>) coordinators.get(localReads);
+        }
+        catch (ReflectiveOperationException e)
+        {
+            throw new AssertionError(e);
         }
     }
 

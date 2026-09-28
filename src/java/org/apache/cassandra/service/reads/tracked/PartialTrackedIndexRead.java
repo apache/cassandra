@@ -169,6 +169,10 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
             AsyncPromise<FollowUpRead<Match, Searcher>> followUpPromise = new AsyncPromise<>();
             TrackedRead.Partition trackedRead = TrackedRead.Partition.create(metadata, partitionReadCommand, consistencyLevel, requestTime);
 
+            trackedRead.future().addCallback((response, failure) -> {
+                if (failure != null)
+                    followUpPromise.tryFailure(failure);
+            });
             trackedRead.startLocal(requestTime, null, ((promise1, read, consistencyLevel1, rt) -> {
                 try
                 {
@@ -176,6 +180,7 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
                 }
                 catch (Exception e)
                 {
+                    read.close();
                     followUpPromise.tryFailure(e);
                 }
             }));
@@ -538,6 +543,8 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
                 // TODO: maybe we should immediately start a follow up read if it's likely this key will be included in the response
                 if (!followUpReads.containsKey(key) && indexNewKey(update))
                 {
+                    // maxKey isn't raised here because maxKey is only relevant to the range read, and the
+                    // followup read is a separate read that's not part of the range read
                     Future<FollowUpRead<Match, Searcher>> followUpRead = FollowUpRead.start(command, update.partitionKey(), consistencyLevel, requestTime);
                     followUpReads.put(key, followUpRead);
                 }
@@ -672,6 +679,12 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
         private final PeekingIterator<Match> materializedIterator;
         private final CloseablePeekingIterator<Match> additionalIterator;
         private boolean followUpRequired = false;
+        /**
+         * Key of the last match returned; null if none. Reconciliation can hand over keys past maxKey that are
+         * returned from their FollowUpRead, so this can be past maxKey. Do not raise maxKey when returning these
+         * keys: maxKey guards against reading unscanned entries from additionalIterator without a snapshot view.
+         */
+        private DecoratedKey lastKey = null;
 
         public MergingStoppingMatchIterator(DecoratedKey maxKey, Iterator<Match> materializedIterator, CloseablePeekingIterator<Match> additionalIterator)
         {
@@ -682,6 +695,14 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
 
         @Override
         protected Match computeNext()
+        {
+            Match match = nextMatch();
+            if (match != null)
+                lastKey = match.key();
+            return match;
+        }
+
+        private Match nextMatch()
         {
             if (materializedIterator.hasNext() && additionalIterator.hasNext())
             {
@@ -772,11 +793,16 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
         {
             Preconditions.checkState(command.isRangeRequest());
             AbstractBounds<PartitionPosition> bounds = command.dataRange().keyRange();
-            if (maxKey == null)
+            // the matches returned past maxKey came from FollowUpReads, so the follow up must start after them too
+            // For context, the index results are returned in partition order, however it's possible that the most recent
+            // result came from a followup read. If we don't take that into account when creating followup bounds, then
+            // we will return duplicate results (because we'll reread the augmented keys)
+            DecoratedKey readTo = maxKey(maxKey, matchIterator.lastKey);
+            if (readTo == null)
                 return bounds;
             return bounds.inclusiveRight()
-                   ? new Range<>(maxKey, bounds.right)
-                   : new ExcludingBounds<>(maxKey, bounds.right);
+                   ? new Range<>(readTo, bounds.right)
+                   : new ExcludingBounds<>(readTo, bounds.right);
         }
 
         private class UnfilteredResultIterator extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator

@@ -20,6 +20,7 @@ package org.apache.cassandra.service.reads.tracked;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import javax.annotation.Nullable;
@@ -85,6 +86,12 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
     {
         return beginRead(readId, metadata, command, consistencyLevel, summaryNodes, requestTime, null, completer);
     }
+
+    /**
+     * @param partialReadConsumer if non null, handed the read as soon as it has been begun, so a caller coordinating
+     *                            this read locally can interrogate it once it has completed. Only reads this node
+     *                            coordinates itself can supply one.
+     */
 
     public AsyncPromise<TrackedDataResponse> beginRead(
         TrackedRead.Id readId,
@@ -273,6 +280,7 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         void abort()
         {
             read.close();
+            promise.tryFailure(new TimeoutException("Tracked read " + readId + " expired before reconciling"));
         }
 
         void acknowledgeReconcile(Log2OffsetsMap<?> augmentingOffsets)

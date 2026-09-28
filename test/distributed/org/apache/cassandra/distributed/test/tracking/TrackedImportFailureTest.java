@@ -40,7 +40,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.shared.Uninterruptibles;
-import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
@@ -188,7 +188,7 @@ public class TrackedImportFailureTest extends TrackedTransferTestBase
                 assertCoordinatedRead(missed, rows -> {
                     assertRows(rows, row(1, 1));
                 });
-            }).isInstanceOf(missed.callOnInstance(() -> ReadTimeoutException.class)); // use instance classloader
+            }).isInstanceOf(missed.callOnInstance(() -> ReadFailureException.class)); // use instance classloader
 
             List<String> logs = missed.logs().grep(mark, "Missing mutation ShortMutationId").getResult();
             Assertions.assertThat(logs).isNotEmpty();

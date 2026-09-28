@@ -316,13 +316,21 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         {
             logger.trace("Locally coordinating {}", readId);
             Stage.READ.submit(() -> {
-                AsyncPromise<TrackedDataResponse> promise =
-                    MutationTrackingService.instance().localReads().beginRead(readId, ClusterMetadata.current(), command, consistencyLevel, summaryNodes, requestTime, partialReadConsumer, completer);
+                AsyncPromise<TrackedDataResponse> promise;
+                try
+                {
+                    promise = MutationTrackingService.instance().localReads().beginRead(readId, ClusterMetadata.current(), command, consistencyLevel, summaryNodes, requestTime, partialReadConsumer, completer);
+                }
+                catch (Throwable t)
+                {
+                    future.tryFailure(t);
+                    throw t;
+                }
                 promise.addCallback((response, error) -> {
                     if (error != null)
                     {
-                        // TODO: notify coordinator that read has failed
                         logger.error("Error while processing read", error);
+                        future.tryFailure(error);
                         return;
                     }
                     logger.trace("Finished locally coordinating {}", this);
@@ -423,6 +431,10 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
                 }
 
                 reasons = failure.reasonByEndpoint();
+            }
+            else if (ex instanceof TimeoutException)
+            {
+                throw new ReadTimeoutException(replicaPlan.consistencyLevel(), 0, replicaPlan.readQuorum(), false);
             }
 
             throw new ReadFailureException(replicaPlan.consistencyLevel(), 0, replicaPlan.readQuorum(), false, reasons);
