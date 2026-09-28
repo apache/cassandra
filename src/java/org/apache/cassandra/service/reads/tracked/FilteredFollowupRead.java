@@ -161,10 +161,11 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
                 }
 
                 // although we check for interleaved keys in the initial read, we always query for them in the follow up, so
-                // we just use normal short read protection checks here
+                // we just use normal short read protection checks here for the range; the keys carried over are read
+                // whenever the answer is short of its limit, since those checks stop once it holds no partition at all
                 AbstractBounds<PartitionPosition> nextBounds = nextBounds(partialRead);
-                if (followUpReadRequired(command, mergedResultCounter, initialIteratorExhausted, partitionsFetched)
-                    && (nextBounds != null || !nextKeys.isEmpty()))
+                if ((followUpReadRequired(command, mergedResultCounter, initialIteratorExhausted, partitionsFetched) && nextBounds != null)
+                    || (!nextKeys.isEmpty() && !mergedResultCounter.isDone()))
                 {
                     FilteredFollowupRead followUp = new FilteredFollowupRead(response, toQuery(command, mergedResultCounter), consistencyLevel, requestTime, nextKeys, command, nextBounds, null);
                     followUp.start();
