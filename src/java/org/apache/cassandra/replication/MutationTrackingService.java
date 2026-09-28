@@ -733,6 +733,26 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         }
     }
 
+    public void validateSummaryForParticipant(MutationSummary summary, int nodeId)
+    {
+        shardLock.readLock().lock();
+        try
+        {
+            for (int i = 0; i < summary.size(); i++)
+            {
+                MutationSummary.CoordinatorSummary summaryEntry = summary.get(i);
+                Shard shard = getShardNullable(summaryEntry.logId());
+                if (shard == null || !shard.participants.contains(nodeId))
+                    throw new IllegalStateException(String.format("Summary containing coordinator log %s is not replicated by node %d (participants: %s)",
+                                                                  summaryEntry.logId(), nodeId, shard == null ? "none" : shard.participants));
+            }
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
     public MutationSummary createSummaryForRange(Range<Token> range, TableId tableId, boolean includePending)
     {
         return createSummaryForRange(Range.makeRowRange(range), tableId, includePending);
@@ -846,7 +866,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
                 Offsets offsets = iterator.next();
                 Shard shard = getShardNullable(offsets.logId);
                 if (shard == null)
-                    into.add(offsets); // if the log/shard are unknown, then all the offsets are also unkown/missing
+                    into.add(offsets); // if the log/shard are unknown, then all the offsets are also unknown/missing
                 else
                     shard.collectLocallyMissingMutations(offsets, into);
             }
@@ -1949,9 +1969,10 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         /**
          * Sets the keyspace shards for testing purposes.
          */
-        public static void setKeyspaceShards(MutationTrackingService service, String keyspace, KeyspaceShards shards)
+        public static void setKeyspaceShardsUnsafe(MutationTrackingService service, String keyspace, KeyspaceShards shards)
         {
             service.keyspaceShards.put(keyspace, shards);
+            shards.forEachShard(shard -> shard.forEachLog(log -> service.log2ShardMap.put(log.logId, shard)));
         }
     }
 }

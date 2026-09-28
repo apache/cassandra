@@ -450,6 +450,13 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
 
                 return result.next();
             }
+
+            @Override
+            public void close()
+            {
+                if (result != null)
+                    result.close();
+            }
         };
     }
 

@@ -56,8 +56,9 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.reads.range.ReplicaPlanIterator;
+import org.apache.cassandra.service.reads.range.ReplicaPlanMerger;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -68,6 +69,36 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
     protected static class FollowUpReadInfo
     {
         int potentialMatches = 0;
+    }
+
+    public static class FollowupRangeCommand extends PartitionRangeReadCommand
+    {
+        private final AbstractBounds<PartitionPosition> remainingRange;
+
+        public FollowupRangeCommand(PartitionRangeReadCommand command,
+                                    DataLimits limits,
+                                    DataRange dataRange,
+                                    AbstractBounds<PartitionPosition> remainingRange)
+        {
+            super(command.serializedAtEpoch(),
+                  command.isDigestQuery(),
+                  command.digestVersion(),
+                  command.potentialTxnConflicts(),
+                  command.metadata(),
+                  command.nowInSec(),
+                  command.columnFilter(),
+                  command.rowFilter(),
+                  limits,
+                  dataRange,
+                  command.indexQueryPlan(),
+                  command.isTrackingWarnings());
+            this.remainingRange = remainingRange;
+        }
+
+        public AbstractBounds<PartitionPosition> remainingRange()
+        {
+            return remainingRange;
+        }
     }
 
     protected final PartitionRangeReadCommand command;
@@ -150,13 +181,23 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
             {
                 boolean initialIteratorExhausted = command.limits().isExhausted(counter);
                 AbstractBounds<PartitionPosition> followUpBounds = null;
+                AbstractBounds<PartitionPosition> remaining = command instanceof FollowupRangeCommand
+                                                              ? ((FollowupRangeCommand) command).remainingRange()
+                                                              : command.dataRange().keyRange();
+                AbstractBounds<PartitionPosition> commandRange = command.dataRange().keyRange();
+
                 if (partitionsFetched)
                 {
-                    AbstractBounds<PartitionPosition> bounds = command.dataRange().keyRange();
-                    followUpBounds = bounds.inclusiveRight()
-                                     ? new Range<>(lastPartitionKey, bounds.right)
-                                     : new ExcludingBounds<>(lastPartitionKey, bounds.right);
+                    followUpBounds = remaining.inclusiveRight()
+                                     ? new Range<>(lastPartitionKey, remaining.right)
+                                     : new ExcludingBounds<>(lastPartitionKey, remaining.right);
                     Preconditions.checkState(!followUpBounds.contains(lastPartitionKey));
+                }
+                else if (initialIteratorExhausted && !commandRange.right.equals(remaining.right))
+                {
+                    followUpBounds = remaining.inclusiveRight()
+                                     ? new Range<>(commandRange.right, remaining.right)
+                                     : new ExcludingBounds<>(commandRange.right, remaining.right);
                 }
                 return new ShortReadSupport(this, initialIteratorExhausted, followUpBounds);
             }
@@ -331,16 +372,35 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
     {
         DataLimits newLimits = command.limits().forShortReadRetry(toQuery);
 
-        DataRange newDataRange = command.dataRange().forSubRange(followUpBounds);
-
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
-        PartitionRangeReadCommand followUpCmd = command.withUpdatedLimitsAndDataRange(newLimits, newDataRange);
-        ReplicaPlan.ForRangeRead replicaPlan = ReplicaPlans.forRangeRead(keyspace,
-                                                                         command.metadata().id,
-                                                                         followUpCmd.indexQueryPlan(),
-                                                                         consistencyLevel,
-                                                                         followUpCmd.dataRange().keyRange(),
-                                                                         1);
+
+        // RangeCommandIterator opportunistically merges commands for adjacent ranges that have different replica
+        // sets when their replica plans select the same endpoints to contact.
+        // For instance, range A belongs to node [1,2,3], and range B belongs to nodes [2,3,4]. If both reads select
+        // [2,3], they'll be merged into a single command.
+        //
+        // This creates a problem for followup reads since the followup range can then straddle replica sets.
+        // ReplicaPlans.forRangeRead expects ranges to already be split across replica set boundaries and selects replicas
+        // based on range.right - if any of the replicas selected for the followup read don't happen to replicate range A,
+        // the read can't complete, and may return incorrect information if downstream validation is weak.
+        //
+        // To prevent silently dropping data from range A, we have ReplicaPlanIterator and ReplicaPlanMerger re-split
+        // and (attempt to) re-merge the followup bounds, creating the followup read command from the first bounds it
+        // emits. We also communicate the original followup bounds to the next PartialTrackedRangeRead instance via
+        // FollowupRangeCommand so it will complete the rest of followUpBounds if the replicaPlan emitted below doesn't
+        // fully cover the original followup bounds
+        ReplicaPlanIterator replicaPlans = new ReplicaPlanIterator(followUpBounds,
+                                                                   command.indexQueryPlan(),
+                                                                   keyspace,
+                                                                   command.metadata().id,
+                                                                   consistencyLevel);
+        ReplicaPlanMerger mergedReplicaPlans = new ReplicaPlanMerger(replicaPlans,
+                                                                     keyspace,
+                                                                     command.metadata().id,
+                                                                     consistencyLevel);
+        ReplicaPlan.ForRangeRead replicaPlan = mergedReplicaPlans.next();
+        DataRange newDataRange = command.dataRange().forSubRange(replicaPlan.range());
+        PartitionRangeReadCommand followUpCmd = new FollowupRangeCommand(command, newLimits, newDataRange, followUpBounds);
 
         TrackedRead.Range read = TrackedRead.Range.create(followUpCmd, replicaPlan, requestTime);
         logger.trace("Short read detected, starting followup read {}", read);
