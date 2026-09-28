@@ -222,7 +222,7 @@ public class DebugExecution
         public void onRunning()
         {
             if (waitingAtSpan != 0)
-                Span.endIfProfiled(runningAtSpan, spanTag("Wait_"));
+                Span.endIfProfiled(waitingAtSpan, "AccordTaskQueued");
             runningAtSpan = Span.start();
             if (REPORT_EXECUTION)
             {
@@ -240,17 +240,15 @@ public class DebugExecution
                 runCompleteAt = nanoTime();
             }
             if (runningAtSpan != 0)
-                Span.endIfProfiled(runningAtSpan, spanTag("Run_"));
+                Span.endIfProfiled(runningAtSpan, spanTag());
         }
 
-        private String spanTag(String prefix)
+        private String spanTag()
         {
-            String suffix;
             if (task instanceof SafeTask<?>)
-                suffix = ((SafeTask<?>) task).commandStore().toString();
+                return ((SafeTask<?>) task).commandStore().toString();
             else
-                suffix = task.getClass().getSimpleName();
-            return prefix + suffix;
+                return task.getClass().getSimpleName();
         }
 
         public void onReleasedRangeScanner()
