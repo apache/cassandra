@@ -47,7 +47,7 @@ public class DataMovementVerbHandler implements IVerbHandler<DataMovement>
     public void doVerb(Message<DataMovement> message) throws IOException
     {
         MessagingService.instance().respond(NoPayload.noPayload, message); // let coordinator know we received the message
-        StreamPlan streamPlan = new StreamPlan(StreamOperation.fromString(message.payload.streamOperation));
+        StreamPlan streamPlan = new StreamPlan(StreamOperation.valueOf(message.payload.streamOperation));
         ClusterMetadata metadata = ClusterMetadata.current();
         Schema.instance.getNonLocalStrategyKeyspaces().stream().forEach((ksm) -> {
             if (metadata.placement(ksm.params.replication).writes.byEndpoint().keySet().size() <= 1)

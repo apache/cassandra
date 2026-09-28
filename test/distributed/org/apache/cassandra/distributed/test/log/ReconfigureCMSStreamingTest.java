@@ -27,10 +27,14 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.streaming.StreamManager;
+import org.apache.cassandra.streaming.StreamOperation;
+import org.apache.cassandra.streaming.StreamingState;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.sequences.AddToCMS;
 import org.apache.cassandra.tcm.transformations.cms.RemoveFromCMS;
 
+import static org.apache.cassandra.distributed.impl.INodeProvisionStrategy.Strategy.OneNetworkInterface;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -48,6 +52,7 @@ public class ReconfigureCMSStreamingTest extends TestBaseImpl
          */
         try (Cluster cluster = init(Cluster.build()
                                            .withNodes(3)
+                                           .withNodeProvisionStrategy(OneNetworkInterface)
                                            .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
                                            .start()))
         {
@@ -58,12 +63,20 @@ public class ReconfigureCMSStreamingTest extends TestBaseImpl
                 cluster.schemaChange(withKeyspace("create table %s.tbl"+i+" (id int primary key)"));
 
             long[] epochsBefore = epochs(cluster.get(2).executeInternal("select * from system_cluster_metadata.distributed_metadata_log"));
-            cluster.get(3).nodetoolResult("cms", "reconfigure", "1");
+            cluster.get(1).runOnInstance(() -> StreamManager.instance.clearStates());
+            cluster.get(3).nodetoolResult("cms", "reconfigure", "1").asserts().success();
             long[] epochsAfter = epochs(cluster.get(1).executeInternal("select epoch from system_cluster_metadata.distributed_metadata_log"));
             assertTrue(epochsBefore.length > 20); // at least 20 schema changes above
             assertTrue(epochsAfter.length > epochsBefore.length); // we get a few more epochs from reconfiguration
             for (int i = 0; i < epochsBefore.length; i++)
                 assertEquals(epochsBefore[i] + " != " + epochsAfter[i], epochsBefore[i], epochsAfter[i]);
+
+            cluster.get(1).runOnInstance(() -> {
+                assertEquals(1, StreamManager.instance.getStreamingStates().size());
+                StreamingState stream = StreamManager.instance.getStreamingStates().iterator().next();
+                assertEquals(StreamOperation.RESTORE_REPLICA_COUNT, stream.operation());
+                assertEquals(StreamingState.Status.SUCCESS, stream.status());
+            });
         }
     }
 
