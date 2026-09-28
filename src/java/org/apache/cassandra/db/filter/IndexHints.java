@@ -32,7 +32,6 @@ import javax.annotation.Nullable;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -60,6 +59,7 @@ public class IndexHints
     public static final String MISSING_INDEX_ERROR = "Table %s doesn't have an index named %s";
     public static final String NON_INCLUDABLE_INDEXES_ERROR = "It's not possible to use all the specified included indexes with this query.";
     public static final String TOO_MANY_INDEXES_ERROR = "Cannot have more than 'secondary_indexes_per_table_fail_threshold' included/excluded indexes, found ";
+    public static final String WILDCARD_INCLUDED_INDEXES_ERROR = "The wildcard '*' is not allowed in included_indexes.";
 
     public static final IndexHints NONE = new IndexHints(Collections.emptySet(), Collections.emptySet())
     {
@@ -362,27 +362,44 @@ public class IndexHints
      * </p>
      * All the mentioned indexes should exist in the index registry of the queried table,
      * or an {@link InvalidRequestException} will be thrown.
+     * </p>
+     * The {@code excluded} set can contain the {@code *} wildcard, represented by {@link QualifiedName#WILDCARD},
+     * which is expanded to all the indexes currently registered for the table. The wildcard is not allowed in the
+     * {@code included} set, since there is no defined use case for "include all indexes", and doing so will throw
+     * an {@link InvalidRequestException}.
      *
      * @param included the names of the indexes to include when executing the query
-     * @param excluded the names of the indexes to exclude when executing the query
+     * @param excluded the names of the indexes to exclude when executing the query, possibly containing the {@code *}
+     * wildcard to exclude all the indexes currently applicable to the table
      * @param table the queried table
      * @param indexRegistry the index registry of the queried table
      * @return the index hints represented by the specified sets of CQL names
-     * @throws InvalidRequestException if any of the specified indexes do not exist in the specified index registry
+     * @throws InvalidRequestException if any of the specified indexes do not exist in the specified index registry,
+     * or if the {@code *} wildcard is used in the {@code included} set
      */
     public static IndexHints fromCQLNames(Set<QualifiedName> included,
                                           Set<QualifiedName> excluded,
                                           TableMetadata table,
                                           IndexRegistry indexRegistry)
     {
-        if (included != null && included.size() > maxIncludedOrExcludedIndexCount())
+        if (included != null && included.size() > Short.MAX_VALUE)
             throw new InvalidRequestException(TOO_MANY_INDEXES_ERROR + included.size());
 
-        if (excluded != null && excluded.size() > maxIncludedOrExcludedIndexCount())
+        if (excluded != null && excluded.size() > Short.MAX_VALUE)
             throw new InvalidRequestException(TOO_MANY_INDEXES_ERROR + excluded.size());
 
-        IndexHints hints = IndexHints.create(fetchIndexes(included, table, indexRegistry),
-                                             fetchIndexes(excluded, table, indexRegistry));
+        // The '*' wildcard is only supported for excluded_indexes: it's expanded here to the full set of indexes
+        // currently registered for the table. This doesn't require explicit protocol support because replicas
+        // receive an already-resolved, concrete set of excluded indexes.
+        Set<IndexMetadata> includedIndexes = fetchIndexes(included, table, indexRegistry, false);
+        Set<IndexMetadata> excludedIndexes = fetchIndexes(excluded, table, indexRegistry, true);
+
+        // The wildcard expansion above can produce a larger set than what the user typed, so the size limit
+        // needs to be re-checked after expansion. The check above on the raw CQL names wouldn't catch this.
+        if (excludedIndexes.size() > Short.MAX_VALUE)
+            throw new InvalidRequestException(TOO_MANY_INDEXES_ERROR + excludedIndexes.size());
+
+        IndexHints hints = IndexHints.create(includedIndexes, excludedIndexes);
 
         if (hints == IndexHints.NONE)
             return hints;
@@ -404,25 +421,49 @@ public class IndexHints
         return hints;
     }
 
-    private static int maxIncludedOrExcludedIndexCount()
-    {
-        int guardrail = DatabaseDescriptor.getSecondaryIndexesPerTableFailThreshold();
-
-        // If no guardrail is configured, use a value that safely fits in a single byte for serialization:
-        return guardrail > 0 ? guardrail : 128;
-    }
-
-    private static Set<IndexMetadata> fetchIndexes(Set<QualifiedName> indexNames, TableMetadata table, IndexRegistry indexRegistry)
+    /**
+     * Resolves the specified set of CQL index names into their {@link IndexMetadata}.
+     *
+     * @param indexNames the CQL names to resolve, possibly containing the {@code *} wildcard
+     * @param table the queried table
+     * @param indexRegistry the index registry of the queried table
+     * @param allowWildcard whether the {@code *} wildcard is allowed in {@code indexNames}. If it's present and
+     * allowed, it's expanded to all the indexes currently registered for the table.
+     * @return the resolved indexes
+     * @throws InvalidRequestException if the wildcard is present but not allowed, or if any of the named indexes
+     * do not exist in the specified index registry
+     */
+    private static Set<IndexMetadata> fetchIndexes(Set<QualifiedName> indexNames,
+                                                   TableMetadata table,
+                                                   IndexRegistry indexRegistry,
+                                                   boolean allowWildcard)
     {
         if (indexNames == null || indexNames.isEmpty())
             return Collections.emptySet();
 
+        boolean wildcardFound = false;
         Set<IndexMetadata> indexes = new HashSet<>(indexNames.size());
 
         for (QualifiedName indexName : indexNames)
         {
-            IndexMetadata index = fetchIndex(indexName, table, indexRegistry);
-            indexes.add(index);
+            if (indexName.isWildcard())
+            {
+                if (wildcardFound)
+                    continue;
+
+                if (!allowWildcard)
+                    throw new InvalidRequestException(WILDCARD_INCLUDED_INDEXES_ERROR);
+
+                wildcardFound = true;
+                indexes = metadata(indexRegistry.listIndexes());
+            }
+            else
+            {
+                IndexMetadata index = fetchIndex(indexName, table, indexRegistry);
+
+                if (!wildcardFound)
+                    indexes.add(index);
+            }
         }
 
         return indexes;

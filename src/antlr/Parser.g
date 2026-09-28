@@ -1869,9 +1869,19 @@ indexName returns [QualifiedName name]
     : (ksName[name] '.')? idxName[name]
     ;
 
+indexNameOrWildcard returns [QualifiedName name]
+    : n=indexName { $name = n; }
+    | '\*'        { $name = QualifiedName.WILDCARD; }
+    ;
+
 indexNames returns [Set<QualifiedName> names]
     @init { $names = new HashSet<QualifiedName>(); }
     : '{' ( t1=indexName { names.add(t1); } ( ',' tn=indexName { names.add(tn); } )* )? '}'
+    ;
+
+indexNamesOrWildcards returns [Set<QualifiedName> names]
+    @init { $names = new HashSet<QualifiedName>(); }
+    : '{' ( t1=indexNameOrWildcard { names.add(t1); } ( ',' tn=indexNameOrWildcard { names.add(tn); } )* )? '}'
     ;
 
 columnFamilyName returns [QualifiedName name]
@@ -2178,15 +2188,11 @@ properties[PropertyDefinitions props]
     : property[props] (K_AND property[props])*
     ;
 
-indexProperty returns [String s]
-    : 'included_indexes' { s = "included_indexes"; }
-    | 'excluded_indexes' { s = "excluded_indexes"; }
-    ;
-
 property[PropertyDefinitions props]
     : k=noncol_ident '=' simple=propertyValue { try { $props.addProperty(k.toString(), simple); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
     | k=noncol_ident '=' map=fullMapLiteral { try { $props.addProperty(k.toString(), convertPropertyMap(map)); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
-    | s=indexProperty '=' names=indexNames { try { $props.addProperty(s, names); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
+    | 'included_indexes' '=' names=indexNames            { try { $props.addProperty("included_indexes", names); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
+    | 'excluded_indexes' '=' names=indexNamesOrWildcards { try { $props.addProperty("excluded_indexes", names); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
     ;
 
 propertyValue returns [String str]
