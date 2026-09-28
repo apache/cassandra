@@ -54,9 +54,11 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.tries.TrieNode;
 import org.apache.cassandra.io.tries.Walker;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.PageAware;
@@ -68,6 +70,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.BTI_PARTITION_INDEX_PRELOAD_SIZE;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -127,6 +130,48 @@ public class PartitionIndexTest
     {
         testGetEq(generateRandomIndex(COUNT));
         testGetEq(generateSequentialIndex(COUNT));
+    }
+
+    @Test
+    public void testWarmIndexHonoursPreloadSize() throws IOException
+    {
+        Pair<List<DecoratedKey>, PartitionIndex> data = generateRandomIndex(COUNT);
+        try (PartitionIndex index = data.right)
+        {
+            FileHandle fh = index.getFileHandle();
+            long firstPos;
+            try (FileDataInput rdr = fh.createReader(fh.dataLength() - PartitionIndex.FOOTER_LENGTH))
+            {
+                firstPos = rdr.readLong();
+            }
+            assertTrue("Generated index is too small to bound: " + firstPos, firstPos > 2 * PageAware.PAGE_SIZE);
+
+            // the default warms the whole trie
+            assertEquals(firstPos, PartitionIndex.warmIndex(fh, firstPos));
+
+            try (WithProperties ignored = new WithProperties().set(BTI_PARTITION_INDEX_PRELOAD_SIZE, "-1B"))
+            {
+                assertEquals(firstPos, PartitionIndex.warmIndex(fh, firstPos));
+            }
+
+            // a bound at or above the trie length also warms the whole trie
+            try (WithProperties ignored = new WithProperties().set(BTI_PARTITION_INDEX_PRELOAD_SIZE, (firstPos + 1) + "B"))
+            {
+                assertEquals(firstPos, PartitionIndex.warmIndex(fh, firstPos));
+            }
+
+            // a bound below the trie length warms exactly that much of the tail
+            try (WithProperties ignored = new WithProperties().set(BTI_PARTITION_INDEX_PRELOAD_SIZE, (firstPos / 2) + "B"))
+            {
+                assertEquals(firstPos / 2, PartitionIndex.warmIndex(fh, firstPos));
+            }
+
+            // 0B disables warming entirely
+            try (WithProperties ignored = new WithProperties().set(BTI_PARTITION_INDEX_PRELOAD_SIZE, "0B"))
+            {
+                assertEquals(0, PartitionIndex.warmIndex(fh, firstPos));
+            }
+        }
     }
 
     @Test
