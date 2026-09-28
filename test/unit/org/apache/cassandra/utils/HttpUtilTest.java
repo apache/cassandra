@@ -68,8 +68,8 @@ public class HttpUtilTest
             sendResponse(exchange, 200, "test-response");
         });
 
-        HttpUtil.HttpResponse response =
-        HttpUtil.executeGet(baseUrl + "/get", defaultConfig());
+        HttpService.HttpResponse response =
+        HttpService.executeGet(baseUrl + "/get", defaultConfig());
 
         assertEquals(200, response.getStatusCode());
         assertEquals("OK", response.getStatusMessage());
@@ -85,8 +85,8 @@ public class HttpUtilTest
             sendResponse(exchange, 200, "test-token");
         });
 
-        HttpUtil.HttpResponse response =
-        HttpUtil.execute(baseUrl + "/put", "PUT", defaultConfig());
+        HttpService.HttpResponse response =
+        HttpService.execute(baseUrl + "/put", "PUT", defaultConfig());
 
         assertEquals(200, response.getStatusCode());
         assertEquals("test-token", response.getBody());
@@ -104,13 +104,13 @@ public class HttpUtilTest
             sendResponse(exchange, 200, "success");
         });
 
-        HttpUtil.HttpConfig config =
-        new HttpUtil.HttpConfig(CONNECT_TIMEOUT_MS,
-                                READ_TIMEOUT_MS,
-                                Map.of("X-Test-Header", "test-value"));
+        HttpService.HttpConfig config =
+        new HttpService.HttpConfig(CONNECT_TIMEOUT_MS,
+                                   READ_TIMEOUT_MS,
+                                   Map.of("X-Test-Header", "test-value"));
 
-        HttpUtil.HttpResponse response =
-        HttpUtil.executeGet(baseUrl + "/headers", config);
+        HttpService.HttpResponse response =
+        HttpService.executeGet(baseUrl + "/headers", config);
 
         assertEquals(200, response.getStatusCode());
         assertEquals("success", response.getBody());
@@ -124,8 +124,8 @@ public class HttpUtilTest
             sendResponse(exchange, 201, "created");
         });
 
-        HttpUtil.HttpResponse response =
-        HttpUtil.executeGet(baseUrl + "/status", defaultConfig());
+        HttpService.HttpResponse response =
+        HttpService.executeGet(baseUrl + "/status", defaultConfig());
 
         assertEquals(201, response.getStatusCode());
         assertEquals("Created", response.getStatusMessage());
@@ -152,14 +152,14 @@ public class HttpUtilTest
             }
         });
 
-        HttpUtil.HttpConfig config =
-        new HttpUtil.HttpConfig(CONNECT_TIMEOUT_MS,
-                                100,
-                                Map.of());
+        HttpService.HttpConfig config =
+        new HttpService.HttpConfig(CONNECT_TIMEOUT_MS,
+                                   100,
+                                   Map.of());
 
         try
         {
-            HttpUtil.executeGet(baseUrl + "/timeout", config);
+            HttpService.executeGet(baseUrl + "/timeout", config);
             fail("Expected SocketTimeoutException");
         }
         catch (SocketTimeoutException expected)
@@ -176,13 +176,13 @@ public class HttpUtilTest
             sendResponse(exchange, 200, "success");
         });
 
-        HttpUtil.HttpConfig config =
-        new HttpUtil.HttpConfig(CONNECT_TIMEOUT_MS,
-                                READ_TIMEOUT_MS,
-                                null);
+        HttpService.HttpConfig config =
+        new HttpService.HttpConfig(CONNECT_TIMEOUT_MS,
+                                   READ_TIMEOUT_MS,
+                                   null);
 
-        HttpUtil.HttpResponse response =
-        HttpUtil.executeGet(baseUrl + "/null-headers", config);
+        HttpService.HttpResponse response =
+        HttpService.executeGet(baseUrl + "/null-headers", config);
 
         assertEquals(200, response.getStatusCode());
         assertEquals("success", response.getBody());
@@ -204,8 +204,8 @@ public class HttpUtilTest
             }
         });
 
-        HttpUtil.HttpResponse response =
-        HttpUtil.executeGet(baseUrl + "/chunked", defaultConfig());
+        HttpService.HttpResponse response =
+        HttpService.executeGet(baseUrl + "/chunked", defaultConfig());
 
         assertEquals(200, response.getStatusCode());
         assertNull(response.getBody());
@@ -216,9 +216,9 @@ public class HttpUtilTest
     {
         try
         {
-            HttpUtil.execute(baseUrl + "/invalid",
-                            "INVALID METHOD",
-                            defaultConfig());
+            HttpService.execute(baseUrl + "/invalid",
+                                "INVALID METHOD",
+                                defaultConfig());
 
             fail("Expected IOException");
         }
@@ -236,19 +236,19 @@ public class HttpUtilTest
             sendResponse(exchange, 401, "Unauthorized");
         });
 
-        HttpUtil.HttpResponse response =
-        HttpUtil.executeGet(baseUrl + "/unauthorized", defaultConfig());
+        HttpService.HttpResponse response =
+        HttpService.executeGet(baseUrl + "/unauthorized", defaultConfig());
 
         assertEquals(401, response.getStatusCode());
         assertEquals("Unauthorized", response.getStatusMessage());
         assertEquals("Unauthorized", response.getBody());
     }
 
-    private HttpUtil.HttpConfig defaultConfig()
+    private HttpService.HttpConfig defaultConfig()
     {
-        return new HttpUtil.HttpConfig(CONNECT_TIMEOUT_MS,
-                                       READ_TIMEOUT_MS,
-                                       Map.of());
+        return new HttpService.HttpConfig(CONNECT_TIMEOUT_MS,
+                                          READ_TIMEOUT_MS,
+                                          Map.of());
     }
 
     private static void sendResponse(HttpExchange exchange,

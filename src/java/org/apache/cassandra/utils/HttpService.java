@@ -25,13 +25,15 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Map;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
- * Utility for making synchronous HTTP requests during Cassandra startup and initialization.
+ * A generic service for making HTTP requests.
  * This class provides reusable HTTP transport logic for components that need to retrieve
  * information from external HTTP services during startup.
  *
@@ -47,14 +49,47 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  *   <li><b>Header support</b> - Request headers can be supplied by the caller</li>
  *   <li><b>Diagnostic logging</b> - Request metadata is logged without logging header values or response contents</li>
  * </ul>
- *
- * <p>This utility extracts common HTTP transport logic from components such as
- * {@link org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector} while preserving
- * caller-specific response handling.
  */
-public class HttpUtil
+public abstract class HttpService
 {
-    private static final Logger logger = LoggerFactory.getLogger(HttpUtil.class);
+    private static final Logger logger = LoggerFactory.getLogger(HttpService.class);
+
+    public final String serviceUrl;
+    public final int requestTimeoutMs;
+
+    public HttpService(String serviceUrl, int requestTimeoutMs)
+    {
+        this.serviceUrl = serviceUrl;
+        this.requestTimeoutMs = requestTimeoutMs;
+    }
+
+    public String apiCall(String query) throws IOException
+    {
+        return apiCall(serviceUrl, query, "GET", ImmutableMap.of(), 200);
+    }
+
+    public String apiCall(String query, Map<String, String> extraHeaders) throws IOException
+    {
+        return apiCall(serviceUrl, query, "GET", extraHeaders, 200);
+    }
+
+    public String apiCall(String url,
+                          String query,
+                          String method,
+                          Map<String, String> extraHeaders,
+                          int expectedResponseCode) throws IOException
+    {
+        HttpConfig config = new HttpConfig(requestTimeoutMs,
+                                           0,
+                                           extraHeaders);
+
+        HttpResponse response = HttpService.execute(url + query, method, config);
+
+        if (response.getStatusCode() != expectedResponseCode)
+            throw new HttpException(response.getStatusCode(), response.getStatusMessage());
+
+        return response.getBody();
+    }
 
     /**
      * Configuration for an HTTP request.
@@ -124,7 +159,7 @@ public class HttpUtil
     /**
      * Execute a synchronous HTTP GET request.
      *
-     * @param url the URL to request
+     * @param url    the URL to request
      * @param config the HTTP configuration containing timeouts and headers
      * @return the raw HTTP response
      * @throws IOException if the HTTP request or response read fails
@@ -141,7 +176,7 @@ public class HttpUtil
      * <p>This method performs the HTTP transport operation and returns the response without
      * interpreting the status code or parsing the response body.
      *
-     * @param url the URL to request
+     * @param url    the URL to request
      * @param method the HTTP method
      * @param config the HTTP configuration containing timeouts and headers
      * @return the raw HTTP response
@@ -268,8 +303,8 @@ public class HttpUtil
             }
 
             return bytesRead == 0
-                ? null
-                : new String(buffer, 0, bytesRead, UTF_8);
+                   ? null
+                   : new String(buffer, 0, bytesRead, UTF_8);
         }
         byte[] buffer = new byte[contentLength];
 
@@ -280,5 +315,18 @@ public class HttpUtil
         }
 
         return new String(buffer, UTF_8);
+    }
+
+    public static final class HttpException extends IOException
+    {
+        public final int responseCode;
+        public final String responseMessage;
+
+        public HttpException(int responseCode, String responseMessage)
+        {
+            super("HTTP response code: " + responseCode + " (" + responseMessage + ')');
+            this.responseCode = responseCode;
+            this.responseMessage = responseMessage;
+        }
     }
 }
