@@ -61,14 +61,14 @@ public class KeyspaceRepairPlan
     {
         return ksTablesEstimatedBytes.values().stream()
                                      .flatMap(tableMap -> tableMap.values().stream())
-                                     .mapToLong(sizeEstimate -> sizeEstimate.sizeForRepair)
+                                     .mapToLong(AutoRepairUtils.SizeEstimate::getEstimatedBytes)
                                      .sum();
     }
 
     public long getTableEstimatedBytes(String keyspaceTableName)
     {
         return ksTablesEstimatedBytes.getOrDefault(keyspaceTableName,
-                                                   Collections.emptyMap()).values().stream().mapToLong(sizeEstimate -> sizeEstimate.sizeForRepair).sum();
+                                                   Collections.emptyMap()).values().stream().mapToLong(AutoRepairUtils.SizeEstimate::getEstimatedBytes).sum();
     }
 
     public AutoRepairUtils.SizeEstimate getSizeEstimate(String keyspaceTableName, Range<Token> tokenRange)

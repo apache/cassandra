@@ -56,6 +56,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -1349,10 +1350,21 @@ public class AutoRepairUtils
      */
     static SizeEstimate getRangeSizeEstimate(RepairType repairType, String keyspace, String table, Range<Token> tokenRange)
     {
+        return getRangeSizeEstimate(repairType, keyspace, table, tokenRange, getMemtableSize(keyspace, table));
+    }
+
+    private static long getMemtableSize(String keyspace, String table)
+    {
+        ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspace, table);
+        return cfs == null ? 0 : cfs.getTracker().getView().getCurrentMemtable().getLiveDataSize();
+    }
+
+    private static SizeEstimate getRangeSizeEstimate(RepairType repairType, String keyspace, String table, Range<Token> tokenRange, long memtableSize)
+    {
         logger.debug("Calculating size estimate for {}.{} for range {}", keyspace, table, tokenRange);
         try (Refs<SSTableReader> refs = RepairTokenRangeSplitter.getSSTableReaderRefs(repairType, keyspace, table, tokenRange))
         {
-            SizeEstimate estimate = getSizesForRangeOfSSTables(repairType, keyspace, table, tokenRange, refs);
+            SizeEstimate estimate = getSizesForRangeOfSSTables(repairType, keyspace, table, tokenRange, refs).withMemtableSize(memtableSize);
             logger.debug("Generated size estimate {}", estimate);
             return estimate;
         }
@@ -1460,9 +1472,13 @@ public class AutoRepairUtils
             String ksTable = getKeyspaceTableName(keyspaceName, tableName);
             ksTablesEstimatedBytes.computeIfAbsent(ksTable, k -> new HashMap<>());
             Map<Range<Token>, SizeEstimate> tokenToSize = ksTablesEstimatedBytes.get(ksTable);
-            for (Range<Token> tokenRange : tokenRanges)
+            // Snapshot once per table and share the estimate across ranges; assignments must reuse it after flushes or writes.
+            long memtableSize = getMemtableSize(keyspaceName, tableName);
+            for (int i = 0; i < tokenRanges.size(); i++)
             {
-                SizeEstimate tableAssignments = getRangeSizeEstimate(repairType, keyspaceName, tableName, tokenRange);
+                Range<Token> tokenRange = tokenRanges.get(i);
+                long memtableBytesInRange = memtableSize / tokenRanges.size() + (i < memtableSize % tokenRanges.size() ? 1 : 0);
+                SizeEstimate tableAssignments = getRangeSizeEstimate(repairType, keyspaceName, tableName, tokenRange, memtableBytesInRange);
                 tokenToSize.put(tokenRange, tableAssignments);
             }
         }
@@ -1494,9 +1510,19 @@ public class AutoRepairUtils
          */
         public final long sizeForRepair;
 
+        /** This range's share of the memtable snapshot, used when the SSTable estimate is zero. */
+        public final long memtableSize;
+
         public SizeEstimate(RepairType repairType,
                             String keyspace, String table, Range<Token> tokenRange,
                             long partitions, long sizeInRange, long totalSize)
+        {
+            this(repairType, keyspace, table, tokenRange, partitions, sizeInRange, totalSize, 0);
+        }
+
+        private SizeEstimate(RepairType repairType,
+                             String keyspace, String table, Range<Token> tokenRange,
+                             long partitions, long sizeInRange, long totalSize, long memtableSize)
         {
             this.repairType = repairType;
             this.keyspace = keyspace;
@@ -1507,6 +1533,17 @@ public class AutoRepairUtils
             this.totalSize = totalSize;
 
             this.sizeForRepair = repairType == RepairType.INCREMENTAL ? totalSize : sizeInRange;
+            this.memtableSize = memtableSize;
+        }
+
+        private SizeEstimate withMemtableSize(long memtableSize)
+        {
+            return new SizeEstimate(repairType, keyspace, table, tokenRange, partitions, sizeInRange, totalSize, memtableSize);
+        }
+
+        public long getEstimatedBytes()
+        {
+            return sizeForRepair == 0 ? memtableSize : sizeForRepair;
         }
 
         @Override
@@ -1521,6 +1558,7 @@ public class AutoRepairUtils
                    ", sizeInRange=" + sizeInRange +
                    ", totalSize=" + totalSize +
                    ", sizeForRepair=" + sizeForRepair +
+                   ", memtableSize=" + memtableSize +
                    '}';
         }
     }
