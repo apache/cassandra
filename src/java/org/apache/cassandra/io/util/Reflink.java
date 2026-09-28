@@ -201,10 +201,11 @@ public final class Reflink
         // surface.
         try
         {
+            // Subtracted rather than added: srcOffset + length can wrap negative and pass.
             long srcLength = src.size();
-            if (srcOffset + length > srcLength)
-                throw new IllegalArgumentException("source range [" + srcOffset + ", " + (srcOffset + length) +
-                                                   ") runs past the source's length of " + srcLength);
+            if (length > srcLength - srcOffset)
+                throw new IllegalArgumentException("source range of " + length + " bytes at " + srcOffset +
+                                                   " runs past the source's length of " + srcLength);
         }
         catch (IOException e)
         {
@@ -214,6 +215,11 @@ public final class Reflink
 
         String key = cacheKey(directory);
         if (!isPossibleFor(key))
+            return false;
+
+        // A closed channel's descriptor reads as -1, which must not be mistaken below for the JVM-wide failure to
+        // reach descriptors at all.
+        if (!src.isOpen() || !dst.isOpen())
             return false;
 
         int srcFd;
