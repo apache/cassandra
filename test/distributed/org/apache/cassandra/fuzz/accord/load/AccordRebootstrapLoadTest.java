@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.test.accord.load;
+package org.apache.cassandra.fuzz.accord.load;
 
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -25,7 +25,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.distributed.api.Feature;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.LOGBACK_CONFIGURATION_FILE;
-import static org.apache.cassandra.distributed.test.accord.load.LoadSettings.ycsbZipfian;
+import static org.apache.cassandra.fuzz.accord.load.LoadSettings.ycsbZipfian;
 
 public class AccordRebootstrapLoadTest extends AccordLoadTestBase
 {

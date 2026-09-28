@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.test.accord.load;
+package org.apache.cassandra.fuzz.accord.load;
 
 import java.util.Arrays;
 import java.util.Random;

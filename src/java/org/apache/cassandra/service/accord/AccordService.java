@@ -485,7 +485,7 @@ public class AccordService implements IAccordService, Shutdownable
     {
         Invariants.require(localId != null, "static localId must be set before instantiating AccordService");
         logger.info("Starting accord with nodeId {}", localId);
-        AccordAgent agent = FBUtilities.construct(CassandraRelevantProperties.ACCORD_AGENT_CLASS.getString(AccordAgent.class.getName()),
+        AccordAgent agent = FBUtilities.construct(CassandraRelevantProperties.ACCORD_TEST_AGENT_CLASS.getString(AccordAgent.class.getName()),
                                                   "AccordAgent",
                                                   AccordAgent.class);
         agent.setup(localId);

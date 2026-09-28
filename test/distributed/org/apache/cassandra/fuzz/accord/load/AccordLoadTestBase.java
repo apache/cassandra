@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.test.accord.load;
+package org.apache.cassandra.fuzz.accord.load;
 
 import java.io.IOException;
 import java.security.SecureRandom;
@@ -80,7 +80,6 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.test.accord.AccordTestBase;
-import org.apache.cassandra.distributed.test.accord.load.LoadSettings.ClusterChaos;
 import org.apache.cassandra.metrics.AccordCoordinatorMetrics;
 import org.apache.cassandra.metrics.AccordExecutorMetrics;
 import org.apache.cassandra.metrics.ShardedDecayingHistograms.ShardedDecayingHistogram;
@@ -112,7 +111,8 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
-import static org.apache.cassandra.distributed.test.accord.load.LoadSettings.ClusterChaos.REBOOTSTRAP_RESET;
+import static org.apache.cassandra.fuzz.accord.load.LoadSettings.ClusterChaos;
+import static org.apache.cassandra.fuzz.accord.load.LoadSettings.ClusterChaos.REBOOTSTRAP_RESET;
 import static org.apache.cassandra.service.accord.debug.AccordTracing.BucketMode.LEAKY;
 import static org.apache.cassandra.service.accord.debug.AccordTracing.BucketMode.RING;
 import static org.apache.cassandra.service.accord.debug.AccordTracing.BucketMode.SLOWEST;
@@ -120,7 +120,7 @@ import static org.apache.cassandra.service.accord.debug.AccordTracing.BucketMode
 public class AccordLoadTestBase extends AccordTestBase
 {
     private static long CHAOS_WARN_NANOS = TimeUnit.MINUTES.toNanos(2L);
-    private static long CHAOS_FAIL_NANOS = TimeUnit.MINUTES.toNanos(Long.getLong("chaos.fail.minutes", 10L));
+    private static long CHAOS_FAIL_NANOS = TimeUnit.MINUTES.toNanos(CassandraRelevantProperties.ACCORD_TEST_CHAOS_TIMEOUT.getLong(10L));
     private static final Logger logger = LoggerFactory.getLogger(AccordLoadTestBase.class);
 
     static

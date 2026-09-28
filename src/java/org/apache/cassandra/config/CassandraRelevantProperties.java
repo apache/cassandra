@@ -42,8 +42,6 @@ import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 /** A class that extracts system properties for the cassandra node it runs within. */
 public enum CassandraRelevantProperties
 {
-    ACCORD_AGENT_CLASS("cassandra.test.accord.agent"),
-    ACCORD_ALLOW_TEST_MODES("cassandra.test.accord.allow_test_modes", "false"),
     ACCORD_DEBUG("accord.debug"),
     ACCORD_DEBUG_EXECUTION("accord.debug_execution"),
     ACCORD_DEBUG_EXECUTION_REPORT("accord.debug_execution_report"),
@@ -54,6 +52,9 @@ public enum CassandraRelevantProperties
     ACCORD_PARANOID(Invariants.KEY_PARANOID),
     ACCORD_REPAIR_RANGE_STEP_UPDATE_INTERVAL("cassandra.accord.repair.range_step_update_interval", "100"),
     ACCORD_TESTING(Invariants.KEY_TESTING),
+    ACCORD_TEST_AGENT_CLASS("cassandra.test.accord.agent"),
+    ACCORD_TEST_ALLOW_MODES("cassandra.test.accord.allow_test_modes", "false"),
+    ACCORD_TEST_CHAOS_TIMEOUT("cassandra.accord.test.chaos_timeout_minutes"),
     ACQUIRE_RETRY_SECONDS("cassandra.acquire_retry_seconds", "60"),
     ACQUIRE_SLEEP_MS("cassandra.acquire_sleep_ms", "1000"),
     ALLOCATE_TOKENS_FOR_KEYSPACE("cassandra.allocate_tokens_for_keyspace"),

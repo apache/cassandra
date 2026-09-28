@@ -59,6 +59,7 @@ public class JournalGCTest extends FuzzTestBase
                                             .withConfig(cfg -> cfg.set("write_request_timeout", "2s")
                                                                   .set("accord.expire_syncpoint", "1s*attempts<=300s")
                                                                   .set("accord.retry_syncpoint", "1s*attempts")
+                                                                  .set("accord.catchup_on_start", "false")
                                                                   .set("accord.shard_durability_target_splits", "5")
                                                                   .set("accord.shard_durability_max_splits", "10")
                                                                   .set("accord.shard_durability_cycle", "1s")

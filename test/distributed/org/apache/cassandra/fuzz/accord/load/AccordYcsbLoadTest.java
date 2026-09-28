@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.test.accord.load;
+package org.apache.cassandra.fuzz.accord.load;
 
 import java.util.Arrays;
 
@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
 
-import static org.apache.cassandra.distributed.test.accord.load.LoadSettings.ycsbZipfian;
+import static org.apache.cassandra.fuzz.accord.load.LoadSettings.ycsbZipfian;
 
 public class AccordYcsbLoadTest extends AccordLoadTestBase
 {

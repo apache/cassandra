@@ -96,7 +96,7 @@ public class AccordTopologyMixupTest extends TopologyMixupTestBase<AccordTopolog
 
     static
     {
-        CassandraRelevantProperties.ACCORD_AGENT_CLASS.setString(InterceptAgent.class.getName());
+        CassandraRelevantProperties.ACCORD_TEST_AGENT_CLASS.setString(InterceptAgent.class.getName());
         // enable most expensive debugging checks
         CassandraRelevantProperties.ACCORD_PARANOIA_CPU.setString(Invariants.Paranoia.QUADRATIC.name());
         CassandraRelevantProperties.ACCORD_PARANOIA_MEMORY.setString(Invariants.Paranoia.QUADRATIC.name());
