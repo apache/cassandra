@@ -176,9 +176,9 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
             return;
         }
 
-        try
+        try (DataIntegrityMetadata.FileDigestValidator validator = new DataIntegrityMetadata.FileDigestValidator(descriptor))
         {
-            new DataIntegrityMetadata.FileDigestValidator(descriptor).validate();
+            validator.validate();
         }
         catch (IOException e)
         {
