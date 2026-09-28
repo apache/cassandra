@@ -19,10 +19,12 @@ package org.apache.cassandra.distributed.test.tracking;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -34,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 import com.google.common.collect.ImmutableSet;
@@ -93,6 +96,7 @@ import org.apache.cassandra.replication.ActiveLogReconciler;
 import org.apache.cassandra.replication.CoordinatorLogId;
 import org.apache.cassandra.replication.Log2OffsetsMap;
 import org.apache.cassandra.replication.MutationId;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.Offsets;
@@ -701,6 +705,222 @@ public class MutationTrackingPendingReadTest
                                "Failing to augment the read left its ReadExecutionController open, so its " +
                                "OpOrder.Group blocks every flush and compaction of " + tableName + " from here on");
             });
+        }
+    }
+
+    /**
+     * A tracked index range read whose follow up read fails is never completed and never closed, and keeps the base
+     * table's read ordering open for the life of the node.
+     * <p>
+     * <b>How a follow up read starts.</b> An index range read only snapshots the partitions its own index scan reached
+     * in the prepare phase. When reconciliation later hands it a mutation for a key the scan never reached and that
+     * mutation matches the index expression, {@code PartialTrackedIndexRead.IndexPrepared#augment} has no partition
+     * read to apply it to. It calls {@code FollowUpRead.start} instead, which starts a {@link TrackedRead.Partition} of
+     * that key through {@code TrackedRead#startLocal} and stores the returned {@code followUpPromise} in the range
+     * read's {@code followUpReads}. The follow up read is a tracked read in its own right. It has its own id, its own
+     * {@link ReadExecutionController} (so its own {@link OpOrder.Group} on the base table and index table), its own
+     * entry in {@link TrackedLocalReads}, and its own summary nodes to reconcile with.
+     * <p>
+     * <b>How the range read waits on it.</b> {@link TrackedLocalReads#acknowledgeReconcile} takes the range read's
+     * coordinator out of the map, augments the read (which is what starts the follow up read), and then runs the
+     * completer. {@code PartialTrackedIndexRead#complete} finds a follow up future that is not done. It moves the
+     * read to {@code IndexPreComplete} and registers a listener on {@code FutureCombiner.allOf(followUpReads)}, and that
+     * listener is the only thing that will complete the range read's promise and close the read. The range read's
+     * coordinator is already out of {@link TrackedLocalReads}, so {@code expire()} can no longer abort it.
+     * <p>
+     * <b>The bug.</b> {@code followUpPromise} is completed only from inside the custom completer that
+     * {@code FollowUpRead.start} hands to {@code startLocal}. A completer only runs once the follow up read has
+     * reconciled and augmented successfully, so any follow up read that fails before then leaves {@code followUpPromise}
+     * pending forever:
+     * <ul>
+     *     <li>its augment throws, for example "Missing mutation" for an id absent from the local mutation journal,
+     *     which {@code PartialTrackedRead#augment(ShortMutationId)} documents as reachable through a newly activated
+     *     transfer. The failure handler in {@code TrackedLocalReads.Coordinator#acknowledgeReconcile} closes the follow
+     *     up read and fails its promise. That promise is only watched by the callback in {@code TrackedRead#start},
+     *     which logs the error and does nothing else ("TODO: notify coordinator that read has failed"), so neither
+     *     {@code TrackedRead#future} nor {@code followUpPromise} ever hears about it;</li>
+     *     <li>it expires because a summary node never answers in time. {@code TrackedLocalReads#expire} calls
+     *     {@code Coordinator#abort}, which closes the follow up read but completes nothing at all;</li>
+     *     <li>{@code beginRead} throws inside the READ stage task that {@code TrackedRead#start} submits, before any
+     *     promise exists.</li>
+     * </ul>
+     * <b>The consequence.</b> The range read's listener never fires, so its promise never completes and the client
+     * waits out its timeout. Worse, the range read is never closed, and nothing else can close it, so its
+     * {@link ReadExecutionController} and the {@link OpOrder.Group} it holds on the base table's {@code readOrdering}
+     * stay open for the life of the node. Every later barrier on that ordering waits forever, and with it every
+     * memtable flush and compaction of the table.
+     * <p>
+     * A related gap, not exercised here: if the {@code FollowUpRead} constructor throws inside that completer (from
+     * {@code read.complete()} or the {@code partitionRead(key)} null check), the completer fails {@code followUpPromise}
+     * but never closes the follow up read. It swallows the exception, so the failure handler in
+     * {@link TrackedLocalReads} does not see it either, and the follow up read's controller leaks.
+     * <p>
+     * <b>What the test does.</b> Two nodes, RF=2, a legacy index on {@code v}. {@code MT_SUMMARY_REQ} from node 1 to
+     * node 2 is dropped, so the follow up read, which takes node 2 as its summary node, stays pending until the test
+     * acts. The test begins an index range read directly through {@link TrackedLocalReads#beginRead}, writes a matching
+     * row to a key that read's scan cannot have reached, and acknowledges the range read's reconciliation with that
+     * write's id, which starts the follow up read. It then fails the follow up read, either by acknowledging it with an
+     * id that was never written or by waiting for the purger to expire it. It expects the range read's promise to
+     * fail and a fresh barrier on the table's read ordering to drain. If the barrier does not drain, the test closes
+     * the range read by hand before failing. That shows the range read is the only thing still holding the ordering,
+     * and lets the cluster shut down.
+     */
+    @Test
+    public void testFollowUpReadAugmentFailureCompletesItsIndexRangeRead() throws Throwable
+    {
+        runFailedFollowUpRead("follow_up_augment_failure_test", false);
+    }
+
+    /**
+     * Same as {@link #testFollowUpReadAugmentFailureCompletesItsIndexRangeRead}, but the follow up read fails by
+     * expiring: its summary node never answers, and {@code TrackedLocalReads#expire} aborts it. {@code abort()} closes
+     * the follow up read without completing any promise, so {@code followUpPromise} stays pending and the range read
+     * waiting on it leaks as above. All it takes is a summary node that answers late, with no inconsistency in the
+     * journal.
+     */
+    @Test
+    public void testFollowUpReadExpiryCompletesItsIndexRangeRead() throws Throwable
+    {
+        runFailedFollowUpRead("follow_up_expiry_test", true);
+    }
+
+    private static void runFailedFollowUpRead(String keyspaceName, boolean expireFollowUp) throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(2)
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK)
+                                                            .with(Feature.GOSSIP)
+                                                            .set("mutation_tracking.enabled", true)
+                                                            .set("read_request_timeout", "2000ms")
+                                                            .set("range_request_timeout", "2000ms"))
+                                      .start())
+        {
+            String tableName = "tbl";
+            cluster.schemaChange(format("CREATE KEYSPACE %s WITH replication = " +
+                                        "{'class': 'SimpleStrategy', 'replication_factor': 2} " +
+                                        "AND replication_type='tracked';", keyspaceName));
+            cluster.schemaChange(format("CREATE TABLE %s.%s (k int, c int, v int, primary key (k, c));", keyspaceName, tableName));
+            cluster.schemaChange(format("CREATE INDEX tbl_v ON %s.%s(v) USING 'legacy_local_table';", keyspaceName, tableName));
+            cluster.coordinator(1).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (1, 0, 1)", keyspaceName, tableName), ConsistencyLevel.ALL);
+
+            cluster.setUncaughtExceptionsFilter(MutationTrackingPendingReadTest::isFailedFollowUpRead);
+
+            cluster.filters().verbs(Verb.MT_SUMMARY_REQ.id).from(1).to(2).drop();
+
+            cluster.get(1).runOnInstance(() -> {
+                TableMetadata metadata = Schema.instance.getTableMetadata(keyspaceName, tableName);
+                ColumnFamilyStore cfs = Keyspace.open(keyspaceName).getColumnFamilyStore(tableName);
+                awaitCondition(() -> cfs.getBuiltIndexes().contains("tbl_v"), "Index tbl_v was never built");
+                ClusterMetadata clusterMetadata = ClusterMetadata.current();
+                NodeId summaryNode = Iterables.getOnlyElement(Sets.difference(clusterMetadata.directory.peerIds(),
+                                                                             Collections.singleton(clusterMetadata.myNodeId())));
+                TrackedLocalReads localReads = MutationTrackingService.instance().localReads();
+                Map<TrackedRead.Id, ?> pendingReads = pendingLocalReads(localReads);
+
+                RowFilter rowFilter = RowFilter.create(false);
+                rowFilter.add(metadata.getColumn(bytes("v")), Operator.EQ, bytes(1));
+                PartitionRangeReadCommand command = PartitionRangeReadCommand.create(metadata,
+                                                                                     FBUtilities.nowInSeconds(),
+                                                                                     ColumnFilter.all(metadata),
+                                                                                     rowFilter,
+                                                                                     DataLimits.NONE,
+                                                                                     DataRange.allData(metadata.partitioner));
+
+                TrackedRead.Id rangeReadId = TrackedRead.Id.nextId();
+                AtomicReference<PartialTrackedRead> rangeRead = new AtomicReference<>();
+                AsyncPromise<TrackedDataResponse> promise =
+                    localReads.beginRead(rangeReadId,
+                                         clusterMetadata,
+                                         command,
+                                         org.apache.cassandra.db.ConsistencyLevel.ALL,
+                                         new int[]{ summaryNode.id() },
+                                         Dispatcher.RequestTime.forImmediateExecution(),
+                                         rangeRead::set,
+                                         TrackedLocalReads.Completer.DEFAULT);
+                Assert.assertFalse("The range read reconciled before its summary node answered", promise.isDone());
+                Assert.assertTrue("Expected an index read, got " + rangeRead.get(), rangeRead.get() instanceof PartialTrackedIndexRead);
+
+                DecoratedKey unscanned = metadata.partitioner.decorateKey(bytes(2));
+                MutationId written = MutationTrackingService.instance().nextMutationId(keyspaceName, unscanned.getToken());
+                SimpleBuilders.MutationBuilder builder = new SimpleBuilders.MutationBuilder(written, keyspaceName, unscanned);
+                builder.update(metadata).row(bytes(1)).add("v", 1);
+                builder.build().apply();
+                Assert.assertNotNull("The write never reached the mutation journal",
+                                     MutationJournal.instance().read(new ShortMutationId(written)));
+
+                Log2OffsetsMap.Mutable rangeAugmenting = new Log2OffsetsMap.Mutable();
+                rangeAugmenting.add(new ShortMutationId(written));
+                localReads.acknowledgeReconcile(rangeReadId, rangeAugmenting);
+
+                awaitCondition(() -> !pendingReads.isEmpty(), "The follow up read never began");
+                TrackedRead.Id followUpId = Iterables.getOnlyElement(pendingReads.keySet());
+                Assert.assertNotEquals(rangeReadId, followUpId);
+                Assert.assertFalse("The range read completed before its follow up read did", promise.isDone());
+
+                if (expireFollowUp)
+                {
+                    awaitCondition(() -> !pendingReads.containsKey(followUpId), "The follow up read never expired");
+                }
+                else
+                {
+                    MutationId unwritten = MutationTrackingService.instance().nextMutationId(keyspaceName, unscanned.getToken());
+                    Log2OffsetsMap.Mutable followUpAugmenting = new Log2OffsetsMap.Mutable();
+                    followUpAugmenting.add(new ShortMutationId(unwritten));
+                    localReads.acknowledgeReconcile(followUpId, followUpAugmenting);
+                }
+
+                boolean rangeReadCompleted = await(promise::isDone, 10);
+                OpOrder.Barrier barrier = cfs.readOrdering.newBarrier();
+                barrier.issue();
+                boolean drained = await(barrier.getSyncPoint()::isFinished, 10);
+
+                boolean drainedOnceRangeReadClosed = drained;
+                if (!drained)
+                {
+                    rangeRead.get().close();
+                    drainedOnceRangeReadClosed = await(barrier.getSyncPoint()::isFinished, 10);
+                }
+
+                Assert.assertTrue(format("The failed follow up read left its range read pending: range read completed=%s, " +
+                                         "barrier drained=%s, barrier drained once the range read was closed by hand=%s",
+                                         rangeReadCompleted, drained, drainedOnceRangeReadClosed),
+                                  rangeReadCompleted && drained);
+                Assert.assertNotNull("The range read succeeded without the follow up read it depended on", promise.cause());
+            });
+        }
+    }
+
+    private static boolean isFailedFollowUpRead(Throwable t)
+    {
+        for (Throwable cause = t; cause != null; cause = cause.getCause())
+        {
+            if (cause instanceof TimeoutException)
+                return true;
+            if (cause.getMessage() != null && cause.getMessage().startsWith("Missing mutation"))
+                return true;
+        }
+        return false;
+    }
+
+    private static boolean await(BooleanSupplier condition, long seconds)
+    {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(seconds);
+        while (!condition.getAsBoolean() && System.nanoTime() - deadline < 0)
+            Uninterruptibles.sleepUninterruptibly(10, TimeUnit.MILLISECONDS);
+        return condition.getAsBoolean();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<TrackedRead.Id, ?> pendingLocalReads(TrackedLocalReads localReads)
+    {
+        try
+        {
+            Field coordinators = TrackedLocalReads.class.getDeclaredField("coordinators");
+            coordinators.setAccessible(true);
+            return (Map<TrackedRead.Id, ?>) coordinators.get(localReads);
+        }
+        catch (ReflectiveOperationException e)
+        {
+            throw new AssertionError(e);
         }
     }
 
