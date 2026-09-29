@@ -519,7 +519,7 @@ public final class SealingCoordinator
         initiate(shards, withoutNode);  // ACTIVE -> SEALING for each Shard
         drain(shards, withoutNode);     // drain in-flight local writes
         reconcile(shards, withoutNode); // wait for logs to reconcile
-        complete(shards, withoutNode);  // SEALING-> SEALED for each Shard + journal flush
+        complete(shards, withoutNode);  // SEALING -> SEALED for each Shard + journal flush
     }
 
     private static void initiate(Set<ShardMetadata> shards, @Nullable NodeId withoutNode)
@@ -751,7 +751,7 @@ public final class SealingCoordinator
             Set<ShardMetadata> shards = new HashSet<>();
             MutationTrackingService.instance().forEachShardInKeyspace(request.keyspace, shard -> {
                 if (shard.sinceEpoch < request.beforeEpoch
-                    && (request.range.contains(shard.range) || shard.range.contains(request.range))
+                    && request.range.intersects(shard.range)
                     && !shard.isSealed())
                     shards.add(new ShardMetadata(shard.keyspace, shard.sinceEpoch, shard.range, shard.participants));
             });
