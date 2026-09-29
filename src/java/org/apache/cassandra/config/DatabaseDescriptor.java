@@ -6349,6 +6349,20 @@ public class DatabaseDescriptor
         }
     }
 
+    public static DurationSpec getCmsReconfigurationWaitTimeout()
+    {
+        return conf.cms_reconfiguration_wait_timeout;
+    }
+
+    public static void setCmsReconfigurationWaitTimeout(long timeoutInMillis)
+    {
+        if (timeoutInMillis != conf.cms_reconfiguration_wait_timeout.to(TimeUnit.MILLISECONDS))
+        {
+            logger.info("Setting cms_reconfiguration_wait_timeout to {}ms", timeoutInMillis);
+            conf.cms_reconfiguration_wait_timeout = new DurationSpec.LongMillisecondsBound(timeoutInMillis);
+        }
+    }
+
     public static RetryStrategy getCmsCommitRetryStrategy()
     {
         return cms_commit_retry_strategy;

@@ -239,6 +239,17 @@ public class Config
     public volatile DurationSpec.LongMillisecondsBound cms_commit_retry_initial_delay = new DurationSpec.LongMillisecondsBound("5s");
     public volatile DurationSpec.LongMillisecondsBound cms_commit_retry_max_delay = new DurationSpec.LongMillisecondsBound("60s");
 
+    /**
+     * Deadline for removing a node from the CMS when a CMS reconfiguration is already in progress.
+     * Only one reconfiguration may be prepared at a time, so the removal waits for the in-flight one to complete,
+     * re-checking with backoff governed by cms_commit_retry_initial_delay/cms_commit_retry_max_delay,
+     * until this deadline expires.
+     *
+     * Note that a deadline shorter than cms_commit_timeout does not interrupt a commit already in flight; it only
+     * stops further attempts from being made.
+     */
+    public volatile DurationSpec.LongMillisecondsBound cms_reconfiguration_wait_timeout = new DurationSpec.LongMillisecondsBound("10m");
+
     public volatile int epoch_aware_debounce_inflight_tracker_max_size = 100;
 
     /**
