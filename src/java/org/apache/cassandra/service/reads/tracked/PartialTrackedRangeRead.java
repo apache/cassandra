@@ -495,11 +495,11 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
                             int rows = 0;
 
                             @Override
-                            protected void onClose()
+                            protected void onPartitionClose()
                             {
                                 if (rows == 0)
                                     markFiltered(key);
-                                super.onClose();
+                                super.onPartitionClose();
                             }
 
                             @Override
@@ -513,7 +513,11 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
                             @Override
                             protected Row applyToStatic(Row row)
                             {
-                                if (command.selectsFullPartition()
+                                // we only count static rows as matches if there are no clustering or regular column
+                                // matches because `WHERE static_col=7 AND regular_col>2 ALLOW FILTERING` requires normal
+                                // rows to exist, and the counter applyToRow will increment rows only if the static clause
+                                // is true which would have been evaluated earlier in `applyToPartition`
+                                if (!command.rowFilter().hasExpressionOnClusteringOrRegularColumns()
                                     && row.hasLiveData(command.nowInSec(), command.metadata().enforceStrictLiveness()))
                                     rows++;
                                 return super.applyToStatic(row);
