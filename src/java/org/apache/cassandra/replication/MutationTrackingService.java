@@ -173,8 +173,8 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
 
     private final TrackedLocalReads localReads = new TrackedLocalReads();
-    private ConcurrentHashMap<String, KeyspaceShards> keyspaceShards = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<CoordinatorLogId, Shard> log2ShardMap = new ConcurrentHashMap<>();
+    private volatile ConcurrentHashMap<String, KeyspaceShards> keyspaceShards = new ConcurrentHashMap<>();
+    private volatile ConcurrentHashMap<CoordinatorLogId, Shard> log2ShardMap = new ConcurrentHashMap<>();
     private final ChangeListener tcmListener;
 
     // The highest TCM epoch we have applied to keyspaceShards via onNewClusterMetadata.
@@ -981,7 +981,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     /**
      * Find an existing shard matching the response's (epoch, range), or create a new one from the response metadata.
      * TODO (expected): validate if this should be called with a shard lock everywhere it's called
-     * TODO (expected): log2Shard map updates even on failed CAS. Need to clean up there(?); Register callbacks?
      */
     @Nonnull
     private Shard getOrCreateShard(
@@ -1003,6 +1002,8 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             KeyspaceShards updated = current.withNewShard(shard);
             if (keyspaceShards.replace(keyspace, current, updated))
                 return shard;
+            // clean up log2ShardMap if CAS failed
+            shard.forEachLog(this::onDroppedLog);
         }
     }
 
@@ -1101,8 +1102,9 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             shardLock.readLock().unlock();
         }
 
-        ConcurrentHashMap<String, KeyspaceShards> originalKeyspaceShards = keyspaceShards;
         shardLock.writeLock().lock();
+        ConcurrentHashMap<CoordinatorLogId, Shard> originalLog2ShardMap = log2ShardMap;
+        ConcurrentHashMap<String, KeyspaceShards> originalKeyspaceShards = keyspaceShards;
         try
         {
             if (!next.epoch.isAfter(lastAppliedEpoch))
@@ -1111,6 +1113,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             if (!shardUpdateNeeded(keyspaceShards, prev, next))
                 return;
 
+            originalLog2ShardMap = new ConcurrentHashMap<>(log2ShardMap);
             keyspaceShards = applyUpdatedMetadata(keyspaceShards, prev, next, this::nextLogId, this::onNewLog, this::onDroppedLog);
 
             if (!config.background_reconciliation_enabled)
@@ -1125,6 +1128,14 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         }
         catch (Throwable t)
         {
+            // TODO (required): carefully review the rollback logic
+            //  this use of concurrent maps is unorthodox,
+            //  and I don't think we always grab the shardLock to read them
+            //  (and we shouldn't *have to*, normally)
+            //  also, onNewLog()/onDroppedLog() modify the map in-place,
+            //  so really this is a bit of mess; but only if applyUpdatedMetadata() throws,
+            //  which it shouldn't, so we can address this later
+            log2ShardMap = originalLog2ShardMap;
             keyspaceShards = originalKeyspaceShards;
             throw t;
         }
@@ -1132,7 +1143,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         {
             shardLock.writeLock().unlock();
         }
-
     }
 
     private static boolean shardUpdateNeeded(Map<String, KeyspaceShards> current, @Nullable ClusterMetadata prev, ClusterMetadata next)
@@ -1161,7 +1171,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     {
         Preconditions.checkNotNull(next);
 
-        Map<String, KeyspaceShards>  currentShards = new HashMap<>(keyspaceShardsMap);
+        Map<String, KeyspaceShards> currentShards = new HashMap<>(keyspaceShardsMap);
         ConcurrentHashMap<String, KeyspaceShards> updated = new ConcurrentHashMap<>();
 
         Set<String> allKeyspaces = new HashSet<>();
