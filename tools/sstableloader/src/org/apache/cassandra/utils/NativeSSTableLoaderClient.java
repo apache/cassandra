@@ -113,6 +113,9 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
                 }
             }
 
+            if (getEndpointToRangesMap().isEmpty())
+                throw new IllegalStateException(noReplicasMessage(keyspace, metadata, session));
+
             Types types = fetchTypes(keyspace, session);
 
             tables.putAll(fetchTables(keyspace, session, partitioner, types));
@@ -134,6 +137,19 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
     public void setTableMetadata(TableMetadataRef cfm)
     {
         tables.put(cfm.name, cfm);
+    }
+
+    private static String noReplicasMessage(String keyspace, Metadata metadata, Session session)
+    {
+        if (metadata.getKeyspace(Metadata.quote(keyspace)) != null)
+            return "Could not find any replicas for keyspace " + keyspace + ", check its replication settings";
+
+        String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspaceTables.KEYSPACES);
+        if (session.execute(query, keyspace).one() == null)
+            return "Keyspace " + keyspace + " does not exist";
+
+        return "Could not find any replicas for keyspace " + keyspace + ": the driver failed to parse the cluster schema " +
+               "(e.g. it does not support vectors inside user-defined types). See the error logged above.";
     }
 
     private static Types fetchTypes(String keyspace, Session session)
