@@ -35,7 +35,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
 
@@ -132,12 +131,6 @@ public final class SchemaKeyspace
 
     private static final boolean FLUSH_SCHEMA_TABLES = TEST_FLUSH_LOCAL_SCHEMA_CHANGES.getBoolean();
     private static final boolean IGNORE_CORRUPTED_SCHEMA_TABLES_PROPERTY_VALUE = IGNORE_CORRUPTED_SCHEMA_TABLES.getBoolean();
-
-    /**
-     * The tables to which we added the cdc column. This is used in {@link #makeUpdateForSchema} below to make sure we skip that
-     * column is cdc is disabled as the columns breaks pre-cdc to post-cdc upgrades (typically, 3.0 -> 3.X).
-     */
-    private static final Set<String> TABLES_WITH_CDC_ADDED = ImmutableSet.of(SchemaKeyspaceTables.TABLES, SchemaKeyspaceTables.VIEWS);
 
     private static final TableMetadata Keyspaces =
         parse(KEYSPACES,
@@ -497,27 +490,10 @@ public final class SchemaKeyspace
 
     /**
      * Creates a PartitionUpdate from a partition containing some schema table content.
-     * This is mainly calling {@code PartitionUpdate.fromIterator} except for the fact that it deals with
-     * the problem described in #12236.
      */
     private static PartitionUpdate makeUpdateForSchema(UnfilteredRowIterator partition, ColumnFilter filter)
     {
-        // This method is used during schema migration tasks, and if cdc is disabled, we want to force excluding the
-        // 'cdc' column from the TABLES/VIEWS schema table because it is problematic if received by older nodes (see #12236
-        // and #12697). Otherwise though, we just simply "buffer" the content of the partition into a PartitionUpdate.
-        if (DatabaseDescriptor.isCDCEnabled() || !TABLES_WITH_CDC_ADDED.contains(partition.metadata().name))
-            return PartitionUpdate.fromIterator(partition, filter);
-
-        // We want to skip the 'cdc' column. A simple solution for that is based on the fact that
-        // 'PartitionUpdate.fromIterator()' will ignore any columns that are marked as 'fetched' but not 'queried'.
-        ColumnFilter.Builder builder = ColumnFilter.allRegularColumnsBuilder(partition.metadata(), false);
-        for (ColumnMetadata column : filter.fetchedColumns())
-        {
-            if (!column.name.toString().equals("cdc"))
-                builder.add(column);
-        }
-
-        return PartitionUpdate.fromIterator(partition, builder.build());
+        return PartitionUpdate.fromIterator(partition, filter);
     }
 
     private static boolean isSystemKeyspaceSchemaPartition(DecoratedKey partitionKey)
@@ -643,9 +619,10 @@ public final class SchemaKeyspace
                .add("read_repair", params.readRepair.toString())
                .add("extensions", params.extensions);
 
-        // Only add CDC-enabled flag to schema if it's enabled on the node. This is to work around RTE's post-8099 if a 3.8+
-        // node sends table schema to a < 3.8 versioned node with an unknown column.
-        if (DatabaseDescriptor.isCDCEnabled())
+        // Only add the cdc column if it's set, to avoid RTE in mixed operation.
+        // cdc_enabled is a per-node setting and must not gate
+        // whether this table's actual cdc value gets persisted - only the value itself matters here.
+        if (params.cdc)
             builder.add("cdc", params.cdc);
 
         // As above, only add the memtable column if the table uses a non-default memtable configuration to avoid RTE
