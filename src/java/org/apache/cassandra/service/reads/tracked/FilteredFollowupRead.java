@@ -150,21 +150,25 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
                                                                                      command.selectsFullPartition(),
                                                                                      command.metadata().enforceStrictLiveness());
 
-                boolean partitionsFetched;
                 boolean initialIteratorExhausted;
                 TrackedDataResponse response;
                 try (PartitionIterator iterator = merged.makeIteratorUnlimited(command))
                 {
-                    partitionsFetched = iterator.hasNext();
                     response = TrackedDataResponse.create(mergedResultCounter.applyTo(iterator), command.columnFilter());
                     initialIteratorExhausted = iterator.hasNext();
                 }
 
                 // although we check for interleaved keys in the initial read, we always query for them in the follow up, so
-                // we just use normal short read protection checks here for the range; the keys carried over are read
-                // whenever the answer is short of its limit, since those checks stop once it holds no partition at all
+                // we just use normal short read protection checks here for the range, and read the keys carried over
+                // whenever the answer is short of its limit
                 AbstractBounds<PartitionPosition> nextBounds = nextBounds(partialRead);
-                if ((followUpReadRequired(command, mergedResultCounter, initialIteratorExhausted, partitionsFetched) && nextBounds != null)
+                // partitionsFetched is whether the scan of the range reached a partition: this round's range read if it
+                // started one, otherwise the scan that left this round its bounds, and the bounds are null exactly when
+                // that scan reached none. Whether the merged answer holds a partition says nothing about the range, since
+                // reconciliation can remove every row a scan kept, and a round that spent its budget on keys read none of
+                // the range at all
+                boolean partitionsFetched = nextBounds != null;
+                if (followUpReadRequired(command, mergedResultCounter, initialIteratorExhausted, partitionsFetched)
                     || (!nextKeys.isEmpty() && !mergedResultCounter.isDone()))
                 {
                     FilteredFollowupRead followUp = new FilteredFollowupRead(response, toQuery(command, mergedResultCounter), consistencyLevel, requestTime, nextKeys, command, nextBounds, null);

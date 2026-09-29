@@ -59,10 +59,10 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
 /**
  * The cluster, the two modes and the oracle harness the tracked range read cases are written in terms of. The cases
- * themselves are split across sibling classes - {@link TrackedRangeReadTest}, {@link TrackedLegacyIndexedRangeReadTest}
- * and {@link TrackedFilteredRangeReadCarryOverTest} - because every case leaves behind the two keyspaces it created, and a
- * keyspace's tables keep a memtable region and a set of table metrics for as long as the cluster is up, so how many
- * cases one class holds is bounded by the heap of the one JVM that runs it.
+ * themselves are split across sibling classes - {@link TrackedRangeReadTest}, {@link TrackedLegacyIndexedRangeReadTest},
+ * {@link TrackedFilteredRangeReadCarryOverTest} and {@link TrackedFilteredRangeReadRestOfRangeTest} - because every case
+ * leaves behind the two keyspaces it created, and a keyspace's tables keep a memtable region and a set of table metrics
+ * for as long as the cluster is up, so how many cases one class holds is bounded by the heap of the one JVM that runs it.
  * <p>
  * Every case runs twice, once per {@link Mode}: once with three full replicas of every range, and once with
  * one of those three turned into a witness. A witness journals a mutation so that it can take part in
