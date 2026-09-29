@@ -18,17 +18,22 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.net.InetAddress;
+import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLSession;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.apache.cassandra.utils.concurrent.Condition;
+import com.google.common.collect.ImmutableSet;
 import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,11 +57,15 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.security.SSLFactory;
+import org.apache.cassandra.utils.concurrent.Condition;
 
+import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.test.AbstractEncryptionOptionsImpl.ConnectResult.CONNECTING;
 import static org.apache.cassandra.distributed.test.AbstractEncryptionOptionsImpl.ConnectResult.UNINITIALIZED;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class AbstractEncryptionOptionsImpl extends TestBaseImpl
 {
@@ -356,6 +365,50 @@ public class AbstractEncryptionOptionsImpl extends TestBaseImpl
         else
         {
             Assert.assertEquals(ConfigurationException.class.getName(), tr.getClass().getName());
+        }
+    }
+
+    protected static List<String> getAcceptedProtocolsForNegotationTest()
+    {
+        Set<String> supportedProtocols = null;
+        try
+        {
+            supportedProtocols = ImmutableSet.copyOf(Arrays.asList(SSLContext.getDefault().createSSLEngine().getEnabledProtocols()));
+        }
+        catch (NoSuchAlgorithmException e)
+        {
+            throw new RuntimeException(e);
+        }
+        List<String> maybeAcceptedProtocolVersions = ImmutableList.of("TLSv1.2", "TLSv1.3");
+        return maybeAcceptedProtocolVersions.stream().filter(supportedProtocols::contains).collect(toImmutableList());
+    }
+
+    protected void testProtocolNegotation(Cluster cluster, int port) throws Throwable
+    {
+        Set<String> supportedProtocolVersions = ImmutableSet.copyOf(Arrays.asList(SSLContext.getDefault().createSSLEngine().getEnabledProtocols()));
+        List<String> deprecatedProtocolVersions = ImmutableList.of("TLSv1", "TLSv1.1");
+        List<String> mandatoryProtocolVersions = ImmutableList.of("TLSv1.2", "TLSv1.3");
+        List<String> acceptedProtocolVersions = getAcceptedProtocolsForNegotationTest();
+        assertTrue("Not all mandatory protocol versions are supported, mandatory " + mandatoryProtocolVersions + " accepted " + acceptedProtocolVersions,
+                   acceptedProtocolVersions.containsAll(mandatoryProtocolVersions));
+        assertFalse("Accepted protocol versions contains deprecated protocol versions, deprecated " + deprecatedProtocolVersions + " accepted " + supportedProtocolVersions,
+                    acceptedProtocolVersions.stream().anyMatch(deprecatedProtocolVersions::contains));
+        InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
+
+        for (String deprecatedProtocolVersion : deprecatedProtocolVersions)
+        {
+            TlsConnection tlsConnection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList(deprecatedProtocolVersion));
+            Assert.assertEquals("Should not be possible to establish a " + deprecatedProtocolVersion + " connection",
+                                ConnectResult.FAILED_TO_NEGOTIATE, tlsConnection.connect());
+            tlsConnection.assertReceivedHandshakeException();
+        }
+
+        for (String protocolVersion : acceptedProtocolVersions)
+        {
+            TlsConnection tlsConnection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList(protocolVersion));
+            Assert.assertEquals("Should be possible to establish a TLSv1.1 connection",
+                                ConnectResult.NEGOTIATED, tlsConnection.connect());
+            Assert.assertEquals(protocolVersion, tlsConnection.lastProtocol());
         }
     }
 }
