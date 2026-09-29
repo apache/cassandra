@@ -175,6 +175,7 @@ public class ShardedMemtableIndex implements MemtableIndex
         IntArrayList shardsForRange = boundaries.getShardsForRange(keyRange);
         KeyRangeConcatIterator.Builder builder = KeyRangeConcatIterator.builder(shardsForRange.size());
 
+        // InMemoryKeyRangeIterator holds no closeable resources; so a builder cleanup is not needed on exceptions.
         for (int i = 0; i < shardsForRange.size(); i++)
         {
             int shard = shardsForRange.getInt(i);
