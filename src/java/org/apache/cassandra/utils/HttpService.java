@@ -44,7 +44,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * <p><b>Design principles:</b>
  * <ul>
  *   <li><b>Synchronous requests only</b> - Requests block until the operation completes or times out</li>
- *   <li><b>Raw HTTP responses</b> - Status-code validation and response parsing are the caller's responsibility</li>
+ *   <li><b>Raw HTTP responses</b> - The execute methods return HTTP responses without validating the status code</li>
  *   <li><b>Configurable timeouts</b> - Connection and read timeouts are supplied by the caller</li>
  *   <li><b>Header support</b> - Request headers can be supplied by the caller</li>
  *   <li><b>Diagnostic logging</b> - Request metadata is logged without logging header values or response contents</li>
@@ -186,9 +186,11 @@ public abstract class HttpService
     {
         if (logger.isDebugEnabled())
         {
-            logger.debug("Executing HTTP {} request to URL: {}", method, url);
-            logger.debug("Connection timeout: {}ms, Read timeout: {}ms",
-                         config.getConnectTimeoutMs(), config.getReadTimeoutMs());
+            logger.debug("Executing HTTP {} request to URL: {} with connection timeout: {}ms, read timeout: {}ms",
+                         method,
+                         url,
+                         config.getConnectTimeoutMs(),
+                         config.getReadTimeoutMs());
         }
 
         if (logger.isTraceEnabled() && !config.getHeaders().isEmpty())
@@ -256,10 +258,10 @@ public abstract class HttpService
     }
 
     /**
-     * Read the response body using the same content-length based behavior as
-     * AbstractCloudMetadataServiceConnector.
+     * Read the HTTP response body using content-length based handling.
      *
      * @param conn the HTTP connection
+     * @param statusCode the HTTP response status code
      * @return the response body as a UTF-8 string, or null if the content length is -1
      * @throws IOException if reading the response fails
      */
