@@ -211,7 +211,7 @@ public final class TxnUpdate extends AccordUpdate
             public void skip(TableMetadatasAndKeys p, DataInputPlus in) throws IOException
             {
                 in.readUnsignedVInt32();
-                p.skipKeys(in);
+                p.skipKey(in);
                 skipWithVIntLength(in);
             }
 
@@ -391,8 +391,12 @@ public final class TxnUpdate extends AccordUpdate
                     ConditionalBlock cb = conditionalBlocks[i];
                     int[] cbOutFragmentIds = SortedArrays.linearIntersection(cb.fragmentIds, 0, cb.fragmentIds.length, outFragmentIds, 0, count, cachedInts());
 
-                    if (cbOutFragmentIds.length > 0)
-                        collect.add(new ConditionalBlock(cb.id, cb.condition, cbOutFragmentIds));
+                    // We need to include ConditionalBlocks when cb.fragmentIds.length == 0
+                    // because even if the logic associated with the branch is a no-op, on recovery
+                    // we still need it to reconstruct the txn so that when we execute it
+                    // no subsequent branches can be triggered. See - AccordEmptyBranchRecoveryTest.java
+                    if (cbOutFragmentIds.length > 0 || cb.fragmentIds.length == 0)
+                        collect.add(cbOutFragmentIds == cb.fragmentIds ? cb : new ConditionalBlock(cb.id, cb.condition, cbOutFragmentIds));
                 }
                 if (collect.isEmpty()) outConditions = NO_CONDITIONAL_BLOCKS;
                 else outConditions = collect.toArray(ConditionalBlock[]::new);
@@ -589,9 +593,9 @@ public final class TxnUpdate extends AccordUpdate
         int nextConditionIndex = 0;
         for (PreTransformedBlock preTransformedBlock : preTransformedBlocks)
         {
-            Pair<Integer, Block> pair = preTransformedBlock.generateBlock(nextConditionIndex, tables);
-            nextConditionIndex = pair.left();
-            blocks.add(pair.right());
+            Block block = preTransformedBlock.generateBlock(nextConditionIndex, tables);
+            nextConditionIndex += block.conditionalBlocks.length;
+            blocks.add(block);
         }
 
         this.blocks = blocks;
@@ -637,7 +641,7 @@ public final class TxnUpdate extends AccordUpdate
 
         public static PreTransformedBlock createNoneConditionPreTransformedBlock(List<TxnWrite.Fragment> noneConditionFragments)
         {
-            return new PreTransformedBlock(null,null, noneConditionFragments);
+            return new PreTransformedBlock(null, null, noneConditionFragments);
         }
 
         private boolean isTrailingUpdate()
@@ -655,7 +659,7 @@ public final class TxnUpdate extends AccordUpdate
                     keys.add(fragmentConditionIndexPair.get(i).left().key);
         }
 
-        public Pair<Integer, Block> generateBlock(int conditionalBlockIndex, TableMetadatas tables)
+        public Block generateBlock(int conditionalBlockIndex, TableMetadatas tables)
         {
             if (isTrailingUpdate())
             {
@@ -670,8 +674,7 @@ public final class TxnUpdate extends AccordUpdate
 
                 SerializedTxnCondition serializedCondition = new SerializedTxnCondition(TxnCondition.none(), tables);
                 ConditionalBlock[] conditionalBlock = new ConditionalBlock[] { new ConditionalBlock(conditionalBlockIndex, serializedCondition, fragmentIds) };
-                conditionalBlockIndex++;
-                return Pair.create(conditionalBlockIndex, new Block(blockFragments, conditionalBlock));
+                return new Block(blockFragments, conditionalBlock);
             }
             else
             {
@@ -696,11 +699,10 @@ public final class TxnUpdate extends AccordUpdate
                 {
                     int[] fragmentIds = conditionsIndexToFragmentId.get(i).toIntArray();
                     SerializedTxnCondition serializedCondition = new SerializedTxnCondition(conditions[i], tables);
-                    conditionalBlocks[i] = new ConditionalBlock(conditionalBlockIndex, serializedCondition, fragmentIds);
-                    conditionalBlockIndex++;
+                    conditionalBlocks[i] = new ConditionalBlock(conditionalBlockIndex + i, serializedCondition, fragmentIds);
                 }
 
-                return Pair.create(conditionalBlockIndex, new Block(blockFragments, conditionalBlocks));
+                return new Block(blockFragments, conditionalBlocks);
             }
         }
     }
@@ -853,7 +855,6 @@ public final class TxnUpdate extends AccordUpdate
 
         return new TxnWrite(tables, allUpdates, conditionalBlockBitSet);
     }
-
     
     private boolean checkCondition(Data data, SerializedTxnCondition condition)
     {
@@ -912,6 +913,7 @@ public final class TxnUpdate extends AccordUpdate
         public void skip(TableMetadatasAndKeys tablesAndKeys, DataInputPlus in, Version version) throws IOException
         {
             in.readByte(); // flags
+            tablesAndKeys.skipKeys(in);
             deserializeNullable(in, consistencyLevelSerializer); // consistency level
             skipArray(tablesAndKeys, in, Block.serializer);
         }

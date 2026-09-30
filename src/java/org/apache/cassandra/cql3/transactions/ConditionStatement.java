@@ -81,7 +81,10 @@ public class ConditionStatement
 
         public Raw(Term.Raw lhs, Kind kind, Term.Raw rhs)
         {
-            Preconditions.checkArgument(lhs != null || kind == Kind.ELSE);
+            // lhs == null if and only if kind is else
+            Preconditions.checkArgument((lhs == null) == (kind == Kind.ELSE));
+
+            // rhs == null if and only if kind is is_not_null, is_null, or else
             Preconditions.checkArgument((rhs == null) == (kind == Kind.IS_NOT_NULL || kind == Kind.IS_NULL || kind == Kind.ELSE));
             this.lhs = lhs;
             this.kind = kind;

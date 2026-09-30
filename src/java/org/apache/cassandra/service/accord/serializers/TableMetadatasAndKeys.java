@@ -180,6 +180,11 @@ public class TableMetadatasAndKeys extends IVersionedWithKeysSerializer.Abstract
         return (PartitionKey) keys.get(offset);
     }
 
+    public void skipKey(DataInputPlus in) throws IOException
+    {
+        in.readUnsignedVInt32();
+    }
+
     public long serializedKeysSize(Keys keys)
     {
         return serializedSubsetSizeInternal(keys, this.keys);

@@ -46,6 +46,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.io.Serializers;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -54,6 +55,7 @@ import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
+import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.accord.txn.TxnCondition.SerializedTxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnUpdate.Block;
 import org.apache.cassandra.service.accord.txn.TxnUpdate.ConditionalBlock;
@@ -274,6 +276,24 @@ public class TxnUpdateTest
                 assertThat(ensureBlockFragmentsAreSortedByKey(selectedBlock)).isTrue();
                 assertThat(ensureInjectivityOfFragmentIdsToFragments(selectedBlock)).isTrue();
             }
+        });
+    }
+
+    @Test
+    public void skip()
+    {
+        @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
+        qt().check(rs -> {
+            List<TableMetadata> tables = tablesGen.next(rs);
+            TableMetadatas metadatas = TableMetadatas.of(tables);
+            List<Fragment> fragments = Gens.lists(fragment(tables)).ofSizeBetween(1, 100).next(rs);
+            TableMetadatasAndKeys tablesAndKeys = new TableMetadatasAndKeys(metadatas, Keys.of(fragments, f -> f.key));
+            TxnUpdate update = new TxnUpdate(metadatas, fragments, TxnCondition.none(), null, PreserveTimestamp.no);
+            output.clear();
+            TxnUpdate.serializer.serialize(update, tablesAndKeys, output, Version.LATEST);
+            ByteBuffer buffer = output.unsafeGetBufferAndFlip();
+            TxnUpdate.serializer.skip(tablesAndKeys, new DataInputBuffer(buffer, false), Version.LATEST);
+            assertThat(buffer.remaining()).isEqualTo(0);
         });
     }
 

@@ -494,13 +494,14 @@ public class TxnConditionTest
     private Gen<TxnCondition> txnConditionGen()
     {
         return rs -> {
-            switch (rs.nextInt(1, 5))
+            switch (rs.nextInt(1, 6))
             {
                 case 0: return TxnCondition.none();
                 case 1: return new TxnCondition.Exists(TXN_REF_GEN.next(rs), EXISTS_KIND_GEN.next(rs));
                 case 2: return new TxnCondition.Value(TXN_REF_GEN.next(rs).asColumn(), VALUE_KIND_GEN.next(rs), BYTES_GEN.next(rs), PROTOCOL_VERSION_GEN.next(rs));
                 case 3: return new TxnCondition.ColumnConditionsAdapter(CLUSTERING_GEN.next(rs), Gens.lists(BOUND_GEN).ofSizeBetween(0, 3).next(rs));
                 case 4: return new TxnCondition.BooleanGroup(BOOLEAN_KIND_GEN.next(rs), Gens.lists(txnConditionGen()).ofSizeBetween(0, 3).next(rs));
+                case 5: return TxnCondition.Else.instance;
                 default: throw new AssertionError();
             }
         };
