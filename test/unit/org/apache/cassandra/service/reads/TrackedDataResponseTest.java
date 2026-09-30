@@ -59,8 +59,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * A tracked read folds the results of its sub-reads into one {@link TrackedDataResponse} as separate serialized chunks.
- * Nothing keeps two chunks from carrying rows for the same partition, so
+ * Nothing keeps two chunks of a {@link TrackedDataResponse} from carrying rows for the same partition, so
  * {@link TrackedDataResponse#makeIteratorUnlimited} has to reconcile them.
  */
 public class TrackedDataResponseTest extends AbstractReadResponseTest
@@ -71,10 +70,7 @@ public class TrackedDataResponseTest extends AbstractReadResponseTest
     private static ColumnFamilyStore cfsStatic;
     private static TableMetadata cfmStatic;
 
-    /**
-     * A table with static columns, which {@link AbstractReadResponseTest} does not define. Marks the cluster
-     * metadata again afterwards so that the reset every test does keeps this keyspace.
-     */
+    /** Marks the cluster metadata again afterwards so that the reset every test does keeps this keyspace. */
     @BeforeClass
     public static void setupStaticTable()
     {
@@ -92,7 +88,6 @@ public class TrackedDataResponseTest extends AbstractReadResponseTest
         ServerTestUtils.markCMS();
     }
 
-    /** One serialized chunk of a response, made the way a completed tracked read makes one. */
     private TrackedDataResponse chunk(ReadCommand command, UnfilteredPartitionIterator data)
     {
         try (PartitionIterator filtered = filter(data))
@@ -101,7 +96,6 @@ public class TrackedDataResponseTest extends AbstractReadResponseTest
         }
     }
 
-    /** A chunk holding one row of one partition. */
     private TrackedDataResponse row(ReadCommand command, TableMetadata table, DecoratedKey key,
                                     long timestamp, String clustering, String column, String value)
     {
@@ -110,7 +104,6 @@ public class TrackedDataResponseTest extends AbstractReadResponseTest
                                                                                        .buildUpdate()));
     }
 
-    /** A chunk holding one partition that has nothing in it but a static row. */
     private TrackedDataResponse staticOnly(ReadCommand command, TableMetadata table, DecoratedKey key,
                                            long timestamp, String column, String value)
     {
@@ -119,7 +112,6 @@ public class TrackedDataResponseTest extends AbstractReadResponseTest
                                                                                        .buildUpdate()));
     }
 
-    /** A chunk holding one row of one partition, iterated the way a reversed command reads it. */
     private TrackedDataResponse reversedRow(ReadCommand command, TableMetadata table, DecoratedKey key,
                                             long timestamp, String clustering, String column, String value)
     {
@@ -129,10 +121,6 @@ public class TrackedDataResponseTest extends AbstractReadResponseTest
         return chunk(command, new SingletonUnfilteredPartitionIterator(update.unfilteredIterator(ColumnFilter.all(table), Slices.ALL, true)));
     }
 
-    /**
-     * Two chunks carrying the same partition with different rows in it: what a range read whose per partition limit
-     * cut a partition short and whose follow up then read more of that same partition comes back with.
-     */
     @Test
     public void testChunksCarryingTheSamePartitionAreMerged()
     {
@@ -142,7 +130,6 @@ public class TrackedDataResponseTest extends AbstractReadResponseTest
 
         try (PartitionIterator merged = first.merge(second).makeIteratorUnlimited(command))
         {
-            // the rows of a partition have to be consumed before the partition iterator is advanced past it
             try (RowIterator rows = merged.next())
             {
                 assertEquals(dk, rows.partitionKey());
@@ -161,12 +148,6 @@ public class TrackedDataResponseTest extends AbstractReadResponseTest
         }
     }
 
-    /**
-     * Chunks whose rows share a clustering are reconciled cell by cell rather than one of them winning: the newest
-     * value of a column that several chunks hold, and the union of the columns they hold between them. Two chunks
-     * can hold the same row because the sub-reads a tracked read is assembled from are independent reads, each
-     * seeing whatever its own replica had.
-     */
     @Test
     public void testRowsSharingAClusteringAreReconciled()
     {
@@ -189,10 +170,6 @@ public class TrackedDataResponseTest extends AbstractReadResponseTest
         }
     }
 
-    /**
-     * Static rows are unioned across the chunks the same way, including from chunks carrying nothing but a static row
-     * when the first chunk has none.
-     */
     @Test
     public void testStaticRowsAreUnionedAcrossChunks()
     {
@@ -219,9 +196,6 @@ public class TrackedDataResponseTest extends AbstractReadResponseTest
         }
     }
 
-    /**
-     * Chunks with no key in common are returned whole, in token order, whichever order they arrive in.
-     */
     @Test
     public void testChunksWithDisjointKeysAreReturnedInTokenOrder()
     {
@@ -251,10 +225,6 @@ public class TrackedDataResponseTest extends AbstractReadResponseTest
         }
     }
 
-    /**
-     * {@link TrackedDataResponse#makeIterator(ReadCommand)} applies the command's limits to the merged chunks, so a per
-     * partition limit counts a partition once however many chunks carried part of it.
-     */
     @Test
     public void testLimitsAreAppliedToTheMergedPartition()
     {
@@ -278,10 +248,6 @@ public class TrackedDataResponseTest extends AbstractReadResponseTest
         }
     }
 
-    /**
-     * A reversed command's chunks are serialized in reverse clustering order and flagged as reversed, so the merge has
-     * to compare their rows in reverse.
-     */
     @Test
     public void testChunksOfAReversedCommandAreMergedInReverseOrder()
     {
@@ -302,10 +268,6 @@ public class TrackedDataResponseTest extends AbstractReadResponseTest
         }
     }
 
-    /**
-     * Closing the merged iterator closes the chunk iterators it was built from, so a {@link Transformation} stacked on
-     * a chunk sees {@code onClose}.
-     */
     @Test
     public void testClosingTheMergedIteratorClosesTheChunks()
     {

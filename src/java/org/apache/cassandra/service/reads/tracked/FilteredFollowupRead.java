@@ -83,10 +83,7 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
         return key.compareTo(finalKey) < 0;
     }
 
-    /**
-     * Where a further round should resume: the bounds reported by the range read this round started, or this round's
-     * own bounds if it started none. Null means the range held no partition, not that it was exhausted.
-     */
+    /** Null means the range held no partition, not that it was exhausted. */
     private AbstractBounds<PartitionPosition> nextBounds(AtomicReference<PartialTrackedRead> partialRead)
     {
         if (partialRead == null)
@@ -117,7 +114,6 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
         SortedMap<DecoratedKey, FollowUpReadInfo> nextKeys = followUpKeys.hasNext() ? followUpReadInfo.tailMap(followUpKeys.next()) : Collections.emptySortedMap();
 
         AtomicReference<PartialTrackedRead> partialRead;
-        // a null followUpBounds means the range is known to hold no partition, so only the follow up keys need reading
         if (remaining > 0 && followUpBounds != null)
         {
             partialRead = new AtomicReference<>();
@@ -155,13 +151,8 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
                     initialIteratorExhausted = iterator.hasNext();
                 }
 
-                // although we check for interleaved keys in the initial read, we always query for them in the follow up, so
-                // we just use normal short read protection checks here for the range, and read the keys carried over
-                // whenever the answer is short of its limit
                 AbstractBounds<PartitionPosition> nextBounds = nextBounds(partialRead);
-                // nextBounds is null exactly when the scan that last read the range reached no partition. Whether the
-                // merged answer holds a partition says nothing about the range: reconciliation can remove every row a
-                // scan kept, and a round that spent its budget on keys read none of the range
+                // taken from the range scan, not the merged answer: reconciliation can remove every row a scan kept
                 boolean partitionsFetched = nextBounds != null;
                 if (followUpReadRequired(command, mergedResultCounter, initialIteratorExhausted, partitionsFetched)
                     || (!nextKeys.isEmpty() && !mergedResultCounter.isDone()))

@@ -289,11 +289,8 @@ public abstract class CassandraIndexSearcher<Match extends Index.IndexMatch> imp
             ByteBuffer pk = sprc.partitionKey().getKey();
             ClusteringIndexFilter filter = sprc.clusteringIndexFilter();
 
-            /*
-             * A static column index holds one entry per partition, whose index clustering contains only the base
-             * partition key (see RegularColumnIndex#buildIndexClusteringPrefix). A base clustering restriction would
-             * exclude that entry, so read it whole; CompositesSearcher applies the command's clustering filter.
-             */
+            // a static column index entry's clustering holds only the partition key, so a clustering restriction would
+            // exclude it; CompositesSearcher applies the command's clustering filter
             if (index.indexedColumn.isStatic())
             {
                 Slice slice = Slice.make(makeIndexBound(pk, BufferClusteringBound.BOTTOM),

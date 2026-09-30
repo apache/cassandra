@@ -51,17 +51,8 @@ import static accord.utils.Property.qt;
 import static org.junit.Assert.assertEquals;
 
 /**
- * For every shape of base table and legacy index, an entry built by {@link CassandraIndex#createIndexEntry} must
- * decode, through the same index's {@link CassandraIndex#decodeEntry} applied to the index row
- * {@code CassandraIndex#insert} writes ({@link BTreeRow#noCellLiveRow}), to the same base partition key and
- * clustering, with {@link IndexEntry#compare} returning zero for the two. A tracked index read builds entries this
- * way and the searcher uses them interchangeably with decoded ones, so an entry in any other form duplicates or
- * displaces the row the searcher reads.
- * <p>
- * The tables cover 0 to 3 clustering columns, with and without a static column, each indexed on a partition key
- * column, every clustering column, the regular column and the static column, and each index is given a static and a
- * regular row. {@link CassandraIndex.AbstractIndexer#insertRow} is driven directly so that the production code decides
- * which pairs produce an entry, and the count of entries is asserted so that no shape silently stops being exercised.
+ * A tracked index read builds entries with {@link CassandraIndex#createIndexEntry} and the searcher uses them
+ * interchangeably with ones decoded from the index row, so the two must agree for every table and index shape.
  */
 public class CassandraIndexEntryRoundTripTest extends CQLTester
 {
@@ -90,9 +81,8 @@ public class CassandraIndexEntryRoundTripTest extends CQLTester
             for (boolean hasStatic : new boolean[]{ false, true })
             {
                 if (hasStatic && clusterings == 0)
-                    continue; // CQL requires a clustering column for a static column to be legal
+                    continue;
 
-                // A composite partition key, so that an index on a partition key column is legal
                 StringBuilder columns = new StringBuilder("pk0 int, pk1 int, v int");
                 StringBuilder key = new StringBuilder("(pk0, pk1)");
                 List<String> targets = new ArrayList<>(Arrays.asList("pk1", "v"));
@@ -126,10 +116,6 @@ public class CassandraIndexEntryRoundTripTest extends CQLTester
         });
     }
 
-    /**
-     * Round trips every entry the production write path builds for one (index, row) pair, and returns how many that
-     * was: zero for the pairs the write path skips, one otherwise.
-     */
     private static int roundTrip(CassandraIndex index, boolean staticRow, RandomSource rs)
     {
         TableMetadata base = index.baseCfs.metadata();
@@ -141,7 +127,6 @@ public class CassandraIndexEntryRoundTripTest extends CQLTester
         for (int i = 0; i < values.length; i++)
             values[i] = INTS.next(rs);
 
-        // A static row is live by virtue of its static cell; only a regular row carries primary key liveness
         Row.Builder row = BTreeRow.unsortedBuilder();
         row.newRow(staticRow ? Clustering.STATIC_CLUSTERING : Clustering.make(values));
         if (!staticRow)

@@ -257,17 +257,12 @@ public class MutationTrackingServiceTest
         result.apply((shardedTask) -> assertTrue("Task should be SymmetricRemoteSyncTask", shardedTask.task instanceof SymmetricRemoteSyncTask));
     }
 
-    /**
-     * Broadcast offsets and a reconciled snapshot for a keyspace this node has dropped are discarded without throwing
-     * and without recreating the keyspace's shards or logs.
-     */
     @Test
     public void testOffsetsForAKeyspaceThatNoLongerExistsAreDropped()
     {
         String dropped = "keyspace_this_node_drops";
         SchemaLoader.createKeyspace(dropped, KeyspaceParams.simple(1, ReplicationType.tracked), SchemaLoader.standardCFMD(dropped, TEST_TABLE));
 
-        // build the keyspace's shards the way the TCM listener does, so the drop below has something to remove
         MutationTrackingService service = MutationTrackingService.TestAccess.create();
         ClusterMetadata created = ClusterMetadata.current();
         MutationTrackingService.TestAccess.onNewClusterMetadata(service, null, created);
@@ -282,7 +277,6 @@ public class MutationTrackingServiceTest
         Offsets.Immutable offsets = new Offsets.Immutable(logId, new int[]{ 1, 1 });
         Range<Token> range = range("a", "z");
 
-        // the peer broadcast these, and took the snapshot, before it learned of the drop
         service.updateReplicatedOffsets(dropped, range, Collections.singletonList(offsets), true, REMOTE);
         service.recordFullyReconciledOffsets(ReconciledLogSnapshot.builder().put(dropped, logId, offsets, range).build());
 

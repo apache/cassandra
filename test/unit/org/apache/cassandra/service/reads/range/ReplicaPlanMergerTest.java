@@ -400,9 +400,8 @@ public class ReplicaPlanMergerTest
     }
 
     /**
-     * Two adjacent ranges that describe their shared endpoints the same way are merged, witnesses and all. This is
-     * the ordinary case the transience check has to leave alone: refusing to merge whenever a witness is involved
-     * would split every range read on a keyspace that has any into one read per vnode.
+     * Refusing to merge whenever a witness is involved would split every range read on a keyspace that has any
+     * witnesses into one read per vnode.
      */
     @Test
     public void testAdjacentRangesAgreeingOnTransienceAreMerged()
@@ -415,9 +414,8 @@ public class ReplicaPlanMergerTest
     }
 
     /**
-     * A node that is a full replica of one range and a witness of the next cannot be described by a single plan for
-     * both, so the two ranges are left unmerged. The read candidates agree here, and only liveAndDown, which is what
-     * maybeMerge compares, shows the difference.
+     * The read candidates agree, and only liveAndDown, which is what maybeMerge compares, shows that 127.0.0.3 is a
+     * full replica of the left range and a witness of the right one.
      */
     @Test
     public void testAdjacentRangesDisagreeingOnTransienceAreNotMerged()
@@ -425,7 +423,6 @@ public class ReplicaPlanMergerTest
         EndpointsForRange leftCandidates = replicas(tokenRange(0, 20), FULL);
         EndpointsForRange rightCandidates = replicas(tokenRange(20, 30), FULL);
 
-        // 127.0.0.3 is a full replica of the left range and a witness of the right one, and only liveAndDown says so
         EndpointsForRange leftLiveAndDown = replicas(tokenRange(0, 20), FULL);
         EndpointsForRange rightLiveAndDown = replicas(tokenRange(20, 30), WITNESS);
 
@@ -441,7 +438,6 @@ public class ReplicaPlanMergerTest
     private static final boolean FULL = true;
     private static final boolean WITNESS = false;
 
-    /** Three replicas of the given range, the third of them a witness unless {@code thirdIsFull}. */
     private static EndpointsForRange replicas(Range<Token> range, boolean thirdIsFull)
     {
         InetAddressAndPort third = InetAddressAndPort.getByNameUnchecked("127.0.0.3");

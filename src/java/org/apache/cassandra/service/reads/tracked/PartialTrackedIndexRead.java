@@ -201,7 +201,6 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
             for (Future<FollowUpRead<Match, Searcher>> future : followUpReads.values())
             {
                 future.addCallback((followup, failure) -> {
-                    // a failed future has no read to close, and a successful one holds the read to close
                     if (failure == null)
                         followup.close();
                 });
@@ -539,8 +538,7 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
                 // TODO: maybe we should immediately start a follow up read if it's likely this key will be included in the response
                 if (!followUpReads.containsKey(key) && indexNewKey(update))
                 {
-                    // Don't raise maxKey to this key. Every key up to maxKey must have a read behind it, and this key
-                    // gets a read of its own, but the keys between maxKey and it were never scanned.
+                    // don't raise maxKey to this key: the keys between maxKey and it were never scanned
                     Future<FollowUpRead<Match, Searcher>> followUpRead = FollowUpRead.start(command, update.partitionKey(), consistencyLevel, requestTime);
                     followUpReads.put(key, followUpRead);
                 }
@@ -670,7 +668,7 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
      */
     private class MergingStoppingMatchIterator extends AbstractIterator<Match>
     {
-        /** The last key the local scan reached, or null when it materialized nothing and reached no key at all. */
+        /** The last key the local scan reached, null if it reached none. */
         private final DecoratedKey maxKey;
         private final PeekingIterator<Match> materializedIterator;
         private final CloseablePeekingIterator<Match> additionalIterator;
@@ -702,9 +700,7 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
                 }
                 else
                 {
-                    // Nothing past maxKey (or anything, if it is null) was scanned, so this match has no read behind
-                    // it. Stop and leave the rest to the follow up read, which resumes after maxKey and so also covers
-                    // the remaining materialized matches: they sort after this one.
+                    // nothing past maxKey was scanned, so leave this match and the rest to the follow up read
                     if (maxKey == null || additionalIterator.peek().key().compareTo(maxKey) > 0)
                     {
                         Preconditions.checkArgument(command.isRangeRequest());
@@ -778,7 +774,6 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
         {
             Preconditions.checkState(command.isRangeRequest());
             AbstractBounds<PartitionPosition> bounds = command.dataRange().keyRange();
-            // no key was scanned, so the follow up read has the whole range left to cover
             if (maxKey == null)
                 return bounds;
             return bounds.inclusiveRight()

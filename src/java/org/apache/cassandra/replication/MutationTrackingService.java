@@ -476,8 +476,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         try
         {
             KeyspaceShards shards = maybeGetOrCreateShards(keyspace);
-            // null if the keyspace is not in local schema, e.g. dropped here after the peer sent these. Offsets are
-            // re-broadcast periodically, so discarding them only merits a debug log.
             if (shards != null)
                 shards.updateReplicatedOffsets(range, offsets, durable, onHost);
             else
@@ -508,12 +506,10 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         try
         {
             reconciledSnapshot.forEach((keyspace, keyspaceOffsets) -> {
-                // null if the keyspace is not in local schema, e.g. dropped here after the snapshot was taken
                 KeyspaceShards ksShards = maybeGetOrCreateShards(keyspace);
                 if (ksShards != null)
                     ksShards.recordFullyReconciledOffsets(keyspaceOffsets);
                 else
-                    // warn, unlike the broadcast path: a snapshot is sent once, with its stream, and is not re-sent
                     noSpamLogger.warn("Discarding fully reconciled offsets for unknown keyspace {}", keyspace);
             });
         }
@@ -921,7 +917,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         return shards;
     }
 
-    /** As {@link #getOrCreateShards(String)}, but null rather than throwing if the keyspace no longer exists. */
     private KeyspaceShards maybeGetOrCreateShards(String keyspace)
     {
         KeyspaceShards ks = keyspaceShards.get(keyspace);
@@ -1932,13 +1927,11 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             return service.keyspaceShards.get(keyspace);
         }
 
-        /** Drives the TCM listener directly, for tests that do not run {@link #startInternal}. */
         public static void onNewClusterMetadata(MutationTrackingService service, @Nullable ClusterMetadata prev, ClusterMetadata next)
         {
             service.onNewClusterMetadata(prev, next);
         }
 
-        /** How many of the service's logs are sharded onto the given keyspace. */
         public static long countLogsFor(MutationTrackingService service, String keyspace)
         {
             return service.log2ShardMap.values().stream().filter(shard -> shard.keyspace.equals(keyspace)).count();

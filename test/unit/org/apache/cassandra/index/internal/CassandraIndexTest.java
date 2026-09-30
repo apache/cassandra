@@ -441,8 +441,6 @@ public class CassandraIndexTest extends CQLTester
     @Test
     public void indexOnStaticColumnWithRestrictedClustering() throws Throwable
     {
-        // A static column index entry is keyed only by the base partition key, so a single partition read that
-        // restricts the clustering must still find it.
         for (String order : new String[]{ "ASC", "DESC" })
         {
             createTable("CREATE TABLE %s (k int, c int, s int static, v int, PRIMARY KEY (k, c)) " +
@@ -459,17 +457,14 @@ public class CassandraIndexTest extends CQLTester
                 if (flushed)
                     flush();
 
-                // names filter, one clustering and several
                 assertRows(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 2 AND s = 9"), row(0, 2, 2));
                 assertRowsIgnoringOrder(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c IN (2, 3) AND s = 9"),
                                         row(0, 2, 2), row(0, 3, 3));
-                // slice filter
                 assertRows(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c >= 2 AND c <= 2 AND s = 9"), row(0, 2, 2));
                 assertRowsIgnoringOrder(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c > 1 AND s = 9"),
                                         row(0, 2, 2), row(0, 3, 3));
                 assertRowsIgnoringOrder(execute("SELECT k, c, v FROM %s WHERE k = 0 AND s = 9"),
                                         row(0, 1, 1), row(0, 2, 2), row(0, 3, 3));
-                // the clustering restriction is still applied, and still only within the matching partition
                 assertEmpty(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 4 AND s = 9"));
                 assertEmpty(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 2 AND s = 8"));
             }
@@ -479,7 +474,6 @@ public class CassandraIndexTest extends CQLTester
     @Test
     public void indexOnStaticCollectionWithRestrictedClustering() throws Throwable
     {
-        // Same as indexOnStaticColumnWithRestrictedClustering, for the collection index kinds.
         createTable("CREATE TABLE %s (k int, c int, s map<text, int> static, v int, PRIMARY KEY (k, c))");
         createIndex("CREATE INDEX ON %s(s)");
         createIndex("CREATE INDEX ON %s(KEYS(s))");
@@ -522,18 +516,14 @@ public class CassandraIndexTest extends CQLTester
     @Test
     public void indexOnPartitionKeyColumnWithUpdatedStaticRow() throws Throwable
     {
-        // An index on a partition key column indexes the static row too, including one created with nothing live in
-        // it and made live by a later update.
         createTable("CREATE TABLE %s (k1 int, k2 int, c int, s int static, v int, PRIMARY KEY ((k1, k2), c))");
         createIndex("CREATE INDEX ON %s(k1)");
 
         // deleting the static column creates the static row with nothing live in it, so it has no entry yet
         execute("DELETE s FROM %s USING TIMESTAMP 13 WHERE k1 = 0 AND k2 = 1");
         execute("UPDATE %s USING TIMESTAMP 15 SET s = 9 WHERE k1 = 0 AND k2 = 1");
-        // a partition whose static row was live from the start, which the insert path already indexed
         execute("UPDATE %s USING TIMESTAMP 10 SET s = 6 WHERE k1 = 0 AND k2 = 2");
         execute("UPDATE %s USING TIMESTAMP 20 SET s = 7 WHERE k1 = 0 AND k2 = 2");
-        // and one the k1 = 0 query must not return
         execute("UPDATE %s USING TIMESTAMP 15 SET s = 9 WHERE k1 = 1 AND k2 = 1");
 
         for (boolean flushed : new boolean[]{ false, true })
@@ -541,7 +531,6 @@ public class CassandraIndexTest extends CQLTester
             if (flushed)
                 flush();
 
-            // restricting one column of the partition key is only answerable with the index
             assertRowsIgnoringOrder(execute("SELECT k1, k2, c, s, v FROM %s WHERE k1 = 0"),
                                     row(0, 1, null, 9, null),
                                     row(0, 2, null, 7, null));
@@ -552,7 +541,6 @@ public class CassandraIndexTest extends CQLTester
     @Test
     public void indexOnClusteringColumnWithUpdatedStaticRow() throws Throwable
     {
-        // An index on a clustering column indexes no static row, so a partition with only a static row is no match.
         createTable("CREATE TABLE %s (k int, c1 int, c2 int, s int static, v int, PRIMARY KEY (k, c1, c2))");
         createIndex("CREATE INDEX ON %s(c1)");
 

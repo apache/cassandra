@@ -124,11 +124,8 @@ public abstract class PartitionIterators
     }
 
     /**
-     * Merges multiple partition iterators, reconciling any partition that appears in more than one of them. The inputs
-     * need not be key disjoint: a tracked read answers a range from several sub-reads, and under a per partition limit
-     * more than one of them can carry rows for the same partition.
-     * <p>
-     * See {@link RowIterators#merge} for why merging already filtered chunks is broken.
+     * Merges multiple partition iterators, reconciling any partition that appears in more than one of them. See
+     * {@link RowIterators#merge} for why merging already filtered chunks is broken.
      */
     public static PartitionIterator merge(List<PartitionIterator> iterators)
     {
@@ -169,7 +166,6 @@ public abstract class PartitionIterators
             @Override
             public void close()
             {
-                // closes the source iterators too, they are AutoCloseable
                 mergeIterator.close();
             }
         };

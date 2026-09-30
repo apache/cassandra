@@ -59,9 +59,6 @@ public abstract class RowIterators
 
     /**
      * Merges iterators over the same partition, reconciling rows that share a clustering.
-     * <p>
-     * Unlike {@link UnfilteredRowIterators#merge}, the inputs have already been filtered and purged, so only live rows
-     * that matched the row filter reach this merge. See the TODO below for why that is not correct.
      */
     public static RowIterator merge(List<RowIterator> iterators)
     {
@@ -89,7 +86,6 @@ public abstract class RowIterators
                 staticRow = Rows.merge(staticRow, otherStaticRow);
         }
 
-        // rows arrive in the iteration order of the partition, which a reversed command reverses
         Comparator<Row> comparator = reversed
                                      ? (l, r) -> metadata.comparator.compare(r.clustering(), l.clustering())
                                      : (l, r) -> metadata.comparator.compare(l.clustering(), r.clustering());
@@ -128,7 +124,6 @@ public abstract class RowIterators
             @Override
             public void close()
             {
-                // closes the source iterators too, they are AutoCloseable
                 merged.close();
             }
         };

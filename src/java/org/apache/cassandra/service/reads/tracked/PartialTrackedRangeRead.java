@@ -104,12 +104,8 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
     protected final PartitionRangeReadCommand command;
 
     /**
-     * Where a follow up read of this range should resume, set once by {@link #prepareInternal}. Kept here rather than
-     * read off the state because {@link #followUpBounds()} is called from another thread, without the read's lock,
-     * after the read has completed and been closed.
-     * <p>
-     * Null only when the read materialized no partition. A read that scanned its range to the end has
-     * {@code (lastPartitionKey, right]}.
+     * Kept here rather than read off the state because {@link #followUpBounds()} is called from another thread, without
+     * the read's lock, after the read has been closed.
      */
     private volatile AbstractBounds<PartitionPosition> followUpBounds;
 
@@ -136,8 +132,6 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
             read = new PartialTrackedRangeRead.Simple(executionController, cfs, startTimeNanos, command);
         }
 
-        // not closed if prepare throws: the controller belongs to whoever created it until this read is returned, and
-        // closing it here as well would release its read ordering group twice
         read.prepare(initialData);
         return read;
     }
@@ -621,13 +615,8 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
             }
 
             /**
-             * Whether there are keys to read again and the answer is still short of its limit.
-             * <p>
-             * A key in {@code followUpReadInfo} is a partition the row filter dropped during the scan that a write this
-             * replica was missing could make match; {@link FilteredPrepared#canAcceptUpdate} refuses those writes, so
-             * the partition is read again from storage. Short read protection would not read these keys: it reads only
-             * forward from {@link #followUpBounds}, and every one of them sorts at or before the last key the scan
-             * visited.
+             * Short read protection does not read these keys: it reads forward from {@link #followUpBounds}, and they
+             * all sort at or before the last key the scan visited.
              */
             private boolean hasRoomForFollowUpKeys()
             {
@@ -673,9 +662,8 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
             @Override
             protected CompletedRead extendRead(UnfilteredPartitionIterator iterator)
             {
-                // data also holds partitions the missing writes created or changed, and the row filter applied on
-                // completion can still drop its last key; that can only make hasInterleavedFollowupKeys read a key it
-                // did not need to, never skip one
+                // the row filter can still drop data's last key; that can only make hasInterleavedFollowupKeys read a
+                // key it did not need to, never skip one
                 return new FilteredCompletedRead(command, iterator, shortReadSupport, data.isEmpty() ? null : data.lastKey(), followUpReadInfo);
             }
         }

@@ -269,12 +269,6 @@ public class MutationTrackingPendingReadTest
         }
     }
 
-    /**
-     * Closing a tracked index range read that is abandoned rather than completed must close the follow up reads it
-     * started. A key that reconciliation delivers after the index scan has no read behind it, so the range read starts
-     * a follow up read of that key with its own {@link ReadExecutionController}. If that controller is never closed,
-     * its {@link OpOrder.Group} blocks every later memtable flush and compaction of the table.
-     */
     @Test
     public void testAbandonedIndexRangeReadClosesItsFollowUpReads() throws Throwable
     {
@@ -292,7 +286,6 @@ public class MutationTrackingPendingReadTest
             cluster.schemaChange(format("CREATE TABLE %s.%s (k int, c int, v int, primary key (k, c));", keyspaceName, tableName));
             cluster.schemaChange(format("CREATE INDEX tbl_v ON %s.%s(v) USING 'legacy_local_table';", keyspaceName, tableName));
 
-            // a row for the index scan to reach, so the scan is not empty
             cluster.coordinator(1).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (1, 0, 1)", keyspaceName, tableName), ConsistencyLevel.ALL);
 
             cluster.get(1).runOnInstance(() -> {
@@ -317,7 +310,6 @@ public class MutationTrackingPendingReadTest
                 ((PartialTrackedIndexRead<?, ?>) read).setFollowUpReadContext(org.apache.cassandra.db.ConsistencyLevel.ALL,
                                                                              Dispatcher.RequestTime.forImmediateExecution());
 
-                // a key the scan above cannot have reached, because it is only written now
                 DecoratedKey unscanned = metadata.partitioner.decorateKey(bytes(2));
                 MutationId id = MutationTrackingService.instance().nextMutationId(keyspaceName, unscanned.getToken());
                 SimpleBuilders.MutationBuilder builder = new SimpleBuilders.MutationBuilder(id, keyspaceName, unscanned);
@@ -325,19 +317,18 @@ public class MutationTrackingPendingReadTest
                 Mutation mutation = builder.build();
                 mutation.apply();
 
-                // augmenting with a matching mutation for a key that has no read behind it is what starts the follow
-                // up read, and TrackedLocalReads marks a reconcile once that read has a controller of its own
+                // augmenting with a matching mutation for an unscanned key starts a follow up read, and
+                // TrackedLocalReads marks a reconcile once that read has a controller of its own
                 long reconcilesBefore = ReadRepairMetrics.trackedReconcile.getCount();
                 read.augment(mutation);
                 awaitCondition(() -> ReadRepairMetrics.trackedReconcile.getCount() > reconcilesBefore,
                                "The follow up read never began, so there was no second controller to leak and this " +
                                "test would have passed without asserting anything");
 
-                // abandon the range read instead of completing it
                 read.close();
 
-                // the range read's own controller closed above, and the follow up read's is either closed already or
-                // has a callback registered to close it as soon as its future completes, so the barrier has to drain
+                // the follow up read's controller is either closed already or has a callback registered to close it
+                // as soon as its future completes
                 OpOrder.Barrier barrier = cfs.readOrdering.newBarrier();
                 barrier.issue();
                 awaitCondition(barrier.getSyncPoint()::isFinished,
@@ -356,10 +347,8 @@ public class MutationTrackingPendingReadTest
     }
 
     /**
-     * A duplicate mutation must notify the listeners registered for its id. Read reconciliation registers a listener
-     * for each mutation it pulls, and the write path can land that mutation after
-     * ReadReconciliations.acceptRemoteSummary decides it is missing but before the listener exists. The pulled copy is
-     * then a duplicate, and it is the only delivery left that can notify the listener.
+     * The write path can land a mutation after ReadReconciliations.acceptRemoteSummary decides it is missing but before
+     * the listener for it exists; the pulled copy is then a duplicate, and the only delivery left to notify it.
      */
     @Test
     public void testDuplicateWriteNotifiesMutationListeners() throws Throwable
@@ -388,20 +377,16 @@ public class MutationTrackingPendingReadTest
                 builder.update(metadata).row(bytes(1)).add("v", 1);
                 Mutation mutation = builder.build();
 
-                // the copy that lands first witnesses the id, and finds no listener to notify
                 mutation.apply();
 
-                // a re-delivery must be a duplicate, or its own finishWriting would notify and prove nothing. No
-                // listener is registered yet, so this probe notifies nobody.
+                // no listener is registered yet, so this probe notifies nobody
                 Assert.assertFalse("An already witnessed mutation was not recognized as a duplicate",
                                    MutationTrackingService.instance().startWriting(mutation));
 
-                // a read that decided it was missing this id before the write above landed registers its listener now
                 AtomicInteger notified = new AtomicInteger();
                 Assert.assertTrue("Expected to be the first listener registered for this id",
                                   MutationTrackingService.instance().registerMutationCallback(mutation.id(), notifiedId -> notified.incrementAndGet()));
 
-                // the pulled copy arrives, and is a duplicate of what already landed
                 mutation.apply();
 
                 Assert.assertEquals("A duplicate mutation left a read reconciliation listener waiting",
@@ -411,13 +396,9 @@ public class MutationTrackingPendingReadTest
     }
 
     /**
-     * A QUORUM read that has to reconcile returns its partition when every copy it pulls arrives as a duplicate.
-     *
-     * The interleaving is built, not raced. The two mutations are in two coordinator logs, so one
-     * {@code ReadReconciliations.Coordinator.acceptRemoteSummary} call makes two {@code pull} calls. The first
-     * MT_PULL_MUTATIONS_REQ is held in an outbound filter, which runs on the sending thread and so parks that call
-     * between its two pulls. Both mutations are delivered to node 1 while it is parked, and the hold is released only
-     * once node 1 has witnessed both, so the copy the second log's listener waits for arrives as a duplicate.
+     * The two mutations are in two coordinator logs, so one {@code ReadReconciliations.Coordinator.acceptRemoteSummary}
+     * call makes two {@code pull} calls. The first MT_PULL_MUTATIONS_REQ is held in an outbound filter, which runs on
+     * the sending thread and so parks that call between its two pulls, until node 1 has witnessed both mutations.
      */
     @Test
     public void testReadCompletesWhenThePulledMutationsArriveAsDuplicates() throws Throwable
@@ -427,16 +408,12 @@ public class MutationTrackingPendingReadTest
                                                             .with(Feature.GOSSIP)
                                                             .set("mutation_tracking.enabled", true)
                                                             // would land both mutations on node 1 before the read
-                                                            // computes a summary, and its pulls use the verb this
-                                                            // test holds
+                                                            // computes a summary, and its pulls use the held verb
                                                             .set("mutation_tracking.background_reconciliation_enabled", false)
-                                                            // the writes below are dropped on the way to node 1, and
-                                                            // hint delivery would repair it
                                                             .set("hinted_handoff_enabled", false)
-                                                            // the read is parked mid reconciliation while this test
-                                                            // lands the mutations it is pulling, and an
+                                                            // the read is parked mid reconciliation, and an
                                                             // IncomingMutations listener lives for the write rpc
-                                                            // timeout, so neither timeout may be tight
+                                                            // timeout
                                                             .set("read_request_timeout", "10000ms")
                                                             .set("write_request_timeout", "10000ms"))
                                       .start())
@@ -456,8 +433,6 @@ public class MutationTrackingPendingReadTest
 
             String select = format("SELECT k, c, v FROM %s.%s WHERE k = 1", keyspaceName, tableName);
 
-            // two rows of one partition, each written through a different coordinator so each mutation is minted into
-            // that coordinator's own log, and neither reaches node 1. QUORUM because ALL would fail without node 1
             IMessageFilters.Filter writesToNode1 = cluster.filters().verbs(Verb.MUTATION_REQ.id).to(1).drop();
             cluster.coordinator(2).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (1, 1, 1)", keyspaceName, tableName), ConsistencyLevel.QUORUM);
             cluster.coordinator(3).execute(format("INSERT INTO %s.%s (k, c, v) VALUES (1, 2, 2)", keyspaceName, tableName), ConsistencyLevel.QUORUM);
@@ -467,11 +442,8 @@ public class MutationTrackingPendingReadTest
             assertRows(cluster.get(2).executeInternal(select), row(1, 1, 1), row(1, 2, 2));
             assertRows(cluster.get(3).executeInternal(select), row(1, 1, 1), row(1, 2, 2));
 
-            // the ids a summary replica reports for this partition, which is what the read will diff against node 1
             byte[] remoteSummary = cluster.get(2).callOnInstance(() -> encodeSummary(summaryForKey(keyspaceName, tableName, 1)));
 
-            // acceptRemoteSummary calls pull once per coordinator log, and the window is between two of those calls,
-            // so the two mutations have to have landed in two different logs
             Set<Integer> logOwners = new HashSet<>();
             summaryIdSpace(decodeSummary(remoteSummary)).forEach((logId, offsets) -> {
                 if (offsets.isEmpty())
@@ -487,7 +459,7 @@ public class MutationTrackingPendingReadTest
             AtomicInteger summaryRequests = new AtomicInteger();
             cluster.filters().verbs(Verb.MT_SUMMARY_REQ.id).from(1).outbound().messagesMatching((from, to, message) -> {
                 summaryRequests.incrementAndGet();
-                return false; // returning false permits the message: this filter only counts
+                return false;
             }).drop();
 
             AtomicInteger pullRequests = new AtomicInteger();
@@ -496,9 +468,6 @@ public class MutationTrackingPendingReadTest
             CountDownLatch release = new CountDownLatch(1);
             cluster.filters().verbs(Verb.MT_PULL_MUTATIONS_REQ.id).from(1).outbound().messagesMatching((from, to, message) -> {
                 pullRequests.incrementAndGet();
-                // an outbound matcher runs on the thread that sent the message, which for the read's pull is the
-                // thread inside acceptRemoteSummary, so blocking here holds that call between the pull it is sending
-                // now and the pull for the coordinator log it has not reached yet
                 if (held.compareAndSet(false, true))
                 {
                     parked.countDown();
@@ -517,7 +486,7 @@ public class MutationTrackingPendingReadTest
                 {
                     if (read.isDone())
                     {
-                        read.get(); // surfaces a read failure rather than reporting it as a missing pull request
+                        read.get();
                         throw new AssertionError("The read completed without ever sending a pull request, so it found " +
                                                  "nothing to reconcile and could not have been left waiting on one");
                     }
@@ -526,9 +495,8 @@ public class MutationTrackingPendingReadTest
 
                 try
                 {
-                    // Deliver both mutations to node 1 while the read is parked between its two pulls, with the call
-                    // PullMutationsRequest's verb handler makes. The failed write retry is not used because it waits
-                    // for the write rpc timeout, which is also how long an IncomingMutations listener lives.
+                    // The call PullMutationsRequest's verb handler makes. The failed write retry is not used because it
+                    // waits for the write rpc timeout, which is also how long an IncomingMutations listener lives.
                     for (int node : new int[]{ 2, 3 })
                         cluster.get(node).runOnInstance(() -> {
                             ClusterMetadata metadata = ClusterMetadata.current();
@@ -536,17 +504,13 @@ public class MutationTrackingPendingReadTest
                             int localNode = metadata.directory.peerId(FBUtilities.getBroadcastAddressAndPort()).id();
                             MutationTrackingService.instance().forEachShardInKeyspace(keyspaceName, shard ->
                                 shard.collectUnionOfWitnessedOffsetsPerLog().forEach((logId, offsets) -> {
-                                    // the log this node coordinates, which is where the read's own pull for those
-                                    // offsets goes as well
                                     if (logId.hostId() == localNode && !offsets.isEmpty())
                                         MutationTrackingService.instance().requestMissingMutations(offsets, dataReplica, ActiveLogReconciler.Priority.HIGH);
                                 }));
                         });
 
-                    // Every copy the read pulls must be a duplicate, or the second log's copy would notify on its
-                    // own account and the read would complete regardless. Wait on what node 1 has
-                    // witnessed, which is what startWriting checks, not on a read of node 1: updates are applied
-                    // before finishWriting records the offset.
+                    // Wait on what node 1 has witnessed, which is what startWriting checks, not on a read of node 1:
+                    // updates are applied before finishWriting records the offset.
                     awaitCondition(() -> cluster.get(1).callOnInstance(() -> {
                                        Log2OffsetsMap.Mutable stillMissing = new Log2OffsetsMap.Mutable();
                                        MutationTrackingService.instance().collectLocallyMissingMutations(decodeSummary(remoteSummary), stillMissing);
@@ -581,9 +545,8 @@ public class MutationTrackingPendingReadTest
                 assertRows(result, row(1, 1, 1), row(1, 2, 2));
 
                 Assert.assertEquals("Expected one pull request per coordinator log", 2, pullRequests.get());
-                // one summary replica, so a single acceptRemoteSummary call decided both logs were missing. Two would
-                // let a second call register the second log's listener before the copies landed, and the read would
-                // complete without a duplicate ever having to notify anything
+                // two summary replicas would let a second acceptRemoteSummary call register the second log's listener
+                // before the copies landed, and no duplicate would have to notify anything
                 Assert.assertEquals("Expected exactly one summary replica", 1, summaryRequests.get());
             }
             finally
@@ -595,9 +558,7 @@ public class MutationTrackingPendingReadTest
 
     /**
      * {@link TrackedLocalReads#acknowledgeReconcile} removes the read's coordinator before augmenting, so when
-     * augmenting fails on a mutation missing from the journal, the failure handler must close the read. Otherwise its
-     * {@link ReadExecutionController} stays open and its {@link OpOrder.Group} blocks every later flush and compaction
-     * of the table.
+     * augmenting fails, the failure handler must close the read.
      */
     @Test
     public void testFailedAugmentClosesTheReconciledRead() throws Throwable
@@ -640,14 +601,11 @@ public class MutationTrackingPendingReadTest
                                                                              Dispatcher.RequestTime.forImmediateExecution(),
                                                                              TrackedLocalReads.Completer.DEFAULT);
 
-                // with no summary nodes the read would reconcile and complete inside beginRead, leaving the
-                // acknowledgement below no coordinator to find
                 Assert.assertFalse("The read reconciled without a summary from its summary node, so the " +
                                    "acknowledgement below is a no-op and this test would have passed without " +
                                    "asserting anything",
                                    promise.isDone());
 
-                // allocated but never written, so the journal has no record of it
                 DecoratedKey dk = metadata.partitioner.decorateKey(bytes(1));
                 MutationId unwritten = MutationTrackingService.instance().nextMutationId(keyspaceName, dk.getToken());
                 Log2OffsetsMap.Mutable augmenting = new Log2OffsetsMap.Mutable();
@@ -885,10 +843,8 @@ public class MutationTrackingPendingReadTest
     }
 
     /**
-     * A read aborted after beginTrackedRead has returned it must release its {@link ReadExecutionController} once.
      * {@link ReadExecutionController#close()} is not idempotent, and a second close releases the table's read
      * {@link OpOrder.Group} again, so a flush barrier finishes while another read on that group is still running.
-     * The abort is caused by failing the secondary summary.
      */
     @Test
     public void testAbortedReadReleasesItsExecutionControllerOnce() throws Throwable
@@ -911,16 +867,12 @@ public class MutationTrackingPendingReadTest
                 TableMetadata metadata = Schema.instance.getTableMetadata(keyspaceName, tableName);
                 ColumnFamilyStore cfs = Keyspace.open(keyspaceName).getColumnFamilyStore(tableName);
 
-                // drain the table's read ordering first, so the operations the assertions below count are this test's
-                // own and the group they land on is empty to begin with
                 OpOrder.Barrier drained = cfs.readOrdering.newBarrier();
                 drained.issue();
                 awaitCondition(drained.getSyncPoint()::isFinished,
                                "An operation on " + tableName + "'s read ordering outlived the read that started it, " +
                                "so the assertions below cannot tell one release too many from one live read");
 
-                // one read of this test's own, so a correctly aborted read leaves the group holding exactly it, while
-                // a doubly released one empties the group with this read still running
                 OpOrder.Group concurrentRead = cfs.readOrdering.start();
 
                 FailSecondarySummary.failingTable = tableName;
@@ -960,10 +912,9 @@ public class MutationTrackingPendingReadTest
     }
 
     /**
-     * A tracked range read materializes its initial data in PartialTrackedRangeRead.create, once the read that owns the
-     * {@link ReadExecutionController} exists but before beginTrackedRead has returned it to beginReadInternal. A failure
-     * there, such as a compressed chunk failing its checksum, reaches beginReadInternal's abort with no read to close, so
-     * the abort closes the controller itself, and the read must not have closed it as well.
+     * A tracked range read materializes its initial data in PartialTrackedRangeRead.create, before beginTrackedRead has
+     * returned the read to beginReadInternal. A failure there reaches beginReadInternal's abort with no read to close,
+     * so the abort closes the controller itself, and the read must not have closed it as well.
      */
     @Test
     public void testReadFailingOnACorruptSSTableReleasesItsExecutionControllerOnce() throws Throwable
@@ -982,8 +933,6 @@ public class MutationTrackingPendingReadTest
                 ColumnFamilyStore cfs = Keyspace.open(keyspaceName).getColumnFamilyStore(tableName);
                 drainReadOrdering(cfs);
 
-                // held open across the failed read: if that read released the group twice, the group's count would
-                // reach zero with this read still running, and the barrier below would finish
                 OpOrder.Group concurrentRead = cfs.readOrdering.start();
                 beginReadOfCorruptSSTable(cfs);
 
@@ -1003,8 +952,8 @@ public class MutationTrackingPendingReadTest
     }
 
     /**
-     * With no other read on the table, releasing the failed read's {@link OpOrder.Group} twice takes its count below zero
-     * while it is still the group new reads join. OpOrder reads a negative count as expired, so every later
+     * With no other read on the table, releasing the failed read's {@link OpOrder.Group} twice takes its count below
+     * zero while it is still the group new reads join. OpOrder reads a negative count as expired, so every later
      * readOrdering.start() on the table spins until a barrier replaces the group, and that barrier's issue() throws
      * because the group it expires is already marked expired.
      */
@@ -1058,13 +1007,11 @@ public class MutationTrackingPendingReadTest
         }
     }
 
-    // a tracked table whose only sstable on node 1 has a compressed chunk that fails its checksum when read
     private static void createTrackedTableWithCorruptSSTable(Cluster cluster, String keyspaceName, String tableName)
     {
         cluster.schemaChange(format("CREATE KEYSPACE %s WITH replication = " +
                                     "{'class': 'SimpleStrategy', 'replication_factor': 2} " +
                                     "AND replication_type='tracked';", keyspaceName));
-        // every compressed chunk carries a checksum, which this crc_check_chance verifies on each read
         cluster.schemaChange(format("CREATE TABLE %s.%s (k int, c int, v int, primary key (k, c)) " +
                                     "WITH compression = {'class': 'LZ4Compressor'} AND crc_check_chance = 1.0;",
                                     keyspaceName, tableName));
@@ -1073,7 +1020,6 @@ public class MutationTrackingPendingReadTest
         cluster.get(1).flush(keyspaceName);
         cluster.get(1).runOnInstance(() -> {
             SSTableReader sstable = Iterables.getOnlyElement(Keyspace.open(keyspaceName).getColumnFamilyStore(tableName).getLiveSSTables());
-            // flip every bit of the first byte of the first compressed chunk
             try (FileChannel data = sstable.descriptor.fileFor(SSTableFormat.Components.DATA).newReadWriteChannel())
             {
                 ByteBuffer firstByte = ByteBuffer.allocate(1);
@@ -1089,8 +1035,6 @@ public class MutationTrackingPendingReadTest
         });
     }
 
-    // drains the table's read ordering, so the operations a test then counts are its own and the group they land on is
-    // empty to begin with
     private static void drainReadOrdering(ColumnFamilyStore cfs)
     {
         OpOrder.Barrier drained = cfs.readOrdering.newBarrier();
@@ -1100,8 +1044,6 @@ public class MutationTrackingPendingReadTest
                        "so the assertions that follow cannot tell one release too many from one live read");
     }
 
-    // begins a range read of the corrupt sstable and checks that it failed in PartialTrackedRead.prepare: a read that
-    // fails before it is built leaves its controller with a single owner, so it cannot exercise a double release
     private static void beginReadOfCorruptSSTable(ColumnFamilyStore cfs)
     {
         try
@@ -1126,10 +1068,6 @@ public class MutationTrackingPendingReadTest
         }
     }
 
-    /**
-     * Fails the secondary summary beginReadInternal takes after its read has begun, which is the summary taken with
-     * pending mutations included.
-     */
     public static class FailSecondarySummary
     {
         public static final String MESSAGE = "Failing the secondary summary for test";

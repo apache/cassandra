@@ -52,9 +52,8 @@ public abstract class ExtendingCompletedRead implements PartialTrackedRead.Compl
 
     public ExtendingCompletedRead(ReadCommand command, boolean partitionsFetched, boolean initialIteratorExhausted)
     {
-        // onlyCount: ReadCommand.completeRead already enforces the limit, with an RTBoundCloser that appends the bound
-        // of a range tombstone its counter stops inside. A counter that stopped here, above that closer and the
-        // PROCESSED RTBoundValidator, would end the stream before the bound is appended, and the validator would throw.
+        // onlyCount: ReadCommand.completeRead already enforces the limit. Stopping here, above its RTBoundCloser, would
+        // end the stream before the closing range tombstone bound is appended, and RTBoundValidator would throw.
         this.mergedResultCounter = command.limits().newCounter(command.nowInSec(),
                                                                true,
                                                                command.selectsFullPartition(),
@@ -116,11 +115,7 @@ public abstract class ExtendingCompletedRead implements PartialTrackedRead.Compl
          *
          * Subtract counted(), not rowsCounted(): count() limits counted(), which is groups under GROUP BY, and a
          * GROUP BY read still short of its groups can have counted more rows than count(), giving a negative result.
-         *
-         * The result is positive wherever followUpReadRequired guards it, since that is false once the counter is done.
-         * PartialTrackedRangeRead's filtered read can call this past done to read flagged keys inside the range it
-         * already scanned; it reads those keys under the command's own limit and treats a non-positive result as no
-         * range left to extend.
+         * The result can still be non-positive when called after the counter is done.
          */
         return command.limits().count() != DataLimits.NO_LIMIT
                ? command.limits().count() - mergedResultCounter.counted()

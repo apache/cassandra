@@ -84,10 +84,6 @@ public class OffsetBroadcastTest extends TestBaseImpl
         }
     }
 
-    /**
-     * A broadcast sent before its sender learned of a DROP KEYSPACE, and handled after the drop is enacted here, must
-     * discard its offsets without throwing out of the MISC stage {@link Verb#MT_BROADCAST_LOG_OFFSETS} runs on.
-     */
     @Test(timeout = 300_000)
     public void testBroadcastOffsetsForDroppedKeyspace() throws Throwable
     {
@@ -101,14 +97,13 @@ public class OffsetBroadcastTest extends TestBaseImpl
 
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k int primary key, v int);"));
 
-            // gives node2 offsets to include in the broadcasts it makes on its own schedule
             cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (1, 1)"), ConsistencyLevel.ALL);
 
             IInvokableInstance node1 = cluster.get(1);
             long mark = node1.logs().mark();
 
             // The inbound sink runs on the stage the verb will be handled on, so a matcher blocking here holds a
-            // broadcast node1 has received but not yet handled; permitting it hands it to the handler on this thread.
+            // broadcast node1 has received but not yet handled.
             CountDownLatch received = new CountDownLatch(1);
             CountDownLatch keyspaceDropped = new CountDownLatch(1);
             cluster.filters().inbound().verbs(Verb.MT_BROADCAST_LOG_OFFSETS.id).from(2).to(1).messagesMatching((from, to, message) -> {
@@ -121,8 +116,8 @@ public class OffsetBroadcastTest extends TestBaseImpl
             cluster.schemaChange("DROP KEYSPACE " + KEYSPACE);
             keyspaceDropped.countDown();
 
-            // MISC is single threaded and is running the held broadcast, so a task queued behind it cannot run until
-            // that broadcast has been handled and anything escaping the handler reported by its exception handler.
+            // MISC is single threaded, so a task queued behind the held broadcast runs only after it has been handled
+            // and anything escaping the handler reported by its exception handler.
             boolean drained = node1.callOnInstance(() -> {
                 CountDownLatch handled = new CountDownLatch(1);
                 Stage.MISC.execute(handled::countDown);

@@ -86,11 +86,6 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         return beginRead(readId, metadata, command, consistencyLevel, summaryNodes, requestTime, null, completer);
     }
 
-    /**
-     * @param partialReadConsumer if non null, handed the read as soon as it has been begun, so a caller coordinating
-     *                            this read locally can interrogate it once it has completed. Only reads this node
-     *                            coordinates itself can supply one.
-     */
     public AsyncPromise<TrackedDataResponse> beginRead(
         TrackedRead.Id readId,
         ClusterMetadata metadata,
@@ -164,9 +159,8 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         catch (Throwable e)
         {
             logger.trace("Aborting read {}", readId);
-            // the read owns the controller once beginTrackedRead has returned the read, and
-            // ReadExecutionController.close() is not idempotent: closing it here as well would release the read
-            // ordering group twice. Errors are caught too, since nothing else releases the controller for them.
+            // the read owns the controller once beginTrackedRead has returned it, and ReadExecutionController.close()
+            // is not idempotent
             if (read != null)
                 read.close();
             else
@@ -296,9 +290,7 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
                 catch (Throwable t)
                 {
                     logger.error("Exception thrown during read completion", t);
-                    // the coordinator is already out of the map, so the purger can no longer abort this
-                    // read; nothing else would release its execution controller. close() is idempotent,
-                    // so this is harmless when completion closed the read before failing.
+                    // the coordinator is already out of the map, so the purger can no longer abort this read
                     read.close();
                     promise.tryFailure(t);
                     throw t;

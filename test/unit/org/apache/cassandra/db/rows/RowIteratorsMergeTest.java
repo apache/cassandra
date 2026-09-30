@@ -42,18 +42,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import static accord.utils.Property.qt;
 import static org.junit.Assert.assertEquals;
 
-/**
- * {@link RowIterators#merge} yields each clustering once, in the partition's iteration order, with the newest cell any
- * input had for each column. It unions the static row and the column set the same way, and closing it closes the
- * inputs.
- * <p>
- * Every cell in an example gets a unique timestamp, so the winner of a contested column is the one with the highest
- * timestamp, and every cell's value is the index of the input that carried it, so keeping the right timestamp with the
- * wrong cell fails.
- */
 public class RowIteratorsMergeTest
 {
-    /** Distinct clusterings an example draws from, plus {@link #STATIC_ROW} for the static row. */
     private static final int ROWS = 4;
     private static final int STATIC_ROW = -1;
 
@@ -95,7 +85,6 @@ public class RowIteratorsMergeTest
             for (int input = 0; input < inputs; input++)
                 sources.add(input(input, cells, reversed));
 
-            // the newest cell of each (row, column), which is the row the merge has to yield for that clustering
             TreeMap<Integer, CellSpec[]> newest = new TreeMap<>();
             for (CellSpec cell : cells)
             {
@@ -137,10 +126,7 @@ public class RowIteratorsMergeTest
         RowIterators.merge(Collections.emptyList());
     }
 
-    /**
-     * A set of cells over {@code inputs} inputs, at most one per (input, row, column) since a row carries a column
-     * once, and no two sharing a timestamp.
-     */
+    /** At most one cell per (input, row, column), and no two cells sharing a timestamp. */
     private static List<CellSpec> generate(RandomSource rs, int inputs)
     {
         List<CellSpec> cells = new ArrayList<>();
@@ -159,7 +145,6 @@ public class RowIteratorsMergeTest
         return cells;
     }
 
-    /** The rows one input returns, carrying only the cells generated for it and reporting only their columns. */
     private static Input input(int input, List<CellSpec> cells, boolean reversed)
     {
         TreeMap<Integer, Row.Builder> builders = new TreeMap<>();
@@ -184,7 +169,6 @@ public class RowIteratorsMergeTest
                          staticRow == null ? Rows.EMPTY_STATIC_ROW : staticRow.build(), rows);
     }
 
-    /** The columns the cells of one input use, or of every input when {@code input} is negative. */
     private static RegularAndStaticColumns columns(List<CellSpec> cells, int input)
     {
         RegularAndStaticColumns.Builder builder = RegularAndStaticColumns.builder();
@@ -199,7 +183,6 @@ public class RowIteratorsMergeTest
         return row == STATIC_ROW ? STATICS : REGULARS;
     }
 
-    /** Which input carried each of a row's cells, and when, in the order a row iterates its cells. */
     private static String describe(Row row)
     {
         StringBuilder description = new StringBuilder();
@@ -210,7 +193,6 @@ public class RowIteratorsMergeTest
         return description.toString();
     }
 
-    /** The same description, built from the cells the merge is expected to keep rather than from a merged row. */
     private static String describe(CellSpec[] row)
     {
         StringBuilder description = new StringBuilder();
@@ -237,7 +219,6 @@ public class RowIteratorsMergeTest
         }
     }
 
-    /** One input to the merge, which counts how many times it was closed. */
     private static class Input extends AbstractRowIterator
     {
         private final Iterator<Row> rows;
