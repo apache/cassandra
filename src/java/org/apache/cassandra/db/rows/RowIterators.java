@@ -64,8 +64,9 @@ public abstract class RowIterators
     {
         // TODO: this merge is broken because its inputs are filtered. Deletions are gone from them, so a row or cell
         // that one input deleted survives from another. The row filter ran on each input separately, so when a newer
-        // version of a row no longer matches, its input drops the row and an older, matching version from another input
-        // is returned. The fix is to merge unfiltered chunks, and purge and filter after the merge.
+        // version of a row no longer matches, its input drops the row and an older, matching version from another
+        // input is returned. The fix is to merge the UnfilteredRowIterators, then purge and apply the row filter to
+        // the result.
         Preconditions.checkArgument(!iterators.isEmpty());
         if (iterators.size() == 1)
             return iterators.get(0);
