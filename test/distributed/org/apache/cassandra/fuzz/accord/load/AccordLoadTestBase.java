@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Random;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutionException;
@@ -57,10 +58,13 @@ import org.junit.Before;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.impl.progresslog.DefaultProgressLog;
 import accord.local.Catchup;
 import accord.local.CommandStore;
 import accord.local.ExecutionContext;
+import accord.local.Node;
 import accord.local.SafeCommand;
+import accord.local.durability.ShardDurability;
 import accord.primitives.PartialDeps;
 import accord.primitives.TxnId;
 import accord.utils.Functions;
@@ -127,10 +131,13 @@ public class AccordLoadTestBase extends AccordTestBase
     {
         // this is a bit ugly, but to avoid specifying unique parameters for load tests that will cause strain on CI
         // simply allow us to override and disable paranoia/debug for this test to reduce overheads
-        if (!CassandraRelevantProperties.ACCORD_PARANOIA_PERMIT_TEST_OVERRIDE.getBoolean())
+        if (CassandraRelevantProperties.ACCORD_PARANOIA_PERMIT_TEST_OVERRIDE.getBoolean())
         {
             CassandraRelevantProperties.ACCORD_PARANOID.setBoolean(false);
             CassandraRelevantProperties.ACCORD_DEBUG.setBoolean(false);
+            CassandraRelevantProperties.ACCORD_PARANOIA_CPU.setString(Invariants.Paranoia.NONE.name());
+            CassandraRelevantProperties.ACCORD_PARANOIA_MEMORY.setString(Invariants.Paranoia.NONE.name());
+            CassandraRelevantProperties.TEST_DEBUG_REF_COUNT.setBoolean(false);
         }
     }
 
@@ -516,8 +523,8 @@ public class AccordLoadTestBase extends AccordTestBase
                             if (elapsedNanos >= CHAOS_WARN_NANOS)
                             {
                                 String message = "Chaos " + chaos + " has been running for " + NANOSECONDS.toSeconds(elapsedNanos) + "s with seed " + seed;
-                                if (elapsedNanos >= CHAOS_FAIL_NANOS) throw new AssertionError(message);
-                                else if (chaos.maybeWarn(elapsedNanos)) logger.warn(message);
+                                if (elapsedNanos >= CHAOS_FAIL_NANOS) throw chaosStalled(message, cluster, chaos, chaosHistory);
+                                else if (chaos.maybeWarn(elapsedNanos)) logger.warn("{}\n{}", message, stallReport(cluster, chaos, chaosHistory));
                             }
                         }
                     }
@@ -529,10 +536,39 @@ public class AccordLoadTestBase extends AccordTestBase
                     {
                         if (remainingClusterChaos > 0)
                         {
+                            String unhealthy = chaosGateReason(cluster, untouchedByChaos(cluster, chaosTouched),
+                                                              1 + cluster.size() / 2);
+                            if (unhealthy != null)
+                            {
+                                if (chaosHealthWaitSince == 0) chaosHealthWaitSince = System.nanoTime();
+                                long waitedNanos = System.nanoTime() - chaosHealthWaitSince;
+                                if (waitedNanos > CHAOS_FAIL_NANOS)
+                                    throw new AssertionError("Cluster did not become healthy within "
+                                                             + NANOSECONDS.toSeconds(waitedNanos) + "s, so the next chaos op was never started:"
+                                                             + unhealthy + '\n' + stallReport(cluster, null, chaosHistory));
+
+                                if (waitedNanos - chaosHealthWaitLogged > SECONDS.toNanos(15))
+                                {
+                                    chaosHealthWaitLogged = waitedNanos;
+                                    logger.info("Deferring next chaos op ({}s): unhealthy:{}", NANOSECONDS.toSeconds(waitedNanos), unhealthy);
+                                }
+                                nextChaosAt += Math.min(settings.clusterChaosInterval, 4 * batchSize);
+                            }
+                            else
+                            {
+                            if (chaosHealthWaitSince != 0)
+                            {
+                                logger.info("Cluster healthy after deferring the next chaos op for {}s",
+                                            NANOSECONDS.toSeconds(System.nanoTime() - chaosHealthWaitSince));
+                                chaosHealthWaitSince = chaosHealthWaitLogged = 0;
+                            }
                             --remainingClusterChaos;
                             nextChaosAt += settings.clusterChaosInterval;
                             ClusterChaos chaos = clusterChaos.get();
-                            chaosActive.add(chaos(cluster, coordinatorIndexes, chaosCandidates, chaosExecutor, chaosRandom, chaos, chaosHistory));
+                            ChaosActive active = chaos(cluster, coordinatorIndexes, chaosCandidates, chaosExecutor, chaosRandom, chaos, chaosHistory);
+                            chaosTouched.add(active.node);
+                            chaosActive.add(active);
+                            }
                         }
                         else if (chaosActive.isEmpty() && (remainingTransactions <= 0 || !waitForTransactions))
                         {
@@ -569,34 +605,6 @@ public class AccordLoadTestBase extends AccordTestBase
     static void safeForEach(Cluster cluster, IIsolatedExecutor.SerializableRunnable run)
     {
         safeForEach(cluster, ignore -> run.run(), null);
-    }
-
-    /**
-     * Chaos shuts nodes down under the workload, so a CMS member asked for a <i>consistent</i> log fetch can
-     * legitimately fail to assemble a SERIAL quorum. The requester is told (it gets a RequestFailure and tries another
-     * CMS member), but the exception escapes {@code FetchCMSLog.Handler.doVerb} and {@code InboundSink} rethrows
-     * anything not on its list of expected verb-handler failures, so the harness counts it as an uncaught exception and
-     * fails an otherwise-passing run (4-13 per run were observed). Matching is by name and stack frame, as the throwable
-     * comes from an instance classloader and so is not instanceof anything we can name here.
-     */
-    private static boolean isExpectedDuringChaos(Throwable error)
-    {
-        for (Throwable cause = error ; cause != null ; cause = cause.getCause())
-        {
-            if (!"org.apache.cassandra.exceptions.UnavailableException".equals(cause.getClass().getName()))
-                continue;
-
-            for (StackTraceElement frame : cause.getStackTrace())
-            {
-                if (frame.getClassName().startsWith("org.apache.cassandra.tcm.")
-                    || frame.getClassName().equals("org.apache.cassandra.schema.DistributedMetadataLogKeyspace"))
-                {
-                    logger.info("Ignoring expected {} from a metadata log fetch: {}", cause.getClass().getSimpleName(), cause.getMessage());
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     static <P> void safeForEach(Cluster cluster, IIsolatedExecutor.SerializableConsumer<P> consumer, P param)
@@ -1102,5 +1110,357 @@ public class AccordLoadTestBase extends AccordTestBase
             this.txnId = txnId;
             this.elapsedMicros = elapsedMicros;
         }
+    }
+
+    /** deferral bookkeeping for the health gate above */
+    private long chaosHealthWaitSince, chaosHealthWaitLogged;
+    /** every node a chaos op has been started on: these are the nodes we consider "subject to chaos" */
+    private final Set<Integer> chaosTouched = new ConcurrentSkipListSet<>();
+
+    private static Set<Integer> untouchedByChaos(Cluster cluster, Set<Integer> chaosTouched)
+    {
+        Set<Integer> untouched = new TreeSet<>();
+        for (int i = 1; i <= cluster.size(); ++i)
+            if (!chaosTouched.contains(i))
+                untouched.add(i);
+        return untouched;
+    }
+
+    /* ------------------------------------------------------------------ stall diagnostics
+     * Authored by Claude
+     *
+     * A chaos operation that never returns leaves us nothing to work with in CI: the dtest log is not published, so
+     * the only text that survives a failure is the exception itself - its message, its stack, and its suppressed
+     * exceptions (the thread dump we do get today comes from AbstractCluster's thread-leak check, i.e. from an
+     * exception). Everything we want to know about a stall therefore has to be attached to what we throw.
+     *
+     * We attach two things:
+     *   1) a compact per-node state report (in the message), enough to tell "waiting on a data fetch" from "waiting
+     *      to stop refusing" from "nothing is driving a dependency", which is the first fork in every one of these
+     *      investigations so far; and
+     *   2) the stacks of the threads that could be holding the stall, one suppressed Throwable per distinct stack,
+     *      so any JUnit/surefire reporter renders them without needing the log.
+     */
+
+    /** each node is asked for its state on its own thread, and only briefly: a stalled node must not stall the report */
+    private static final long STALL_REPORT_TIMEOUT_MS = 15_000L;
+    /** keep the report small enough that a CI reporter will not truncate the important first lines */
+    private static final int STALL_REPORT_MAX_BLOCKED_TXNS = 5;
+    private static final int STALL_REPORT_MAX_DURABILITY_ROWS = 5;
+    private static final int STALL_REPORT_MAX_LOG_LINES = 20;
+    private static final int STALL_REPORT_MAX_THREAD_STACKS = 25;
+
+    private static AssertionError chaosStalled(String message, Cluster cluster, ChaosActive chaos, List<String> history)
+    {
+        AssertionError failure = new AssertionError(message + '\n' + stallReport(cluster, chaos, history));
+        for (Throwable stack : stuckThreadStacks())
+            failure.addSuppressed(stack);
+        return failure;
+    }
+
+    /**
+     * The tail of this node's log, from the fixed-size RINGBUFFER appender in {@code logback-dtest-info.xml} (absent
+     * configs simply produce a note). Runs on the instance: dtest instances each configure their own logger context.
+     */
+    private static String logTail()
+    {
+        try
+        {
+            ch.qos.logback.classic.Logger root = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+            ch.qos.logback.core.Appender<ch.qos.logback.classic.spi.ILoggingEvent> appender = root.getAppender("RINGBUFFER");
+            if (!(appender instanceof ch.qos.logback.core.read.CyclicBufferAppender))
+                return " <no RINGBUFFER appender configured; see logback-dtest-info.xml>";
+
+            ch.qos.logback.core.read.CyclicBufferAppender<ch.qos.logback.classic.spi.ILoggingEvent> ring =
+            (ch.qos.logback.core.read.CyclicBufferAppender<ch.qos.logback.classic.spi.ILoggingEvent>) appender;
+            List<String> selected = new ArrayList<>();
+            for (int i = 0, length = ring.getLength(); i < length ; ++i)
+            {
+                ch.qos.logback.classic.spi.ILoggingEvent event = ring.get(i);
+                if (event == null)
+                    continue;
+                // WARN and above, plus accord's own INFO: the rest is flush/compaction/gossip noise
+                String name = event.getLoggerName();
+                if (!event.getLevel().isGreaterOrEqual(ch.qos.logback.classic.Level.WARN)
+                    && !name.startsWith("accord.") && !name.startsWith("org.apache.cassandra.service.accord"))
+                    continue;
+                selected.add("\n    " + event.getLevel() + ' ' + name.substring(name.lastIndexOf('.') + 1) + " - " + event.getFormattedMessage());
+            }
+            StringBuilder sb = new StringBuilder(" ").append(selected.size()).append(" interesting of ").append(ring.getLength()).append(" buffered");
+            for (String line : selected.subList(Math.max(0, selected.size() - STALL_REPORT_MAX_LOG_LINES), selected.size()))
+                sb.append(line);
+            return sb.toString();
+        }
+        catch (Throwable t)
+        {
+            return " <could not read the log tail: " + t + '>';
+        }
+    }
+
+    private static String stallReport(Cluster cluster, ChaosActive chaos, List<String> history)
+    {
+        StringBuilder sb = new StringBuilder();
+        try
+        {
+            sb.append("=== stall report for ").append(chaos).append(" ===\n");
+            sb.append("chaos so far: ").append(history).append('\n');
+            for (IInvokableInstance instance : cluster)
+            {
+                sb.append("node").append(instance.config().num()).append(": ");
+                if (instance.isShutdown()) sb.append("shutdown\n");
+                else sb.append(accordState(instance)).append('\n');
+            }
+        }
+        catch (Throwable t)
+        {
+            sb.append("<stall report failed: ").append(t).append(">\n");
+        }
+        return sb.toString();
+    }
+
+    /** never throws, and never blocks for longer than {@link #STALL_REPORT_TIMEOUT_MS} */
+    private static String accordState(IInvokableInstance instance)
+    {
+        try
+        {
+            Future<String> result = instance.asyncCallsOnInstance(() -> {
+                if (!AccordService.isStarted())
+                    return "accord not started";
+
+                StringBuilder sb = new StringBuilder();
+                Node node = AccordService.instance().node();
+                sb.append("epoch=").append(node.epoch()).append(" minEpoch=").append(node.topology().minEpoch());
+
+                int stores = 0, idle = 0;
+                StringBuilder busy = new StringBuilder();
+                for (CommandStore store : node.commandStores().all())
+                {
+                    ++stores;
+                    // describeState() prints bootstraps only when there are some, so a store with neither refusals
+                    // nor bootstraps cannot be holding a rebootstrap and is merely counted
+                    String state = store.describeState();
+                    if (state.contains("refuses=none") && !state.contains("bootstraps=")) ++idle;
+                    else busy.append("\n    ").append(state);
+                }
+                sb.append(" stores=").append(stores).append(" (").append(idle).append(" idle)").append(busy);
+
+                // the progress log is what should be driving a stuck dependency to completion; if the stall is a
+                // transaction that nothing decides, it shows up here and (without the log) nowhere else. Report a
+                // histogram of what everything is blocked on, then only the entries that have actually been retried
+                // - an unretried entry is merely in flight, and there are hundreds of those under load.
+                int tracked = 0, retried = 0;
+                Map<String, Integer> blockedOn = new HashMap<>();
+                StringBuilder top = new StringBuilder();
+                for (CommandStore store : node.commandStores().all())
+                {
+                    DefaultProgressLog.ImmutableView view = ((DefaultProgressLog) store.unsafeProgressLog()).immutableView();
+                    while (view.advance())
+                    {
+                        ++tracked;
+                        blockedOn.merge(view.waitingIsBlockedUntil() + "/" + view.waitingProgress(), 1, Integer::sum);
+                        if (view.waitingRetryCounter() == 0 && view.homeRetryCounter() == 0 && !view.contactEveryone())
+                            continue;
+                        if (++retried > STALL_REPORT_MAX_BLOCKED_TXNS)
+                            continue;
+                        top.append("\n    store").append(store.id()).append(' ').append(view.txnId())
+                           .append(" blockedUntil=").append(view.waitingIsBlockedUntil())
+                           .append(" waitingProgress=").append(view.waitingProgress())
+                           .append(" waitingRetries=").append(view.waitingRetryCounter())
+                           .append(" homePhase=").append(view.homePhase())
+                           .append(" homeProgress=").append(view.homeProgress())
+                           .append(" homeRetries=").append(view.homeRetryCounter())
+                           .append(" contactEveryone=").append(view.contactEveryone());
+                    }
+                }
+                sb.append("\n  progressLog: ").append(tracked).append(" tracked, ").append(retried)
+                  .append(" retried, blocked on ").append(blockedOn).append(top);
+
+                // and the durability service: a (re)bootstrap that cannot finish is usually waiting on a durability
+                // requirement it never achieves, and only this view names the requirement and the retry count
+                int durabilityRows = 0;
+                StringBuilder durability = new StringBuilder();
+                ShardDurability.ImmutableView view = ((AccordService) AccordService.instance()).shardDurability();
+                while (view.advance())
+                {
+                    if (view.requestedBy() == null && view.retries() == 0)
+                        continue;
+                    if (++durabilityRows > STALL_REPORT_MAX_DURABILITY_ROWS)
+                        continue;
+                    durability.append("\n    ").append(view.shard().range)
+                              .append(" retries=").append(view.retries())
+                              .append(" min=").append(view.min())
+                              .append(" active=").append(view.active())
+                              .append(" waiting=").append(view.waiting())
+                              .append(" requestedBy=").append(view.requestedBy());
+                }
+                sb.append("\n  durability: ").append(durabilityRows).append(" range(s) retrying/requested").append(durability);
+
+                // finally this node's own log tail: CI discards the log file, and the lines that explain a stall
+                // ("insufficient to satisfy NoLocal/MinorityQuorumAndWaitedForAll requested by Bootstrap ...") are
+                // accord's INFO/WARN lines. Read here rather than in the harness because each instance configures
+                // its own logger context (see the RINGBUFFER appender in logback-dtest-info.xml).
+                sb.append("\n  log tail:").append(logTail());
+                return sb.toString();
+            }).call();
+            return result.get(STALL_REPORT_TIMEOUT_MS, MILLISECONDS);
+        }
+        catch (Throwable t)
+        {
+            // a node whose executors cannot answer even this is itself the finding, so report it rather than fail
+            return "<unavailable: " + t + '>';
+        }
+    }
+
+    /**
+     * The stacks of everything that might be holding the stall, grouped by identical stack and wrapped in synthetic
+     * throwables so they survive into the CI report. In-JVM dtests run every node in this JVM, so this needs nothing
+     * from the (possibly wedged) instances: {@code nodeN_} thread names identify them.
+     */
+    private static List<Throwable> stuckThreadStacks()
+    {
+        List<Throwable> dumps = new ArrayList<>();
+        try
+        {
+            Map<List<StackTraceElement>, List<String>> byStack = new HashMap<>();
+            for (Map.Entry<Thread, StackTraceElement[]> e : Thread.getAllStackTraces().entrySet())
+            {
+                if (!isInterestingDuringStall(e.getKey().getName(), e.getValue()))
+                    continue;
+                byStack.computeIfAbsent(java.util.Arrays.asList(e.getValue()), ignore -> new ArrayList<>())
+                       .add(e.getKey().getName());
+            }
+            for (Map.Entry<List<StackTraceElement>, List<String>> e : byStack.entrySet())
+            {
+                if (dumps.size() >= STALL_REPORT_MAX_THREAD_STACKS)
+                    break;
+                Throwable dump = new Throwable("stalled threads: " + e.getValue());
+                dump.setStackTrace(e.getKey().toArray(new StackTraceElement[0]));
+                dumps.add(dump);
+            }
+        }
+        catch (Throwable t)
+        {
+            dumps.add(new Throwable("could not collect thread stacks", t));
+        }
+        return dumps;
+    }
+
+    private static boolean isInterestingDuringStall(String threadName, StackTraceElement[] stack)
+    {
+        // the chaos operation itself (it runs on the node's isolatedExecutor), plus anything that shuts accord down
+        if (threadName.startsWith("ClusterChaos") || threadName.contains("isolatedExecutor") || threadName.contains("ShutdownAccord"))
+            return true;
+        // ... and anything driving or blocking a (re)bootstrap: accord itself, repair/streaming (the data fetch), TCM
+        for (StackTraceElement frame : stack)
+        {
+            String cls = frame.getClassName();
+            if (cls.startsWith("accord.") || cls.startsWith("org.apache.cassandra.service.accord.")
+                || cls.startsWith("org.apache.cassandra.repair.") || cls.startsWith("org.apache.cassandra.streaming.")
+                || cls.startsWith("org.apache.cassandra.tcm."))
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     * The condition for starting a new chaos op: as seen by *every* node that is up,
+     * <ul>
+     *   <li>every node not subject to chaos (i.e. that no chaos op has been started on) must be advertised
+     *       UP by the failure detector and HEALTHY by the published accord node info, and</li>
+     *   <li>at least {@code minHealthy} nodes - a simple majority - must be advertised so.</li>
+     * </ul>
+     * Both halves matter, and both are weaker than "the whole cluster is healthy": a node that chaos has
+     * already restarted may still be catching up (it advertises itself UNREADABLE until its rebootstrap and
+     * catchup finish), and we deliberately do *not* wait for that - the point of the gate is to keep a
+     * quorum of decision-making replicas, not to serialise recovery. Note the consequence: this permits a
+     * new op while a previous target is still UNREADABLE, i.e. it permits two UNREADABLE replicas of a
+     * range, which is the condition HANDOVER-accord-rebootstrap-6.md section 1 identifies as removing all
+     * consensus slack (every round then needs unanimity of the survivors). That is intentional: it is the
+     * workload we want the product to survive, not one the harness hides.
+     *
+     * Both signals are consulted because accord treats both as "do not contact, record a failure"
+     * (AbstractCoordination.contact): the failure detector decides gossip liveness, while the accord node
+     * info carries the UNREADABLE bit a rebootstrapping node publishes about itself.
+     *
+     * @return null if the condition holds, else a description of what does not
+     */
+    private static String chaosGateReason(Cluster cluster, Set<Integer> mustBeHealthy, int minHealthy)
+    {
+        StringBuilder all = new StringBuilder();
+        for (int i = 1; i <= cluster.size(); ++i)
+        {
+            IInvokableInstance observer = cluster.get(i);
+            if (observer.isShutdown())
+                continue;   // it cannot tell us anything; its own (un)health is counted by the others below
+
+            String advertised;
+            try
+            {
+                advertised = observer.callOnInstance(() -> {
+                    ClusterMetadata metadata = ClusterMetadata.current();
+                    StringBuilder healthy = new StringBuilder();
+                    for (org.apache.cassandra.tcm.membership.NodeId tcmId : metadata.directory.peerIds())
+                    {
+                        org.apache.cassandra.locator.InetAddressAndPort ep = metadata.directory.endpoint(tcmId);
+                        boolean up = ep.equals(org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort())
+                                     || org.apache.cassandra.gms.FailureDetector.instance.isAlive(ep);
+                        org.apache.cassandra.service.accord.topology.AccordNodeInfos.StampedNodeInfo info
+                        = metadata.accordNodeInfos.getOrDefault(new Node.Id(tcmId.id()));
+                        boolean accordHealthy = !info.isUnreadable()
+                                                && info.status() == org.apache.cassandra.service.accord.topology.AccordNodeInfos.Status.NORMAL;
+                        if (up && accordHealthy)
+                            healthy.append(healthy.length() == 0 ? "" : ",").append(tcmId.id());
+                    }
+                    return healthy.toString();
+                });
+            }
+            catch (Throwable t)
+            {
+                all.append(" [on node").append(i).append("] health check threw ").append(t.getClass().getSimpleName());
+                continue;
+            }
+
+            Set<Integer> healthy = new TreeSet<>();
+            for (String id : advertised.split(","))
+                if (!id.isEmpty()) healthy.add(Integer.parseInt(id));
+
+            Set<Integer> missing = new TreeSet<>(mustBeHealthy);
+            missing.removeAll(healthy);
+            if (!missing.isEmpty())
+                all.append(" [on node").append(i).append("] not-yet-chaosed nodes not healthy: ").append(missing);
+            if (healthy.size() < minHealthy)
+                all.append(" [on node").append(i).append("] only ").append(healthy.size()).append('/')
+                   .append(cluster.size()).append(" healthy (need ").append(minHealthy).append("): ").append(healthy);
+        }
+        return all.length() == 0 ? null : all.toString();
+    }
+
+
+    /**
+     * Chaos shuts nodes down under the workload, so a CMS member asked for a <i>consistent</i> log fetch can
+     * legitimately fail to assemble a SERIAL quorum. The requester is told (it gets a RequestFailure and tries another
+     * CMS member), but the exception escapes {@code FetchCMSLog.Handler.doVerb} and {@code InboundSink} rethrows
+     * anything not on its list of expected verb-handler failures, so the harness counts it as an uncaught exception and
+     * fails an otherwise-passing run (4-13 per run were observed). Matching is by name and stack frame, as the throwable
+     * comes from an instance classloader and so is not instanceof anything we can name here.
+     */
+    private static boolean isExpectedDuringChaos(Throwable error)
+    {
+        for (Throwable cause = error ; cause != null ; cause = cause.getCause())
+        {
+            if (!"org.apache.cassandra.exceptions.UnavailableException".equals(cause.getClass().getName()))
+                continue;
+
+            for (StackTraceElement frame : cause.getStackTrace())
+            {
+                if (frame.getClassName().startsWith("org.apache.cassandra.tcm.")
+                    || frame.getClassName().equals("org.apache.cassandra.schema.DistributedMetadataLogKeyspace"))
+                {
+                    logger.info("Ignoring expected {} from a metadata log fetch: {}", cause.getClass().getSimpleName(), cause.getMessage());
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }
