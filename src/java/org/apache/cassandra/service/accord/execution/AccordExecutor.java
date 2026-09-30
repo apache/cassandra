@@ -122,7 +122,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
     {
         AccordConfig config = DatabaseDescriptor.getAccord();
         AGE_TO_FIFO = config.queue_priority_age_to_fifo.to(TimeUnit.MICROSECONDS);
-        PRIORITY_MODEL = config.queue_priority_model != null ? config.queue_priority_model : QueuePriorityModel.HLC_FIFO;
+        PRIORITY_MODEL = config.queue_priority_model != null ? config.queue_priority_model : QueuePriorityModel.ORIG_HLC_FIFO;
         BALANCING_MODEL = config.queue_balancing_model != null ? config.queue_balancing_model : QueueBalancingModel.BLENDED_PRIORITY_PHASE_FAIR;
         FLOW_ONSET  = config.queue_flow_imbalance_onset == null ? 4  : config.queue_flow_imbalance_onset;
         FLOW_WIDTH_SHIFT  = config.queue_flow_imbalance_width_shift == null ? 5 : config.queue_flow_imbalance_width_shift;
@@ -593,10 +593,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
             }
             else
             {
-                long delta = nextPosition - position;
-                if (delta >= AGE_TO_FIFO)
-                    task.position = position = nextPosition++;
-                else if (delta <= 0)
+                if (nextPosition < position)
                     nextPosition = position + 1;
                 else if (position < minPosition)
                     task.position = position = minPosition;

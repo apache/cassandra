@@ -24,11 +24,14 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import accord.local.ExecutionContext;
 import accord.messages.Accept;
+import accord.messages.BeginInvalidation;
+import accord.messages.BeginRecovery;
 import accord.messages.Commit;
 import accord.messages.MessageType;
 import accord.messages.Request;
 import accord.primitives.Ballot;
 import accord.primitives.SaveStatus;
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.IntrusiveHeapNode;
 import accord.utils.Invariants;
@@ -49,8 +52,9 @@ import static accord.primitives.Routable.Domain.Range;
 import static accord.utils.Invariants.illegalState;
 import static org.apache.cassandra.config.AccordConfig.QueuePriorityModel.ORIG_HLC_FIFO;
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXECUTION;
-import static org.apache.cassandra.service.accord.execution.Task.ExclusiveGroup.APPLY;
-import static org.apache.cassandra.service.accord.execution.Task.ExclusiveGroup.COMMIT;
+import static org.apache.cassandra.service.accord.execution.Task.ExclusiveGroup.OUTCOME;
+import static org.apache.cassandra.service.accord.execution.Task.ExclusiveGroup.DECIDE;
+import static org.apache.cassandra.service.accord.execution.Task.ExclusiveGroup.RECOVER;
 import static org.apache.cassandra.service.accord.execution.Task.ExclusiveGroup.STABLE;
 import static org.apache.cassandra.service.accord.execution.Task.RunState.NOT_YET_RUN;
 import static org.apache.cassandra.service.accord.execution.Task.RunState.REJECTED;
@@ -178,13 +182,14 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
         RANGE_SCAN,
     }
 
+    // these groups can be restructured/combined as necessary, they're just for QoS
     enum ExclusiveGroup
     {
-        APPLY,
+        OUTCOME,
         STABLE,
-        COMMIT,
-        ACCEPT,
+        DECIDE,
         OTHER,
+        PROGRESS,
         RECOVER,
         PREACCEPT,
         RANGE,
@@ -308,6 +313,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
         createdAt = lastCreatedAt.accumulateAndGet(nanoTime(), (prev, next) -> next <= prev ? prev + 1 : next);
         ExclusiveGroup group = ExclusiveGroup.OTHER;
         TxnId txnId = context.primaryTxnId();
+        Timestamp ts = txnId;
         if (txnId != null)
         {
             if (txnId.is(Range)) group = ExclusiveGroup.RANGE;
@@ -318,7 +324,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
                     case HLC_FIFO:
                     case ORIG_HLC_FIFO:
                     {
-                        // TODO (expected): port to ExecutionKind; also we aren't consistent about using Ballot
+                        // TODO (expected): port to ExecutionKind
                         if (context instanceof Request)
                         {
                             MessageType type = ((Request) context).type();
@@ -326,9 +332,12 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
                             {
                                 switch ((MessageType.StandardMessage) type)
                                 {
+                                    case INFORM_DURABLE_REQ:
                                     case APPLY_REQ:
+                                    case COMMIT_INVALIDATE_REQ:
+                                    case APPLY_THEN_WAIT_UNTIL_APPLIED_REQ:
                                     {
-                                        group = APPLY;
+                                        group = OUTCOME;
                                         break;
                                     }
                                     case READ_EPHEMERAL_REQ:
@@ -341,18 +350,41 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
                                     case COMMIT_REQ:
                                     {
                                         Commit commit = (Commit) context;
-                                        if (AccordExecutor.PRIORITY_MODEL == ORIG_HLC_FIFO && !commit.ballot.equals(Ballot.ZERO))
-                                            txnId = null;
                                         if (commit.kind.saveStatus == SaveStatus.Stable) group = STABLE;
-                                        else group = COMMIT;
+                                        else group = DECIDE;
+                                        if (AccordExecutor.PRIORITY_MODEL == ORIG_HLC_FIFO && !commit.ballot.equals(Ballot.ZERO))
+                                        {
+                                            ts = commit.ballot;
+                                            group = RECOVER;
+                                        }
                                         break;
                                     }
                                     case ACCEPT_REQ:
                                     {
-                                        Accept accept = (Accept) context;
-                                        if (AccordExecutor.PRIORITY_MODEL == ORIG_HLC_FIFO && !accept.ballot.equals(Ballot.ZERO))
-                                            txnId = null;
-                                        group = ExclusiveGroup.ACCEPT;
+                                        group = ExclusiveGroup.DECIDE;
+                                        if (AccordExecutor.PRIORITY_MODEL == ORIG_HLC_FIFO)
+                                        {
+                                            Ballot ballot = ((Accept) context).ballot;
+                                            if (!ballot.equals(Ballot.ZERO))
+                                            {
+                                                ts = ballot;
+                                                group = RECOVER;
+                                            }
+                                        }
+                                        break;
+                                    }
+                                    case NOT_ACCEPT_REQ:
+                                    {
+                                        group = ExclusiveGroup.DECIDE;
+                                        if (AccordExecutor.PRIORITY_MODEL == ORIG_HLC_FIFO)
+                                        {
+                                            Ballot ballot = ((Accept.NotAccept) context).ballot;
+                                            if (!ballot.equals(Ballot.ZERO))
+                                            {
+                                                ts = ballot;
+                                                group = RECOVER;
+                                            }
+                                        }
                                         break;
                                     }
                                     case GET_EPHEMERAL_READ_DEPS_REQ:
@@ -361,22 +393,58 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
                                         group = ExclusiveGroup.PREACCEPT;
                                         break;
                                     }
+                                    case CHECK_STATUS_REQ:
+                                    case AWAIT_REQ:
+                                    case FETCH_DATA_REQ:
+                                    case REMOTE_SUCCESS_REQ:
+                                    case WAIT_UNTIL_APPLIED_REQ:
+                                    {
+                                        group = ExclusiveGroup.PROGRESS;
+                                        break;
+                                    }
+                                    case BEGIN_RECOVER_REQ:
+                                    {
+                                        group = ExclusiveGroup.RECOVER;
+                                        if (AccordExecutor.PRIORITY_MODEL == ORIG_HLC_FIFO)
+                                        {
+                                            Ballot ballot = ((BeginRecovery) context).ballot;
+                                            if (!ballot.equals(Ballot.ZERO)) // should always be true
+                                                ts = ballot;
+                                        }
+                                        break;
+                                    }
+                                    case BEGIN_INVALIDATE_REQ:
+                                    {
+                                        group = ExclusiveGroup.RECOVER;
+                                        if (AccordExecutor.PRIORITY_MODEL == ORIG_HLC_FIFO)
+                                        {
+                                            Ballot ballot = ((BeginInvalidation) context).ballot;
+                                            if (!ballot.equals(Ballot.ZERO))
+                                                ts = ballot;
+                                        }
+                                        break;
+                                    }
+                                    case RECOVER_AWAIT_REQ:
+                                    {
+                                        group = ExclusiveGroup.RECOVER;
+                                        break;
+                                    }
                                     default:
                                     {
-                                        txnId = null;
+                                        ts = null;
                                     }
                                 }
                             }
                         }
                         else
                         {
-                            txnId = null;
+                            ts = null;
                         }
                         break;
                     }
                     case FIFO:
                     {
-                        txnId = null;
+                        ts = null;
                         break;
                     }
                 }
@@ -384,8 +452,13 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
         }
 
         this.info = init(GlobalGroup.OTHER, group);
-        if (txnId != null)
-            this.position = txnId.hlc();
+        if (ts != null)
+        {
+            long position = ts.hlc();
+            long delta = executor().nextPosition - position;
+            if (delta < AccordExecutor.AGE_TO_FIFO || (AccordExecutor.PRIORITY_MODEL == ORIG_HLC_FIFO && group == RECOVER))
+                this.position = position;
+        }
     }
 
     public final Task unwrap()

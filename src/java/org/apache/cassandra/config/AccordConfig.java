@@ -133,12 +133,13 @@ public class AccordConfig
         FIFO,
 
         /**
-         * If the work has an associated TxnId of Ballot, prioritise by the newest HLC (and FIFO otherwise)
+         * If the work has an associated TxnId or Ballot, prioritise by the newest HLC (and FIFO otherwise)
          */
         HLC_FIFO,
 
         /**
-         * If the work has an associated TxnId, prioritise by its HLC (and FIFO otherwise)
+         * If the work has an associated TxnId, prioritise by its HLC (and FIFO otherwise).
+         * In this case, all phases with recovery ballots enter a shared QoS pool, so that Accept/Commit do not compete
          */
         ORIG_HLC_FIFO
     }
