@@ -60,14 +60,15 @@ public abstract class RowIterators
     /**
      * Merges iterators over the same partition, reconciling rows that share a clustering.
      * <p>
-     * Unlike {@link UnfilteredRowIterators#merge}, the inputs have already been filtered and purged, so only rows reach
-     * this merge and any deletion a sub-read applied is gone. A deletion that lands between two sub-reads of the same
-     * tracked read is therefore invisible: rows an earlier sub-read returned survive even when a later sub-read of the
-     * partition returns nothing. Nothing writes the merged result back, so the result is a stale answer the next read
-     * corrects, not a resurrection.
+     * Unlike {@link UnfilteredRowIterators#merge}, the inputs have already been filtered and purged, so only live rows
+     * that matched the row filter reach this merge. See the TODO below for why that is not correct.
      */
     public static RowIterator merge(List<RowIterator> iterators)
     {
+        // TODO: this merge is broken because its inputs are filtered. Deletions are gone from them, so a row or cell
+        // that one input deleted survives from another. The row filter ran on each input separately, so when a newer
+        // version of a row no longer matches, its input drops the row and an older, matching version from another input
+        // is returned. The fix is to merge unfiltered chunks, and purge and filter after the merge.
         Preconditions.checkArgument(!iterators.isEmpty());
         if (iterators.size() == 1)
             return iterators.get(0);

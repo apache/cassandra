@@ -128,7 +128,7 @@ public abstract class PartitionIterators
      * need not be key disjoint: a tracked read answers a range from several sub-reads, and under a per partition limit
      * more than one of them can carry rows for the same partition.
      * <p>
-     * See {@link RowIterators#merge} for what reconciling already filtered chunks cannot see.
+     * See {@link RowIterators#merge} for why merging already filtered chunks is broken.
      */
     public static PartitionIterator merge(List<PartitionIterator> iterators)
     {
