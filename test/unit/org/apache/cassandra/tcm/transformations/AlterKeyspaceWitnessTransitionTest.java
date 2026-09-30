@@ -158,6 +158,8 @@ public class AlterKeyspaceWitnessTransitionTest
                      "promoting a witness to a full replica"));
         rows.add(row(SIMPLE_3_1, TRACKED, NO_MIGRATION, "3", UNTRACKED, Rejection.WITNESS_PROMOTION,
                      "promoting a witness while leaving tracked replication"));
+        rows.add(row(SIMPLE_3_1, TRACKED, NO_MIGRATION, "4/1", null, Rejection.WITNESS_PROMOTION,
+                     "increasing full replicas while retaining a witness"));
 
         // Per-datacenter comparison: the aggregate full replica count is 5 either side of this change
         rows.add(row(NTS_3_1_AND_3, TRACKED, NO_MIGRATION,

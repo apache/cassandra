@@ -34,7 +34,6 @@ import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.locator.ReplicationFactor;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
@@ -411,34 +410,6 @@ public class AlterSchemaMutationTrackingTest
                               .getTableOrViewNullable(table)
                               .params
                               .readRepair;
-    }
-
-    /**
-     * Adding a full replica before dropping the witness keeps the replica count while the data is
-     * redistributed. The full repair the client warning asks for after the first step is what
-     * populates the promoted replica.
-     */
-    @Test
-    public void testRemoveWitnessesByAddingAFullReplicaFirst()
-    {
-        String ksName = nextKsName();
-        schemaChange("CREATE KEYSPACE " + ksName +
-                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3/1'}" +
-                     " AND replication_type = 'tracked'");
-
-        schemaChange("ALTER KEYSPACE " + ksName +
-                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '4/1'}");
-        ReplicationFactor intermediate = ClusterMetadata.current().schema.getKeyspaceMetadata(ksName)
-                                                      .replicationStrategy.getReplicationFactor();
-        assertEquals(3, intermediate.fullReplicas);
-        assertEquals(1, intermediate.transientReplicas());
-
-        schemaChange("ALTER KEYSPACE " + ksName +
-                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '3'}");
-        ReplicationFactor finalRf = ClusterMetadata.current().schema.getKeyspaceMetadata(ksName)
-                                                 .replicationStrategy.getReplicationFactor();
-        assertEquals(3, finalRf.fullReplicas);
-        assertFalse(finalRf.hasTransientReplicas());
     }
 
     @Test

@@ -88,11 +88,6 @@ migration is still in progress, nor enable mutation tracking and add
 transient replicas in the same statement. Set `replication_type = 'tracked'`
 first, wait for the migration to complete, then alter the replication
 factor.
-* You can't promote a transient replica to a full replica, because it holds
-no data for the range it witnessed. Either drop the transient replica from
-the replica set (`3/1` to `2`), or add a full replica before removing it
-(`3/1` to `4/1` to `3`) with a full repair run in between if the replica
-count must be preserved.
 
 Setting `-Dcassandra.allow_unsafe_transient_changes=true` skips every restriction
 above except the first, which is governed by
@@ -132,24 +127,25 @@ no pre-tracking writes to repair.
 === Removing transient replicas
 
 Dropping the transient replica from the replica set needs no data movement,
-because the remaining full replicas already hold everything:
+because the remaining full replicas already hold all data:
 
 ....
 ALTER KEYSPACE some_keyspace WITH replication = {'class': 'SimpleStrategy',
 'replication_factor' : '2'};
 ....
 
-Where the range must keep the same number of full replicas, add one before
-removing the transient replica, and run a full repair in between so the added
-replica is populated:
+To restore the original full replica count, add a full replica after you drop the
+transient replica. Then run a full repair to populate the added replica:
 
 ....
 ALTER KEYSPACE some_keyspace WITH replication = {'class': 'SimpleStrategy',
-'replication_factor' : '4/1'};
-nodetool repair -full some_keyspace
-ALTER KEYSPACE some_keyspace WITH replication = {'class': 'SimpleStrategy',
 'replication_factor' : '3'};
+nodetool repair -full some_keyspace
 ....
+
+Direct promotion (`3/1` to `3`) is rejected by default. You can enable
+`AllowUnsafeWitnessPromotion` through Java Management Extensions (JMX) to allow
+it, and then run a full repair immediately.
 
 Additionally, transient replication cannot be used for:
 

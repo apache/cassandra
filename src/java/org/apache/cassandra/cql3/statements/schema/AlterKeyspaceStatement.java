@@ -257,7 +257,7 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
     }
 
     /**
-     * A witness is promoted when the transient count falls while the full count rises. This promotes witness replicas
+     * A witness is promoted when the full count rises while transient replicas exist. This promotes witness replicas
      * to full replicas without sending them the data they need to participate in reads.
      */
     private void validateNoWitnessPromotion(AbstractReplicationStrategy current, AbstractReplicationStrategy proposed)
@@ -284,7 +284,7 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
 
     private static boolean promotesWitness(ReplicationFactor before, ReplicationFactor after)
     {
-        return after.transientReplicas() < before.transientReplicas() && after.fullReplicas > before.fullReplicas;
+        return before.transientReplicas() > 0 && after.fullReplicas > before.fullReplicas;
     }
 
     /**
