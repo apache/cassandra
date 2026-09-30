@@ -84,10 +84,8 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
     }
 
     /**
-     * Where a further round of follow up reads should resume. When this round started a range read of its own, that
-     * read is the authority on how far through the range it got, and a null answer from it means that range held no
-     * partition at all rather than that it was exhausted - a read that reached the end answers with the bounds above
-     * its last key. Otherwise this round started no range read, so its own bounds are what is still outstanding.
+     * Where a further round should resume: the bounds reported by the range read this round started, or this round's
+     * own bounds if it started none. Null means the range held no partition, not that it was exhausted.
      */
     private AbstractBounds<PartitionPosition> nextBounds(AtomicReference<PartialTrackedRead> partialRead)
     {
@@ -119,8 +117,7 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
         SortedMap<DecoratedKey, FollowUpReadInfo> nextKeys = followUpKeys.hasNext() ? followUpReadInfo.tailMap(followUpKeys.next()) : Collections.emptySortedMap();
 
         AtomicReference<PartialTrackedRead> partialRead;
-        // a null followUpBounds means the read this one follows up on materialized no partition at all, so its range
-        // is known to be empty and re-reading it would only rescan it; only the follow up keys above are worth chasing
+        // a null followUpBounds means the range is known to hold no partition, so only the follow up keys need reading
         if (remaining > 0 && followUpBounds != null)
         {
             partialRead = new AtomicReference<>();
@@ -162,11 +159,9 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
                 // we just use normal short read protection checks here for the range, and read the keys carried over
                 // whenever the answer is short of its limit
                 AbstractBounds<PartitionPosition> nextBounds = nextBounds(partialRead);
-                // partitionsFetched is whether the scan of the range reached a partition: this round's range read if it
-                // started one, otherwise the scan that left this round its bounds, and the bounds are null exactly when
-                // that scan reached none. Whether the merged answer holds a partition says nothing about the range, since
-                // reconciliation can remove every row a scan kept, and a round that spent its budget on keys read none of
-                // the range at all
+                // nextBounds is null exactly when the scan that last read the range reached no partition. Whether the
+                // merged answer holds a partition says nothing about the range: reconciliation can remove every row a
+                // scan kept, and a round that spent its budget on keys read none of the range
                 boolean partitionsFetched = nextBounds != null;
                 if (followUpReadRequired(command, mergedResultCounter, initialIteratorExhausted, partitionsFetched)
                     || (!nextKeys.isEmpty() && !mergedResultCounter.isDone()))

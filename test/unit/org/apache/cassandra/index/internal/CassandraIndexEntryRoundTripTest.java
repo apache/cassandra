@@ -51,22 +51,17 @@ import static accord.utils.Property.qt;
 import static org.junit.Assert.assertEquals;
 
 /**
- * The invariant, in the terms this test asserts it: for every shape of base table and legacy index, take a base row
- * and let the write path build an entry for it ({@link CassandraIndex#createIndexEntry}) and the index row that
- * carries it ({@link BTreeRow#noCellLiveRow}, exactly as {@code CassandraIndex#insert} writes it). Decoding that row
- * through the same index's own decode path ({@link CassandraIndex#decodeEntry}, as {@code CompositesSearcher} does on
- * read) must yield the base partition key and base clustering the write path said the entry stood for - identical
- * under {@link org.apache.cassandra.db.ClusteringPrefix#equals}, and identical to
- * {@link IndexEntry#compare}, which is what orders a written entry against a read one when the searcher matches the
- * two up. An entry the write path builds in a form its own decode path does not return is a duplicate of, or an
- * impostor for, the row the read path will actually fetch.
+ * For every shape of base table and legacy index, an entry built by {@link CassandraIndex#createIndexEntry} must
+ * decode, through the same index's {@link CassandraIndex#decodeEntry} applied to the index row
+ * {@code CassandraIndex#insert} writes ({@link BTreeRow#noCellLiveRow}), to the same base partition key and
+ * clustering, with {@link IndexEntry#compare} returning zero for the two. A tracked index read builds entries this
+ * way and the searcher uses them interchangeably with decoded ones, so an entry in any other form duplicates or
+ * displaces the row the searcher reads.
  * <p>
- * The generators cover the product of: which column the index is on (a partition key column, every clustering column,
- * a regular column, a static column), the number of clustering columns in the base table (0, 1, 2, 3), a base table
- * with and without a static column, and the row the entry is built from (a static row and a regular row). The write
- * path itself decides which of those pairs produce an entry - {@link CassandraIndex.AbstractIndexer#insertRow} is
- * driven directly rather than reimplemented, so the guards that skip a pair are the production ones - and the count
- * of entries produced is asserted so that no shape can silently stop being exercised.
+ * The tables cover 0 to 3 clustering columns, with and without a static column, each indexed on a partition key
+ * column, every clustering column, the regular column and the static column, and each index is given a static and a
+ * regular row. {@link CassandraIndex.AbstractIndexer#insertRow} is driven directly so that the production code decides
+ * which pairs produce an entry, and the count of entries is asserted so that no shape silently stops being exercised.
  */
 public class CassandraIndexEntryRoundTripTest extends CQLTester
 {

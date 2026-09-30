@@ -539,10 +539,8 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
                 // TODO: maybe we should immediately start a follow up read if it's likely this key will be included in the response
                 if (!followUpReads.containsKey(key) && indexNewKey(update))
                 {
-                    // maxKey is left alone on purpose. It is the last key this read scanned, so everything up to it
-                    // has a read behind it and the follow up read resumes after it. A key reconciliation hands us
-                    // beyond maxKey gets a read of its own, but the keys between the two do not, so moving maxKey up
-                    // to it would claim a span this read never scanned.
+                    // Don't raise maxKey to this key. Every key up to maxKey must have a read behind it, and this key
+                    // gets a read of its own, but the keys between maxKey and it were never scanned.
                     Future<FollowUpRead<Match, Searcher>> followUpRead = FollowUpRead.start(command, update.partitionKey(), consistencyLevel, requestTime);
                     followUpReads.put(key, followUpRead);
                 }
@@ -704,10 +702,9 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
                 }
                 else
                 {
-                    // Nothing beyond maxKey was scanned, so there is no read behind a match past it. Stop here and
-                    // let the follow up read cover the rest: it resumes at maxKey, so it also covers what the
-                    // materialized iterator still holds, all of which sorts after this match and so past maxKey too.
-                    // A null maxKey means nothing was scanned at all, so no match has a read behind it.
+                    // Nothing past maxKey (or anything, if it is null) was scanned, so this match has no read behind
+                    // it. Stop and leave the rest to the follow up read, which resumes after maxKey and so also covers
+                    // the remaining materialized matches: they sort after this one.
                     if (maxKey == null || additionalIterator.peek().key().compareTo(maxKey) > 0)
                     {
                         Preconditions.checkArgument(command.isRangeRequest());

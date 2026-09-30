@@ -476,8 +476,8 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         try
         {
             KeyspaceShards shards = maybeGetOrCreateShards(keyspace);
-            // offsets broadcast for a keyspace this node has since dropped: there is nothing left to update, and the
-            // sender cannot have known the drop was enacted at the time it sent them
+            // null if the keyspace is not in local schema, e.g. dropped here after the peer sent these. Offsets are
+            // re-broadcast periodically, so discarding them only merits a debug log.
             if (shards != null)
                 shards.updateReplicatedOffsets(range, offsets, durable, onHost);
             else
@@ -508,14 +508,12 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         try
         {
             reconciledSnapshot.forEach((keyspace, keyspaceOffsets) -> {
-                // a snapshot naming a keyspace this node has since dropped: there are no shards left to record
-                // against, and the snapshot was taken before the drop was enacted
+                // null if the keyspace is not in local schema, e.g. dropped here after the snapshot was taken
                 KeyspaceShards ksShards = maybeGetOrCreateShards(keyspace);
                 if (ksShards != null)
                     ksShards.recordFullyReconciledOffsets(keyspaceOffsets);
                 else
-                    // louder than the broadcast path above: a snapshot arrives once, with the stream that carries it,
-                    // so marks skipped here are not re-sent on a later tick and the log is the only trace of them
+                    // warn, unlike the broadcast path: a snapshot is sent once, with its stream, and is not re-sent
                     noSpamLogger.warn("Discarding fully reconciled offsets for unknown keyspace {}", keyspace);
             });
         }

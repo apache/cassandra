@@ -416,9 +416,8 @@ public class ReplicaPlanMergerTest
 
     /**
      * A node that is a full replica of one range and a witness of the next cannot be described by a single plan for
-     * both, so the two ranges are left unmerged. Here the disagreement is only visible in liveAndDown, because the
-     * read candidates agree; liveAndDown has to be checked too since it is what the plan's consistency accounting and
-     * its repair plan are built from, and it draws the same full/transient distinction.
+     * both, so the two ranges are left unmerged. The read candidates agree here, and only liveAndDown, which is what
+     * maybeMerge compares, shows the difference.
      */
     @Test
     public void testAdjacentRangesDisagreeingOnTransienceAreNotMerged()

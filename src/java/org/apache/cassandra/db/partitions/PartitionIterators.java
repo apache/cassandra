@@ -104,14 +104,11 @@ public abstract class PartitionIterators
     }
 
     /**
-     * Merges multiple partition iterators, reconciling any partition that appears in more than one of them.
+     * Merges multiple partition iterators, reconciling any partition that appears in more than one of them. The inputs
+     * need not be key disjoint: a tracked read answers a range from several sub-reads, and under a per partition limit
+     * more than one of them can carry rows for the same partition.
      * <p>
-     * Callers cannot assume the inputs are key disjoint. A tracked read answers a single range from several
-     * sub-reads - the data replica's own result, single partition follow up reads for keys reconciliation
-     * delivered, and short read protection follow ups - and under a per partition limit more than one of those
-     * can legitimately carry rows for the same partition.
-     * <p>
-     * See {@link RowIterators#merge} for what reconciling already filtered chunks can and cannot see.
+     * See {@link RowIterators#merge} for what reconciling already filtered chunks cannot see.
      */
     public static PartitionIterator merge(List<PartitionIterator> iterators)
     {

@@ -23,15 +23,9 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 /**
- * The tracked indexed range read shapes {@link TrackedRangeReadTestBase} defines, asserted against legacy 2i. SAI and
- * legacy 2i reach the same answer by entirely different means - SAI keeps a static term per partition where a legacy
- * index keeps one index row whose clustering is the base partition key, and a tracked read indexes the mutations
- * reconciliation delivers with whichever implementation the table has - so a tracked index read over the two is two
- * different reads, and what one of them returns says little about the other.
- * <p>
- * A query uses one legacy index only, so a predicate of two expressions leaves whichever one the chosen index does
- * not serve to filtering, and CQL will not run it without {@code ALLOW FILTERING}. Which of the two indexes the
- * planner picks is pinned with an index hint rather than left to it, for the reason {@link #STATIC_SELECT} gives.
+ * The tracked indexed range read shapes {@link TrackedRangeReadTestBase} defines, asserted against legacy 2i. SAI
+ * keeps a static term per partition where a legacy index keeps one index row whose clustering is the base partition
+ * key, so a tracked indexed read over one says little about a read over the other.
  */
 @RunWith(Parameterized.class)
 public class TrackedLegacyIndexedRangeReadTest extends TrackedRangeReadTestBase
@@ -47,22 +41,14 @@ public class TrackedLegacyIndexedRangeReadTest extends TrackedRangeReadTestBase
         "CREATE INDEX tbl_v ON %s.tbl(v) USING 'legacy_local_table'";
 
     /**
-     * Two expressions, and two indexes that can each serve one of them, pinned to the one on the partition key column
-     * with an index hint. That is the index these cases are about: it matches every partition with {@code pk0 = 1},
-     * the static only ones among them, and leaves {@code s = 7} to filtering, so the partition the index matched and
-     * the filter rejects is one the read itself has to drop.
+     * Pinned with an index hint to {@code tbl_pk0}, the index these cases are about: it matches every partition with
+     * {@code pk0 = 1}, the static only ones among them, and leaves {@code s = 7} to filtering, so the read itself has
+     * to drop the partitions the index matched and the filter rejects.
      * <p>
-     * Left to the planner the choice is not deterministic.
-     * {@code SecondaryIndexManager.getBestIndexQueryPlanFor} collects the candidate plans in a {@code HashSet} and
-     * takes the maximum under the hint comparator followed by reversed natural order on the plan. With no hints the
-     * hint comparator returns zero for every pair, so what decides is the reversed order, which ranks a plan on
-     * {@code Index#getEstimatedResultRows} and then on how many indexes it holds. These two plans tie on both: the
-     * estimate is zero for each while their index tables are unflushed, and each holds one index.
-     * {@code SingletonIndexQueryPlan} defines no {@code equals}, and {@code Stream#max} keeps the element it already
-     * holds when the comparison is a tie, so the plan that wins is whichever the set iterated first - identity hash
-     * order. The hint orders the two strictly, and {@code SelectOptions#validate} rejects the query outright if the
-     * selected plan does not contain an included index, so a read that reached the other index could not pass quietly
-     * either.
+     * Without the hint the choice between the two indexes is not deterministic: the two plans tie in
+     * {@code SecondaryIndexManager.getBestIndexQueryPlanFor} (each holds one index and estimates zero rows while its
+     * index table is unflushed), so the winner is whichever the {@code HashSet} iterates first. With the hint,
+     * {@code SelectOptions#validate} fails a query whose plan does not use {@code tbl_pk0}.
      */
     private static final String STATIC_SELECT =
         "SELECT pk0, pk1, ck, s, v FROM %s.tbl WHERE pk0 = 1 AND s = 7 ALLOW FILTERING "

@@ -60,19 +60,11 @@ public abstract class RowIterators
     /**
      * Merges iterators over the same partition, reconciling rows that share a clustering.
      * <p>
-     * Unlike {@link UnfilteredRowIterators#merge}, the inputs here have already been filtered and purged, so all this
-     * merge is given is rows: a partition level deletion or a range tombstone one of the sub-reads applied has already
-     * been resolved against that sub-read's own rows and is gone from the wire format.
-     * <p>
-     * That is a limitation of the chunked format, not a property that makes it deletion safe. A deletion that lands
-     * between two sub-reads of the same tracked read is invisible here: if the data replica serializes {@code ck=1..5}
-     * of partition P, P is then deleted at a higher timestamp, and the follow up read of P returns nothing because
-     * everything it can see is purged, this merge returns the five rows and has no way to know they were deleted.
-     * Nothing prevents that. A deletion racing a single sub-read is handled outside this method - TrackedLocalReads
-     * takes a second mutation summary once the read has run and augments the read with the difference, before its
-     * rows are filtered - but the window between sub-reads is not closed, because a deletion in this format is the
-     * absence of a row and absence loses a union. Nothing writes the merged result back, so the exposure is a stale
-     * answer the next read corrects rather than a resurrection.
+     * Unlike {@link UnfilteredRowIterators#merge}, the inputs have already been filtered and purged, so only rows reach
+     * this merge and any deletion a sub-read applied is gone. A deletion that lands between two sub-reads of the same
+     * tracked read is therefore invisible: rows an earlier sub-read returned survive even when a later sub-read of the
+     * partition returns nothing. Nothing writes the merged result back, so the result is a stale answer the next read
+     * corrects, not a resurrection.
      */
     public static RowIterator merge(List<RowIterator> iterators)
     {

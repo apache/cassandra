@@ -129,7 +129,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
     protected List<CreateIndexDDL.Indexer> supportedIndexers()
     {
-        // MultiNodeTableWalkWithMutationTrackingTest is where legacy 2i gets walked; this one stays on SAI.
+        // Legacy 2i is walked by MultiNodeTableWalkWithMutationTrackingTest.
         return Collections.singletonList(CreateIndexDDL.SAI);
     }
 

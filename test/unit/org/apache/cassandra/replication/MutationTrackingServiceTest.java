@@ -244,9 +244,8 @@ public class MutationTrackingServiceTest
     }
 
     /**
-     * Offsets can arrive for a keyspace this node no longer has: they were broadcast, or the reconciled snapshot they
-     * came from was taken, before the DROP KEYSPACE that removed it was enacted here. A dropped keyspace has no shards
-     * to record anything against, and asking for them would throw, killing the stage the offsets arrive on.
+     * Broadcast offsets and a reconciled snapshot for a keyspace this node has dropped are discarded without throwing
+     * and without recreating the keyspace's shards or logs.
      */
     @Test
     public void testOffsetsForAKeyspaceThatNoLongerExistsAreDropped()
@@ -273,7 +272,6 @@ public class MutationTrackingServiceTest
         service.updateReplicatedOffsets(dropped, range, Collections.singletonList(offsets), true, REMOTE);
         service.recordFullyReconciledOffsets(ReconciledLogSnapshot.builder().put(dropped, logId, offsets, range).build());
 
-        // neither call may resurrect the keyspace it was told about, nor leave a log behind pointing at it
         assertNull(MutationTrackingService.TestAccess.getKeyspaceShards(service, dropped));
         assertEquals(0, MutationTrackingService.TestAccess.countLogsFor(service, dropped));
     }

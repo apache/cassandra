@@ -52,11 +52,9 @@ public abstract class ExtendingCompletedRead implements PartialTrackedRead.Compl
 
     public ExtendingCompletedRead(ReadCommand command, boolean partitionsFetched, boolean initialIteratorExhausted)
     {
-        // onlyCount: the limit is already enforced by ReadCommand.completeRead, which pairs its counter with an
-        // RTBoundCloser because a counter that stops in the middle of an open range tombstone drops the closing
-        // bound. A second stopping counter here sits above that closer and above the PROCESSED RTBoundValidator, so
-        // when it stops it cuts the stream before the closer can append the bound the validator is waiting for. All
-        // this counter is needed for is short read protection's view of how much the merged result holds.
+        // onlyCount: ReadCommand.completeRead already enforces the limit, with an RTBoundCloser that appends the bound
+        // of a range tombstone its counter stops inside. A counter that stopped here, above that closer and the
+        // PROCESSED RTBoundValidator, would end the stream before the bound is appended, and the validator would throw.
         this.mergedResultCounter = command.limits().newCounter(command.nowInSec(),
                                                                true,
                                                                command.selectsFullPartition(),
@@ -116,16 +114,13 @@ public abstract class ExtendingCompletedRead implements PartialTrackedRead.Compl
          * the total # of rows remaining - if it has some. If we don't grab enough rows in some of the partitions,
          * then future ShortReadRowsProtection.moreContents() calls will fetch the missing ones.
          *
-         * counted() is the count that count() is the limit on, so the two sides of the subtraction are always in the
-         * same unit: rows under a plain limit, groups under GROUP BY. rowsCounted() would mix the two, because a
-         * group holds as many rows as it likes, so a GROUP BY read that is still short of its groups can have read
-         * more rows than it is allowed groups and ask for a negative number of them.
+         * Subtract counted(), not rowsCounted(): count() limits counted(), which is groups under GROUP BY, and a
+         * GROUP BY read still short of its groups can have counted more rows than count(), giving a negative result.
          *
-         * Wherever the result becomes a limit it is at least one: followUpReadRequired, which every caller of this is
-         * behind, is false once the merged counter is done, and until then count() is greater than counted(). The one
-         * caller that can be past done is PartialTrackedRangeRead's filtered read, which follows up on keys
-         * reconciliation flagged inside the range it already scanned; it reads those keys under the command's own
-         * limit and takes anything not positive as no range left to extend.
+         * The result is positive wherever followUpReadRequired guards it, since that is false once the counter is done.
+         * PartialTrackedRangeRead's filtered read can call this past done to read flagged keys inside the range it
+         * already scanned; it reads those keys under the command's own limit and treats a non-positive result as no
+         * range left to extend.
          */
         return command.limits().count() != DataLimits.NO_LIMIT
                ? command.limits().count() - mergedResultCounter.counted()

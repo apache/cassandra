@@ -43,16 +43,13 @@ import static accord.utils.Property.qt;
 import static org.junit.Assert.assertEquals;
 
 /**
- * {@link RowIterators#merge} is what lets a tracked read answer one command from several sub-reads whose results can
- * carry the same partition. Its inputs have already been filtered and purged, so the whole contract is over rows: the
- * merged iterator yields each clustering once, in the partition's iteration order, carrying the newest cell every
- * input had for each column, with the static row and the column set unioned the same way, and closing it closes the
+ * {@link RowIterators#merge} yields each clustering once, in the partition's iteration order, with the newest cell any
+ * input had for each column. It unions the static row and the column set the same way, and closing it closes the
  * inputs.
  * <p>
- * The theory predicts that answer without repeating any reconciliation rule. Every cell in an example gets a
- * timestamp unique across it, so the winner of a column two inputs both carry is just the one with the highest
- * timestamp, and every cell's value records which input carried it, so keeping the right timestamp with the wrong
- * cell still fails.
+ * Every cell in an example gets a unique timestamp, so the winner of a contested column is the one with the highest
+ * timestamp, and every cell's value is the index of the input that carried it, so keeping the right timestamp with the
+ * wrong cell fails.
  */
 public class RowIteratorsMergeTest
 {
@@ -226,7 +223,6 @@ public class RowIteratorsMergeTest
         return description.toString();
     }
 
-    /** A generated cell: the input that carries it, the row it belongs to, its column, and its timestamp. */
     private static class CellSpec
     {
         final int input, row, column;

@@ -59,13 +59,9 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * A tracked read answers a single command from several sub-reads - the data replica's own result, single partition
- * follow up reads for keys reconciliation delivered mutations for, and short read protection follow ups - and folds
- * each of them into one {@link TrackedDataResponse} as another serialized chunk. Nothing in that path keeps two
- * chunks from carrying rows for the same partition, so reading the response back has to reconcile them.
- * <p>
- * {@link TrackedDataResponse#makeIteratorUnlimited} is where they are combined, with a merge that reduces several
- * iterators for one key into one rather than one that requires the chunks not to overlap.
+ * A tracked read folds the results of its sub-reads into one {@link TrackedDataResponse} as separate serialized chunks.
+ * Nothing keeps two chunks from carrying rows for the same partition, so
+ * {@link TrackedDataResponse#makeIteratorUnlimited} has to reconcile them.
  */
 public class TrackedDataResponseTest extends AbstractReadResponseTest
 {
@@ -194,9 +190,8 @@ public class TrackedDataResponseTest extends AbstractReadResponseTest
     }
 
     /**
-     * Static rows are unioned across the chunks the same way, including from a chunk that has one when the first
-     * chunk does not. A chunk carrying nothing but a static row is a partition in its own right, so it has to
-     * contribute to the merged one rather than be passed over.
+     * Static rows are unioned across the chunks the same way, including from chunks carrying nothing but a static row
+     * when the first chunk has none.
      */
     @Test
     public void testStaticRowsAreUnionedAcrossChunks()
@@ -225,8 +220,7 @@ public class TrackedDataResponseTest extends AbstractReadResponseTest
     }
 
     /**
-     * The case the merge always handled, kept as a control: chunks with no key in common are still returned whole,
-     * in token order, whichever order they arrive in.
+     * Chunks with no key in common are returned whole, in token order, whichever order they arrive in.
      */
     @Test
     public void testChunksWithDisjointKeysAreReturnedInTokenOrder()
@@ -258,9 +252,8 @@ public class TrackedDataResponseTest extends AbstractReadResponseTest
     }
 
     /**
-     * The entry point production actually uses applies the command's limits on top of the merged chunks, so a per
-     * partition limit counts a partition once however many chunks carried a piece of it. Counting per chunk would let
-     * a partition assembled from two chunks return twice what the client asked for.
+     * {@link TrackedDataResponse#makeIterator(ReadCommand)} applies the command's limits to the merged chunks, so a per
+     * partition limit counts a partition once however many chunks carried part of it.
      */
     @Test
     public void testLimitsAreAppliedToTheMergedPartition()
@@ -286,9 +279,8 @@ public class TrackedDataResponseTest extends AbstractReadResponseTest
     }
 
     /**
-     * A reversed command's chunks arrive in reverse clustering order, and the flag rides the wire format, so the merge
-     * has to compare their rows the same way round. Merging them forward would hand the client a partition whose rows
-     * ascend under a DESC query.
+     * A reversed command's chunks are serialized in reverse clustering order and flagged as reversed, so the merge has
+     * to compare their rows in reverse.
      */
     @Test
     public void testChunksOfAReversedCommandAreMergedInReverseOrder()
@@ -311,9 +303,8 @@ public class TrackedDataResponseTest extends AbstractReadResponseTest
     }
 
     /**
-     * The merged iterator owns the chunk iterators it was built from, so closing it closes them. No chunk holds a
-     * resource that leaks today - each reads from a heap buffer whose input is already closed - but a
-     * {@link Transformation} stacked on a chunk would otherwise never see {@code onClose}.
+     * Closing the merged iterator closes the chunk iterators it was built from, so a {@link Transformation} stacked on
+     * a chunk sees {@code onClose}.
      */
     @Test
     public void testClosingTheMergedIteratorClosesTheChunks()

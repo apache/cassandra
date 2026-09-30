@@ -26,25 +26,17 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
 /**
- * A filtered tracked range read that reads the keys reconciliation flagged over more than one round of follow up
- * reads. {@code FilteredFollowupRead} reads flagged keys in key order while its budget of rows lasts and carries the
- * rest over to the next round; this is the read where the keys it read return nothing and a key it carried over
- * holds the answer.
+ * Filtered tracked range reads where a round of {@code FilteredFollowupRead} spends its budget of one row re-reading a
+ * flagged key that still does not match, so the merged result after that round holds no partition and only a further
+ * round finds the matching row. Node 1 coordinates and is the data replica. Under Murmur3, (1,'z') sorts before
+ * (1,'a'), which sorts before (1,'j').
  * <p>
- * Node 1, which coordinates and is the data replica, holds two partitions neither of which matches, and misses one
- * later write to each. Each write sets {@code a = 1}, which satisfies one of the two expressions, so the scan drops
- * both partitions and flags each key with one potential match, and a budget of one row reads the first key and
- * carries the second over. With the default Murmur3 partitioner (1,'z') sorts before (1,'a'). (1,'z') is the key
- * read first, and its row's {@code b} is 3, so reading it again returns nothing and the answer after that round holds
- * no partition. (1,'a') is the key carried over, and its row's {@code b} is 2, so the correct answer is that row.
+ * With {@code BOTH_KEYS_FLAGGED}, node 1 misses {@code a = 1} on both partitions, so its scan drops and flags both.
+ * (1,'z') is read first, and (1,'a'), which matches, is carried over to the next round.
  * <p>
- * The same answer, with no partition in it after a round, can also leave the range unread. Every replica holds
- * (1,'z'), (1,'a') and (1,'j'), in that token order. (1,'a') and (1,'j') match; (1,'z') does not. Node 1 misses
- * {@code a = 1} on (1,'z'), which flags it and still leaves it unmatched, and {@code a = 0} on (1,'a'), which makes
- * it stop matching. The scan drops (1,'z'), keeps (1,'a') and stops at the limit, short of (1,'j'), so the range left
- * to read is everything past (1,'a'). Reconciliation removes the only row the scan kept, and the round re-reads
- * (1,'z') with the whole budget of one row, leaving none to read the rest of the range with. The answer after that
- * round is empty, and the correct answer is (1,'j').
+ * With {@code FLAGGED_KEY_AND_KEPT_KEY_STALE}, node 1's scan drops and flags (1,'z'), keeps (1,'a') and stops at the
+ * limit short of (1,'j'). Reconciliation removes (1,'a'), and re-reading (1,'z') leaves no budget for the rest of the
+ * range, where (1,'j') matches.
  */
 @RunWith(Parameterized.class)
 public class TrackedFilteredRangeReadCarryOverTest extends TrackedRangeReadTestBase

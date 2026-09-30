@@ -85,10 +85,8 @@ public class OffsetBroadcastTest extends TestBaseImpl
     }
 
     /**
-     * Offsets name the keyspace they cover, so a broadcast collected before its sender learned of a DROP KEYSPACE
-     * arrives at a node for which that keyspace is already gone. Handling it has to discard those offsets rather
-     * than look the keyspace up in metadata that no longer contains it, which throws out of the single threaded
-     * MISC stage {@link Verb#MT_BROADCAST_LOG_OFFSETS} is processed on and takes the stage down with it.
+     * A broadcast sent before its sender learned of a DROP KEYSPACE, and handled after the drop is enacted here, must
+     * discard its offsets without throwing out of the MISC stage {@link Verb#MT_BROADCAST_LOG_OFFSETS} runs on.
      */
     @Test(timeout = 300_000)
     public void testBroadcastOffsetsForDroppedKeyspace() throws Throwable

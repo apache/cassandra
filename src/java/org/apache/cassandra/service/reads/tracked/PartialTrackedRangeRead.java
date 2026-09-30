@@ -73,16 +73,12 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
     protected final PartitionRangeReadCommand command;
 
     /**
-     * Where a follow up read of this range should resume, written once, by {@link #prepareInternal}, from the
-     * {@link ShortReadSupport} of the read's only {@link RangePrepared}. Kept here rather than read back off the state
-     * because {@link #followUpBounds()} is answered for a read that has already completed, and completing a read closes
-     * it. Volatile because {@link #followUpBounds()} is called without the read's lock, from another thread, possibly
-     * after the read is closed.
+     * Where a follow up read of this range should resume, set once by {@link #prepareInternal}. Kept here rather than
+     * read off the state because {@link #followUpBounds()} is called from another thread, without the read's lock,
+     * after the read has completed and been closed.
      * <p>
-     * Null when the read materialized no partition at all, which is the only case
-     * {@link ShortReadSupport.Builder#build()} leaves it unset for. A read that scanned its range to the end has
-     * non-null bounds - {@code (lastPartitionKey, right]} - not null ones, so null means the range is known to hold
-     * nothing rather than that the range has been exhausted.
+     * Null only when the read materialized no partition. A read that scanned its range to the end has
+     * {@code (lastPartitionKey, right]}.
      */
     private volatile AbstractBounds<PartitionPosition> followUpBounds;
 
@@ -561,18 +557,13 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
             }
 
             /**
-             * Whether there are keys to read again and the answer is still short of its limit, so their rows can be
-             * added wherever they sort.
+             * Whether there are keys to read again and the answer is still short of its limit.
              * <p>
-             * A key in {@code followUpReadInfo} is one whose partition the row filter dropped during the scan, and for
-             * which a write this replica was missing, applied after the scan, could make the partition match. None of
-             * them is in the answer: the scan removed each from {@code data}, and
-             * {@link FilteredPrepared#canAcceptUpdate} refuses its writes, so the partition is read again from storage
-             * instead.
-             * <p>
-             * Short read protection would not read these keys. It reads only forward from {@link #followUpBounds}, and
-             * every one of them sorts at or before the last key the scan visited. Unless the query has a per partition
-             * limit, it also does not read at all when the scan ran to the end of its range.
+             * A key in {@code followUpReadInfo} is a partition the row filter dropped during the scan that a write this
+             * replica was missing could make match; {@link FilteredPrepared#canAcceptUpdate} refuses those writes, so
+             * the partition is read again from storage. Short read protection would not read these keys: it reads only
+             * forward from {@link #followUpBounds}, and every one of them sorts at or before the last key the scan
+             * visited.
              */
             private boolean hasRoomForFollowUpKeys()
             {

@@ -290,12 +290,9 @@ public abstract class CassandraIndexSearcher<Match extends Index.IndexMatch> imp
             ClusteringIndexFilter filter = sprc.clusteringIndexFilter();
 
             /*
-             * A static column index holds one entry per partition, and that entry's index clustering contains only
-             * the base partition key (see RegularColumnIndex#buildIndexClusteringPrefix). Restrictions on the base
-             * clustering columns therefore must not be pushed into the index filter: they would exclude the entry
-             * and the query would miss rows. The range branch below declines the same optimisation for the same
-             * reason. Nothing is over-read, since CompositesSearcher queries the base partition back with the
-             * command's own clustering filter.
+             * A static column index holds one entry per partition, whose index clustering contains only the base
+             * partition key (see RegularColumnIndex#buildIndexClusteringPrefix). A base clustering restriction would
+             * exclude that entry, so read it whole; CompositesSearcher applies the command's clustering filter.
              */
             if (index.indexedColumn.isStatic())
             {
