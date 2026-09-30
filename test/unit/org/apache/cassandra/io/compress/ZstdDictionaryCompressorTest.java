@@ -23,6 +23,10 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import com.github.luben.zstd.Zstd;
 import com.github.luben.zstd.ZstdDictTrainer;
@@ -330,6 +334,75 @@ public class ZstdDictionaryCompressorTest
         .isInstanceOf(IllegalStateException.class);
     }
 
+    /**
+     * Races cache eviction against in-flight compress/uncompress calls to guard the fix: each call must hold its
+     * own ref for the native call's duration, or eviction can tidy the dictionary out from under it.
+     */
+    @Test
+    public void testConcurrentCompressSurvivesConcurrentEviction() throws Exception
+    {
+        ZstdCompressionDictionary dictionary = createTestDictionary(9001);
+        ZstdDictionaryCompressor compressor = ZstdDictionaryCompressor.create(dictionary);
+        // Drop the dictionary's own baseline reference so the cache's ref - the one eviction below releases -
+        // is the last one standing, matching the production trigger where eviction hits the last reference.
+        dictionary.close();
+
+        int workerCount = 4;
+        int iterationsPerWorker = 1000;
+        ExecutorService executor = Executors.newFixedThreadPool(workerCount);
+        try
+        {
+            Future<?>[] futures = new Future[workerCount];
+            for (int w = 0; w < workerCount; w++)
+            {
+                futures[w] = executor.submit(() -> {
+                    for (int i = 0; i < iterationsPerWorker; i++)
+                    {
+                        ByteBuffer input = ByteBuffer.allocateDirect(compressibleData.length);
+                        input.put(compressibleData);
+                        input.flip();
+                        ByteBuffer compressed =
+                            ByteBuffer.allocateDirect(compressor.initialCompressedBufferLength(compressibleData.length));
+                        ByteBuffer decompressed = ByteBuffer.allocateDirect(compressibleData.length);
+                        try
+                        {
+                            compressor.compress(input, compressed);
+                            compressed.flip();
+                            compressor.uncompress(compressed, decompressed);
+                            decompressed.flip();
+
+                            byte[] result = new byte[decompressed.remaining()];
+                            decompressed.get(result);
+                            assertThat(result)
+                            .as("round trip must never return corrupt data, even racing dictionary eviction")
+                            .isEqualTo(compressibleData);
+                        }
+                        catch (IOException e)
+                        {
+                            // Once the dictionary is fully released, the fix fails fast here instead of handing
+                            // out a context loaded with freed native memory - a safe terminal state.
+                            if (e.getMessage() != null && e.getMessage().contains("Dictionary is released"))
+                                return;
+                            throw new RuntimeException(e);
+                        }
+                    }
+                });
+            }
+
+            // Force the exact path production hits: Caffeine's removalListener releasing dictionaryRef, while
+            // the workers above are still racing through compress/uncompress calls.
+            ZstdDictionaryCompressor.invalidateCache();
+
+            for (Future<?> future : futures)
+                future.get(10, TimeUnit.SECONDS);
+        }
+        finally
+        {
+            executor.shutdownNow();
+            executor.awaitTermination(5, TimeUnit.SECONDS);
+        }
+    }
+
     @Test
     public void testCompressionWithNullDictionary() throws IOException
     {
@@ -409,6 +482,11 @@ public class ZstdDictionaryCompressorTest
 
     private static ZstdCompressionDictionary createTestDictionary()
     {
+        return createTestDictionary(1);
+    }
+
+    private static ZstdCompressionDictionary createTestDictionary(long id)
+    {
         try
         {
             int sampleSize = 100 * 1024;
@@ -422,7 +500,7 @@ public class ZstdDictionaryCompressorTest
             }
 
             byte[] dictBytes = trainer.trainSamples();
-            DictId dictId = new DictId(Kind.ZSTD, 1);
+            DictId dictId = new DictId(Kind.ZSTD, id);
 
             return new ZstdCompressionDictionary(dictId, dictBytes);
         }
