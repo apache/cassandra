@@ -51,18 +51,17 @@ import static accord.utils.Property.qt;
 import static org.junit.Assert.assertEquals;
 
 /**
- * A tracked index read builds entries with {@link CassandraIndex#createIndexEntry} and the searcher uses them
- * interchangeably with ones decoded from the index row, so the two must agree for every table and index shape.
+ * PartialTrackedIndexRead sorts entries built by {@link CassandraIndex#createIndexEntry} together with entries
+ * decoded from the index table, so the two must agree for every table and index shape.
  */
 public class CassandraIndexEntryRoundTripTest extends CQLTester
 {
     private static final Gen<ByteBuffer> INTS = rs -> Int32Type.instance.decompose(rs.nextInt());
 
     /**
-     * Each of the 7 base tables yields (clustering columns + 2) entries from its regular row: one for the index on a
-     * partition key column, one per index on a clustering column, one for the index on the regular column. Each of
-     * the 3 tables with a static column yields 2 more from its static row: the index on a partition key column and
-     * the index on the static column. Every other pair is one the write path skips.
+     * Each of the 7 tables gets (clustering columns + 2) entries from its regular row: one per index on pk1, a
+     * clustering column or v. Each of the 3 tables with a static column gets 2 more from its static row, for the
+     * indexes on pk1 and s. The other (index, row) pairs build no entry.
      */
     private static final int ENTRIES_PER_EXAMPLE = 32;
 

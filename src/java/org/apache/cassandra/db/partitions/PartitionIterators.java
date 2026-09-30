@@ -124,8 +124,8 @@ public abstract class PartitionIterators
     }
 
     /**
-     * Merges multiple partition iterators, reconciling any partition that appears in more than one of them. See
-     * {@link RowIterators#merge} for why merging already filtered chunks is broken.
+     * Merges partition iterators, combining a partition found in several inputs with {@link RowIterators#merge},
+     * which can return deleted or non-matching rows; see its TODO.
      */
     public static PartitionIterator merge(List<PartitionIterator> iterators)
     {
@@ -148,7 +148,7 @@ public abstract class PartitionIterators
             @Override
             protected RowIterator getReduced()
             {
-                // copied because onKeyChange() clears this list before the merged iterator is consumed
+                // copied: RowIterators.merge keeps this list for close(), and onKeyChange() clears it
                 return current.size() == 1 ? current.get(0) : RowIterators.merge(new ArrayList<>(current));
             }
         };

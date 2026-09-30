@@ -83,7 +83,6 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
         return key.compareTo(finalKey) < 0;
     }
 
-    /** Null means the range held no partition, not that it was exhausted. */
     private AbstractBounds<PartitionPosition> nextBounds(AtomicReference<PartialTrackedRead> partialRead)
     {
         if (partialRead == null)
@@ -98,8 +97,8 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
 
         int remaining = toQuery;
         PeekingIterator<DecoratedKey> followUpKeys = Iterators.peekingIterator(followUpReadInfo.keySet().iterator());
-        // keys that sort before finalKey are read even when the budget is spent, since their rows can displace rows
-        // already in the answer; later keys only while budget remains, and the rest carry over as nextKeys
+        // keys before finalKey are read even when remaining <= 0: their rows can sort before rows already in
+        // initialResponse and push those rows past the limit
         while (followUpKeys.hasNext() && (remaining > 0 || interleavesWithOriginal(followUpKeys.peek())))
         {
             DecoratedKey key = followUpKeys.next();
@@ -152,7 +151,7 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
                 }
 
                 AbstractBounds<PartitionPosition> nextBounds = nextBounds(partialRead);
-                // taken from the range scan, not the merged answer: reconciliation can remove every row a scan kept
+                // from the range read, not the merged result, which reconciliation can leave empty
                 boolean partitionsFetched = nextBounds != null;
                 if (followUpReadRequired(command, mergedResultCounter, initialIteratorExhausted, partitionsFetched)
                     || (!nextKeys.isEmpty() && !mergedResultCounter.isDone()))

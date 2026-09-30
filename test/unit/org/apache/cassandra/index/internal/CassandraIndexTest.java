@@ -519,7 +519,7 @@ public class CassandraIndexTest extends CQLTester
         createTable("CREATE TABLE %s (k1 int, k2 int, c int, s int static, v int, PRIMARY KEY ((k1, k2), c))");
         createIndex("CREATE INDEX ON %s(k1)");
 
-        // deleting the static column creates the static row with nothing live in it, so it has no entry yet
+        // the delete writes no k1 index entry, so updateRow must write it for the update below
         execute("DELETE s FROM %s USING TIMESTAMP 13 WHERE k1 = 0 AND k2 = 1");
         execute("UPDATE %s USING TIMESTAMP 15 SET s = 9 WHERE k1 = 0 AND k2 = 1");
         execute("UPDATE %s USING TIMESTAMP 10 SET s = 6 WHERE k1 = 0 AND k2 = 2");

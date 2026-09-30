@@ -399,10 +399,6 @@ public class ReplicaPlanMergerTest
                    range(max(10), max(15)));
     }
 
-    /**
-     * Refusing to merge whenever a witness is involved would split every range read on a keyspace that has any
-     * witnesses into one read per vnode.
-     */
     @Test
     public void testAdjacentRangesAgreeingOnTransienceAreMerged()
     {
@@ -414,8 +410,7 @@ public class ReplicaPlanMergerTest
     }
 
     /**
-     * The read candidates agree, and only liveAndDown, which is what maybeMerge compares, shows that 127.0.0.3 is a
-     * full replica of the left range and a witness of the right one.
+     * maybeMerge compares liveAndDown, not readCandidates, so only liveAndDown differs here.
      */
     @Test
     public void testAdjacentRangesDisagreeingOnTransienceAreNotMerged()

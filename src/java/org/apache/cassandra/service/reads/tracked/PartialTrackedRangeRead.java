@@ -104,8 +104,8 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
     protected final PartitionRangeReadCommand command;
 
     /**
-     * Kept here rather than read off the state because {@link #followUpBounds()} is called from another thread, without
-     * the read's lock, after the read has been closed.
+     * Copied out of {@code state} because {@link #followUpBounds()} is called on another thread after {@link #close()}
+     * sets {@code state} to CLOSED.
      */
     private volatile AbstractBounds<PartitionPosition> followUpBounds;
 
@@ -608,15 +608,15 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
                 if (followUpReadInfo.isEmpty())
                     return false;
 
-                if (lastMatchingKey == null)  // no data, so nothing to displace; same answer as hasRoomForFollowUpKeys
+                if (lastMatchingKey == null)
                     return true;
 
                 return followUpReadInfo.firstKey().compareTo(lastMatchingKey) < 0;
             }
 
             /**
-             * Short read protection does not read these keys: it reads forward from {@link #followUpBounds}, and they
-             * all sort at or before the last key the scan visited.
+             * {@code super.followUpRequired()} only decides whether to read {@link #followUpBounds}; the keys in
+             * {@link #followUpReadInfo} all sort before that range.
              */
             private boolean hasRoomForFollowUpKeys()
             {
@@ -662,8 +662,8 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
             @Override
             protected CompletedRead extendRead(UnfilteredPartitionIterator iterator)
             {
-                // the row filter can still drop data's last key; that can only make hasInterleavedFollowupKeys read a
-                // key it did not need to, never skip one
+                // data.lastKey() may not match the row filter; a key later than the last match only causes extra
+                // follow-up reads
                 return new FilteredCompletedRead(command, iterator, shortReadSupport, data.isEmpty() ? null : data.lastKey(), followUpReadInfo);
             }
         }

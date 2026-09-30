@@ -159,8 +159,7 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         catch (Throwable e)
         {
             logger.trace("Aborting read {}", readId);
-            // the read owns the controller once beginTrackedRead has returned it, and ReadExecutionController.close()
-            // is not idempotent
+            // read.close() also closes controller, and ReadExecutionController.close() must not run twice
             if (read != null)
                 read.close();
             else
@@ -290,7 +289,7 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
                 catch (Throwable t)
                 {
                     logger.error("Exception thrown during read completion", t);
-                    // the coordinator is already out of the map, so the purger can no longer abort this read
+                    // this Coordinator is no longer in coordinators, so expire() will not close the read
                     read.close();
                     promise.tryFailure(t);
                     throw t;

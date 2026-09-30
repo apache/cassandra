@@ -105,9 +105,8 @@ public class CreateIndexDDL implements Element
         {
             if (!standardSupported(table, column))
                 return false;
-            // Any index on a vector column restricts it to ANN queries
-            // (StatementRestrictions.VECTOR_INDEXES_ANN_ONLY_MESSAGE), which 2i cannot serve, so indexing a vector
-            // would make the column unqueryable.
+            // Any index on a vector column rejects non-ANN restrictions on it
+            // (StatementRestrictions.VECTOR_INDEXES_ANN_ONLY_MESSAGE), and 2i cannot serve ANN queries.
             return !column.type.isVector();
         }
     };

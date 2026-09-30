@@ -23,8 +23,8 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 /**
- * SAI keeps a static term per partition where a legacy index keeps one index row whose clustering is the base partition
- * key, so a tracked indexed read over one says little about a read over the other.
+ * The legacy {@code tbl_pk0} index stores a static row as its own index row, whose clustering is the base partition
+ * key alone. SAI has no equivalent, so the SAI tests do not cover it.
  */
 @RunWith(Parameterized.class)
 public class TrackedLegacyIndexedRangeReadTest extends TrackedRangeReadTestBase

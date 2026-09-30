@@ -45,9 +45,9 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 
 /**
- * The short read follow up has to be given the groups still missing; the limit minus the rows counted is negative here.
- * This has its own cluster because the fixture needs the whole ring scanned as one range, which transient replication
- * would split into several.
+ * Under GROUP BY, {@code ExtendingCompletedRead.toQuery} must ask for the groups still missing, not
+ * {@code count() - rowsCounted()}, which is negative with this data. Not in {@link TrackedRangeReadTestBase}: its
+ * replication_factor '3/1' runs read each node's range separately, and this test needs one read of the whole ring.
  */
 public class TrackedGroupByRangeReadTest extends TestBaseImpl
 {
@@ -60,12 +60,12 @@ public class TrackedGroupByRangeReadTest extends TestBaseImpl
     private static final int GROUPS = 3;
 
     /**
-     * More than one, because the scan materializes one partition per group plus the one that closes the last group, so
-     * removing one would still fill the limit.
+     * Two, because the data replica reads {@code GROUPS + 1} partitions (one more to find the end of the last group),
+     * so deleting one would still leave {@link #GROUPS} groups.
      */
     private static final int REMOVED = 2;
 
-    /** More than {@link #GROUPS}, so the limit minus the rows counted goes negative. */
+    /** More than {@link #GROUPS}, so that {@code count() - rowsCounted()} is negative. */
     private static final int ROWS_PER_SCANNED_PARTITION = 4;
 
     private static final String TABLE = "CREATE TABLE %s.tbl (pk0 int, pk1 text, ck int, v int, PRIMARY KEY ((pk0, pk1), ck))";
@@ -156,8 +156,8 @@ public class TrackedGroupByRangeReadTest extends TestBaseImpl
     }
 
     /**
-     * {@code executeInternal} is still tracked through {@code Keyspace.applyInternalTracked}, so the delete is
-     * journaled on node 2 as unreconciled.
+     * On a tracked keyspace {@code executeInternal} goes through {@code Keyspace.applyInternalTracked}, so the deletes
+     * are tracked and exist on node 2 only.
      */
     private static void write(String keyspace, List<String> keys)
     {

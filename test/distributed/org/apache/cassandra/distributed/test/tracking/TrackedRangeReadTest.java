@@ -92,9 +92,9 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
     }
 
     /**
-     * A per partition limit can leave the data replica's own result and a reconciliation follow up both carrying rows
-     * for one partition. Whether this case produces that overlap depends on when reconciliation delivers, so
-     * TrackedDataResponseTest is the deterministic test of the merge.
+     * Under a per partition limit the data replica's response and a follow up read's response can both hold rows of one
+     * partition. Whether this test produces that depends on when reconciliation delivers, so TrackedDataResponseTest
+     * tests their merge deterministically.
      */
     @Test
     public void testTokenRangeOnFullPartitionKeysWithPerPartitionLimitNonEmpty()
@@ -142,8 +142,8 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
     }
 
     /**
-     * The read still has range left when it chases a flagged key, so FilteredFollowupRead starts its own range read
-     * and needs the partial read that startLocal hands to its consumer to find where that read stopped.
+     * Reconciliation makes a partition the row filter rejected match while the page has room, so FilteredFollowupRead
+     * also starts a range read and gets its PartialTrackedRead from the consumer passed to TrackedRead.startLocal.
      */
     @Test
     public void testRangeFilterOnFrozenSetNoLimit()
@@ -175,8 +175,8 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
     private static final int PARTITIONS = 100;
 
     /**
-     * Under {@code '3/1'} each node witnesses one of the three primary ranges, so no one replica is full for the whole
-     * scan.
+     * Under {@code '3/1'} each node witnesses one of the three token ranges, so no node is a full replica of every
+     * range.
      */
     @Test
     public void testFullTableScanFromEveryCoordinator()
@@ -237,7 +237,7 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
         "CREATE TABLE %s.tbl (pk0 int, pk1 text, ck int, v int, w int, PRIMARY KEY ((pk0, pk1), ck)) WITH read_repair = 'NONE';" +
         "CREATE INDEX tbl_v ON %s.tbl(v) USING 'SAI'";
 
-    /** Legacy 2i, because SAI never evaluates a clustering expression against the static row. */
+    /** Legacy 2i: SAI's {@code IndexTermType.valueOf} returns null for a clustering column of a static row. */
     private static final String TABLE_WITH_INDEXED_CLUSTERING_AND_STATIC =
         "CREATE TABLE %s.tbl (pk0 int, pk1 text, ck int, s int static, v int, PRIMARY KEY ((pk0, pk1), ck)) WITH read_repair = 'NONE';" +
         "CREATE INDEX tbl_ck ON %s.tbl(ck) USING 'legacy_local_table'";
@@ -288,8 +288,8 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
         Arrays.copyOfRange(TOMBSTONED_PARTITION_BEFORE_THE_MATCH, 1, TOMBSTONED_PARTITION_BEFORE_THE_MATCH.length);
 
     /**
-     * With the default Murmur3 partitioner (1,'z') sorts before (1,'a'), so the key reconciliation flags sorts ahead of
-     * the one partition the read kept.
+     * With the default Murmur3 partitioner (1,'z'), which node 1's row filter rejects and reconciliation makes match,
+     * sorts before (1,'a').
      */
     private static final String[] INTERLEAVING_STALE_PARTITION_ON_NODE_1 =
     {
@@ -307,9 +307,8 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
     }
 
     /**
-     * The read was augmented but needs no follow up read, so it extends with empty materialized data. The expected
-     * answer is empty, which the data replica also returns on its own, so the probe asserts the divergence directly
-     * instead of using {@link #assertDataReplicaCannotAnswerAlone}.
+     * The answer is empty, which node 1 also returns on its own, so the lambda checks each node's rows instead of
+     * calling {@link #assertDataReplicaCannotAnswerAlone}.
      */
     @Test
     public void testFilteredRangeReadWhereEveryLocalPartitionIsFilteredOut()
@@ -389,8 +388,8 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
     }
 
     /**
-     * With the default Murmur3 partitioner (2,'b') sorts before (1,'a'), so the flagged key does not interleave with
-     * the kept partition and the read reached the end of its range.
+     * With the default Murmur3 partitioner (1,'a'), which node 1's row filter rejects and reconciliation makes match,
+     * sorts after (2,'b'), so only {@code FilteredCompletedRead.hasRoomForFollowUpKeys} requests its read.
      */
     @Test
     public void testUnlimitedFilteredRangeReadWhereAFlaggedKeySortsLast()
@@ -400,9 +399,9 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
     }
 
     /**
-     * {@code RowFilter.potentialMatches} counts a partition level match at the first expression the update satisfies,
-     * so (1,'b'), whose update satisfies {@code pk0 = 1} but not {@code s = 7}, is fetched in full and only the row
-     * filter keeps it out of the result.
+     * {@code RowFilter.RowFilterTransformation.potentialMatches} counts a match when an update satisfies any partition
+     * key or static column expression, so (1,'b'), whose update satisfies {@code pk0 = 1} but not {@code s = 7}, is
+     * read and only the row filter keeps it out of the result.
      */
     @Test
     public void testFilteredRangeReadWhereAFollowUpKeyDoesNotMatchTheFilter()
@@ -446,8 +445,8 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
     }
 
     /**
-     * The flagged key's row displaces the counted row, so {@code FilteredFollowupRead} must read it under the command's
-     * whole limit; a limit derived from what is left over would be zero and the partition would come back empty.
+     * The row of (1,'z') replaces the row of (1,'a') that fills {@code LIMIT 1}, so {@code FilteredFollowupRead} reads
+     * (1,'z') under the command's limit, not under the zero rows left of it.
      */
     @Test
     public void testFilteredRangeReadWhereAnInterleavingKeyDisplacesTheRowTheLimitAdmits()
@@ -458,8 +457,8 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
     }
 
     /**
-     * A flagged key read with nothing left of the page loses its row rather than deferring it, since the next page
-     * resumes past the partition the first page returned, which sorts after the flagged key.
+     * At a page size of one, reading (1,'z') with the zero rows left of the page would lose its row, since the next
+     * page starts after (1,'a'), which sorts after (1,'z').
      */
     @Test
     public void testPagedFilteredRangeReadWhereAnInterleavingKeyDisplacesTheRowOnThePage()
@@ -468,10 +467,6 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
                                    interleavingProbe(FILTER));
     }
 
-    /**
-     * The flagged key's read must drop the limits' continuation state: a grouping state names where the range read
-     * left off in another partition, and would resume that group here.
-     */
     @Test
     public void testPagedGroupByRangeReadWhereAKeyIsFlagged()
     {
@@ -621,8 +616,8 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
      * orders the two entries for the one static row as distinct, {@code CompositesSearcher} reads (1,'b') once per
      * entry, and the client receives that partition twice.
      * <p>
-     * The repeated update must reach node 1 only through reconciliation, so its mutation stays dropped until the read
-     * under test has run, which is why the filter reset is here and not in the probe.
+     * Node 1 must receive the repeated update only through reconciliation, so the filter dropping its mutation is reset
+     * after the read under test, not inside the lambda.
      */
     @Test
     public void testIndexedStaticColumnRangeReadWhereAReconciledUpdateRepeatsAStaticRow()
@@ -659,7 +654,7 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
     /**
      * A partition key column index also indexes the static row, and that entry decodes to a base clustering of nulls
      * rather than to {@code Clustering.STATIC_CLUSTERING} (see {@code CassandraIndex#createIndexEntry}). The tracked
-     * read must build it the same way: the searcher names the decoded clustering in a
+     * read must build it the same way: CompositesSearcher names the decoded clustering in a
      * {@code ClusteringIndexNamesFilter}, and the static clustering cannot be compared against clusterings that have
      * values. The filter is built inside the read's completion, where a throw sends no failure response.
      */
@@ -694,9 +689,9 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
     }
 
     /**
-     * The RTBoundCloser in ReadCommand.completeRead appends the closing bound on the pull after its counter stops, so a
-     * counter in the extending read that stopped on the same row would leave the {@code PROCESSED}
-     * {@code RTBoundValidator} with an open range tombstone, and the replica would throw instead of responding.
+     * The RTBoundCloser in ReadCommand.completeRead appends the closing range tombstone bound only when asked for more
+     * rows after the counter there stops, so ExtendingCompletedRead's counter must not stop on the same row: the
+     * {@code PROCESSED} {@code RTBoundValidator} would then see an open range tombstone and throw.
      */
     @Test
     public void testRangeReadWhosePerPartitionLimitFallsInsideARangeTombstone()

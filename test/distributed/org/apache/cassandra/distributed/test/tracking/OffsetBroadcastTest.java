@@ -102,8 +102,8 @@ public class OffsetBroadcastTest extends TestBaseImpl
             IInvokableInstance node1 = cluster.get(1);
             long mark = node1.logs().mark();
 
-            // The inbound sink runs on the stage the verb will be handled on, so a matcher blocking here holds a
-            // broadcast node1 has received but not yet handled.
+            // Inbound filters run on the verb's stage, so blocking in this filter holds the broadcast on node1's MISC
+            // thread before its handler runs.
             CountDownLatch received = new CountDownLatch(1);
             CountDownLatch keyspaceDropped = new CountDownLatch(1);
             cluster.filters().inbound().verbs(Verb.MT_BROADCAST_LOG_OFFSETS.id).from(2).to(1).messagesMatching((from, to, message) -> {
@@ -116,8 +116,8 @@ public class OffsetBroadcastTest extends TestBaseImpl
             cluster.schemaChange("DROP KEYSPACE " + KEYSPACE);
             keyspaceDropped.countDown();
 
-            // MISC is single threaded, so a task queued behind the held broadcast runs only after it has been handled
-            // and anything escaping the handler reported by its exception handler.
+            // MISC is single threaded, so when this task runs the broadcast handler has finished and any exception
+            // escaping it has been logged.
             boolean drained = node1.callOnInstance(() -> {
                 CountDownLatch handled = new CountDownLatch(1);
                 Stage.MISC.execute(handled::countDown);

@@ -538,7 +538,6 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
                 // TODO: maybe we should immediately start a follow up read if it's likely this key will be included in the response
                 if (!followUpReads.containsKey(key) && indexNewKey(update))
                 {
-                    // don't raise maxKey to this key: the keys between maxKey and it were never scanned
                     Future<FollowUpRead<Match, Searcher>> followUpRead = FollowUpRead.start(command, update.partitionKey(), consistencyLevel, requestTime);
                     followUpReads.put(key, followUpRead);
                 }
@@ -668,7 +667,7 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
      */
     private class MergingStoppingMatchIterator extends AbstractIterator<Match>
     {
-        /** The last key the local scan reached, null if it reached none. */
+        /** Largest key prepareInternal created a local read for; null if none. */
         private final DecoratedKey maxKey;
         private final PeekingIterator<Match> materializedIterator;
         private final CloseablePeekingIterator<Match> additionalIterator;
@@ -700,7 +699,6 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
                 }
                 else
                 {
-                    // nothing past maxKey was scanned, so leave this match and the rest to the follow up read
                     if (maxKey == null || additionalIterator.peek().key().compareTo(maxKey) > 0)
                     {
                         Preconditions.checkArgument(command.isRangeRequest());

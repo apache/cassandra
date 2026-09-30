@@ -52,7 +52,7 @@ public abstract class ExtendingCompletedRead implements PartialTrackedRead.Compl
 
     public ExtendingCompletedRead(ReadCommand command, boolean partitionsFetched, boolean initialIteratorExhausted)
     {
-        // onlyCount: ReadCommand.completeRead already enforces the limit. Stopping here, above its RTBoundCloser, would
+        // onlyCount: ReadCommand.completeRead already enforces the limit. Stopping here, after its RTBoundCloser, would
         // end the stream before the closing range tombstone bound is appended, and RTBoundValidator would throw.
         this.mergedResultCounter = command.limits().newCounter(command.nowInSec(),
                                                                true,
@@ -113,9 +113,9 @@ public abstract class ExtendingCompletedRead implements PartialTrackedRead.Compl
          * the total # of rows remaining - if it has some. If we don't grab enough rows in some of the partitions,
          * then future ShortReadRowsProtection.moreContents() calls will fetch the missing ones.
          *
-         * Subtract counted(), not rowsCounted(): count() limits counted(), which is groups under GROUP BY, and a
-         * GROUP BY read still short of its groups can have counted more rows than count(), giving a negative result.
-         * The result can still be non-positive when called after the counter is done.
+         * Subtract counted(), not rowsCounted(): under GROUP BY, count() and counted() are in groups, and a read that
+         * has not reached its group limit can have counted more rows than count(), giving a negative result.
+         * The result is zero or negative when called after mergedResultCounter.isDone().
          */
         return command.limits().count() != DataLimits.NO_LIMIT
                ? command.limits().count() - mergedResultCounter.counted()

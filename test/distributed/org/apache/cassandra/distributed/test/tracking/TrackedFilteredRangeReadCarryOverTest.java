@@ -26,9 +26,10 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
 /**
- * Filtered tracked range reads where a round of {@code FilteredFollowupRead} spends its budget of one row re-reading a
- * flagged key that still does not match, so only a further round finds the matching row. Node 1 coordinates and is the
- * data replica. Under Murmur3, (1,'z') sorts before (1,'a'), which sorts before (1,'j').
+ * Filtered tracked range reads where node 1, the coordinator and data replica, lacks an update to a partition it
+ * filtered out. {@code FilteredFollowupRead} re-reads it with a one-row limit, it still does not match, and only a
+ * second {@code FilteredFollowupRead} finds the matching row. Under Murmur3, (1,'z') sorts before (1,'a'), which sorts
+ * before (1,'j').
  */
 @RunWith(Parameterized.class)
 public class TrackedFilteredRangeReadCarryOverTest extends TrackedRangeReadTestBase
@@ -61,7 +62,7 @@ public class TrackedFilteredRangeReadCarryOverTest extends TrackedRangeReadTestB
         carriedOverKeyMatches("n_carried_over_key_matches", "LIMIT 1");
     }
 
-    /** With no LIMIT the answer can never be full, so the rounds stop only once no key is left to read. */
+    /** Without a LIMIT the row counter is never done, so FilteredFollowupRead reads until no partition is left. */
     @Test
     public void testPerPartitionLimitedFilteredRangeReadWhereACarriedKeyMatches()
     {
@@ -85,7 +86,7 @@ public class TrackedFilteredRangeReadCarryOverTest extends TrackedRangeReadTestB
         restOfRangeIsRead("o_rest_of_range_limit", FILTER + " LIMIT 1 ALLOW FILTERING", UNPAGED);
     }
 
-    /** An empty page is the end of the result set to the pager, so a later page would not return the row either. */
+    /** An empty page ends paging, so no later page would return (1,'j'). */
     @Test
     public void testPagedFilteredRangeReadWhereTheFlaggedKeysSpendThePageReadsTheRestOfTheRange()
     {

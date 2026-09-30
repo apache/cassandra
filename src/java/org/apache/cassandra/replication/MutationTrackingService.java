@@ -551,7 +551,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
      * gone there is nothing left to reconcile it against, and the only thing that still has to happen is for the
      * record to reach the memtable so the data is not lost.
      *
-     * @return true if the record was registered with a shard, false if no shard covers it or it was already witnessed
+     * @return true if the record was registered with a shard, false if no shard covers it or it is a duplicate
      */
     public boolean startWritingForReplay(Mutation mutation)
     {

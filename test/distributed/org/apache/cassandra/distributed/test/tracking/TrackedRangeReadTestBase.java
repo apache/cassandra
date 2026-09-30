@@ -59,7 +59,7 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
 /**
  * The cases are split across {@link TrackedRangeReadTest}, {@link TrackedLegacyIndexedRangeReadTest} and
- * {@link TrackedFilteredRangeReadCarryOverTest} because every case leaves behind two keyspaces whose tables keep a
+ * {@link TrackedFilteredRangeReadCarryOverTest} because every case leaves behind keyspaces whose tables keep a
  * memtable region and table metrics while the cluster is up, so the heap bounds how many cases one class can hold.
  */
 public abstract class TrackedRangeReadTestBase extends TestBaseImpl
@@ -106,16 +106,16 @@ public abstract class TrackedRangeReadTestBase extends TestBaseImpl
 
         closeCluster();
         /*
-         * Every case is built on replicas that disagree, so everything that could heal them before the read is off.
-         * The active reconciler's regular priority queue is paused because it runs the retry
-         * TrackedWriteResponseHandler.onFailure schedules for a mutation dropped by the ! write prefix; a tracked
-         * read's own reconciliation runs at high priority and keeps draining. The case tables set read_repair = 'NONE'
-         * so reading the oracle does not change its replicas.
+         * Each case leaves the replicas holding different data, so everything that could make them agree before the
+         * read is disabled. The active reconciler's regular priority queue is paused because a write whose target
+         * starts with '!' (see write) drops the mutation sent to one node, and TrackedWriteResponseHandler.onFailure
+         * schedules a retry of it on that queue. A tracked read's own reconciliation uses the high priority queue,
+         * which keeps running.
          */
         cluster = Cluster.build()
                          .withNodes(REPLICAS)
-                         // one token per node, so cassandra.dtest.num_tokens cannot move the range boundaries the
-                         // fixture keys checked by assertReadTogetherFromNode1 are picked against
+                         // one token per node, so cassandra.dtest.num_tokens cannot change the ranges that the keys
+                         // passed to assertReadTogetherFromNode1 were chosen for
                          .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(REPLICAS, 1))
                          .withConfig(cfg -> cfg.with(Feature.NETWORK, Feature.GOSSIP)
                                                .set("hinted_handoff_enabled", false)
@@ -150,8 +150,8 @@ public abstract class TrackedRangeReadTestBase extends TestBaseImpl
     protected static final int UNPAGED = 0;
 
     /**
-     * @param probe given the tracked keyspace and the oracle's answer, run after the writes and before the read. Its
-     *              assertions use node local executeInternal, which cannot reconcile away the state being checked.
+     * @param probe given the tracked keyspace and the untracked keyspace's rows, run before the tracked read. It
+     *              must read with node local executeInternal; a coordinated tracked read reconciles the replicas.
      */
     protected static String assertTrackedMatchesOracle(String name, String table, String[] writes, String select,
                                                        int pageSize, BiConsumer<String, Object[][]> probe)
@@ -181,9 +181,9 @@ public abstract class TrackedRangeReadTestBase extends TestBaseImpl
     }
 
     /**
-     * No target bypasses witnessing: {@code Keyspace.applyInternalTracked} journals but does not apply to the table a
-     * mutation whose token is in none of the node's full local ranges, so under {@link Mode#WITNESSES} a write sent to
-     * a node that witnesses its token is invisible to a node local read there.
+     * Every write, node local ones included, goes through {@code Keyspace.applyInternalTracked}, which does not apply
+     * to the table a mutation whose token is in none of the node's full local ranges. So under {@link Mode#WITNESSES}
+     * a node local read does not see a write to a transient replica.
      */
     private static void write(String keyspace, String[] writes)
     {
@@ -213,7 +213,7 @@ public abstract class TrackedRangeReadTestBase extends TestBaseImpl
         try
         {
             cluster.coordinator(missing == 1 ? 2 : 1).execute(cql, ConsistencyLevel.QUORUM);
-            // QUORUM can return before the mutation to `missing` arrives; removing the filter then would let it land
+            // QUORUM can return before the mutation to `missing` arrives; removing the filter then would let it through
             mutationDropped.await();
         }
         finally
@@ -357,7 +357,7 @@ public abstract class TrackedRangeReadTestBase extends TestBaseImpl
         "*:UPDATE %s.tbl USING TIMESTAMP 13 SET s = 3 WHERE pk0 = 1 AND pk1 = 'd'"
     };
 
-    /** The dropped static only partitions must not count toward the page size or LIMIT. */
+    /** (1,'b'), (1,'c') and (1,'d') must not count toward the page size or LIMIT. */
     protected static void staticOnlyPartitionsAreDropped(String name, String table, String select, int pageSize)
     {
         assertTrackedMatchesOracle(name, table, STATIC_ONLY_PARTITIONS, select, pageSize,
@@ -365,13 +365,12 @@ public abstract class TrackedRangeReadTestBase extends TestBaseImpl
     }
 
     /**
-     * A key that reconciliation delivers past the last key the scan reached must not move that point: the span between
-     * the two was never scanned.
+     * Node 1 lacks (1,'a') and gets it through reconciliation. (1,'a') sorts after the last key node 1's index scan
+     * reached, and the read must not treat the partitions between the two as read.
      * <p>
-     * With the default Murmur3 partitioner a range scan visits (1,'n'), then (1,'u'), then (1,'a'). A page size of
-     * one stops the scan after (1,'n') and leaves (1,'u') among the matches it did not get to, (1,'a') is the key
-     * reconciliation delivers, and (1,'n') is written with a value the row filter rejects so that the page's limit
-     * is still unspent when the read moves past it and reaches (1,'u').
+     * Murmur3 orders the keys (1,'n'), (1,'u'), (1,'a'); all match the index on {@code v}. With a page size of one,
+     * node 1's index scan stops after (1,'n'), leaving (1,'u') an index match it has not read. (1,'n') fails the
+     * {@code w = 1} filter, so the page is not full and the read goes on to (1,'u').
      */
     protected static void indexedRangeReadHandedAKeyPastTheScannedRange(String name, String table)
     {

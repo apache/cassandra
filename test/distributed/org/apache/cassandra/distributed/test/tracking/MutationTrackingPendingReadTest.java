@@ -317,8 +317,8 @@ public class MutationTrackingPendingReadTest
                 Mutation mutation = builder.build();
                 mutation.apply();
 
-                // augmenting with a matching mutation for an unscanned key starts a follow up read, and
-                // TrackedLocalReads marks a reconcile once that read has a controller of its own
+                // augment starts a FollowUpRead for key 2, written after beginTrackedRead; beginReadInternal marks
+                // trackedReconcile once that read has its own controller
                 long reconcilesBefore = ReadRepairMetrics.trackedReconcile.getCount();
                 read.augment(mutation);
                 awaitCondition(() -> ReadRepairMetrics.trackedReconcile.getCount() > reconcilesBefore,
@@ -327,8 +327,8 @@ public class MutationTrackingPendingReadTest
 
                 read.close();
 
-                // the follow up read's controller is either closed already or has a callback registered to close it
-                // as soon as its future completes
+                // read.close() closes the FollowUpRead only once its future succeeds, so this barrier also waits for
+                // that read to finish
                 OpOrder.Barrier barrier = cfs.readOrdering.newBarrier();
                 barrier.issue();
                 awaitCondition(barrier.getSyncPoint()::isFinished,
@@ -347,8 +347,8 @@ public class MutationTrackingPendingReadTest
     }
 
     /**
-     * The write path can land a mutation after ReadReconciliations.acceptRemoteSummary decides it is missing but before
-     * the listener for it exists; the pulled copy is then a duplicate, and the only delivery left to notify it.
+     * A mutation can be applied after ReadReconciliations.acceptRemoteSummary finds it missing but before pull
+     * registers its listener; only the rejected duplicate that pull fetches can then notify that listener.
      */
     @Test
     public void testDuplicateWriteNotifiesMutationListeners() throws Throwable
@@ -379,7 +379,6 @@ public class MutationTrackingPendingReadTest
 
                 mutation.apply();
 
-                // no listener is registered yet, so this probe notifies nobody
                 Assert.assertFalse("An already witnessed mutation was not recognized as a duplicate",
                                    MutationTrackingService.instance().startWriting(mutation));
 
@@ -407,20 +406,18 @@ public class MutationTrackingPendingReadTest
                                       .withConfig(cfg -> cfg.with(Feature.NETWORK)
                                                             .with(Feature.GOSSIP)
                                                             .set("mutation_tracking.enabled", true)
-                                                            // would land both mutations on node 1 before the read
-                                                            // computes a summary, and its pulls use the held verb
+                                                            // background pulls from node 1 use MT_PULL_MUTATIONS_REQ,
+                                                            // which the filter below counts and holds
                                                             .set("mutation_tracking.background_reconciliation_enabled", false)
                                                             .set("hinted_handoff_enabled", false)
-                                                            // the read is parked mid reconciliation, and an
-                                                            // IncomingMutations listener lives for the write rpc
-                                                            // timeout
+                                                            // the read blocks during delivery; IncomingMutations
+                                                            // listeners expire after write_request_timeout
                                                             .set("read_request_timeout", "10000ms")
                                                             .set("write_request_timeout", "10000ms"))
                                       .start())
         {
-            // MutationTrackingService.retryFailedWrite would repair node 1; it schedules at Priority.REGULAR and is not
-            // gated by background_reconciliation_enabled. HIGH, used by the read's pull and the delivery below, still
-            // drains
+            // MutationTrackingService.retryFailedWrite would deliver the dropped writes to node 1 at Priority.REGULAR
+            // even with background_reconciliation_enabled false; the read's pulls and the requests below use HIGH
             cluster.forEach(() -> MutationTrackingService.instance().pauseActiveReconcilerRegularPriority());
 
             String keyspaceName = "duplicate_pull_notification_test";
@@ -495,8 +492,8 @@ public class MutationTrackingPendingReadTest
 
                 try
                 {
-                    // The call PullMutationsRequest's verb handler makes. The failed write retry is not used because it
-                    // waits for the write rpc timeout, which is also how long an IncomingMutations listener lives.
+                    // Deliver to node 1 as PullMutationsRequest's verb handler does. Not retryFailedWrite: it waits for
+                    // write_request_timeout, which is also how long an IncomingMutations listener lives.
                     for (int node : new int[]{ 2, 3 })
                         cluster.get(node).runOnInstance(() -> {
                             ClusterMetadata metadata = ClusterMetadata.current();
@@ -545,8 +542,8 @@ public class MutationTrackingPendingReadTest
                 assertRows(result, row(1, 1, 1), row(1, 2, 2));
 
                 Assert.assertEquals("Expected one pull request per coordinator log", 2, pullRequests.get());
-                // two summary replicas would let a second acceptRemoteSummary call register the second log's listener
-                // before the copies landed, and no duplicate would have to notify anything
+                // a second summary replica's acceptRemoteSummary call could register the second log's listener before
+                // nodes 2 and 3 deliver its mutation, so no duplicate would notify it
                 Assert.assertEquals("Expected exactly one summary replica", 1, summaryRequests.get());
             }
             finally
@@ -912,9 +909,9 @@ public class MutationTrackingPendingReadTest
     }
 
     /**
-     * A tracked range read materializes its initial data in PartialTrackedRangeRead.create, before beginTrackedRead has
-     * returned the read to beginReadInternal. A failure there reaches beginReadInternal's abort with no read to close,
-     * so the abort closes the controller itself, and the read must not have closed it as well.
+     * PartialTrackedRangeRead.create reads the initial data before beginTrackedRead returns the read to
+     * beginReadInternal. A failure there reaches beginReadInternal's abort with no read to close, so the abort closes
+     * the controller itself, and create must not close it as well.
      */
     @Test
     public void testReadFailingOnACorruptSSTableReleasesItsExecutionControllerOnce() throws Throwable

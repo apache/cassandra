@@ -59,8 +59,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Nothing keeps two chunks of a {@link TrackedDataResponse} from carrying rows for the same partition, so
- * {@link TrackedDataResponse#makeIteratorUnlimited} has to reconcile them.
+ * {@link TrackedDataResponse#merge} keeps each response's serialized data separate, so
+ * {@link TrackedDataResponse#makeIteratorUnlimited} has to merge rows of the same partition.
  */
 public class TrackedDataResponseTest extends AbstractReadResponseTest
 {
@@ -70,7 +70,7 @@ public class TrackedDataResponseTest extends AbstractReadResponseTest
     private static ColumnFamilyStore cfsStatic;
     private static TableMetadata cfmStatic;
 
-    /** Marks the cluster metadata again afterwards so that the reset every test does keeps this keyspace. */
+    /** Calls markCMS last so that resetCMS in AbstractReadResponseTest#setUp keeps this keyspace. */
     @BeforeClass
     public static void setupStaticTable()
     {
