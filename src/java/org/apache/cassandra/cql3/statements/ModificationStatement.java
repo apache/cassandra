@@ -1025,34 +1025,34 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         for (int i = 0, size = writeFragments.size() ; i < size ; i++)
         {
             TxnWrite.Fragment writeFragment = writeFragments.get(i);
-            DecoratedKey key = writeFragment.key.partitionKey();
+            PartitionKey key = writeFragment.key;
             for (Row row : writeFragment.baseUpdate)
                 map.merge(new RowKey(key, row.clustering()), param, merge);
         }
     }
 
-    public <V> void forEachPartitionKey(List<TxnWrite.Fragment> writeFragments, Map<? super DecoratedKey, V> map, V param, BiFunction<V, V, V> mergeFunction)
+    public <V> void forEachPartitionKey(List<TxnWrite.Fragment> writeFragments, Map<? super PartitionKey, V> map, V param, BiFunction<V, V, V> mergeFunction)
     {
         for (int i = 0, size = writeFragments.size(); i < size; i++)
         {
             TxnWrite.Fragment writeFragment = writeFragments.get(i);
-            DecoratedKey key = writeFragment.key.partitionKey();
+            PartitionKey key = writeFragment.key;
             map.merge(key, param, mergeFunction);
         }
     }
 
     public static class RowKey
     {
-        public final DecoratedKey key;
+        public final PartitionKey key;
         public final Clustering<?> clustering;
 
-        public RowKey(DecoratedKey key, Clustering<?> clustering)
+        public RowKey(PartitionKey key, Clustering<?> clustering)
         {
             this.key = key;
             this.clustering = clustering;
         }
 
-        public DecoratedKey partitionKey()
+        public PartitionKey partitionKey()
         {
             return key;
         }

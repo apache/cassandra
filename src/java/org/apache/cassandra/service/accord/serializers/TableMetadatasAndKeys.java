@@ -75,7 +75,7 @@ public class TableMetadatasAndKeys extends IVersionedWithKeysSerializer.Abstract
             if (count == 1)
             {
                 PartitionKey one = (PartitionKey) buffer;
-                if (one.prefix() == table && one.partitionKey().equals(key))
+                if (one.prefix() == tableId && one.partitionKey().equals(key))
                     return one;
             }
             return collect(new PartitionKey(tableId, key));

@@ -53,7 +53,6 @@ import accord.topology.Topologies;
 import accord.topology.TopologyException;
 
 import org.apache.cassandra.config.Config.PaxosVariant;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -257,6 +256,38 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                 assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
                 assertEquals(TransactionStatement.DUPLICATE_KEYS_IN_SAME_TRANSACTION_MESSAGE, t.getMessage());
             }
+        });
+    }
+
+    @Test
+    public void testAcceptTransactionWithUpdatesToSamePrimaryKeySameColumnsToDifferentTables() throws Exception
+    {
+        List<String> ddls = Arrays.asList("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, primary key (k, c)) WITH " + transactionalMode.asCqlParam(),
+                                          "CREATE TABLE " + qualifiedAccordTableName + "01 (k int, c int, v int, primary key (k, c)) WITH " + transactionalMode.asCqlParam());
+
+        test(ddls, cluster -> {
+            String txn = "BEGIN TRANSACTION\n" +
+                         "  UPDATE " + qualifiedAccordTableName + " SET v = 2 WHERE k = 1 AND c = 1;\n" +
+                         "  UPDATE " + qualifiedAccordTableName + "01 SET v = 10 WHERE k = 1 AND c = 1;\n" +
+                         "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
+        });
+    }
+
+    @Test
+    public void testAcceptTransactionWithUpdatesToSameStaticColumnToDifferentTables() throws Exception
+    {
+        List<String> ddls = Arrays.asList("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, s int static, v int, primary key (k, c)) WITH " + transactionalMode.asCqlParam(),
+                                          "CREATE TABLE " + qualifiedAccordTableName + "01 (k int, c int, s int static, v int, primary key (k, c)) WITH " + transactionalMode.asCqlParam());
+
+        test(ddls, cluster -> {
+            String txn = "BEGIN TRANSACTION\n" +
+                         "  UPDATE " + qualifiedAccordTableName + " SET s = 2 WHERE k = 1;\n" +
+                         "  UPDATE " + qualifiedAccordTableName + "01 SET s = 10 WHERE k = 1;\n" +
+                         "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
         });
     }
 
@@ -480,11 +511,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     @Test
     public void testSinglePartitionKeyBatchWrittenToBatchLog() throws Throwable
     {
-        String KEYSPACE = "ks" + System.currentTimeMillis();
-        DatabaseDescriptor.daemonInitialization();
-        List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
-                                          "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}",
-                                          "CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH " + transactionalMode.asCqlParam(),
+        List<String> ddls = Arrays.asList("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH " + transactionalMode.asCqlParam(),
                                           "CREATE TABLE " + qualifiedRegularTableName + " (k int PRIMARY KEY, v int)");
 
         test(ddls, cluster -> {
