@@ -24,6 +24,8 @@ import org.apache.cassandra.db.rows.Cell;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 public class DeletionTimeTest
@@ -107,5 +109,23 @@ public class DeletionTimeTest
         assertFalse(at100.deletesCellAt(101L));
         assertTrue("a real deletion shadows a NO_TIMESTAMP cell, as the unguarded form does",
                    at100.deletesCellAt(LivenessInfo.NO_TIMESTAMP));
+    }
+
+    @Test
+    public void retainableSurvivesReset()
+    {
+        DeletionTime.ReusableDeletionTime reusable = DeletionTime.ReusableDeletionTime.live();
+        reusable.reset(123456789L, 1_700_000_000L);
+        DeletionTime retained = reusable.retainable();
+        assertNotSame(reusable, retained);
+
+        reusable.reset(1L, 2L);
+        assertEquals(DeletionTime.build(123456789L, 1_700_000_000L), retained);
+
+        reusable.resetLive();
+        assertSame(DeletionTime.LIVE, reusable.retainable());
+
+        DeletionTime immutable = DeletionTime.build(5L, 6L);
+        assertSame(immutable, immutable.retainable());
     }
 }

@@ -113,6 +113,12 @@ public abstract class DeletionTime implements Comparable<DeletionTime>, IMeasura
         return markedForDeleteAt == Long.MIN_VALUE && localDeletionTimeUnsignedInteger == Cell.NO_DELETION_TIME_UNSIGNED_INTEGER;
     }
 
+    /** Returns a form that is safe to keep after this deletion time is reused. */
+    public DeletionTime retainable()
+    {
+        return this;
+    }
+
     public void digest(Digest digest)
     {
         // localDeletionTime is basically a metadata of the deletion time that tells us when it's ok to purge it.
@@ -483,6 +489,12 @@ public abstract class DeletionTime implements Comparable<DeletionTime>, IMeasura
         public boolean validate()
         {
             return localDeletionTimeUnsignedInteger == LOCAL_DELETION_TIME_LIVE || CassandraUInt.compare(Cell.MAX_DELETION_TIME_UNSIGNED_INTEGER, localDeletionTimeUnsignedInteger) >= 0;
+        }
+
+        @Override
+        public DeletionTime retainable()
+        {
+            return isLive() ? LIVE : build(markedForDeleteAt(), localDeletionTime());
         }
 
         public static ReusableDeletionTime copy(DeletionTime original)
