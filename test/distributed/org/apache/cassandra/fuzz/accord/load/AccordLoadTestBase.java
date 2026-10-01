@@ -99,6 +99,7 @@ import org.apache.cassandra.service.accord.debug.AccordTracing;
 import org.apache.cassandra.service.accord.debug.AccordTracing.Message;
 import org.apache.cassandra.service.accord.debug.CoordinationKinds;
 import org.apache.cassandra.service.accord.debug.TxnKindsAndDomains;
+import org.apache.cassandra.service.accord.execution.CacheWedgeReport;
 import org.apache.cassandra.tcm.CMSOperations;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Clock;
@@ -1149,10 +1150,61 @@ public class AccordLoadTestBase extends AccordTestBase
     private static final int STALL_REPORT_MAX_DURABILITY_ROWS = 5;
     private static final int STALL_REPORT_MAX_LOG_LINES = 20;
     private static final int STALL_REPORT_MAX_THREAD_STACKS = 25;
+    private static final long STALL_REPORT_WEDGE_MIN_AGE_NANOS = TimeUnit.SECONDS.toNanos(60);
+    private static final int STALL_REPORT_MAX_WEDGED_TASKS = 3;
+    private static final int STALL_REPORT_MAX_BLOCKED_THREADS = 15;
+
+    /**
+     * JVM-wide (all in-JVM instances share one JVM): monitor/ownable-synchronizer deadlocks, plus every thread that is
+     * BLOCKED or parked on a lock another thread owns, with the owner. In the message rather than the suppressed
+     * stacks, as only the message is reliably rendered by CI. Note it cannot see accord's own waits (cache entry
+     * queues, ExclusiveExecutor's park/unpark handoff) - those are covered per node by {@link CacheWedgeReport}.
+     */
+    private static String jvmLockReport()
+    {
+        try
+        {
+            java.lang.management.ThreadMXBean mx = java.lang.management.ManagementFactory.getThreadMXBean();
+            StringBuilder sb = new StringBuilder("jvm locks:");
+            long[] deadlocked = mx.findDeadlockedThreads();
+            if (deadlocked == null) sb.append(" no deadlocked threads");
+            else
+            {
+                sb.append(" DEADLOCK among ").append(deadlocked.length).append(" threads:");
+                for (java.lang.management.ThreadInfo info : mx.getThreadInfo(deadlocked, true, true))
+                    if (info != null) sb.append("\n  ").append(info.toString().trim().replace("\n", "\n    "));
+            }
+
+            Map<Thread.State, Integer> states = new java.util.EnumMap<>(Thread.State.class);
+            int listed = 0, contended = 0;
+            StringBuilder blocked = new StringBuilder();
+            for (java.lang.management.ThreadInfo info : mx.dumpAllThreads(true, true))
+            {
+                states.merge(info.getThreadState(), 1, Integer::sum);
+                if (info.getLockOwnerName() == null)
+                    continue;
+                ++contended;
+                if (++listed > STALL_REPORT_MAX_BLOCKED_THREADS)
+                    continue;
+                StackTraceElement[] stack = info.getStackTrace();
+                blocked.append("\n  ").append(info.getThreadName()).append(' ').append(info.getThreadState())
+                       .append(" on ").append(info.getLockName()).append(" held by ").append(info.getLockOwnerName())
+                       .append(" at ").append(stack.length == 0 ? "?" : stack[0]);
+            }
+            sb.append("; thread states ").append(states).append("; ").append(contended).append(" waiting on an owned lock").append(blocked);
+            return sb.append('\n').toString();
+        }
+        catch (Throwable t)
+        {
+            return "jvm locks: <failed: " + t + ">\n";
+        }
+    }
 
     private static AssertionError chaosStalled(String message, Cluster cluster, ChaosActive chaos, List<String> history)
     {
-        AssertionError failure = new AssertionError(message + '\n' + stallReport(cluster, chaos, history));
+        // capture JVM lock state first: it is the cheapest, and the per-node report below takes executor locks
+        String jvmLocks = jvmLockReport();
+        AssertionError failure = new AssertionError(message + '\n' + jvmLocks + stallReport(cluster, chaos, history));
         for (Throwable stack : stuckThreadStacks())
             failure.addSuppressed(stack);
         return failure;
@@ -1174,6 +1226,7 @@ public class AccordLoadTestBase extends AccordTestBase
             ch.qos.logback.core.read.CyclicBufferAppender<ch.qos.logback.classic.spi.ILoggingEvent> ring =
             (ch.qos.logback.core.read.CyclicBufferAppender<ch.qos.logback.classic.spi.ILoggingEvent>) appender;
             List<String> selected = new ArrayList<>();
+            long nowMillis = System.currentTimeMillis();
             for (int i = 0, length = ring.getLength(); i < length ; ++i)
             {
                 ch.qos.logback.classic.spi.ILoggingEvent event = ring.get(i);
@@ -1184,7 +1237,18 @@ public class AccordLoadTestBase extends AccordTestBase
                 if (!event.getLevel().isGreaterOrEqual(ch.qos.logback.classic.Level.WARN)
                     && !name.startsWith("accord.") && !name.startsWith("org.apache.cassandra.service.accord"))
                     continue;
-                selected.add("\n    " + event.getLevel() + ' ' + name.substring(name.lastIndexOf('.') + 1) + " - " + event.getFormattedMessage());
+                // age, so we can tell a line from the stall from one emitted minutes before it; and the throwable,
+                // since AccordAgent.handleException logs expected exceptions with an empty format string
+                StringBuilder line = new StringBuilder("\n    -").append((nowMillis - event.getTimeStamp()) / 1000).append("s ")
+                                     .append(event.getLevel()).append(' ').append(name.substring(name.lastIndexOf('.') + 1))
+                                     .append(" - ").append(event.getFormattedMessage());
+                for (ch.qos.logback.classic.spi.IThrowableProxy t = event.getThrowableProxy() ; t != null && line.length() < 600 ; t = t.getCause())
+                {
+                    line.append(" | ").append(t.getClassName()).append(": ").append(t.getMessage());
+                    ch.qos.logback.classic.spi.StackTraceElementProxy[] frames = t.getStackTraceElementProxyArray();
+                    if (frames != null && frames.length > 0) line.append(" @ ").append(frames[0].getStackTraceElement());
+                }
+                selected.add(line.toString());
             }
             StringBuilder sb = new StringBuilder(" ").append(selected.size()).append(" interesting of ").append(ring.getLength()).append(" buffered");
             for (String line : selected.subList(Math.max(0, selected.size() - STALL_REPORT_MAX_LOG_LINES), selected.size()))
@@ -1294,6 +1358,12 @@ public class AccordLoadTestBase extends AccordTestBase
                               .append(" requestedBy=").append(view.requestedBy());
                 }
                 sb.append("\n  durability: ").append(durabilityRows).append(" range(s) retrying/requested").append(durability);
+
+                // a stall with every executor thread idle is invisible to a thread dump: tasks wait on cache entries,
+                // not on monitors. Look for wait cycles / mis-counted waiters among the tasks queued on, or holding,
+                // any cache entry, and list the oldest such tasks - one queued on an entry for a minute is a wedge
+                // whether or not it closes a cycle.
+                sb.append("\n  cache wedges:").append(CacheWedgeReport.describe(node, STALL_REPORT_WEDGE_MIN_AGE_NANOS, STALL_REPORT_MAX_WEDGED_TASKS));
 
                 // finally this node's own log tail: CI discards the log file, and the lines that explain a stall
                 // ("insufficient to satisfy NoLocal/MinorityQuorumAndWaitedForAll requested by Bootstrap ...") are
