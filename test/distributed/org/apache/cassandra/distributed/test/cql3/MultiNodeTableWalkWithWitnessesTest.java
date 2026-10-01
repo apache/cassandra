@@ -35,7 +35,7 @@ public class MultiNodeTableWalkWithWitnessesTest extends MultiNodeTableWalkWithM
         c.set("transient_replication_enabled", "true");
     }
 
-    protected class WitnessState extends MultiNodeTableWalkBase.MultiNodeState
+    protected class WitnessState extends MutationTrackingState
     {
         public WitnessState(RandomSource rs, Cluster cluster)
         {
