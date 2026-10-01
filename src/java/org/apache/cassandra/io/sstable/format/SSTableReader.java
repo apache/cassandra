@@ -923,6 +923,17 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                                                               boolean updateStats,
                                                               SSTableReadsListener listener);
 
+    /**
+     * Retrieves the index entry for a key, with stats and cache updates on and no read listener.
+     *
+     * @return The index entry corresponding to the key, or null if the key is not present
+     */
+    @VisibleForTesting
+    public AbstractRowIndexEntry getRowIndexEntry(PartitionPosition key, Operator op)
+    {
+        return getRowIndexEntry(key, op, true, SSTableReadsListener.NOOP_LISTENER);
+    }
+
     public UnfilteredRowIterator simpleIterator(FileDataInput file, DecoratedKey key, long dataPosition, boolean tombstoneOnly)
     {
         return SSTableIdentityIterator.create(this, file, dataPosition, key, tombstoneOnly);
