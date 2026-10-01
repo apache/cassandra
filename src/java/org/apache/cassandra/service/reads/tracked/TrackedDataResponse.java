@@ -135,7 +135,7 @@ public class TrackedDataResponse implements IReadResponse
         List<PartitionIterator> iterators = new ArrayList<>(data.size());
         for (int i = 0; i < data.size(); i++)
             iterators.add(makeIterator(versions[i], data.get(i), command));
-        return PartitionIterators.merge(iterators);
+        return PartitionIterators.mergeNonOverlapping(iterators);
     }
 
     public PartitionIterator makeIterator(ReadCommand command)

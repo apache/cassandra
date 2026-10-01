@@ -19,7 +19,6 @@ package org.apache.cassandra.db.partitions;
 
 import java.io.IOError;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
@@ -124,32 +123,35 @@ public abstract class PartitionIterators
     }
 
     /**
-     * Merges partition iterators, combining a partition found in several inputs with {@link RowIterators#merge},
-     * which can return deleted or non-matching rows; see its TODO.
+     * Merges multiple partition iterators with the requirement that there are no keys in common between any
+     * of the iterators
      */
-    public static PartitionIterator merge(List<PartitionIterator> iterators)
+    public static PartitionIterator mergeNonOverlapping(List<PartitionIterator> iterators)
     {
         MergeIterator.Reducer<RowIterator, RowIterator> reducer = new MergeIterator.Reducer<>()
         {
-            final List<RowIterator> current = new ArrayList<>(iterators.size());
+            RowIterator current;
 
             @Override
             protected void onKeyChange()
             {
-                current.clear();
+                current = null;
             }
 
             @Override
             public void reduce(int idx, RowIterator partition)
             {
-                current.add(partition);
+                if (current != null)
+                {
+                    throw new IllegalStateException("Multiple partitions received for " + current.partitionKey());
+                }
+                current = partition;
             }
 
             @Override
             protected RowIterator getReduced()
             {
-                // copied: RowIterators.merge keeps this list for close(), and onKeyChange() clears it
-                return current.size() == 1 ? current.get(0) : RowIterators.merge(new ArrayList<>(current));
+                return current;
             }
         };
 
@@ -161,12 +163,6 @@ public abstract class PartitionIterators
             protected RowIterator computeNext()
             {
                 return mergeIterator.hasNext() ? mergeIterator.next() : endOfData();
-            }
-
-            @Override
-            public void close()
-            {
-                mergeIterator.close();
             }
         };
     }
