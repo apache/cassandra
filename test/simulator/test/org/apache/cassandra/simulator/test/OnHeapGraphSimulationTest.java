@@ -249,7 +249,8 @@ public class OnHeapGraphSimulationTest extends SimulationTestBase
             null
         );
         // Use a JDK proxy — Mockito cannot operate inside the InstanceClassLoader.
-        // OnHeapGraph only checks memtable != null and calls getClass().getSimpleName() + hashCode().
+        // OnHeapGraph checks memtable != null, calls getClass().getSimpleName() + hashCode(), and calls
+        // limitsConcurrentWritesTo() to see if the memtable limits its own concurrent inserts.
         Memtable memtable = (Memtable) java.lang.reflect.Proxy.newProxyInstance(
             Memtable.class.getClassLoader(),
             new Class<?>[]{ Memtable.class },
@@ -257,6 +258,7 @@ public class OnHeapGraphSimulationTest extends SimulationTestBase
                 if ("hashCode".equals(method.getName())) return System.identityHashCode(proxy);
                 if ("toString".equals(method.getName())) return "SimulatedMemtable";
                 if ("equals".equals(method.getName())) return proxy == args[0];
+                if ("limitsConcurrentWritesTo".equals(method.getName())) return false;
                 return null;
             }
         );
