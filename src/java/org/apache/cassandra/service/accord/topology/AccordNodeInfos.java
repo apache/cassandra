@@ -115,13 +115,23 @@ public class AccordNodeInfos implements MetadataValue<AccordNodeInfos>
         };
     }
 
+    public enum Ready
+    {
+        READY,
+        DEGRADED,
+        UNREADABLE,
+        UNABLE_TO_CALCULATE_DEPS,
+        ;
+
+        static final Ready[] VALUES = values();
+    }
+
     public static class AccordNodeInfo
     {
         static final long STATUS_MASK = 0xf;
-        static final long STALE_BIT = 0x10;
-        static final long UNREADABLE_BIT = 0x20;
-        static final long UNABLE_TO_CALCULATE_DEPS_BIT = 0x40;
-        static final long DEGRADED_BIT = 0x80;
+        static final int READY_SHIFT = 4;
+        static final long READY_SHIFTED_MASK = 0x30;
+        static final long STALE_BIT = 0x40;
 
         final long encodedStatus;
 
@@ -171,19 +181,29 @@ public class AccordNodeInfos implements MetadataValue<AccordNodeInfos>
             return 0 != (encodedStatus & STALE_BIT);
         }
 
+        public boolean is(Ready ready)
+        {
+            return (encodedStatus & READY_SHIFTED_MASK) == (ready.ordinal() << READY_SHIFT);
+        }
+
+        public int compareTo(Ready ready)
+        {
+            return (int) ((encodedStatus & READY_SHIFTED_MASK) >>> READY_SHIFT) - ready.ordinal();
+        }
+
         public boolean isUnreadable()
         {
-            return 0 != (encodedStatus & UNREADABLE_BIT);
+            return compareTo(Ready.UNREADABLE) >= 0;
         }
 
         public boolean isUnableToCalculateDeps()
         {
-            return 0 != (encodedStatus & UNABLE_TO_CALCULATE_DEPS_BIT);
+            return is(Ready.UNABLE_TO_CALCULATE_DEPS);
         }
 
         public boolean isDegraded()
         {
-            return 0 != (encodedStatus & DEGRADED_BIT);
+            return compareTo(Ready.DEGRADED) >= 0;
         }
 
         static long withStatus(long encodedStatus, Status newStatus)
@@ -212,9 +232,9 @@ public class AccordNodeInfos implements MetadataValue<AccordNodeInfos>
                 return new Delta(STALE_BIT, isStale ? STALE_BIT : 0);
             }
 
-            public static Delta unreadable(boolean isUnreadable)
+            public static Delta ready(Ready ready)
             {
-                return new Delta(UNREADABLE_BIT, isUnreadable ? UNREADABLE_BIT : 0);
+                return new Delta(READY_SHIFTED_MASK, ready.ordinal() << READY_SHIFT);
             }
 
             public @Nullable Status status()
@@ -222,9 +242,9 @@ public class AccordNodeInfos implements MetadataValue<AccordNodeInfos>
                 return 0 == (mask & STATUS_MASK) ? null : Status.status((int) (value & STATUS_MASK));
             }
 
-            public @Nullable Boolean unreadable()
+            public @Nullable Ready ready()
             {
-                return 0 == (mask & UNREADABLE_BIT) ? null : 0 != (value & UNREADABLE_BIT);
+                return 0 == (mask & READY_SHIFTED_MASK) ? null : Ready.VALUES[(int) ((value & READY_SHIFTED_MASK) >>> READY_SHIFT)];
             }
 
             public boolean isEmpty()
@@ -268,12 +288,12 @@ public class AccordNodeInfos implements MetadataValue<AccordNodeInfos>
             {
                 StringBuilder sb = new StringBuilder("{");
                 if (0 != (mask & STATUS_MASK))
-                    sb.append("status=").append(Status.status((int) (value & STATUS_MASK)));
+                    sb.append("status=").append(status());
                 if (0 != (mask & STALE_BIT))
                     sb.append(sb.length() > 1 ? ", " : "").append("stale=").append(0 != (value & STALE_BIT));
-                if (0 != (mask & UNREADABLE_BIT))
-                    sb.append(sb.length() > 1 ? ", " : "").append("unreadable=").append(0 != (value & UNREADABLE_BIT));
-                long unknown = mask & ~(STATUS_MASK | STALE_BIT | UNREADABLE_BIT);
+                if (0 != (mask & READY_SHIFTED_MASK))
+                    sb.append(sb.length() > 1 ? ", " : "").append("ready=").append(ready());
+                long unknown = mask & ~(STATUS_MASK | STALE_BIT | READY_SHIFTED_MASK);
                 if (unknown != 0)
                     sb.append(sb.length() > 1 ? ", " : "").append("unknownBits=").append(Long.toBinaryString(value & unknown));
                 return sb.append('}').toString();
@@ -377,9 +397,9 @@ public class AccordNodeInfos implements MetadataValue<AccordNodeInfos>
             return withEncodedStatus((encodedStatus & ~STALE_BIT) | (isStale ? STALE_BIT : 0));
         }
 
-        StampedNodeInfo withUnreadable(boolean isUnreadable)
+        StampedNodeInfo with(Ready ready)
         {
-            return withEncodedStatus((encodedStatus & ~UNREADABLE_BIT) | (isUnreadable ? UNREADABLE_BIT : 0));
+            return withEncodedStatus((encodedStatus & ~READY_SHIFTED_MASK) | (ready.ordinal() << READY_SHIFT));
         }
 
         @Override

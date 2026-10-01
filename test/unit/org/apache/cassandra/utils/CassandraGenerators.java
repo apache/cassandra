@@ -1918,6 +1918,7 @@ public final class CassandraGenerators
                                                                AccordNodeInfos.Status.HARD_REMOVED);
         Gen<List<Node.Id>> nodesGen = Generators.uniqueList(accordNodeId(), SourceDSL.integers().between(0, 10));
         Gen<AccordNodeInfos.Status> statusGen = SourceDSL.arbitrary().pick(assignable);
+        Gen<AccordNodeInfos.Ready> readyGen = SourceDSL.arbitrary().pick(AccordNodeInfos.Ready.values());
         Gen<Boolean> flagGen = SourceDSL.arbitrary().pick(true, false);
         Gen<Long> updateTimeMillis = TIMESTAMP_NANOS.map(TimeUnit.NANOSECONDS::toMillis);
         return rnd -> {
@@ -1926,7 +1927,7 @@ public final class CassandraGenerators
             {
                 AccordNodeInfo.Delta delta = AccordNodeInfo.Delta.status(statusGen.generate(rnd))
                                                                  .combine(AccordNodeInfo.Delta.stale(flagGen.generate(rnd)))
-                                                                 .combine(AccordNodeInfo.Delta.unreadable(flagGen.generate(rnd)));
+                                                                 .combine(AccordNodeInfo.Delta.ready(readyGen.generate(rnd)));
                 accum = accum.withNodeInfo(node, delta, updateTimeMillis.generate(rnd));
             }
             return accum;

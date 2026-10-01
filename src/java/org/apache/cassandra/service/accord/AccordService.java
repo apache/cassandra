@@ -145,6 +145,7 @@ import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.topology.AccordEndpointInfos;
 import org.apache.cassandra.service.accord.topology.AccordEndpointMap;
 import org.apache.cassandra.service.accord.topology.AccordNodeInfoCoordinator;
+import org.apache.cassandra.service.accord.topology.AccordNodeInfos;
 import org.apache.cassandra.service.accord.topology.AccordSyncPropagator;
 import org.apache.cassandra.service.accord.topology.AccordSyncPropagator.Notification;
 import org.apache.cassandra.service.accord.topology.AccordTopology;
@@ -211,6 +212,9 @@ import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.DRAIN;
 import static org.apache.cassandra.db.SystemKeyspace.BootstrapState.COMPLETED;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadBookkeeping;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteBookkeeping;
+import static org.apache.cassandra.service.accord.topology.AccordNodeInfos.Ready.READY;
+import static org.apache.cassandra.service.accord.topology.AccordNodeInfos.Ready.UNABLE_TO_CALCULATE_DEPS;
+import static org.apache.cassandra.service.accord.topology.AccordNodeInfos.Ready.UNREADABLE;
 import static org.apache.cassandra.service.accord.topology.AccordTopology.tcmIdToAccord;
 import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.getTableMetadata;
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.GOSSIP;
@@ -764,8 +768,8 @@ public class AccordService implements IAccordService, Shutdownable
 
             // Once each store is processing some requests, we can advertise ourselves as up but UNREADABLE
             getBlocking(ready.notRefusing());
-            logger.info("Rebootstrap: Declare to peers that Accord node is UP but UNREADABLE");
-            nodeStatusCoordinator.declareStartedAndUnableToCalculateDeps();
+            logger.info("Rebootstrap: Declare to peers that Accord node is UP but UNABLE_TO_CALCULATE_DEPS");
+            nodeStatusCoordinator.declareStarted(UNABLE_TO_CALCULATE_DEPS);
 
             getBlocking(ready.coordinate());
             logger.info("Rebootstrap: Coordination state has been successfully fetched from peers; now participating in quorum decisions");
@@ -778,10 +782,10 @@ public class AccordService implements IAccordService, Shutdownable
             instance = requestInstance = this;
         }
 
-        nodeStatusCoordinator.declareStartedAndUnreadable();
+        nodeStatusCoordinator.declareStarted(UNREADABLE);
         // trigger catchup only after our progress mechanisms are initialised
         catchup();
-        nodeStatusCoordinator.declareReady();
+        nodeStatusCoordinator.declareStarted(READY);
     }
 
     void catchup()
@@ -1460,7 +1464,7 @@ public class AccordService implements IAccordService, Shutdownable
     public AsyncResult<Void> rebootstrap(BootstrapReason reason, @Nullable Ranges ranges, boolean declareUnreadable)
     {
         if (declareUnreadable)
-            nodeStatusCoordinator.declareStartedAndUnreadable();
+            nodeStatusCoordinator.declareStarted(UNREADABLE);
 
         EpochReady ready = node.commandStores().rebootstrap(node, ranges, reason);
         // a reason that refuses requests is not finished until it stops refusing them, which is what
@@ -1468,7 +1472,7 @@ public class AccordService implements IAccordService, Shutdownable
         // on a much longer schedule, so waiting for it here would hold up startup long after the catchup is done
         AsyncResult<Void> done = reason == CATCHUP || reason == BootstrapReason.GAIN_OWNERSHIP ? ready.reads() : ready.coordinateAndReads();
         if (declareUnreadable)
-            done.invokeIfSuccess(() -> nodeStatusCoordinator.declareReady());
+            done.invokeIfSuccess(() -> nodeStatusCoordinator.declareStarted(READY));
         return done;
     }
 

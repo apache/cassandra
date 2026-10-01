@@ -35,6 +35,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.service.accord.topology.AccordNodeInfos;
 import org.apache.cassandra.service.accord.topology.AccordNodeInfos.AccordNodeInfo.Delta;
+import org.apache.cassandra.service.accord.topology.AccordNodeInfos.Ready;
 import org.apache.cassandra.service.accord.topology.AccordNodeInfos.StampedNodeInfo;
 import org.apache.cassandra.service.accord.topology.AccordNodeInfos.Status;
 import org.apache.cassandra.tcm.Epoch;
@@ -65,6 +66,7 @@ public class AccordNodeInfosTest
             Gen<Set<Node.Id>> nodesGen = Gens.lists(AccordGens.nodes()).unique().ofSizeBetween(0, 9).map(l -> new HashSet<>(l));
             Gen<Epoch> epochGen = AccordGens.epochs().map(Epoch::create);
             Gen<Status> statusGen = Gens.pick(Status.NORMAL, Status.SHUTDOWN, Status.MAYBE_DOWN, Status.REMOVED, Status.HARD_REMOVED);
+            Gen<Ready> readyGen = Gens.pick(Ready.values());
 
             qt().check(rs -> {
                 Epoch epoch = epochGen.next(rs);
@@ -72,7 +74,7 @@ public class AccordNodeInfosTest
                 for (Node.Id node : nodesGen.next(rs))
                 {
                     Delta delta = Delta.status(statusGen.next(rs))
-                                       .combine(Delta.unreadable(rs.nextBoolean()))
+                                       .combine(Delta.ready(readyGen.next(rs)))
                                        .combine(Delta.stale(rs.nextBoolean()));
                     infos = infos.withNodeInfo(node, delta, 1 + rs.nextLong(0, 1000));
                 }
@@ -87,9 +89,10 @@ public class AccordNodeInfosTest
         try (DataOutputBuffer buffer = new DataOutputBuffer())
         {
             Gen<Status> statusGen = Gens.pick(Status.values());
+            Gen<Ready> readyGen = Gens.pick(Ready.values());
             qt().check(rs -> {
                 Delta delta = Delta.status(statusGen.next(rs))
-                                   .combine(Delta.unreadable(rs.nextBoolean()))
+                                   .combine(Delta.ready(readyGen.next(rs)))
                                    .combine(Delta.stale(rs.nextBoolean()));
                 AsymmetricMetadataSerializers.testSerde(buffer, Delta.serializer, delta, Version.MIN_ACCORD_VERSION);
             });
@@ -105,14 +108,14 @@ public class AccordNodeInfosTest
     {
         Node.Id node = new Node.Id(1);
         AccordNodeInfos infos = AccordNodeInfos.EMPTY
-                                .withNodeInfo(node, Delta.status(Status.NORMAL).combine(Delta.unreadable(true)), 10)
+                                .withNodeInfo(node, Delta.status(Status.NORMAL).combine(Delta.ready(Ready.UNREADABLE)), 10)
                                 .withStale(SortedArrayList.ofSorted(node));
         assertEquals(Status.NORMAL, infos.status(node));
         assertTrue(infos.get(node).isUnreadable());
         assertTrue(infos.get(node).isStale());
 
         // a node declaring itself readable must not clear the stale mark an operator made
-        AccordNodeInfos ready = infos.withNodeInfo(node, Delta.status(Status.NORMAL).combine(Delta.unreadable(false)), 20);
+        AccordNodeInfos ready = infos.withNodeInfo(node, Delta.status(Status.NORMAL).combine(Delta.ready(Ready.READY)), 20);
         assertFalse(ready.get(node).isUnreadable());
         assertTrue("declaring must not clear a stale mark", ready.get(node).isStale());
         assertEquals(SortedArrayList.ofSorted(node), ready.stale());
@@ -140,7 +143,7 @@ public class AccordNodeInfosTest
         AccordNodeInfos infos = AccordNodeInfos.EMPTY
                                 .withNodeInfo(normal, Delta.status(Status.NORMAL), 1)
                                 .withNodeInfo(maybeDown, Delta.status(Status.MAYBE_DOWN), 1)
-                                .withNodeInfo(unreadable, Delta.status(Status.NORMAL).combine(Delta.unreadable(true)), 1)
+                                .withNodeInfo(unreadable, Delta.status(Status.NORMAL).combine(Delta.ready(Ready.UNREADABLE)), 1)
                                 .withNodeInfo(hardRemoved, Delta.status(Status.HARD_REMOVED), 1)
                                 .withStale(SortedArrayList.ofSorted(unreadable));
 

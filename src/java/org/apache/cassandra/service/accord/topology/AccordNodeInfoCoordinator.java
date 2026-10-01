@@ -291,30 +291,11 @@ public class AccordNodeInfoCoordinator implements TopologyListener, IEndpointSta
         catch (Throwable t) { logger.warn("Failed to declareSelf SHUTDOWN", t); }
     }
 
-    /**
-     * Our command stores accept at least some requests: we will receive and act on transactions, but must not be read
-     * from or waited for until {@link #declareReady()}. Only the node itself may say this about itself.
-     */
-    public void declareStartedAndUnableToCalculateDeps()
+    public void declareStarted(AccordNodeInfos.Ready ready)
     {
-        declareSelf(Delta.status(Status.NORMAL).combine(Delta.unreadable(true)), Long.MAX_VALUE);
-    }
-
-    /**
-     * Our command stores accept at least some requests: we will receive and act on transactions, but must not be read
-     * from or waited for until {@link #declareReady()}. Only the node itself may say this about itself.
-     */
-    public void declareStartedAndUnreadable()
-    {
-        declareSelf(Delta.status(Status.NORMAL).combine(Delta.unreadable(true)), Long.MAX_VALUE);
-    }
-
-    /**
-     * Accord is ready to serve: clear the unreadable bit. Only the node itself may do this.
-     */
-    public void declareReady()
-    {
-        declareSelf(Delta.status(Status.NORMAL).combine(Delta.unreadable(false)), Long.MAX_VALUE);
+        declareSelf(Delta.status(Status.NORMAL)
+                         .combine(Delta.ready(ready)),
+                    Long.MAX_VALUE);
     }
 
     private void declareSelf(Delta delta, long deadlineLimitNanos)

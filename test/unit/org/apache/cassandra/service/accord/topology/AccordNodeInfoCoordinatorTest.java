@@ -60,6 +60,8 @@ import static org.apache.cassandra.service.accord.AccordTestUtils.id;
 import static org.apache.cassandra.service.accord.AccordTestUtils.idList;
 import static org.apache.cassandra.service.accord.AccordTestUtils.idSet;
 import static org.apache.cassandra.service.accord.AccordTestUtils.token;
+import static org.apache.cassandra.service.accord.topology.AccordNodeInfos.Ready.READY;
+import static org.apache.cassandra.service.accord.topology.AccordNodeInfos.Ready.UNREADABLE;
 
 public class AccordNodeInfoCoordinatorTest
 {
@@ -165,7 +167,7 @@ public class AccordNodeInfoCoordinatorTest
     private static AccordNodeInfo.Delta acceptingDeclaration(ClusterMetadata cm)
     {
         return AccordNodeInfos.supportsExtendedNodeInfo(cm)
-               ? AccordNodeInfo.Delta.status(Status.NORMAL).combine(AccordNodeInfo.Delta.unreadable(true))
+               ? AccordNodeInfo.Delta.status(Status.NORMAL).combine(AccordNodeInfo.Delta.ready(UNREADABLE))
                : AccordNodeInfo.Delta.status(Status.NORMAL);
     }
 
@@ -358,13 +360,13 @@ public class AccordNodeInfoCoordinatorTest
         Assert.assertEquals(declaration(id(0), startupDeclaration(metadata)), Iterables.getOnlyElement(coordinator.capturedDeclarations));
 
         coordinator.capturedDeclarations.clear();
-        coordinator.declareStartedAndUnreadable();
+        coordinator.declareStarted(UNREADABLE);
         Assert.assertEquals(declaration(id(0), acceptingDeclaration(metadata)), Iterables.getOnlyElement(coordinator.capturedDeclarations));
 
         coordinator.capturedDeclarations.clear();
-        coordinator.declareReady();
+        coordinator.declareStarted(READY);
         // ready() clears the unreadable bit, and says nothing about any other field
-        Assert.assertEquals(declaration(id(0), AccordNodeInfo.Delta.status(Status.NORMAL).combine(AccordNodeInfo.Delta.unreadable(false))),
+        Assert.assertEquals(declaration(id(0), AccordNodeInfo.Delta.status(Status.NORMAL).combine(AccordNodeInfo.Delta.ready(READY))),
                             Iterables.getOnlyElement(coordinator.capturedDeclarations));
     }
 
@@ -396,11 +398,11 @@ public class AccordNodeInfoCoordinatorTest
         // the STALE bit and the HARD_REMOVED status are each unreadable to a peer on the older version
         Assert.assertFalse(new AccordMarkStale(Collections.singleton(new NodeId(1))).eligibleToCommit(old));
         Assert.assertFalse(new AccordMarkHardRemoved(Collections.singleton(new NodeId(1)), true).eligibleToCommit(old));
-        Assert.assertFalse(new AccordChangeNodeInfo(id(1), AccordNodeInfo.Delta.unreadable(true), 1).eligibleToCommit(old));
+        Assert.assertFalse(new AccordChangeNodeInfo(id(1), AccordNodeInfo.Delta.ready(UNREADABLE), 1).eligibleToCommit(old));
 
         Assert.assertTrue(new AccordMarkStale(Collections.singleton(new NodeId(1))).eligibleToCommit(current));
         Assert.assertTrue(new AccordMarkHardRemoved(Collections.singleton(new NodeId(1)), true).eligibleToCommit(current));
-        Assert.assertTrue(new AccordChangeNodeInfo(id(1), AccordNodeInfo.Delta.unreadable(true), 1).eligibleToCommit(current));
+        Assert.assertTrue(new AccordChangeNodeInfo(id(1), AccordNodeInfo.Delta.ready(UNREADABLE), 1).eligibleToCommit(current));
 
         // and the statuses a peer on the older version does understand are still recorded as it goes
         Assert.assertEquals(Status.MAYBE_DOWN,
@@ -423,12 +425,12 @@ public class AccordNodeInfoCoordinatorTest
         Assert.assertEquals(update(id(0), Status.SHUTDOWN), Iterables.getOnlyElement(coordinator.capturedUpdates));
         coordinator.capturedUpdates.clear();
 
-        coordinator.declareStartedAndUnreadable();
+        coordinator.declareStarted(UNREADABLE);
         Assert.assertTrue(coordinator.capturedDeclarations.isEmpty());
         Assert.assertEquals(update(id(0), Status.NORMAL), Iterables.getOnlyElement(coordinator.capturedUpdates));
         coordinator.capturedUpdates.clear();
 
-        coordinator.declareReady();
+        coordinator.declareStarted(READY);
         Assert.assertTrue(coordinator.capturedDeclarations.isEmpty());
         // the status-only message cannot express the unreadable bit, and the status it can express is unchanged, so
         // there is nothing left to say
@@ -457,15 +459,15 @@ public class AccordNodeInfoCoordinatorTest
         coordinator.applyUpdates = false;
         coordinator.currentMetadata(coordinator.currentMetadata()
                                                .transformer()
-                                               .withAccordNodeInfo(id(0), AccordNodeInfo.Delta.status(Status.MAYBE_DOWN).combine(AccordNodeInfo.Delta.unreadable(true)), 5)
+                                               .withAccordNodeInfo(id(0), AccordNodeInfo.Delta.status(Status.MAYBE_DOWN).combine(AccordNodeInfo.Delta.ready(UNREADABLE)), 5)
                                                .build().metadata);
-        coordinator.declareStartedAndUnreadable();
+        coordinator.declareStarted(UNREADABLE);
         Assert.assertEquals(declaration(id(0), acceptingDeclaration(start)), Iterables.getOnlyElement(coordinator.capturedDeclarations));
         coordinator.capturedDeclarations.clear();
 
         // and a field only we may set, recorded as something else, is still declared - not contested, not fatal
-        coordinator.declareReady();
-        Assert.assertEquals(declaration(id(0), AccordNodeInfo.Delta.status(Status.NORMAL).combine(AccordNodeInfo.Delta.unreadable(false))),
+        coordinator.declareStarted(READY);
+        Assert.assertEquals(declaration(id(0), AccordNodeInfo.Delta.status(Status.NORMAL).combine(AccordNodeInfo.Delta.ready(READY))),
                             Iterables.getOnlyElement(coordinator.capturedDeclarations));
     }
 
@@ -484,8 +486,8 @@ public class AccordNodeInfoCoordinatorTest
         // issued exactly once, whether or not it took
         Assert.assertEquals(declaration(id(0), startupDeclaration(start)), Iterables.getOnlyElement(coordinator.capturedDeclarations));
         coordinator.capturedDeclarations.clear();
-        coordinator.declareReady();
-        Assert.assertEquals(declaration(id(0), AccordNodeInfo.Delta.status(Status.NORMAL).combine(AccordNodeInfo.Delta.unreadable(false))),
+        coordinator.declareStarted(READY);
+        Assert.assertEquals(declaration(id(0), AccordNodeInfo.Delta.status(Status.NORMAL).combine(AccordNodeInfo.Delta.ready(READY))),
                             Iterables.getOnlyElement(coordinator.capturedDeclarations));
 
         // below the min version the same is true of the status-only message
@@ -508,8 +510,8 @@ public class AccordNodeInfoCoordinatorTest
         coordinator.isMember = false;
 
         coordinator.start();
-        coordinator.declareStartedAndUnreadable();
-        coordinator.declareReady();
+        coordinator.declareStarted(UNREADABLE);
+        coordinator.declareStarted(READY);
         coordinator.onShutdown();
         Assert.assertTrue(coordinator.capturedDeclarations.isEmpty());
         Assert.assertTrue(coordinator.capturedUpdates.isEmpty());
@@ -565,7 +567,7 @@ public class AccordNodeInfoCoordinatorTest
         Assert.assertTrue(new AccordChangeNodeInfo(id(1), AccordNodeInfo.Delta.status(Status.MAYBE_DOWN), 100).execute(metadata) instanceof Transformation.Rejected);
         // and a change that would take effect is not refused
         Assert.assertTrue(new AccordChangeDownStatus(id(1), Status.NORMAL, 100, 0).execute(metadata) instanceof Transformation.Success);
-        Assert.assertTrue(new AccordChangeNodeInfo(id(1), AccordNodeInfo.Delta.unreadable(true), 100).execute(metadata) instanceof Transformation.Success);
+        Assert.assertTrue(new AccordChangeNodeInfo(id(1), AccordNodeInfo.Delta.ready(UNREADABLE), 100).execute(metadata) instanceof Transformation.Success);
     }
 
     /** metadata whose cluster min version is new enough for the delta transformation: a cluster of nodes running this build */
