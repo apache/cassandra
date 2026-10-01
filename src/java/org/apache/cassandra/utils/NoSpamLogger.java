@@ -37,6 +37,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 
 import org.apache.cassandra.concurrent.ImmediateExecutor;
+import org.apache.cassandra.exceptions.ConfigurationException;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER;
 import static org.apache.cassandra.utils.Clock.Global;
@@ -80,8 +81,21 @@ public class NoSpamLogger
         CLOCK = clock;
     }
 
+    private static final Ticker TICKER = () -> CLOCK.nanoTime();
+
     @VisibleForTesting
-    static Ticker TICKER = Ticker.systemTicker();
+    static long parseMaxStatementsPerLogger()
+    {
+        long maxStatementsPerLogger = NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER.getLong();
+        if (maxStatementsPerLogger <= 0)
+            throw new ConfigurationException(String.format("Invalid value for system property %s: " +
+                                                           "expected a positive value but got %d",
+                                                           NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER.getKey(),
+                                                           maxStatementsPerLogger));
+        return maxStatementsPerLogger;
+    }
+
+    private static final long MAX_STATEMENTS_PER_LOGGER = parseMaxStatementsPerLogger();
 
     public static class NoSpamLogStatement extends AtomicLong
     {
@@ -371,6 +385,12 @@ public class NoSpamLogger
         return lastMessage.estimatedSize();
     }
 
+    @VisibleForTesting
+    long getMaxStatementsCount()
+    {
+        return lastMessage.policy().eviction().orElseThrow(AssertionError::new).getMaximum();
+    }
+
     public static NoSpamLogger getLogger(Logger logger, long minInterval, TimeUnit unit)
     {
         NoSpamLogger wrapped = wrappedLoggers.get(logger);
@@ -434,11 +454,10 @@ public class NoSpamLogger
      * Uses custom per-entry expiry based on each statement's minIntervalNanos.
      */
     private final Cache<String, NoSpamLogStatement> lastMessage = Caffeine.newBuilder()
-                                                                          .maximumSize(NOSPAM_LOGGER_MAX_STATEMENTS_PER_LOGGER.getLong())
+                                                                          .maximumSize(MAX_STATEMENTS_PER_LOGGER)
                                                                           .expireAfter(Expiry.writing((String key, NoSpamLogStatement value) -> Duration.ofNanos(value.expiry())))
                                                                           .ticker(TICKER)
                                                                           .executor(ImmediateExecutor.INSTANCE)
-                                                                          .recordStats()
                                                                           .build();
 
     private NoSpamLogger(Logger wrapped, long minInterval, TimeUnit timeUnit)
