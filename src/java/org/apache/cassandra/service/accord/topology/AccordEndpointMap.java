@@ -36,7 +36,9 @@ public interface AccordEndpointMap
         REMOVED(TopologySorter.NodeStatus.UNAVAILABLE),
         UNKNOWN(TopologySorter.NodeStatus.UNAVAILABLE),
         UNAVAILABLE(TopologySorter.NodeStatus.UNAVAILABLE),
+        UNABLE_TO_CALCULATE_DEPS(TopologySorter.NodeStatus.UNABLE_TO_CALCULATE_DEPS),
         UNREADABLE(TopologySorter.NodeStatus.UNREADABLE),
+        DEGRADED(TopologySorter.NodeStatus.DEGRADED),
         HEALTHY(TopologySorter.NodeStatus.HEALTHY);
 
         public final TopologySorter.NodeStatus accordStatus;

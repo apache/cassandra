@@ -92,15 +92,12 @@ public class AccordNodeInfos implements MetadataValue<AccordNodeInfos>
             return this == REMOVED || this == HARD_REMOVED;
         }
 
-        /**
-         * The ordinal is the serialized form (it is also what {@link AccordNodeInfo} packs), so the declaration order above
-         * must not change; an ordinal we do not know deserializes as {@link #UNKNOWN_STATUS}.
-         */
-        public static final MetadataSerializer<Status> serializer = new MetadataSerializer<>()
+        public static final MetadataSerializer<Status> legacySerializer = new MetadataSerializer<>()
         {
             @Override
             public void serialize(Status status, DataOutputPlus out, Version version) throws IOException
             {
+                Invariants.require(status.ordinal() <= 2);
                 out.writeByte(status.ordinal());
             }
 
@@ -123,6 +120,8 @@ public class AccordNodeInfos implements MetadataValue<AccordNodeInfos>
         static final long STATUS_MASK = 0xf;
         static final long STALE_BIT = 0x10;
         static final long UNREADABLE_BIT = 0x20;
+        static final long UNABLE_TO_CALCULATE_DEPS_BIT = 0x40;
+        static final long DEGRADED_BIT = 0x80;
 
         final long encodedStatus;
 
@@ -162,6 +161,11 @@ public class AccordNodeInfos implements MetadataValue<AccordNodeInfos>
             return ordinal == status.ordinal();
         }
 
+        public boolean isModified()
+        {
+            return (encodedStatus & ~STATUS_MASK) != 0;
+        }
+
         public boolean isStale()
         {
             return 0 != (encodedStatus & STALE_BIT);
@@ -170,6 +174,16 @@ public class AccordNodeInfos implements MetadataValue<AccordNodeInfos>
         public boolean isUnreadable()
         {
             return 0 != (encodedStatus & UNREADABLE_BIT);
+        }
+
+        public boolean isUnableToCalculateDeps()
+        {
+            return 0 != (encodedStatus & UNABLE_TO_CALCULATE_DEPS_BIT);
+        }
+
+        public boolean isDegraded()
+        {
+            return 0 != (encodedStatus & DEGRADED_BIT);
         }
 
         static long withStatus(long encodedStatus, Status newStatus)
@@ -307,11 +321,18 @@ public class AccordNodeInfos implements MetadataValue<AccordNodeInfos>
         @Override
         public String toString()
         {
-            return "NodeInfo{" +
-                   "status=" + status() +
-                   (isStale() ? ", STALE" : "") +
-                   (isUnreadable() ? ", UNREADABLE" : "") +
-                   '}';
+            return toString(new StringBuilder("NodeInfo{")).append('}').toString();
+        }
+
+        StringBuilder toString(StringBuilder sb)
+        {
+            sb.append("status=");
+            sb.append(status());
+            if (isStale()) sb.append(", STALE");
+            if (isUnreadable()) sb.append(", UNREADABLE");
+            if (isUnableToCalculateDeps()) sb.append(", NO_DEPS");
+            if (isDegraded()) sb.append(", DEGRADED");
+            return sb;
         }
     }
 
@@ -364,15 +385,11 @@ public class AccordNodeInfos implements MetadataValue<AccordNodeInfos>
         @Override
         public String toString()
         {
-            return "NodeInfo{" +
-                   "status=" + status() +
-                   (isStale() ? ", STALE" : "") +
-                   (isUnreadable() ? ", UNREADABLE" : "") +
-                   ", updated=" + updated +
-                   '}';
+            return toString(new StringBuilder("NodeInfo{"))
+                   .append(", updated=").append(updated).append('}').toString();
         }
 
-        public static final MetadataSerializer<StampedNodeInfo> serializer = new MetadataSerializer<StampedNodeInfo>()
+        public static final MetadataSerializer<StampedNodeInfo> serializer = new MetadataSerializer<>()
         {
             @Override
             public void serialize(StampedNodeInfo info, DataOutputPlus out, Version version) throws IOException

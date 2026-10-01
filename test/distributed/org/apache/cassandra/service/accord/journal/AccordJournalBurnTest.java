@@ -26,7 +26,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -155,8 +154,7 @@ public class AccordJournalBurnTest extends BurnTestBase
     @Test
     public void testOne()
     {
-//        long seed = System.nanoTime();
-        long seed = 7341363941300876L;
+        long seed = System.nanoTime();
         int operations = 1000;
 
         logger.info("Seed: {}", seed);
@@ -342,7 +340,8 @@ public class AccordJournalBurnTest extends BurnTestBase
                                      Command a = after.get(e.getKey());
                                      if (b != null && b.saveStatus == Erased) b = null;
                                      if (a != null && a.saveStatus == Erased) a = null;
-                                     Invariants.require(Objects.equals(a, b));
+                                     // right now we allow expunging durability somewhat inconsistently
+                                     Invariants.require(a == null || b == null ? a == b : a.equalsIgnoreDurability(b));
                                  }
                                  if (before.size() != after.size())
                                  {

@@ -736,7 +736,7 @@ public class AccordService implements IAccordService, Shutdownable
         // start the progress log on command store initialisation (so creates a synchronisation point)
         state = State.STARTED;
 
-        // TODO (required): we need to refuse self-delivery of messages until rebootstrap starts
+        // TODO (required): we need to refuse self-delivery of messages until rebootstrap starts (from progress log)
         // durability requires TCM registration so we learn of new epochs that could block agreement of new sync points
         node.durability().shards().reconfigure(Ints.checkedCast(getAccordShardDurabilityTargetSplits()),
                                                Ints.checkedCast(getAccordShardDurabilityMaxSplits()),
@@ -765,7 +765,7 @@ public class AccordService implements IAccordService, Shutdownable
             // Once each store is processing some requests, we can advertise ourselves as up but UNREADABLE
             getBlocking(ready.notRefusing());
             logger.info("Rebootstrap: Declare to peers that Accord node is UP but UNREADABLE");
-            nodeStatusCoordinator.declareStartedUnreadable();
+            nodeStatusCoordinator.declareStartedAndUnableToCalculateDeps();
 
             getBlocking(ready.coordinate());
             logger.info("Rebootstrap: Coordination state has been successfully fetched from peers; now participating in quorum decisions");
@@ -776,9 +776,9 @@ public class AccordService implements IAccordService, Shutdownable
         else
         {
             instance = requestInstance = this;
-            nodeStatusCoordinator.declareStartedUnreadable();
         }
 
+        nodeStatusCoordinator.declareStartedAndUnreadable();
         // trigger catchup only after our progress mechanisms are initialised
         catchup();
         nodeStatusCoordinator.declareReady();
@@ -1460,7 +1460,7 @@ public class AccordService implements IAccordService, Shutdownable
     public AsyncResult<Void> rebootstrap(BootstrapReason reason, @Nullable Ranges ranges, boolean declareUnreadable)
     {
         if (declareUnreadable)
-            nodeStatusCoordinator.declareStartedUnreadable();
+            nodeStatusCoordinator.declareStartedAndUnreadable();
 
         EpochReady ready = node.commandStores().rebootstrap(node, ranges, reason);
         // a reason that refuses requests is not finished until it stops refusing them, which is what

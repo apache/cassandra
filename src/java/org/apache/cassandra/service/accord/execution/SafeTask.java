@@ -466,7 +466,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     @VisibleForTesting
     SafeTask(AccordCommandStore commandStore, ExecutionContext context, Function<? super SafeCommandStore, R> function, AtomicLong uniqueCreatedAt)
     {
-        super(context, uniqueCreatedAt);
+        super(commandStore, context, uniqueCreatedAt);
         this.commandStore = commandStore;
         this.context = context;
         this.function = function;

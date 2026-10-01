@@ -358,7 +358,7 @@ public class AccordNodeInfoCoordinatorTest
         Assert.assertEquals(declaration(id(0), startupDeclaration(metadata)), Iterables.getOnlyElement(coordinator.capturedDeclarations));
 
         coordinator.capturedDeclarations.clear();
-        coordinator.declareStartedUnreadable();
+        coordinator.declareStartedAndUnreadable();
         Assert.assertEquals(declaration(id(0), acceptingDeclaration(metadata)), Iterables.getOnlyElement(coordinator.capturedDeclarations));
 
         coordinator.capturedDeclarations.clear();
@@ -423,7 +423,7 @@ public class AccordNodeInfoCoordinatorTest
         Assert.assertEquals(update(id(0), Status.SHUTDOWN), Iterables.getOnlyElement(coordinator.capturedUpdates));
         coordinator.capturedUpdates.clear();
 
-        coordinator.declareStartedUnreadable();
+        coordinator.declareStartedAndUnreadable();
         Assert.assertTrue(coordinator.capturedDeclarations.isEmpty());
         Assert.assertEquals(update(id(0), Status.NORMAL), Iterables.getOnlyElement(coordinator.capturedUpdates));
         coordinator.capturedUpdates.clear();
@@ -459,7 +459,7 @@ public class AccordNodeInfoCoordinatorTest
                                                .transformer()
                                                .withAccordNodeInfo(id(0), AccordNodeInfo.Delta.status(Status.MAYBE_DOWN).combine(AccordNodeInfo.Delta.unreadable(true)), 5)
                                                .build().metadata);
-        coordinator.declareStartedUnreadable();
+        coordinator.declareStartedAndUnreadable();
         Assert.assertEquals(declaration(id(0), acceptingDeclaration(start)), Iterables.getOnlyElement(coordinator.capturedDeclarations));
         coordinator.capturedDeclarations.clear();
 
@@ -508,7 +508,7 @@ public class AccordNodeInfoCoordinatorTest
         coordinator.isMember = false;
 
         coordinator.start();
-        coordinator.declareStartedUnreadable();
+        coordinator.declareStartedAndUnreadable();
         coordinator.declareReady();
         coordinator.onShutdown();
         Assert.assertTrue(coordinator.capturedDeclarations.isEmpty());

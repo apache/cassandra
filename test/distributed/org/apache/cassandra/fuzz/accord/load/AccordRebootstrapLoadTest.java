@@ -39,7 +39,7 @@ public class AccordRebootstrapLoadTest extends AccordLoadTestBase
 
     public void setupCluster(int nodeCount)
     {
-        LOGBACK_CONFIGURATION_FILE.setString("test/conf/logback-dtest-info.xml");
+        LOGBACK_CONFIGURATION_FILE.setString("test/conf/logback-dtest-info-rolling.xml");
         setupCluster(nodeCount, config -> {
             config.with(Feature.NETWORK, Feature.GOSSIP)
                   .set("accord.shard_durability_target_splits", "8")

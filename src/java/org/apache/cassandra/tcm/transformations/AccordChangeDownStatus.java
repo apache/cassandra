@@ -89,7 +89,7 @@ public class AccordChangeDownStatus implements Transformation
         {
             AccordChangeDownStatus update = (AccordChangeDownStatus) t;
             TopologySerializers.nodeId.serialize(update.node, out);
-            AccordNodeInfos.Status.serializer.serialize(update.status, out, version);
+            AccordNodeInfos.Status.legacySerializer.serialize(update.status, out, version);
             out.writeUnsignedVInt(update.updateTimeMillis);
             out.writeUnsignedVInt(update.updateDelayMillis);
         }
@@ -97,7 +97,7 @@ public class AccordChangeDownStatus implements Transformation
         public AccordChangeDownStatus deserialize(DataInputPlus in, Version version) throws IOException
         {
             return new AccordChangeDownStatus(TopologySerializers.nodeId.deserialize(in),
-                                              AccordNodeInfos.Status.serializer.deserialize(in, version),
+                                              AccordNodeInfos.Status.legacySerializer.deserialize(in, version),
                                               in.readUnsignedVInt(), in.readUnsignedVInt());
         }
 
@@ -105,7 +105,7 @@ public class AccordChangeDownStatus implements Transformation
         {
             AccordChangeDownStatus update = (AccordChangeDownStatus) t;
             return TopologySerializers.nodeId.serializedSize(update.node) +
-                   AccordNodeInfos.Status.serializer.serializedSize(update.status, version) +
+                   AccordNodeInfos.Status.legacySerializer.serializedSize(update.status, version) +
                    TypeSizes.sizeofUnsignedVInt(update.updateTimeMillis) +
                    TypeSizes.sizeofUnsignedVInt(update.updateDelayMillis);
         }

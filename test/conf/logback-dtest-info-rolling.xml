@@ -58,9 +58,20 @@
   <logger name="org.apache.cassandra.service.accord" level="TRACE" />
   -->
 
+  <!-- (LLM)
+    A bounded in-memory tail of the log. CI does not retain the dtest log, so when a test detects a stall the only
+    text that reaches us is the exception it throws; draining this appender into that exception (see
+    AccordLoadTestBase.recentLogTail) recovers the last few hundred lines of context without publishing anything.
+    Modest by construction: it is a fixed-size ring, and nothing reads it unless a test fails.
+  -->
+  <appender name="RINGBUFFER" class="ch.qos.logback.core.read.CyclicBufferAppender">
+    <maxSize>512</maxSize>
+  </appender>
+
   <root level="INFO">
     <appender-ref ref="INSTANCEFILE" /> <!-- use blocking to avoid race conditions with appending and searching -->
     <appender-ref ref="INSTANCESTDERR" />
     <appender-ref ref="INSTANCESTDOUT" />
+    <appender-ref ref="RINGBUFFER" />
   </root>
 </configuration>

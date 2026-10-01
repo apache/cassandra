@@ -295,7 +295,16 @@ public class AccordNodeInfoCoordinator implements TopologyListener, IEndpointSta
      * Our command stores accept at least some requests: we will receive and act on transactions, but must not be read
      * from or waited for until {@link #declareReady()}. Only the node itself may say this about itself.
      */
-    public void declareStartedUnreadable()
+    public void declareStartedAndUnableToCalculateDeps()
+    {
+        declareSelf(Delta.status(Status.NORMAL).combine(Delta.unreadable(true)), Long.MAX_VALUE);
+    }
+
+    /**
+     * Our command stores accept at least some requests: we will receive and act on transactions, but must not be read
+     * from or waited for until {@link #declareReady()}. Only the node itself may say this about itself.
+     */
+    public void declareStartedAndUnreadable()
     {
         declareSelf(Delta.status(Status.NORMAL).combine(Delta.unreadable(true)), Long.MAX_VALUE);
     }

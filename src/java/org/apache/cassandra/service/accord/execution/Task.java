@@ -41,6 +41,7 @@ import accord.utils.async.Cancellable;
 
 import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.concurrent.ExecutorLocals;
+import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.debug.DebugExecution.DebugTask;
 import org.apache.cassandra.service.accord.execution.ExclusiveExecutor.ExclusiveExecutorTask;
 import org.apache.cassandra.utils.Closeable;
@@ -307,7 +308,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
         createdAt = nanoTime();
     }
 
-    protected Task(ExecutionContext context, AtomicLong lastCreatedAt)
+    protected Task(AccordCommandStore commandStore, ExecutionContext context, AtomicLong lastCreatedAt)
     {
         resources = DebugTask.maybeDebug(ExecutorLocals.propagate(), this);
         createdAt = lastCreatedAt.accumulateAndGet(nanoTime(), (prev, next) -> next <= prev ? prev + 1 : next);
@@ -455,7 +456,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
         if (ts != null)
         {
             long position = ts.hlc();
-            long delta = executor().nextPosition - position;
+            long delta = commandStore.executor().nextPosition - position;
             if (delta < AccordExecutor.AGE_TO_FIFO || (AccordExecutor.PRIORITY_MODEL == ORIG_HLC_FIFO && group == RECOVER))
                 this.position = position;
         }

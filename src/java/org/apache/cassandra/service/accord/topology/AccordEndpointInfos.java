@@ -168,8 +168,15 @@ public class AccordEndpointInfos implements AccordEndpointMap
                 break;
         }
 
-        if (info.isUnreadable())
-            return NodeStatus.UNREADABLE;
+        if (info.isModified())
+        {
+            if (info.isUnableToCalculateDeps())
+                return NodeStatus.UNABLE_TO_CALCULATE_DEPS;
+            if (info.isUnreadable() || info.isStale())
+                return NodeStatus.UNREADABLE;
+            if (info.isDegraded())
+                return NodeStatus.DEGRADED;
+        }
 
         EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(info.endpoint);
         if (epState == null)

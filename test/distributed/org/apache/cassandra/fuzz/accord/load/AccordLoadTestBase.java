@@ -1159,7 +1159,7 @@ public class AccordLoadTestBase extends AccordTestBase
     }
 
     /**
-     * The tail of this node's log, from the fixed-size RINGBUFFER appender in {@code logback-dtest-info.xml} (absent
+     * The tail of this node's log, from the fixed-size RINGBUFFER appender in {@code logback-dtest-info-rolling.xml} (absent
      * configs simply produce a note). Runs on the instance: dtest instances each configure their own logger context.
      */
     private static String logTail()
@@ -1169,7 +1169,7 @@ public class AccordLoadTestBase extends AccordTestBase
             ch.qos.logback.classic.Logger root = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
             ch.qos.logback.core.Appender<ch.qos.logback.classic.spi.ILoggingEvent> appender = root.getAppender("RINGBUFFER");
             if (!(appender instanceof ch.qos.logback.core.read.CyclicBufferAppender))
-                return " <no RINGBUFFER appender configured; see logback-dtest-info.xml>";
+                return " <no RINGBUFFER appender configured; see logback-dtest-info-rolling.xml>";
 
             ch.qos.logback.core.read.CyclicBufferAppender<ch.qos.logback.classic.spi.ILoggingEvent> ring =
             (ch.qos.logback.core.read.CyclicBufferAppender<ch.qos.logback.classic.spi.ILoggingEvent>) appender;
@@ -1298,7 +1298,7 @@ public class AccordLoadTestBase extends AccordTestBase
                 // finally this node's own log tail: CI discards the log file, and the lines that explain a stall
                 // ("insufficient to satisfy NoLocal/MinorityQuorumAndWaitedForAll requested by Bootstrap ...") are
                 // accord's INFO/WARN lines. Read here rather than in the harness because each instance configures
-                // its own logger context (see the RINGBUFFER appender in logback-dtest-info.xml).
+                // its own logger context (see the RINGBUFFER appender in logback-dtest-info-rolling.xml).
                 sb.append("\n  log tail:").append(logTail());
                 return sb.toString();
             }).call();
