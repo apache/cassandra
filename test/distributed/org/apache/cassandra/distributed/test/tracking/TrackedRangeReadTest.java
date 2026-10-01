@@ -92,9 +92,9 @@ public class TrackedRangeReadTest extends TrackedRangeReadTestBase
     }
 
     /**
-     * Under a per partition limit the data replica's response and a follow up read's response can both hold rows of one
-     * partition. Whether this test produces that depends on when reconciliation delivers, so TrackedDataResponseTest
-     * tests their merge deterministically.
+     * Whether this test makes the data replica's response and a follow up read's response both hold rows of one
+     * partition depends on when reconciliation delivers; the {@code overlap_} cases of
+     * {@link TrackedFilteredRangeReadCarryOverTest} do it deterministically.
      */
     @Test
     public void testTokenRangeOnFullPartitionKeysWithPerPartitionLimitNonEmpty()
