@@ -61,7 +61,6 @@ public class MutationTrackingUtils
     public static class IgnoreReasons
     {
         public static final String NO_RANGE_MOVEMENTS = "NO_RANGE_MOVEMENTS";
-        public static final String NO_PER_PARTITION_RANGE_READ_LIMITS = "NO_PER_PARTITION_RANGE_READ_LIMITS";
     }
 
     public static byte[] encodeSummary(MutationSummary summary)
@@ -162,12 +161,6 @@ public class MutationTrackingUtils
             if (!summary.contains(id))
                 throw new AssertionError(String.format("%s doesn't contain %s", summary, id));
         }
-    }
-
-    public static void assertIdsForKey(IInvokableInstance node, String keyspaceName, String tableName, int key, Set<MutationId> expected)
-    {
-        MutationSummary summary = summaryForKey(node, keyspaceName, tableName, key);
-        assertSummaryContents(summary, expected);
     }
 
     /**

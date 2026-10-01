@@ -36,11 +36,17 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.Location;
 
 import static org.apache.cassandra.ServerTestUtils.markCMS;
@@ -61,6 +67,8 @@ import static org.apache.cassandra.db.ConsistencyLevel.THREE;
 import static org.apache.cassandra.db.ConsistencyLevel.TWO;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 /**
  * Tests for {@link ReplicaPlanMerger}.
@@ -389,6 +397,70 @@ public class ReplicaPlanMergerTest
                    range(max(90), min()),
                    range(min(), max(10)),
                    range(max(10), max(15)));
+    }
+
+    @Test
+    public void testAdjacentRangesAgreeingOnTransienceAreMerged()
+    {
+        EndpointsForRange left = replicas(tokenRange(0, 20), WITNESS);
+        EndpointsForRange right = replicas(tokenRange(20, 30), WITNESS);
+
+        assertNotNull(merge(rangePlan(range(max(0), max(20)), left, left),
+                            rangePlan(range(max(20), max(30)), right, right)));
+    }
+
+    /**
+     * maybeMerge compares liveAndDown, not readCandidates, so only liveAndDown differs here.
+     */
+    @Test
+    public void testAdjacentRangesDisagreeingOnTransienceAreNotMerged()
+    {
+        EndpointsForRange leftCandidates = replicas(tokenRange(0, 20), FULL);
+        EndpointsForRange rightCandidates = replicas(tokenRange(20, 30), FULL);
+
+        EndpointsForRange leftLiveAndDown = replicas(tokenRange(0, 20), FULL);
+        EndpointsForRange rightLiveAndDown = replicas(tokenRange(20, 30), WITNESS);
+
+        assertNull(merge(rangePlan(range(max(0), max(20)), leftCandidates, leftLiveAndDown),
+                         rangePlan(range(max(20), max(30)), rightCandidates, rightLiveAndDown)));
+    }
+
+    private static ReplicaPlan.ForRangeRead merge(ReplicaPlan.ForRangeRead left, ReplicaPlan.ForRangeRead right)
+    {
+        return ReplicaPlans.maybeMerge(ClusterMetadata.current(), keyspace, null, ONE, left, right);
+    }
+
+    private static final boolean FULL = true;
+    private static final boolean WITNESS = false;
+
+    private static EndpointsForRange replicas(Range<Token> range, boolean thirdIsFull)
+    {
+        InetAddressAndPort third = InetAddressAndPort.getByNameUnchecked("127.0.0.3");
+        return EndpointsForRange.of(Replica.fullReplica(InetAddressAndPort.getByNameUnchecked("127.0.0.1"), range),
+                                    Replica.fullReplica(InetAddressAndPort.getByNameUnchecked("127.0.0.2"), range),
+                                    thirdIsFull ? Replica.fullReplica(third, range) : Replica.transientReplica(third, range));
+    }
+
+    private static Range<Token> tokenRange(long left, long right)
+    {
+        return new Range<>(new Murmur3Partitioner.LongToken(left), new Murmur3Partitioner.LongToken(right));
+    }
+
+    private static ReplicaPlan.ForRangeRead rangePlan(AbstractBounds<PartitionPosition> range,
+                                                      EndpointsForRange candidates,
+                                                      EndpointsForRange liveAndDown)
+    {
+        return new ReplicaPlan.ForRangeRead(keyspace,
+                                            keyspace.getReplicationStrategy(),
+                                            ONE,
+                                            range,
+                                            candidates,
+                                            candidates,
+                                            liveAndDown,
+                                            1,
+                                            ignore -> null,
+                                            (self, token) -> null,
+                                            ClusterMetadata.current().epoch);
     }
 
     private static PartitionPosition min()

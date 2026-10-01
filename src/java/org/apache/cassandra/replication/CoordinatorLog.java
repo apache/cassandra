@@ -582,6 +582,10 @@ public abstract class CoordinatorLog
         {
             remoteNodeIds.forEachInt(remoteNodeId ->
             {
+                if (!participants.contains(remoteNodeId))
+                    throw new IllegalStateException(String.format("Remote node %d is not a participant of shard with participants %s for log %s",
+                                                                  remoteNodeId, participants, logId));
+
                 Offsets missing = Offsets.Immutable.difference(witnessedOffsets.get(remoteNodeId), localOffsets);
                 if (!missing.isEmpty())
                     into.add(remoteNodeId, missing);

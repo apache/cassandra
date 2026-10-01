@@ -51,16 +51,8 @@ public class PartialTrackedSinglePartitionRead extends PartialTrackedRead
     public static PartialTrackedSinglePartitionRead create(ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos, SinglePartitionReadCommand command, UnfilteredPartitionIterator initialData)
     {
         PartialTrackedSinglePartitionRead read = new PartialTrackedSinglePartitionRead(executionController, searcher, cfs, startTimeNanos, command);
-        try
-        {
-            read.prepare(initialData);
-            return read;
-        }
-        catch (Throwable e)
-        {
-            read.close();
-            throw e;
-        }
+        read.prepare(initialData);
+        return read;
     }
 
     private class SinglePartitionPrepared extends Prepared

@@ -423,7 +423,10 @@ public abstract class CassandraIndex implements Index
         public void updateRow(Row oldRow, Row newRow)
         {
             assert oldRow.isStatic() == newRow.isStatic();
-            if (newRow.isStatic() != indexedColumn().isStatic())
+            if (newRow.isStatic() && !indexedColumn().isStatic() && !indexedColumn().isPartitionKey())
+                return;
+
+            if (!newRow.isStatic() && indexedColumn().isStatic())
                 return;
 
             if (isPrimaryKeyIndex())
@@ -594,6 +597,11 @@ public abstract class CassandraIndex implements Index
                                                                clustering,
                                                                cell));
         Clustering<?> indexClustering = buildIndexClustering(rowKey.getKey(), clustering, cell);
+
+        // IndexEntry expects a different clustering format for static rows on partition key indexes, so we adjust it here
+        if (clustering.kind() == ClusteringPrefix.Kind.STATIC_CLUSTERING && indexedColumn.isPartitionKey())
+            clustering = Clustering.make(new ByteBuffer[baseCfs.getComparator().size()]);
+
         return new IndexEntry(indexKey, indexClustering, info.timestamp(), rowKey, clustering);
     }
 

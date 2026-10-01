@@ -83,6 +83,13 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
         return key.compareTo(finalKey) < 0;
     }
 
+    private AbstractBounds<PartitionPosition> nextBounds(AtomicReference<PartialTrackedRead> partialRead)
+    {
+        if (partialRead == null)
+            return followUpBounds;
+        return ((PartialTrackedRangeRead) partialRead.get()).followUpBounds();
+    }
+
     public void start()
     {
         ClusterMetadata metadata = ClusterMetadata.current();
@@ -90,13 +97,14 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
 
         int remaining = toQuery;
         PeekingIterator<DecoratedKey> followUpKeys = Iterators.peekingIterator(followUpReadInfo.keySet().iterator());
-        // query all keys that interleave with the range of keys from the original range read
+        // keys before finalKey are read even when remaining <= 0: their rows can sort before rows already in
+        // initialResponse and push those rows past the limit
         while (followUpKeys.hasNext() && (remaining > 0 || interleavesWithOriginal(followUpKeys.peek())))
         {
             DecoratedKey key = followUpKeys.next();
             FollowUpReadInfo info = followUpReadInfo.get(key);
             remaining -= info.potentialMatches;
-            SinglePartitionReadCommand cmd = SinglePartitionReadCommand.fromRangeRead(key, command, command.limits().forShortReadRetry(toQuery));
+            SinglePartitionReadCommand cmd = SinglePartitionReadCommand.fromRangeRead(key, command, command.limits().withoutState());
             TrackedRead.Partition read = TrackedRead.Partition.create(metadata, cmd, consistencyLevel, requestTime);
             read.start(requestTime);
             futures.add(read.future());
@@ -105,7 +113,7 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
         SortedMap<DecoratedKey, FollowUpReadInfo> nextKeys = followUpKeys.hasNext() ? followUpReadInfo.tailMap(followUpKeys.next()) : Collections.emptySortedMap();
 
         AtomicReference<PartialTrackedRead> partialRead;
-        if (remaining > 0)
+        if (remaining > 0 && followUpBounds != null)
         {
             partialRead = new AtomicReference<>();
             TrackedRead.Range rangeRead = makeFollowUpRead(command, followUpBounds, remaining, consistencyLevel, requestTime);
@@ -134,26 +142,20 @@ class FilteredFollowupRead extends AsyncPromise<TrackedDataResponse>
                                                                                      command.selectsFullPartition(),
                                                                                      command.metadata().enforceStrictLiveness());
 
-                boolean partitionsFetched;
                 boolean initialIteratorExhausted;
                 TrackedDataResponse response;
                 try (PartitionIterator iterator = merged.makeIteratorUnlimited(command))
                 {
-                    partitionsFetched = iterator.hasNext();
                     response = TrackedDataResponse.create(mergedResultCounter.applyTo(iterator), command.columnFilter());
                     initialIteratorExhausted = iterator.hasNext();
                 }
 
-                // although we check for interleaved keys in the initial read, we always query for them in the follow up, so
-                // we just use normal short read protection checks here
-                if (followUpReadRequired(command, mergedResultCounter, initialIteratorExhausted, partitionsFetched))
+                AbstractBounds<PartitionPosition> nextBounds = nextBounds(partialRead);
+                // from the range read, not the merged result, which reconciliation can leave empty
+                boolean partitionsFetched = nextBounds != null;
+                if (followUpReadRequired(command, mergedResultCounter, initialIteratorExhausted, partitionsFetched)
+                    || (!nextKeys.isEmpty() && !mergedResultCounter.isDone()))
                 {
-                    AbstractBounds<PartitionPosition> nextBounds =  this.followUpBounds;
-                    if (partialRead != null)
-                    {
-                        PartialTrackedRangeRead followUpRangeRead = (PartialTrackedRangeRead) partialRead.get();
-                        nextBounds = followUpRangeRead.followUpBounds();
-                    }
                     FilteredFollowupRead followUp = new FilteredFollowupRead(response, toQuery(command, mergedResultCounter), consistencyLevel, requestTime, nextKeys, command, nextBounds, null);
                     followUp.start();
                     followUp.addCallback((result, failure) -> {

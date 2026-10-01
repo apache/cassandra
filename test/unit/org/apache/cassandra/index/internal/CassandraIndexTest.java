@@ -439,6 +439,126 @@ public class CassandraIndexTest extends CQLTester
     }
 
     @Test
+    public void indexOnStaticColumnWithRestrictedClustering() throws Throwable
+    {
+        for (String order : new String[]{ "ASC", "DESC" })
+        {
+            createTable("CREATE TABLE %s (k int, c int, s int static, v int, PRIMARY KEY (k, c)) " +
+                        "WITH CLUSTERING ORDER BY (c " + order + ')');
+            createIndex("CREATE INDEX ON %s(s)");
+
+            execute("INSERT INTO %s (k, c, s, v) VALUES (0, 1, 9, 1)");
+            execute("INSERT INTO %s (k, c, s, v) VALUES (0, 2, 9, 2)");
+            execute("INSERT INTO %s (k, c, s, v) VALUES (0, 3, 9, 3)");
+            execute("INSERT INTO %s (k, c, s, v) VALUES (1, 1, 8, 1)");
+
+            for (boolean flushed : new boolean[]{ false, true })
+            {
+                if (flushed)
+                    flush();
+
+                assertRows(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 2 AND s = 9"), row(0, 2, 2));
+                assertRowsIgnoringOrder(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c IN (2, 3) AND s = 9"),
+                                        row(0, 2, 2), row(0, 3, 3));
+                assertRows(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c >= 2 AND c <= 2 AND s = 9"), row(0, 2, 2));
+                assertRowsIgnoringOrder(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c > 1 AND s = 9"),
+                                        row(0, 2, 2), row(0, 3, 3));
+                assertRowsIgnoringOrder(execute("SELECT k, c, v FROM %s WHERE k = 0 AND s = 9"),
+                                        row(0, 1, 1), row(0, 2, 2), row(0, 3, 3));
+                assertEmpty(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 4 AND s = 9"));
+                assertEmpty(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 2 AND s = 8"));
+            }
+        }
+    }
+
+    @Test
+    public void indexOnStaticCollectionWithRestrictedClustering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, c int, s map<text, int> static, v int, PRIMARY KEY (k, c))");
+        createIndex("CREATE INDEX ON %s(s)");
+        createIndex("CREATE INDEX ON %s(KEYS(s))");
+        createIndex("CREATE INDEX ON %s(ENTRIES(s))");
+
+        execute("INSERT INTO %s (k, c, s, v) VALUES (0, 1, {'a': 9}, 1)");
+        execute("INSERT INTO %s (k, c, v) VALUES (0, 2, 2)");
+
+        for (boolean flushed : new boolean[]{ false, true })
+        {
+            if (flushed)
+                flush();
+
+            assertRows(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 2 AND s CONTAINS 9"), row(0, 2, 2));
+            assertRows(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 2 AND s CONTAINS KEY 'a'"), row(0, 2, 2));
+            assertRows(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 2 AND s['a'] = 9"), row(0, 2, 2));
+            assertRows(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c > 1 AND s CONTAINS 9"), row(0, 2, 2));
+
+            assertEmpty(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 3 AND s CONTAINS 9"));
+            assertEmpty(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 2 AND s CONTAINS 8"));
+        }
+
+        createTable("CREATE TABLE %s (k int, c int, s set<int> static, v int, PRIMARY KEY (k, c))");
+        createIndex("CREATE INDEX ON %s(s)");
+
+        execute("INSERT INTO %s (k, c, s, v) VALUES (0, 1, {9}, 1)");
+        execute("INSERT INTO %s (k, c, v) VALUES (0, 2, 2)");
+
+        for (boolean flushed : new boolean[]{ false, true })
+        {
+            if (flushed)
+                flush();
+
+            assertRows(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 2 AND s CONTAINS 9"), row(0, 2, 2));
+            assertRows(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c > 1 AND s CONTAINS 9"), row(0, 2, 2));
+            assertEmpty(execute("SELECT k, c, v FROM %s WHERE k = 0 AND c = 3 AND s CONTAINS 9"));
+        }
+    }
+
+    @Test
+    public void indexOnPartitionKeyColumnWithUpdatedStaticRow() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k1 int, k2 int, c int, s int static, v int, PRIMARY KEY ((k1, k2), c))");
+        createIndex("CREATE INDEX ON %s(k1)");
+
+        // the delete writes no k1 index entry, so updateRow must write it for the update below
+        execute("DELETE s FROM %s USING TIMESTAMP 13 WHERE k1 = 0 AND k2 = 1");
+        execute("UPDATE %s USING TIMESTAMP 15 SET s = 9 WHERE k1 = 0 AND k2 = 1");
+        execute("UPDATE %s USING TIMESTAMP 10 SET s = 6 WHERE k1 = 0 AND k2 = 2");
+        execute("UPDATE %s USING TIMESTAMP 20 SET s = 7 WHERE k1 = 0 AND k2 = 2");
+        execute("UPDATE %s USING TIMESTAMP 15 SET s = 9 WHERE k1 = 1 AND k2 = 1");
+
+        for (boolean flushed : new boolean[]{ false, true })
+        {
+            if (flushed)
+                flush();
+
+            assertRowsIgnoringOrder(execute("SELECT k1, k2, c, s, v FROM %s WHERE k1 = 0"),
+                                    row(0, 1, null, 9, null),
+                                    row(0, 2, null, 7, null));
+            assertRows(execute("SELECT k1, k2, c, s, v FROM %s WHERE k1 = 1"), row(1, 1, null, 9, null));
+        }
+    }
+
+    @Test
+    public void indexOnClusteringColumnWithUpdatedStaticRow() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, c1 int, c2 int, s int static, v int, PRIMARY KEY (k, c1, c2))");
+        createIndex("CREATE INDEX ON %s(c1)");
+
+        execute("DELETE s FROM %s USING TIMESTAMP 13 WHERE k = 0");
+        execute("UPDATE %s USING TIMESTAMP 15 SET s = 9 WHERE k = 0");
+        execute("INSERT INTO %s (k, c1, c2, s, v) VALUES (1, 5, 5, 8, 1) USING TIMESTAMP 15");
+        execute("UPDATE %s USING TIMESTAMP 20 SET s = 7 WHERE k = 1");
+
+        for (boolean flushed : new boolean[]{ false, true })
+        {
+            if (flushed)
+                flush();
+
+            assertRows(execute("SELECT k, c1, c2, s, v FROM %s WHERE c1 = 5"), row(1, 5, 5, 7, 1));
+        }
+    }
+
+    @Test
     public void indexOnClusteringColumnWithoutRegularColumns() throws Throwable
     {
         Object[] row1 = row("k0", "c0");
