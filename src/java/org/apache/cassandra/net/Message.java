@@ -910,10 +910,8 @@ public class Message<T> implements ResponseContext
         public <T> void serialize(Message<T> message, DataOutputPlus out, int version) throws IOException
         {
             serializeHeader(message.header, out, version);
-            int payloadSize = message.payloadSize(version);
-            out.writeUnsignedVInt32(payloadSize);
-            if (payloadSize > 0)
-                message.verb().serializer().serialize(message.payload, out, version);
+            out.writeUnsignedVInt32(message.payloadSize(version));
+            message.verb().serializer().serialize(message.payload, out, version);
         }
 
         public <T> Message<T> deserialize(DataInputPlus in, InetAddressAndPort peer, int version) throws IOException
