@@ -1153,7 +1153,31 @@ public class AccordLoadTestBase extends AccordTestBase
     private static final long STALL_REPORT_WEDGE_MIN_AGE_NANOS = TimeUnit.SECONDS.toNanos(60);
     private static final int STALL_REPORT_MAX_WEDGED_TASKS = 3;
     private static final int STALL_REPORT_MAX_BLOCKED_THREADS = 15;
-    private static final int STALL_REPORT_MAX_HOLDER_FRAMES = 30;
+    private static final int STALL_REPORT_MAX_HOLDER_FRAMES = 40, STALL_REPORT_HOLDER_BOTTOM_FRAMES = 12;
+    private static final int STALL_REPORT_LOCK_SAMPLES = 5;
+    private static final long STALL_REPORT_LOCK_SAMPLE_INTERVAL_MS = 200;
+
+    /** how many times a DurabilityQueue lock-taking frame recurs: > 1 means re-entrant completion under the lock */
+    private static int recursionDepth(StackTraceElement[] stack)
+    {
+        int count = 0;
+        for (StackTraceElement frame : stack)
+            if (frame.getClassName().startsWith("accord.local.durability.DurabilityQueue") && frame.getMethodName().equals("processQueue"))
+                ++count;
+        return count;
+    }
+
+    private static void appendFrames(StringBuilder sb, StackTraceElement[] stack)
+    {
+        int top = Math.min(stack.length, STALL_REPORT_MAX_HOLDER_FRAMES);
+        for (int i = 0 ; i < top ; ++i)
+            sb.append("\n      at ").append(stack[i]);
+        int bottom = Math.max(top, stack.length - STALL_REPORT_HOLDER_BOTTOM_FRAMES);
+        if (bottom > top)
+            sb.append("\n      ... ").append(bottom - top).append(" frames ...");
+        for (int i = bottom ; i < stack.length ; ++i)
+            sb.append("\n      at ").append(stack[i]);
+    }
 
     /**
      * JVM-wide (all in-JVM instances share one JVM): monitor/ownable-synchronizer deadlocks, plus every thread that is
@@ -1200,15 +1224,54 @@ public class AccordLoadTestBase extends AccordTestBase
                        .append(" at ").append(stack.length == 0 ? "?" : stack[0]);
             }
             sb.append("; thread states ").append(states).append("; ").append(contended).append(" waiting on an owned lock").append(blocked);
-            // and what each holder is doing while others wait for it
+            // and what each holder is doing while others wait for it: its state (a parked/WAITING holder of a monitor
+            // is a deadlock the JVM cannot see), its stack top and bottom, and how many times DurabilityQueue/
+            // ExecuteSyncPoint recur in it (re-entrant completion -> processQueue -> start -> completion ... livelock)
             for (Long ownerId : owners)
             {
                 java.lang.management.ThreadInfo owner = byId.get(ownerId);
                 if (owner == null) continue;
-                sb.append("\n  holder ").append(owner.getThreadName()).append(' ').append(owner.getThreadState());
                 StackTraceElement[] stack = owner.getStackTrace();
-                for (int i = 0 ; i < Math.min(stack.length, STALL_REPORT_MAX_HOLDER_FRAMES) ; ++i)
-                    sb.append("\n      at ").append(stack[i]);
+                sb.append("\n  holder ").append(owner.getThreadName()).append(' ').append(owner.getThreadState())
+                  .append(owner.getLockName() == null ? "" : " waiting on " + owner.getLockName())
+                  .append(" depth=").append(stack.length).append(" recursion=").append(recursionDepth(stack));
+                for (java.lang.management.MonitorInfo monitor : owner.getLockedMonitors())
+                    sb.append("\n    holds ").append(monitor.getClassName()).append('@').append(Integer.toHexString(monitor.getIdentityHashCode()))
+                      .append(" taken at frame ").append(monitor.getLockedStackDepth()).append(": ").append(monitor.getLockedStackFrame());
+                for (java.lang.management.LockInfo lock : owner.getLockedSynchronizers())
+                    sb.append("\n    holds ").append(lock);
+                appendFrames(sb, stack);
+            }
+            // then re-sample: the same holder in the same place every time is a wedge; a moving stack under the same
+            // holder is livelock; different (or no) holders is contention
+            for (int sample = 1 ; sample <= STALL_REPORT_LOCK_SAMPLES ; ++sample)
+            {
+                Thread.sleep(STALL_REPORT_LOCK_SAMPLE_INTERVAL_MS);
+                java.lang.management.ThreadInfo[] again = mx.dumpAllThreads(true, true);
+                Map<Long, java.lang.management.ThreadInfo> againById = new HashMap<>();
+                for (java.lang.management.ThreadInfo info : again)
+                    againById.put(info.getThreadId(), info);
+                Map<String, Integer> waitersByLock = new java.util.TreeMap<>();
+                java.util.Set<Long> againOwners = new java.util.LinkedHashSet<>();
+                for (java.lang.management.ThreadInfo info : again)
+                {
+                    if (info.getLockOwnerName() == null) continue;
+                    waitersByLock.merge(info.getLockName(), 1, Integer::sum);
+                    againOwners.add(info.getLockOwnerId());
+                }
+                sb.append("\n  sample ").append(sample).append(" (+").append(sample * STALL_REPORT_LOCK_SAMPLE_INTERVAL_MS).append("ms): ");
+                if (waitersByLock.isEmpty()) { sb.append("no thread waiting on an owned lock"); continue; }
+                sb.append("waiters ").append(waitersByLock).append("; holders");
+                for (Long ownerId : againOwners)
+                {
+                    java.lang.management.ThreadInfo owner = againById.get(ownerId);
+                    if (owner == null) continue;
+                    StackTraceElement[] stack = owner.getStackTrace();
+                    sb.append(' ').append(owner.getThreadName()).append('(').append(owner.getThreadState())
+                      .append(", depth=").append(stack.length).append(", recursion=").append(recursionDepth(stack))
+                      .append(", at ").append(stack.length == 0 ? "?" : stack[0])
+                      .append(owners.contains(ownerId) ? ", SAME HOLDER" : "").append(')');
+                }
             }
             return sb.append('\n').toString();
         }
