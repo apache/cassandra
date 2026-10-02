@@ -92,10 +92,42 @@ public final class CacheWedgeReport
                 out.append("\n    store").append(store.id()).append(": inspection threw ").append(t);
             }
         }
+        // executor-level loading state: loads are paused while the cache is over its working set and other work is
+        // runnable, so anything waiting on a load (incl. this report's own lookups) waits for the backlog to drain
+        StringBuilder execs = new StringBuilder();
+        for (AccordExecutor executor : executors(node))
+        {
+            String paused = "?";
+            try
+            {
+                java.lang.reflect.Field f = AccordExecutor.class.getDeclaredField("hasPausedLoading");
+                f.setAccessible(true);
+                paused = String.valueOf(f.get(executor));
+                f = AccordExecutor.class.getDeclaredField("maxWorkingCapacityInBytes");
+                f.setAccessible(true);
+                paused += ", cache=" + (executor.weightedSize() >> 20) + "MiB of working-set " + (((Long) f.get(executor)) >> 20) + "MiB";
+            }
+            catch (Throwable t) { paused += " (" + t + ')'; }
+            // read without the lock (it may be unobtainable): racy, so tolerate a concurrently resized heap
+            long oldestLoad = 0;
+            int loading = executor.loading.size();
+            try
+            {
+                for (int i = 0 ; i < loading ; ++i)
+                {
+                    Task task = executor.loading.getSingle(i);
+                    if (task != null) oldestLoad = Math.max(oldestLoad, nanoTime() - task.createdAt);
+                }
+            }
+            catch (Throwable ignore) {}
+            execs.append("\n    executor").append(executor.executorId()).append(": loadingPaused=").append(paused)
+               .append(" loading=").append(loading).append(" oldestLoadingTask=").append(TimeUnit.NANOSECONDS.toMillis(oldestLoad)).append("ms")
+               .append(" waiting=").append(executor.waiting.size());
+        }
         if (out.length() == 0)
             return " no cycles, no mis-counted waiters, no task older than " + TimeUnit.NANOSECONDS.toSeconds(minAgeNanos)
-                   + "s on any cache entry (" + storesChecked + " stores, " + tasksChecked + " queued/locking tasks)";
-        return " (" + storesChecked + " stores, " + tasksChecked + " queued/locking tasks)" + out;
+                   + "s on any cache entry (" + storesChecked + " stores, " + tasksChecked + " queued/locking tasks)" + execs;
+        return " (" + storesChecked + " stores, " + tasksChecked + " queued/locking tasks)" + out + execs;
     }
 
     /** for tests driving a bare command store */
@@ -104,6 +136,20 @@ public final class CacheWedgeReport
         StringBuilder out = new StringBuilder();
         describe(store, minAgeNanos, maxTasks, out);
         return out.toString();
+    }
+
+    private static List<AccordExecutor> executors(Node node)
+    {
+        List<AccordExecutor> executors = new ArrayList<>();
+        for (CommandStore commandStore : node.commandStores().all())
+        {
+            if (!(commandStore instanceof AccordCommandStore)) continue;
+            AccordExecutor executor = ((AccordCommandStore) commandStore).executor();
+            boolean seen = false;
+            for (AccordExecutor e : executors) seen |= e == executor;
+            if (!seen) executors.add(executor);
+        }
+        return executors;
     }
 
     private static int describe(AccordCommandStore store, long minAgeNanos, int maxTasks, StringBuilder out)

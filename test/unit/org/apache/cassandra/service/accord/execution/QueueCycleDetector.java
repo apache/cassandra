@@ -357,8 +357,9 @@ public class QueueCycleDetector
             else if (waits > 0 && blockedOn == 0 && !loading.isEmpty())
             {
                 // not a mis-count: we are waiting for loads that have not completed, so report them with their status
-                sb.append(String.format("  %s [%s] counts %d waits and is waiting only on loads:%n",
-                                        describe(task), task.currentState(), waits));
+                sb.append(String.format("  %s [%s, age=%dms] counts %d waits and is waiting only on loads:%n",
+                                        describe(task), task.currentState(),
+                                        java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - task.createdAt), waits));
                 for (AccordCacheEntry<?, ?, ?> entry : loading)
                     sb.append(String.format("      %s is %s%n", entry.key(), entry.status()));
             }
