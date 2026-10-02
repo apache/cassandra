@@ -1214,7 +1214,7 @@ public class AccordLoadTestBase extends AccordTestBase
      * The tail of this node's log, from the fixed-size RINGBUFFER appender in {@code logback-dtest-info-rolling.xml} (absent
      * configs simply produce a note). Runs on the instance: dtest instances each configure their own logger context.
      */
-    private static String logTail()
+    private static String logTail(boolean allInfo)
     {
         try
         {
@@ -1234,7 +1234,7 @@ public class AccordLoadTestBase extends AccordTestBase
                     continue;
                 // WARN and above, plus accord's own INFO: the rest is flush/compaction/gossip noise
                 String name = event.getLoggerName();
-                if (!event.getLevel().isGreaterOrEqual(ch.qos.logback.classic.Level.WARN)
+                if (!event.getLevel().isGreaterOrEqual(allInfo ? ch.qos.logback.classic.Level.INFO : ch.qos.logback.classic.Level.WARN)
                     && !name.startsWith("accord.") && !name.startsWith("org.apache.cassandra.service.accord"))
                     continue;
                 // age, so we can tell a line from the stall from one emitted minutes before it; and the throwable,
@@ -1251,7 +1251,8 @@ public class AccordLoadTestBase extends AccordTestBase
                 selected.add(line.toString());
             }
             StringBuilder sb = new StringBuilder(" ").append(selected.size()).append(" interesting of ").append(ring.getLength()).append(" buffered");
-            for (String line : selected.subList(Math.max(0, selected.size() - STALL_REPORT_MAX_LOG_LINES), selected.size()))
+            int maxLines = allInfo ? 2 * STALL_REPORT_MAX_LOG_LINES : STALL_REPORT_MAX_LOG_LINES;
+            for (String line : selected.subList(Math.max(0, selected.size() - maxLines), selected.size()))
                 sb.append(line);
             return sb.toString();
         }
@@ -1259,6 +1260,145 @@ public class AccordLoadTestBase extends AccordTestBase
         {
             return " <could not read the log tail: " + t + '>';
         }
+    }
+
+    /** runs on the instance: how far AccordService got, read reflectively as the state is private */
+    private static String accordStartupPhase()
+    {
+        try
+        {
+            if (!AccordService.isSetup())
+                return "AccordService not set up";
+            Object instance = AccordService.unsafeInstance();
+            StringBuilder sb = new StringBuilder(instance.getClass().getSimpleName());
+            for (String field : new String[]{ "state", "rebootstrapOnStart" })
+            {
+                try
+                {
+                    java.lang.reflect.Field f = instance.getClass().getDeclaredField(field);
+                    f.setAccessible(true);
+                    sb.append(' ').append(field).append('=').append(f.get(instance));
+                }
+                catch (NoSuchFieldException ignore) {}
+            }
+            sb.append(" started()=").append(AccordService.started());
+            return sb.toString();
+        }
+        catch (Throwable t)
+        {
+            return "phase unknown: " + t;
+        }
+    }
+
+    private static final int STALL_REPORT_MAX_STARTUP_STACKS = 6;
+    private static final int STALL_REPORT_MAX_STARTUP_FRAMES = 45;
+
+    /**
+     * Stacks of the threads that are doing, or waiting on, node {@code num}'s startup: the ClusterChaos thread that
+     * called startup(), and any of the node's own threads (named {@code node<num>_}) that are in startup, journal
+     * replay, accord or TCM code. Grouped by identical stack, JDK pool frames trimmed.
+     */
+    private static String startupStacks(int num)
+    {
+        try
+        {
+            String prefix = "node" + num + '_';
+            Map<List<StackTraceElement>, List<String>> byStack = new java.util.LinkedHashMap<>();
+            for (Map.Entry<Thread, StackTraceElement[]> e : Thread.getAllStackTraces().entrySet())
+            {
+                String name = e.getKey().getName();
+                StackTraceElement[] stack = e.getValue();
+                boolean chaosThread = name.startsWith("ClusterChaos");
+                if (!chaosThread && !name.startsWith(prefix))
+                    continue;
+                if (!isStartupRelated(stack) || isIdleLoop(stack))
+                    continue;
+                byStack.computeIfAbsent(java.util.Arrays.asList(stack), ignore -> new ArrayList<>())
+                       .add(name + '/' + e.getKey().getState());
+            }
+            // the startup path itself first (the chaos thread's startup() and the instance thread executing it),
+            // then anything else of the node that is actually running, then the rest
+            List<Map.Entry<List<StackTraceElement>, List<String>>> ranked = new ArrayList<>(byStack.entrySet());
+            ranked.sort(Comparator.comparingInt(e -> startupRank(e.getKey(), e.getValue())));
+            if (byStack.isEmpty())
+                return "  startup stacks: <no thread of node" + num + " is in startup/replay/accord/tcm code>\n";
+
+            StringBuilder sb = new StringBuilder("  startup stacks:");
+            int printed = 0;
+            for (Map.Entry<List<StackTraceElement>, List<String>> e : ranked)
+            {
+                if (++printed > STALL_REPORT_MAX_STARTUP_STACKS)
+                {
+                    sb.append("\n    ... and ").append(byStack.size() - STALL_REPORT_MAX_STARTUP_STACKS).append(" more distinct stacks");
+                    break;
+                }
+                sb.append("\n    ").append(e.getValue());
+                List<StackTraceElement> stack = e.getKey();
+                int frames = 0;
+                for (StackTraceElement frame : stack)
+                {
+                    String cls = frame.getClassName();
+                    // the pool/thread plumbing below the work adds nothing
+                    if (cls.startsWith("java.util.concurrent.ThreadPoolExecutor") || cls.startsWith("io.netty.util.concurrent.FastThreadLocalRunnable"))
+                        break;
+                    if (++frames > STALL_REPORT_MAX_STARTUP_FRAMES)
+                    {
+                        sb.append("\n        ...");
+                        break;
+                    }
+                    sb.append("\n        at ").append(frame);
+                }
+            }
+            return sb.append('\n').toString();
+        }
+        catch (Throwable t)
+        {
+            return "  startup stacks: <failed: " + t + ">\n";
+        }
+    }
+
+    private static int startupRank(List<StackTraceElement> stack, List<String> threads)
+    {
+        for (StackTraceElement frame : stack)
+            if (frame.getMethodName().toLowerCase().contains("startup"))
+                return 0;
+        for (String thread : threads)
+            if (thread.endsWith("/RUNNABLE"))
+                return 1;
+        return 2;
+    }
+
+    /** a background loop parked waiting for work: present on every healthy node, so only noise in a stall report */
+    private static boolean isIdleLoop(StackTraceElement[] stack)
+    {
+        for (int i = 0 ; i < stack.length ; ++i)
+        {
+            String cls = stack[i].getClassName();
+            if (cls.startsWith("java.") || cls.startsWith("jdk.") || cls.startsWith("sun."))
+                continue;
+            // the first non-JDK frames say what is waiting; a known idle wait means nothing to see
+            String below = i + 2 < stack.length ? stack[i + 2].getClassName() : "";
+            return stack[i].getMethodName().equals("awaitExclusive")
+                   || cls.equals("org.apache.cassandra.concurrent.InfiniteLoopExecutor")
+                   || cls.startsWith("org.apache.cassandra.journal.Flusher")
+                   || cls.startsWith("org.apache.cassandra.concurrent.SEPWorker")
+                   || cls.startsWith("org.apache.cassandra.utils.concurrent.WaitQueue") && below.equals("org.apache.cassandra.tcm.log.LocalLog$Async$AsyncRunnable");
+        }
+        return true;
+    }
+
+    private static boolean isStartupRelated(StackTraceElement[] stack)
+    {
+        for (StackTraceElement frame : stack)
+        {
+            String cls = frame.getClassName(), method = frame.getMethodName();
+            if (method.toLowerCase().contains("startup") || method.toLowerCase().contains("replay")
+                || cls.startsWith("accord.") || cls.startsWith("org.apache.cassandra.service.accord.")
+                || cls.startsWith("org.apache.cassandra.tcm.") || cls.startsWith("org.apache.cassandra.journal.")
+                || cls.equals("org.apache.cassandra.service.CassandraDaemon") || cls.equals("org.apache.cassandra.service.StorageService"))
+                return true;
+        }
+        return false;
     }
 
     private static String stallReport(Cluster cluster, ChaosActive chaos, List<String> history)
@@ -1270,9 +1410,18 @@ public class AccordLoadTestBase extends AccordTestBase
             sb.append("chaos so far: ").append(history).append('\n');
             for (IInvokableInstance instance : cluster)
             {
-                sb.append("node").append(instance.config().num()).append(": ");
+                int num = instance.config().num();
+                sb.append("node").append(num).append(": ");
                 if (instance.isShutdown()) sb.append("shutdown\n");
-                else sb.append(accordState(instance)).append('\n');
+                else
+                {
+                    String state = accordState(instance);
+                    sb.append(state).append('\n');
+                    // only the message reliably reaches CI, so for a node stuck starting up put the stacks of
+                    // whatever is doing (or waiting on) its startup there too, not only in the suppressed throwables
+                    if (state.startsWith("accord not started") || state.startsWith("<unavailable"))
+                        sb.append(startupStacks(num));
+                }
             }
         }
         catch (Throwable t)
@@ -1289,7 +1438,11 @@ public class AccordLoadTestBase extends AccordTestBase
         {
             Future<String> result = instance.asyncCallsOnInstance(() -> {
                 if (!AccordService.isStarted())
-                    return "accord not started";
+                {
+                    // a node that never finishes starting is itself the stall (e.g. a RESTART op whose startup
+                    // hangs), so say how far it got and keep its whole startup log tail, not just accord's lines
+                    return "accord not started (" + accordStartupPhase() + ")\n  log tail:" + logTail(true);
+                }
 
                 StringBuilder sb = new StringBuilder();
                 Node node = AccordService.instance().node();
@@ -1368,8 +1521,8 @@ public class AccordLoadTestBase extends AccordTestBase
                 // finally this node's own log tail: CI discards the log file, and the lines that explain a stall
                 // ("insufficient to satisfy NoLocal/MinorityQuorumAndWaitedForAll requested by Bootstrap ...") are
                 // accord's INFO/WARN lines. Read here rather than in the harness because each instance configures
-                // its own logger context (see the RINGBUFFER appender in logback-dtest-info-rolling.xml).
-                sb.append("\n  log tail:").append(logTail());
+                // its own logger context (see the RINGBUFFER appender in logback-dtest-info.xml).
+                sb.append("\n  log tail:").append(logTail(false));
                 return sb.toString();
             }).call();
             return result.get(STALL_REPORT_TIMEOUT_MS, MILLISECONDS);
