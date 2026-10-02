@@ -231,6 +231,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
         validateDefaultTimeToLive(paramsForValidation);
         validateZstdCompressionLevel(paramsForValidation);
         validateMinimumTrainingFrequencyForDictionaryCompressor(paramsForValidation);
+        validateCompactionStrategySupportsAutoTraining(paramsForValidation);
 
         rawColumns.forEach((name, raw) -> raw.validate(state, name));
     }

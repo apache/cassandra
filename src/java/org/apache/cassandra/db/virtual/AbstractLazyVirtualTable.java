@@ -707,12 +707,16 @@ public abstract class AbstractLazyVirtualTable implements VirtualTable
         if (!metadata.isVirtual())
             throw new IllegalArgumentException("Cannot instantiate a non-virtual table");
 
-        if (!metadata.keyspace.startsWith(SchemaConstants.ACCORD_KEYSPACE_NAME))
+        if (!metadata.keyspace.startsWith(SchemaConstants.ACCORD_KEYSPACE_NAME)
+            && !metadata.keyspace.equals(SchemaConstants.VIRTUAL_VIEWS_REMOTE))
         {
             // NOTE: there is nothing stopping other use cases from using this facility, but there was
             // feedback on the ticket questioning the reliance on Accord integration tests for validating the API.
             // If another use case wishes to use the facility, simply satisfy reviewers in this regard. See PR #4373 for details.
-            throw new IllegalArgumentException("This facility is only currently supported by Accord keyspaces");
+            // system_views_remote is such a use case, and it is covered outside Accord by
+            // CompressionDictionaryAutoTrainingVirtualTableTest.
+            throw new IllegalArgumentException("This facility is only currently supported by Accord keyspaces " +
+                                               "and " + SchemaConstants.VIRTUAL_VIEWS_REMOTE);
         }
 
         this.metadata = metadata;

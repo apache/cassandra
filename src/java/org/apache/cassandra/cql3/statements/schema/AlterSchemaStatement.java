@@ -53,6 +53,7 @@ import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.AUTO_TRAINING_ENABLED;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MIN_FREQUENCY;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MIN_FREQUENCY_PARAMETER_NAME;
 import static org.apache.cassandra.schema.KeyspaceMetadata.validateKeyspaceName;
@@ -260,6 +261,26 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
         if (compressor instanceof ZstdCompressorBase)
             Guardrails.zstdCompressionLevelThreshold.guard(((ZstdCompressorBase) compressor).compressionLevel(),
                                                            "Zstd compression level", false, state);
+    }
+
+    /**
+     * Compression dictionary auto-training is only supported on tables using {@link TimeWindowCompactionStrategy}
+     * for now: the auto-trainer biases its training sample toward the newest time window to detect data drift.
+     * Reject enabling {@code auto_training_enabled} on a table that uses any other compaction strategy.
+     */
+    protected void validateCompactionStrategySupportsAutoTraining(TableParams params)
+    {
+        if (!SchemaConstants.isSystemKeyspace(keyspaceName) &&
+            params.compression.isDictionaryCompressionEnabled() &&
+            Boolean.parseBoolean(params.compression.getOtherOptions().getOrDefault(AUTO_TRAINING_ENABLED, "false")) &&
+            !TimeWindowCompactionStrategy.class.isAssignableFrom(params.compaction.klass()))
+        {
+            throw ire("Compression dictionary auto-training ('%s') is only supported on tables using %s, " +
+                      "but %s is configured for this table",
+                      AUTO_TRAINING_ENABLED,
+                      TimeWindowCompactionStrategy.class.getSimpleName(),
+                      params.compaction.klass().getSimpleName());
+        }
     }
 
     private void grantPermissionsOnResource(IResource resource, AuthenticatedUser user)
