@@ -145,6 +145,10 @@ public final class CacheWedgeReport
                 if (now - task.createdAt >= minAgeNanos)
                     sorted.add(task);
             sorted.sort(Comparator.comparingLong(t -> t.createdAt));
+            // the chains explain *why* the oldest tasks wait, which a cycle search cannot when there is no cycle
+            String chains = QueueCycleDetector.explainBlockers(tasks, sorted.subList(0, Math.min(2 * maxTasks, sorted.size())), 12, now);
+            if (chains != null)
+                aged.add(chains.trim().replace("\n", "\n      "));
             for (SafeTask<?> task : sorted.subList(0, Math.min(maxTasks, sorted.size())))
                 aged.add(String.format("%s age=%ds state=%s %s", describe(task), TimeUnit.NANOSECONDS.toSeconds(now - task.createdAt),
                                        task.currentState(), QueueCycleDetector.describeReadiness(task)));
@@ -164,7 +168,7 @@ public final class CacheWedgeReport
         if (explanation != null)
             out.append("\n      ").append(explanation.replace("\n", "\n      "));
         for (String line : aged)
-            out.append(line.startsWith("queues:") ? "\n      " : "\n      aged: ").append(line);
+            out.append(line.startsWith("queues:") || line.startsWith("wait chains") ? "\n      " : "\n      aged: ").append(line);
         return tasks.size();
     }
 
