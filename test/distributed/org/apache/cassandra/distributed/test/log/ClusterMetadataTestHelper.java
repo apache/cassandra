@@ -69,6 +69,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
+import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.RegistrationStatus;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.log.LocalLog;
@@ -96,6 +97,7 @@ import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
 import org.apache.cassandra.tcm.transformations.PrepareReplace;
 import org.apache.cassandra.tcm.transformations.Register;
+import org.apache.cassandra.tcm.transformations.RetireSingleNodeSequence;
 import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.tcm.transformations.cms.AdvanceCMSReconfiguration;
 import org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfiguration;
@@ -533,6 +535,7 @@ public class ClusterMetadataTestHelper
                     BootstrapAndJoin plan = getBootstrapPlan(endpoint);
                     assert plan.next == Transformation.Kind.FINISH_JOIN;
                     commit(plan.finishJoin);
+                    maybeCommitRetire(plan.startJoin.nodeId(), plan.lockKey);
                     idx++;
                     return this;
                 }
@@ -632,6 +635,7 @@ public class ClusterMetadataTestHelper
                     UnbootstrapAndLeave plan = getLeavePlan(endpoint);
                     assert plan.next == Transformation.Kind.FINISH_LEAVE;
                     commit(plan.finishLeave);
+                    maybeCommitRetire(plan.startLeave.nodeId(), plan.lockKey);
                     idx++;
                     return this;
                 }
@@ -741,6 +745,7 @@ public class ClusterMetadataTestHelper
                     BootstrapAndReplace plan = getReplacePlan(replacement);
                     assert plan.next == Transformation.Kind.FINISH_REPLACE;
                     commit(plan.finishReplace);
+                    maybeCommitRetire(plan.startReplace.nodeId(), plan.lockKey);
                     idx++;
                     return this;
                 }
@@ -819,6 +824,7 @@ public class ClusterMetadataTestHelper
                     Move plan = getMovePlan(endpoint);
                     assert plan.next == Transformation.Kind.FINISH_MOVE;
                     commit(plan.finishMove);
+                    maybeCommitRetire(plan.startMove.nodeId(), plan.lockKey);
                     idx++;
                     return this;
                 }
@@ -942,6 +948,16 @@ public class ClusterMetadataTestHelper
     public static ClusterMetadata commit(Transformation transform) throws ExecutionException, InterruptedException
     {
         return ClusterMetadataService.instance().commit(transform);
+    }
+
+    // On RETIRE_SINGLE_NODE_SEQUENCE-supporting clusters the FINISH step no longer unlocks/retires the sequence; a
+    // trailing RETIRE_SINGLE_NODE_SEQUENCE step does. Commit it here so the step-driving helpers observe a retired
+    // sequence, matching the legacy (pre-RETIRE_SINGLE_NODE_SEQUENCE) behaviour where FINISH did both.
+    private static void maybeCommitRetire(NodeId nodeId, LockedRanges.Key lockKey) throws ExecutionException, InterruptedException
+    {
+        MultiStepOperation<?> seq = ClusterMetadata.current().inProgressSequences.get(nodeId);
+        if (seq != null && seq.nextStep() == Transformation.Kind.RETIRE_SINGLE_NODE_SEQUENCE)
+            commit(new RetireSingleNodeSequence(nodeId, lockKey));
     }
 
     public static interface NodeOperations

@@ -34,6 +34,8 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.SealingCoordinator;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -49,6 +51,7 @@ import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
+import org.apache.cassandra.tcm.transformations.RetireSingleNodeSequence;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
@@ -56,6 +59,7 @@ import static com.google.common.collect.ImmutableList.of;
 import static org.apache.cassandra.tcm.MultiStepOperation.Kind.LEAVE;
 import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_LEAVE;
 import static org.apache.cassandra.tcm.Transformation.Kind.MID_LEAVE;
+import static org.apache.cassandra.tcm.Transformation.Kind.RETIRE_SINGLE_NODE_SEQUENCE;
 import static org.apache.cassandra.tcm.Transformation.Kind.START_LEAVE;
 import static org.apache.cassandra.tcm.sequences.SequenceState.continuable;
 import static org.apache.cassandra.tcm.sequences.SequenceState.error;
@@ -157,7 +161,15 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
     @Override
     public Transformation.Result applyTo(ClusterMetadata metadata)
     {
-        return applyMultipleTransformations(metadata, next, of(startLeave, midLeave, finishLeave));
+        // FinishLeave unlocks the affected ranges and retires the sequence only in legacy (pre-RETIRE_SINGLE_NODE_SEQUENCE) mode.
+        return finishLeave.unlocks()
+             ? applyMultipleTransformations(metadata, next, of(startLeave, midLeave, finishLeave))
+             : applyMultipleTransformations(metadata, next, of(startLeave, midLeave, finishLeave, retireSequence()));
+    }
+
+    private RetireSingleNodeSequence retireSequence()
+    {
+        return new RetireSingleNodeSequence(startLeave.nodeId(), lockKey);
     }
 
     @Override
@@ -222,6 +234,26 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
                     return continuable();
                 }
                 break;
+            case RETIRE_SINGLE_NODE_SEQUENCE:
+                try
+                {
+                    if (MutationTrackingService.isEnabled() && streams.kind() != LeaveStreams.Kind.ASSASSINATE)
+                    {
+                        SealingCoordinator.sealShardsAtFinishLeave(ClusterMetadata.current(),
+                                                                   latestModification.getEpoch(),
+                                                                   finishLeave.delta(),
+                                                                   finishLeave.nodeId(),
+                                                                   streams.kind());
+                    }
+                    ClusterMetadataService.instance().commit(retireSequence());
+                }
+                catch (Throwable t)
+                {
+                    JVMStabilityInspector.inspectThrowable(t);
+                    logger.warn("Exception sealing obsoleted MT shards or committing retireSequence", t);
+                    return continuable();
+                }
+                break;
             default:
                 return error(new IllegalStateException("Can't proceed with leave from " + next));
         }
@@ -253,6 +285,9 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
         DataPlacements placements = metadata.placements;
         switch (next)
         {
+            case RETIRE_SINGLE_NODE_SEQUENCE:
+                // FINISH_LEAVE has already been enacted - it's too late to be reverting anything, so we just unlock.
+                return metadata.transformer().with(metadata.lockedRanges.unlock(lockKey));
             // need to undo MID_LEAVE and START_LEAVE, but PrepareLeave doesn't affect placement
             case FINISH_LEAVE:
                 placements = midLeave.inverseDelta().apply(metadata.nextEpoch(), placements);
@@ -287,6 +322,8 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
                 return 1;
             case FINISH_LEAVE:
                 return 2;
+            case RETIRE_SINGLE_NODE_SEQUENCE:
+                return 3;
             default:
                 throw new IllegalStateException(String.format("Step %s is invalid for sequence %s ", next, LEAVE));
         }
@@ -302,6 +339,8 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
                 return MID_LEAVE;
             case 2:
                 return FINISH_LEAVE;
+            case 3:
+                return RETIRE_SINGLE_NODE_SEQUENCE;
             default:
                 throw new IllegalStateException(String.format("Step %s is invalid for sequence %s ", index, LEAVE));
         }
@@ -384,11 +423,11 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
             long size = Epoch.serializer.serializedSize(plan.latestModification, version);
             size += LockedRanges.Key.serializer.serializedSize(plan.lockKey, version);
 
-            size += VIntCoding.computeVIntSize(plan.kind().ordinal());
+            size += VIntCoding.computeVIntSize(plan.next.ordinal());
             size += VIntCoding.computeVIntSize(plan.streams.kind().ordinal());
             size += PrepareLeave.StartLeave.serializer.serializedSize(plan.startLeave, version);
-            size += PrepareLeave.StartLeave.serializer.serializedSize(plan.midLeave, version);
-            size += PrepareLeave.StartLeave.serializer.serializedSize(plan.finishLeave, version);
+            size += PrepareLeave.MidLeave.serializer.serializedSize(plan.midLeave, version);
+            size += PrepareLeave.FinishLeave.serializer.serializedSize(plan.finishLeave, version);
             return size;
         }
     }

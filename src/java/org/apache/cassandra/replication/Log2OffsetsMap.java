@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.replication;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
@@ -26,6 +27,10 @@ import com.google.common.collect.Iterables;
 
 import org.agrona.collections.Long2ObjectHashMap;
 
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.AsymmetricUnversionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.replication.MutationSummary.CoordinatorSummary;
 
 public abstract class Log2OffsetsMap<T extends Offsets> implements Iterable<ShortMutationId>
@@ -271,4 +276,36 @@ public abstract class Log2OffsetsMap<T extends Offsets> implements Iterable<Shor
             }
         }
     }
+
+    public static final AsymmetricUnversionedSerializer<Log2OffsetsMap<?>, Immutable> serializer = new AsymmetricUnversionedSerializer<>()
+    {
+        @Override
+        public void serialize(Log2OffsetsMap<?> map, DataOutputPlus out) throws IOException
+        {
+            Long2ObjectHashMap<? extends Offsets> offsetMap = map.asMap();
+            out.writeUnsignedVInt32(offsetMap.size());
+            for (Offsets offsets : offsetMap.values())
+                offsets.serialize(out);
+        }
+
+        @Override
+        public Immutable deserialize(DataInputPlus in) throws IOException
+        {
+            int count = in.readUnsignedVInt32();
+            Immutable.Builder builder = new Immutable.Builder();
+            for (int i = 0; i < count; i++)
+                builder.add(Offsets.deserialize(in));
+            return builder.build();
+        }
+
+        @Override
+        public long serializedSize(Log2OffsetsMap<?> map)
+        {
+            Long2ObjectHashMap<? extends Offsets> offsetMap = map.asMap();
+            long size = TypeSizes.sizeofUnsignedVInt(offsetMap.size());
+            for (Offsets offsets : offsetMap.values())
+                size += offsets.serializedSize();
+            return size;
+        }
+    };
 }

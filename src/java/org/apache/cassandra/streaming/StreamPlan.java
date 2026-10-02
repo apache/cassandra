@@ -28,10 +28,8 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.replication.ReconciledKeyspaceOffsets;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static com.google.common.collect.Iterables.all;
@@ -120,9 +118,6 @@ public class StreamPlan
         // TODO: add flag for fully reconciled data only if this is for a tracked keyspace
         session.addStreamRequest(keyspace, fullRanges, transientRanges, Arrays.asList(columnFamilies));
 
-        if (includeMutationLogs(keyspace, session))
-            session.addMutationLogRequest(keyspace, fullRanges, transientRanges);
-
         return this;
     }
 
@@ -138,18 +133,9 @@ public class StreamPlan
     public StreamPlan transferRanges(InetAddressAndPort to, String keyspace, RangesAtEndpoint replicas, String... columnFamilies)
     {
         StreamSession session = coordinator.getOrCreateOutboundSession(to);
-        ReconciledKeyspaceOffsets reconciledKeyspaceOffsets = includeMutationLogs(keyspace, session)
-                                                              ? session.addMutationLogTransfer(keyspace, replicas)
-                                                              : null;
-
-        session.addTransferRanges(keyspace, replicas, Arrays.asList(columnFamilies), flushBeforeTransfer, reconciledKeyspaceOffsets);
+        session.addTransferRanges(keyspace, replicas, Arrays.asList(columnFamilies), flushBeforeTransfer);
 
         return this;
-    }
-
-    private boolean includeMutationLogs(String keyspace, StreamSession session)
-    {
-        return isTrackedReplicationEnabled(keyspace) && session.getStreamOperation() != StreamOperation.REPAIR;
     }
 
     /**
@@ -273,16 +259,5 @@ public class StreamPlan
     public static boolean hasAccordTables(KeyspaceMetadata ksm)
     {
         return ksm.tables.stream().anyMatch(TableMetadata::requiresAccordSupport);
-    }
-
-    /**
-     * Check if the given keyspace uses tracked replication, which requires mutation log streaming.
-     *
-     * @param keyspace the keyspace name
-     * @return true if the keyspace uses tracked replication
-     */
-    private boolean isTrackedReplicationEnabled(String keyspace)
-    {
-        return ClusterMetadata.current().schema.getKeyspaceMetadata(keyspace).useMutationTracking();
     }
 }

@@ -154,6 +154,10 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
         {
             logger.warn("Exception writing tracked mutation {} locally", mutationId, e);
         }
+        finally
+        {
+            MutationTrackingService.instance().completeLocalWrite(mutationId);
+        }
 
         if (localResponse == null)
         {
