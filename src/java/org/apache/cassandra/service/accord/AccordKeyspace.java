@@ -364,8 +364,9 @@ public class AccordKeyspace
 
         public static Runnable systemTableUpdater(int storeId, TokenKey key, CommandsForKey update, Object serialized)
         {
-            PartitionUpdate upd = makeUpdate(storeId, key, update, serialized, nextSystemTimestampMicros());
+            long timestamp = nextSystemTimestampMicros();
             return () -> {
+                PartitionUpdate upd = makeUpdate(storeId, key, update, serialized, timestamp);
                 ColumnFamilyStore cfs = AccordColumnFamilyStores.commandsForKey;
                 try (OpOrder.Group group = Keyspace.writeOrder.start())
                 {
