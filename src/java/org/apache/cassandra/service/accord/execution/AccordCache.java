@@ -692,6 +692,14 @@ public class AccordCache
                 return cache.get(key);
             }
 
+            /**
+             * The entry for this key if it is present in the cache, without loading or referencing it
+             */
+            final AccordCacheEntry<K, V, ?> peekExclusive(K key)
+            {
+                return cache.get(key);
+            }
+
             @VisibleForTesting
             public final boolean isReferenced(K key)
             {

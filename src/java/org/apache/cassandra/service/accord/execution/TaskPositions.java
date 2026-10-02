@@ -38,6 +38,11 @@ import org.apache.cassandra.service.accord.execution.Task.ExclusiveGroup;
  * Since all positions outside of OLD are therefore within {@link #AGE_LIMIT} of the position clock when assigned,
  * within any other group a task may only be overtaken by work registered within {@link #AGE_LIMIT} of it.
  *
+ * <p>The age of OLD work is halved for each time its transaction has previously been serviced by recovery or progress
+ * work, so that a transaction we keep revisiting (which in a healthy system should be rare) does not keep taking
+ * priority over other old work; this effect is reset every 64 visits, so that such a transaction is not deprioritised
+ * forever (see {@link AccordCacheEntry#recordRecoveryVisit}).
+ *
  * <p>Consequences inherit their parent's position and classification (see {@link Task#inherit}): work submitted on
  * behalf of OLD work is itself OLD, and is queued as OLD if it runs on a command store; if instead it runs at the
  * executor level (e.g. loads) it must retain its own group, so is assigned a FIFO position. All other consequences
@@ -78,8 +83,20 @@ final class TaskPositions
         }
         else if (next - position > AGE_LIMIT)
         {
-            if (task.is(ExclusiveGroup.RECOVER)) task.override(ExclusiveGroup.OLD);
-            else task.position = next++;
+            if (task.is(ExclusiveGroup.RECOVER))
+            {
+                task.override(ExclusiveGroup.OLD);
+                // halve our effective age for each previous recovery/progress visit to this transaction, so that
+                // transactions we have repeatedly serviced do not keep taking priority over other old work
+                // (halvings is in 0..63, so is a valid shift)
+                int halvings = task.ageHalvings();
+                if (halvings > 0)
+                    task.position = next - ((next - position) >>> halvings);
+            }
+            else
+            {
+                task.position = next++;
+            }
         }
     }
 

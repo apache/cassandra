@@ -49,9 +49,11 @@ public class TaskPositionsTest
     static class T extends Task
     {
         final boolean onCommandStore;
+        int ageHalvings;
         T(ExclusiveGroup group, long position) { super(group); this.position = position; this.onCommandStore = true; }
         T(GlobalGroup group) { super(group); this.onCommandStore = false; }
         @Override boolean runsOnCommandStore() { return onCommandStore; }
+        @Override int ageHalvings() { return ageHalvings; }
         @Override void submitExclusiveMayThrow() {}
         @Override boolean runMayThrow() { return true; }
         @Override void completeExclusiveMayThrow() {}
@@ -135,6 +137,36 @@ public class TaskPositionsTest
         T task = assignNew(positions, new T(ExclusiveGroup.RECOVER, HLC - 10 * AGE_LIMIT));
         assertEquals(HLC - 10 * AGE_LIMIT, task.position);
         assertTrue(task.isOld());
+    }
+
+    @Test
+    public void oldWorkAgeIsHalvedPerPreviousVisit()
+    {
+        TaskPositions positions = anchored();
+        long age = 64 * AGE_LIMIT;
+        for (int visits = 0 ; visits <= 8 ; ++visits)
+        {
+            T task = new T(ExclusiveGroup.RECOVER, positions.nextPosition() - age);
+            task.ageHalvings = visits;
+            long next = positions.nextPosition();
+            assignNew(positions, task);
+            assertTrue(task.isOld());
+            assertEquals(next - (age >>> visits), task.position);
+        }
+
+        // at the saturated count the effective age is zero, i.e. FIFO (and never later)
+        T task = new T(ExclusiveGroup.RECOVER, positions.nextPosition() - age);
+        task.ageHalvings = AccordCacheEntry.HALVINGS_MASK;
+        long next = positions.nextPosition();
+        assignNew(positions, task);
+        assertEquals(next, task.position);
+
+        // young recovery work is unaffected
+        T young = new T(ExclusiveGroup.RECOVER, positions.nextPosition() - 1);
+        young.ageHalvings = 10;
+        long position = young.position;
+        assignNew(positions, young);
+        assertEquals(position, young.position);
     }
 
     @Test

@@ -164,6 +164,10 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
     static final int GENERATION_MASK = 0x7fff;
     static final int AGE_SHIFT = 24;
     static final int AGE_MASK = 0x3f;
+    // for entries that are not NO_EVICT, the age bits instead count (mod 64) the recovery/progress visits to their
+    // transaction (see SafeTask#isRecoveryVisit, and #ageHalvings); the generation bits are unused
+    static final int HALVINGS_SHIFT = AGE_SHIFT, HALVINGS_MASK = AGE_MASK;
+    static final int RECOVERY_VISIT_BITS = (AGE_MASK << AGE_SHIFT) | (GENERATION_MASK << GENERATION_SHIFT);
 
     static final int INCONSISTENT = 0x40000000;
     static final int UNSAFE_TO_READ = 0x80000000;
@@ -795,6 +799,33 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
         return (status >>> AGE_SHIFT) & AGE_MASK;
     }
 
+    /**
+     * The number of times to halve the age of this entry's transaction when prioritising its old recovery/progress work
+     * (0..63, so may be used directly as a shift). See {@link #recordRecoveryVisit}.
+     */
+    final int ageHalvings()
+    {
+        if (!Invariants.expect(!isNoEvict(), "%s is NO_EVICT, so tracks no recovery visits", this))
+            return 0;
+        return (status >>> HALVINGS_SHIFT) & HALVINGS_MASK;
+    }
+
+    /**
+     * Record that this entry's transaction has been serviced by recovery or progress work. In a healthy system a
+     * transaction should be visited this way only rarely, so repeated visits are a sign of a problem, and that we should
+     * not prioritise this transaction over other work: each visit increments {@link #ageHalvings}, so that the
+     * transaction's priority decays quickly to (in effect) FIFO. This count deliberately wraps every 64 visits, so that
+     * a transaction we keep revisiting is periodically restored to its full priority, rather than deprioritised forever.
+     * This state is never otherwise decayed.
+     */
+    final void recordRecoveryVisit()
+    {
+        if (!Invariants.expect(!isNoEvict(), "%s is NO_EVICT, so tracks no recovery visits", this))
+            return;
+        int halvings = (((status >>> HALVINGS_SHIFT) & HALVINGS_MASK) + 1) & HALVINGS_MASK;
+        status = (status & ~(HALVINGS_MASK << HALVINGS_SHIFT)) | (halvings << HALVINGS_SHIFT);
+    }
+
     public final boolean isInconsistent()
     {
         return (status & INCONSISTENT) != 0;
@@ -920,6 +951,8 @@ public class AccordCacheEntry<K, V, S extends SafeState<V> & SaferState<K, V, S>
     {
         Invariants.require((maxAge & ~AGE_MASK) == 0);
         Invariants.require((generation & ~GENERATION_MASK) == 0);
+        // these bits are otherwise used to track recovery visits, so clear them first
+        status &= ~RECOVERY_VISIT_BITS;
         status |= NO_EVICT;
         status |= generation << GENERATION_SHIFT;
         status |= maxAge << AGE_SHIFT;

@@ -1841,6 +1841,12 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
         if (completeState())
         {
+            if (isRecoveryVisit())
+            {
+                AccordCacheEntry<TxnId, ?, ?> entry = commandStore.cachesExclusive().commands().peekExclusive(context.primaryTxnId());
+                if (entry != null && !entry.isNoEvict())
+                    entry.recordRecoveryVisit();
+            }
             executor.elapsedPreparingToRun.increment(waitingAt - createdAt, runningAt);
             executor.elapsedWaitingToRun.increment(runningAt - waitingAt, runningAt);
             executor.elapsedRunning.increment(now - runningAt, now);
@@ -2298,6 +2304,25 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     boolean runsOnCommandStore()
     {
         return true;
+    }
+
+    /**
+     * Recovery or progress work submitted for this transaction (i.e. not a consequence of other work); in a healthy
+     * system a transaction should be serviced this way only rarely
+     */
+    private boolean isRecoveryVisit()
+    {
+        return !hasInherited() && (is(ExclusiveGroup.RECOVER) || is(ExclusiveGroup.OLD)) && context.primaryTxnId() != null;
+    }
+
+    @Override
+    int ageHalvings()
+    {
+        TxnId txnId = context.primaryTxnId();
+        if (txnId == null)
+            return 0;
+        AccordCacheEntry<TxnId, ?, ?> entry = commandStore.cachesExclusive().commands().peekExclusive(txnId);
+        return entry == null || entry.isNoEvict() ? 0 : entry.ageHalvings();
     }
 
     final AccordExecutor executor()

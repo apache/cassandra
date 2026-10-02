@@ -32,6 +32,7 @@ import accord.messages.Request;
 import accord.primitives.Ballot;
 import accord.primitives.SaveStatus;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.IntrusiveHeapNode;
 import accord.utils.Invariants;
@@ -460,6 +461,11 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
                 group = ExclusiveGroup.RANGE;
                 ts = txnId;
             }
+
+            // ephemeral reads are never recovered, so are never queued as recovery work (or OLD); their command
+            // entries are also NO_EVICT, so track no recovery visits (see AccordCacheEntry#recordRecoveryVisit)
+            if (group == RECOVER && txnId.is(Txn.Kind.EphemeralRead))
+                group = ExclusiveGroup.OTHER;
         }
 
         // the position is finalised on registration (see TaskPositions)
@@ -833,6 +839,16 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
     final boolean isOld()
     {
         return is(ExclusiveGroup.OLD);
+    }
+
+    /**
+     * The number of times (0..63) to halve the age of this task's transaction when prioritising it as OLD work, as its
+     * transaction has previously been serviced by recovery or progress work; see {@link AccordCacheEntry#ageHalvings}.
+     * Must be invoked only on the owning thread.
+     */
+    int ageHalvings()
+    {
+        return 0;
     }
 
     /**
