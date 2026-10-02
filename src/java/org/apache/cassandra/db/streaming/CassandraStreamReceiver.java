@@ -365,9 +365,6 @@ public class CassandraStreamReceiver implements StreamReceiver
             && metadata.mutationTrackingMigrationState.isMigrating(cfs.getKeyspaceName()))
             return false;
 
-        if (ranges.isEmpty())
-            return true;
-
         return KeyspaceMigrationInfo.shouldUseTrackedTransfers(metadata, cfs.getKeyspaceName(), cfs.metadata().id, ranges);
     }
 }

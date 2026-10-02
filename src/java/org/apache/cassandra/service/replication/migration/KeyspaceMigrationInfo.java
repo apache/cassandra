@@ -366,9 +366,8 @@ public class KeyspaceMigrationInfo
      * - No migration is in progress for this keyspace, OR
      * - The ranges don't overlap with pending migration ranges for this table
      * <p>
-     * Returns false (use untracked) when:
-     * - A migration is in progress AND the ranges overlap with pending ranges
-     * - There are no ranges to decide over
+     * Returns false (use untracked) when a migration is in progress AND the ranges overlap
+     * with pending ranges.
      *
      * @param metadata cluster metadata snapshot
      * @param keyspace keyspace name
@@ -381,9 +380,6 @@ public class KeyspaceMigrationInfo
                                                     @Nonnull TableId tableId,
                                                     @Nonnull Collection<Range<Token>> ranges)
     {
-        if (ranges.isEmpty())
-            return false;
-
         KeyspaceMigrationInfo migrationInfo = metadata.mutationTrackingMigrationState.getKeyspaceInfo(keyspace);
         if (migrationInfo == null)
             return true;
