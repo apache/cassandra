@@ -165,9 +165,10 @@ public class AccordConfig
 
         /**
          * While phases are within a threshold of imbalance, pick tasks by priority.
-         * Once the threshold is crossed, over-processed phases have a small penalty applied
-         * and work is prioritised by phase with the phase with the least recent work processed picked first,
-         * until the imbalance is resolved.
+         * Once the threshold is crossed, an increasing share of tasks (up to queue_flow_max_share_shift, by default
+         * half) are picked by phase, with the phase with the least recent work processed picked first, until the
+         * imbalance is resolved. The remainder continue to be picked by priority, so that the oldest work is always
+         * served.
          *
          * Within a phase, pick by priority.
          */
@@ -197,8 +198,25 @@ public class AccordConfig
     public QueuePriorityModel queue_priority_model;
     public QueueBalancingModel queue_balancing_model;
 
+    /**
+     * For {@link QueueBalancingModel#BLENDED_PRIORITY_PHASE_FAIR}: once the difference between the most and least
+     * fairly serviced queues (by recent dispatches less arrivals, in 7-bit decaying counters) exceeds this onset,
+     * dispatches begin to be chosen by fairness (least serviced queue) rather than by position (oldest work first).
+     * Default 4.
+     */
     public Integer queue_flow_imbalance_onset = null;
+    /**
+     * For {@link QueueBalancingModel#BLENDED_PRIORITY_PHASE_FAIR}: the share of dispatches chosen by fairness ramps
+     * linearly from zero at {@link #queue_flow_imbalance_onset} to its maximum ({@link #queue_flow_max_share_shift})
+     * once the imbalance exceeds the onset by {@code 2^queue_flow_imbalance_width_shift}. Default 5 (i.e. 32).
+     */
     public Integer queue_flow_imbalance_width_shift = null;
+    /**
+     * For {@link QueueBalancingModel#BLENDED_PRIORITY_PHASE_FAIR}: the maximum share of dispatches that may be chosen
+     * by fairness is {@code 1/2^queue_flow_max_share_shift}, so that the remainder are always chosen by position
+     * (oldest work first), however imbalanced the queues. Must be between 1 (at most half) and 6. Default 1.
+     */
+    public Integer queue_flow_max_share_shift = null;
 
     public String queue_active_limits;
 

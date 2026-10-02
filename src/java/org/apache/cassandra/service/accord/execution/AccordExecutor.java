@@ -109,9 +109,11 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
     static final QueueBalancingModel BALANCING_MODEL;
     static final long CACHE_FIFO_UPGRADE_AGE_NANOS;
     // BLENDED_PRIORITY_PHASE_FAIR blends two strategies (flow: least fairly serviced; age: earliest-queued work) by deficit
-    // round-robin; weights of BLEND_TOTAL come from a single imbalance ramp (onset..onset+width) trading age->flow.
+    // round-robin; weights of BLEND_TOTAL come from a single imbalance ramp (onset..onset+width) trading age->flow,
+    // with flow taking at most FLOW_MAX_WEIGHT (i.e. 1/2^FLOW_MAX_SHARE_SHIFT of BLEND_TOTAL), so that the age strategy
+    // always serves at least half of all dispatches (by default), and the oldest work cannot be starved by fairness.
     static final int BLEND_SHIFT = 6, BLEND_TOTAL = 1 << BLEND_SHIFT;
-    static final int FLOW_ONSET, FLOW_WIDTH_SHIFT;
+    static final int FLOW_ONSET, FLOW_WIDTH_SHIFT, FLOW_MAX_SHARE_SHIFT, FLOW_MAX_WEIGHT;
     static final boolean BALANCE_BY_POSITION;
     static final long GLOBAL_QUEUE_LIMITS, EXCLUSIVE_QUEUE_LIMITS;
     static final int NONSYNC_MIN_BATCH_SIZE, NONSYNC_MAX_BATCH_SIZE, NONSYNC_BLOCKED_LIMIT;
@@ -126,6 +128,8 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         BALANCING_MODEL = config.queue_balancing_model != null ? config.queue_balancing_model : QueueBalancingModel.BLENDED_PRIORITY_PHASE_FAIR;
         FLOW_ONSET  = config.queue_flow_imbalance_onset == null ? 4  : config.queue_flow_imbalance_onset;
         FLOW_WIDTH_SHIFT  = config.queue_flow_imbalance_width_shift == null ? 5 : config.queue_flow_imbalance_width_shift;
+        FLOW_MAX_SHARE_SHIFT = config.queue_flow_max_share_shift == null ? 1 : config.queue_flow_max_share_shift;
+        FLOW_MAX_WEIGHT = BLEND_TOTAL >>> FLOW_MAX_SHARE_SHIFT;
         NONSYNC_MIN_BATCH_SIZE = config.queue_nonsync_min_batch_size == null ? 16 : config.queue_nonsync_min_batch_size;
         NONSYNC_MAX_BATCH_SIZE = config.queue_nonsync_max_batch_size == null ? 64 : config.queue_nonsync_max_batch_size;
         CACHE_QUEUES_ENABLED = config.queue_key_ordering_enabled == null || config.queue_key_ordering_enabled;
@@ -134,6 +138,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
             logger.info("config.queue_key_ordering_enabled is false; accord.queue_nonsync_enabled forced to false as well");
         NONSYNC_BLOCKED_LIMIT = config.queue_nonsync_blocked_limit == null ? 8 : config.queue_nonsync_blocked_limit;
         Invariants.require(FLOW_ONSET >= 0 && FLOW_WIDTH_SHIFT >= 0 && FLOW_WIDTH_SHIFT < 10);
+        Invariants.require(FLOW_MAX_SHARE_SHIFT >= 1 && FLOW_MAX_SHARE_SHIFT <= BLEND_SHIFT, "queue_flow_max_share_shift must be between 1 and %d", BLEND_SHIFT);
         switch (BALANCING_MODEL)
         {
             default: throw new UnhandledEnum(BALANCING_MODEL);

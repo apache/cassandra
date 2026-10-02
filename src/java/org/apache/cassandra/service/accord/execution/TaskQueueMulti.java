@@ -303,10 +303,18 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
         return v - (v >>> 7);
     }
 
-    private static int flowWeight(int flowImbalance)
+    /**
+     * The weight (out of {@link AccordExecutor#BLEND_TOTAL}) given to choosing by flow (fairness) rather than by position:
+     * zero up to {@link AccordExecutor#FLOW_ONSET}, ramping linearly to {@link AccordExecutor#FLOW_MAX_WEIGHT} over the
+     * following {@code 2^FLOW_WIDTH_SHIFT} of imbalance. Since this never exceeds {@code FLOW_MAX_WEIGHT}, at least
+     * {@code BLEND_TOTAL - FLOW_MAX_WEIGHT} of dispatches are always chosen by position, so that the oldest work is
+     * always served, however imbalanced the queues.
+     */
+    static int flowWeight(int flowImbalance)
     {
         if (flowImbalance <= AccordExecutor.FLOW_ONSET) return 0;
-        return Math.min(AccordExecutor.BLEND_TOTAL, ((flowImbalance - AccordExecutor.FLOW_ONSET) << AccordExecutor.BLEND_SHIFT) >>> AccordExecutor.FLOW_WIDTH_SHIFT);
+        int rampShift = AccordExecutor.BLEND_SHIFT - AccordExecutor.FLOW_MAX_SHARE_SHIFT;
+        return Math.min(AccordExecutor.FLOW_MAX_WEIGHT, ((flowImbalance - AccordExecutor.FLOW_ONSET) << rampShift) >>> AccordExecutor.FLOW_WIDTH_SHIFT);
     }
 
     // per-lane max(0, a - b), carry-free: zero both a and b in lanes where a <= b, then subtract
