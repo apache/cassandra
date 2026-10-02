@@ -196,7 +196,7 @@ public final class CacheWedgeReport
         Task current = exclusive.task;
         sb.append("queues: next=").append(current == null ? "none" : describeTask(current) + " pos=" + current.position
                                                                         + " age=" + TimeUnit.NANOSECONDS.toMillis(now - current.createdAt) + "ms");
-        sb.append(" waiting=").append(exclusive.waitingCount()).append(" nextPosition=").append(exclusive.selfTask.executor().nextPosition);
+        sb.append(" waiting=").append(exclusive.waitingCount()).append(" nextPosition=").append(exclusive.selfTask.executor().positions.nextPosition());
         for (int g = 0 ; g < exclusive.queues.length ; ++g)
         {
             TaskQueue<Task> queue = exclusive.queues[g];

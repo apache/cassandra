@@ -107,7 +107,6 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
 
     static final QueuePriorityModel PRIORITY_MODEL;
     static final QueueBalancingModel BALANCING_MODEL;
-    static final long AGE_TO_FIFO;
     static final long CACHE_FIFO_UPGRADE_AGE_NANOS;
     // BLENDED_PRIORITY_PHASE_FAIR blends two strategies (flow: least fairly serviced; age: earliest-queued work) by deficit
     // round-robin; weights of BLEND_TOTAL come from a single imbalance ramp (onset..onset+width) trading age->flow.
@@ -122,7 +121,6 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
     static
     {
         AccordConfig config = DatabaseDescriptor.getAccord();
-        AGE_TO_FIFO = config.queue_priority_age_to_fifo.to(TimeUnit.MICROSECONDS);
         CACHE_FIFO_UPGRADE_AGE_NANOS = config.queue_cache_fifo_upgrade_age.to(TimeUnit.NANOSECONDS);
         PRIORITY_MODEL = config.queue_priority_model != null ? config.queue_priority_model : QueuePriorityModel.ORIG_HLC_FIFO;
         BALANCING_MODEL = config.queue_balancing_model != null ? config.queue_balancing_model : QueueBalancingModel.BLENDED_PRIORITY_PHASE_FAIR;
@@ -241,12 +239,10 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
     private final Tranches tranches = new Tranches(this);
 
     /**
-     * Newly submitted work must take a position >= minPosition, but this condition does not apply to consequences of
-     * previously submitted work; this inherits the originating task's position and tranche.
-     * This is to ensure afterSubmittedAndConsequences functions correctly.
+     * Assigns the position (priority) of each task on registration; see {@link PositionClock}.
+     * Note that happens-before relationships for afterSubmittedAndConsequences are tracked by {@link Tranches}, not position.
      */
-    long minPosition = 1;
-    long nextPosition = 1;
+    final PositionClock positions = new PositionClock();
     int tasks;
 
     private boolean hasPausedLoading;
@@ -411,7 +407,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
             waitingForQuiescence.forEach(Condition::signalAll);
             waitingForQuiescence = null;
         }
-        tranches.finishAll(nextPosition);
+        tranches.finishAll();
     }
 
     public void afterSubmittedAndConsequences(Runnable run)
@@ -584,23 +580,16 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         Invariants.require(task.is(UNREGISTERED));
         if (task.hasInherited())
         {
-            tranches.addInherited(task.tranche(), task.position);
+            // consequences pre-setup with their parent's state take their parent's place exactly;
+            // all others are re-aged, so that chains of consequences cannot hold an old position indefinitely
+            if (!task.hasPreSetup())
+                task.position = positions.assignInherited(task.position, task.createdAt);
+            tranches.addInherited(task.tranche());
         }
         else
         {
-            long position = task.position;
-            if (position == 0)
-            {
-                task.position = position = nextPosition++;
-            }
-            else
-            {
-                if (nextPosition < position)
-                    nextPosition = position + 1;
-                else if (position < minPosition)
-                    task.position = position = minPosition;
-            }
-            task.setTranche(tranches.addNew(position));
+            task.position = positions.assignNew(task.position, task.createdAt);
+            task.setTranche(tranches.addNew());
         }
         ++tasks;
     }

@@ -240,9 +240,20 @@ public class AccordConfig
     public DurationSpec.LongMicrosecondsBound queue_stop_check_interval;
 
     /**
-     * If the HLC is older than this, queue by FIFO instead
+     * Work with an HLC (see {@link #queue_priority_model}) is prioritised by that HLC, but by no more than this:
+     * work may take priority over newer work only by up to this interval, so that a stream of older work (whether
+     * new, or the consequences of older work) can delay newer work by a bounded amount. Within this interval, HLC
+     * order is exact.
      */
-    public DurationSpec.IntMillisecondsBound queue_priority_age_to_fifo = new DurationSpec.IntMillisecondsBound(500);
+    public DurationSpec.IntMillisecondsBound queue_priority_boost_limit = new DurationSpec.IntMillisecondsBound(500);
+
+    /**
+     * Once work is older than {@link #queue_priority_boost_limit}, the priority it takes over newer work declines
+     * linearly to zero over this further interval, so that very stale work (e.g. a flood of catch-up work) does not
+     * dominate newer work. Zero drops stale work straight to FIFO; null never declines, so that stale work retains
+     * the full {@link #queue_priority_boost_limit}.
+     */
+    public DurationSpec.IntMillisecondsBound queue_priority_boost_fade = new DurationSpec.IntMillisecondsBound(500);
     /**
      * A task that has waited on its cache entry queues for longer than this takes a fifo position on every entry it
      * waits on, so that newer fifo claims (which always run ahead of the priority and unsequenced regions) cannot
