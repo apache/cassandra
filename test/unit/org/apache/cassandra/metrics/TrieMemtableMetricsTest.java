@@ -41,6 +41,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.OverrideConfigurationLoader;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -79,6 +80,7 @@ public class TrieMemtableMetricsTest extends SchemaLoader
     @BeforeClass
     public static void setup() throws ConfigurationException, IOException
     {
+        CassandraRelevantProperties.VIRTUAL_KEYSPACE_SYSTEM_METRICS_ENABLED.setBoolean(true);
         OverrideConfigurationLoader.override((config) -> {
             config.partitioner = "Murmur3Partitioner";
         });

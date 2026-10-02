@@ -119,6 +119,9 @@
 #-Dcassandra.override_compaction.entities=ks1,ks2.tbl1
 #-Dcassandra.override_compaction.params={"class":"SizeTieredCompactionStrategy"}
 
+# Expose system_metrics virtual keyspace, hidden by default.
+#-Dcassandra.virtual_keyspace_system_metrics_enabled=false
+
 ########################
 # GENERAL JVM SETTINGS #
 ########################
