@@ -135,6 +135,9 @@ public final class CacheWedgeReport
             }
 
             explanation = QueueCycleDetector.explainStall(tasks);
+            String queues = describeExclusiveQueues(exclusive, minAgeNanos / 6);
+            if (queues != null)
+                aged.add(queues);
 
             long now = nanoTime();
             List<SafeTask<?>> sorted = new ArrayList<>();
@@ -161,8 +164,55 @@ public final class CacheWedgeReport
         if (explanation != null)
             out.append("\n      ").append(explanation.replace("\n", "\n      "));
         for (String line : aged)
-            out.append("\n      aged: ").append(line);
+            out.append(line.startsWith("queues:") ? "\n      " : "\n      aged: ").append(line);
         return tasks.size();
+    }
+
+    /**
+     * The per-group state the ExclusiveExecutor's QoS chooses between (see TaskQueueMulti.pollGroupByBlended): for each
+     * non-empty group its size, head position and head age, and the decayed arrival/dispatch counters the flow arm
+     * uses. Reported only if some group's head has waited at least {@code minHeadAgeNanos}: a group whose head is old
+     * while another group is being dispatched is starving. Must hold the executor lock.
+     */
+    private static String describeExclusiveQueues(ExclusiveExecutor exclusive, long minHeadAgeNanos)
+    {
+        long now = nanoTime();
+        long oldest = 0;
+        StringBuilder sb = new StringBuilder();
+        Task current = exclusive.task;
+        sb.append("queues: next=").append(current == null ? "none" : describeTask(current) + " pos=" + current.position
+                                                                        + " age=" + TimeUnit.NANOSECONDS.toMillis(now - current.createdAt) + "ms");
+        sb.append(" waiting=").append(exclusive.waitingCount()).append(" nextPosition=").append(exclusive.selfTask.executor().nextPosition);
+        for (int g = 0 ; g < exclusive.queues.length ; ++g)
+        {
+            TaskQueue<Task> queue = exclusive.queues[g];
+            int arrivals = (int) ((exclusive.arrivals >>> (8 * g)) & 0x7f), dispatches = (int) ((exclusive.dispatches >>> (8 * g)) & 0x7f);
+            if (queue == null || queue.isEmptySingle())
+            {
+                if (arrivals > 0 || dispatches > 0)
+                    sb.append("\n        ").append(Task.ExclusiveGroup.values()[g]).append(": empty arr=").append(arrivals).append(" disp=").append(dispatches);
+                continue;
+            }
+            Task head = queue.peekSingle();
+            long headAge = now - head.createdAt;
+            oldest = Math.max(oldest, headAge);
+            boolean cachedPositionStale = exclusive.positions.length > g && (exclusive.dirty & TaskQueueMulti.overflowBit(g)) == 0
+                                          && exclusive.positions[g] != head.position;
+            sb.append("\n        ").append(Task.ExclusiveGroup.values()[g]).append(": size=").append(queue.size())
+              .append(" headPos=").append(head.position).append(" headAge=").append(TimeUnit.NANOSECONDS.toMillis(headAge)).append("ms")
+              .append(" arr=").append(arrivals).append(" disp=").append(dispatches)
+              .append(" stopped=").append((exclusive.stopped & TaskQueueMulti.overflowBit(g)) != 0)
+              .append(cachedPositionStale ? " STALE cachedPos=" + exclusive.positions[g] : "")
+              .append(" head=").append(describeTask(head));
+        }
+        return oldest >= minHeadAgeNanos ? sb.toString() : null;
+    }
+
+    private static String describeTask(Task task)
+    {
+        if (task instanceof SafeTask<?>) return describe((SafeTask<?>) task);
+        try { return task.briefDescription(); }
+        catch (Throwable t) { return task.getClass().getSimpleName(); }
     }
 
     private static int collect(AccordCacheEntry<?, ?, ?> entry, Set<SafeTask<?>> into)
