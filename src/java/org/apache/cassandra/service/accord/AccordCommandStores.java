@@ -99,6 +99,7 @@ public class AccordCommandStores extends CommandStores implements CacheSize, Shu
             {
                 executor.executeDirectlyWithLock(() -> {
                     executor.cacheExclusive().processNoEvictQueue();
+                    executor.promoteAgedWaitersExclusive();
                 });
             }
         }, 1L, 1L, TimeUnit.SECONDS);

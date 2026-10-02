@@ -244,6 +244,12 @@ public class AccordConfig
      */
     public DurationSpec.IntMillisecondsBound queue_priority_age_to_fifo = new DurationSpec.IntMillisecondsBound(500);
     /**
+     * A task that has waited on its cache entry queues for longer than this takes a fifo position on every entry it
+     * waits on, so that newer fifo claims (which always run ahead of the priority and unsequenced regions) cannot
+     * overtake it indefinitely on a contended key.
+     */
+    public DurationSpec.IntMillisecondsBound queue_cache_fifo_upgrade_age = new DurationSpec.IntMillisecondsBound(5000);
+    /**
      * The target number of command stores to create per topology shard.
      * This determines the amount of execution parallelism possible for a given table/shard on the host.
      * More shards means more parallelism, but more state.

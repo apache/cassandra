@@ -1547,6 +1547,59 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         }
     }
 
+    /**
+     * Take a fifo position on every entry we are queued on, as the upgrade on start does (see prepareExclusiveMayThrow),
+     * but while still waiting. Our new fifoAt is the newest, so we join the tail of each fifo region: we wait for the
+     * claims ahead of us now, but no claim created later can overtake us. A move can only keep or gain runnability
+     * (never lose it), and a gain is reported exactly as a queue notification would be, so the wait counts stay exact.
+     */
+    void maybePromoteToFifoExclusive()
+    {
+        Invariants.require(CACHE_QUEUES_ENABLED);
+        // only INCR tasks may take fifo positions (see setCacheQueuedFifoExclusive): these are the tasks that need to
+        // lead several keys at once, so are the ones that a stream of fifo claims on any one of them can starve
+        if (!isIncremental() || isCacheQueuedFifo() || !(is(WAITING_ON_KEY) || is(WAITING_ON_TXN)))
+            return;
+
+        // only promote once every entry we reference is loaded, so all our claims move together
+        for (SafeState<?> safeState : refs.values())
+        {
+            if (safeState.isAbandoned()) continue;
+            AccordCacheEntry<?, ?, ?> entry = global(safeState);
+            if (entry.contains(this) && !entry.isLoaded())
+                return;
+        }
+
+        fifoAt = executor().uniqueCreatedAt.incrementAndGet();
+        setCacheQueuedFifoExclusive();
+        List<AccordCacheEntry<?, ?, ?>> entries = new ArrayList<>(refs.size());
+        for (SafeState<?> safeState : refs.values())
+        {
+            if (!safeState.isAbandoned())
+                entries.add(global(safeState));
+        }
+        for (AccordCacheEntry<?, ?, ?> entry : entries)
+        {
+            if (!entry.contains(this))
+                continue;
+            RunnableStatus status = entry.moveToFifo(this);
+            switch (status)
+            {
+                default: throw UnhandledEnum.unknown(status);
+                case NOT_RUNNABLE:
+                case STILL_RUNNABLE:
+                    break; // unchanged
+                case NEWLY_RUNNABLE:
+                case NEWLY_BLOCKING_RUNNABLE:
+                case STILL_RUNNABLE_NEWLY_BLOCKING:
+                    onChangeRunnableStatus(entry, status);
+                    break;
+            }
+            if (!(is(WAITING_ON_KEY) || is(WAITING_ON_TXN)))
+                break; // now runnable (or otherwise no longer waiting): positions on the remaining entries are already fifo-ordered or irrelevant
+        }
+    }
+
     private void onKeyMovedToFifo(AccordCacheEntry<?, ?, ?> entry, RunnableStatus status)
     {
         switch (status)

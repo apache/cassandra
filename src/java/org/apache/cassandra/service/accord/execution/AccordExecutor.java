@@ -108,6 +108,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
     static final QueuePriorityModel PRIORITY_MODEL;
     static final QueueBalancingModel BALANCING_MODEL;
     static final long AGE_TO_FIFO;
+    static final long CACHE_FIFO_UPGRADE_AGE_NANOS;
     // BLENDED_PRIORITY_PHASE_FAIR blends two strategies (flow: least fairly serviced; age: earliest-queued work) by deficit
     // round-robin; weights of BLEND_TOTAL come from a single imbalance ramp (onset..onset+width) trading age->flow.
     static final int BLEND_SHIFT = 6, BLEND_TOTAL = 1 << BLEND_SHIFT;
@@ -122,6 +123,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
     {
         AccordConfig config = DatabaseDescriptor.getAccord();
         AGE_TO_FIFO = config.queue_priority_age_to_fifo.to(TimeUnit.MICROSECONDS);
+        CACHE_FIFO_UPGRADE_AGE_NANOS = config.queue_cache_fifo_upgrade_age.to(TimeUnit.NANOSECONDS);
         PRIORITY_MODEL = config.queue_priority_model != null ? config.queue_priority_model : QueuePriorityModel.ORIG_HLC_FIFO;
         BALANCING_MODEL = config.queue_balancing_model != null ? config.queue_balancing_model : QueueBalancingModel.BLENDED_PRIORITY_PHASE_FAIR;
         FLOW_ONSET  = config.queue_flow_imbalance_onset == null ? 4  : config.queue_flow_imbalance_onset;
@@ -683,6 +685,36 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         }
 
         maybePauseLoading();
+    }
+
+    /**
+     * Give every INCR task that has waited on cache entry queues for at least {@link #CACHE_FIFO_UPGRADE_AGE_NANOS} a fifo
+     * position, so it waits only for claims that are already ahead of it (and bounded) rather than for every future
+     * fifo claim on a hot key. Invoked periodically with the lock held.
+     */
+    public final void promoteAgedWaitersExclusive()
+    {
+        Invariants.require(isOwningThread());
+        if (!CACHE_QUEUES_ENABLED || waiting.isEmpty())
+            return;
+
+        long now = Clock.Global.nanoTime();
+        List<SafeTask<?>> promote = null;
+        for (int i = 0, size = waiting.size() ; i < size ; ++i)
+        {
+            SafeTask<?> task = waiting.getSingle(i);
+            if (!task.isIncremental() || task.isCacheQueuedFifo() || now - task.waitingAt < CACHE_FIFO_UPGRADE_AGE_NANOS)
+                continue;
+            if (promote == null) promote = new ArrayList<>();
+            promote.add(task);
+        }
+
+        if (promote == null)
+            return;
+
+        // promotion may make a task runnable and so remove it from waiting, hence collect first
+        for (SafeTask<?> task : promote)
+            task.maybePromoteToFifoExclusive();
     }
 
     public void executeDirectlyWithLock(Runnable command)

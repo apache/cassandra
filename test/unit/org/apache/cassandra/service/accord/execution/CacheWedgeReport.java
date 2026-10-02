@@ -90,6 +90,14 @@ public final class CacheWedgeReport
         return " (" + storesChecked + " stores, " + tasksChecked + " queued/locking tasks)" + out;
     }
 
+    /** for tests driving a bare command store */
+    public static String describe(AccordCommandStore store, long minAgeNanos, int maxTasks)
+    {
+        StringBuilder out = new StringBuilder();
+        describe(store, minAgeNanos, maxTasks, out);
+        return out.toString();
+    }
+
     private static int describe(AccordCommandStore store, long minAgeNanos, int maxTasks, StringBuilder out)
     {
         String prefix = "\n    store" + store.id() + ": ";
@@ -112,6 +120,8 @@ public final class CacheWedgeReport
             out.append(prefix).append("could not obtain executor").append(store.executor().executorId())
                .append("'s lock within ").append(TimeUnit.NANOSECONDS.toMillis(LOCK_WAIT_NANOS)).append("ms; running=")
                .append(store.executor().unsafeRunningCount());
+            // whoever holds it is one of this executor's threads (or a thread inside lockCaches): show what they do
+            appendExecutorThreadStacks(store.executor().executorId(), out);
             return 0;
         }
 
@@ -210,6 +220,34 @@ public final class CacheWedgeReport
               .append(" head=").append(describeTask(head));
         }
         return oldest >= minHeadAgeNanos ? sb.toString() : null;
+    }
+
+    private static final int MAX_LOCK_HOLDER_FRAMES = 25;
+
+    /** stacks of this instance's threads for the given executor that are not idly waiting for work */
+    private static void appendExecutorThreadStacks(int executorId, StringBuilder out)
+    {
+        ThreadGroup group = Thread.currentThread().getThreadGroup();
+        String marker = "AccordExecutor[" + executorId + ',';
+        for (java.util.Map.Entry<Thread, StackTraceElement[]> e : Thread.getAllStackTraces().entrySet())
+        {
+            Thread thread = e.getKey();
+            if (thread.getThreadGroup() != group || !thread.getName().contains(marker))
+                continue;
+            StackTraceElement[] stack = e.getValue();
+            boolean idle = false;
+            for (StackTraceElement frame : stack)
+            {
+                if (frame.getClassName().startsWith("java.") || frame.getClassName().startsWith("jdk.")) continue;
+                idle = frame.getMethodName().equals("awaitExclusive");
+                break;
+            }
+            if (idle)
+                continue;
+            out.append("\n      ").append(thread.getName()).append(' ').append(thread.getState());
+            for (int i = 0 ; i < Math.min(stack.length, MAX_LOCK_HOLDER_FRAMES) ; ++i)
+                out.append("\n          at ").append(stack[i]);
+        }
     }
 
     private static String describeTask(Task task)
