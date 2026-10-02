@@ -139,7 +139,8 @@ public class AccordConfig
 
         /**
          * If the work has an associated TxnId, prioritise by its HLC (and FIFO otherwise).
-         * In this case, all phases with recovery ballots enter a shared QoS pool, so that Accept/Commit do not compete
+         * In this case, all phases with recovery ballots enter a shared QoS pool (with other recovery and progress work),
+         * so that Accept/Commit do not compete, and older recovery work is scheduled approximately in age order.
          */
         ORIG_HLC_FIFO
     }
@@ -164,11 +165,9 @@ public class AccordConfig
         PHASE_FAIR,
 
         /**
-         * While phases are within a threshold of imbalance, pick tasks by priority.
-         * Once the threshold is crossed, an increasing share of tasks (up to queue_flow_max_share_shift, by default
-         * half) are picked by phase, with the phase with the least recent work processed picked first, until the
-         * imbalance is resolved. The remainder continue to be picked by priority, so that the oldest work is always
-         * served.
+         * A fixed share (1/2^queue_flow_share_shift, by default half) of tasks are picked by phase, selecting the
+         * phase that has processed the least work recently relative to arrivals (breaking ties round-robin, so that
+         * every phase with work is served); the remainder are picked by priority.
          *
          * Within a phase, pick by priority.
          */
@@ -199,24 +198,11 @@ public class AccordConfig
     public QueueBalancingModel queue_balancing_model;
 
     /**
-     * For {@link QueueBalancingModel#BLENDED_PRIORITY_PHASE_FAIR}: once the difference between the most and least
-     * fairly serviced queues (by recent dispatches less arrivals, in 7-bit decaying counters) exceeds this onset,
-     * dispatches begin to be chosen by fairness (least serviced queue) rather than by position (oldest work first).
-     * Default 4.
+     * For {@link QueueBalancingModel#BLENDED_PRIORITY_PHASE_FAIR}: {@code 1/2^queue_flow_share_shift} of dispatches are
+     * chosen by fairness (the least fairly serviced queue, ties broken round-robin), and the remainder by priority
+     * (oldest position first). Must be between 1 (half) and 8. Default 1.
      */
-    public Integer queue_flow_imbalance_onset = null;
-    /**
-     * For {@link QueueBalancingModel#BLENDED_PRIORITY_PHASE_FAIR}: the share of dispatches chosen by fairness ramps
-     * linearly from zero at {@link #queue_flow_imbalance_onset} to its maximum ({@link #queue_flow_max_share_shift})
-     * once the imbalance exceeds the onset by {@code 2^queue_flow_imbalance_width_shift}. Default 5 (i.e. 32).
-     */
-    public Integer queue_flow_imbalance_width_shift = null;
-    /**
-     * For {@link QueueBalancingModel#BLENDED_PRIORITY_PHASE_FAIR}: the maximum share of dispatches that may be chosen
-     * by fairness is {@code 1/2^queue_flow_max_share_shift}, so that the remainder are always chosen by position
-     * (oldest work first), however imbalanced the queues. Must be between 1 (at most half) and 6. Default 1.
-     */
-    public Integer queue_flow_max_share_shift = null;
+    public Integer queue_flow_share_shift = null;
 
     public String queue_active_limits;
 
@@ -258,20 +244,17 @@ public class AccordConfig
     public DurationSpec.LongMicrosecondsBound queue_stop_check_interval;
 
     /**
-     * Work with an HLC (see {@link #queue_priority_model}) is prioritised by that HLC, but by no more than this:
-     * work may take priority over newer work only by up to this interval, so that a stream of older work (whether
-     * new, or the consequences of older work) can delay newer work by a bounded amount. Within this interval, HLC
-     * order is exact.
+     * Work with an HLC (see {@link #queue_priority_model}) that is older than this when submitted is either queued
+     * FIFO (for live work), or retains its HLC but is queued separately as OLD (for recovery and progress work), so
+     * that it is balanced against newer work rather than dominating it.
      */
-    public DurationSpec.IntMillisecondsBound queue_priority_boost_limit = new DurationSpec.IntMillisecondsBound(500);
+    public DurationSpec.IntMillisecondsBound queue_priority_age_to_fifo = new DurationSpec.IntMillisecondsBound(500);
 
     /**
-     * Once work is older than {@link #queue_priority_boost_limit}, the priority it takes over newer work declines
-     * linearly to zero over this further interval, so that very stale work (e.g. a flood of catch-up work) does not
-     * dominate newer work. Zero drops stale work straight to FIFO; null never declines, so that stale work retains
-     * the full {@link #queue_priority_boost_limit}.
+     * If true, consequences of live work are also queued FIFO if their inherited position is older than
+     * {@link #queue_priority_age_to_fifo}; otherwise they retain their parent's position.
      */
-    public DurationSpec.IntMillisecondsBound queue_priority_boost_fade = new DurationSpec.IntMillisecondsBound(500);
+    public boolean queue_priority_age_inherited = false;
     /**
      * A task that has waited on its cache entry queues for longer than this takes a fifo position on every entry it
      * waits on, so that newer fifo claims (which always run ahead of the priority and unsequenced regions) cannot

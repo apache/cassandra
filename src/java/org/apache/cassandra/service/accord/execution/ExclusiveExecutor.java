@@ -34,6 +34,7 @@ import accord.utils.async.AsyncChains;
 import accord.utils.async.Cancellable;
 
 import org.apache.cassandra.service.accord.debug.DebugExecution;
+import org.apache.cassandra.service.accord.execution.Task.GlobalGroup;
 import org.apache.cassandra.service.accord.execution.Task.GroupKind;
 
 import static accord.utils.Functions.returningVoid;
@@ -218,11 +219,27 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
             if (DEBUG_EXECUTION) debug.onSetTask(task);
             if (task != null)
             {
-                selfTask.position = task.position;
+                setSelfTaskFor(task);
                 selfTask.unsafeSetStateExclusive(WAITING_TO_RUN);
                 executor.runnable.enqueue(selfTask, false);
             }
         }
+    }
+
+    /**
+     * The group in which work for this task is queued at the executor level (i.e. the group our selfTask is queued in
+     * while this task is our next task to run): OLD work is queued separately, so that it is balanced against new work
+     */
+    static int globalGroup(Task task)
+    {
+        return (task.isOld() ? GlobalGroup.OLD : COMMAND_STORE).ordinal();
+    }
+
+    // must not be invoked while selfTask is queued (or assigned) at the executor level
+    private void setSelfTaskFor(Task next)
+    {
+        selfTask.position = next.position;
+        selfTask.override(next.isOld() ? GlobalGroup.OLD : COMMAND_STORE);
     }
 
     void enqueue(Task newTask, boolean incrementArrivals)
@@ -230,7 +247,7 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
         if (task != null)
         {
             if (incrementArrivals)
-                executor.runnable.incrementArrivals(selfTask);
+                executor.runnable.incrementArrivals(globalGroup(newTask));
             // TODO (expected): restore some invariant here
 //                Invariants.require(selfTask.isInHeap() || selfTask.is(RUNNING));
             super.enqueueMulti(newTask, incrementArrivals);
@@ -243,7 +260,7 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
             incrementDispatches(newTask);
             task = newTask;
             task.setQueue(kind);
-            selfTask.position = newTask.position;
+            setSelfTaskFor(newTask);
             selfTask.unsafeSetStateExclusive(WAITING_TO_RUN);
             executor.runnable.enqueue(selfTask, incrementArrivals);
             if (DEBUG_EXECUTION) debug.onSetTask(newTask);
@@ -285,10 +302,18 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
         task = pollMulti();
         if (DEBUG_EXECUTION) debug.onSetTask(task);
         if (task == null) executor.runnable.unqueue(selfTask);
-        else
+        else if (globalGroup(task) == selfTask.globalGroupOrdinal())
         {
             selfTask.position = task.position;
             executor.runnable.requeue(selfTask);
+        }
+        else
+        {
+            // our next task is queued in a different group at the executor level, so we must move there
+            executor.runnable.unqueue(selfTask);
+            setSelfTaskFor(task);
+            selfTask.unsafeSetStateExclusive(WAITING_TO_RUN);
+            executor.runnable.enqueue(selfTask, false);
         }
         Invariants.require(task == null || executor.runnable.isWaiting(selfTask));
     }

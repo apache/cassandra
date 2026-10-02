@@ -108,12 +108,9 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
     static final QueuePriorityModel PRIORITY_MODEL;
     static final QueueBalancingModel BALANCING_MODEL;
     static final long CACHE_FIFO_UPGRADE_AGE_NANOS;
-    // BLENDED_PRIORITY_PHASE_FAIR blends two strategies (flow: least fairly serviced; age: earliest-queued work) by deficit
-    // round-robin; weights of BLEND_TOTAL come from a single imbalance ramp (onset..onset+width) trading age->flow,
-    // with flow taking at most FLOW_MAX_WEIGHT (i.e. 1/2^FLOW_MAX_SHARE_SHIFT of BLEND_TOTAL), so that the age strategy
-    // always serves at least half of all dispatches (by default), and the oldest work cannot be starved by fairness.
-    static final int BLEND_SHIFT = 6, BLEND_TOTAL = 1 << BLEND_SHIFT;
-    static final int FLOW_ONSET, FLOW_WIDTH_SHIFT, FLOW_MAX_SHARE_SHIFT, FLOW_MAX_WEIGHT;
+    // BLENDED_PRIORITY_PHASE_FAIR blends two strategies (flow: least fairly serviced, ties broken round-robin; priority:
+    // earliest position): every 2^FLOW_SHARE_SHIFT-th dispatch is chosen by flow, and the remainder by priority
+    static final int FLOW_SHARE_SHIFT, FLOW_PERIOD_MASK;
     static final boolean BALANCE_BY_POSITION;
     static final long GLOBAL_QUEUE_LIMITS, EXCLUSIVE_QUEUE_LIMITS;
     static final int NONSYNC_MIN_BATCH_SIZE, NONSYNC_MAX_BATCH_SIZE, NONSYNC_BLOCKED_LIMIT;
@@ -126,10 +123,8 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         CACHE_FIFO_UPGRADE_AGE_NANOS = config.queue_cache_fifo_upgrade_age.to(TimeUnit.NANOSECONDS);
         PRIORITY_MODEL = config.queue_priority_model != null ? config.queue_priority_model : QueuePriorityModel.ORIG_HLC_FIFO;
         BALANCING_MODEL = config.queue_balancing_model != null ? config.queue_balancing_model : QueueBalancingModel.BLENDED_PRIORITY_PHASE_FAIR;
-        FLOW_ONSET  = config.queue_flow_imbalance_onset == null ? 4  : config.queue_flow_imbalance_onset;
-        FLOW_WIDTH_SHIFT  = config.queue_flow_imbalance_width_shift == null ? 5 : config.queue_flow_imbalance_width_shift;
-        FLOW_MAX_SHARE_SHIFT = config.queue_flow_max_share_shift == null ? 1 : config.queue_flow_max_share_shift;
-        FLOW_MAX_WEIGHT = BLEND_TOTAL >>> FLOW_MAX_SHARE_SHIFT;
+        FLOW_SHARE_SHIFT = config.queue_flow_share_shift == null ? 1 : config.queue_flow_share_shift;
+        FLOW_PERIOD_MASK = (1 << FLOW_SHARE_SHIFT) - 1;
         NONSYNC_MIN_BATCH_SIZE = config.queue_nonsync_min_batch_size == null ? 16 : config.queue_nonsync_min_batch_size;
         NONSYNC_MAX_BATCH_SIZE = config.queue_nonsync_max_batch_size == null ? 64 : config.queue_nonsync_max_batch_size;
         CACHE_QUEUES_ENABLED = config.queue_key_ordering_enabled == null || config.queue_key_ordering_enabled;
@@ -137,8 +132,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         if (!CACHE_QUEUES_ENABLED && (config.queue_nonsync_enabled == null || config.queue_nonsync_enabled))
             logger.info("config.queue_key_ordering_enabled is false; accord.queue_nonsync_enabled forced to false as well");
         NONSYNC_BLOCKED_LIMIT = config.queue_nonsync_blocked_limit == null ? 8 : config.queue_nonsync_blocked_limit;
-        Invariants.require(FLOW_ONSET >= 0 && FLOW_WIDTH_SHIFT >= 0 && FLOW_WIDTH_SHIFT < 10);
-        Invariants.require(FLOW_MAX_SHARE_SHIFT >= 1 && FLOW_MAX_SHARE_SHIFT <= BLEND_SHIFT, "queue_flow_max_share_shift must be between 1 and %d", BLEND_SHIFT);
+        Invariants.require(FLOW_SHARE_SHIFT >= 1 && FLOW_SHARE_SHIFT <= 8, "queue_flow_share_shift must be between 1 and 8");
         switch (BALANCING_MODEL)
         {
             default: throw new UnhandledEnum(BALANCING_MODEL);
@@ -244,10 +238,10 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
     private final Tranches tranches = new Tranches(this);
 
     /**
-     * Assigns the position (priority) of each task on registration; see {@link PositionClock}.
+     * Finalises the position (priority) and classification of each task on registration; see {@link TaskPositions}.
      * Note that happens-before relationships for afterSubmittedAndConsequences are tracked by {@link Tranches}, not position.
      */
-    final PositionClock positions = new PositionClock();
+    final TaskPositions positions = new TaskPositions();
     int tasks;
 
     private boolean hasPausedLoading;
@@ -585,15 +579,12 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         Invariants.require(task.is(UNREGISTERED));
         if (task.hasInherited())
         {
-            // consequences pre-setup with their parent's state take their parent's place exactly;
-            // all others are re-aged, so that chains of consequences cannot hold an old position indefinitely
-            if (!task.hasPreSetup())
-                task.position = positions.assignInherited(task.position, task.createdAt);
+            positions.assignInherited(task);
             tranches.addInherited(task.tranche());
         }
         else
         {
-            task.position = positions.assignNew(task.position, task.createdAt);
+            positions.assignNew(task);
             task.setTranche(tranches.addNew());
         }
         ++tasks;

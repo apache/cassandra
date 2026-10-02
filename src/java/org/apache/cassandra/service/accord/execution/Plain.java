@@ -46,6 +46,12 @@ abstract class Plain extends Task implements Cancellable
     abstract ExclusiveExecutor exclusiveExecutor();
 
     @Override
+    boolean runsOnCommandStore()
+    {
+        return exclusiveExecutor() != null;
+    }
+
+    @Override
     public final void cancel()
     {
         executor.submit(self -> { self.tryCancelExclusive(new CancellationException()); }, CancelTask::new, this);

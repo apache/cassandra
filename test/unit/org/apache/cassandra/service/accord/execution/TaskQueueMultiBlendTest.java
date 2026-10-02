@@ -24,22 +24,25 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.service.accord.execution.Task.ExclusiveGroup;
 import org.apache.cassandra.service.accord.execution.Task.ExecutorQueue;
 import org.apache.cassandra.service.accord.execution.Task.GlobalGroup;
 import org.apache.cassandra.service.accord.execution.Task.GroupKind;
 
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.FLOW_SHARE_SHIFT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
  * This test was authored by Claude (Anthropic).
  *
- * The BLENDED_PRIORITY_PHASE_FAIR model blends choosing by flow (the least fairly serviced queue) with choosing by
- * position (the oldest work). Flow must never take all dispatches, else a queue that appears over-serviced is
- * starved however old its work: at least {@code 1 - 1/2^FLOW_MAX_SHARE_SHIFT} of dispatches are chosen by position.
+ * The BLENDED_PRIORITY_PHASE_FAIR model chooses a fixed share ({@code 1/2^FLOW_SHARE_SHIFT}) of dispatches by flow
+ * (the least fairly serviced queue, ties broken round-robin) and the remainder by position (the oldest work).
  */
 public class TaskQueueMultiBlendTest
 {
+    static double flowShare() { return 1.0 / (1 << FLOW_SHARE_SHIFT); }
+
     @BeforeClass
     public static void setup()
     {
@@ -49,6 +52,7 @@ public class TaskQueueMultiBlendTest
     static final class T extends Task
     {
         T(GlobalGroup group, long position) { super(group); this.position = position; unsafeSetStateExclusive(State.WAITING_TO_RUN); }
+        T(ExclusiveGroup group, long position) { super(group); this.position = position; unsafeSetStateExclusive(State.WAITING_TO_RUN); }
         @Override void submitExclusiveMayThrow() {}
         @Override boolean runMayThrow() { return true; }
         @Override void completeExclusiveMayThrow() {}
@@ -64,7 +68,7 @@ public class TaskQueueMultiBlendTest
 
     static final class Q extends TaskQueueMulti<T>
     {
-        Q() { super(ExecutorQueue.RUNNABLE, GroupKind.GLOBAL, AccordExecutor.GLOBAL_QUEUE_LIMITS); }
+        Q(GroupKind kind) { super(ExecutorQueue.RUNNABLE, kind, kind == GroupKind.GLOBAL ? AccordExecutor.GLOBAL_QUEUE_LIMITS : AccordExecutor.EXCLUSIVE_QUEUE_LIMITS); }
 
         T pollAndRun()
         {
@@ -75,34 +79,14 @@ public class TaskQueueMultiBlendTest
         }
     }
 
-    @Test
-    public void flowWeightIsCapped()
-    {
-        int max = AccordExecutor.FLOW_MAX_WEIGHT;
-        assertEquals(AccordExecutor.BLEND_TOTAL >>> AccordExecutor.FLOW_MAX_SHARE_SHIFT, max);
-        assertTrue(max <= AccordExecutor.BLEND_TOTAL / 2);
-        int prev = 0;
-        for (int imbalance = 0 ; imbalance <= 127 ; ++imbalance)
-        {
-            int weight = TaskQueueMulti.flowWeight(imbalance);
-            assertTrue(weight >= prev);
-            assertTrue(weight <= max);
-            if (imbalance <= AccordExecutor.FLOW_ONSET) assertEquals(0, weight);
-            if (imbalance >= AccordExecutor.FLOW_ONSET + (1 << AccordExecutor.FLOW_WIDTH_SHIFT)) assertEquals(max, weight);
-            prev = weight;
-        }
-    }
-
     /**
-     * The COMMAND_STORE lane holds the oldest work, but its dispatches exceed its recorded arrivals (as when
-     * ExclusiveExecutor requeues itself without an arrival), so it appears over-serviced relative to the OTHER lane,
-     * which holds only newer work. The imbalance is sustained, so flow is at its maximum weight throughout; the
-     * COMMAND_STORE lane must nonetheless receive at least the position-chosen share of dispatches.
+     * The COMMAND_STORE lane holds the oldest work, but its dispatches exceed its recorded arrivals, so it appears
+     * over-serviced: it receives every dispatch chosen by position, and none chosen by flow.
      */
     @Test
-    public void overServicedQueueWithOldestWorkIsNotStarved()
+    public void overServicedQueueWithOldestWorkReceivesPositionShare()
     {
-        Q q = new Q();
+        Q q = new Q(GroupKind.GLOBAL);
         long oldPosition = 1, newPosition = 1_000_000_000_000L;
         q.enqueueMulti(new T(GlobalGroup.COMMAND_STORE, oldPosition++), false);
         for (int i = 0 ; i < 16 ; ++i)
@@ -112,7 +96,7 @@ public class TaskQueueMultiBlendTest
         for (int round = 0 ; round < rounds ; ++round)
         {
             T ran = q.pollAndRun();
-            if (group(ran) == GlobalGroup.COMMAND_STORE)
+            if (ran.is(GlobalGroup.COMMAND_STORE))
             {
                 if (round >= warmup) ++storeRan;
                 q.enqueueMulti(new T(GlobalGroup.COMMAND_STORE, oldPosition++), false);
@@ -124,13 +108,63 @@ public class TaskQueueMultiBlendTest
         }
 
         double share = storeRan / (double) (rounds - warmup);
-        double minShare = 1.0 - (AccordExecutor.FLOW_MAX_WEIGHT / (double) AccordExecutor.BLEND_TOTAL);
-        System.out.printf("COMMAND_STORE (oldest work, over-serviced) received %.1f%% of dispatches (minimum %.1f%%)%n", 100 * share, 100 * minShare);
-        assertTrue(share >= minShare - 0.01);
+        System.out.printf("COMMAND_STORE (oldest work, over-serviced) received %.1f%% of dispatches (expected %.1f%%)%n", 100 * share, 100 * (1 - flowShare()));
+        assertEquals(1 - flowShare(), share, 0.01);
     }
 
-    private static GlobalGroup group(T task)
+    /**
+     * Groups that are equally fairly serviced share flow dispatches in turn, regardless of group order;
+     * the group with the oldest work additionally receives every dispatch chosen by position.
+     */
+    @Test
+    public void flowTiesAreBrokenRoundRobin()
     {
-        return GlobalGroup.values()[(task.info >>> Task.GroupKind.GLOBAL.shift) & Task.GROUP_MASK];
+        Q q = new Q(GroupKind.EXCLUSIVE);
+        ExclusiveGroup[] groups = { ExclusiveGroup.OUTCOME, ExclusiveGroup.STABLE, ExclusiveGroup.PREACCEPT, ExclusiveGroup.RANGE };
+        long[] positions = { 1_000_000, 2_000_000_000L, 3_000_000_000L, 4_000_000_000L };
+        // the oldest work belongs to the last group, so that index order and position order disagree
+        ExclusiveGroup oldest = ExclusiveGroup.RANGE;
+        for (int g = 0 ; g < groups.length ; ++g)
+            for (int i = 0 ; i < 4 ; ++i)
+                q.enqueueMulti(new T(groups[g], groups[g] == oldest ? 1 + i : positions[g] + i), true);
+
+        int rounds = 100_000;
+        int[] ran = new int[ExclusiveGroup.values().length];
+        long[] next = positions.clone();
+        long nextOldest = 100;
+        for (int round = 0 ; round < rounds ; ++round)
+        {
+            T task = q.pollAndRun();
+            int g = task.exclusiveGroupOrdinal();
+            ++ran[g];
+            q.enqueueMulti(new T(ExclusiveGroup.values()[g], g == oldest.ordinal() ? nextOldest++ : 10 + next[indexOf(groups, g)]++), true);
+        }
+
+        double perGroupFlowShare = flowShare() / groups.length;
+        for (ExclusiveGroup group : groups)
+        {
+            double share = ran[group.ordinal()] / (double) rounds;
+            System.out.printf("%s received %.1f%% of dispatches%n", group, 100 * share);
+            double expect = group == oldest ? (1 - flowShare()) + perGroupFlowShare : perGroupFlowShare;
+            assertEquals(group.toString(), expect, share, 0.01);
+        }
+    }
+
+    private static int indexOf(ExclusiveGroup[] groups, int ordinal)
+    {
+        for (int i = 0 ; i < groups.length ; ++i)
+            if (groups[i].ordinal() == ordinal)
+                return i;
+        throw new AssertionError();
+    }
+
+    /**
+     * Flow and position each receive a fixed share of dispatches whenever they disagree
+     */
+    @Test
+    public void flowShareIsFixed()
+    {
+        assertTrue(AccordExecutor.FLOW_SHARE_SHIFT >= 1);
+        assertEquals((1 << AccordExecutor.FLOW_SHARE_SHIFT) - 1, AccordExecutor.FLOW_PERIOD_MASK);
     }
 }

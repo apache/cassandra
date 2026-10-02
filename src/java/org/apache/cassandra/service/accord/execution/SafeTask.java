@@ -1082,10 +1082,10 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     private void waitOnTxnsExclusive()
     {
         waitingAt = Math.max(createdAt, nanoTime());
-        // we are dispatched at the executor level by our command store's ExclusiveExecutor (in the COMMAND_STORE group),
-        // which enqueues itself without registering an arrival, so we must register our arrival against it
+        // we are dispatched at the executor level by our command store's ExclusiveExecutor (in the COMMAND_STORE or OLD
+        // group), which enqueues itself without registering an arrival, so we must register our arrival against it
         ExclusiveExecutor exclusiveExecutor = commandStore.exclusiveExecutor();
-        executor().runnable.incrementArrivals(exclusiveExecutor.selfTask);
+        executor().runnable.incrementArrivals(ExclusiveExecutor.globalGroup(this));
         exclusiveExecutor.incrementArrivals(this);
 
         if (!CACHE_QUEUES_ENABLED)
@@ -2292,6 +2292,12 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     public String briefDescription()
     {
         return context.reason();
+    }
+
+    @Override
+    boolean runsOnCommandStore()
+    {
+        return true;
     }
 
     final AccordExecutor executor()

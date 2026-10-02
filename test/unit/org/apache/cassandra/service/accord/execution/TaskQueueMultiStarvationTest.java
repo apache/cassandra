@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.service.accord.execution;
 
-import java.util.concurrent.CancellationException;
+import java.util.function.Consumer;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -29,9 +29,8 @@ import org.apache.cassandra.service.accord.execution.Task.ExecutorQueue;
 import org.apache.cassandra.service.accord.execution.Task.GlobalGroup;
 import org.apache.cassandra.service.accord.execution.Task.GroupKind;
 
-import static org.apache.cassandra.service.accord.execution.PositionClock.BOOST_FADE;
-import static org.apache.cassandra.service.accord.execution.PositionClock.BOOST_LIMIT;
-import static org.apache.cassandra.service.accord.execution.PositionClock.boost;
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.FLOW_SHARE_SHIFT;
+import static org.apache.cassandra.service.accord.execution.TaskPositions.AGE_LIMIT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -39,24 +38,20 @@ import static org.junit.Assert.assertTrue;
  * This test was authored by Claude (Anthropic).
  *
  * Drives the real {@link TaskQueueMulti} group selection deterministically, modelling one queue: poll one task,
- * "run" it (reset active, as ExclusiveExecutor.completeTask does), and replace it with new work, with simulated time
- * advancing by {@link #DISPATCH_NANOS} per dispatch. Every task's position is assigned by the real
- * {@link PositionClock}, exactly as {@link AccordExecutor#registerExclusive} does, from a realistic (epoch micros)
- * HLC and the simulated creation time.
+ * "run" it (reset active, as ExclusiveExecutor.completeTask does), and replace it with new work. Positions are
+ * assigned by the real {@link TaskPositions}, exactly as {@link AccordExecutor#registerExclusive} does.
  *
- * Without bounding the priority of old HLCs, each of these scenarios starves its victim indefinitely: every new
- * arrival in another group (or another command store, or in a chain of consequences) carries a position older than
- * the victim's. With {@link PositionClock}, a task may only be overtaken by work registered within
- * {@link PositionClock#BOOST_LIMIT} after it, and only by as much as {@link PositionClock#boost} permits for its age.
+ * Previously, each scenario starved its victim indefinitely, as every new arrival in another group (or another
+ * command store) carried a position older than the victim's, and the flow imbalance never engaged. Now a fixed share
+ * of dispatches is chosen by flow with ties broken round-robin, so every group with work is serviced within a
+ * bounded number of dispatches, and old recovery work is queued separately as OLD.
  */
 public class TaskQueueMultiStarvationTest
 {
-    static final long DISPATCH_NANOS = 10_000; // each dispatch takes 10us of simulated time
-    static final long DISPATCH_MICROS = DISPATCH_NANOS / 1000;
-    static final long HLC_EPOCH = 1_790_000_000_000_000L;
+    static final long HLC = 1_790_000_000_000_000L;
     static final int BACKLOG = 100;
-    static final int SLACK = 2;
     static final int MAX_ROUNDS = 1_000_000;
+    static int flowPeriod() { return 1 << FLOW_SHARE_SHIFT; }
 
     @BeforeClass
     public static void setup()
@@ -64,22 +59,11 @@ public class TaskQueueMultiStarvationTest
         DatabaseDescriptor.daemonInitialization();
     }
 
-    static final class T extends Task
+    static final class T extends TaskPositionsTest.T
     {
         final String name;
-        T(ExclusiveGroup group, String name) { super(group); this.name = name; unsafeSetStateExclusive(State.WAITING_TO_RUN); }
-        T(GlobalGroup group, String name) { super(group); this.name = name; unsafeSetStateExclusive(State.WAITING_TO_RUN); }
-        @Override void submitExclusiveMayThrow() {}
-        @Override boolean runMayThrow() { return true; }
-        @Override void completeExclusiveMayThrow() {}
-        @Override void tryCancelExclusive(CancellationException cancelled) {}
-        @Override void reportFailureMayThrow(Throwable fail) {}
-        @Override AccordExecutor executor() { return null; }
-        @Override void unqueueIfQueued() {}
-        @Override boolean isNewWork() { return true; }
-        @Override String briefDescription() { return name; }
-        @Override public String description() { return name; }
-        @Override public void cancel() {}
+        T(ExclusiveGroup group, long position, String name) { super(group, position); this.name = name; unsafeSetStateExclusive(State.WAITING_TO_RUN); }
+        T(GlobalGroup group, long position, String name) { super(group); this.position = position; this.name = name; unsafeSetStateExclusive(State.WAITING_TO_RUN); }
     }
 
     static final class Q extends TaskQueueMulti<T>
@@ -97,31 +81,26 @@ public class TaskQueueMultiStarvationTest
 
     static final class Sim
     {
-        final PositionClock clock = new PositionClock();
+        final TaskPositions positions = new TaskPositions();
         final Q q;
-        final long startNanos = 123_456_789_000L; // an arbitrary nanoTime origin, unrelated to the HLC epoch
-        long nanos = startNanos;
+        long hlc = HLC; // the HLC of new work: advances by 10us per dispatch
 
         Sim() { this(GroupKind.EXCLUSIVE); }
         Sim(GroupKind kind) { q = new Q(kind); }
 
-        long hlcNow() { return HLC_EPOCH + (nanos - startNanos) / 1000; }
-
-        T fresh(ExclusiveGroup group, String name) { return newWork(new T(group, name), hlcNow()); }
-        T aged(ExclusiveGroup group, long age, String name) { return newWork(new T(group, name), hlcNow() - age); }
-        T aged(GlobalGroup group, long age, String name) { return newWork(new T(group, name), hlcNow() - age); }
-
-        T newWork(T task, long hlc)
+        T submit(ExclusiveGroup group, long age, String name)
         {
-            task.position = clock.assignNew(hlc, nanos);
+            T task = new T(group, hlc - age, name);
+            positions.assignNew(task);
+            task.setTranche(0);
             return enqueue(task);
         }
 
         T consequence(ExclusiveGroup group, T parent, String name)
         {
-            T task = new T(group, name);
-            task.position = clock.assignInherited(parent.position, nanos);
-            assertTrue(task.position >= parent.position);
+            T task = new T(group, 0, name);
+            task.inherit(parent);
+            positions.assignInherited(task);
             return enqueue(task);
         }
 
@@ -133,13 +112,13 @@ public class TaskQueueMultiStarvationTest
 
         T pollAndRun()
         {
-            nanos += DISPATCH_NANOS;
+            hlc += 10;
             return q.pollAndRun();
         }
     }
 
     /** the number of dispatches before {@code victim} runs, replacing each other task run with {@code replace} */
-    static long dispatchesUntil(Sim sim, T victim, java.util.function.Consumer<T> replace)
+    static long dispatchesUntil(Sim sim, T victim, Consumer<T> replace)
     {
         for (int round = 0 ; round < MAX_ROUNDS ; ++round)
         {
@@ -151,139 +130,147 @@ public class TaskQueueMultiStarvationTest
         return -1;
     }
 
-    static long overtakers(long age)
+    // a group that is not being serviced has the minimum flow counter, so is serviced within a round-robin cycle of
+    // flow dispatches; we allow some slack for the counters of a previously over-serviced group to decay
+    static long flowBound(int groups)
     {
-        return boost(age) / DISPATCH_MICROS;
+        return (long) flowPeriod() * groups + 1000;
     }
 
     @Test
     public void control_newerArrivalsDoNotStarve()
     {
-        // victim is fresh; the backlog ahead of it is older (but young), and every new arrival is newer
+        // victim is fresh; the backlog ahead of it in another group is older (but young), and every new arrival is newer
         Sim sim = new Sim();
-        T victim = sim.fresh(ExclusiveGroup.RANGE, "victim");
+        T victim = sim.submit(ExclusiveGroup.RANGE, 0, "victim");
         for (int i = 0 ; i < BACKLOG ; ++i)
-            sim.aged(ExclusiveGroup.DECIDE, 1000 - i, "d");
+            sim.submit(ExclusiveGroup.DECIDE, 1000 - i, "d");
 
-        long waited = dispatchesUntil(sim, victim, ran -> sim.fresh(ExclusiveGroup.DECIDE, "d"));
+        long waited = dispatchesUntil(sim, victim, ran -> sim.submit(ExclusiveGroup.DECIDE, 0, "d"));
         System.out.println("control: victim ran after " + waited + " dispatches");
-        assertEquals(BACKLOG, waited);
+        assertTrue(waited >= 0 && waited <= BACKLOG);
     }
 
     /**
-     * Every new DECIDE arrival is new work older than the victim by {@code age} (e.g. recovery messages carrying an
-     * old ballot, or catch-up work); the victim's group has no further arrivals. The victim may be overtaken only by
-     * arrivals within {@code boost(age)} after it - i.e. HLC priority is honoured, but only by a bounded amount.
+     * Every new DECIDE arrival is a consequence of the last to run, so inherits its (old) position, while the victim's
+     * group has no further arrivals. Position never favours the victim, but flow services it.
      */
     @Test
-    public void olderNewWorkInAnotherGroupIsBounded()
-    {
-        long[] ages = BOOST_FADE >= 0 ? new long[] { BOOST_LIMIT / 2, BOOST_LIMIT, BOOST_LIMIT + BOOST_FADE / 2, BOOST_LIMIT + BOOST_FADE, 10_000_000 }
-                                      : new long[] { BOOST_LIMIT / 2, BOOST_LIMIT, 10_000_000 };
-        for (long age : ages)
-        {
-            Sim sim = new Sim();
-            T victim = sim.fresh(ExclusiveGroup.RANGE, "victim");
-            for (int i = 0 ; i < BACKLOG ; ++i)
-                sim.aged(ExclusiveGroup.DECIDE, age, "d");
-
-            long waited = dispatchesUntil(sim, victim, ran -> sim.aged(ExclusiveGroup.DECIDE, age, "d"));
-            System.out.println("older new work (age " + age + "us, boost " + boost(age) + "us): victim ran after " + waited + " dispatches");
-            assertTrue("victim starved", waited >= 0);
-            assertTrue("victim waited " + waited + " for age " + age, waited <= BACKLOG + overtakers(age) + SLACK);
-            assertTrue("victim waited only " + waited + " for age " + age + ": HLC priority not honoured", waited >= overtakers(age) - SLACK);
-        }
-    }
-
-    /**
-     * Every new DECIDE arrival is a consequence of the last DECIDE task to run, so inherits its position: an
-     * unbroken chain of consequences of old work. The chain keeps its place while young, but cannot hold its
-     * position for longer than {@code BOOST_LIMIT}.
-     */
-    @Test
-    public void consequenceChainIsBounded()
+    public void olderArrivalsInAnotherGroupAreBounded()
     {
         Sim sim = new Sim();
-        T victim = sim.fresh(ExclusiveGroup.RANGE, "victim");
+        T victim = sim.submit(ExclusiveGroup.RANGE, 0, "victim");
         for (int i = 0 ; i < BACKLOG ; ++i)
-            sim.aged(ExclusiveGroup.DECIDE, BOOST_LIMIT / 2, "d");
+            sim.submit(ExclusiveGroup.DECIDE, AGE_LIMIT / 2, "d");
 
         long waited = dispatchesUntil(sim, victim, ran -> sim.consequence(ExclusiveGroup.DECIDE, ran, "d"));
-        System.out.println("consequence chain: victim ran after " + waited + " dispatches");
+        System.out.println("older arrivals: victim ran after " + waited + " dispatches");
         assertTrue("victim starved", waited >= 0);
-        assertTrue("victim waited " + waited, waited <= BACKLOG + BOOST_LIMIT / DISPATCH_MICROS + SLACK);
-        // while young, the chain keeps its place ahead of the victim
-        assertTrue("victim waited only " + waited, waited >= BOOST_LIMIT / 2 / DISPATCH_MICROS);
+        assertTrue("victim waited " + waited, waited <= flowBound(2));
     }
 
-    /**
-     * As {@link #olderNewWorkInAnotherGroupIsBounded}, but the victim's group has a standing backlog of its own
-     */
     @Test
     public void victimGroupWithItsOwnBacklogIsServiced()
     {
         Sim sim = new Sim();
         int victims = 64;
         for (int i = 0 ; i < victims ; ++i)
-            sim.fresh(ExclusiveGroup.RANGE, "victim" + i);
+            sim.submit(ExclusiveGroup.RANGE, 0, "victim" + i);
         for (int i = 0 ; i < BACKLOG ; ++i)
-            sim.aged(ExclusiveGroup.DECIDE, BOOST_LIMIT / 2, "d");
+            sim.submit(ExclusiveGroup.DECIDE, AGE_LIMIT / 2, "d");
 
         int rangeRan = 0, round = 0, firstRan = -1;
         for ( ; round < MAX_ROUNDS && rangeRan < victims ; ++round)
         {
             T ran = sim.pollAndRun();
             if (ran.name.startsWith("victim")) { if (rangeRan++ == 0) firstRan = round; }
-            else sim.aged(ExclusiveGroup.DECIDE, BOOST_LIMIT / 2, "d");
+            else sim.consequence(ExclusiveGroup.DECIDE, ran, "d");
         }
         System.out.println("standing backlog: RANGE dispatched " + rangeRan + " of " + victims + " in " + round + " dispatches (first after " + firstRan + ')');
         assertEquals(victims, rangeRan);
-        assertTrue(firstRan <= BACKLOG + overtakers(BOOST_LIMIT / 2) + SLACK);
-        // once the old work has lost its priority, the flow arm may still interleave DECIDE work (RANGE is then the
-        // over-serviced group), but the RANGE backlog must drain promptly
-        assertTrue(round <= firstRan + 4 * victims);
+        assertTrue(firstRan <= flowBound(2));
+        // RANGE receives at least its round-robin share of flow dispatches
+        assertTrue(round <= firstRan + 2L * flowPeriod() * victims + 1000);
     }
 
     /**
-     * At the executor level, command stores queue in the COMMAND_STORE group by the position of their head task.
-     * Several stores that always have old work to do must not starve a store with only new work.
+     * A storm of old recovery/progress work (e.g. CheckStatus for old transactions) is queued as OLD, retaining its
+     * (old) HLC priority, so it wins every dispatch chosen by priority; but it is balanced by flow against new work.
+     */
+    @Test
+    public void oldRecoveryStormDoesNotStarveNewWork()
+    {
+        Sim sim = new Sim();
+        sim.submit(ExclusiveGroup.DECIDE, 0, "anchor");
+        for (int i = 0 ; i < BACKLOG ; ++i)
+            sim.submit(ExclusiveGroup.RECOVER, 10 * AGE_LIMIT, "old");
+        for (int i = 0 ; i < BACKLOG ; ++i)
+            sim.submit(ExclusiveGroup.PREACCEPT, 0, "new");
+
+        int rounds = 100_000, oldRan = 0, newRan = 0;
+        for (int round = 0 ; round < rounds ; ++round)
+        {
+            T ran = sim.pollAndRun();
+            if (ran.name.equals("old")) { ++oldRan; assertTrue(ran.isOld()); sim.submit(ExclusiveGroup.RECOVER, 10 * AGE_LIMIT, "old"); }
+            else if (ran.name.equals("new")) { ++newRan; sim.submit(ExclusiveGroup.PREACCEPT, 0, "new"); }
+        }
+        double newShare = newRan / (double) rounds;
+        System.out.printf("old recovery storm: OLD received %.1f%%, new work %.1f%% of dispatches%n", 100.0 * oldRan / rounds, 100 * newShare);
+        // new work receives (at least) its round-robin share of flow dispatches
+        assertTrue(newShare >= 1.0 / flowPeriod() / 2 - 0.01);
+    }
+
+    /**
+     * Live work with an old HLC is queued FIFO, so does not overtake newer live work registered before it
+     */
+    @Test
+    public void oldLiveWorkIsQueuedFifo()
+    {
+        Sim sim = new Sim();
+        sim.submit(ExclusiveGroup.DECIDE, 0, "anchor");
+        for (int i = 0 ; i < BACKLOG ; ++i)
+            sim.submit(ExclusiveGroup.DECIDE, 10 * AGE_LIMIT, "stale");
+        T victim = sim.submit(ExclusiveGroup.DECIDE, 0, "victim");
+
+        long waited = dispatchesUntil(sim, victim, ran -> sim.submit(ExclusiveGroup.DECIDE, 10 * AGE_LIMIT, "stale"));
+        System.out.println("stale live work: fresh work ran after " + waited + " dispatches");
+        assertTrue(waited >= 0 && waited <= 1 + BACKLOG);
+    }
+
+    /**
+     * Within OLD, work is processed in approximately age (HLC) order
+     */
+    @Test
+    public void oldWorkIsProcessedInAgeOrder()
+    {
+        Sim sim = new Sim();
+        sim.submit(ExclusiveGroup.DECIDE, 0, "anchor");
+        sim.pollAndRun();
+        for (int i = 1 ; i <= 10 ; ++i)
+            sim.submit(ExclusiveGroup.RECOVER, i * AGE_LIMIT * 2, "old" + i);
+        for (int i = 10 ; i >= 1 ; --i)
+            assertEquals("old" + i, sim.pollAndRun().name);
+    }
+
+    /**
+     * At the executor level, a command store is queued in COMMAND_STORE, or in OLD if its next task is OLD.
+     * Several stores with OLD work must not starve a store with only new work, though OLD work retains its priority.
      */
     @Test
     public void crossStoreStarvationIsBounded()
     {
         Sim sim = new Sim(GroupKind.GLOBAL);
-        T victim = sim.newWork(new T(GlobalGroup.COMMAND_STORE, "victim"), sim.hlcNow());
+        T victim = sim.enqueue(new T(GlobalGroup.COMMAND_STORE, sim.hlc, "victim"));
         int stores = 8;
-        long age = BOOST_LIMIT / 2;
+        long oldPosition = HLC - 10 * AGE_LIMIT;
         for (int i = 0 ; i < stores ; ++i)
-            sim.aged(GlobalGroup.COMMAND_STORE, age, "store" + i);
+            sim.enqueue(new T(GlobalGroup.OLD, oldPosition++, "store" + i));
 
-        // each time an old store runs a task, it requeues with the position of its next (equally old) task
-        long waited = dispatchesUntil(sim, victim, ran -> sim.aged(GlobalGroup.COMMAND_STORE, age, ran.name));
+        long position = oldPosition;
+        long[] next = { position };
+        long waited = dispatchesUntil(sim, victim, ran -> sim.enqueue(new T(GlobalGroup.OLD, next[0]++, ran.name)));
         System.out.println("cross-store: victim store ran after " + waited + " dispatches");
         assertTrue("victim store starved", waited >= 0);
-        assertTrue("victim store waited " + waited, waited <= stores + overtakers(age) + SLACK);
-        assertTrue("victim store waited only " + waited, waited >= overtakers(age) - SLACK);
-    }
-
-    /**
-     * A flood of very stale new work (e.g. catch-up) should not delay new work by the full {@code BOOST_LIMIT}:
-     * beyond {@code BOOST_LIMIT + BOOST_FADE} it takes no priority, and is queued FIFO with new work.
-     */
-    @Test
-    public void staleFloodDoesNotDominate()
-    {
-        long stale = 10_000_000;
-        Sim sim = new Sim();
-        sim.fresh(ExclusiveGroup.DECIDE, "anchor"); // something fresh has been seen
-        for (int i = 0 ; i < BACKLOG ; ++i)
-            sim.aged(ExclusiveGroup.DECIDE, stale, "stale");
-        T victim = sim.fresh(ExclusiveGroup.DECIDE, "victim");
-
-        long waited = dispatchesUntil(sim, victim, ran -> sim.aged(ExclusiveGroup.DECIDE, stale, "stale"));
-        System.out.println("stale flood (boost " + boost(stale) + "us): fresh work ran after " + waited + " dispatches");
-        if (BOOST_FADE >= 0)
-            assertEquals(0, boost(stale));
-        assertTrue("fresh work waited " + waited, waited <= 1 + BACKLOG + overtakers(stale) + SLACK);
+        assertTrue("victim store waited " + waited, waited <= flowBound(2));
     }
 }
