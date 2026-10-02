@@ -1153,6 +1153,7 @@ public class AccordLoadTestBase extends AccordTestBase
     private static final long STALL_REPORT_WEDGE_MIN_AGE_NANOS = TimeUnit.SECONDS.toNanos(60);
     private static final int STALL_REPORT_MAX_WEDGED_TASKS = 3;
     private static final int STALL_REPORT_MAX_BLOCKED_THREADS = 15;
+    private static final int STALL_REPORT_MAX_HOLDER_FRAMES = 30;
 
     /**
      * JVM-wide (all in-JVM instances share one JVM): monitor/ownable-synchronizer deadlocks, plus every thread that is
@@ -1178,8 +1179,15 @@ public class AccordLoadTestBase extends AccordTestBase
             Map<Thread.State, Integer> states = new java.util.EnumMap<>(Thread.State.class);
             int listed = 0, contended = 0;
             StringBuilder blocked = new StringBuilder();
-            for (java.lang.management.ThreadInfo info : mx.dumpAllThreads(true, true))
+            java.lang.management.ThreadInfo[] all = mx.dumpAllThreads(true, true);
+            Map<Long, java.lang.management.ThreadInfo> byId = new HashMap<>();
+            for (java.lang.management.ThreadInfo info : all)
+                byId.put(info.getThreadId(), info);
+            java.util.Set<Long> owners = new java.util.LinkedHashSet<>();
+            for (java.lang.management.ThreadInfo info : all)
             {
+                if (info.getLockOwnerName() != null)
+                    owners.add(info.getLockOwnerId());
                 states.merge(info.getThreadState(), 1, Integer::sum);
                 if (info.getLockOwnerName() == null)
                     continue;
@@ -1192,6 +1200,16 @@ public class AccordLoadTestBase extends AccordTestBase
                        .append(" at ").append(stack.length == 0 ? "?" : stack[0]);
             }
             sb.append("; thread states ").append(states).append("; ").append(contended).append(" waiting on an owned lock").append(blocked);
+            // and what each holder is doing while others wait for it
+            for (Long ownerId : owners)
+            {
+                java.lang.management.ThreadInfo owner = byId.get(ownerId);
+                if (owner == null) continue;
+                sb.append("\n  holder ").append(owner.getThreadName()).append(' ').append(owner.getThreadState());
+                StackTraceElement[] stack = owner.getStackTrace();
+                for (int i = 0 ; i < Math.min(stack.length, STALL_REPORT_MAX_HOLDER_FRAMES) ; ++i)
+                    sb.append("\n      at ").append(stack[i]);
+            }
             return sb.append('\n').toString();
         }
         catch (Throwable t)
@@ -1431,6 +1449,56 @@ public class AccordLoadTestBase extends AccordTestBase
         return sb.toString();
     }
 
+    /** runs on the instance */
+    private static String peerStatuses(Node node)
+    {
+        try
+        {
+            java.lang.reflect.Field f = AccordService.class.getDeclaredField("endpointMapper");
+            f.setAccessible(true);
+            org.apache.cassandra.service.accord.topology.AccordEndpointMap mapper =
+                (org.apache.cassandra.service.accord.topology.AccordEndpointMap) f.get(AccordService.instance());
+            StringBuilder sb = new StringBuilder("{");
+            for (Node.Id id : new TreeSet<>(node.topology().current().nodes()))
+                sb.append(sb.length() == 1 ? "" : ", ").append(id.id).append('=').append(mapper.nodeStatus(id));
+            return sb.append('}').toString();
+        }
+        catch (Throwable t)
+        {
+            return "<" + t + '>';
+        }
+    }
+
+    /** runs on the instance: the store's record of {@code txnId}, read through the store (bounded wait) */
+    private static String localCommandState(CommandStore store, TxnId txnId)
+    {
+        try
+        {
+            java.util.concurrent.atomic.AtomicReference<String> result = new java.util.concurrent.atomic.AtomicReference<>();
+            java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+            store.chain(ExecutionContext.unsequenced(txnId, "stall report"), safeStore -> {
+                SafeCommand safeCommand = safeStore.ifInitialised(txnId);
+                if (safeCommand == null)
+                    return "not initialised";
+                accord.local.Command command = safeCommand.current();
+                return command.saveStatus() + " promised=" + command.promised() + " accepted=" + command.acceptedOrCommitted()
+                       + " executeAt=" + command.executeAtIfKnown() + " durability=" + command.durability();
+            }).begin((success, fail) -> {
+                result.set(fail != null ? "<failed: " + fail + '>' : success);
+                done.countDown();
+            });
+            if (!done.await(STALL_REPORT_LOCAL_STATE_TIMEOUT_MS, MILLISECONDS))
+                return "<store did not answer within " + STALL_REPORT_LOCAL_STATE_TIMEOUT_MS + "ms>";
+            return result.get();
+        }
+        catch (Throwable t)
+        {
+            return "<" + t + '>';
+        }
+    }
+
+    private static final long STALL_REPORT_LOCAL_STATE_TIMEOUT_MS = 1000;
+
     /** never throws, and never blocks for longer than {@link #STALL_REPORT_TIMEOUT_MS} */
     private static String accordState(IInvokableInstance instance)
     {
@@ -1447,6 +1515,9 @@ public class AccordLoadTestBase extends AccordTestBase
                 StringBuilder sb = new StringBuilder();
                 Node node = AccordService.instance().node();
                 sb.append("epoch=").append(node.epoch()).append(" minEpoch=").append(node.topology().minEpoch());
+                // how this node classifies each peer: a faulty status means its coordinations pre-record a failure for
+                // that peer (or skip it) on *every* range, which decides whether recovery can reach a quorum at all
+                sb.append(" peers=").append(peerStatuses(node));
 
                 int stores = 0, idle = 0;
                 StringBuilder busy = new StringBuilder();
@@ -1468,6 +1539,7 @@ public class AccordLoadTestBase extends AccordTestBase
                 int tracked = 0, retried = 0;
                 Map<String, Integer> blockedOn = new HashMap<>();
                 StringBuilder top = new StringBuilder();
+                List<Map.Entry<CommandStore, TxnId>> topTxnIds = new ArrayList<>();
                 for (CommandStore store : node.commandStores().all())
                 {
                     DefaultProgressLog.ImmutableView view = ((DefaultProgressLog) store.unsafeProgressLog()).immutableView();
@@ -1479,6 +1551,7 @@ public class AccordLoadTestBase extends AccordTestBase
                             continue;
                         if (++retried > STALL_REPORT_MAX_BLOCKED_TXNS)
                             continue;
+                        topTxnIds.add(new java.util.AbstractMap.SimpleImmutableEntry<>(store, view.txnId()));
                         top.append("\n    store").append(store.id()).append(' ').append(view.txnId())
                            .append(" blockedUntil=").append(view.waitingIsBlockedUntil())
                            .append(" waitingProgress=").append(view.waitingProgress())
@@ -1491,6 +1564,11 @@ public class AccordLoadTestBase extends AccordTestBase
                 }
                 sb.append("\n  progressLog: ").append(tracked).append(" tracked, ").append(retried)
                   .append(" retried, blocked on ").append(blockedOn).append(top);
+                // this replica's own record of each of those: the same txnIds tend to head every node's list, so
+                // reading them side by side shows whether recovery is making progress (ballots advancing, status
+                // moving) or is being preempted/exhausted at the same point everywhere
+                for (Map.Entry<CommandStore, TxnId> e : topTxnIds)
+                    sb.append("\n      local ").append(e.getValue()).append(": ").append(localCommandState(e.getKey(), e.getValue()));
 
                 // and the durability service: a (re)bootstrap that cannot finish is usually waiting on a durability
                 // requirement it never achieves, and only this view names the requirement and the retry count
