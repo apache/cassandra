@@ -79,6 +79,9 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
     private final boolean isFullRebuild;
     private final boolean isInitialBuild;
 
+    // The reserved SSTables whose rebuild status this builder still owns and must release.
+    private final Set<SSTableReader> outstandingReservations;
+
     private final SortedMap<SSTableReader, Set<StorageAttachedIndex>> sstables;
 
     private long bytesProcessed = 0;
@@ -89,12 +92,22 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
                                 boolean isFullRebuild,
                                 boolean isInitialBuild)
     {
+        this(group, sstables, isFullRebuild, isInitialBuild, false);
+    }
+
+    StorageAttachedIndexBuilder(StorageAttachedIndexGroup group,
+                                SortedMap<SSTableReader, Set<StorageAttachedIndex>> sstables,
+                                boolean isFullRebuild,
+                                boolean isInitialBuild,
+                                boolean ownsStreamRebuildStatus)
+    {
         this.group = group;
         this.metadata = group.metadata();
         this.sstables = sstables;
         this.tracker = group.table().getTracker();
         this.isFullRebuild = isFullRebuild;
         this.isInitialBuild = isInitialBuild;
+        this.outstandingReservations = ownsStreamRebuildStatus ? new HashSet<>(sstables.keySet()) : Collections.emptySet();
         this.totalSizeInBytes = sstables.keySet().stream().mapToLong(SSTableReader::uncompressedLength).sum();
     }
 
@@ -105,21 +118,56 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
                                               isInitialBuild ? "initial" : "non-initial",
                                               isFullRebuild ? "full" : "partial")));
 
-        for (Map.Entry<SSTableReader, Set<StorageAttachedIndex>> e : sstables.entrySet())
+        try
         {
-            SSTableReader sstable = e.getKey();
-            Set<StorageAttachedIndex> indexes = e.getValue();
-
-            Set<StorageAttachedIndex> existing = validateIndexes(indexes, sstable.descriptor);
-            if (existing.isEmpty())
+            for (Map.Entry<SSTableReader, Set<StorageAttachedIndex>> e : sstables.entrySet())
             {
-                logger.debug(logMessage("{} dropped during index build"), indexes);
-                continue;
-            }
+                SSTableReader sstable = e.getKey();
+                Set<StorageAttachedIndex> indexes = e.getValue();
 
-            if (indexSSTable(sstable, existing))
-                return;
+                Set<StorageAttachedIndex> existing = validateIndexes(indexes, sstable.descriptor);
+                if (existing.isEmpty())
+                {
+                    logger.debug(logMessage("{} dropped during index build"), indexes);
+                    // Nothing to build for this sstable, so release its reserved status right away.
+                    releaseStreamRebuildStatus(sstable);
+                    continue;
+                }
+
+                if (indexSSTable(sstable, existing))
+                    return;
+
+                // This SSTable's index build completed, so release its streaming status immediately, which allows
+                // other streaming operations to operate on it.
+                releaseStreamRebuildStatus(sstable);
+            }
         }
+        finally
+        {
+            // Release the rebuild status for any sstables not already released above.
+            releaseStreamRebuildStatus();
+        }
+    }
+
+    @Override
+    public void onNotExecuted()
+    {
+        // If build() will never run, release here to avoid leaving the reserved sstables stuck in the REBUILDING state.
+        releaseStreamRebuildStatus();
+    }
+
+    private void releaseStreamRebuildStatus()
+    {
+        outstandingReservations.forEach(sstable -> sstable.streamRebuildState().endRebuild());
+        outstandingReservations.clear();
+    }
+
+    private void releaseStreamRebuildStatus(SSTableReader sstable)
+    {
+        // Only release a status this builder actually still owns, so we never clear a reservation that was
+        // released earlier and possibly re-taken by another rebuild or stream.
+        if (outstandingReservations.remove(sstable))
+            sstable.streamRebuildState().endRebuild();
     }
 
     private String logMessage(String message)
