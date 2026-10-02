@@ -78,11 +78,6 @@ public class PendingLocalTransfer
     private static final Logger logger = LoggerFactory.getLogger(PendingLocalTransfer.class);
     private static final String MANIFEST_FILE_NAME = "transfer.manifest";
 
-    private String logPrefix()
-    {
-        return logPrefix(planId, transferId);
-    }
-
     private static String logPrefix(TimeUUID planId, ShortMutationId transferId)
     {
         return String.format("[PendingLocalTransfer #%s transfer %s]", planId, transferId);
@@ -92,19 +87,27 @@ public class PendingLocalTransfer
     final TableId tableId;
     final ShortMutationId transferId;
     final Collection<SSTableReader> sstables;
+    Set<File> stagedDirectories;
     final long createdAt = currentTimeMillis();
     transient String keyspace;
     transient Range<Token> range;
 
+    volatile boolean activationStarted = false;
     volatile boolean activated = false;
 
     public PendingLocalTransfer(TableId tableId, TimeUUID planId, ShortMutationId transferId, Collection<SSTableReader> sstables)
+    {
+        this(tableId, planId, transferId, sstables, null);
+    }
+
+    private PendingLocalTransfer(TableId tableId, TimeUUID planId, ShortMutationId transferId, Collection<SSTableReader> sstables, Set<File> stagedDirectories)
     {
         Preconditions.checkState(!sstables.isEmpty());
         this.tableId = tableId;
         this.planId = planId;
         this.transferId = Objects.requireNonNull(transferId, "A pending transfer must belong to a coordinated transfer");
         this.sstables = sstables;
+        this.stagedDirectories = stagedDirectories;
         this.keyspace = Objects.requireNonNull(ColumnFamilyStore.getIfExists(tableId)).keyspace.getName();
         this.range = shardRange(keyspace, sstables);
     }
@@ -117,8 +120,14 @@ public class PendingLocalTransfer
         this.transferId = transferId;
         this.tableId = null;
         this.sstables = sstables;
+        this.stagedDirectories = null;
         this.keyspace = null;
         this.range = null;
+    }
+
+    public String logPrefix()
+    {
+        return logPrefix(planId, transferId);
     }
 
     /**
@@ -154,9 +163,6 @@ public class PendingLocalTransfer
         }
         catch (Throwable t)
         {
-            // Recovery runs on startup, right after the crash that may have left a partially written manifest or
-            // SSTable behind, so a transfer we cannot read must not keep the node from starting. It has to be streamed
-            // again, and its directories are removed when the coordinator fails the transfer.
             JVMStabilityInspector.inspectThrowable(t);
             logger.warn("{} Ignoring pending transfer staged in {}: it could not be read, and cannot be activated",
                         logPrefix(planId, null), dirs, t);
@@ -181,7 +187,15 @@ public class PendingLocalTransfer
             }
         }
 
-        if (byDescriptor.size() != manifest.sstableCount)
+        if (manifest.activated || (manifest.activationStarted && byDescriptor.isEmpty()))
+        {
+            logger.info("{} Deleting pending transfer staged in {}. Nothing left to activate",
+                        logPrefix(planId, manifest.transferId), dirs);
+            deleteDirectories(dirs);
+            return null;
+        }
+
+        if (!manifest.activationStarted && byDescriptor.size() != manifest.sstableCount)
         {
             logger.warn("{} Ignoring pending transfer staged in {}. The manifest expects {} SSTables, but {} were " +
                         "found on disk. Such a transfer cannot be activated, and has to be streamed again",
@@ -197,7 +211,8 @@ public class PendingLocalTransfer
 
             logger.info("{} Recovered pending transfer with {} SSTables staged in {}",
                         logPrefix(planId, manifest.transferId), sstables.size(), dirs);
-            PendingLocalTransfer transfer = new PendingLocalTransfer(cfs.metadata().id, planId, manifest.transferId, sstables);
+            PendingLocalTransfer transfer = new PendingLocalTransfer(cfs.metadata().id, planId, manifest.transferId, sstables, new LinkedHashSet<>(dirs));
+            transfer.activationStarted = manifest.activationStarted;
             transfer.activated = manifest.activated;
             return transfer;
         }
@@ -215,9 +230,17 @@ public class PendingLocalTransfer
      */
     public void writeManifestFile()
     {
-        Manifest manifest = new Manifest(transferId, sstables.size(), activated);
+        Manifest manifest = new Manifest(transferId, sstables.size(), activationStarted, activated);
         for (File dir : directories())
             manifest.store(new File(dir, MANIFEST_FILE_NAME));
+    }
+
+    private void markActivationStarted()
+    {
+        Manifest manifest = new Manifest(transferId, sstables.size(), true, activated);
+        for (File dir : directories())
+            manifest.store(new File(dir, MANIFEST_FILE_NAME));
+        activationStarted = true;
     }
 
     private void markActivated()
@@ -234,14 +257,27 @@ public class PendingLocalTransfer
     }
 
     /**
-     * @return the distinct pending directories holding the SSTables of this transfer, one per data directory it spans
+     * @return the distinct pending directories this transfer was staged into, one per data directory it spans
      */
     Set<File> directories()
+    {
+        if (stagedDirectories == null)
+            stagedDirectories = directoriesOf(sstables);
+        return stagedDirectories;
+    }
+
+    private Set<File> directoriesOf(Collection<SSTableReader> sstables)
     {
         Set<File> directories = new LinkedHashSet<>();
         for (SSTableReader sstable : sstables)
             directories.add(sstable.descriptor.directory);
         return directories;
+    }
+
+    private static void deleteDirectories(Collection<File> dirs)
+    {
+        for (File dir : dirs)
+            dir.deleteRecursive();
     }
 
     /**
@@ -252,6 +288,7 @@ public class PendingLocalTransfer
      *     <li>version: the manifest file version
      *     <li>transferId: the id of the transfer
      *     <li>sstableCount: the number of sstables in the pending transfer
+     *     <li>activationStarted: whether activation of the transfer began
      *     <li>activated: whether the transfer has been made live already
      *     <li>crc32: checksum that covers everything that precedes it
      * </ol>
@@ -264,12 +301,14 @@ public class PendingLocalTransfer
 
         final ShortMutationId transferId;
         final int sstableCount;
+        final boolean activationStarted;
         final boolean activated;
 
-        Manifest(ShortMutationId transferId, int sstableCount, boolean activated)
+        Manifest(ShortMutationId transferId, int sstableCount, boolean activationStarted, boolean activated)
         {
             this.transferId = transferId;
             this.sstableCount = sstableCount;
+            this.activationStarted = activationStarted;
             this.activated = activated;
         }
 
@@ -335,7 +374,7 @@ public class PendingLocalTransfer
                     throw new IllegalStateException(String.format("%s was written with an unsupported manifest version %d",
                                                                  file, version));
 
-                return new Manifest(ShortMutationId.serializer.deserialize(in), in.readInt(), in.readBoolean());
+                return new Manifest(ShortMutationId.serializer.deserialize(in), in.readInt(), in.readBoolean(), in.readBoolean());
             }
             catch (IOException e)
             {
@@ -351,7 +390,6 @@ public class PendingLocalTransfer
                 out.write(contents);
                 out.writeInt(checksum(contents, contents.length));
                 out.flush();
-                // The manifest is only of any use if it survives the crash it is written for
                 out.sync();
             }
             catch (IOException e)
@@ -367,12 +405,14 @@ public class PendingLocalTransfer
             long size = TypeSizes.INT_SIZE
                         + ShortMutationId.serializer.serializedSize(transferId)
                         + TypeSizes.INT_SIZE
+                        + TypeSizes.BOOL_SIZE
                         + TypeSizes.BOOL_SIZE;
             try (DataOutputBuffer out = new DataOutputBuffer(Ints.checkedCast(size)))
             {
                 out.writeInt(CURRENT_VERSION);
                 ShortMutationId.serializer.serialize(transferId, out);
                 out.writeInt(sstableCount);
+                out.writeBoolean(activationStarted);
                 out.writeBoolean(activated);
                 return out.toByteArray();
             }
@@ -393,6 +433,7 @@ public class PendingLocalTransfer
             if (o == null || getClass() != o.getClass()) return false;
             Manifest manifest = (Manifest) o;
             return sstableCount == manifest.sstableCount
+                   && activationStarted == manifest.activationStarted
                    && activated == manifest.activated
                    && Objects.equals(transferId, manifest.transferId);
         }
@@ -400,13 +441,14 @@ public class PendingLocalTransfer
         @Override
         public int hashCode()
         {
-            return Objects.hash(transferId, sstableCount, activated);
+            return Objects.hash(transferId, sstableCount, activationStarted, activated);
         }
 
         @Override
         public String toString()
         {
-            return "Manifest{transferId=" + transferId + ", sstableCount=" + sstableCount + ", activated=" + activated + '}';
+            return "Manifest{transferId=" + transferId + ", sstableCount=" + sstableCount
+                   + ", activationStarted=" + activationStarted + ", activated=" + activated + '}';
         }
     }
 
@@ -481,6 +523,9 @@ public class PendingLocalTransfer
             return false;
         }
 
+        if (!activationStarted)
+            markActivationStarted();
+
         // Modify SSTables metadata to durably set transfer ID before importing
         ImmutableCoordinatorLogOffsets logOffsets =
             new ImmutableCoordinatorLogOffsets.Builder().addTransfer(request.transferId, bounds).build();
@@ -541,7 +586,8 @@ public class PendingLocalTransfer
     public String toString()
     {
         return "PendingLocalTransfer{" +
-               "activated=" + activated +
+               "activationStarted=" + activationStarted +
+               ", activated=" + activated +
                ", transferId=" + transferId +
                ", range=" + range +
                ", keyspace='" + keyspace + '\'' +

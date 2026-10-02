@@ -66,7 +66,7 @@ public class PendingLocalTransferTest
     private static final String KS = "pending_local_transfer_test";
     private static final String TBL = "tbl";
     private static final String MANIFEST_FILE_NAME = "transfer.manifest";
-    // the manifest is <version><transferId><sstableCount><crc32>
+    // manifest format: <version><transferId><sstableCount><activationStarted><activated><crc32>
     private static final int MANIFEST_TRANSFER_ID_OFFSET = 4;
 
     private static ColumnFamilyStore cfs;
@@ -91,10 +91,8 @@ public class PendingLocalTransferTest
 
         new PendingLocalTransfer(planId, transferId, staged).writeManifestFile();
 
-        // Every directory needs its own manifest: recovery scans the pending directories of all the disks, and the
-        // ones without a manifest would be left behind
         for (File dir : dirs)
-            assertThat(new File(dir, MANIFEST_FILE_NAME).exists()).describedAs("no manifest in %s", dir).isTrue();
+            assertThat(new File(dir, MANIFEST_FILE_NAME).exists()).describedAs("Manifest missing in %s", dir).isTrue();
 
         PendingLocalTransfer recovered = PendingLocalTransfer.load(cfs, planId, dirs);
         assertThat(recovered).isNotNull();
@@ -103,25 +101,102 @@ public class PendingLocalTransferTest
         assertThat(recovered.activated).isFalse();
         assertThat(descriptors(recovered.sstables)).isEqualTo(descriptors(staged));
 
-        // A transfer is all or nothing: recovering it from a subset of its directories would make it activatable with
-        // part of its data missing
         assertThat(PendingLocalTransfer.load(cfs, planId, Collections.singletonList(dirs.get(0)))).isNull();
+        assertThat(dirs.get(0).exists()).isTrue();
     }
 
     @Test
-    public void testRecoveredTransferKnowsItWasActivated() throws IOException
+    public void testRecoveredActivatedTransferIsDeleted() throws IOException
     {
         TimeUUID planId = nextTimeUUID();
         List<File> dirs = List.of(pendingDirectory(planId), pendingDirectory(planId));
         PendingLocalTransfer transfer = new PendingLocalTransfer(planId, transferId(), stage(dirs));
         transfer.writeManifestFile();
 
+        transfer.activationStarted = true;
         transfer.activated = true;
         transfer.writeManifestFile();
 
+        assertThat(PendingLocalTransfer.load(cfs, planId, dirs)).isNull();
+        for (File dir : dirs)
+            assertThat(dir.exists()).describedAs("%s was not deleted", dir).isFalse();
+    }
+
+    @Test
+    public void testRecoveredActivatedTransferWithSSTablesAlreadyMovedIsDeleted() throws IOException
+    {
+        TimeUUID planId = nextTimeUUID();
+        List<File> dirs = List.of(pendingDirectory(planId), pendingDirectory(planId));
+        PendingLocalTransfer transfer = new PendingLocalTransfer(planId, transferId(), stage(dirs));
+        transfer.writeManifestFile();
+
+        transfer.activationStarted = true;
+        transfer.activated = true;
+        transfer.writeManifestFile();
+
+        // Simulate activation moved every SSTable out of pending/ before this node restarted
+        for (File dir : dirs)
+            for (File file : dir.listUnchecked(f -> f.isFile() && !f.name().equals(MANIFEST_FILE_NAME)))
+                file.delete();
+
+        assertThat(PendingLocalTransfer.load(cfs, planId, dirs)).isNull();
+        for (File dir : dirs)
+            assertThat(dir.exists()).describedAs("%s was not deleted", dir).isFalse();
+    }
+
+    @Test
+    public void testRecoversInterruptedActivationWithSomeSSTablesRemaining() throws IOException
+    {
+        TimeUUID planId = nextTimeUUID();
+        List<File> dirs = List.of(pendingDirectory(planId), pendingDirectory(planId));
+        List<SSTableReader> staged = stage(dirs);
+        PendingLocalTransfer transfer = new PendingLocalTransfer(planId, transferId(), staged);
+        transfer.writeManifestFile();
+
+        transfer.activationStarted = true;
+        transfer.writeManifestFile();
+
+        // Simulate activation being interrupted after moving the SSTable out of one directory, but not the other
+        for (File file : dirs.get(1).listUnchecked(f -> f.isFile() && !f.name().equals(MANIFEST_FILE_NAME)))
+            file.delete();
+
         PendingLocalTransfer recovered = PendingLocalTransfer.load(cfs, planId, dirs);
         assertThat(recovered).isNotNull();
-        assertThat(recovered.activated).isTrue();
+        assertThat(recovered.activationStarted).isTrue();
+        assertThat(recovered.activated).isFalse();
+        assertThat(descriptors(recovered.sstables)).isEqualTo(descriptors(List.of(staged.get(0))));
+
+        // The empty directory must still be tracked, so a later write reaches it too
+        assertThat(recovered.directories()).containsExactlyInAnyOrderElementsOf(dirs);
+        recovered.activated = true;
+        recovered.writeManifestFile();
+
+        // If the empty directory hadn't been reached by the write above, its stale manifest would disagree with
+        // the fresh one in the other directory, and recovery would reject the transfer instead of cleaning it up
+        assertThat(PendingLocalTransfer.load(cfs, planId, dirs)).isNull();
+        for (File dir : dirs)
+            assertThat(dir.exists()).describedAs("%s was not deleted", dir).isFalse();
+    }
+
+    @Test
+    public void testRecoversInterruptedActivationWithNoSSTablesRemaining() throws IOException
+    {
+        TimeUUID planId = nextTimeUUID();
+        List<File> dirs = List.of(pendingDirectory(planId), pendingDirectory(planId));
+        PendingLocalTransfer transfer = new PendingLocalTransfer(planId, transferId(), stage(dirs));
+        transfer.writeManifestFile();
+
+        transfer.activationStarted = true;
+        transfer.writeManifestFile();
+
+        // Simulate activation finishing every SSTable move before being interrupted, just before the final manifest write
+        for (File dir : dirs)
+            for (File file : dir.listUnchecked(f -> f.isFile() && !f.name().equals(MANIFEST_FILE_NAME)))
+                file.delete();
+
+        assertThat(PendingLocalTransfer.load(cfs, planId, dirs)).isNull();
+        for (File dir : dirs)
+            assertThat(dir.exists()).describedAs("%s was not deleted", dir).isFalse();
     }
 
     @Test
@@ -136,6 +211,35 @@ public class PendingLocalTransferTest
 
         // Leaving a directory behind would keep the plan looking staged forever, which fails later activations for it
         for (File dir : dirs)
+            assertThat(dir.exists()).describedAs("%s was not deleted", dir).isFalse();
+    }
+
+    @Test
+    public void testPurgingCollidedTransferDoesNotEvictTrackedOne() throws IOException
+    {
+        TimeUUID planId = nextTimeUUID();
+
+        List<File> trackedDirs = List.of(pendingDirectory(planId));
+        PendingLocalTransfer tracked = new PendingLocalTransfer(planId, transferId(), stage(trackedDirs));
+        tracked.writeManifestFile();
+
+        List<File> collidedDirs = List.of(pendingDirectory(planId));
+        PendingLocalTransfer collided = new PendingLocalTransfer(planId, new ShortMutationId(2, 200), stage(collidedDirs));
+        collided.writeManifestFile();
+
+        TransferTrackingService transferTrackingService = new TransferTrackingService();
+        transferTrackingService.received(tracked);
+
+        // Simulate recovering a second, unrelated transfer that collided on the same plan id (e.g. a different table)
+        transferTrackingService.purge(collided);
+
+        // The transfer actually tracked under this plan id must survive purging an unrelated collision
+        assertThat(transferTrackingService.getPendingTransfer(planId)).isEqualTo(tracked);
+        for (File dir : trackedDirs)
+            assertThat(dir.exists()).describedAs("%s was deleted", dir).isTrue();
+
+        // The collided transfer's own resources are still cleaned up
+        for (File dir : collidedDirs)
             assertThat(dir.exists()).describedAs("%s was not deleted", dir).isFalse();
     }
 
@@ -159,11 +263,12 @@ public class PendingLocalTransferTest
 
         new PendingLocalTransfer(planId, transferId(), staged).writeManifestFile();
 
-        // Simulate a transfer that was already activated, which moves its SSTables out of the pending directories
         for (File file : dirs.get(1).listUnchecked(f -> f.isFile() && !f.name().equals(MANIFEST_FILE_NAME)))
             file.delete();
 
         assertThat(PendingLocalTransfer.load(cfs, planId, dirs)).isNull();
+        for (File dir : dirs)
+            assertThat(dir.exists()).describedAs("%s was deleted", dir).isTrue();
     }
 
     @Test
