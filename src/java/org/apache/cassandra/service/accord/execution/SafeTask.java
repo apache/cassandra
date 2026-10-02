@@ -1082,8 +1082,11 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     private void waitOnTxnsExclusive()
     {
         waitingAt = Math.max(createdAt, nanoTime());
-        executor().runnable.incrementArrivals(this);
-        commandStore.exclusiveExecutor().incrementArrivals(this);
+        // we are dispatched at the executor level by our command store's ExclusiveExecutor (in the COMMAND_STORE group),
+        // which enqueues itself without registering an arrival, so we must register our arrival against it
+        ExclusiveExecutor exclusiveExecutor = commandStore.exclusiveExecutor();
+        executor().runnable.incrementArrivals(exclusiveExecutor.selfTask);
+        exclusiveExecutor.incrementArrivals(this);
 
         if (!CACHE_QUEUES_ENABLED)
         {
