@@ -1371,7 +1371,7 @@ public class AccordLoadTestBase extends AccordTestBase
         }
     }
 
-    private static final int STALL_REPORT_MAX_STARTUP_STACKS = 6;
+    private static final int STALL_REPORT_MAX_STARTUP_STACKS = 14;
     private static final int STALL_REPORT_MAX_STARTUP_FRAMES = 45;
 
     /**

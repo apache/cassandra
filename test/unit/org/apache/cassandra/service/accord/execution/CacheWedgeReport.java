@@ -55,7 +55,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  */
 public final class CacheWedgeReport
 {
-    private static final long LOCK_WAIT_NANOS = TimeUnit.SECONDS.toNanos(2);
+    private static final long LOCK_WAIT_NANOS = TimeUnit.SECONDS.toNanos(1);
 
     private CacheWedgeReport() {}
 
@@ -68,6 +68,7 @@ public final class CacheWedgeReport
     {
         StringBuilder out = new StringBuilder();
         int storesChecked = 0, tasksChecked = 0;
+        Set<AccordExecutor> unavailable = Collections.newSetFromMap(new IdentityHashMap<>());
         for (CommandStore commandStore : node.commandStores().all())
         {
             if (!(commandStore instanceof AccordCommandStore))
@@ -77,7 +78,14 @@ public final class CacheWedgeReport
             AccordCommandStore store = (AccordCommandStore) commandStore;
             try
             {
-                tasksChecked += describe(store, minAgeNanos, maxTasksPerStore, out);
+                if (unavailable.contains(store.executor()))
+                {
+                    out.append("\n    store").append(store.id()).append(": skipped, executor").append(store.executor().executorId()).append("'s lock was unavailable above");
+                    continue;
+                }
+                int checked = describe(store, minAgeNanos, maxTasksPerStore, out);
+                if (checked < 0) unavailable.add(store.executor());
+                else tasksChecked += checked;
             }
             catch (Throwable t)
             {
@@ -111,18 +119,44 @@ public final class CacheWedgeReport
                .append(") is waiting for owner ").append(owner == null ? "<released>" : owner.getName() + " (" + owner.getState() + ')');
 
         AccordCommandStore.ExclusiveCaches caches = null;
+        java.util.concurrent.locks.Lock lock = store.executor().unsafeLock();
+        String lockBefore = String.valueOf(lock);
         long deadline = nanoTime() + LOCK_WAIT_NANOS;
         while ((caches = store.tryLockCaches()) == null && nanoTime() < deadline)
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
 
         if (caches == null)
         {
-            out.append(prefix).append("could not obtain executor").append(store.executor().executorId())
+            AccordExecutor executor = store.executor();
+            out.append(prefix).append("could not obtain executor").append(executor.executorId())
                .append("'s lock within ").append(TimeUnit.NANOSECONDS.toMillis(LOCK_WAIT_NANOS)).append("ms; running=")
-               .append(store.executor().unsafeRunningCount());
+               .append(executor.unsafeRunningCount());
+            // SignalLock refuses tryLock while the lock is owned *or signalled* to a waiting thread, so a handoff that
+            // is never taken (or an owner that is not running) wedges the executor invisibly to ThreadMXBean
+            out.append("\n      lock before: ").append(lockBefore).append("\n      lock after:  ").append(lock);
+            // our own thread can also be the reason: tryLock refuses if this thread is already inside another executor
+            TaskRunner self = TaskRunner.get();
+            out.append("\n      this thread (").append(Thread.currentThread().getName()).append("): activeExecutor=")
+               .append(self.accordActiveExecutor() == null ? "none" : "executor" + self.accordActiveExecutor().executorId())
+               .append(" lockedExecutor=").append(self.accordLockedExecutor() == null ? "none" : "executor" + self.accordLockedExecutor().executorId());
+            if (lock instanceof org.apache.cassandra.utils.concurrent.SignalLock)
+            {
+                org.apache.cassandra.utils.concurrent.SignalLock signalLock = (org.apache.cassandra.utils.concurrent.SignalLock) lock;
+                Thread lockOwner = signalLock.unsafeOwner();
+                out.append("\n      owner: ").append(lockOwner == null ? "none" : lockOwner.getName() + " " + lockOwner.getState());
+                if (lockOwner != null)
+                    appendStack(lockOwner, MAX_LOCK_HOLDER_FRAMES, out);
+                for (int i = 0 ; i < signalLock.threadCount() ; ++i)
+                {
+                    Thread registered = signalLock.registeredThread(i);
+                    out.append("\n      registered[").append(i).append("]: ").append(registered == null ? "none" : registered.getName() + " " + registered.getState());
+                    if (registered != null && registered != lockOwner)
+                        appendStack(registered, 8, out);
+                }
+            }
             // whoever holds it is one of this executor's threads (or a thread inside lockCaches): show what they do
-            appendExecutorThreadStacks(store.executor().executorId(), out);
-            return 0;
+            appendExecutorThreadStacks(executor.executorId(), out);
+            return -1;
         }
 
         Set<SafeTask<?>> tasks = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -223,6 +257,13 @@ public final class CacheWedgeReport
     }
 
     private static final int MAX_LOCK_HOLDER_FRAMES = 25;
+
+    private static void appendStack(Thread thread, int maxFrames, StringBuilder out)
+    {
+        StackTraceElement[] stack = thread.getStackTrace();
+        for (int i = 0 ; i < Math.min(stack.length, maxFrames) ; ++i)
+            out.append("\n          at ").append(stack[i]);
+    }
 
     /** stacks of this instance's threads for the given executor that are not idly waiting for work */
     private static void appendExecutorThreadStacks(int executorId, StringBuilder out)
