@@ -384,6 +384,8 @@ public class KeyspaceMigrationInfo
                                                     @Nonnull TableId tableId,
                                                     @Nonnull Collection<Range<Token>> ranges)
     {
+        checkArgument(!ranges.isEmpty(), "Ranges must not be empty");
+
         KeyspaceMigrationInfo migrationInfo = metadata.mutationTrackingMigrationState.getKeyspaceInfo(keyspace);
         if (migrationInfo == null)
             return true;
