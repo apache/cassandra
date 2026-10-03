@@ -392,7 +392,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
      */
     private boolean shouldUseTrackedTransfers(ClusterMetadata metadata)
     {
-        if (!cfs.metadata().replicationType().isTracked())
+        if (!cfs.metadata().replicationType().isTracked() || session.previewKind.isPreview())
             return false;
 
         if (session.isIncremental && metadata.mutationTrackingMigrationState.isMigrating(desc.keyspace))

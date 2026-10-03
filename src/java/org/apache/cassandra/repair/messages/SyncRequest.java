@@ -107,7 +107,7 @@ public class SyncRequest extends RepairMessage
                ranges.equals(req.ranges) &&
                previewKind == req.previewKind &&
                asymmetric == req.asymmetric &&
-               transferId == req.transferId &&
+               Objects.equals(transferId, req.transferId) &&
                decidedAt.equals(req.decidedAt);
     }
 

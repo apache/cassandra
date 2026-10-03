@@ -420,8 +420,6 @@ public class TransferTrackingService
         lock.writeLock().lock();
         try
         {
-            coordinating.remove(transfer.id());
-
             if (transfer.id() != null)
                 coordinating.remove(transfer.id());
             
