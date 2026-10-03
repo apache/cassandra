@@ -40,8 +40,8 @@ import org.apache.cassandra.streaming.StreamEvent;
 import org.apache.cassandra.streaming.StreamEventHandler;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamPlan;
-import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.streaming.StreamState;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
