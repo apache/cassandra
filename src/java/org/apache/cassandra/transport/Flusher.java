@@ -142,7 +142,9 @@ abstract class Flusher implements Runnable
 
     FlushItem<?> poll()
     {
-        return queued.poll();
+        // MpscUnboundedArrayQueue.poll() busy-spins if a producer has claimed a slot but not yet written it.
+        // It could stall the Netty event loop, so we use relaxedPoll here
+        return queued.relaxedPoll();
     }
 
     boolean isEmpty()
@@ -388,6 +390,11 @@ abstract class Flusher implements Runnable
             try
             {
                 processQueue();
+                // relaxedPoll() may miss a slot that a producer has claimed but not yet written
+                // and that producer may have seen scheduled == true (so, we have a risk to miss a flush)
+                // Retry shortly instead of spinning on the event loop until the element becomes visible.
+                if (!isEmpty() && !scheduled.get() && scheduled.compareAndSet(false, true))
+                    eventLoop.schedule(this, 10000, TimeUnit.NANOSECONDS);
             }
             finally
             {
