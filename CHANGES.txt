@@ -12,6 +12,7 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Index hints serialization rejects a count that the validation accepts (CASSANDRA-21700)
  * Do not expose system_metrics virtual keyspace by default (CASSANDRA-21720)
  * Tighten up NoSpamLogger changes after migration to Caffeine cache (CASSANDRA-21721)
  * Preserve the original exception when an in-memory local response fails to close (CASSANDRA-21710)
