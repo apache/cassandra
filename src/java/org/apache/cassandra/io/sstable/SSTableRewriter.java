@@ -156,7 +156,12 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
         }
     }
 
-    private void maybeReopenEarly(DecoratedKey key)
+    /**
+     * Publishes a partial reader once {@code preemptiveOpenInterval} bytes have been written since the last one,
+     * and moves the originals' starts past what it covers. Call this only on a partition boundary: the cursor
+     * path has no {@link #append} to hang it off.
+     */
+    public void maybeReopenEarly(DecoratedKey key)
     {
         if (writer.getFilePointer() - currentlyOpenedEarlyAt > preemptiveOpenInterval)
         {

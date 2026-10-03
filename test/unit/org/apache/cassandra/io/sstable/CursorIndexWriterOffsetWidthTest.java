@@ -20,22 +20,12 @@ package org.apache.cassandra.io.sstable;
 
 import org.junit.Test;
 
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 
 import static org.junit.Assert.assertEquals;
 
-/**
- * Pins {@link CursorIndexWriter#indexBlockStartOffset} at 64 bits wide. The field's own
- * declaration says why it needs 64 bits.
- *
- * Two sites read the offset, and a narrowing corrupts both: the index-block cut arithmetic in
- * {@code BigCursorIndexWriter#rowWritten}, and the offset written into every promoted index entry
- * in {@code BigCursorIndexWriter#addIndexBlock}.
- *
- * The test drives {@link CursorIndexWriter#startPartition} and {@code notePosition} on a stub
- * subclass instead of building a 2GiB partition. The width lives there, and a stub needs no data
- * file.
- */
+/** Pins {@link CursorIndexWriter#indexBlockStartOffset} at 64 bits wide. */
 public class CursorIndexWriterOffsetWidthTest
 {
     /** Past Integer.MAX_VALUE by more than one index-block threshold. */
@@ -68,10 +58,7 @@ public class CursorIndexWriterOffsetWidthTest
                      PAST_INT_MAX, writer.indexBlockStartOffset());
     }
 
-    /**
-     * A narrowed offset wraps negative. The block size measured against it then exceeds the whole
-     * partition, and the writer cuts an index block for every row.
-     */
+    /** Block size stays small when measured past Integer.MAX_VALUE. */
     @Test
     public void blockSizeMeasuredPastIntMaxStaysSmall()
     {
@@ -98,7 +85,7 @@ public class CursorIndexWriterOffsetWidthTest
         }
 
         @Override
-        public void endPartition(byte[] key, int keyLength, int headerLength,
+        public void endPartition(DecoratedKey key, byte[] keyBytes, int keyLength, int headerLength,
                                  DeletionTime partitionDeletionTime, long partitionEnd,
                                  ClusteringDescriptor lastName)
         {
