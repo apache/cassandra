@@ -49,6 +49,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.SyncNodePair;
+import org.apache.cassandra.replication.ShortMutationId;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaTestUtil;
@@ -173,9 +174,11 @@ public class RepairMessageSerializationsTest extends CassandraTestBase
         InetAddressAndPort src = InetAddressAndPort.getByName("127.0.0.2");
         InetAddressAndPort dst = InetAddressAndPort.getByName("127.0.0.3");
 
-        // TODO: Do we want to test with a transfer ID?
         SyncRequest msg = new SyncRequest(buildRepairJobDesc(), initiator, src, dst, buildTokenRanges(), PreviewKind.NONE, false, null);
         serializeRoundTrip(msg, SyncRequest.serializer);
+
+        SyncRequest msgWithTransfer = new SyncRequest(buildRepairJobDesc(), initiator, src, dst, buildTokenRanges(), PreviewKind.NONE, false, new ShortMutationId(1, 100), Epoch.create(42));
+        serializeRoundTrip(msgWithTransfer, SyncRequest.serializer);
     }
 
     @Test
@@ -190,6 +193,9 @@ public class RepairMessageSerializationsTest extends CassandraTestBase
         ));
         SyncResponse msg = new SyncResponse(buildRepairJobDesc(), new SyncNodePair(src, dst), true, summaries, null, null);
         serializeRoundTrip(msg, SyncResponse.serializer);
+
+        SyncResponse msgWithTransfer = new SyncResponse(buildRepairJobDesc(), new SyncNodePair(src, dst), true, summaries, nextTimeUUID(), new ShortMutationId(1, 100));
+        serializeRoundTrip(msgWithTransfer, SyncResponse.serializer);
     }
 
     @Test
@@ -200,6 +206,12 @@ public class RepairMessageSerializationsTest extends CassandraTestBase
                                                 buildTokenRanges(), true, 100000L, false,
                                                 PreviewKind.NONE, Epoch.EMPTY);
         serializeRoundTrip(msg, PrepareMessage.serializer);
+
+        PrepareMessage msgWithEpoch = new PrepareMessage(nextTimeUUID(), new ArrayList<TableId>() {{add(TableId.generate());}},
+                                                         Murmur3Partitioner.instance,
+                                                         buildTokenRanges(), true, 100000L, false,
+                                                         PreviewKind.NONE, Epoch.create(10));
+        serializeRoundTrip(msgWithEpoch, PrepareMessage.serializer);
     }
 
     @Test
