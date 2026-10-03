@@ -139,8 +139,8 @@ public class AccordConfig
 
         /**
          * If the work has an associated TxnId, prioritise by its HLC (and FIFO otherwise).
-         * In this case, all phases with recovery ballots enter a shared QoS pool (with other recovery and progress work),
-         * so that Accept/Commit do not compete, and older recovery work is scheduled approximately in age order.
+         * In this case, all phases with recovery ballots enter a QoS pool shared with other progress tasks,
+         * so that Accept/Commit do not compete. Recovery work is scheduled in age order.
          */
         ORIG_HLC_FIFO
     }
@@ -160,16 +160,13 @@ public class AccordConfig
 
         /**
          * Pick by phase first, selecting the phase that has processed the least work recently relative to arrivals.
+         * Tie-break between phases with round-robin.
          * Within a phase, pick by priority.
          */
         PHASE_FAIR,
 
         /**
-         * A fixed share (1/2^queue_flow_share_shift, by default half) of tasks are picked by phase, selecting the
-         * phase that has processed the least work recently relative to arrivals (breaking ties round-robin, so that
-         * every phase with work is served); the remainder are picked by priority.
-         *
-         * Within a phase, pick by priority.
+         * A blended mix of PRIORITY and PHASE_FAIR, split at a fixed ratio of 1/(2^queue_priority_share_shift).
          */
         BLENDED_PRIORITY_PHASE_FAIR,
     }
@@ -197,12 +194,7 @@ public class AccordConfig
     public QueuePriorityModel queue_priority_model;
     public QueueBalancingModel queue_balancing_model;
 
-    /**
-     * For {@link QueueBalancingModel#BLENDED_PRIORITY_PHASE_FAIR}: {@code 1/2^queue_flow_share_shift} of dispatches are
-     * chosen by fairness (the least fairly serviced queue, ties broken round-robin), and the remainder by priority
-     * (oldest position first). Must be between 1 (half) and 8. Default 1.
-     */
-    public Integer queue_flow_share_shift = null;
+    public Integer queue_priority_blend_shift = null;
 
     public String queue_active_limits;
 

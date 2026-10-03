@@ -58,7 +58,7 @@ public class TaskPositionsTest
         @Override boolean runMayThrow() { return true; }
         @Override void completeExclusiveMayThrow() {}
         @Override void tryCancelExclusive(CancellationException cancelled) {}
-        @Override void reportFailureMayThrow(Throwable fail) {}
+        @Override void reportFailureMayThrow(Throwable fail, boolean isExclusive) {}
         @Override AccordExecutor executor() { return null; }
         @Override void unqueueIfQueued() {}
         @Override boolean isNewWork() { return true; }

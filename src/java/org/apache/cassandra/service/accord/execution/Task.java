@@ -503,7 +503,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
     abstract boolean runMayThrow();
     abstract void completeExclusiveMayThrow();
     abstract void tryCancelExclusive(CancellationException cancelled);
-    abstract void reportFailureMayThrow(Throwable fail);
+    abstract void reportFailureMayThrow(Throwable fail, boolean isExclusive);
 
     abstract AccordExecutor executor();
     abstract void unqueueIfQueued();
@@ -582,7 +582,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
             catch (Throwable t)
             {
                 setRunState(RunState.RUN_FAILED);
-                reportFailureNoExcept(t);
+                reportFailureExclusiveNoExcept(t, false);
             }
             finally
             {
@@ -595,7 +595,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
     final void rejectAtRuntime(Throwable reject)
     {
         setRunState(REJECTED);
-        reportFailureNoExcept(reject);
+        reportFailureExclusiveNoExcept(reject, false);
     }
 
     final void completeExclusiveNoExcept()
@@ -634,9 +634,9 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
         catch (Throwable t2) { }
     }
 
-    final void reportFailureNoExcept(Throwable fail)
+    final void reportFailureExclusiveNoExcept(Throwable fail, boolean isExclusive)
     {
-        try { reportFailureMayThrow(fail); }
+        try { reportFailureMayThrow(fail, isExclusive); }
         catch (Throwable t)
         {
             try { fail.addSuppressed(t); }
@@ -707,7 +707,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
     {
         unqueueIfQueued();
         setStateExclusive(newState);
-        reportFailureNoExcept(fail);
+        reportFailureExclusiveNoExcept(fail, true);
     }
 
     final void failAndCompleteExclusive(Throwable fail, State newState)
@@ -1157,7 +1157,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
             if (Invariants.expect(cur.is(UNREGISTERED)) && ((isSafeParent && cur instanceof SafeTask<?>) || cur.isContinuation()))
             {
                 cur.setStateExclusive(CANCELLED_UNREGISTERED);
-                cur.reportFailureNoExcept(new CancellationException("Parent task failed"));
+                cur.reportFailureExclusiveNoExcept(new CancellationException("Parent task failed"), true);
             }
             cur = cur.next;
         }

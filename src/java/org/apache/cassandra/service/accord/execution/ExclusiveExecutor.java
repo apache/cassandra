@@ -65,7 +65,7 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
         @Override public void cancel() { throw new UnsupportedOperationException(); }
         @Override boolean runMayThrow() { throw new UnsupportedOperationException(); }
         @Override void unqueueIfQueued() {}
-        @Override void reportFailureMayThrow(Throwable t) { throw new UnsupportedOperationException(); }
+        @Override void reportFailureMayThrow(Throwable t, boolean isExclusive) { throw new UnsupportedOperationException(); }
         @Override void tryCancelExclusive(CancellationException cancelled) { throw new UnsupportedOperationException(); }
 
         boolean prepareTask()
@@ -84,7 +84,7 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
             catch (Throwable t)
             {
                 task.setStateExclusive(State.FAILED);
-                task.reportFailureNoExcept(t);
+                task.reportFailureExclusiveNoExcept(t, true);
                 completeExclusiveMayThrow();
                 return false;
             }

@@ -61,7 +61,7 @@ final class CancelTask extends Task
     @Override boolean runMayThrow() { throw new UnsupportedOperationException(); }
     @Override public void cancel() { throw new UnsupportedOperationException(); }
     @Override AccordExecutor executor() { throw new UnsupportedOperationException(); }
-    @Override void reportFailureMayThrow(Throwable fail)
+    @Override void reportFailureMayThrow(Throwable fail, boolean isExclusive)
     {
         Thread thread = Thread.currentThread();
         thread.getUncaughtExceptionHandler().uncaughtException(thread, fail);

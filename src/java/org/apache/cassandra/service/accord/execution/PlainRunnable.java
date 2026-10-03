@@ -72,7 +72,7 @@ class PlainRunnable extends Plain implements Cancellable
     }
 
     @Override
-    void reportFailureMayThrow(Throwable t)
+    void reportFailureMayThrow(Throwable t, boolean isExclusive)
     {
         if (result != null)
             result.tryFailure(t);

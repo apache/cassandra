@@ -197,12 +197,13 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
 
     private int pollGroupByBlended(long disabled)
     {
-        if ((++blendPolls & AccordExecutor.FLOW_PERIOD_MASK) == 0)
+        if ((++blendPolls & AccordExecutor.PRIORITY_BLEND_MASK) != 0)
         {
             int group = pollGroupByFlow(disabled);
             if (group >= 0)
                 return group;
         }
+
         return pollGroupByPriority(disabled ^ COUNTER_OVERFLOWS);
     }
 

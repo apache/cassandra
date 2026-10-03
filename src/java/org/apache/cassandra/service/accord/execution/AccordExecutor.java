@@ -110,7 +110,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
     static final long CACHE_FIFO_UPGRADE_AGE_NANOS;
     // BLENDED_PRIORITY_PHASE_FAIR blends two strategies (flow: least fairly serviced, ties broken round-robin; priority:
     // earliest position): every 2^FLOW_SHARE_SHIFT-th dispatch is chosen by flow, and the remainder by priority
-    static final int FLOW_SHARE_SHIFT, FLOW_PERIOD_MASK;
+    static final int PRIORITY_BLEND_SHIFT, PRIORITY_BLEND_MASK;
     static final boolean BALANCE_BY_POSITION;
     static final long GLOBAL_QUEUE_LIMITS, EXCLUSIVE_QUEUE_LIMITS;
     static final int NONSYNC_MIN_BATCH_SIZE, NONSYNC_MAX_BATCH_SIZE, NONSYNC_BLOCKED_LIMIT;
@@ -123,8 +123,8 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         CACHE_FIFO_UPGRADE_AGE_NANOS = config.queue_cache_fifo_upgrade_age.to(TimeUnit.NANOSECONDS);
         PRIORITY_MODEL = config.queue_priority_model != null ? config.queue_priority_model : QueuePriorityModel.ORIG_HLC_FIFO;
         BALANCING_MODEL = config.queue_balancing_model != null ? config.queue_balancing_model : QueueBalancingModel.BLENDED_PRIORITY_PHASE_FAIR;
-        FLOW_SHARE_SHIFT = config.queue_flow_share_shift == null ? 1 : config.queue_flow_share_shift;
-        FLOW_PERIOD_MASK = (1 << FLOW_SHARE_SHIFT) - 1;
+        PRIORITY_BLEND_SHIFT = config.queue_priority_blend_shift == null ? 1 : config.queue_priority_blend_shift;
+        PRIORITY_BLEND_MASK = (1 << PRIORITY_BLEND_SHIFT) - 1;
         NONSYNC_MIN_BATCH_SIZE = config.queue_nonsync_min_batch_size == null ? 16 : config.queue_nonsync_min_batch_size;
         NONSYNC_MAX_BATCH_SIZE = config.queue_nonsync_max_batch_size == null ? 64 : config.queue_nonsync_max_batch_size;
         CACHE_QUEUES_ENABLED = config.queue_key_ordering_enabled == null || config.queue_key_ordering_enabled;
@@ -132,7 +132,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
         if (!CACHE_QUEUES_ENABLED && (config.queue_nonsync_enabled == null || config.queue_nonsync_enabled))
             logger.info("config.queue_key_ordering_enabled is false; accord.queue_nonsync_enabled forced to false as well");
         NONSYNC_BLOCKED_LIMIT = config.queue_nonsync_blocked_limit == null ? 8 : config.queue_nonsync_blocked_limit;
-        Invariants.require(FLOW_SHARE_SHIFT >= 1 && FLOW_SHARE_SHIFT <= 8, "queue_flow_share_shift must be between 1 and 8");
+        Invariants.require(PRIORITY_BLEND_SHIFT >= 1 && PRIORITY_BLEND_SHIFT <= 8, "queue_priority_blend_shift must be between 1 and 8");
         switch (BALANCING_MODEL)
         {
             default: throw new UnhandledEnum(BALANCING_MODEL);

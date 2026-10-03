@@ -29,7 +29,7 @@ import org.apache.cassandra.service.accord.execution.Task.ExecutorQueue;
 import org.apache.cassandra.service.accord.execution.Task.GlobalGroup;
 import org.apache.cassandra.service.accord.execution.Task.GroupKind;
 
-import static org.apache.cassandra.service.accord.execution.AccordExecutor.FLOW_SHARE_SHIFT;
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.PRIORITY_BLEND_SHIFT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -41,7 +41,7 @@ import static org.junit.Assert.assertTrue;
  */
 public class TaskQueueMultiBlendTest
 {
-    static double flowShare() { return 1.0 / (1 << FLOW_SHARE_SHIFT); }
+    static double priorityBlend() { return 1.0 / (1 << PRIORITY_BLEND_SHIFT); }
 
     @BeforeClass
     public static void setup()
@@ -57,7 +57,7 @@ public class TaskQueueMultiBlendTest
         @Override boolean runMayThrow() { return true; }
         @Override void completeExclusiveMayThrow() {}
         @Override void tryCancelExclusive(CancellationException cancelled) {}
-        @Override void reportFailureMayThrow(Throwable fail) {}
+        @Override void reportFailureMayThrow(Throwable fail, boolean isExclusive) {}
         @Override AccordExecutor executor() { return null; }
         @Override void unqueueIfQueued() {}
         @Override boolean isNewWork() { return true; }
@@ -108,8 +108,8 @@ public class TaskQueueMultiBlendTest
         }
 
         double share = storeRan / (double) (rounds - warmup);
-        System.out.printf("COMMAND_STORE (oldest work, over-serviced) received %.1f%% of dispatches (expected %.1f%%)%n", 100 * share, 100 * (1 - flowShare()));
-        assertEquals(1 - flowShare(), share, 0.01);
+        System.out.printf("COMMAND_STORE (oldest work, over-serviced) received %.1f%% of dispatches (expected %.1f%%)%n", 100 * share, 100 * (1 - priorityBlend()));
+        assertEquals(1 - priorityBlend(), share, 0.01);
     }
 
     /**
@@ -140,12 +140,12 @@ public class TaskQueueMultiBlendTest
             q.enqueueMulti(new T(ExclusiveGroup.values()[g], g == oldest.ordinal() ? nextOldest++ : 10 + next[indexOf(groups, g)]++), true);
         }
 
-        double perGroupFlowShare = flowShare() / groups.length;
+        double perGroupFlowShare = priorityBlend() / groups.length;
         for (ExclusiveGroup group : groups)
         {
             double share = ran[group.ordinal()] / (double) rounds;
             System.out.printf("%s received %.1f%% of dispatches%n", group, 100 * share);
-            double expect = group == oldest ? (1 - flowShare()) + perGroupFlowShare : perGroupFlowShare;
+            double expect = group == oldest ? (1 - priorityBlend()) + perGroupFlowShare : perGroupFlowShare;
             assertEquals(group.toString(), expect, share, 0.01);
         }
     }
@@ -162,9 +162,9 @@ public class TaskQueueMultiBlendTest
      * Flow and position each receive a fixed share of dispatches whenever they disagree
      */
     @Test
-    public void flowShareIsFixed()
+    public void priorityBlendIsFixed()
     {
-        assertTrue(AccordExecutor.FLOW_SHARE_SHIFT >= 1);
-        assertEquals((1 << AccordExecutor.FLOW_SHARE_SHIFT) - 1, AccordExecutor.FLOW_PERIOD_MASK);
+        assertTrue(AccordExecutor.PRIORITY_BLEND_SHIFT >= 1);
+        assertEquals((1 << AccordExecutor.PRIORITY_BLEND_SHIFT) - 1, AccordExecutor.PRIORITY_BLEND_MASK);
     }
 }

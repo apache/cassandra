@@ -396,7 +396,7 @@ public class AccordExecutorLoopFailureTest
         }
 
         @Override
-        void reportFailureMayThrow(Throwable fail)
+        void reportFailureMayThrow(Throwable fail, boolean isExclusive)
         {
             failure = fail;
             notified.decrement();

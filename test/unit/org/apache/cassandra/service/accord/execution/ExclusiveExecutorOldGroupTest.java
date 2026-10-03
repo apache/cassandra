@@ -94,7 +94,7 @@ public class ExclusiveExecutorOldGroupTest
 
         @Override ExclusiveExecutor exclusiveExecutor() { return exclusiveExecutor; }
         @Override boolean runMayThrow() { ran.add(name); done.decrement(); return true; }
-        @Override void reportFailureMayThrow(Throwable fail) { done.decrement(); }
+        @Override void reportFailureMayThrow(Throwable fail, boolean isExclusive) { done.decrement(); }
         @Override public String description() { return name; }
         @Override String briefDescription() { return name; }
     }

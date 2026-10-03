@@ -29,7 +29,7 @@ import org.apache.cassandra.service.accord.execution.Task.ExecutorQueue;
 import org.apache.cassandra.service.accord.execution.Task.GlobalGroup;
 import org.apache.cassandra.service.accord.execution.Task.GroupKind;
 
-import static org.apache.cassandra.service.accord.execution.AccordExecutor.FLOW_SHARE_SHIFT;
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.PRIORITY_BLEND_SHIFT;
 import static org.apache.cassandra.service.accord.execution.TaskPositions.AGE_LIMIT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -51,7 +51,7 @@ public class TaskQueueMultiStarvationTest
     static final long HLC = 1_790_000_000_000_000L;
     static final int BACKLOG = 100;
     static final int MAX_ROUNDS = 1_000_000;
-    static int flowPeriod() { return 1 << FLOW_SHARE_SHIFT; }
+    static int priorityPeriod() { return 1 << PRIORITY_BLEND_SHIFT; }
 
     @BeforeClass
     public static void setup()
@@ -134,7 +134,7 @@ public class TaskQueueMultiStarvationTest
     // flow dispatches; we allow some slack for the counters of a previously over-serviced group to decay
     static long flowBound(int groups)
     {
-        return (long) flowPeriod() * groups + 1000;
+        return (long) priorityPeriod() * groups + 1000;
     }
 
     @Test
@@ -190,7 +190,7 @@ public class TaskQueueMultiStarvationTest
         assertEquals(victims, rangeRan);
         assertTrue(firstRan <= flowBound(2));
         // RANGE receives at least its round-robin share of flow dispatches
-        assertTrue(round <= firstRan + 2L * flowPeriod() * victims + 1000);
+        assertTrue(round <= firstRan + 2L * priorityPeriod() * victims + 1000);
     }
 
     /**
@@ -217,7 +217,7 @@ public class TaskQueueMultiStarvationTest
         double newShare = newRan / (double) rounds;
         System.out.printf("old recovery storm: OLD received %.1f%%, new work %.1f%% of dispatches%n", 100.0 * oldRan / rounds, 100 * newShare);
         // new work receives (at least) its round-robin share of flow dispatches
-        assertTrue(newShare >= 1.0 / flowPeriod() / 2 - 0.01);
+        assertTrue(newShare >= 1.0 / priorityPeriod() / 2 - 0.01);
     }
 
     /**

@@ -845,7 +845,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         if (entry.isUnsafeToRead())
         {
             InconsistentEntryException fail = new InconsistentEntryException(entry.key());
-            if (isContinuation()) reportFailureNoExcept(fail);
+            if (isContinuation()) reportFailureExclusiveNoExcept(fail, true);
             else throw fail;
             preacquired.setAbandoned(); // TODO (expected): need a special inconsistent mode that is abandoned-adjacent to support retries
             if (entry.isCommandsForKey())
@@ -870,7 +870,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         {
             safeRef.setAbandoned();
             InconsistentEntryException fail = new InconsistentEntryException(k);
-            if (isContinuation()) reportFailureNoExcept(fail);
+            if (isContinuation()) reportFailureExclusiveNoExcept(fail, true);
             else
             {
                 cache.release(safeRef, this);
@@ -1784,14 +1784,14 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         }
     }
 
-    void reportFailureMayThrow(Throwable failure)
+    void reportFailureMayThrow(Throwable failure, boolean isExclusive)
     {
         BiConsumer<? super R, Throwable> callback = callbackUpdater.getAndSet(this, null);
         if (callback == null) executor().agent.onException(failure);
         else
         {
-            if (executor().isInLoop()) callback.accept(null, failure);
-            else executor().submit(() -> callback.accept(null, failure));
+            if (isExclusive || !executor().isInLoop()) executor().submit(() -> callback.accept(null, failure));
+            else callback.accept(null, failure);
         }
     }
 
@@ -1920,7 +1920,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             // tasks that are committed to execute mark the key as failed and continue
             // (only an async/incr task can be prepared and enter onFailingKeyExclusive)
             if (fail != null || callback != null)
-                reportFailureNoExcept(fail != null ? fail : new InconsistentEntryException(entry.key()));
+                reportFailureExclusiveNoExcept(fail != null ? fail : new InconsistentEntryException(entry.key()), true);
 
             // fine to mark immediately inconsistent even if we're not head, since all preceding tasks would do the same
             // notifications are already handled by our caller, either the load failure or the current owner of the entry lock

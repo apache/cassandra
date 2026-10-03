@@ -79,7 +79,7 @@ class PlainChain<V> extends Plain
     }
 
     @Override
-    void reportFailureMayThrow(Throwable fail)
+    void reportFailureMayThrow(Throwable fail, boolean isExclusive)
     {
         callback.accept(null, fail);
     }
