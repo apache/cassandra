@@ -485,7 +485,7 @@ public class AccordCacheEntryQueueTest
      * {@code Invariants}, which exposes no accessor; the value is latched at its class initialisation, so this is the
      * same answer as long as nobody rewrites the property mid-run.
      */
-    private static final boolean EXPECT_FAILS = Invariants.THROW_ON_EXPECTS;
+    private static final boolean EXPECT_FAILS = Invariants.isTesting();
 
     /**
      * O8: the fifo region is ordered by {@code fifoAt}, and the lock holder is pinned at its head - everything behind it

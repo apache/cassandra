@@ -226,7 +226,7 @@ public class AccordCommandStore extends CommandStore
         = AtomicReferenceFieldUpdater.newUpdater(AccordCommandStore.class, Termination.class, "terminated");
     static final AtomicLong nextSafeRedundantBeforeTicket = new AtomicLong();
 
-    public final String loggingId;
+    public volatile String loggingId;
     public final Journal journal;
     private final AccordExecutor sharedExecutor;
     private final ExclusiveExecutor exclusiveExecutor;
@@ -252,7 +252,6 @@ public class AccordCommandStore extends CommandStore
                               AccordExecutor sharedExecutor)
     {
         super(id, node, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch);
-        this.loggingId = String.format("[%s]", id);
         this.journal = journal;
         this.sharedExecutor = sharedExecutor;
         if (this.progressLog instanceof DefaultProgressLog)
@@ -262,8 +261,10 @@ public class AccordCommandStore extends CommandStore
         maybeLoadRedundantBefore(journal.loadRedundantBefore(id()));
         maybeLoadBootstrapBeganAt(journal.loadBootstrapBeganAt(id()));
         maybeLoadSafeToRead(journal.loadSafeToRead(id()));
-
-        tableId = (TableId)rangesForEpoch.all().stream().map(r -> r.start().prefix()).reduce((a, b) -> {
+        maybeLoadRangesForEpoch(journal.loadRangesForEpoch(id()));
+        RangesForEpoch ranges = this.rangesForEpoch;
+        Invariants.require(ranges != null && !ranges.all().isEmpty(), "CommandStore %d created with no ranges", id);
+        tableId = (TableId)ranges.all().stream().map(r -> r.start().prefix()).reduce((a, b) -> {
             Invariants.require(a.equals(b), "CommandStore created with multiple distinct TableId (%s and %s)", a, b);
             return a;
         }).orElseThrow(() -> Invariants.illegalState("CommandStore %d created with no ranges", id));
@@ -646,6 +647,7 @@ public class AccordCommandStore extends CommandStore
     }
     
     static final AtomicLong nextDurabilityLoggingId = new AtomicLong();
+    private static final long ENSURE_DURABLE_SLOW_NANOS = TimeUnit.MILLISECONDS.toNanos(100);
 
     @Override
     protected void ensureDurable(Ranges ranges, RedundantBefore onCommandStoreDurable)
@@ -687,6 +689,7 @@ public class AccordCommandStore extends CommandStore
             class Ready extends CountingResult implements BiConsumer<Void, Throwable>
             {
                 public Ready() { super(1); }
+                int saving; // DIAGNOSTIC (Claude): modified entries we asked to save under the lock
 
                 @Override
                 public void accept(Void success, Throwable failure)
@@ -706,6 +709,7 @@ public class AccordCommandStore extends CommandStore
 
                     if (e.isModified())
                     {
+                        ++saving;
                         increment();
                         caches.global().saveWhenReadyExclusive(e, this);
                     }
@@ -713,8 +717,13 @@ public class AccordCommandStore extends CommandStore
             }
 
             Ready ready = new Ready();
+            // DIAGNOSTIC (Claude): measure how long we hold the executor lock here; every CFK save serialises inline
+            long lockStartedAt = org.apache.cassandra.utils.Clock.Global.nanoTime();
+            long lockedAt, heldNanos;
+            int visited;
             try (ExclusiveCaches caches = lockCaches())
             {
+                lockedAt = org.apache.cassandra.utils.Clock.Global.nanoTime();
                 int count = 0;
                 if (ranges == null)
                 {
@@ -766,7 +775,15 @@ public class AccordCommandStore extends CommandStore
                         throw t;
                     }
                 }
+                visited = count;
+                heldNanos = org.apache.cassandra.utils.Clock.Global.nanoTime() - lockedAt;
             }
+            // NB: if we were deferred by afterSubmittedAndConsequences we are running under the executor lock already,
+            // on whichever thread completed the tranche (named below); the hold measured is the scan + inline saves
+            if (heldNanos >= ENSURE_DURABLE_SLOW_NANOS)
+                logger.warn("{} durability: held executor lock for {}ms (waited {}ms to acquire) scanning {} CommandsForKey of which {} are being saved, for {} ({}) on {}",
+                            this, TimeUnit.NANOSECONDS.toMillis(heldNanos), TimeUnit.NANOSECONDS.toMillis(lockedAt - lockStartedAt),
+                            visited, ready.saving, ranges == null ? "all ranges" : ranges, reportId, Thread.currentThread().getName());
 
             ready.invoke((success, fail) -> {
                 if (fail != null)
@@ -961,7 +978,7 @@ public class AccordCommandStore extends CommandStore
                 {
                     File rjbf = new File(savePoint, "reject_before");
                     if (rjbf.exists())
-                        mxc = mxc.with(readOne(rjbf, rejectBefore));
+                        mxc = mxc.update(readOne(rjbf, rejectBefore));
                 }
                 dll = readList(new File(savePoint, "listeners"), txnListener);
                 dpl = readList(new File(savePoint, "progress_log"), progressLogState);
@@ -1034,6 +1051,9 @@ public class AccordCommandStore extends CommandStore
     @Override
     public String toString()
     {
+        if (loggingId != null)
+            return loggingId;
+
         TableMetadata metadata = tableMetadata();
         StringBuilder sb = new StringBuilder("[");
         if (metadata != null)
@@ -1044,7 +1064,11 @@ public class AccordCommandStore extends CommandStore
           .append(executor().executorId).append(',')
           .append(node.id().id)
           .append(']');
-        return sb.toString();
+
+        String result = sb.toString();
+        if (metadata != null)
+            loggingId = result;
+        return result;
     }
 
     public static class DurablyAppliedTo

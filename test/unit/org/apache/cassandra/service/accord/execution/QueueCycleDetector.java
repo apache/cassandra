@@ -101,6 +101,66 @@ public class QueueCycleDetector
     }
 
     /**
+     * For each of {@code of}, follow its wait edges among {@code tasks} to the task at the root of its chain - one that
+     * waits for nobody in these queues - and describe each hop and the root. A long wait with no cycle is explained by
+     * its root: e.g. a lock holder that is not running, a task waiting on a load, or a task waiting on something
+     * outside the cache queues (it is then a leaked position). Each root is reported once, with the number of chains it
+     * terminates.
+     */
+    public static String explainBlockers(Collection<SafeTask<?>> tasks, Collection<SafeTask<?>> of, int maxDepth, long nowNanos)
+    {
+        QueueCycleDetector detector = new QueueCycleDetector(tasks);
+        Map<SafeTask<?>, Integer> roots = new IdentityHashMap<>();
+        StringBuilder sb = new StringBuilder();
+        for (SafeTask<?> from : of)
+        {
+            if (!detector.waitsFor.containsKey(from))
+                continue;
+            StringBuilder chain = new StringBuilder();
+            Map<SafeTask<?>, Boolean> seen = new IdentityHashMap<>();
+            SafeTask<?> at = from;
+            int depth = 0;
+            while (true)
+            {
+                seen.put(at, true);
+                List<Edge> edges = detector.edgesOf(at);
+                if (edges.isEmpty())
+                    break;
+                // follow the edge to the oldest blocker: the one most likely to be the long-lived cause
+                Edge next = edges.get(0);
+                for (Edge e : edges)
+                    if (e.blocker.createdAt < next.blocker.createdAt) next = e;
+                chain.append(String.format("%n      -> %s [%s, age=%ds] via %s (%s)", describe(next.blocker), next.blocker.currentState(),
+                                           java.util.concurrent.TimeUnit.NANOSECONDS.toSeconds(nowNanos - next.blocker.createdAt),
+                                           next.entry.key(), next.why));
+                if (seen.containsKey(next.blocker)) { chain.append(" <-- CYCLE"); at = null; break; }
+                at = next.blocker;
+                if (++depth >= maxDepth) { chain.append(String.format("%n      -> ... (depth %d)", maxDepth)); at = null; break; }
+            }
+            if (at == null || at == from && depth == 0)
+                continue; // no edges at all: nothing to explain here (or the chain was truncated/cyclic, already shown)
+            Integer count = roots.merge(at, 1, Integer::sum);
+            if (count > 1)
+                continue;
+            sb.append(String.format("  %s [%s] waits via:%s%n      ROOT %s [%s, age=%ds]: %s", describe(from), from.currentState(), chain,
+                                    describe(at), at.currentState(),
+                                    java.util.concurrent.TimeUnit.NANOSECONDS.toSeconds(nowNanos - at.createdAt), describeReadiness(at)));
+            List<AccordCacheEntry<?, ?, ?>> loading = detector.waitsToLoad.get(at);
+            if (loading != null)
+                for (AccordCacheEntry<?, ?, ?> entry : loading)
+                    sb.append(String.format("%n        waiting on load of %s (%s)", entry.key(), entry.status()));
+            sb.append('\n');
+        }
+        if (sb.length() == 0)
+            return null;
+        StringBuilder counts = new StringBuilder();
+        for (Map.Entry<SafeTask<?>, Integer> e : roots.entrySet())
+            if (e.getValue() > 1)
+                counts.append(String.format("  root %s terminates %d of these chains%n", describe(e.getKey()), e.getValue()));
+        return "wait chains of the oldest tasks:\n" + sb + counts;
+    }
+
+    /**
      * Only a {@code HOLD_QUEUE} holder yields a lock edge (A2), so this describes a holder we have already decided to
      * add an edge for. The <em>mode</em> is still worth printing, because the three modes answer different questions and
      * a dump that says only "holds the lock" is ambiguous:
@@ -297,8 +357,9 @@ public class QueueCycleDetector
             else if (waits > 0 && blockedOn == 0 && !loading.isEmpty())
             {
                 // not a mis-count: we are waiting for loads that have not completed, so report them with their status
-                sb.append(String.format("  %s [%s] counts %d waits and is waiting only on loads:%n",
-                                        describe(task), task.currentState(), waits));
+                sb.append(String.format("  %s [%s, age=%dms] counts %d waits and is waiting only on loads:%n",
+                                        describe(task), task.currentState(),
+                                        java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - task.createdAt), waits));
                 for (AccordCacheEntry<?, ?, ?> entry : loading)
                     sb.append(String.format("      %s is %s%n", entry.key(), entry.status()));
             }

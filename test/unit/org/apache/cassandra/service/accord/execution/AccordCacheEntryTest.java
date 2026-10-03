@@ -404,7 +404,7 @@ public class AccordCacheEntryTest
         bare.addFifo(b0);
         bare.lockExclusive(b0, LockMode.RELEASE_QUEUE);
         assertMembers(bare, Collections.emptyList());
-        bare.setInconsistent();
+        bare.setUnsafeToRead();
         bare.reclaimFifoHead(b0);
         assertTrue("the retained claim is a HOLD_QUEUE lock", bare.isLockedHoldingQueue());
         assertMembers(bare, Arrays.asList(b0));
@@ -418,7 +418,7 @@ public class AccordCacheEntryTest
         mini.lockExclusive(m0, LockMode.RELEASE_QUEUE);
         assertSame(RunnableStatus.NEWLY_RUNNABLE, mini.addFifo(m1));
         assertMembers(mini, Arrays.asList(m1));
-        mini.setInconsistent();
+        mini.setUnsafeToRead();
         mini.reclaimFifoHead(m0);
         verify(m1).onChangeRunnableStatus(mini, RunnableStatus.NOT_RUNNABLE);
         assertTrue(mini.isLockedHoldingQueue());
@@ -436,7 +436,7 @@ public class AccordCacheEntryTest
         assertSame(RunnableStatus.NEWLY_RUNNABLE, full.addFifo(f1));
         assertSame(RunnableStatus.NOT_RUNNABLE, full.addFifo(f2));
         assertMembers(full, Arrays.asList(f1, f2));
-        full.setInconsistent();
+        full.setUnsafeToRead();
         full.reclaimFifoHead(f0);
         verify(f1).onChangeRunnableStatus(full, RunnableStatus.NOT_RUNNABLE);
         assertTrue(full.isLockedHoldingQueue());
@@ -467,7 +467,7 @@ public class AccordCacheEntryTest
         entry.addPrioritised(t0);
         entry.lockExclusive(t0, LockMode.RELEASE_QUEUE);
         assertSame(RunnableStatus.NEWLY_RUNNABLE, entry.addPrioritised(t1));
-        entry.setInconsistent();
+        entry.setUnsafeToRead();
         try
         {
             entry.reclaimFifoHead(t0);

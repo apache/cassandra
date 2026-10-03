@@ -106,6 +106,7 @@ import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.schema.Views;
+import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.utils.AbstractIterator;
@@ -341,7 +342,7 @@ public class AccordKeyspace
         {
             ByteBuffer bytes;
             if (serialized instanceof ByteBuffer) bytes = (ByteBuffer) serialized;
-            else bytes = Serialize.toBytesWithoutKey(commandsForKey.maximalPrune()); // TODO (expected): we only need to strip pruned, not prune additional txns
+            else bytes = Serialize.toBytesWithoutKey(commandsForKey.maybePrune(0, AccordAgent.cfkHlcPruneDelta(DatabaseDescriptor.getAccord()))); // TODO (expected): we only need to strip pruned, not prune additional txns
             return makeUpdate(storeId, key, timestampMicros, bytes);
         }
 
@@ -363,8 +364,9 @@ public class AccordKeyspace
 
         public static Runnable systemTableUpdater(int storeId, TokenKey key, CommandsForKey update, Object serialized)
         {
-            PartitionUpdate upd = makeUpdate(storeId, key, update, serialized, nextSystemTimestampMicros());
+            long timestamp = nextSystemTimestampMicros();
             return () -> {
+                PartitionUpdate upd = makeUpdate(storeId, key, update, serialized, timestamp);
                 ColumnFamilyStore cfs = AccordColumnFamilyStores.commandsForKey;
                 try (OpOrder.Group group = Keyspace.writeOrder.start())
                 {

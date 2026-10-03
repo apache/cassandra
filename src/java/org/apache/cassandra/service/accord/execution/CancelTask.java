@@ -18,9 +18,12 @@
 
 package org.apache.cassandra.service.accord.execution;
 
+import java.util.concurrent.CancellationException;
+
 final class CancelTask extends Task
 {
     final Task cancel;
+    final CancellationException cancelled = new CancellationException();
 
     CancelTask(Task cancel)
     {
@@ -31,7 +34,7 @@ final class CancelTask extends Task
     @Override
     void submitExclusiveMayThrow()
     {
-        cancel.tryCancelExclusive();
+        cancel.tryCancelExclusive(cancelled);
     }
 
     @Override
@@ -54,11 +57,11 @@ final class CancelTask extends Task
 
     @Override void unqueueIfQueued() {}
     @Override void completeExclusiveMayThrow() {}
-    @Override void tryCancelExclusive() {}
+    @Override void tryCancelExclusive(CancellationException cancelled) {}
     @Override boolean runMayThrow() { throw new UnsupportedOperationException(); }
     @Override public void cancel() { throw new UnsupportedOperationException(); }
     @Override AccordExecutor executor() { throw new UnsupportedOperationException(); }
-    @Override void reportFailureMayThrow(Throwable fail)
+    @Override void reportFailureMayThrow(Throwable fail, boolean isExclusive)
     {
         Thread thread = Thread.currentThread();
         thread.getUncaughtExceptionHandler().uncaughtException(thread, fail);

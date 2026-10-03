@@ -66,7 +66,7 @@ public class IOTaskLoad<K, V> extends IOTask
     }
 
     @Override
-    void reportFailureMayThrow(Throwable t)
+    void reportFailureMayThrow(Throwable t, boolean isExclusive)
     {
         result = new FailureHolder(t);
     }

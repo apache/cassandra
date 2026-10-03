@@ -83,13 +83,15 @@ public class CompositeTopologySorter implements TopologySorter
     }
 
     @Override
-    public boolean isFaulty(Node.Id node)
+    public NodeStatus status(Node.Id node)
     {
+        NodeStatus status = NodeStatus.HEALTHY;
         for (int i = 0; i < delegates.length; i++)
         {
-            if (delegates[i].isFaulty(node))
-                return true;
+            NodeStatus next = delegates[i].status(node);
+            if (next != status && next.compareTo(status) < 0)
+                status = next;
         }
-        return false;
+        return status;
     }
 }

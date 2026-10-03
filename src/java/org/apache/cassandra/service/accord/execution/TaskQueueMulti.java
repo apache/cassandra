@@ -59,8 +59,8 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
     long dispatches;   // number of recently processed tasks; on overflow, both dispatches and arrivals are decayed (by shift right)
     long arrivals;     // number of recently arrived tasks (saturating count)
 
-    // deficit-round-robin state
-    int creditFlow, creditAge;
+    // blending state: the number of blended polls, and the group from which the next flow tie-break begins
+    int blendPolls, flowCursor;
 
     TaskQueueMulti(ExecutorQueue kind, GroupKind groups, long limits)
     {
@@ -177,15 +177,18 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
 
     private int pollGroupByPhaseFair()
     {
-        return minCounterIndex(recentFlowImbalances());
+        return pollGroupByFlow(saturatedOrWithoutWork());
     }
 
     /**
-     * BLENDED_PRIORITY_PHASE_FAIR: a deficit round-robin blend of two strategies, chosen per poll:
+     * BLENDED_PRIORITY_PHASE_FAIR: a fixed blend of two strategies, chosen per poll:
      * <ul>
-     *   <li>flow -> {@code minCounterIndex(dispatches - arrivals)}, i.e. the least fairly serviced group;</li>
-     *   <li>age -> {@link #pollGroupByPriority}, i.e. the earliest-queued work.</li>
+     *   <li>flow -> {@link #pollGroupByFlow}, i.e. the least fairly serviced group, with ties broken round-robin;</li>
+     *   <li>priority -> {@link #pollGroupByPriority}, i.e. the earliest position.</li>
      * </ul>
+     * Every {@code 2^FLOW_SHARE_SHIFT}-th poll is chosen by flow, and the remainder by priority. Since a group that is
+     * not being serviced always has the minimum flow counter (zero), and ties are broken round-robin, every group
+     * with work is serviced within a bounded number of polls, whatever the positions of the work in other groups.
      */
     private int pollGroupByBlended()
     {
@@ -194,32 +197,32 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
 
     private int pollGroupByBlended(long disabled)
     {
-        long withoutWork = hasWork ^ COUNTER_OVERFLOWS;
+        if ((++blendPolls & AccordExecutor.PRIORITY_BLEND_MASK) != 0)
+        {
+            int group = pollGroupByFlow(disabled);
+            if (group >= 0)
+                return group;
+        }
+
+        return pollGroupByPriority(disabled ^ COUNTER_OVERFLOWS);
+    }
+
+    /**
+     * The least fairly serviced group (i.e. with least recent dispatches in excess of arrivals), breaking ties
+     * round-robin, so that all groups that are not over-serviced are serviced in turn.
+     */
+    private int pollGroupByFlow(long disabled)
+    {
         long counters = recentFlowImbalances();
-        long minMax = minMaxCounterValue(counters, withoutWork);
-        long min = minMax & 0x7f;
-        long max = minMax >>> 8;
-        int flowImbalance = (int) (max - min);
+        long mins = minCounterValue(counters, disabled) * COUNTER_LOWBITS;
+        long select = ((mins | COUNTER_OVERFLOWS) - counters) & COUNTER_OVERFLOWS & ~disabled;
+        if (select == 0)
+            return -1;
 
-        int flowWeight = flowWeight(flowImbalance);
-        int priorityWeight = AccordExecutor.BLEND_TOTAL - flowWeight;
-
-        creditFlow += flowWeight;
-        creditAge += priorityWeight;
-
-        if (creditFlow >= creditAge)
-        {
-            creditFlow -= AccordExecutor.BLEND_TOTAL;
-            if (disabled != withoutWork)
-                min = minCounterValue(counters, disabled);
-
-            return minCounterIndex(counters, min, disabled);
-        }
-        else
-        {
-            creditAge -= AccordExecutor.BLEND_TOTAL;
-            return pollGroupByPriority(disabled ^ COUNTER_OVERFLOWS);
-        }
+        int cursor = flowCursor;
+        int group = (((Long.numberOfTrailingZeros(Long.rotateRight(select, cursor * 8)) - 7) / 8) + cursor) & 7;
+        flowCursor = (group + 1) & 7;
+        return group;
     }
 
     private long saturated()
@@ -258,21 +261,6 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
         return mins & 0x7f;
     }
 
-    static long minMaxCounterValue(long counters, long disabled)
-    {
-        long mins = counters;
-        long maxs = counters ^ COUNTER_MASKS;
-        long overflowMasks = overflowsToLowMasks(disabled);
-        mins |= overflowMasks;
-        maxs |= overflowMasks;
-        mins = minCounters(mins, mins >>> 8) & 0x007f007f007f007fL; // each slot is min of slots [i..i+1]
-        maxs = (minCounters(maxs, maxs << 8) & 0x7f007f007f007f00L); // each slot is min of slots ~[i..i+1]
-        long minmaxs = mins | maxs;
-        minmaxs = minCounters(minmaxs, minmaxs >>> 16); // each slot is min of slots [i..i+3]
-        minmaxs = minCounters(minmaxs, minmaxs >>> 32); // each slot is min of slots [i..i+7]
-        return (minmaxs ^ 0x7f00) & 0x7f7f;
-    }
-
     /**
      * If provided two counters (containing 8 7 bit counters each),
      * returns the minimum of each matching counter
@@ -303,38 +291,11 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
         return v - (v >>> 7);
     }
 
-    private static int flowWeight(int flowImbalance)
-    {
-        if (flowImbalance <= AccordExecutor.FLOW_ONSET) return 0;
-        return Math.min(AccordExecutor.BLEND_TOTAL, ((flowImbalance - AccordExecutor.FLOW_ONSET) << AccordExecutor.BLEND_SHIFT) >>> AccordExecutor.FLOW_WIDTH_SHIFT);
-    }
-
     // per-lane max(0, a - b), carry-free: zero both a and b in lanes where a <= b, then subtract
     private static long clampedSubtract(long a, long b)
     {
         long keep = ~overflowsToLowMasks(setOverflowWhenLessEqual(a, b));
         return (a & keep) - (b & keep);
-    }
-
-    private int minCounterIndex(long counters)
-    {
-        return minCounterIndex(counters, saturatedOrWithoutWork());
-    }
-
-    private int minCounterIndex(long counters, long disabled)
-    {
-        return minCounterIndex(counters, minCounterValue(counters, disabled), disabled);
-    }
-
-    private int minCounterIndex(long counters, long minCounterValue, long disabled)
-    {
-        long mins = minCounterValue * COUNTER_LOWBITS;
-        long select = ((mins | COUNTER_OVERFLOWS) - counters) & COUNTER_OVERFLOWS;
-        // now unset those overflow bits associated with disabled queues
-        select &= ~disabled;
-        if (select == 0)
-            return -1;
-        return (Long.numberOfTrailingZeros(select) - 7) / 8;
     }
 
     final T pollMulti()

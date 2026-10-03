@@ -60,8 +60,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.SchemaTransformation;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.accord.topology.AccordFastPath;
-import org.apache.cassandra.service.accord.topology.AccordStaleReplicas;
+import org.apache.cassandra.service.accord.topology.AccordNodeInfos;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
 import org.apache.cassandra.tcm.CMSMembership;
@@ -166,12 +165,11 @@ public class ClusterMetadataTestHelper
                                    Directory.EMPTY,
                                    new TokenMap(partitioner),
                                    DataPlacements.empty(),
-                                   AccordFastPath.EMPTY,
+                                   AccordNodeInfos.EMPTY,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
                                    ConsensusMigrationState.EMPTY,
                                    ImmutableMap.of(),
-                                   AccordStaleReplicas.EMPTY,
                                    CMSMembership.EMPTY);
     }
 
@@ -206,12 +204,11 @@ public class ClusterMetadataTestHelper
                                    Directory.EMPTY,
                                    new TokenMap(partitioner),
                                    DataPlacements.empty(),
-                                   AccordFastPath.EMPTY,
+                                   AccordNodeInfos.EMPTY,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
                                    ConsensusMigrationState.EMPTY,
                                    ImmutableMap.of(),
-                                   AccordStaleReplicas.EMPTY,
                                    cms);
     }
 

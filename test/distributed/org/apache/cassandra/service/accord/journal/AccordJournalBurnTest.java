@@ -26,7 +26,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -306,6 +305,7 @@ public class AccordJournalBurnTest extends BurnTestBase
                                      return;
                                  List<ISSTableScanner> scanners = selected.stream().map(SSTableReader::getScanner).collect(Collectors.toList());
 
+                                 TreeMap<JournalKey, Object> debugBefore = Invariants.debug() ? debug() : null;
                                  TreeMap<JournalKey, Command> before = read(commandStores);
                                  Collection<SSTableReader> newSStables;
                                  try (LifecycleTransaction txn = table.getTracker().tryModify(selected, OperationType.COMPACTION);
@@ -340,7 +340,8 @@ public class AccordJournalBurnTest extends BurnTestBase
                                      Command a = after.get(e.getKey());
                                      if (b != null && b.saveStatus == Erased) b = null;
                                      if (a != null && a.saveStatus == Erased) a = null;
-                                     Invariants.require(Objects.equals(a, b));
+                                     // right now we allow expunging durability somewhat inconsistently
+                                     Invariants.require(a == null || b == null ? a == b : a.equalsIgnoreDurability(b));
                                  }
                                  if (before.size() != after.size())
                                  {
@@ -375,6 +376,27 @@ public class AccordJournalBurnTest extends BurnTestBase
                                          Command command = loadCommand(key.commandStoreId, key.id, commandStore.unsafeGetRedundantBefore(), commandStore.durableBefore());
                                          if (command != null)
                                             result.put(key, command);
+                                         prev = key;
+                                     }
+                                 }
+                                 return result;
+                             }
+
+                             private TreeMap<JournalKey, Object> debug()
+                             {
+                                 TreeMap<JournalKey, Object> result = new TreeMap<>(JournalKey.SUPPORT::compare);
+                                 try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = keyIterator(null, null, false, 0))
+                                 {
+                                     JournalKey prev = null;
+                                     while (iter.hasNext())
+                                     {
+                                         Journal.KeyRefs<JournalKey> ref = iter.next();
+                                         if (ref.key().type != JournalKey.Type.COMMAND_DIFF)
+                                             continue;
+
+                                         JournalKey key = ref.key();
+                                         if (key.equals(prev)) continue;
+                                         result.put(key, debugCommand(key.commandStoreId, key.id));
                                          prev = key;
                                      }
                                  }

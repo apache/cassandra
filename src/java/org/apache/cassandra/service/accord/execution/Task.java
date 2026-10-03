@@ -24,11 +24,15 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import accord.local.ExecutionContext;
 import accord.messages.Accept;
+import accord.messages.BeginInvalidation;
+import accord.messages.BeginRecovery;
 import accord.messages.Commit;
 import accord.messages.MessageType;
 import accord.messages.Request;
 import accord.primitives.Ballot;
 import accord.primitives.SaveStatus;
+import accord.primitives.Timestamp;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.IntrusiveHeapNode;
 import accord.utils.Invariants;
@@ -49,8 +53,9 @@ import static accord.primitives.Routable.Domain.Range;
 import static accord.utils.Invariants.illegalState;
 import static org.apache.cassandra.config.AccordConfig.QueuePriorityModel.ORIG_HLC_FIFO;
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXECUTION;
-import static org.apache.cassandra.service.accord.execution.Task.ExclusiveGroup.APPLY;
-import static org.apache.cassandra.service.accord.execution.Task.ExclusiveGroup.COMMIT;
+import static org.apache.cassandra.service.accord.execution.Task.ExclusiveGroup.DECIDE;
+import static org.apache.cassandra.service.accord.execution.Task.ExclusiveGroup.OUTCOME;
+import static org.apache.cassandra.service.accord.execution.Task.ExclusiveGroup.RECOVER;
 import static org.apache.cassandra.service.accord.execution.Task.ExclusiveGroup.STABLE;
 import static org.apache.cassandra.service.accord.execution.Task.RunState.NOT_YET_RUN;
 import static org.apache.cassandra.service.accord.execution.Task.RunState.REJECTED;
@@ -176,18 +181,35 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
         OTHER,
         RANGE_LOAD,
         RANGE_SCAN,
+        /**
+         * Command stores whose next task is {@link ExclusiveGroup#OLD}, so that old and new work are balanced by flow
+         * at the executor level as well as within each command store.
+         */
+        OLD,
     }
 
+    // these groups can be restructured/combined as necessary, they're just for QoS
     enum ExclusiveGroup
     {
-        APPLY,
+        OUTCOME,
         STABLE,
-        COMMIT,
-        ACCEPT,
+        DECIDE,
         OTHER,
+        /**
+         * Recovery and progress work: messages with a non-zero (i.e. recovery) ballot when using ORIG_HLC_FIFO, and
+         * messages that are not part of the normal state machine (e.g. CheckStatus). This work retains its HLC priority
+         * however old, but once older than queue_priority_age_to_fifo it is moved to {@link #OLD}.
+         */
         RECOVER,
         PREACCEPT,
         RANGE,
+        /**
+         * Recovery and progress work that is older than queue_priority_age_to_fifo, and any work submitted on its behalf.
+         * This is queued separately from all other work, so that it is balanced against newer work by flow (and so
+         * cannot dominate it), while retaining its HLC priority relative to other old work.
+         * See {@link TaskPositions}.
+         */
+        OLD,
     }
 
     public enum GroupKind
@@ -308,84 +330,148 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
         createdAt = lastCreatedAt.accumulateAndGet(nanoTime(), (prev, next) -> next <= prev ? prev + 1 : next);
         ExclusiveGroup group = ExclusiveGroup.OTHER;
         TxnId txnId = context.primaryTxnId();
+        Timestamp ts = txnId;
         if (txnId != null)
         {
-            if (txnId.is(Range)) group = ExclusiveGroup.RANGE;
-            else
+            switch (AccordExecutor.PRIORITY_MODEL)
             {
-                switch (AccordExecutor.PRIORITY_MODEL)
+                case HLC_FIFO:
+                case ORIG_HLC_FIFO:
                 {
-                    case HLC_FIFO:
-                    case ORIG_HLC_FIFO:
+                    // TODO (expected): port to ExecutionKind
+                    if (context instanceof Request)
                     {
-                        // TODO (expected): port to ExecutionKind; also we aren't consistent about using Ballot
-                        if (context instanceof Request)
+                        MessageType type = ((Request) context).type();
+                        if (type instanceof MessageType.StandardMessage)
                         {
-                            MessageType type = ((Request) context).type();
-                            if (type instanceof MessageType.StandardMessage)
+                            switch ((MessageType.StandardMessage) type)
                             {
-                                switch ((MessageType.StandardMessage) type)
+                                case INFORM_DURABLE_REQ:
+                                case APPLY_REQ:
+                                case COMMIT_INVALIDATE_REQ:
+                                case APPLY_THEN_WAIT_UNTIL_APPLIED_REQ:
                                 {
-                                    case APPLY_REQ:
+                                    group = OUTCOME;
+                                    break;
+                                }
+                                case READ_EPHEMERAL_REQ:
+                                case READ_REQ:
+                                case STABLE_THEN_READ_REQ:
+                                {
+                                    group = STABLE;
+                                    break;
+                                }
+                                case COMMIT_REQ:
+                                {
+                                    Commit commit = (Commit) context;
+                                    if (commit.kind.saveStatus == SaveStatus.Stable) group = STABLE;
+                                    else group = DECIDE;
+                                    if (!commit.ballot.equals(Ballot.ZERO))
                                     {
-                                        group = APPLY;
-                                        break;
+                                        if (AccordExecutor.PRIORITY_MODEL == ORIG_HLC_FIFO) group = RECOVER;
+                                        else ts = commit.ballot;
                                     }
-                                    case READ_EPHEMERAL_REQ:
-                                    case READ_REQ:
-                                    case STABLE_THEN_READ_REQ:
+                                    break;
+                                }
+                                case ACCEPT_REQ:
+                                {
+                                    group = ExclusiveGroup.DECIDE;
+                                    Ballot ballot = ((Accept) context).ballot;
+                                    if (!ballot.equals(Ballot.ZERO))
                                     {
-                                        group = STABLE;
-                                        break;
+                                        if (AccordExecutor.PRIORITY_MODEL == ORIG_HLC_FIFO) group = RECOVER;
+                                        else ts = ballot;
                                     }
-                                    case COMMIT_REQ:
+                                    break;
+                                }
+                                case NOT_ACCEPT_REQ:
+                                {
+                                    group = ExclusiveGroup.DECIDE;
+                                    Ballot ballot = ((Accept.NotAccept) context).ballot;
+                                    if (!ballot.equals(Ballot.ZERO))
                                     {
-                                        Commit commit = (Commit) context;
-                                        if (AccordExecutor.PRIORITY_MODEL == ORIG_HLC_FIFO && !commit.ballot.equals(Ballot.ZERO))
-                                            txnId = null;
-                                        if (commit.kind.saveStatus == SaveStatus.Stable) group = STABLE;
-                                        else group = COMMIT;
-                                        break;
+                                        if (AccordExecutor.PRIORITY_MODEL == ORIG_HLC_FIFO) group = RECOVER;
+                                        else ts = ballot;
                                     }
-                                    case ACCEPT_REQ:
+                                    break;
+                                }
+                                case GET_EPHEMERAL_READ_DEPS_REQ:
+                                case PRE_ACCEPT_REQ:
+                                {
+                                    group = ExclusiveGroup.PREACCEPT;
+                                    break;
+                                }
+                                // messages outside the normal state machine are recovery/progress work
+                                case CHECK_STATUS_REQ:
+                                case AWAIT_REQ:
+                                case FETCH_DATA_REQ:
+                                case REMOTE_SUCCESS_REQ:
+                                case WAIT_UNTIL_APPLIED_REQ:
+                                case RECOVER_AWAIT_REQ:
+                                {
+                                    group = ExclusiveGroup.RECOVER;
+                                    break;
+                                }
+                                case BEGIN_RECOVER_REQ:
+                                {
+                                    group = ExclusiveGroup.RECOVER;
+                                    if (AccordExecutor.PRIORITY_MODEL != ORIG_HLC_FIFO)
                                     {
-                                        Accept accept = (Accept) context;
-                                        if (AccordExecutor.PRIORITY_MODEL == ORIG_HLC_FIFO && !accept.ballot.equals(Ballot.ZERO))
-                                            txnId = null;
-                                        group = ExclusiveGroup.ACCEPT;
-                                        break;
+                                        Ballot ballot = ((BeginRecovery) context).ballot;
+                                        if (!ballot.equals(Ballot.ZERO)) // should always be true
+                                            ts = ballot;
                                     }
-                                    case GET_EPHEMERAL_READ_DEPS_REQ:
-                                    case PRE_ACCEPT_REQ:
+                                    break;
+                                }
+                                case BEGIN_INVALIDATE_REQ:
+                                {
+                                    group = ExclusiveGroup.RECOVER;
+                                    if (AccordExecutor.PRIORITY_MODEL != ORIG_HLC_FIFO)
                                     {
-                                        group = ExclusiveGroup.PREACCEPT;
-                                        break;
+                                        Ballot ballot = ((BeginInvalidation) context).ballot;
+                                        if (!ballot.equals(Ballot.ZERO))
+                                            ts = ballot;
                                     }
-                                    default:
-                                    {
-                                        txnId = null;
-                                    }
+                                    break;
+                                }
+                                default:
+                                {
+                                    ts = null;
                                 }
                             }
                         }
-                        else
-                        {
-                            txnId = null;
-                        }
-                        break;
                     }
-                    case FIFO:
+                    else
                     {
-                        txnId = null;
-                        break;
+                        ts = null;
                     }
+                    break;
+                }
+                case FIFO:
+                {
+                    ts = null;
+                    break;
                 }
             }
+
+            // range transactions are queued in RANGE (retaining their txnId priority), except for their recovery and
+            // progress work, which shares the RECOVER pool with other recovery work (and so may be queued as OLD)
+            if (txnId.is(Range) && group != RECOVER)
+            {
+                group = ExclusiveGroup.RANGE;
+                ts = txnId;
+            }
+
+            // ephemeral reads are never recovered, so are never queued as recovery work (or OLD); their command
+            // entries are also NO_EVICT, so track no recovery visits (see AccordCacheEntry#recordRecoveryVisit)
+            if (group == RECOVER && txnId.is(Txn.Kind.EphemeralRead))
+                group = ExclusiveGroup.OTHER;
         }
 
+        // the position is finalised on registration (see TaskPositions)
         this.info = init(GlobalGroup.OTHER, group);
-        if (txnId != null)
-            this.position = txnId.hlc();
+        if (ts != null)
+            this.position = ts.hlc();
     }
 
     public final Task unwrap()
@@ -416,8 +502,8 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
     /** Return true if COMPLETED successfully. false indicates more work is being done. Should not throw any exceptions related to reporting success. */
     abstract boolean runMayThrow();
     abstract void completeExclusiveMayThrow();
-    abstract void tryCancelExclusive();
-    abstract void reportFailureMayThrow(Throwable fail);
+    abstract void tryCancelExclusive(CancellationException cancelled);
+    abstract void reportFailureMayThrow(Throwable fail, boolean isExclusive);
 
     abstract AccordExecutor executor();
     abstract void unqueueIfQueued();
@@ -496,7 +582,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
             catch (Throwable t)
             {
                 setRunState(RunState.RUN_FAILED);
-                reportFailureNoExcept(t);
+                reportFailureExclusiveNoExcept(t, false);
             }
             finally
             {
@@ -509,7 +595,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
     final void rejectAtRuntime(Throwable reject)
     {
         setRunState(REJECTED);
-        reportFailureNoExcept(reject);
+        reportFailureExclusiveNoExcept(reject, false);
     }
 
     final void completeExclusiveNoExcept()
@@ -548,9 +634,9 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
         catch (Throwable t2) { }
     }
 
-    final void reportFailureNoExcept(Throwable fail)
+    final void reportFailureExclusiveNoExcept(Throwable fail, boolean isExclusive)
     {
-        try { reportFailureMayThrow(fail); }
+        try { reportFailureMayThrow(fail, isExclusive); }
         catch (Throwable t)
         {
             try { fail.addSuppressed(t); }
@@ -621,7 +707,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
     {
         unqueueIfQueued();
         setStateExclusive(newState);
-        reportFailureNoExcept(fail);
+        reportFailureExclusiveNoExcept(fail, true);
     }
 
     final void failAndCompleteExclusive(Throwable fail, State newState)
@@ -739,6 +825,38 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
     final void override(GlobalGroup group)
     {
         info = (info & ~(GROUP_MASK << GLOBAL_GROUP_SHIFT)) | (group.ordinal() << GLOBAL_GROUP_SHIFT);
+    }
+
+    final void override(ExclusiveGroup group)
+    {
+        info = (info & ~(GROUP_MASK << EXCLUSIVE_GROUP_SHIFT)) | (group.ordinal() << EXCLUSIVE_GROUP_SHIFT);
+    }
+
+    /**
+     * Old recovery/progress work, or work submitted on its behalf; see {@link ExclusiveGroup#OLD}.
+     * For work that does not run on a command store the exclusive group has no other meaning, so is used only for this mark.
+     */
+    final boolean isOld()
+    {
+        return is(ExclusiveGroup.OLD);
+    }
+
+    /**
+     * The number of times (0..63) to halve the age of this task's transaction when prioritising it as OLD work, as its
+     * transaction has previously been serviced by recovery or progress work; see {@link AccordCacheEntry#ageHalvings}.
+     * Must be invoked only on the owning thread.
+     */
+    int ageHalvings()
+    {
+        return 0;
+    }
+
+    /**
+     * true iff this task runs on a command store's {@link ExclusiveExecutor}, and so is queued by its {@link ExclusiveGroup}
+     */
+    boolean runsOnCommandStore()
+    {
+        return false;
     }
 
     final void setStateExclusive(State state)
@@ -921,6 +1039,8 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
     final Task inherit(Task parent)
     {
         position = parent.position;
+        if (parent.isOld())
+            override(ExclusiveGroup.OLD); // work submitted on behalf of OLD work is itself OLD
         setInheritedWithTranche(parent.tranche());
         return this;
     }
@@ -1037,7 +1157,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
             if (Invariants.expect(cur.is(UNREGISTERED)) && ((isSafeParent && cur instanceof SafeTask<?>) || cur.isContinuation()))
             {
                 cur.setStateExclusive(CANCELLED_UNREGISTERED);
-                cur.reportFailureNoExcept(new CancellationException("Parent task failed"));
+                cur.reportFailureExclusiveNoExcept(new CancellationException("Parent task failed"), true);
             }
             cur = cur.next;
         }
