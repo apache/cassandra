@@ -33,6 +33,7 @@ import org.jctools.queues.MpscUnboundedArrayQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.net.FrameEncoderCrc;
 import org.apache.cassandra.net.FrameEncoderLZ4;
@@ -116,7 +117,7 @@ abstract class Flusher implements Runnable
 
     protected final EventLoop eventLoop;
     // Many request threads produce, but only the event loop this flusher belongs to consumes, so an MPSC queue is enough.
-    private final MpscUnboundedArrayQueue<FlushItem<?>> queued = new MpscUnboundedArrayQueue<>(256);
+    private final MpscUnboundedArrayQueue<FlushItem<?>> queued = new MpscUnboundedArrayQueue<>(DatabaseDescriptor.getNativeTransportMaxThreads());
     protected final AtomicBoolean scheduled = new AtomicBoolean(false);
     protected final List<FlushItem<?>> processed = new ArrayList<>();
     private final HashSet<Channel> channels = new HashSet<>();
