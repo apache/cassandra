@@ -38,6 +38,7 @@ import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamSession;
 
 import static org.apache.cassandra.cql3.CQLTester.schemaChange;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
@@ -74,10 +75,11 @@ public class CassandraStreamReceiverTrackedTest
     }
 
     @Test
-    public void testExpectsTrackedTransferWithNoRanges()
+    public void testExpectsTrackedTransferThrowsWithNoRanges()
     {
-        CassandraStreamReceiver receiver = new CassandraStreamReceiver(cfs, untrackedRepairSession(), Collections.emptyList(), 1);
-        assertTrue(receiver.expectsTrackedTransfer);
+        assertThatThrownBy(() -> new CassandraStreamReceiver(cfs, untrackedRepairSession(), Collections.emptyList(), 1))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Received a transfer for tracked table cassandra_stream_receiver_tracked_test.tbl with no ranges.");
     }
 
     private static StreamSession untrackedRepairSession()

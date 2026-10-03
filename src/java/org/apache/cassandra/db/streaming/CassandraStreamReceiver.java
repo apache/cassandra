@@ -365,6 +365,11 @@ public class CassandraStreamReceiver implements StreamReceiver
             && metadata.mutationTrackingMigrationState.isMigrating(cfs.getKeyspaceName()))
             return false;
 
+        if (ranges.isEmpty())
+            throw new IllegalStateException(String.format("[Stream #%s] Received a transfer for tracked table %s.%s with no ranges. " +
+                                                          "A range is always expected for a tracked table transfer.",
+                                                          session.planId(), cfs.getKeyspaceName(), cfs.getTableName()));
+
         return KeyspaceMigrationInfo.shouldUseTrackedTransfers(metadata, cfs.getKeyspaceName(), cfs.metadata().id, ranges);
     }
 }
