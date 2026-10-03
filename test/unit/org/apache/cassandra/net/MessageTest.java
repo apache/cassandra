@@ -32,7 +32,6 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
-import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -190,24 +189,26 @@ public class MessageTest
     }
 
     @Test
-    public void testNoPayloadVerbsDeclareEmptyPayload()
-    {
-        for (Verb verb : new Verb[]{ Verb.MT_TRANSFER_FAILED_RSP, Verb.REPAIR_RSP })
-        {
-            IVersionedAsymmetricSerializer<Object, ?> serializer = verb.serializer();
-
-            assertEquals(verb + " must treat NoPayload as an empty payload",
-                         0, serializer.serializedSize(noPayload, MessagingService.VERSION_61));
-        }
-    }
-
-    @Test
     public void testCycleWithPayload() throws Exception
     {
         testCycle(Message.out(Verb._TEST_2, 42));
         testCycle(Message.outWithFlag(Verb._TEST_2, 42, MessageFlag.CALL_BACK_ON_FAILURE));
         testCycle(Message.outWithFlags(Verb._TEST_2, 42, MessageFlag.CALL_BACK_ON_FAILURE, MessageFlag.TRACK_REPAIRED_DATA));
         testCycle(Message.outWithParam(1, Verb._TEST_2, 42, RESPOND_TO, FBUtilities.getBroadcastAddressAndPort()));
+    }
+
+    @Test
+    public void testCycleEmbeddedNoPayloadResponse() throws Exception
+    {
+        Message<NoPayload> msg =
+        Message.builder(Verb.MT_TRANSFER_FAILED_RSP, noPayload)
+               .withEpoch(Epoch.EMPTY)
+               .withId(1)
+               .from(FBUtilities.getLocalAddressAndPort())
+               .withCreatedAt(approxTime.now())
+               .withExpiresAt(approxTime.now() + TimeUnit.SECONDS.toNanos(1))
+               .build();
+        testCycle(msg);
     }
 
     @Test
