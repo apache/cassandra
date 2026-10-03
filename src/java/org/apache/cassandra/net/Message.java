@@ -1282,7 +1282,7 @@ public class Message<T> implements ResponseContext
 
         private <T> int payloadSize(Message<T> message, int version)
         {
-            long payloadSize = message.payload != null && message.payload != NoPayload.noPayload
+            long payloadSize = message.payload != null
                              ? message.getPayloadSerializer().serializedSize(message.payload, version)
                              : 0;
             return Ints.checkedCast(payloadSize);
