@@ -40,12 +40,14 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories.DataDirectory;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.TimeUUID;
@@ -77,7 +79,7 @@ public class PendingLocalTransferTest
     {
         SchemaLoader.prepareServer();
         TableMetadata metadata = CreateTableStatement.parse(format("CREATE TABLE %s.%s (k int PRIMARY KEY, v int)", KS, TBL), KS).build();
-        SchemaLoader.createKeyspace(KS, KeyspaceParams.simple(1), metadata);
+        SchemaLoader.createKeyspace(KS, KeyspaceParams.simple(1, ReplicationType.tracked), metadata);
         cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.id);
     }
 
@@ -242,6 +244,31 @@ public class PendingLocalTransferTest
         // The collided transfer's own resources are still cleaned up
         for (File dir : collidedDirs)
             assertThat(dir.exists()).describedAs("%s was not deleted", dir).isFalse();
+    }
+
+    @Test
+    public void testTransferFailedPurgesOrphanedPendingDirectories() throws IOException
+    {
+        TimeUUID planId = nextTimeUUID();
+        List<File> dirs = new ArrayList<>();
+        for (DataDirectory dataDir : cfs.getDirectories().getWriteableLocations())
+        {
+            File dir = cfs.getDirectories().getPendingLocationForDisk(dataDir, planId);
+            dirs.add(dir);
+        }
+        assertThat(dirs).isNotEmpty();
+        PendingLocalTransfer transfer = new PendingLocalTransfer(planId, transferId(), stage(dirs));
+        transfer.writeManifestFile();
+
+        for (File dir : dirs)
+            assertThat(dir.exists()).describedAs("%s does not exist", dir).isTrue();
+
+        TransferTrackingService transferTrackingService = new TransferTrackingService();
+        // Transfer is not tracked in memory, simulating coordinator crash/restart before failure notice
+        transferTrackingService.purge(new TransferFailed(planId));
+
+        for (File dir : dirs)
+            assertThat(dir.exists()).describedAs("%s was not deleted by TransferFailed", dir).isFalse();
     }
 
     @Test

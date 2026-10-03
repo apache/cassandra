@@ -365,7 +365,8 @@ public class TransferTrackingService
         }
     }
 
-    private void purge(TransferFailed failed)
+    @VisibleForTesting
+    void purge(TransferFailed failed)
     {
         lock.writeLock().lock();
         try

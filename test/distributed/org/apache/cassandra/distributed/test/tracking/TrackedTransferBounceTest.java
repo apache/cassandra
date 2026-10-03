@@ -241,6 +241,48 @@ public class TrackedTransferBounceTest extends TrackedTransferTestBase
         }
     }
 
+    @Test
+    public void testBounceAfterSuccessfulTrackedRepairActivationZeroCopy() throws IOException
+    {
+        testBounceAfterSuccessfulTrackedRepairActivation(ZCS_CONFIG);
+    }
+
+    @Test
+    public void testBounceAfterSuccessfulTrackedRepairActivationNonZeroCopy() throws IOException
+    {
+        testBounceAfterSuccessfulTrackedRepairActivation(NON_ZCS_CONFIG);
+    }
+
+    private static void testBounceAfterSuccessfulTrackedRepairActivation(Consumer<IInstanceConfig> config) throws IOException
+    {
+        try (Cluster cluster = cluster(config))
+        {
+            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3} AND replication_type='tracked';");
+            cluster.schemaChange("CREATE TABLE " + tableWithKeyspace(KEYSPACE) + " (pk BLOB PRIMARY KEY, v INT)");
+
+            cluster.get(1).executeInternal("INSERT INTO " + tableWithKeyspace(KEYSPACE) + " (pk, v) VALUES (?, 1)", KEY_100);
+
+            assertRows(cluster.get(1).executeInternal("SELECT * FROM " + tableWithKeyspace(KEYSPACE) + " WHERE pk = ?", KEY_100), row(KEY_100, 1));
+            assertRows(cluster.get(2).executeInternal("SELECT * FROM " + tableWithKeyspace(KEYSPACE) + " WHERE pk = ?", KEY_100));
+            assertRows(cluster.get(3).executeInternal("SELECT * FROM " + tableWithKeyspace(KEYSPACE) + " WHERE pk = ?", KEY_100));
+
+            // Run repair without SkipActivation (normal activation succeeds on coordinator and followers)
+            cluster.get(1).nodetoolResult("repair", "--start-token", SHARD_ALIGNED_RANGE_1.left.toString(), "--end-token", SHARD_ALIGNED_RANGE_1.right.toString(), "--full", KEYSPACE).asserts().success();
+
+            for (int node = 1; node <= NODES; node++)
+                assertRows(cluster.get(node).executeInternal("SELECT * FROM " + tableWithKeyspace(KEYSPACE) + " WHERE pk = ?", KEY_100), row(KEY_100, 1));
+
+            bounce(cluster);
+
+            for (int node = 1; node <= NODES; node++)
+            {
+                assertRows(cluster.get(node).executeInternal("SELECT * FROM " + tableWithKeyspace(KEYSPACE) + " WHERE pk = ?", KEY_100), row(KEY_100, 1));
+                assertTrue("Node " + node + " should have cleaned up its pending transfer directory after activation and bounce",
+                           getPendingSSTableDirs(cluster.get(node), KEYSPACE).isEmpty());
+            }
+        }
+    }
+
     private static List<String> getPendingSSTableDirs(IInvokableInstance instance, String keyspace)
     {
         return instance.callOnInstance(() -> {
