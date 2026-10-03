@@ -71,9 +71,12 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
         boolean prepareTask()
         {
             Task task = queue.task;
+            if (queue.stats != null) queue.stats.onPrepareStart();
             try
             {
-                boolean run = task.prepareExclusiveMayThrow();
+                boolean run;
+                try { run = task.prepareExclusiveMayThrow(); }
+                finally { if (queue.stats != null) queue.stats.onPrepareEnd(); }
                 task.setStateExclusive(State.PREPARED);
                 setStateExclusive(State.PREPARED);
                 if (run)
@@ -95,9 +98,11 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
         {
             try
             {
+                long completingAt = queue.stats != null ? org.apache.cassandra.utils.Clock.Global.nanoTime() : 0;
                 unsafeSetStateExclusive(WAITING_TO_RUN);
                 executor().runnable.cleanup(this);
                 queue.completeTask();
+                if (queue.stats != null) queue.stats.onComplete(completingAt);
             }
             catch (Throwable t)
             {
@@ -133,6 +138,8 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
     private boolean isTerminated;
 
     final DebugExecution.DebugExclusiveExecutor debug;
+    /** DIAGNOSTIC (Claude): null unless -Daccord.executor_stats=true */
+    public final ExclusiveExecutorStats stats = ExclusiveExecutorStats.ENABLED ? new ExclusiveExecutorStats() : null;
 
     ExclusiveExecutor(AccordExecutor executor)
     {
@@ -176,8 +183,15 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
         {
             if (isStopped && reject(task))
                 task.rejectAtRuntime(new RejectedExecutionException(commandStoreId + " is terminated. Cannot execute " + task.description()));
-            else
+            else if (stats == null)
                 task.runNoExcept(self);
+            else
+            {
+                Task running = task;
+                long startedAt = org.apache.cassandra.utils.Clock.Global.nanoTime();
+                task.runNoExcept(self);
+                stats.onRun(running, startedAt, org.apache.cassandra.utils.Clock.Global.nanoTime());
+            }
         }
         finally
         {
@@ -221,6 +235,7 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
             {
                 setSelfTaskFor(task);
                 selfTask.unsafeSetStateExclusive(WAITING_TO_RUN);
+                if (stats != null) stats.onSelfEnqueued();
                 executor.runnable.enqueue(selfTask, false);
             }
         }
@@ -262,6 +277,7 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
             task.setQueue(kind);
             setSelfTaskFor(newTask);
             selfTask.unsafeSetStateExclusive(WAITING_TO_RUN);
+            if (stats != null) stats.onSelfEnqueued();
             executor.runnable.enqueue(selfTask, incrementArrivals);
             if (DEBUG_EXECUTION) debug.onSetTask(newTask);
         }
@@ -301,7 +317,7 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
         active = 0;
         task = pollMulti();
         if (DEBUG_EXECUTION) debug.onSetTask(task);
-        if (task == null) executor.runnable.unqueue(selfTask);
+        if (task == null) { executor.runnable.unqueue(selfTask); if (stats != null) stats.enqueuedAt = 0; }
         else if (globalGroup(task) == selfTask.globalGroupOrdinal())
         {
             selfTask.position = task.position;

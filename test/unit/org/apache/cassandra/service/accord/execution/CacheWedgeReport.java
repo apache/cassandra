@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
@@ -137,6 +138,98 @@ public final class CacheWedgeReport
         describe(store, minAgeNanos, maxTasks, out);
         return out.toString();
     }
+
+    /**
+     * Where each store's time went over a {@code windowMillis} window, from {@link ExclusiveExecutorStats}: waiting for
+     * a thread (its selfTask queued at the executor), prepare and complete (under the executor lock), run (exclusive,
+     * unlocked) by kind, and idle. Requires {@code -Daccord.executor_stats=true}.
+     */
+    public static String describeStats(Node node, long windowMillis)
+    {
+        if (!ExclusiveExecutorStats.ENABLED)
+            return " <disabled: run with -Daccord.executor_stats=true>";
+
+        List<AccordCommandStore> stores = new ArrayList<>();
+        for (CommandStore commandStore : node.commandStores().all())
+            if (commandStore instanceof AccordCommandStore) stores.add((AccordCommandStore) commandStore);
+
+        long[][] before = new long[stores.size()][];
+        List<Map<String, long[]>> kindsBefore = new ArrayList<>();
+        for (int i = 0 ; i < stores.size() ; ++i)
+        {
+            ExclusiveExecutorStats stats = stores.get(i).exclusiveExecutor().stats;
+            before[i] = snapshot(stats);
+            kindsBefore.add(snapshotKinds(stats));
+        }
+        long startedAt = nanoTime();
+        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(windowMillis));
+        long elapsed = nanoTime() - startedAt;
+
+        StringBuilder out = new StringBuilder(" over ").append(TimeUnit.NANOSECONDS.toMillis(elapsed)).append("ms (% of wall time):");
+        for (int i = 0 ; i < stores.size() ; ++i)
+        {
+            AccordCommandStore store = stores.get(i);
+            ExclusiveExecutorStats stats = store.exclusiveExecutor().stats;
+            long[] after = snapshot(stats);
+            long turns = after[0] - before[i][0], wait = after[1] - before[i][1], prepare = after[3] - before[i][3];
+            long run = after[4] - before[i][4], complete = after[5] - before[i][5];
+            long idle = Math.max(0, elapsed - wait - prepare - run - complete);
+            out.append("\n    store").append(store.id()).append(": turns=").append(turns)
+               .append(" waitingForThread=").append(pct(wait, elapsed))
+               .append(" prepare=").append(pct(prepare, elapsed))
+               .append(" run=").append(pct(run, elapsed))
+               .append(" complete=").append(pct(complete, elapsed))
+               .append(" idle=").append(pct(idle, elapsed))
+               .append(" maxWaitForThread(ever)=").append(TimeUnit.NANOSECONDS.toMillis(after[2])).append("ms")
+               .append(" queued=").append(store.exclusiveExecutor().waitingCount());
+            if (turns > 0)
+                out.append(" avgPerTurn: wait=").append(us(wait / turns)).append(" prepare=").append(us(prepare / turns))
+                   .append(" run=").append(us(run / turns)).append(" complete=").append(us(complete / turns));
+
+            // the kinds that took the most run time in the window
+            Map<String, long[]> kindsAfter = snapshotKinds(stats);
+            List<Map.Entry<String, long[]>> deltas = new ArrayList<>();
+            for (Map.Entry<String, long[]> e : kindsAfter.entrySet())
+            {
+                long[] b = kindsBefore.get(i).getOrDefault(e.getKey(), new long[3]);
+                long[] d = { e.getValue()[0] - b[0], e.getValue()[1] - b[1], e.getValue()[2] };
+                if (d[0] > 0) deltas.add(new java.util.AbstractMap.SimpleImmutableEntry<>(e.getKey(), d));
+            }
+            deltas.sort((a, b) -> Long.compare(b.getValue()[1], a.getValue()[1]));
+            for (Map.Entry<String, long[]> e : deltas.subList(0, Math.min(4, deltas.size())))
+                out.append("\n        ").append(e.getKey()).append(": n=").append(e.getValue()[0]).append(" total=").append(pct(e.getValue()[1], elapsed))
+                   .append(" avg=").append(us(e.getValue()[1] / e.getValue()[0])).append(" max(ever)=").append(us(e.getValue()[2]));
+
+            // and any slow single runs that ended in the window
+            int count = stats.slowRunCount;
+            for (int j = Math.max(0, count - ExclusiveExecutorStats.SLOW_RUNS) ; j < count ; ++j)
+            {
+                ExclusiveExecutorStats.SlowRun slow = stats.slowRuns[j % ExclusiveExecutorStats.SLOW_RUNS];
+                if (slow != null && slow.at >= startedAt)
+                    out.append("\n        SLOW ").append(TimeUnit.NANOSECONDS.toMillis(slow.nanos)).append("ms ").append(slow.kind).append(": ").append(slow.description);
+            }
+        }
+        return out.toString();
+    }
+
+    private static long[] snapshot(ExclusiveExecutorStats stats)
+    {
+        return new long[] { stats.turns, stats.globalWaitNanos, stats.maxGlobalWaitNanos, stats.prepareNanos, stats.runNanos, stats.completeNanos };
+    }
+
+    private static Map<String, long[]> snapshotKinds(ExclusiveExecutorStats stats)
+    {
+        Map<String, long[]> result = new java.util.HashMap<>();
+        synchronized (stats.byKind)
+        {
+            for (Map.Entry<String, ExclusiveExecutorStats.Kind> e : stats.byKind.entrySet())
+                result.put(e.getKey(), new long[] { e.getValue().count, e.getValue().nanos, e.getValue().maxNanos });
+        }
+        return result;
+    }
+
+    private static String pct(long nanos, long of) { return of <= 0 ? "?" : (100 * nanos / of) + "%"; }
+    private static String us(long nanos) { return nanos >= 10_000_000 ? (nanos / 1_000_000) + "ms" : (nanos / 1000) + "us"; }
 
     private static List<AccordExecutor> executors(Node node)
     {

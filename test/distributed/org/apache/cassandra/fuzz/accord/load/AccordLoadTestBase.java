@@ -140,6 +140,10 @@ public class AccordLoadTestBase extends AccordTestBase
             CassandraRelevantProperties.ACCORD_PARANOIA_MEMORY.setString(Invariants.Paranoia.NONE.name());
             CassandraRelevantProperties.TEST_DEBUG_REF_COUNT.setBoolean(false);
         }
+        // DIAGNOSTIC (Claude): per-store executor time accounting for the stall report (ExclusiveExecutorStats);
+        // cheap, and must be set before any instance initialises its executors. -Daccord.executor_stats=false disables.
+        if (System.getProperty("accord.executor_stats") == null)
+            System.setProperty("accord.executor_stats", "true");
     }
 
     @Before
@@ -1500,7 +1504,7 @@ public class AccordLoadTestBase extends AccordTestBase
                     sb.append(state).append('\n');
                     // only the message reliably reaches CI, so for a node stuck starting up put the stacks of
                     // whatever is doing (or waiting on) its startup there too, not only in the suppressed throwables
-                    if (state.startsWith("accord not started") || state.startsWith("<unavailable"))
+                    if (state.startsWith("accord not started") || state.contains(" unavailable: "))
                         sb.append(startupStacks(num));
                 }
             }
@@ -1562,116 +1566,148 @@ public class AccordLoadTestBase extends AccordTestBase
 
     private static final long STALL_REPORT_LOCAL_STATE_TIMEOUT_MS = 1000;
 
-    /** never throws, and never blocks for longer than {@link #STALL_REPORT_TIMEOUT_MS} */
+    /**
+     * Never throws. Each section runs as its own call on the instance with its own deadline, so a section that blocks
+     * (e.g. waiting on a wedged executor) cannot hide the others - in particular the cache/lock report, which is the
+     * one most likely to explain a wedge, runs before anything that submits work to the executors.
+     */
     private static String accordState(IInvokableInstance instance)
+    {
+        String header = section(instance, "state", STALL_REPORT_SECTION_TIMEOUT_MS, () -> {
+            if (!AccordService.isStarted())
+            {
+                // a node that never finishes starting is itself the stall (e.g. a RESTART op whose startup
+                // hangs), so say how far it got and keep its whole startup log tail, not just accord's lines
+                return "accord not started (" + accordStartupPhase() + ")\n  log tail:" + logTail(true);
+            }
+
+                StringBuilder sb = new StringBuilder();
+            Node node = AccordService.instance().node();
+            sb.append("epoch=").append(node.epoch()).append(" minEpoch=").append(node.topology().minEpoch());
+            // how this node classifies each peer: a faulty status means its coordinations pre-record a failure for
+            // that peer (or skip it) on *every* range, which decides whether recovery can reach a quorum at all
+            sb.append(" peers=").append(peerStatuses(node));
+
+            int stores = 0, idle = 0;
+            StringBuilder busy = new StringBuilder();
+            for (CommandStore store : node.commandStores().all())
+            {
+                ++stores;
+                // describeState() prints bootstraps only when there are some, so a store with neither refusals
+                // nor bootstraps cannot be holding a rebootstrap and is merely counted
+                String state = store.describeState();
+                if (state.contains("refuses=none") && !state.contains("bootstraps=")) ++idle;
+                else busy.append("\n    ").append(state);
+            }
+            sb.append(" stores=").append(stores).append(" (").append(idle).append(" idle)").append(busy);
+
+            // the progress log is what should be driving a stuck dependency to completion; if the stall is a
+            // transaction that nothing decides, it shows up here and (without the log) nowhere else. Report a
+            // histogram of what everything is blocked on, then only the entries that have actually been retried
+            // - an unretried entry is merely in flight, and there are hundreds of those under load.
+            int tracked = 0, retried = 0;
+            Map<String, Integer> blockedOn = new HashMap<>();
+            StringBuilder top = new StringBuilder();
+            List<Map.Entry<CommandStore, TxnId>> topTxnIds = new ArrayList<>();
+            for (CommandStore store : node.commandStores().all())
+            {
+                DefaultProgressLog.ImmutableView view = ((DefaultProgressLog) store.unsafeProgressLog()).immutableView();
+                while (view.advance())
+                {
+                    ++tracked;
+                    blockedOn.merge(view.waitingIsBlockedUntil() + "/" + view.waitingProgress(), 1, Integer::sum);
+                    if (view.waitingRetryCounter() == 0 && view.homeRetryCounter() == 0 && !view.contactEveryone())
+                        continue;
+                    if (++retried > STALL_REPORT_MAX_BLOCKED_TXNS)
+                        continue;
+                    topTxnIds.add(new java.util.AbstractMap.SimpleImmutableEntry<>(store, view.txnId()));
+                    top.append("\n    store").append(store.id()).append(' ').append(view.txnId())
+                       .append(" blockedUntil=").append(view.waitingIsBlockedUntil())
+                       .append(" waitingProgress=").append(view.waitingProgress())
+                       .append(" waitingRetries=").append(view.waitingRetryCounter())
+                       .append(" homePhase=").append(view.homePhase())
+                       .append(" homeProgress=").append(view.homeProgress())
+                       .append(" homeRetries=").append(view.homeRetryCounter())
+                       .append(" contactEveryone=").append(view.contactEveryone());
+                }
+            }
+            sb.append("\n  progressLog: ").append(tracked).append(" tracked, ").append(retried)
+              .append(" retried, blocked on ").append(blockedOn).append(top);
+                // and the durability service: a (re)bootstrap that cannot finish is usually waiting on a durability
+            // requirement it never achieves, and only this view names the requirement and the retry count
+            int durabilityRows = 0;
+            StringBuilder durability = new StringBuilder();
+            ShardDurability.ImmutableView view = ((AccordService) AccordService.instance()).shardDurability();
+            while (view.advance())
+            {
+                if (view.requestedBy() == null && view.retries() == 0)
+                    continue;
+                if (++durabilityRows > STALL_REPORT_MAX_DURABILITY_ROWS)
+                    continue;
+                durability.append("\n    ").append(view.shard().range)
+                          .append(" retries=").append(view.retries())
+                          .append(" min=").append(view.min())
+                          .append(" active=").append(view.active())
+                          .append(" waiting=").append(view.waiting())
+                          .append(" requestedBy=").append(view.requestedBy());
+            }
+            sb.append("\n  durability: ").append(durabilityRows).append(" range(s) retrying/requested").append(durability);
+
+            return sb.toString();
+        });
+        if (header.startsWith("accord not started") || header.startsWith("<"))
+            return header;
+
+        // a stall with every executor thread idle is invisible to a thread dump: tasks wait on cache entries, not on
+        // monitors. Look for wait cycles / mis-counted waiters among the tasks queued on, or holding, any cache entry,
+        // list the oldest such tasks, and describe any executor lock that cannot be obtained.
+        String wedges = section(instance, "cache wedges", STALL_REPORT_WEDGE_TIMEOUT_MS,
+                                () -> CacheWedgeReport.describe(AccordService.instance().node(), STALL_REPORT_WEDGE_MIN_AGE_NANOS, STALL_REPORT_MAX_WEDGED_TASKS));
+
+        // where each store's time is going right now (a store runs one task at a time and each task costs one trip
+        // through the executor's queue): waiting for a thread vs lock-held prepare/complete vs running, by task kind
+        String stats = section(instance, "executor stats", STALL_REPORT_SECTION_TIMEOUT_MS,
+                               () -> CacheWedgeReport.describeStats(AccordService.instance().node(), 2_000L));
+
+        // this replica's own record of each listed transaction: the same txnIds tend to head every node's list, so
+        // reading them side by side shows whether recovery is making progress (ballots advancing, status moving) or is
+        // being preempted/exhausted at the same point everywhere. Submits work to the stores, hence after the above.
+        String local = section(instance, "local records", STALL_REPORT_SECTION_TIMEOUT_MS, () -> {
+            StringBuilder sb = new StringBuilder();
+            int listed = 0;
+            for (CommandStore store : AccordService.instance().node().commandStores().all())
+            {
+                DefaultProgressLog.ImmutableView view = ((DefaultProgressLog) store.unsafeProgressLog()).immutableView();
+                while (view.advance() && listed < STALL_REPORT_MAX_BLOCKED_TXNS)
+                {
+                    if (view.waitingRetryCounter() == 0 && view.homeRetryCounter() == 0 && !view.contactEveryone())
+                        continue;
+                    ++listed;
+                    sb.append("\n      local ").append(view.txnId()).append(": ").append(localCommandState(store, view.txnId()));
+                }
+            }
+            return sb.toString();
+        });
+
+        // finally this node's own log tail: CI discards the log file, and the lines that explain a stall are accord's
+        // INFO/WARN lines. Read on the instance as each configures its own logger context (RINGBUFFER appender).
+        String tail = section(instance, "log tail", 3_000L, () -> logTail(false));
+
+        return header + local + "\n  cache wedges:" + wedges + "\n  executor stats:" + stats + "\n  log tail:" + tail;
+    }
+
+    private static final long STALL_REPORT_SECTION_TIMEOUT_MS = 8_000L, STALL_REPORT_WEDGE_TIMEOUT_MS = 12_000L;
+
+    private static String section(IInvokableInstance instance, String name, long timeoutMs, IIsolatedExecutor.SerializableCallable<String> call)
     {
         try
         {
-            Future<String> result = instance.asyncCallsOnInstance(() -> {
-                if (!AccordService.isStarted())
-                {
-                    // a node that never finishes starting is itself the stall (e.g. a RESTART op whose startup
-                    // hangs), so say how far it got and keep its whole startup log tail, not just accord's lines
-                    return "accord not started (" + accordStartupPhase() + ")\n  log tail:" + logTail(true);
-                }
-
-                StringBuilder sb = new StringBuilder();
-                Node node = AccordService.instance().node();
-                sb.append("epoch=").append(node.epoch()).append(" minEpoch=").append(node.topology().minEpoch());
-                // how this node classifies each peer: a faulty status means its coordinations pre-record a failure for
-                // that peer (or skip it) on *every* range, which decides whether recovery can reach a quorum at all
-                sb.append(" peers=").append(peerStatuses(node));
-
-                int stores = 0, idle = 0;
-                StringBuilder busy = new StringBuilder();
-                for (CommandStore store : node.commandStores().all())
-                {
-                    ++stores;
-                    // describeState() prints bootstraps only when there are some, so a store with neither refusals
-                    // nor bootstraps cannot be holding a rebootstrap and is merely counted
-                    String state = store.describeState();
-                    if (state.contains("refuses=none") && !state.contains("bootstraps=")) ++idle;
-                    else busy.append("\n    ").append(state);
-                }
-                sb.append(" stores=").append(stores).append(" (").append(idle).append(" idle)").append(busy);
-
-                // the progress log is what should be driving a stuck dependency to completion; if the stall is a
-                // transaction that nothing decides, it shows up here and (without the log) nowhere else. Report a
-                // histogram of what everything is blocked on, then only the entries that have actually been retried
-                // - an unretried entry is merely in flight, and there are hundreds of those under load.
-                int tracked = 0, retried = 0;
-                Map<String, Integer> blockedOn = new HashMap<>();
-                StringBuilder top = new StringBuilder();
-                List<Map.Entry<CommandStore, TxnId>> topTxnIds = new ArrayList<>();
-                for (CommandStore store : node.commandStores().all())
-                {
-                    DefaultProgressLog.ImmutableView view = ((DefaultProgressLog) store.unsafeProgressLog()).immutableView();
-                    while (view.advance())
-                    {
-                        ++tracked;
-                        blockedOn.merge(view.waitingIsBlockedUntil() + "/" + view.waitingProgress(), 1, Integer::sum);
-                        if (view.waitingRetryCounter() == 0 && view.homeRetryCounter() == 0 && !view.contactEveryone())
-                            continue;
-                        if (++retried > STALL_REPORT_MAX_BLOCKED_TXNS)
-                            continue;
-                        topTxnIds.add(new java.util.AbstractMap.SimpleImmutableEntry<>(store, view.txnId()));
-                        top.append("\n    store").append(store.id()).append(' ').append(view.txnId())
-                           .append(" blockedUntil=").append(view.waitingIsBlockedUntil())
-                           .append(" waitingProgress=").append(view.waitingProgress())
-                           .append(" waitingRetries=").append(view.waitingRetryCounter())
-                           .append(" homePhase=").append(view.homePhase())
-                           .append(" homeProgress=").append(view.homeProgress())
-                           .append(" homeRetries=").append(view.homeRetryCounter())
-                           .append(" contactEveryone=").append(view.contactEveryone());
-                    }
-                }
-                sb.append("\n  progressLog: ").append(tracked).append(" tracked, ").append(retried)
-                  .append(" retried, blocked on ").append(blockedOn).append(top);
-                // this replica's own record of each of those: the same txnIds tend to head every node's list, so
-                // reading them side by side shows whether recovery is making progress (ballots advancing, status
-                // moving) or is being preempted/exhausted at the same point everywhere
-                for (Map.Entry<CommandStore, TxnId> e : topTxnIds)
-                    sb.append("\n      local ").append(e.getValue()).append(": ").append(localCommandState(e.getKey(), e.getValue()));
-
-                // and the durability service: a (re)bootstrap that cannot finish is usually waiting on a durability
-                // requirement it never achieves, and only this view names the requirement and the retry count
-                int durabilityRows = 0;
-                StringBuilder durability = new StringBuilder();
-                ShardDurability.ImmutableView view = ((AccordService) AccordService.instance()).shardDurability();
-                while (view.advance())
-                {
-                    if (view.requestedBy() == null && view.retries() == 0)
-                        continue;
-                    if (++durabilityRows > STALL_REPORT_MAX_DURABILITY_ROWS)
-                        continue;
-                    durability.append("\n    ").append(view.shard().range)
-                              .append(" retries=").append(view.retries())
-                              .append(" min=").append(view.min())
-                              .append(" active=").append(view.active())
-                              .append(" waiting=").append(view.waiting())
-                              .append(" requestedBy=").append(view.requestedBy());
-                }
-                sb.append("\n  durability: ").append(durabilityRows).append(" range(s) retrying/requested").append(durability);
-
-                // a stall with every executor thread idle is invisible to a thread dump: tasks wait on cache entries,
-                // not on monitors. Look for wait cycles / mis-counted waiters among the tasks queued on, or holding,
-                // any cache entry, and list the oldest such tasks - one queued on an entry for a minute is a wedge
-                // whether or not it closes a cycle.
-                sb.append("\n  cache wedges:").append(CacheWedgeReport.describe(node, STALL_REPORT_WEDGE_MIN_AGE_NANOS, STALL_REPORT_MAX_WEDGED_TASKS));
-
-                // finally this node's own log tail: CI discards the log file, and the lines that explain a stall
-                // ("insufficient to satisfy NoLocal/MinorityQuorumAndWaitedForAll requested by Bootstrap ...") are
-                // accord's INFO/WARN lines. Read here rather than in the harness because each instance configures
-                // its own logger context (see the RINGBUFFER appender in logback-dtest-info.xml).
-                sb.append("\n  log tail:").append(logTail(false));
-                return sb.toString();
-            }).call();
-            return result.get(STALL_REPORT_TIMEOUT_MS, MILLISECONDS);
+            return instance.asyncCallsOnInstance(call).call().get(timeoutMs, MILLISECONDS);
         }
         catch (Throwable t)
         {
-            // a node whose executors cannot answer even this is itself the finding, so report it rather than fail
-            return "<unavailable: " + t + '>';
+            // a node that cannot answer even this is itself the finding, so report it rather than fail
+            return "<" + name + " unavailable: " + t + '>';
         }
     }
 
