@@ -31,14 +31,14 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
 
-class ReplicaPlanMerger extends AbstractIterator<ReplicaPlan.ForRangeRead>
+public class ReplicaPlanMerger extends AbstractIterator<ReplicaPlan.ForRangeRead>
 {
     private final Keyspace keyspace;
     private final ConsistencyLevel consistency;
     private final TableId tableId;
     private final PeekingIterator<ReplicaPlan.ForRangeRead> ranges;
 
-    ReplicaPlanMerger(Iterator<ReplicaPlan.ForRangeRead> iterator, Keyspace keyspace, TableId tableId, ConsistencyLevel consistency)
+    public ReplicaPlanMerger(Iterator<ReplicaPlan.ForRangeRead> iterator, Keyspace keyspace, TableId tableId, ConsistencyLevel consistency)
     {
         this.keyspace = keyspace;
         this.tableId = tableId;

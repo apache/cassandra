@@ -35,6 +35,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.MergeIterator;
+import org.apache.cassandra.utils.Throwables;
 
 public abstract class PartitionIterators
 {
@@ -71,7 +72,7 @@ public abstract class PartitionIterators
         if (iterators.size() == 1)
             return iterators.get(0);
 
-        class Extend implements MorePartitions<PartitionIterator>
+        class Extend extends Transformation<RowIterator> implements MorePartitions<PartitionIterator>
         {
             int i = 0;
             public PartitionIterator moreContents()
@@ -80,9 +81,28 @@ public abstract class PartitionIterators
                     return null;
                 return iterators.get(i++);
             }
+
+            @Override
+            protected void onClose()
+            {
+                Throwable fail = null;
+                while (i < iterators.size())
+                {
+                    try
+                    {
+                        iterators.get(i++).close();
+                    }
+                    catch (Throwable t)
+                    {
+                        fail = Throwables.merge(fail, t);
+                    }
+                }
+                Throwables.maybeFail(fail);
+            }
         }
 
-        return MorePartitions.extend(EmptyIterators.partition(), new Extend());
+        Extend extend = new Extend();
+        return Transformation.apply(MorePartitions.extend(EmptyIterators.partition(), extend), extend);
     }
 
     public static PartitionIterator singletonIterator(RowIterator iterator)

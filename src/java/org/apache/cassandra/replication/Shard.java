@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 import javax.annotation.Nonnull;
@@ -97,6 +98,16 @@ public class Shard
     Shard(int localNodeId, String keyspace, Range<Token> range, Participants participants, LongSupplier logIdProvider, BiConsumer<Shard, CoordinatorLog> onNewLog)
     {
         this(localNodeId, keyspace, range, participants, Collections.emptyList(), logIdProvider, onNewLog);
+    }
+
+    void forEachLog(Consumer<CoordinatorLog> consumer)
+    {
+        logs.values().forEach(consumer);
+    }
+
+    public CoordinatorLogPrimary currentLocalLog()
+    {
+        return currentLocalLog;
     }
 
     Shard(int localNodeId,

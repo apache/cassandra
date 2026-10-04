@@ -201,7 +201,7 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
             for (Future<FollowUpRead<Match, Searcher>> future : followUpReads.values())
             {
                 future.addCallback((followup, failure) -> {
-                    if (failure != null)
+                    if (failure == null)
                         followup.close();
                 });
             }
@@ -447,7 +447,7 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
 
     private abstract class AbstractIndexPrepared extends Prepared
     {
-        protected DecoratedKey maxKey;
+        protected final DecoratedKey maxKey;
         protected final SortedSet<Match> materializedMatches;
         // there may be additional matches for keys we've already scanned, this allows us to read them before
         // starting a short read
@@ -538,7 +538,6 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
                 // TODO: maybe we should immediately start a follow up read if it's likely this key will be included in the response
                 if (!followUpReads.containsKey(key) && indexNewKey(update))
                 {
-                    maxKey = maxKey(maxKey, update.partitionKey());
                     Future<FollowUpRead<Match, Searcher>> followUpRead = FollowUpRead.start(command, update.partitionKey(), consistencyLevel, requestTime);
                     followUpReads.put(key, followUpRead);
                 }
@@ -668,6 +667,7 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
      */
     private class MergingStoppingMatchIterator extends AbstractIterator<Match>
     {
+        /** Largest key prepareInternal created a local read for; null if none. */
         private final DecoratedKey maxKey;
         private final PeekingIterator<Match> materializedIterator;
         private final CloseablePeekingIterator<Match> additionalIterator;
@@ -699,11 +699,15 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
                 }
                 else
                 {
+                    if (maxKey == null || additionalIterator.peek().key().compareTo(maxKey) > 0)
+                    {
+                        Preconditions.checkArgument(command.isRangeRequest());
+                        followUpRequired = true;
+                        return endOfData();
+                    }
+
                     Match match = additionalIterator.next();
                     searcher.matchComparator().consumeDuplicates(match, materializedIterator);
-
-                    DecoratedKey key = match.key();
-                    Preconditions.checkArgument(key.compareTo(maxKey) <= 0);
                     return match;
                 }
             }
@@ -715,7 +719,7 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
             {
                 Match match = additionalIterator.next();
                 DecoratedKey key = match.key();
-                if (key.compareTo(maxKey) > 0)
+                if (maxKey == null || key.compareTo(maxKey) > 0)
                 {
                     Preconditions.checkArgument(command.isRangeRequest());
                     followUpRequired = true;
@@ -767,8 +771,9 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
         protected AbstractBounds<PartitionPosition> followUpBounds()
         {
             Preconditions.checkState(command.isRangeRequest());
-            Preconditions.checkNotNull(maxKey);
             AbstractBounds<PartitionPosition> bounds = command.dataRange().keyRange();
+            if (maxKey == null)
+                return bounds;
             return bounds.inclusiveRight()
                    ? new Range<>(maxKey, bounds.right)
                    : new ExcludingBounds<>(maxKey, bounds.right);

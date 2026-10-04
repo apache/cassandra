@@ -44,8 +44,10 @@ import org.apache.cassandra.db.partitions.AbstractBTreePartition;
 import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.SimpleBTreePartition;
+import org.apache.cassandra.db.partitions.SingletonUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -54,8 +56,9 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.reads.range.ReplicaPlanIterator;
+import org.apache.cassandra.service.reads.range.ReplicaPlanMerger;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -68,7 +71,43 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
         int potentialMatches = 0;
     }
 
+    public static class FollowupRangeCommand extends PartitionRangeReadCommand
+    {
+        private final AbstractBounds<PartitionPosition> remainingRange;
+
+        public FollowupRangeCommand(PartitionRangeReadCommand command,
+                                    DataLimits limits,
+                                    DataRange dataRange,
+                                    AbstractBounds<PartitionPosition> remainingRange)
+        {
+            super(command.serializedAtEpoch(),
+                  command.isDigestQuery(),
+                  command.digestVersion(),
+                  command.potentialTxnConflicts(),
+                  command.metadata(),
+                  command.nowInSec(),
+                  command.columnFilter(),
+                  command.rowFilter(),
+                  limits,
+                  dataRange,
+                  command.indexQueryPlan(),
+                  command.isTrackingWarnings());
+            this.remainingRange = remainingRange;
+        }
+
+        public AbstractBounds<PartitionPosition> remainingRange()
+        {
+            return remainingRange;
+        }
+    }
+
     protected final PartitionRangeReadCommand command;
+
+    /**
+     * Copied out of {@code state} because {@link #followUpBounds()} is called on another thread after {@link #close()}
+     * sets {@code state} to CLOSED.
+     */
+    private volatile AbstractBounds<PartitionPosition> followUpBounds;
 
     private PartialTrackedRangeRead(ReadExecutionController executionController, ColumnFamilyStore cfs, long startTimeNanos, PartitionRangeReadCommand command)
     {
@@ -93,16 +132,8 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
             read = new PartialTrackedRangeRead.Simple(executionController, cfs, startTimeNanos, command);
         }
 
-        try
-        {
-            read.prepare(initialData);
-            return read;
-        }
-        catch (Throwable e)
-        {
-            read.close();
-            throw e;
-        }
+        read.prepare(initialData);
+        return read;
     }
 
     @Override
@@ -144,13 +175,23 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
             {
                 boolean initialIteratorExhausted = command.limits().isExhausted(counter);
                 AbstractBounds<PartitionPosition> followUpBounds = null;
+                AbstractBounds<PartitionPosition> remaining = command instanceof FollowupRangeCommand
+                                                              ? ((FollowupRangeCommand) command).remainingRange()
+                                                              : command.dataRange().keyRange();
+                AbstractBounds<PartitionPosition> commandRange = command.dataRange().keyRange();
+
                 if (partitionsFetched)
                 {
-                    AbstractBounds<PartitionPosition> bounds = command.dataRange().keyRange();
-                    followUpBounds = bounds.inclusiveRight()
-                                     ? new Range<>(lastPartitionKey, bounds.right)
-                                     : new ExcludingBounds<>(lastPartitionKey, bounds.right);
+                    followUpBounds = remaining.inclusiveRight()
+                                     ? new Range<>(lastPartitionKey, remaining.right)
+                                     : new ExcludingBounds<>(lastPartitionKey, remaining.right);
                     Preconditions.checkState(!followUpBounds.contains(lastPartitionKey));
+                }
+                else if (initialIteratorExhausted && !commandRange.right.equals(remaining.right))
+                {
+                    followUpBounds = remaining.inclusiveRight()
+                                     ? new Range<>(commandRange.right, remaining.right)
+                                     : new ExcludingBounds<>(commandRange.right, remaining.right);
                 }
                 return new ShortReadSupport(this, initialIteratorExhausted, followUpBounds);
             }
@@ -290,11 +331,6 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
                 return extendRead(iterator);
             return CompletedRead.simple(iterator, command, command.nowInSec());
         }
-
-        AbstractBounds<PartitionPosition> followUpBounds()
-        {
-            return shortReadSupport.followUpBounds;
-        }
     }
 
     abstract Materializer createMaterializer();
@@ -309,7 +345,9 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
         // onto heap at partition granularity until the limits of the read are reached.
 
         Materializer materializer = createMaterializer();
-        return materializer.materialize(initialData);
+        RangePrepared prepared = materializer.materialize(initialData);
+        followUpBounds = prepared.shortReadSupport.followUpBounds;
+        return prepared;
     }
 
     UnfilteredRowIterator queryPartition(AbstractBTreePartition partition)
@@ -321,24 +359,42 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
 
     public AbstractBounds<PartitionPosition> followUpBounds()
     {
-        RangeCompleted completed = (RangeCompleted) state().asCompleted();
-        return completed.followUpBounds();
+        return followUpBounds;
     }
 
     protected static TrackedRead.Range makeFollowUpRead(PartitionRangeReadCommand command, AbstractBounds<PartitionPosition> followUpBounds, int toQuery, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
         DataLimits newLimits = command.limits().forShortReadRetry(toQuery);
 
-        DataRange newDataRange = command.dataRange().forSubRange(followUpBounds);
-
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
-        PartitionRangeReadCommand followUpCmd = command.withUpdatedLimitsAndDataRange(newLimits, newDataRange);
-        ReplicaPlan.ForRangeRead replicaPlan = ReplicaPlans.forRangeRead(keyspace,
-                                                                         command.metadata().id,
-                                                                         followUpCmd.indexQueryPlan(),
-                                                                         consistencyLevel,
-                                                                         followUpCmd.dataRange().keyRange(),
-                                                                         1);
+
+        // RangeCommandIterator opportunistically merges commands for adjacent ranges that have different replica
+        // sets when their replica plans select the same endpoints to contact.
+        // For instance, range A belongs to node [1,2,3], and range B belongs to nodes [2,3,4]. If both reads select
+        // [2,3], they'll be merged into a single command.
+        //
+        // This creates a problem for followup reads since the followup range can then straddle replica sets.
+        // ReplicaPlans.forRangeRead expects ranges to already be split across replica set boundaries and selects replicas
+        // based on range.right - if any of the replicas selected for the followup read don't happen to replicate range A,
+        // the read can't complete, and may return incorrect information if downstream validation is weak.
+        //
+        // To prevent silently dropping data from range A, we have ReplicaPlanIterator and ReplicaPlanMerger re-split
+        // and (attempt to) re-merge the followup bounds, creating the followup read command from the first bounds it
+        // emits. We also communicate the original followup bounds to the next PartialTrackedRangeRead instance via
+        // FollowupRangeCommand so it will complete the rest of followUpBounds if the replicaPlan emitted below doesn't
+        // fully cover the original followup bounds
+        ReplicaPlanIterator replicaPlans = new ReplicaPlanIterator(followUpBounds,
+                                                                   command.indexQueryPlan(),
+                                                                   keyspace,
+                                                                   command.metadata().id,
+                                                                   consistencyLevel);
+        ReplicaPlanMerger mergedReplicaPlans = new ReplicaPlanMerger(replicaPlans,
+                                                                     keyspace,
+                                                                     command.metadata().id,
+                                                                     consistencyLevel);
+        ReplicaPlan.ForRangeRead replicaPlan = mergedReplicaPlans.next();
+        DataRange newDataRange = command.dataRange().forSubRange(replicaPlan.range());
+        PartitionRangeReadCommand followUpCmd = new FollowupRangeCommand(command, newLimits, newDataRange, followUpBounds);
 
         TrackedRead.Range read = TrackedRead.Range.create(followUpCmd, replicaPlan, requestTime);
         logger.trace("Short read detected, starting followup read {}", read);
@@ -465,6 +521,12 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
                 filter = command.rowFilter().filter(command().metadata(), command().nowInSec());
             }
 
+            private void markFiltered(DecoratedKey key)
+            {
+                data.remove(key);
+                filteredKeys.add(key);
+            }
+
             @Override
             UnfilteredPartitionIterator filter(UnfilteredPartitionIterator iterator)
             {
@@ -473,15 +535,48 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
                     @Override
                     protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
                     {
-                        if (Transformation.apply(partition, filter).isEmpty())
+                        DecoratedKey key = partition.partitionKey();
+
+                        UnfilteredPartitionIterator filtered = Transformation.apply(new SingletonUnfilteredPartitionIterator(partition), filter);
+                        if (!filtered.hasNext())
                         {
-                            DecoratedKey key = partition.partitionKey();
-                            data.remove(key);
-                            filteredKeys.add(key);
-                            partition.close();
+                            markFiltered(key);
                             return null;
                         }
-                        return partition;
+
+                        return Transformation.apply(filtered.next(), new Transformation<UnfilteredRowIterator>()
+                        {
+                            int rows = 0;
+
+                            @Override
+                            protected void onPartitionClose()
+                            {
+                                if (rows == 0)
+                                    markFiltered(key);
+                                super.onPartitionClose();
+                            }
+
+                            @Override
+                            protected Row applyToRow(Row row)
+                            {
+                                if (row.hasLiveData(command.nowInSec(), command.metadata().enforceStrictLiveness()))
+                                    rows++;
+                                return super.applyToRow(row);
+                            }
+
+                            @Override
+                            protected Row applyToStatic(Row row)
+                            {
+                                // we only count static rows as matches if there are no clustering or regular column
+                                // matches because `WHERE static_col=7 AND regular_col>2 ALLOW FILTERING` requires normal
+                                // rows to exist, and the counter applyToRow will increment rows only if the static clause
+                                // is true which would have been evaluated earlier in `applyToPartition`
+                                if (!command.rowFilter().hasExpressionOnClusteringOrRegularColumns()
+                                    && row.hasLiveData(command.nowInSec(), command.metadata().enforceStrictLiveness()))
+                                    rows++;
+                                return super.applyToStatic(row);
+                            }
+                        });
                     }
                 });
             }
@@ -513,16 +608,25 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
                 if (followUpReadInfo.isEmpty())
                     return false;
 
-                if (lastMatchingKey == null)  // null means there was no data and therefore no interleaving
+                if (lastMatchingKey == null)
                     return true;
 
                 return followUpReadInfo.firstKey().compareTo(lastMatchingKey) < 0;
             }
 
+            /**
+             * {@code super.followUpRequired()} only decides whether to read {@link #followUpBounds}; the keys in
+             * {@link #followUpReadInfo} all sort before that range.
+             */
+            private boolean hasRoomForFollowUpKeys()
+            {
+                return !followUpReadInfo.isEmpty() && !mergedResultCounter.isDone();
+            }
+
             @Override
             protected boolean followUpRequired()
             {
-                return hasInterleavedFollowupKeys() || super.followUpRequired();
+                return hasInterleavedFollowupKeys() || hasRoomForFollowUpKeys() || super.followUpRequired();
             }
 
             @Override
@@ -558,7 +662,9 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
             @Override
             protected CompletedRead extendRead(UnfilteredPartitionIterator iterator)
             {
-                return new FilteredCompletedRead(command, iterator, shortReadSupport, data.isEmpty() ? data.lastKey() : null, followUpReadInfo);
+                // data.lastKey() may not match the row filter; a key later than the last match only causes extra
+                // follow-up reads
+                return new FilteredCompletedRead(command, iterator, shortReadSupport, data.isEmpty() ? null : data.lastKey(), followUpReadInfo);
             }
         }
 

@@ -17,17 +17,26 @@
  */
 package org.apache.cassandra.distributed.test.tracking;
 
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
+import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.schema.Schema;
@@ -72,6 +81,52 @@ public class OffsetBroadcastTest extends TestBaseImpl
                     Assert.assertEquals(0, coordinatorSummary.unreconciled.offsetCount());
                 });
             }
+        }
+    }
+
+    @Test(timeout = 300_000)
+    public void testBroadcastOffsetsForDroppedKeyspace() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(2)
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK).with(Feature.GOSSIP))
+                                      .start())
+        {
+            cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
+                                              "{'class': 'SimpleStrategy', 'replication_factor': 2} " +
+                                              "AND replication_type='tracked';"));
+
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k int primary key, v int);"));
+
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (1, 1)"), ConsistencyLevel.ALL);
+
+            IInvokableInstance node1 = cluster.get(1);
+            long mark = node1.logs().mark();
+
+            // Inbound filters run on the verb's stage, so blocking in this filter holds the broadcast on node1's MISC
+            // thread before its handler runs.
+            CountDownLatch received = new CountDownLatch(1);
+            CountDownLatch keyspaceDropped = new CountDownLatch(1);
+            cluster.filters().inbound().verbs(Verb.MT_BROADCAST_LOG_OFFSETS.id).from(2).to(1).messagesMatching((from, to, message) -> {
+                received.countDown();
+                Uninterruptibles.awaitUninterruptibly(keyspaceDropped);
+                return false;
+            }).drop();
+
+            Assert.assertTrue("node2 never broadcast offsets to node1", received.await(1, TimeUnit.MINUTES));
+            cluster.schemaChange("DROP KEYSPACE " + KEYSPACE);
+            keyspaceDropped.countDown();
+
+            // MISC is single threaded, so when this task runs the broadcast handler has finished and any exception
+            // escaping it has been logged.
+            boolean drained = node1.callOnInstance(() -> {
+                CountDownLatch handled = new CountDownLatch(1);
+                Stage.MISC.execute(handled::countDown);
+                return Uninterruptibles.awaitUninterruptibly(handled, 1, TimeUnit.MINUTES);
+            });
+            Assert.assertTrue("node1's MISC stage never drained", drained);
+
+            List<String> died = node1.logs().grep(mark, "Exception in thread.*MiscStage").getResult();
+            Assert.assertTrue("offsets for a dropped keyspace killed the stage they arrived on: " + died, died.isEmpty());
         }
     }
 }

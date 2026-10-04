@@ -41,6 +41,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.MergeIterator;
+import org.apache.cassandra.utils.Throwables;
 
 /**
  * Static methods to work with partition iterators.
@@ -112,7 +113,7 @@ public abstract class UnfilteredPartitionIterators
         if (iterators.size() == 1)
             return iterators.get(0);
 
-        class Extend implements MorePartitions<UnfilteredPartitionIterator>
+        class Extend extends Transformation<UnfilteredRowIterator> implements MorePartitions<UnfilteredPartitionIterator>
         {
             int i = 1;
             public UnfilteredPartitionIterator moreContents()
@@ -121,8 +122,28 @@ public abstract class UnfilteredPartitionIterators
                     return null;
                 return iterators.get(i++);
             }
+
+            @Override
+            protected void onClose()
+            {
+                Throwable fail = null;
+                while (i < iterators.size())
+                {
+                    try
+                    {
+                        iterators.get(i++).close();
+                    }
+                    catch (Throwable t)
+                    {
+                        fail = Throwables.merge(fail, t);
+                    }
+                }
+                Throwables.maybeFail(fail);
+            }
         }
-        return MorePartitions.extend(iterators.get(0), new Extend());
+
+        Extend extend = new Extend();
+        return Transformation.apply(MorePartitions.extend(iterators.get(0), extend), extend);
     }
 
     public static PartitionIterator filter(final UnfilteredPartitionIterator iterator, final long nowInSec)
