@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import com.google.common.annotations.VisibleForTesting;
 
+
 import org.agrona.concurrent.UnsafeBuffer;
 import org.github.jamm.MemoryMeterStrategy;
 
@@ -809,6 +810,10 @@ public class InMemoryTrie<T> extends InMemoryReadTrie<T>
          * @return The combined value to use. Cannot be null.
          */
         T apply(T existing, U update);
+
+        default T apply(T existing, U rowID, U type) {
+            return apply(existing, rowID);
+        }
     }
 
     /**
@@ -874,8 +879,25 @@ public class InMemoryTrie<T> extends InMemoryReadTrie<T>
                                  UpsertTransformer<T, ? super R> transformer,
                                  boolean useRecursive) throws SpaceExhaustedException
     {
+        putSingleton(key, value, transformer, useRecursive, false);
+    }
+
+    /**
+     * A version of putSingleton which uses recursive put if {@code useRecursive} is true, and
+     * optionally stores content at intermediate (prefix) trie nodes if {@code withPrefixes} is true.
+     * When {@code withPrefixes} is true, the transformer's 3-arg
+     * {@link UpsertTransformer#apply(Object, Object, Object)} is called at every intermediate node
+     * with type=1 (prefix) and at the terminal node with type=0 (exactMatch). This is used by
+     * SegmentTrieBuffer to accumulate prefix postings along the key path.
+     */
+    public <R> void putSingleton(ByteComparable key,
+                                 R value,
+                                 UpsertTransformer<T, ? super R> transformer,
+                                 boolean useRecursive,
+                                 boolean withPrefixes) throws SpaceExhaustedException
+    {
         if (useRecursive)
-            putRecursive(key, value, transformer);
+            putRecursive(key, value, transformer, withPrefixes);
         else
             putSingleton(key, value, transformer);
     }
@@ -894,20 +916,41 @@ public class InMemoryTrie<T> extends InMemoryReadTrie<T>
      */
     public <R> void putRecursive(ByteComparable key, R value, final UpsertTransformer<T, R> transformer) throws SpaceExhaustedException
     {
-        int newRoot = putRecursive(root, key.asComparableBytes(BYTE_COMPARABLE_VERSION), value, transformer);
+        putRecursive(key, value, transformer, false);
+    }
+
+    @SuppressWarnings("unchecked")
+    public <R> void putRecursive(ByteComparable key, R value, final UpsertTransformer<T, ? super R> transformer,
+                                 boolean withPrefixes) throws SpaceExhaustedException
+    {
+        int newRoot = putRecursive(root, key.asComparableBytes(BYTE_COMPARABLE_VERSION), value,
+                                   (UpsertTransformer<T, R>) transformer, withPrefixes);
         if (newRoot != root)
             root = newRoot;
     }
 
-    private <R> int putRecursive(int node, ByteSource key, R value, final UpsertTransformer<T, R> transformer) throws SpaceExhaustedException
+    private <R> int putRecursive(int node, ByteSource key, R value, final UpsertTransformer<T, R> transformer,
+                                 boolean withPrefixes) throws SpaceExhaustedException
     {
         int transition = key.next();
+        @SuppressWarnings("unchecked")
+        Integer exactMatchType = 0;
+        R exactMatch = (R) exactMatchType;
         if (transition == ByteSource.END_OF_STREAM)
-            return applyContent(node, value, transformer);
+            return applyContent(node, value, transformer, exactMatch);
+
+        if (withPrefixes)
+        {
+            
+            Integer prefixType = 1;
+            @SuppressWarnings("unchecked")
+            R prefix = (R) prefixType;
+            node = applyContent(node, value, transformer, prefix);
+        }
 
         int child = getChild(node, transition);
 
-        int newChild = putRecursive(child, key, value, transformer);
+        int newChild = putRecursive(child, key, value, transformer, withPrefixes);
         if (newChild == child)
             return node;
 
@@ -919,26 +962,31 @@ public class InMemoryTrie<T> extends InMemoryReadTrie<T>
         return preserveContent(node, skippedContent, attachedChild);
     }
 
-    private <R> int applyContent(int node, R value, UpsertTransformer<T, R> transformer) throws SpaceExhaustedException
+    /**
+     * Apply content at a trie node using the 3-arg
+     * {@link UpsertTransformer#apply(Object, Object, Object)} which distinguishes
+     * between exactMatch (type=0) and prefix (type=1) postings.
+     */
+    private <R> int applyContent(int node, R value, UpsertTransformer<T, R> transformer, R type) throws SpaceExhaustedException
     {
         if (isNull(node))
-            return ~addContent(transformer.apply(null, value));
+            return ~addContent(transformer.apply(null, value, type));
 
         if (isLeaf(node))
         {
             int contentIndex = ~node;
-            setContent(contentIndex, transformer.apply(getContent(contentIndex), value));
+            setContent(contentIndex, transformer.apply(getContent(contentIndex), value, type));
             return node;
         }
 
         if (offset(node) == PREFIX_OFFSET)
         {
             int contentIndex = getInt(node + PREFIX_CONTENT_OFFSET);
-            setContent(contentIndex, transformer.apply(getContent(contentIndex), value));
+            setContent(contentIndex, transformer.apply(getContent(contentIndex), value, type));
             return node;
         }
         else
-            return createPrefixNode(addContent(transformer.apply(null, value)), node, false);
+            return createPrefixNode(addContent(transformer.apply(null, value, type)), node, false);
     }
 
     /**

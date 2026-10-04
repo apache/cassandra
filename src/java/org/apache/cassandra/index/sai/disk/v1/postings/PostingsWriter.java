@@ -67,20 +67,28 @@ import static java.lang.Math.max;
  * Skip table consist of block offsets and last values of each block, compressed as two FoR blocks.
  * </p>
  *
+ * The posting list contains postings for multiple filter types (e.g., exactMatch and prefix) concatenated
+ * sequentially. At each type boundary, the partial block is padded with 0-deltas (duplicating the last value)
+ * and the next type starts a fresh block with its own firstPosting VLong (delta base reset).
+ * <p>
+ * The block summary includes start indices for each filter type so the reader can scope to a specific type.
+ * </p>
+ *
  * Visual representation of the disk format:
  * <pre>
  *
  * +========+========================+=====+==============+===============+===============+=====+========================+========+
  * | HEADER | POSTINGS LIST (TERM 1)                                                      | ... | POSTINGS LIST (TERM N) | FOOTER |
  * +========+========================+=====+==============+===============+===============+=====+========================+========+
- *          | FIRST VALUE| FOR BLOCK (1)| ... | FOR BLOCK (N)| BLOCK SUMMARY              |
- *          +---------------------------+-----+--------------+---------------+------------+
- *                                                           | BLOCK SIZE    |            |
- *                                                           | LIST SIZE     | SKIP TABLE |
- *                                                           +---------------+------------+
- *                                                                           | BLOCKS POS.|
- *                                                                           | MAX VALUES |
- *                                                                           +------------+
+ *          | EXACTMATCH BLOCKS (padded) | PREFIX BLOCKS           | BLOCK SUMMARY                              |
+ *          +----------------------------+-------------------------+---------------+----------------------------+
+ *                                                                 | BLOCK SIZE    |                            |
+ *                                                                 | LIST SIZE     | FILTER TYPES               |
+ *                                                                 | FILTER TYPES  | EXACT START | PREFIX START |
+ *                                                                 +---------------+----------------------------+
+ *                                                                                 | SKIP TABLE                 |
+ *                                                                                 | BLOCKS POS. | MAX VALUES   |
+ *                                                                                 +----------------------------+
  *
  *  </pre>
  */
@@ -89,6 +97,9 @@ public class PostingsWriter implements Closeable
 {
     // import static org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat.BLOCK_SIZE;
     private final static int BLOCK_SIZE = 128;
+
+    /** Number of filter types (exactMatch, prefix). Easily extendable to 3+ for suffix, etc. */
+    public static final int FILTER_TYPES = 2;
 
     private static final String POSTINGS_MUST_BE_SORTED_ERROR_MSG = "Postings must be sorted ascending, got [%s] after [%s]";
 
@@ -106,6 +117,9 @@ public class PostingsWriter implements Closeable
     private long lastPosting = Long.MIN_VALUE;
     private long maxDelta;
     private long totalPostings;
+
+    // Type boundary tracking: start indices for each filter type within the posting list
+    private final int[] typeStartIndices = new int[FILTER_TYPES];
 
     public PostingsWriter(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier) throws IOException
     {
@@ -163,7 +177,9 @@ public class PostingsWriter implements Closeable
     }
 
     /**
-     * Encodes, compresses and flushes given posting list to disk.
+     * Encodes, compresses and flushes a single-type posting list to disk.
+     * Used by callers that do not have multi-type postings (e.g., numeric/BBTree indexes).
+     * Writes a summary with filterTypes=1 and a single start index of 0.
      *
      * @param postings posting list to write to disk
      *
@@ -195,7 +211,66 @@ public class PostingsWriter implements Closeable
         finish();
 
         final long summaryOffset = dataOutput.getFilePointer();
-        writeSummary(size);
+        // Single-type: no prefix postings, so prefix starts at size (i.e., there are none)
+        writeSummary(size, new int[]{0, size});
+        return summaryOffset;
+    }
+
+    /**
+     * Encodes, compresses and flushes a multi-type posting list to disk.
+     * <p>
+     * The posting list is expected to emit {@link #FILTER_TYPES} metadata values first (the start indices
+     * for each filter type), followed by the actual postings. ExactMatch postings come first, then prefix
+     * postings. At the type boundary, the current partial block is padded with 0-deltas and the delta base
+     * is reset for the next type.
+     *
+     * @param postings posting list to write to disk (first {@link #FILTER_TYPES} values are type start indices)
+     *
+     * @return file offset to the summary block of this posting list
+     */
+    public long writeWithFilterTypes(PostingList postings) throws IOException
+    {
+        checkArgument(postings != null, "Expected non-null posting list.");
+        checkArgument(postings.size() > 0, "Expected non-empty posting list.");
+
+        lastPosting = Long.MIN_VALUE;
+        resetBlockCounters();
+        blockOffsets.clear();
+        blockMaximumPostings.clear();
+
+        // Read the filter type start indices from the beginning of the posting stream
+        for (int i = 0; i < FILTER_TYPES; i++)
+        {
+            long idx = postings.nextPosting();
+            checkArgument(idx != PostingList.END_OF_STREAM, "Expected %s filter type start indices, got %s", FILTER_TYPES, i);
+            typeStartIndices[i] = (int) idx;
+        }
+
+        // The prefix start index tells us where exactMatch postings end and prefix postings begin
+        int prefixStartIndex = typeStartIndices[1];
+
+        long posting;
+        // When postings list are merged, we don't know exact size, just an upper bound.
+        // We need to count how many postings we added to the block ourselves.
+        int size = 0;
+        while ((posting = postings.nextPosting()) != PostingList.END_OF_STREAM)
+        {
+            // At the type boundary, pad the partial block and reset delta base
+            if (size == prefixStartIndex && prefixStartIndex > 0)
+            {
+                finishType();
+            }
+            writePosting(posting);
+            size++;
+            totalPostings++;
+        }
+
+        assert size > 0 : "No postings were written";
+
+        finish();
+
+        final long summaryOffset = dataOutput.getFilePointer();
+        writeSummary(size, typeStartIndices);
         return summaryOffset;
     }
 
@@ -229,6 +304,28 @@ public class PostingsWriter implements Closeable
         }
     }
 
+    /**
+     * Finishes the current filter type's postings. If the current block is partially filled,
+     * pads it with 0-deltas (effectively duplicating the last posting value) and flushes it.
+     * Then resets the block counters so the next type starts a fresh block with its own firstPosting.
+     */
+    private void finishType() throws IOException
+    {
+        if (bufferUpto > 0)
+        {
+            // Pad the remaining slots with 0 deltas (duplicating lastPosting)
+            while (bufferUpto < blockSize)
+            {
+                deltaBuffer[bufferUpto++] = 0;
+            }
+            addBlockToSkipTable();
+            writePostingsBlock();
+        }
+        // Reset so the next type gets a fresh firstPosting VLong and independent delta encoding
+        resetBlockCounters();
+        lastPosting = Long.MIN_VALUE;
+    }
+
     private void finish() throws IOException
     {
         if (bufferUpto > 0)
@@ -251,10 +348,15 @@ public class PostingsWriter implements Closeable
         blockMaximumPostings.add(lastPosting);
     }
 
-    private void writeSummary(int exactSize) throws IOException
+    private void writeSummary(int totalSize, int[] startIndices) throws IOException
     {
         dataOutput.writeVInt(blockSize);
-        dataOutput.writeVInt(exactSize);
+        dataOutput.writeVInt(totalSize);
+        dataOutput.writeVInt(startIndices.length);
+        for (int startIndex : startIndices)
+        {
+            dataOutput.writeVInt(startIndex);
+        }
         writeSkipTable();
     }
 
@@ -304,7 +406,9 @@ public class PostingsWriter implements Closeable
 
     private void writeSortedFoRBlock(LongArrayList values, IndexOutput output) throws IOException
     {
-        final long maxValue = values.getLong(values.size() - 1);
+        long maxValue = 0;
+        for (int i = 0; i < values.size(); i++)
+            maxValue = Math.max(maxValue, values.getLong(i));
 
         assert values.size() > 0;
         final int bitsPerValue = maxValue == 0 ? 0 : DirectWriter.unsignedBitsRequired(maxValue);
