@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.metrics;
 
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 import org.junit.Before;
@@ -240,6 +243,50 @@ public class BufferPoolMetricsTest
         assertEquals(0, metrics.misses.getCount());
         assertThat(metrics.size.getValue()).isEqualTo(bufferPool.sizeInBytes())
                                            .isGreaterThanOrEqualTo(65536);
+    }
+
+    @Test
+    public void testOverflowAccountingBalancesAfterPutUnusedPortionAndPut()
+    {
+        assertEquals(0, metrics.overflowSize.getValue().longValue());
+        assertEquals(0, metrics.usedSize.getValue().longValue());
+
+        // Buffer larger than NORMAL_CHUNK_SIZE bypasses the pool and goes to overflow
+        int bufferSize = BufferPool.NORMAL_CHUNK_SIZE + 1;
+        ByteBuffer buffer = bufferPool.get(bufferSize, BufferType.OFF_HEAP);
+        assertEquals(bufferSize, metrics.overflowSize.getValue().longValue());
+
+        // Simulate partial use: caller only fills half the buffer
+        buffer.limit(bufferSize / 2);
+        bufferPool.putUnusedPortion(buffer);
+
+        // Full return — overflowSize must return to zero, not go negative
+        bufferPool.put(buffer);
+        assertEquals(0, metrics.overflowSize.getValue().longValue());
+        assertEquals(0, metrics.usedSize.getValue().longValue());
+    }
+
+    @Test
+    public void testUsedSizeIsZeroWhenPoolIsIdle()
+    {
+        assertEquals(0, metrics.usedSize.getValue().longValue());
+
+        // Allocate pooled buffers until the pool is fully expanded
+        int bufferSize = BufferPool.NORMAL_CHUNK_SIZE - 1;
+        List<ByteBuffer> buffers = new ArrayList<>();
+        while (bufferPool.sizeInBytes() < bufferPool.memoryUsageThreshold())
+            buffers.add(bufferPool.get(bufferSize, BufferType.OFF_HEAP));
+
+        assertThat(metrics.usedSize.getValue().longValue()).isGreaterThan(0);
+
+        // Return all buffers — pool stays expanded but usedSize must drop to zero
+        for (ByteBuffer buf : buffers)
+            bufferPool.put(buf);
+
+        assertEquals(0, metrics.usedSize.getValue().longValue());
+        // sizeInBytes remains at capacity (memoryAllocated is never decremented),
+        // confirming that usedSize and sizeInBytes measure different things
+        assertThat(bufferPool.sizeInBytes()).isGreaterThan(0);
     }
 
     private void tryRequestNegativeBufferSize()
