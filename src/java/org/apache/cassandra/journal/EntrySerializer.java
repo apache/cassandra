@@ -145,7 +145,7 @@ public final class EntrySerializer
                 }
                 catch (IOException e)
                 {
-                    return handleReadException(e, from.position() + headerSize, syncedOffset);
+                    return handleReadException(e, start + headerSize, syncedOffset);
                 }
 
                 int recordCrc = readAndUpdateRecordCrc(crc, from, start + totalSize);
@@ -155,7 +155,7 @@ public final class EntrySerializer
                 }
                 catch (IOException e)
                 {
-                    return handleReadException(e, from.position(), syncedOffset);
+                    return handleReadException(e, start + totalSize, syncedOffset);
                 }
             }
 
