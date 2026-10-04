@@ -34,9 +34,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.logging.LoggingSupportFactory;
 
 import io.netty.util.concurrent.FastThreadLocal;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.UDF_SECURITY_MECHANISM;
 
 /**
  * Custom {@link SecurityManager} and {@link Policy} implementation that only performs access checks
@@ -80,24 +83,86 @@ public final class ThreadAwareSecurityManager extends SecurityManager
 
     private static volatile boolean installed;
 
-    public static void install()
+    /**
+     * Returns whether the running Java Development Kit (JDK) supports {@link SecurityManager} installation.
+     * On JDK 24 and later, {@code System.setSecurityManager} throws {@link UnsupportedOperationException}.
+     */
+    public static boolean isSecurityManagerSupported()
     {
+        return Runtime.version().feature() < 24;
+    }
+
+    /**
+     * Returns whether the configured user-defined function (UDF) sandbox uses a {@link SecurityManager}.
+     * {@code auto} selects it before JDK 24.
+     * {@code sandbox} disables it.
+     * {@code securitymanager} requires it.
+     * With {@code securitymanager}, {@link #install()} fails on JDK 24 and later.
+     */
+    public static boolean useSecurityManager()
+    {
+        return useSecurityManager(UDF_SECURITY_MECHANISM.getString(), Runtime.version().feature());
+    }
+
+    static boolean useSecurityManager(String value, int javaVersion)
+    {
+        String mechanism = value.trim();
+        if (mechanism.equalsIgnoreCase("securitymanager"))
+            return true;
+        if (mechanism.equalsIgnoreCase("sandbox"))
+            return false;
+        if (mechanism.equalsIgnoreCase("auto"))
+            return javaVersion < 24;
+        throw new ConfigurationException(String.format("Invalid value '%s' for %s; expected one of: auto, securitymanager, sandbox",
+                                                       value, UDF_SECURITY_MECHANISM.getKey()));
+    }
+
+    public static synchronized void install()
+    {
+        boolean useSecurityManager = useSecurityManager();
+        if (!useSecurityManager)
+        {
+            // The byte-code sandbox does not require SecurityManager installation.
+            logger.info("Using the SecurityManager-free UDF sandbox (Java {}, {}={}).",
+                        Runtime.version().feature(), UDF_SECURITY_MECHANISM.getKey(), UDF_SECURITY_MECHANISM.getString());
+        }
+
+        if (useSecurityManager && !isSecurityManagerSupported())
+        {
+            // Reject an unsupported SecurityManager request before UDFs can run.
+            throw new ConfigurationException(String.format("%s=securitymanager but a SecurityManager cannot be installed on Java %d. " +
+                                                           "Use 'auto' or 'sandbox' to use the SecurityManager-free UDF sandbox.",
+                                                           UDF_SECURITY_MECHANISM.getKey(), Runtime.version().feature()));
+        }
+
         if (installed)
             return;
 
-        // this line is needed - we need to make sure AccessControlException is loaded before we install this SM
-        // otherwise we may get into stackoverflow when javax.security is not allowed package, and ACE is tried to be
-        // loaded when it is going to be thrown from SM (class loader triggers SM to verify javax.security,
-        // it recognizes it as not allowed and attempts to throw it...)
-        //noinspection PlaceholderCountMatchesArgumentCount
-        logger.trace("Initialized thread aware security manager", AccessControlException.class.getName());
+        if (useSecurityManager)
+        {
+            // Load AccessControlException before installing the security manager.
+            // Loading it during a permission check can cause recursion.
+            //noinspection PlaceholderCountMatchesArgumentCount
+            logger.trace("Initialized thread aware security manager", AccessControlException.class.getName());
 
-        System.setSecurityManager(new ThreadAwareSecurityManager());
+            try
+            {
+                installLegacyPolicy();
+                System.setSecurityManager(new ThreadAwareSecurityManager());
+            }
+            catch (UnsupportedOperationException | SecurityException e)
+            {
+                throw new ConfigurationException("Cannot install the UDF security manager. Set " +
+                                                 UDF_SECURITY_MECHANISM.getKey() + "=sandbox to use the bytecode sandbox.", e);
+            }
+        }
         LoggingSupportFactory.getLoggingSupport().onStartup();
         installed = true;
     }
 
-    static
+    /** Installs the policy only when the selected mechanism requires a security manager. */
+    @SuppressWarnings("removal")
+    private static void installLegacyPolicy()
     {
         //
         // Use own security policy to be easier (and faster) since the C* has no fine grained permissions.
