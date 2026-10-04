@@ -116,6 +116,7 @@
 **** xref:cassandra:managing/operating/role_name_generation.adoc[Role name generation]
 **** xref:cassandra:managing/operating/onboarding-to-accord.adoc[]
 **** xref:cassandra:managing/operating/async-profiler.adoc[]
+**** xref:cassandra:managing/operating/graceful_disconnect.adoc[Graceful Disconnect]
 *** xref:cassandra:managing/tools/index.adoc[Tools]
 **** xref:cassandra:managing/tools/cqlsh.adoc[cqlsh: the CQL shell]
 **** xref:cassandra:managing/tools/nodetool/nodetool.adoc[nodetool]

@@ -1,0 +1,91 @@
+= Graceful Disconnect — In-Band Connection Draining for Cassandra Node Shutdown
+
+== Vocabulary
+
+in-band:: same connection
+In-flight requests:: requests that have been sent but not yet completed
+
+== Introduction
+
+When a Cassandra node has to be taken offline client drivers have no reliable, in-band signal that the node is going away.
+
+* Drivers keep sending requests to a shutting-down node until they hit a socket close or timeout.
+* In-flight requests are abandoned, producing `ReadTimeoutException` errors on the client side.
+* Retry storms emerge as clients simultaneously rediscover the topology.
+
+== Solution
+
+Introduce an in-band signal — `GRACEFUL_DISCONNECT` — so that the server can notify clients (that have subscribed) connection before closing it. This gives drivers time to:
+
+. Stop sending new requests on that connection/node.
+. Let all in-flight requests complete.
+. Close that socket connection (this notifies server that there are no pending queries on client side).
+. Try reconnecting with exponential backoff.
+
+== New Configurations Introduced
+
+`graceful_disconnect_enabled`:: A configuration that enables the server to perform graceful disconnect.
+`graceful_disconnect_grace_period`:: A configuration that forces shutdown of any active driver connection to the node after the grace period expires.
+
+[cols="1,1,3,1", options="header"]
+|===
+| Parameter | Type | Description | Default
+| `graceful_disconnect_enabled` | Boolean | A configuration that enables server to perform graceful disconnect. | false
+| `graceful_disconnect_grace_period` | Duration (ms) | A configuration that determines after how much time to force close a socket connection, if there is any pending connection from driver side. | 5s
+|===
+
+== Client Compatibility & Upgrade Strategy
+
+=== Legacy Drivers — No Change Required
+
+Drivers that do not support graceful disconnect are not affected by any value of `graceful_disconnect_enabled` or `graceful_disconnect_grace_period`.
+
+=== Required Driver Versions
+
+To benefit from graceful draining, a compatible driver must be used.
+
+[cols="1,1", options="header"]
+|===
+| Driver | Status
+| Java | https://issues.apache.org/jira/browse/CASSJAVA-124[In progress]
+| Python | https://issues.apache.org/jira/browse/CASSPYTHON-16[In progress]
+| Node.js | https://issues.apache.org/jira/browse/CASSNODEJS-5[In progress]
+| Go | https://issues.apache.org/jira/browse/CASSGO-117[In progress]
+| C++ | https://issues.apache.org/jira/browse/CASSCPP-7[In progress]
+|===
+
+=== Mixed-Fleet Rollout
+
+During a rolling upgrade where some nodes support the feature and others do not:
+
+* Nodes *with* `graceful_disconnect_enabled: true` advertise the capability in `SUPPORTED` and drivers subscribe.
+* Nodes *without* the feature omit the key from `SUPPORTED`. Compatible drivers silently fall back to the legacy TCP teardown path for those nodes.
+
+No special coordination is needed. Drivers handle both peers transparently within the same session.
+
+== Operational Visibility
+
+=== Metrics
+
+[cols="1,3", options="header"]
+|===
+| Metric | Description
+| `ConnectionsDraining` | Current count of connections in the Draining state (subscribed and awaiting in-flight completion). Should rise at drain start and fall to zero before shutdown completes.
+| `ForcedDisconnects` | Cumulative count of connections force-closed after `graceful_disconnect_grace_period` expired without the driver closing cleanly. Persistent non-zero values here indicate driver-side issues or an undersized grace period.
+|===
+
+== Failure Modes & Edge Cases
+
+=== What if the driver does not support `GRACEFUL_DISCONNECT`?
+
+If the driver never sent `REGISTER` for this event type (legacy driver, or a compatible driver connected to a legacy node), the server applies *standard TCP teardown* — the same behavior as before this feature existed. There is no error, no retry storm specific to this feature, and no action required from operators.
+
+This is the designed fallback and not an error condition.
+
+=== What will happen if two different driver, one supporting graceful disconnect while other not, are talking to a node supporting graceful disconnect?
+
+Driver supporting graceful disconnect will disconnect gracefully, while the one not supporting graceful disconnect will behave as a legacy driver.
+
+=== What if the server crashes instead of draining cleanly?
+
+`GRACEFUL_DISCONNECT` is *not* a crash-safety mechanism. If the JVM is killed with `SIGKILL`, the node loses power, or an OOM kill occurs, no `GRACEFUL_DISCONNECT` event is emitted. Drivers fall back to socket-close detection and gossip `DOWN` events — the current behavior.

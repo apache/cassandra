@@ -620,6 +620,9 @@ public class DatabaseDescriptor
         InetAddressAndPort.initializeDefaultPort(getStoragePort());
 
         validateUpperBoundStreamingConfig();
+        
+        if (conf.graceful_disconnect_enabled && conf.graceful_disconnect_grace_period.toMilliseconds() <= 0)
+            throw new ConfigurationException("graceful_disconnect_grace_period must be positive, but was " + conf.graceful_disconnect_grace_period, false);
 
         if (conf.auto_snapshot_ttl != null)
         {
@@ -2718,6 +2721,23 @@ public class DatabaseDescriptor
     public static void setRpcTimeout(long timeOutInMillis)
     {
         conf.request_timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
+    }
+
+    public static long getGracefulDisconnectGracePeriod()
+    {
+        return conf.graceful_disconnect_grace_period.toMilliseconds();
+    }
+
+    public static void setGracefulDisconnectGracePeriod(long gracefulDisconnectGracePeriod)
+    {
+        if (gracefulDisconnectGracePeriod <= 0)
+            throw new IllegalArgumentException(String.format("graceful_disconnect_grace_period must be positive, got %d", gracefulDisconnectGracePeriod));
+        conf.graceful_disconnect_grace_period = new DurationSpec.LongMillisecondsBound(gracefulDisconnectGracePeriod);
+    }
+
+    public static boolean getGracefulDisconnectEnabled()
+    {
+        return conf.graceful_disconnect_enabled;
     }
 
     public static long getReadRpcTimeout(TimeUnit unit)
