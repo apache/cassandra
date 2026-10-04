@@ -49,6 +49,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -834,6 +835,42 @@ public class ConsensusRequestRouter
             this.accordReads = accordReads;
             this.normalReads = normalReads;
         }
+    }
+
+    // TODO: Extend this method to partition range reads after CASSANDRA-20211 is done
+    public static boolean shouldUseQuorumConsistency(ClusterMetadata cm, SinglePartitionReadCommand.Group reads, ConsistencyLevel consistencyLevel)
+    {
+        TableMetadata tm = getTableMetadata(cm, reads.queries.get(0).metadata().id);
+        if (tm == null)
+            return false;
+
+        TableMigrationState tableMigrationState = cm.consensusMigrationState.tableStates.get(tm.id);
+
+        if (tableMigrationState == null)
+            return false;
+
+        NormalizedRanges<Token> migratingRanges = tableMigrationState.migratingRanges;
+        boolean containsTokenInMigratingRange = false;
+
+        for (SinglePartitionReadCommand command : reads.queries)
+        {
+            if (migratingRanges.intersects(command.partitionKey().getToken()))
+            {
+                containsTokenInMigratingRange = true;
+                break;
+            }
+        }
+
+        Optional<KeyspaceMetadata> ksm = cm.schema.maybeGetKeyspaceMetadata(tm.keyspace);
+
+        if (ksm.isEmpty())
+            return false;
+        AbstractReplicationStrategy ars = ksm.get().replicationStrategy;
+
+        // If we intersect, this means that there exists a node from which we will get the latest value, so we will not need to contact a quorum
+        boolean willIntersectQuorum = (ConsistencyLevel.QUORUM.blockFor(ars) + consistencyLevel.blockFor(ars)) > ConsistencyLevel.ALL.blockFor(ars);
+
+        return tm.params.transactionalMigrationFrom.nonSerialWritesThroughAccord() && containsTokenInMigratingRange && !willIntersectQuorum;
     }
 
     public static SplitReads splitReadsIntoAccordAndNormal(ClusterMetadata cm, SinglePartitionReadCommand.Group reads, ReadCoordinator coordinator, Dispatcher.RequestTime requestTime)
