@@ -669,11 +669,10 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             Stage.INTERNAL_RESPONSE.unsafeSetExecutor(unorderedScheduled);
             Mockito.when(failureDetector.isAlive(Mockito.any())).thenReturn(true);
             Thread expectedThread = Thread.currentThread();
-            NoSpamLogger.unsafeSetClock(() -> {
-                if (Thread.currentThread() != expectedThread)
-                    throw new AssertionError("NoSpamLogger.Clock accessed outside of fuzzing...");
-                return globalExecutor.nanoTime();
-            });
+            Clock realClock = new Clock.Default();
+            // Only the fuzz thread runs simulated repair; other subsystems' threads (compaction, for example) use the real clock,
+            // the same rule ClockAccess applies to Clock.Global.
+            NoSpamLogger.unsafeSetClock(() -> Thread.currentThread() == expectedThread ? globalExecutor.nanoTime() : realClock.nanoTime());
 
             int numNodes = rs.nextInt(3, 10);
             List<String> dcs = Gens.lists(IDENTIFIER_GEN).unique().ofSizeBetween(1, Math.min(10, numNodes)).next(rs);
