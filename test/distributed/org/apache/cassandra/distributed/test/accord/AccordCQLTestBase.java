@@ -3688,4 +3688,92 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                       .hasMessage("Attempted to set an element on a list which is null");
         });
     }
+
+    @Test
+    public void testIn() throws Throwable
+    {
+        test(cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 0, 0, 10);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 1, 1, 11);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 2, 0, 20);
+
+            assertRows(cluster.coordinator(1).execute("SELECT k, c, v FROM " + qualifiedAccordTableName + " WHERE k IN (0, 1, 2) AND c = 0", ConsistencyLevel.ALL),
+                       row(0, 0, 10),
+                       row(2, 0, 20));
+        });
+    }
+
+    @Test
+    public void testInWithNonExistentPartitions() throws Throwable
+    {
+        test(cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 1, 0, 10);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 1, 1, 11);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 3, 0, 30);
+
+            assertRows(cluster.coordinator(1).execute("SELECT k, c, v FROM " + qualifiedAccordTableName + " WHERE k IN (0, 1, 2, 3, 4)", ConsistencyLevel.ALL),
+                       row(1, 0, 10),
+                       row(1, 1, 11),
+                       row(3, 0, 30));
+
+            // Only one partition has data
+            assertRows(cluster.coordinator(1).execute("SELECT k, c, v FROM " + qualifiedAccordTableName + " WHERE k IN (0, 2, 3)", ConsistencyLevel.ALL),
+                       row(3, 0, 30));
+
+            // No partition has data
+            assertRows(cluster.coordinator(1).execute("SELECT k, c, v FROM " + qualifiedAccordTableName + " WHERE k IN (0, 2, 4)", ConsistencyLevel.ALL));
+        });
+    }
+
+    @Test
+    public void testInWithLimitLowerThanMatchingRows() throws Throwable
+    {
+        test(cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 0, 0, 10);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 1, 1, 11);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 2, 0, 20);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 3, 1, 31);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 4, 0, 40);
+
+            assertRows(cluster.coordinator(1).execute("SELECT k, c, v FROM " + qualifiedAccordTableName + " WHERE k IN (0, 1, 2, 3, 4) AND c = 0 LIMIT 2", ConsistencyLevel.ALL),
+                       row(0, 0, 10),
+                       row(2, 0, 20));
+
+            assertRows(cluster.coordinator(1).execute("SELECT k, c, v FROM " + qualifiedAccordTableName + " WHERE k IN (1, 2, 3, 4) AND c = 0 LIMIT 1", ConsistencyLevel.ALL),
+                       row(2, 0, 20));
+        });
+    }
+
+    @Test
+    public void testInWithPerPartitionLimit() throws Throwable
+    {
+        test(cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 0, 0, 10);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 0, 1, 11);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 2, 0, 20);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 2, 1, 21);
+
+            assertRows(cluster.coordinator(1).execute("SELECT k, c, v FROM " + qualifiedAccordTableName + " WHERE k IN (0, 1, 2) PER PARTITION LIMIT 1", ConsistencyLevel.ALL),
+                       row(0, 0, 10),
+                       row(2, 0, 20));
+        });
+    }
+
+    @Test
+    public void testInWithReversedOrder() throws Throwable
+    {
+        test(cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 0, 0, 10);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 0, 1, 11);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 1, 10, 110);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 2, 2, 22);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 2, 3, 23);
+
+            assertRows(cluster.coordinator(1).execute("SELECT k, c, v FROM " + qualifiedAccordTableName + " WHERE k IN (0, 1, 2) AND c < 5 ORDER BY c DESC", ConsistencyLevel.ALL),
+                       row(2, 3, 23),
+                       row(2, 2, 22),
+                       row(0, 1, 11),
+                       row(0, 0, 10));
+        });
+    }
 }
