@@ -52,10 +52,12 @@ public abstract class ExtendingCompletedRead implements PartialTrackedRead.Compl
 
     public ExtendingCompletedRead(ReadCommand command, boolean partitionsFetched, boolean initialIteratorExhausted)
     {
+        // onlyCount: ReadCommand.completeRead already enforces the limit. Stopping here, after its RTBoundCloser, would
+        // end the stream before the closing range tombstone bound is appended, and RTBoundValidator would throw.
         this.mergedResultCounter = command.limits().newCounter(command.nowInSec(),
                                                                true,
                                                                command.selectsFullPartition(),
-                                                               command.metadata().enforceStrictLiveness());
+                                                               command.metadata().enforceStrictLiveness()).onlyCount();
         this.partitionsFetched = partitionsFetched;
         this.initialIteratorExhausted = initialIteratorExhausted;
     }
@@ -110,9 +112,13 @@ public abstract class ExtendingCompletedRead implements PartialTrackedRead.Compl
          * The row limit will either be set to the per partition limit - if the command has no total row limit set, or
          * the total # of rows remaining - if it has some. If we don't grab enough rows in some of the partitions,
          * then future ShortReadRowsProtection.moreContents() calls will fetch the missing ones.
+         *
+         * Subtract counted(), not rowsCounted(): under GROUP BY, count() and counted() are in groups, and a read that
+         * has not reached its group limit can have counted more rows than count(), giving a negative result.
+         * The result is zero or negative when called after mergedResultCounter.isDone().
          */
         return command.limits().count() != DataLimits.NO_LIMIT
-               ? command.limits().count() - mergedResultCounter.rowsCounted()
+               ? command.limits().count() - mergedResultCounter.counted()
                : command.limits().perPartitionCount();
     }
 

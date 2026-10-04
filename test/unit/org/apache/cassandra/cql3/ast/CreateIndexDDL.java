@@ -103,7 +103,11 @@ public class CreateIndexDDL implements Element
         @Override
         public boolean supported(TableMetadata table, ColumnMetadata column)
         {
-            return standardSupported(table, column);
+            if (!standardSupported(table, column))
+                return false;
+            // Any index on a vector column rejects non-ANN restrictions on it
+            // (StatementRestrictions.VECTOR_INDEXES_ANN_ONLY_MESSAGE), and 2i cannot serve ANN queries.
+            return !column.type.isVector();
         }
     };
 

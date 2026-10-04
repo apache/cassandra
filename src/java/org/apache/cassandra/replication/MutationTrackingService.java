@@ -475,7 +475,11 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         shardLock.readLock().lock();
         try
         {
-            getOrCreateShards(keyspace).updateReplicatedOffsets(range, offsets, durable, onHost);
+            KeyspaceShards shards = maybeGetOrCreateShards(keyspace);
+            if (shards != null)
+                shards.updateReplicatedOffsets(range, offsets, durable, onHost);
+            else
+                noSpamLogger.debug("Discarding replicated offsets for unknown keyspace {} from {}", keyspace, onHost);
         }
         finally
         {
@@ -502,9 +506,11 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         try
         {
             reconciledSnapshot.forEach((keyspace, keyspaceOffsets) -> {
-                KeyspaceShards ksShards = getOrCreateShards(keyspace);
+                KeyspaceShards ksShards = maybeGetOrCreateShards(keyspace);
                 if (ksShards != null)
                     ksShards.recordFullyReconciledOffsets(keyspaceOffsets);
+                else
+                    noSpamLogger.warn("Discarding fully reconciled offsets for unknown keyspace {}", keyspace);
             });
         }
         finally
@@ -519,7 +525,12 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         try
         {
             Preconditions.checkArgument(!mutation.id().isNone());
-            return getOrCreateShards(mutation.getKeyspaceName()).startWriting(mutation);
+            boolean started = getOrCreateShards(mutation.getKeyspaceName()).startWriting(mutation);
+            // we've already received this mutation, so we reject the write. There may still be reconciliation
+            // listening for it though, so notify them that it's received
+            if (!started)
+                incomingMutations.invokeListeners(mutation.id());
+            return started;
         }
         finally
         {
@@ -540,7 +551,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
      * gone there is nothing left to reconcile it against, and the only thing that still has to happen is for the
      * record to reach the memtable so the data is not lost.
      *
-     * @return true if the record was registered with a shard, false if no shard covers it
+     * @return true if the record was registered with a shard, false if no shard covers it or it is a duplicate
      */
     public boolean startWritingForReplay(Mutation mutation)
     {
@@ -718,6 +729,26 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         }
     }
 
+    public void validateSummaryForParticipant(MutationSummary summary, int nodeId)
+    {
+        shardLock.readLock().lock();
+        try
+        {
+            for (int i = 0; i < summary.size(); i++)
+            {
+                MutationSummary.CoordinatorSummary summaryEntry = summary.get(i);
+                Shard shard = getShardNullable(summaryEntry.logId());
+                if (shard == null || !shard.participants.contains(nodeId))
+                    throw new IllegalStateException(String.format("Summary containing coordinator log %s is not replicated by node %d (participants: %s)",
+                                                                  summaryEntry.logId(), nodeId, shard == null ? "none" : shard.participants));
+            }
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
     public MutationSummary createSummaryForRange(Range<Token> range, TableId tableId, boolean includePending)
     {
         return createSummaryForRange(Range.makeRowRange(range), tableId, includePending);
@@ -831,7 +862,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
                 Offsets offsets = iterator.next();
                 Shard shard = getShardNullable(offsets.logId);
                 if (shard == null)
-                    into.add(offsets); // if the log/shard are unknown, then all the offsets are also unkown/missing
+                    into.add(offsets); // if the log/shard are unknown, then all the offsets are also unknown/missing
                 else
                     shard.collectLocallyMissingMutations(offsets, into);
             }
@@ -881,12 +912,22 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
     private KeyspaceShards getOrCreateShards(String keyspace)
     {
+        KeyspaceShards shards = maybeGetOrCreateShards(keyspace);
+        Preconditions.checkArgument(shards != null, "Unknown keyspace %s", keyspace);
+        return shards;
+    }
+
+    private KeyspaceShards maybeGetOrCreateShards(String keyspace)
+    {
         KeyspaceShards ks = keyspaceShards.get(keyspace);
         if (ks != null)
             return ks;
 
         ClusterMetadata csm = ClusterMetadata.current();
-        KeyspaceMetadata ksm = csm.schema.getKeyspaceMetadata(keyspace);
+        KeyspaceMetadata ksm = csm.schema.maybeGetKeyspaceMetadata(keyspace).orElse(null);
+        if (ksm == null)
+            return null;
+
         return keyspaceShards.computeIfAbsent(keyspace, ignore -> KeyspaceShards.make(ksm, csm, this::nextLogId, this::onNewLog));
     }
 
@@ -1886,6 +1927,16 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             return service.keyspaceShards.get(keyspace);
         }
 
+        public static void onNewClusterMetadata(MutationTrackingService service, @Nullable ClusterMetadata prev, ClusterMetadata next)
+        {
+            service.onNewClusterMetadata(prev, next);
+        }
+
+        public static long countLogsFor(MutationTrackingService service, String keyspace)
+        {
+            return service.log2ShardMap.values().stream().filter(shard -> shard.keyspace.equals(keyspace)).count();
+        }
+
         /**
          * Creates a test KeyspaceShards with the given shard ranges.
          * The shards are created with minimal configuration suitable for testing.
@@ -1911,9 +1962,10 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         /**
          * Sets the keyspace shards for testing purposes.
          */
-        public static void setKeyspaceShards(MutationTrackingService service, String keyspace, KeyspaceShards shards)
+        public static void setKeyspaceShardsUnsafe(MutationTrackingService service, String keyspace, KeyspaceShards shards)
         {
             service.keyspaceShards.put(keyspace, shards);
+            shards.forEachShard(shard -> shard.forEachLog(log -> service.log2ShardMap.put(log.logId, shard)));
         }
     }
 }

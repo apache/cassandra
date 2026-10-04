@@ -19,8 +19,10 @@
 package org.apache.cassandra.distributed.test.cql3;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -29,17 +31,17 @@ import org.slf4j.LoggerFactory;
 import accord.utils.Property;
 import accord.utils.RandomSource;
 
+import org.apache.cassandra.cql3.ast.Conditional;
 import org.apache.cassandra.cql3.ast.CreateIndexDDL;
 import org.apache.cassandra.cql3.ast.Select;
+import org.apache.cassandra.cql3.ast.Symbol;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.utils.LoggingCommand;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
-import static org.apache.cassandra.cql3.KnownIssue.AF_MULTI_NODE_MULTI_COLUMN_AND_NODE_LOCAL_WRITES;
 
 public class MultiNodeTableWalkWithMutationTrackingTest extends MultiNodeTableWalkBase
 {
@@ -57,10 +59,19 @@ public class MultiNodeTableWalkWithMutationTrackingTest extends MultiNodeTableWa
             super(rs, cluster);
         }
 
+        // TODO: allow on range reads once a tracked response merges a partition that more than one read returned
         @Override
         protected boolean allowPerPartitionLimit(Select select)
         {
-            return false;
+            if (select.where.isEmpty()) return false;
+            Set<Symbol> restricted = new HashSet<>();
+            select.where.get().streamRecursive(true).forEach(e -> {
+                if (e instanceof Conditional.Where && ((Conditional.Where) e).kind == Conditional.Where.Inequality.EQUAL && ((Conditional.Where) e).lhs instanceof Symbol)
+                    restricted.add((Symbol) ((Conditional.Where) e).lhs);
+                else if (e instanceof Conditional.In && ((Conditional.In) e).ref instanceof Symbol)
+                    restricted.add((Symbol) ((Conditional.In) e).ref);
+            });
+            return restricted.containsAll(model.factory.partitionColumns);
         }
     }
 
@@ -84,18 +95,10 @@ public class MultiNodeTableWalkWithMutationTrackingTest extends MultiNodeTableWa
         // READ_AFTER_WRITE = true;
     }
 
-    // TODO: Remove this override entirely when range reads and indexing are working properly together.
     @Override
     protected List<CreateIndexDDL.Indexer> supportedIndexers()
     {
-        return Collections.singletonList(CreateIndexDDL.SAI);
-    }
-
-    @Override
-    protected void clusterConfig(IInstanceConfig c)
-    {
-        super.clusterConfig(c);
-        IGNORED_ISSUES.remove(AF_MULTI_NODE_MULTI_COLUMN_AND_NODE_LOCAL_WRITES);
+        return Arrays.asList(CreateIndexDDL.LEGACY, CreateIndexDDL.SAI);
     }
 
     @Test
@@ -106,18 +109,18 @@ public class MultiNodeTableWalkWithMutationTrackingTest extends MultiNodeTableWa
             Property.StatefulBuilder statefulBuilder = stateful().withExamples(10).withSteps(400);
             preCheck(cluster, statefulBuilder);
 
-            // TODO: Uncomment the commented bits below to test range queries w/ the seeds above.
             statefulBuilder.check(commands(() -> rs -> createState(rs, cluster))
                                   .add(StatefulASTBase::insert)
-//                                  .add(StatefulASTBase::fullTableScan)
-//                                  .addIf(State::allowUsingTimestamp, StatefulASTBase::validateUsingTimestamp)
+                                  .add(StatefulASTBase::fullTableScan)
+                                  .addIf(State::allowUsingTimestamp, StatefulASTBase::validateUsingTimestamp)
                                   .addIf(State::hasPartitions, this::selectExisting)
-//                                  .addAllIf(State::supportTokens, this::selectToken, this::selectTokenRange, StatefulASTBase::selectMinTokenRange)
+                                  .addAllIf(State::supportTokens, this::selectToken, this::selectTokenRange, StatefulASTBase::selectMinTokenRange)
                                   .addIf(State::hasEnoughMemtable, StatefulASTBase::flushTable)
                                   .addIf(State::hasEnoughSSTables, StatefulASTBase::compactTable)
-//                                  .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
-//                                  .addIf(State::allowNonPartitionMultiColumnQuery, this::multiColumnQuery)
+                                  .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
+                                  .addIf(State::allowNonPartitionMultiColumnQuery, this::multiColumnQuery)
                                   .addIf(State::allowPartitionQuery, this::partitionRestrictedQuery)
+                                  .addIf(State::allowClusteringBetweenQuery, this::clusteringBetweenQuery)
                                   .addIf(State::allowPartitionMultiColumnQuery, this::multiColumnPartitionQuery)
                                   .destroyState(State::close)
                                   .commandsTransformer(LoggingCommand.factory())

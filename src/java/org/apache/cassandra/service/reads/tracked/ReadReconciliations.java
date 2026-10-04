@@ -208,10 +208,14 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
             if (!remoteNodes.isEmpty())
             {
                 // send the summary to all peers, so that they can initiate reconciling their gaps ASAP
-                TrackedSummaryResponse response = new TrackedSummaryResponse(id, summary, dataNode, summaryNodes);
-                Message<TrackedSummaryResponse> message = Message.out(Verb.MT_SUMMARY_RSP, response);
-                for (int node : remoteNodes)
+                for (int i = 0; i < remoteNodes.size(); i++)
+                {
+                    int node = remoteNodes.getInt(i);
+                    MutationTrackingService.instance().validateSummaryForParticipant(summary, node);
+                    TrackedSummaryResponse response = new TrackedSummaryResponse(id, summary, dataNode, summaryNodes);
+                    Message<TrackedSummaryResponse> message = Message.out(Verb.MT_SUMMARY_RSP, response);
                     MessagingService.instance().send(message, host(node));
+                }
             }
 
             Iterator<Offsets> iter = summary.onlyUnreconciled();

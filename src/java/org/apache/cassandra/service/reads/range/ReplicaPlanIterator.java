@@ -43,7 +43,7 @@ import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.Pair;
 
-class ReplicaPlanIterator extends AbstractIterator<ReplicaPlan.ForRangeRead>
+public class ReplicaPlanIterator extends AbstractIterator<ReplicaPlan.ForRangeRead>
 {
     private final Keyspace keyspace;
     private final ConsistencyLevel consistency;
@@ -53,11 +53,11 @@ class ReplicaPlanIterator extends AbstractIterator<ReplicaPlan.ForRangeRead>
     final Iterator<? extends AbstractBounds<PartitionPosition>> ranges;
     private final int rangeCount;
 
-    ReplicaPlanIterator(AbstractBounds<PartitionPosition> keyRange,
-                        @Nullable Index.QueryPlan indexQueryPlan,
-                        Keyspace keyspace,
-                        TableId tableId,
-                        ConsistencyLevel consistency)
+    public ReplicaPlanIterator(AbstractBounds<PartitionPosition> keyRange,
+                               @Nullable Index.QueryPlan indexQueryPlan,
+                               Keyspace keyspace,
+                               TableId tableId,
+                               ConsistencyLevel consistency)
     {
         this.indexQueryPlan = indexQueryPlan;
         this.keyspace = keyspace;
