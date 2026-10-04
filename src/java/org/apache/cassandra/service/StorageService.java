@@ -3892,9 +3892,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         assert !isShutdown;
         isShutdown = true;
 
-        Throwable preShutdownHookThrowable = Throwables.perform(null, preShutdownHooks.stream().map(h -> h::run));
-        if (preShutdownHookThrowable != null)
-            logger.error("Attempting to continue draining after pre-shutdown hooks returned exception", preShutdownHookThrowable);
+        runPreShutdownHooks();
 
         try
         {
@@ -4112,6 +4110,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             return preShutdownHooks.add(hook);
 
         return false;
+    }
+
+    public void runPreShutdownHooks()
+    {
+        Throwable preShutdownHookThrowable = Throwables.perform(null, preShutdownHooks.stream().map(h -> h::run));
+        if (preShutdownHookThrowable != null)
+            logger.error("Attempting to continue draining after pre-shutdown hooks returned exception", preShutdownHookThrowable);
     }
 
     /**

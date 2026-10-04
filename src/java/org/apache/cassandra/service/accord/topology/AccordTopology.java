@@ -284,11 +284,11 @@ public class AccordTopology
     }
 
     public static Topology createAccordTopology(Epoch epoch, DistributedSchema schema, DataPlacements placements,
-                                                Directory directory, AccordFastPath accordFastPath, ShardLookup lookup,
-                                                AccordStaleReplicas staleReplicas)
+                                                Directory directory, AccordNodeInfos nodeInfo, ShardLookup lookup)
     {
         List<Shard> res = new ArrayList<>();
-        SortedArrayList<Id> unavailable = accordFastPath.unavailableIds();
+        SortedArrayList<Id> excludeFromFastQuorum = nodeInfo.excludedFromFastQuorum();
+        SortedArrayList<Id> hardRemoved = nodeInfo.hardRemoved();
         Map<Id, String> dcMap = createDCMap(directory);
 
         for (KeyspaceMetadata keyspace : schema.getKeyspaces())
@@ -297,7 +297,7 @@ public class AccordTopology
             if (tables.isEmpty())
                 continue;
             List<KeyspaceShard> ksShards = KeyspaceShard.forKeyspace(keyspace, placements, directory);
-            tables.forEach(table -> ksShards.forEach(shard -> res.addAll(shard.createForTable(epoch, table, unavailable, staleReplicas.hardRemoved(), dcMap, lookup))));
+            tables.forEach(table -> ksShards.forEach(shard -> res.addAll(shard.createForTable(epoch, table, excludeFromFastQuorum, hardRemoved, dcMap, lookup))));
         }
 
         res.sort((a, b) -> a.range.compare(b.range));
@@ -307,12 +307,13 @@ public class AccordTopology
                      .map(n -> tcmIdToAccord(n.id))
                      .toArray(Id[]::new)
         );
-        return new Topology(epoch.getEpoch(), removed, staleReplicas.hardRemoved(), staleReplicas.stale(), res.toArray(new Shard[0]));
+
+        return new Topology(epoch.getEpoch(), removed, hardRemoved, nodeInfo.stale(), res.toArray(new Shard[0]));
     }
 
     public static Topology createAccordTopology(ClusterMetadata metadata, ShardLookup lookup)
     {
-        return createAccordTopology(metadata.epoch, metadata.schema, metadata.placements(), metadata.directory, metadata.accordFastPath, lookup, metadata.accordStaleReplicas);
+        return createAccordTopology(metadata.epoch, metadata.schema, metadata.placements(), metadata.directory, metadata.accordNodeInfos, lookup);
     }
 
     public static Topology createAccordTopology(ClusterMetadata metadata, Topology current)
@@ -325,16 +326,16 @@ public class AccordTopology
         return createAccordTopology(metadata, (Topology) null);
     }
 
-    public static EndpointMapping directoryToMapping(long epoch, Directory directory)
+    public static AccordEndpointInfos directoryToMapping(long epoch, Directory directory, AccordNodeInfos nodeInfos)
     {
-        EndpointMapping.Builder builder = EndpointMapping.builder(epoch);
+        AccordEndpointInfos.Builder builder = AccordEndpointInfos.builder(epoch, directory.peerIds().size() + directory.removedNodes().size(), nodeInfos);
         for (NodeId id : directory.peerIds())
             builder.add(directory.endpoint(id), tcmIdToAccord(id));
 
         // There are cases where nodes are removed from the cluster (host replacement, decom, etc.), but inflight events
         // may still be happening; keep the ids around so pending events do not fail with a mapping error
         for (Directory.RemovedNode removedNode : directory.removedNodes())
-            builder.add(removedNode.endpoint, tcmIdToAccord(removedNode.id));
+            builder.removed(removedNode.endpoint, tcmIdToAccord(removedNode.id));
         return builder.build();
     }
 

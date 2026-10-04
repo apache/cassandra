@@ -378,7 +378,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
                         SafeState<?> safeState = owner.refs.remove(key);
                         Invariants.require(safeState != null);
                         AccordCacheEntry<?, ?, ?> entry = global(safeState);
-                        entry.setInconsistent();
+                        entry.setUnsafeToRead();
                         entry.reclaimFifoHead(owner);
                         retry.add(safeState);
                     }
@@ -842,7 +842,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     private <K, V, S extends SafeState<V> & SaferState<K, V, S>> void completePresetupExclusive(S preacquired, int waitForIncrement)
     {
         AccordCacheEntry<K, V, S> entry = preacquired.global();
-        if (entry.isInconsistent())
+        if (entry.isUnsafeToRead())
         {
             InconsistentEntryException fail = new InconsistentEntryException(entry.key());
             if (isContinuation()) reportFailureNoExcept(fail);
@@ -866,7 +866,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     {
         S safeRef = cache.acquire(k);
         AccordCacheEntry<K, V, ?> entry = safeRef.global();
-        if (entry.isInconsistent())
+        if (entry.isUnsafeToRead())
         {
             safeRef.setAbandoned();
             InconsistentEntryException fail = new InconsistentEntryException(k);
@@ -946,7 +946,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
     private void completeSetupOfLoaded(AccordCacheEntry<?, ?, ?> entry)
     {
-        Invariants.expect(!entry.isInconsistent());
+        Invariants.expect(!entry.isUnsafeToRead());
         if (isOptional(entry))
         {
             nonSync().addLoaded();
@@ -1204,7 +1204,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     void addCachedKeyExclusive(AccordCacheEntry<?, ?, ?> entry, SafeState<?> safeRef)
     {
         Invariants.require(entry.isLoaded());
-        Invariants.require(!entry.isInconsistent(), "%s was adopted despite being poisoned", entry);
+        Invariants.require(!entry.isUnsafeToRead(), "%s was adopted despite being poisoned", entry);
         Invariants.require(!isCacheQueuedFifo()); // to guarantee atomicity
 
         refs.put(entry.key(), safeRef);
@@ -1228,7 +1228,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
     void onLoadOneExclusive(AccordCacheEntry<?, ?, ?> loaded)
     {
-        if (loaded.isInconsistent())
+        if (loaded.isUnsafeToRead())
         {
             if (!isFailed())
                 onFailedToLoadExclusive(loaded, new InconsistentEntryException(loaded.key()));
@@ -1683,6 +1683,8 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         }
     }
 
+    // TODO (required): this rollback isn't entirely consistent, e.g. progress log can be left with modifications
+    //   thoroughly test exceptions thrown at various stages of processing (esp. SafeCommandStore.update)
     private void discardUpdatesExclusive()
     {
         refs.forEach((k, v) -> {
@@ -1772,7 +1774,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
                 if (refs != null)
                 {
                     if (hasIncrementalStarted() && isAtomic())
-                        refs.forEach((key, safeState) -> global(safeState).setInconsistent());
+                        refs.forEach((key, safeState) -> global(safeState).setUnsafeToRead());
 
                     logger.error("{} was abandoned by a failed prepare, orphaning {}", this, refs.keySet());
                 }
@@ -1811,10 +1813,10 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     public void cancel()
     {
         if (!state().hasStarted() && !isContinuation())
-            executor().submit(Task::tryCancelExclusive, CancelTask::new, this);
+            executor().submit(self -> { self.tryCancelExclusive(new CancellationException()); }, CancelTask::new, this);
     }
 
-    void tryCancelExclusive()
+    void tryCancelExclusive(CancellationException cancelled)
     {
         if (isContinuation())
             return;
@@ -1824,11 +1826,11 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             if (is(UNREGISTERED))
             {
                 releaseResourcesExclusiveNoExcept();
-                failExclusive(new CancellationException(), CANCELLED_UNREGISTERED);
+                failExclusive(cancelled, CANCELLED_UNREGISTERED);
             }
             else if (compareTo(REGISTERED) >= 0 && compareTo(WAITING_TO_RUN) <= 0 && !hasIncrementalStarted())
             {
-                cancelExclusive();
+                cancelExclusive(cancelled);
             }
         }
         catch (Throwable t)
@@ -1838,9 +1840,9 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
     }
 
     // fail != null -> failed to load
-    void onFailingKeyExclusive(AccordCacheEntry<?, ?, ?> entry, @Nullable Throwable fail, boolean isInconsistent)
+    void onFailingKeyExclusive(AccordCacheEntry<?, ?, ?> entry, @Nullable Throwable fail, boolean isUnsafeToRead)
     {
-        Invariants.require((fail == null) == isInconsistent);
+        Invariants.require((fail == null) == isUnsafeToRead);
         // in exceptional cases (when prepare fails) we may be notified when already done, by a load that had not completed when we failed
         if (isDone() || refs == null)
             return;
@@ -1860,8 +1862,13 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
             // fine to mark immediately inconsistent even if we're not head, since all preceding tasks would do the same
             // notifications are already handled by our caller, either the load failure or the current owner of the entry lock
-            if (isAtomic() && !isInconsistent)
-                entry.setInconsistent();
+            if (!isUnsafeToRead)
+            {
+                if (isAtomic())
+                    entry.setUnsafeToRead();
+                else if (!context.abandonPartialSuccess())
+                    entry.setInconsistent();
+            }
 
             safeState.setAbandoned();
 
@@ -1897,7 +1904,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         }
     }
 
-    void onInconsistentKeyExclusive(AccordCacheEntry<?, ?, ?> entry)
+    void onUnsafeToReadKeyExclusive(AccordCacheEntry<?, ?, ?> entry)
     {
         onFailingKeyExclusive(entry, null, true);
     }
@@ -1907,11 +1914,11 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         onFailingKeyExclusive(entry, fail, false);
     }
 
-    void cancelExclusive()
+    void cancelExclusive(CancellationException cancelled)
     {
         if (ranges instanceof SafeTask<?>.RangeTxnScanner)
             ((SafeTask<?>.RangeTxnScanner)ranges).cancelled = true; // TODO (expected): should we try to cancel this directly?
-        failAndCompleteExclusive(new CancellationException(), CANCELLED);
+        failAndCompleteExclusive(cancelled, CANCELLED);
     }
 
     void unqueueIfQueued()
@@ -1965,7 +1972,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
             ranges = null;
 
             refs.forEach((key, safeState) -> {
-                if (optional != null && SaferState.global(safeState).isInconsistent() && !context.abandonPartialSuccess())
+                if (optional != null && SaferState.global(safeState).isUnsafeToRead() && !context.abandonPartialSuccess())
                     optional.ensureRetry().add(safeState);
                 else
                     SaferState.postExecute(safeState, this);
@@ -1995,7 +2002,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
                 {
                     try
                     {
-                        if (optional != null && SaferState.global(safeState).isInconsistent() && !context.abandonPartialSuccess())
+                        if (optional != null && SaferState.global(safeState).isUnsafeToRead() && !context.abandonPartialSuccess())
                             optional.ensureRetry().add(safeState);
                         else
                             SaferState.postExecute(safeState, this);
@@ -2052,7 +2059,7 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
 
         private void reference(AccordCacheEntry<RoutingKey, CommandsForKey, SaferCommandsForKey> entry)
         {
-            if (entry.isInconsistent() && !cancelled)
+            if (entry.isUnsafeToRead() && !cancelled)
             {
                 cancelled = true;
                 failAndCompleteExclusive(new InconsistentEntryException(entry.key()), CANCELLED);
@@ -2285,5 +2292,10 @@ public final class SafeTask<R> extends Task implements Cancellable, DebuggableTa
         if (loadKeys == NONE)
             return NONE;
         return NONSYNC_ENABLED ? loadKeys : SYNC;
+    }
+
+    public AccordCommandStore commandStore()
+    {
+        return commandStore;
     }
 }

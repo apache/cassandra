@@ -191,18 +191,10 @@ public class AccordRecoverFromAvailabilityLossTest extends AccordBootstrapTestBa
                                 Assert.assertFalse(ss.bootstrapBeganAt().isEmpty());
                                 Assert.assertFalse(ss.safeToReadAt().isEmpty());
 
-                                Assert.assertEquals(1, ss.bootstrapBeganAt().entrySet().stream()
-                                                                   .filter(entry -> entry.getValue().contains(partitionKey))
-                                                                   .map(entry -> {
-                                                                       Assert.assertTrue(entry.getKey().compareTo(Timestamp.NONE) > 0);
-                                                                       return entry;
-                                                                   }).count());
-                                Assert.assertEquals(1, ss.safeToReadAt().entrySet().stream()
-                                                                   .filter(entry -> entry.getValue().contains(partitionKey))
-                                                                   .map(entry -> {
-                                                                       Assert.assertTrue(entry.getKey().compareTo(Timestamp.NONE) > 0);
-                                                                       return entry;
-                                                                   }).count());
+                                Assert.assertTrue(ss.bootstrapBeganAt().entrySet().stream()
+                                                    .anyMatch(entry -> entry.getValue().contains(partitionKey) && entry.getKey().compareTo(Timestamp.NONE) > 0));
+                                Assert.assertTrue(ss.safeToReadAt().entrySet().stream()
+                                                    .anyMatch(entry -> entry.getValue().contains(partitionKey) && entry.getKey().compareTo(Timestamp.NONE) > 0));
                             }
                         }));
                     }

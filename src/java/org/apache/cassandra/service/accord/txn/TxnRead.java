@@ -397,8 +397,10 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         if (items.length == 1 && key.equals(items[0].key()))
             return items[0].read(executor, tables, cassandraConsistencyLevel, key, executeAt);
 
+        // TODO (expected): if multiple reads touch the same partition, run them both over the same memtable+view snapshot
+        //   this will allow us to use ephemeral reads for multiple single row reads from a single partition
         List<AsyncChain<Data>> results = new ArrayList<>();
-            forEachWithKey(key, read -> results.add(read.read(executor, tables, cassandraConsistencyLevel, key, executeAt)));
+        forEachWithKey(key, read -> results.add(read.read(executor, tables, cassandraConsistencyLevel, key, executeAt)));
 
         if (results.isEmpty())
             return AsyncChains.success(new TxnData());

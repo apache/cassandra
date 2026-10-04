@@ -155,7 +155,8 @@ public class AccordJournalBurnTest extends BurnTestBase
     @Test
     public void testOne()
     {
-        long seed = System.nanoTime();
+//        long seed = System.nanoTime();
+        long seed = 7341363941300876L;
         int operations = 1000;
 
         logger.info("Seed: {}", seed);
@@ -306,6 +307,7 @@ public class AccordJournalBurnTest extends BurnTestBase
                                      return;
                                  List<ISSTableScanner> scanners = selected.stream().map(SSTableReader::getScanner).collect(Collectors.toList());
 
+                                 TreeMap<JournalKey, Object> debugBefore = Invariants.debug() ? debug() : null;
                                  TreeMap<JournalKey, Command> before = read(commandStores);
                                  Collection<SSTableReader> newSStables;
                                  try (LifecycleTransaction txn = table.getTracker().tryModify(selected, OperationType.COMPACTION);
@@ -375,6 +377,27 @@ public class AccordJournalBurnTest extends BurnTestBase
                                          Command command = loadCommand(key.commandStoreId, key.id, commandStore.unsafeGetRedundantBefore(), commandStore.durableBefore());
                                          if (command != null)
                                             result.put(key, command);
+                                         prev = key;
+                                     }
+                                 }
+                                 return result;
+                             }
+
+                             private TreeMap<JournalKey, Object> debug()
+                             {
+                                 TreeMap<JournalKey, Object> result = new TreeMap<>(JournalKey.SUPPORT::compare);
+                                 try (CloseableIterator<Journal.KeyRefs<JournalKey>> iter = keyIterator(null, null, false, 0))
+                                 {
+                                     JournalKey prev = null;
+                                     while (iter.hasNext())
+                                     {
+                                         Journal.KeyRefs<JournalKey> ref = iter.next();
+                                         if (ref.key().type != JournalKey.Type.COMMAND_DIFF)
+                                             continue;
+
+                                         JournalKey key = ref.key();
+                                         if (key.equals(prev)) continue;
+                                         result.put(key, debugCommand(key.commandStoreId, key.id));
                                          prev = key;
                                      }
                                  }

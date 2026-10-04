@@ -78,6 +78,8 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.Future;
 
+import static accord.utils.Functions.returningVoid;
+import static accord.utils.async.AsyncCallbacks.flatCallback;
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXECUTION;
 import static org.apache.cassandra.service.accord.execution.AccordCache.CommandAdapter.COMMAND_ADAPTER;
 import static org.apache.cassandra.service.accord.execution.AccordCache.CommandsForKeyAdapter.CFK_ADAPTER;
@@ -514,17 +516,39 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<SafeTask
             @Override
             protected Cancellable start(BiConsumer<? super T, Throwable> callback)
             {
-                Task inherit = inherit();
-                PlainChainDebuggable task = new PlainChainDebuggable(AccordExecutor.this, call, callback, null, describe);
-                if (inherit == null) submitTask(task);
-                else
-                {
-                    task.setContinuation();
-                    inherit.addConsequence(task);
-                }
-                return task;
+                return submitContinuation(new PlainChainDebuggable<>(AccordExecutor.this, call, callback, null, describe));
             }
         };
+    }
+
+    @Override
+    public Cancellable executeContinuation(Runnable run, BiConsumer<? super Void, Throwable> callback)
+    {
+        return submitContinuation(new PlainChain<>(this, returningVoid(run), callback, null, ExclusiveGroup.OTHER));
+    }
+
+    @Override
+    public <V> Cancellable executeContinuation(Callable<V> call, BiConsumer<? super V, Throwable> callback)
+    {
+        return submitContinuation(new PlainChain<>(this, call, callback, null, ExclusiveGroup.OTHER));
+    }
+
+    @Override
+    public <V> Cancellable flatExecuteContinuation(Callable<? extends AsyncChain<V>> call, BiConsumer<? super V, Throwable> callback)
+    {
+        return submitContinuation(new PlainChain<>(this, call, flatCallback(callback), null, ExclusiveGroup.OTHER));
+    }
+
+    private Cancellable submitContinuation(PlainChain<?> task)
+    {
+        Task inherit = inherit();
+        if (inherit == null) submitTask(task);
+        else
+        {
+            task.setContinuation();
+            inherit.addConsequence(task);
+        }
+        return task;
     }
 
     public void submitExclusive(Runnable runnable)

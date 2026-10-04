@@ -102,6 +102,8 @@ public class Startup implements Transformation
         if (!prev.directory.versions.get(nodeId).equals(nodeVersion))
             next = next.withVersion(nodeId, nodeVersion);
 
+        next = next.populateMissingAccordNodeInfo();
+
         return Transformation.success(next, LockedRanges.AffectedRanges.EMPTY);
     }
 

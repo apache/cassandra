@@ -48,14 +48,14 @@ abstract class Plain extends Task implements Cancellable
     @Override
     public final void cancel()
     {
-        executor.submit(Task::tryCancelExclusive, CancelTask::new, this);
+        executor.submit(self -> { self.tryCancelExclusive(new CancellationException()); }, CancelTask::new, this);
     }
 
     @Override
-    final void tryCancelExclusive()
+    final void tryCancelExclusive(CancellationException cancelled)
     {
         if (!isContinuation())
-            tryFailAndCompleteUnexecutedExclusive(new CancellationException(), CANCELLED);
+            tryFailAndCompleteUnexecutedExclusive(cancelled, CANCELLED);
     }
 
     @Override

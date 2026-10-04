@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord.execution;
 
 import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.locks.LockSupport;
@@ -64,7 +65,7 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
         @Override boolean runMayThrow() { throw new UnsupportedOperationException(); }
         @Override void unqueueIfQueued() {}
         @Override void reportFailureMayThrow(Throwable t) { throw new UnsupportedOperationException(); }
-        @Override void tryCancelExclusive() { throw new UnsupportedOperationException(); }
+        @Override void tryCancelExclusive(CancellationException cancelled) { throw new UnsupportedOperationException(); }
 
         boolean prepareTask()
         {
@@ -195,7 +196,7 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
             return true;
 
         ExecutionContext context = ((SafeTask<?>) task).executionContext();
-        return !(isTerminated ? (context instanceof Unterminatable) : (context instanceof Unstoppable));
+        return !(isTerminated ? (context instanceof Unterminatable) : context.isUnstoppable());
     }
 
     void completeTask()

@@ -152,8 +152,33 @@ public abstract class AccordTestBase extends TestBaseImpl
     @AfterClass
     public static void teardown()
     {
-        if (SHARED_CLUSTER != null)
-            SHARED_CLUSTER.close();
+        if (SHARED_CLUSTER == null)
+            return;
+
+        // stop Accord progress logs first to avoid wasted work / log spam on shutdown
+        stopProgressLogs(SHARED_CLUSTER);
+        SHARED_CLUSTER.close();
+    }
+
+    protected static void stopProgressLogs(Cluster cluster)
+    {
+        for (IInvokableInstance instance : cluster)
+        {
+            if (instance.isShutdown())
+                continue;
+
+            try
+            {
+                instance.runOnInstance(() -> {
+                    if (AccordService.isStarted())
+                        AccordService.instance().node().commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().stop());
+                });
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Could not stop the progress log before closing the cluster", t);
+            }
+        }
     }
 
     @Before
@@ -170,7 +195,12 @@ public abstract class AccordTestBase extends TestBaseImpl
     {
         SHARED_CLUSTER.filters().reset();
         for (IInvokableInstance instance : SHARED_CLUSTER)
-            instance.runOnInstance(() -> AccordService.instance().node().commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start()));
+        {
+            instance.runOnInstance(() -> {
+                if (AccordService.isStarted())
+                    AccordService.instance().node().commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start());
+            });
+        }
 
         truncateSystemTables();
 
