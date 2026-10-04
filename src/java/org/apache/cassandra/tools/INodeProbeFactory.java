@@ -32,11 +32,11 @@ class NodeProbeFactory implements INodeProbeFactory
 
     public NodeProbe create(String host, int port) throws IOException
     {
-        return new NodeProbe(host, port);
+        return new NodeProbe(new RemoteJmxMBeanAccessor(host, port));
     }
 
     public NodeProbe create(String host, int port, String username, String password) throws IOException
     {
-        return new NodeProbe(host, port, username, password);
+        return new NodeProbe(new RemoteJmxMBeanAccessor(host, port, username, password));
     }
 }

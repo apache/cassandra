@@ -21,17 +21,16 @@ package org.apache.cassandra.tools.nodetool;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.tools.ToolRunner.ToolResult;
-import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Tests for {@code nodetool setcolumnindexsize} and {@code nodetool getcolumnindexsize}.
  */
-public class SetGetColumnIndexSizeTest extends CQLTester
+public class SetGetColumnIndexSizeTest extends CQLNodetoolProtocolTester
 {
     @BeforeClass
     public static void setup() throws Exception
@@ -83,7 +82,7 @@ public class SetGetColumnIndexSizeTest extends CQLTester
         assertSetInvalidColumnIndexSize("value", "Invalid value for positional parameter at index 0 (column_index_size): 'value' is not an int", 1);
     }
 
-    private static void assertSetGetValidColumnIndexSize(int columnIndexSizeInKB)
+    private void assertSetGetValidColumnIndexSize(int columnIndexSizeInKB)
     {
         ToolResult tool = invokeNodetool("setcolumnindexsize", String.valueOf(columnIndexSizeInKB));
         tool.assertOnCleanExit();
@@ -94,7 +93,7 @@ public class SetGetColumnIndexSizeTest extends CQLTester
         assertThat(StorageService.instance.getColumnIndexSizeInKiB()).isEqualTo(columnIndexSizeInKB);
     }
 
-    private static void assertSetInvalidColumnIndexSize(String columnIndexSizeInKB, String expectedErrorMessage, int expectedErrorCode)
+    private void assertSetInvalidColumnIndexSize(String columnIndexSizeInKB, String expectedErrorMessage, int expectedErrorCode)
     {
         ToolResult tool = columnIndexSizeInKB == null ? invokeNodetool("setcolumnindexsize")
                                              : invokeNodetool("setcolumnindexsize", columnIndexSizeInKB);
@@ -102,7 +101,7 @@ public class SetGetColumnIndexSizeTest extends CQLTester
         assertThat(expectedErrorCode == 1 ? tool.getStdout() : tool.getStderr()).contains(expectedErrorMessage);
     }
 
-    private static void assertGetThroughput(int expected)
+    private void assertGetThroughput(int expected)
     {
         ToolResult tool = invokeNodetool("getcolumnindexsize");
         tool.assertOnCleanExit();

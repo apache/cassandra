@@ -19,21 +19,17 @@ package org.apache.cassandra.tools;
 
 import java.io.IOException;
 import java.io.PrintStream;
-import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
 import java.lang.management.RuntimeMXBean;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.rmi.ConnectException;
-import java.rmi.server.RMIClientSocketFactory;
-import java.rmi.server.RMISocketFactory;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -44,26 +40,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nullable;
-import javax.management.AttributeNotFoundException;
 import javax.management.InstanceNotFoundException;
-import javax.management.IntrospectionException;
-import javax.management.JMX;
-import javax.management.MBeanAttributeInfo;
-import javax.management.MBeanException;
-import javax.management.MBeanServerConnection;
 import javax.management.MalformedObjectNameException;
-import javax.management.ObjectName;
-import javax.management.ReflectionException;
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
-import javax.management.remote.JMXConnector;
-import javax.management.remote.JMXConnectorFactory;
-import javax.management.remote.JMXServiceURL;
-import javax.rmi.ssl.SslRMIClientSocketFactory;
 
 import com.google.common.base.Function;
 import com.google.common.base.Strings;
+import com.google.common.base.Throwables;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
@@ -72,43 +57,29 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 
-import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.audit.AuditLogManagerMBean;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.audit.AuditLogOptionsCompositeData;
-import org.apache.cassandra.auth.AuthCache;
 import org.apache.cassandra.auth.AuthCacheMBean;
-import org.apache.cassandra.auth.CIDRGroupsMappingManager;
 import org.apache.cassandra.auth.CIDRGroupsMappingManagerMBean;
-import org.apache.cassandra.auth.CIDRPermissionsManager;
 import org.apache.cassandra.auth.CIDRPermissionsManagerMBean;
-import org.apache.cassandra.auth.NetworkPermissionsCache;
 import org.apache.cassandra.auth.NetworkPermissionsCacheMBean;
 import org.apache.cassandra.auth.PasswordAuthenticator;
-import org.apache.cassandra.auth.PermissionsCache;
 import org.apache.cassandra.auth.PermissionsCacheMBean;
-import org.apache.cassandra.auth.RolesCache;
 import org.apache.cassandra.auth.RolesCacheMBean;
 import org.apache.cassandra.auth.jmx.AuthorizationProxy;
-import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.batchlog.BatchlogManagerMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
-import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData;
 import org.apache.cassandra.db.compression.CompressionDictionaryManagerMBean;
 import org.apache.cassandra.db.compression.TrainingState;
-import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.guardrails.GuardrailsMBean;
-import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTable;
 import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTableMBean;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
-import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.FailureDetectorMBean;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.GossiperMBean;
-import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.hints.HintsServiceMBean;
 import org.apache.cassandra.index.sai.metrics.IndexGroupMetrics;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
@@ -116,61 +87,73 @@ import org.apache.cassandra.index.sai.metrics.TableStateMetrics;
 import org.apache.cassandra.locator.DynamicEndpointSnitchMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.locator.LocationInfoMBean;
-import org.apache.cassandra.metrics.CIDRAuthorizerMetrics;
+import org.apache.cassandra.management.CommandInvokerService;
+import org.apache.cassandra.management.MBeanAccessor;
 import org.apache.cassandra.metrics.CQLMetrics;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
-import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.profiler.AsyncProfilerMBean;
 import org.apache.cassandra.service.ActiveRepairServiceMBean;
-import org.apache.cassandra.service.AsyncProfilerService;
-import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.AutoRepairServiceMBean;
-import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.CacheServiceMBean;
-import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.service.GCInspectorMXBean;
-import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageProxyMBean;
 import org.apache.cassandra.service.StorageServiceMBean;
-import org.apache.cassandra.service.accord.AccordOperations;
 import org.apache.cassandra.service.accord.AccordOperationsMBean;
 import org.apache.cassandra.service.snapshot.SnapshotManagerMBean;
 import org.apache.cassandra.streaming.StreamManagerMBean;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
-import org.apache.cassandra.tcm.CMSOperations;
 import org.apache.cassandra.tcm.CMSOperationsMBean;
 import org.apache.cassandra.tools.RepairRunner.RepairCmd;
 import org.apache.cassandra.tools.nodetool.GetTimeout;
 import org.apache.cassandra.utils.NativeLibrary;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.NODETOOL_JMX_NOTIFICATION_POLL_INTERVAL_SECONDS;
-import static org.apache.cassandra.config.CassandraRelevantProperties.SSL_ENABLE;
-
 /**
- * JMX client operations for Cassandra.
+ * A client wrapper (or Receiver in the command pattern) for performing administrative
+ * and monitoring operations on a Cassandra node.
+ * <p>
+ * NodeProbe looks up MBeans through an {@link MBeanAccessor} and wraps them in methods for compaction,
+ * repair, snapshots and cluster management. Command-line tools such as {@code nodetool} use it to run
+ * administrative commands against a remote or local node: remote nodes through
+ * {@link RemoteJmxMBeanAccessor}, the local node through an in-process accessor.
+ *
+ * <h2>Execution modes</h2>
+ * <h3>Client-side execution (up to 5.x)</h3>
+ * <p>
+ * When used with {@link RemoteJmxMBeanAccessor}, NodeProbe connects to a remote Cassandra node via JMX:
+ * <pre>{@code
+ * MBeanAccessor accessor = new RemoteJmxMBeanAccessor("localhost", 7199);
+ * try (NodeProbe probe = new NodeProbe(accessor)) {
+ *     probe.forceKeyspaceCleanup(System.out, 1, "mykeyspace");
+ * }
+ * }</pre>
+ *
+ * <h3>Server-side execution (CEP-38)</h3>
+ * <p>
+ * As part of <a href="https://cwiki.apache.org/confluence/display/CASSANDRA/CEP-38">CEP-38</a>, NodeProbe also
+ * runs in-process for server-side command execution through the management API. There it uses a local
+ * {@link MBeanAccessor} that reads the platform MBean server directly, so there is no JMX connection, no RMI
+ * hop and no serialization of arguments or results. The API is the same in both modes, so
+ * {@link CommandInvokerService} runs the same commands over JMX and over the native protocol.
+ *
+ * <h2>Thread safety</h2>
+ * <p>NodeProbe instances are not thread-safe. Each thread should use its own instance, or external
+ * synchronization must be provided when sharing instances across threads.
+ *
+ * <h2>Lazy initialization</h2>
+ * <p>MBean proxies are initialized lazily on first access, so a caller that touches a few MBeans does not
+ * pay for creating the rest.
+ *
+ * @see MBeanAccessor
+ * @see RemoteJmxMBeanAccessor
+ * @see CommandInvokerService
  */
 public class NodeProbe implements AutoCloseable
 {
-    private static final String fmtUrl = "service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi";
-    private static final String ssObjName = "org.apache.cassandra.db:type=StorageService";
-    public static final int defaultPort = 7199;
-
-    static long JMX_NOTIFICATION_POLL_INTERVAL_SECONDS = NODETOOL_JMX_NOTIFICATION_POLL_INTERVAL_SECONDS.getLong();
-
-    final String host;
-    final int port;
-    private String username;
-    private String password;
-
-
-    protected JMXConnector jmxc;
-    protected MBeanServerConnection mbeanServerConn;
     protected CompactionManagerMBean compactionProxy;
     protected StorageServiceMBean ssProxy;
     protected SnapshotManagerMBean snapshotProxy;
@@ -199,190 +182,67 @@ public class NodeProbe implements AutoCloseable
     protected AutoRepairServiceMBean autoRepairProxy;
     protected AsyncProfilerMBean asyncProfilerProxy;
     protected GuardrailsMBean grProxy;
-    protected volatile Output output;
-
     protected CIDRFilteringMetricsTableMBean cfmProxy;
 
-    /**
-     * Creates a NodeProbe using the specified JMX host, port, username, and password.
-     *
-     * @param host hostname or IP address of the JMX agent
-     * @param port TCP port of the remote JMX agent
-     * @throws IOException on connection failures
-     */
-    public NodeProbe(String host, int port, String username, String password) throws IOException
-    {
-        assert username != null && !username.isEmpty() && password != null && !password.isEmpty()
-               : "neither username nor password can be blank";
+    private final MBeanAccessor mBeanAccessor;
+    protected volatile Output output;
 
-        this.host = host;
-        this.port = port;
-        this.username = username;
-        this.password = password;
-        this.output = Output.CONSOLE;
-        connect();
+    /**
+     * Creates a NodeProbe using the specified MBeanAccessor.
+     * @param mBeanAccessor the provider to use for obtaining MBeans.
+     */
+    public NodeProbe(MBeanAccessor mBeanAccessor)
+    {
+        this(mBeanAccessor, Output.CONSOLE);
     }
 
-    /**
-     * Creates a NodeProbe using the specified JMX host and port.
-     *
-     * @param host hostname or IP address of the JMX agent
-     * @param port TCP port of the remote JMX agent
-     * @throws IOException on connection failures
-     */
-    public NodeProbe(String host, int port) throws IOException
+    public NodeProbe(MBeanAccessor mBeanAccessor, Output output)
     {
-        this.host = host;
-        this.port = port;
-        this.output = Output.CONSOLE;
-        connect();
+        this.mBeanAccessor = mBeanAccessor;
+        this.output = output;
+        lazyInitMBeans();
+    }
+
+    public void close() throws Exception
+    {
+        mBeanAccessor.close();
     }
 
     /**
-     * Creates a NodeProbe using the specified JMX host and default port.
-     *
-     * @param host hostname or IP address of the JMX agent
-     * @throws IOException on connection failures
+     * Initialize all MBeans lazily, so that tests that don't need them
+     * don't pay the cost of creating all the proxies.
      */
-    public NodeProbe(String host) throws IOException
+    private void lazyInitMBeans()
     {
-        this.host = host;
-        this.port = defaultPort;
-        this.output = Output.CONSOLE;
-        connect();
-    }
-
-    protected NodeProbe()
-    {
-        // this constructor is only used for extensions to rewrite their own connect method
-        this.host = "";
-        this.port = 0;
-        this.output = Output.CONSOLE;
-    }
-
-    /**
-     * Create a connection to the JMX agent and setup the M[X]Bean proxies.
-     *
-     * @throws IOException on connection failures
-     */
-    protected void connect() throws IOException
-    {
-        String host = this.host;
-        if (host.contains(":"))
-        {
-            // Use square brackets to surround IPv6 addresses to fix CASSANDRA-7669 and CASSANDRA-17581
-            host = "[" + host + "]";
-        }
-        JMXServiceURL jmxUrl = new JMXServiceURL(String.format(fmtUrl, host, port));
-        Map<String, Object> env = new HashMap<String, Object>();
-        if (username != null)
-        {
-            String[] creds = { username, password };
-            env.put(JMXConnector.CREDENTIALS, creds);
-        }
-
-        env.put("com.sun.jndi.rmi.factory.socket", getRMIClientSocketFactory());
-
-        jmxc = JMXConnectorFactory.connect(jmxUrl, env);
-        mbeanServerConn = jmxc.getMBeanServerConnection();
-
-        try
-        {
-            ObjectName name = new ObjectName(ssObjName);
-            ssProxy = JMX.newMBeanProxy(mbeanServerConn, name, StorageServiceMBean.class);
-            name = new ObjectName(SnapshotManagerMBean.MBEAN_NAME);
-            snapshotProxy = JMX.newMBeanProxy(mbeanServerConn, name, SnapshotManagerMBean.class);
-            name = new ObjectName(CMSOperations.MBEAN_OBJECT_NAME);
-            cmsProxy = JMX.newMBeanProxy(mbeanServerConn, name, CMSOperationsMBean.class);
-            name = new ObjectName(AccordOperations.MBEAN_OBJECT_NAME);
-            accordProxy = JMX.newMBeanProxy(mbeanServerConn, name, AccordOperationsMBean.class);
-            name = new ObjectName(MessagingService.MBEAN_NAME);
-            msProxy = JMX.newMBeanProxy(mbeanServerConn, name, MessagingServiceMBean.class);
-            name = new ObjectName(StreamManagerMBean.OBJECT_NAME);
-            streamProxy = JMX.newMBeanProxy(mbeanServerConn, name, StreamManagerMBean.class);
-            name = new ObjectName(CompactionManager.MBEAN_OBJECT_NAME);
-            compactionProxy = JMX.newMBeanProxy(mbeanServerConn, name, CompactionManagerMBean.class);
-            name = new ObjectName(FailureDetector.MBEAN_NAME);
-            fdProxy = JMX.newMBeanProxy(mbeanServerConn, name, FailureDetectorMBean.class);
-            name = new ObjectName(CacheService.MBEAN_NAME);
-            cacheService = JMX.newMBeanProxy(mbeanServerConn, name, CacheServiceMBean.class);
-            name = new ObjectName(StorageProxy.MBEAN_NAME);
-            spProxy = JMX.newMBeanProxy(mbeanServerConn, name, StorageProxyMBean.class);
-            name = new ObjectName(HintsService.MBEAN_NAME);
-            hsProxy = JMX.newMBeanProxy(mbeanServerConn, name, HintsServiceMBean.class);
-            name = new ObjectName(GCInspector.MBEAN_NAME);
-            gcProxy = JMX.newMBeanProxy(mbeanServerConn, name, GCInspectorMXBean.class);
-            name = new ObjectName(Gossiper.MBEAN_NAME);
-            gossProxy = JMX.newMBeanProxy(mbeanServerConn, name, GossiperMBean.class);
-            name = new ObjectName(BatchlogManager.MBEAN_NAME);
-            bmProxy = JMX.newMBeanProxy(mbeanServerConn, name, BatchlogManagerMBean.class);
-            name = new ObjectName(ActiveRepairServiceMBean.MBEAN_NAME);
-            arsProxy = JMX.newMBeanProxy(mbeanServerConn, name, ActiveRepairServiceMBean.class);
-            name = new ObjectName(AuditLogManager.MBEAN_NAME);
-            almProxy = JMX.newMBeanProxy(mbeanServerConn, name, AuditLogManagerMBean.class);
-            name = new ObjectName(AuthCache.MBEAN_NAME_BASE + PasswordAuthenticator.CredentialsCacheMBean.CACHE_NAME);
-            ccProxy = JMX.newMBeanProxy(mbeanServerConn, name, PasswordAuthenticator.CredentialsCacheMBean.class);
-            name = new ObjectName(AuthCache.MBEAN_NAME_BASE + AuthorizationProxy.JmxPermissionsCacheMBean.CACHE_NAME);
-            jpcProxy = JMX.newMBeanProxy(mbeanServerConn, name, AuthorizationProxy.JmxPermissionsCacheMBean.class);
-
-            name = new ObjectName(AuthCache.MBEAN_NAME_BASE + NetworkPermissionsCache.CACHE_NAME);
-            npcProxy = JMX.newMBeanProxy(mbeanServerConn, name, NetworkPermissionsCacheMBean.class);
-
-            name = new ObjectName(AuthCache.MBEAN_NAME_BASE + PermissionsCache.CACHE_NAME);
-            pcProxy = JMX.newMBeanProxy(mbeanServerConn, name, PermissionsCacheMBean.class);
-
-            name = new ObjectName(AuthCache.MBEAN_NAME_BASE + RolesCache.CACHE_NAME);
-            rcProxy = JMX.newMBeanProxy(mbeanServerConn, name, RolesCacheMBean.class);
-
-            name = new ObjectName(CIDRPermissionsManager.MBEAN_NAME);
-            cpbProxy = JMX.newMBeanProxy(mbeanServerConn, name, CIDRPermissionsManagerMBean.class);
-
-            name = new ObjectName(CIDRGroupsMappingManager.MBEAN_NAME);
-            cmbProxy = JMX.newMBeanProxy(mbeanServerConn, name, CIDRGroupsMappingManagerMBean.class);
-
-            name = new ObjectName(CIDRFilteringMetricsTable.MBEAN_NAME);
-            cfmProxy = JMX.newMBeanProxy(mbeanServerConn, name, CIDRFilteringMetricsTableMBean.class);
-
-            name = new ObjectName(AutoRepairService.MBEAN_NAME);
-            autoRepairProxy = JMX.newMBeanProxy(mbeanServerConn, name, AutoRepairServiceMBean.class);
-
-            name = new ObjectName(AsyncProfilerService.MBEAN_NAME);
-            asyncProfilerProxy = JMX.newMBeanProxy(mbeanServerConn, name, AsyncProfilerMBean.class);
-
-            name = new ObjectName(Guardrails.MBEAN_NAME);
-            grProxy = JMX.newMBeanProxy(mbeanServerConn, name, GuardrailsMBean.class);
-        }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException(
-                    "Invalid ObjectName? Please report this as a bug.", e);
-        }
-
-        memProxy = ManagementFactory.newPlatformMXBeanProxy(mbeanServerConn,
-                ManagementFactory.MEMORY_MXBEAN_NAME, MemoryMXBean.class);
-        runtimeProxy = ManagementFactory.newPlatformMXBeanProxy(
-                mbeanServerConn, ManagementFactory.RUNTIME_MXBEAN_NAME, RuntimeMXBean.class);
-    }
-
-    private RMIClientSocketFactory getRMIClientSocketFactory()
-    {
-        if (SSL_ENABLE.getBoolean())
-            return new SslRMIClientSocketFactory();
-        else
-            return RMISocketFactory.getDefaultSocketFactory();
-    }
-
-    public void close() throws IOException
-    {
-        try
-        {
-            jmxc.close();
-        }
-        catch (ConnectException e)
-        {
-            // result of 'stopdaemon' command - i.e. if close() call fails, the daemon is shutdown
-            System.out.println("Cassandra has shutdown.");
-        }
+        ssProxy = LazyMBeanProxy.create(mBeanAccessor, StorageServiceMBean.class);
+        compactionProxy = LazyMBeanProxy.create(mBeanAccessor, CompactionManagerMBean.class);
+        snapshotProxy = LazyMBeanProxy.create(mBeanAccessor, SnapshotManagerMBean.class);
+        cmsProxy = LazyMBeanProxy.create(mBeanAccessor, CMSOperationsMBean.class);
+        accordProxy = LazyMBeanProxy.create(mBeanAccessor, AccordOperationsMBean.class);
+        gossProxy = LazyMBeanProxy.create(mBeanAccessor, GossiperMBean.class);
+        memProxy = LazyMBeanProxy.create(mBeanAccessor, MemoryMXBean.class);
+        gcProxy = LazyMBeanProxy.create(mBeanAccessor, GCInspectorMXBean.class);
+        runtimeProxy = LazyMBeanProxy.create(mBeanAccessor, RuntimeMXBean.class);
+        streamProxy = LazyMBeanProxy.create(mBeanAccessor, StreamManagerMBean.class);
+        msProxy = LazyMBeanProxy.create(mBeanAccessor, MessagingServiceMBean.class);
+        fdProxy = LazyMBeanProxy.create(mBeanAccessor, FailureDetectorMBean.class);
+        cacheService = LazyMBeanProxy.create(mBeanAccessor, CacheServiceMBean.class);
+        spProxy = LazyMBeanProxy.create(mBeanAccessor, StorageProxyMBean.class);
+        hsProxy = LazyMBeanProxy.create(mBeanAccessor, HintsServiceMBean.class);
+        bmProxy = LazyMBeanProxy.create(mBeanAccessor, BatchlogManagerMBean.class);
+        arsProxy = LazyMBeanProxy.create(mBeanAccessor, ActiveRepairServiceMBean.class);
+        almProxy = LazyMBeanProxy.create(mBeanAccessor, AuditLogManagerMBean.class);
+        ccProxy = LazyMBeanProxy.create(mBeanAccessor, PasswordAuthenticator.CredentialsCacheMBean.class);
+        jpcProxy = LazyMBeanProxy.create(mBeanAccessor, AuthorizationProxy.JmxPermissionsCacheMBean.class);
+        npcProxy = LazyMBeanProxy.create(mBeanAccessor, NetworkPermissionsCacheMBean.class);
+        cpbProxy = LazyMBeanProxy.create(mBeanAccessor, CIDRPermissionsManagerMBean.class);
+        cmbProxy = LazyMBeanProxy.create(mBeanAccessor, CIDRGroupsMappingManagerMBean.class);
+        pcProxy = LazyMBeanProxy.create(mBeanAccessor, PermissionsCacheMBean.class);
+        rcProxy = LazyMBeanProxy.create(mBeanAccessor, RolesCacheMBean.class);
+        autoRepairProxy = LazyMBeanProxy.create(mBeanAccessor, AutoRepairServiceMBean.class);
+        grProxy = LazyMBeanProxy.create(mBeanAccessor, GuardrailsMBean.class);
+        cfmProxy = LazyMBeanProxy.create(mBeanAccessor, CIDRFilteringMetricsTableMBean.class);
+        asyncProfilerProxy = LazyMBeanProxy.create(mBeanAccessor, AsyncProfilerMBean.class);
     }
 
     public void setOutput(Output output)
@@ -582,7 +442,7 @@ public class NodeProbe implements AutoCloseable
     {
         List<RepairRunner> runners = new ArrayList<>(cmds.size());
         for (RepairCmd cmd : cmds)
-            runners.add(new RepairRunner(out, jmxc, ssProxy, cmd));
+            runners.add(new RepairRunner(out, mBeanAccessor, ssProxy, cmd));
 
         try
         {
@@ -832,23 +692,14 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.effectiveOwnershipWithPort(keyspace);
     }
 
-    public MBeanServerConnection getMbeanServerConn()
+    public MBeanAccessor getMBeanAccessor()
     {
-        return mbeanServerConn;
+        return mBeanAccessor;
     }
 
     public CacheServiceMBean getCacheServiceMBean()
     {
-        String cachePath = "org.apache.cassandra.db:type=Caches";
-
-        try
-        {
-            return JMX.newMBeanProxy(mbeanServerConn, new ObjectName(cachePath), CacheServiceMBean.class);
-        }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return mBeanAccessor.findMBean(CacheServiceMBean.class);
     }
 
     public double[] getAndResetGCStats()
@@ -860,7 +711,7 @@ public class NodeProbe implements AutoCloseable
     {
         try
         {
-            return new ColumnFamilyStoreMBeanIterator(mbeanServerConn);
+            return new ColumnFamilyStoreMBeanIterator(mBeanAccessor);
         }
         catch (MalformedObjectNameException e)
         {
@@ -1274,67 +1125,30 @@ public class NodeProbe implements AutoCloseable
 
     public EndpointSnitchInfoMBean getEndpointSnitchInfoProxy()
     {
-        try
-        {
-            return JMX.newMBeanProxy(mbeanServerConn, new ObjectName("org.apache.cassandra.db:type=EndpointSnitchInfo"), EndpointSnitchInfoMBean.class);
-        }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return mBeanAccessor.findMBean(EndpointSnitchInfoMBean.class);
     }
 
     public DynamicEndpointSnitchMBean getDynamicEndpointSnitchInfoProxy()
     {
-        try
-        {
-            return JMX.newMBeanProxy(mbeanServerConn, new ObjectName("org.apache.cassandra.db:type=DynamicEndpointSnitch"), DynamicEndpointSnitchMBean.class);
-        }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return mBeanAccessor.findMBean(DynamicEndpointSnitchMBean.class);
     }
 
     public LocationInfoMBean getLocationInfoProxy()
     {
-        try
-        {
-            return JMX.newMBeanProxy(mbeanServerConn, new ObjectName("org.apache.cassandra.db:type=LocationInfo"), LocationInfoMBean.class);
-        }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return mBeanAccessor.findMBean(LocationInfoMBean.class);
     }
 
     public ColumnFamilyStoreMBean getCfsProxy(String ks, String cf)
     {
-        ColumnFamilyStoreMBean cfsProxy = null;
         try
         {
             String type = cf.contains(".") ? "IndexColumnFamilies" : "ColumnFamilies";
-            Set<ObjectName> beans = mbeanServerConn.queryNames(
-                    new ObjectName("org.apache.cassandra.db:type=*" + type +",keyspace=" + ks + ",columnfamily=" + cf), null);
-
-            if (beans.isEmpty())
-                throw new MalformedObjectNameException("couldn't find that bean");
-            assert beans.size() == 1;
-            for (ObjectName bean : beans)
-                cfsProxy = JMX.newMBeanProxy(mbeanServerConn, bean, ColumnFamilyStoreMBean.class);
+            return mBeanAccessor.findColumnFamily(type, ks, cf);
         }
-        catch (MalformedObjectNameException mone)
+        catch (Exception e)
         {
-            System.err.println("ColumnFamilyStore for " + ks + "/" + cf + " not found.");
-            System.exit(1);
+            throw new IllegalArgumentException("ColumnFamilyStore for " + ks + '/' + cf + " not found: " + e.getMessage(), e);
         }
-        catch (IOException e)
-        {
-            System.err.println("ColumnFamilyStore for " + ks + "/" + cf + " not found: " + e);
-            System.exit(1);
-        }
-
-        return cfsProxy;
     }
 
     public StorageProxyMBean getSpProxy()
@@ -1876,39 +1690,23 @@ public class NodeProbe implements AutoCloseable
      */
     public Object getCacheMetric(String cacheType, String metricName)
     {
-        try
+        switch (metricName)
         {
-            switch(metricName)
-            {
-                case "Capacity":
-                case "Entries":
-                case "HitRate":
-                case "Size":
-                    return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=" + metricName),
-                            CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
-                case "Requests":
-                case "Hits":
-                case "Misses":
-                    return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=" + metricName),
-                            CassandraMetricsRegistry.JmxMeterMBean.class).getCount();
-                case "MissLatency":
-                    return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=" + metricName),
-                            CassandraMetricsRegistry.JmxTimerMBean.class).getMean();
-                case "MissLatencyUnit":
-                    return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=MissLatency"),
-                            CassandraMetricsRegistry.JmxTimerMBean.class).getDurationUnit();
-                default:
-                    throw new RuntimeException("Unknown Cache metric name " + metricName);
-
-            }
-        }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException(e);
+            case "Capacity":
+            case "Entries":
+            case "HitRate":
+            case "Size":
+                return mBeanAccessor.findMBeanGauge(MBeanAccessor.Props.scoped("Cache", cacheType, metricName)).getValue();
+            case "Requests":
+            case "Hits":
+            case "Misses":
+                return mBeanAccessor.findMBeanMeter(MBeanAccessor.Props.scoped("Cache", cacheType, metricName)).getCount();
+            case "MissLatency":
+                return mBeanAccessor.findMBeanTimer(MBeanAccessor.Props.scoped("Cache", cacheType, metricName)).getMean();
+            case "MissLatencyUnit":
+                return mBeanAccessor.findMBeanTimer(MBeanAccessor.Props.scoped("Cache", cacheType, "MissLatency")).getDurationUnit();
+            default:
+                throw new RuntimeException("Unknown Cache metric name " + metricName);
         }
     }
 
@@ -1920,162 +1718,93 @@ public class NodeProbe implements AutoCloseable
      */
     public Object getBufferPoolMetric(String poolType, String metricName)
     {
-        try
+        switch (metricName)
         {
-            switch (metricName)
-            {
-                case "UsedSize":
-                case "OverflowSize":
-                case "Capacity":
-                case "Size":
-                    return JMX.newMBeanProxy(mbeanServerConn,
-                           new ObjectName("org.apache.cassandra.metrics:type=BufferPool,scope=" + poolType + ",name=" + metricName),
-                           CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
-                case "Hits":
-                case "Misses":
-                    return JMX.newMBeanProxy(mbeanServerConn,
-                    new ObjectName("org.apache.cassandra.metrics:type=BufferPool,scope=" + poolType + ",name=" + metricName),
-                    CassandraMetricsRegistry.JmxMeterMBean.class).getCount();
-                default:
-                    throw new RuntimeException("Unknown BufferPool metric name " + metricName);
-            }
-        }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException(e);
+            case "UsedSize":
+            case "OverflowSize":
+            case "Capacity":
+            case "Size":
+                return mBeanAccessor.findMBeanGauge(MBeanAccessor.Props.scoped("BufferPool", poolType, metricName)).getValue();
+            case "Hits":
+            case "Misses":
+                return mBeanAccessor.findMBeanMeter(MBeanAccessor.Props.scoped("BufferPool", poolType, metricName)).getCount();
+            default:
+                throw new RuntimeException("Unknown BufferPool metric name " + metricName);
         }
     }
 
     /**
-     * Retrieve a CQL metric value by name. Works generically for any metric registered under
-     * {@code org.apache.cassandra.metrics:type=CQL,name=<metricName>} by inspecting the MBean
-     * attributes at runtime, without requiring knowledge of the underlying metric type.
+     * Retrieve a CQL metric value by name, for metrics registered under
+     * {@code org.apache.cassandra.metrics:type=CQL,name=<metricName>}.
+     * @param metricName one of the metric names registered by {@link CQLMetrics}
      */
     public Object getCQLMetric(String metricName)
     {
-        try
+        switch (metricName)
         {
-            ObjectName objectName = new ObjectName(DefaultNameFactory.GROUP_NAME + ":type=" + CQLMetrics.TYPE_NAME + ",name=" + metricName);
-            for (MBeanAttributeInfo attr : mbeanServerConn.getMBeanInfo(objectName).getAttributes())
-            {
-                String name = attr.getName();
-                if ("Value".equals(name) || "Count".equals(name))
-                    return mbeanServerConn.getAttribute(objectName, name);
-            }
-            throw new RuntimeException("No readable value attribute for CQL metric: " + metricName);
-        }
-        catch (MalformedObjectNameException | InstanceNotFoundException | IntrospectionException |
-               ReflectionException | AttributeNotFoundException | MBeanException | IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static Multimap<String, String> getJmxThreadPools(MBeanServerConnection mbeanServerConn)
-    {
-        try
-        {
-            Multimap<String, String> threadPools = HashMultimap.create();
-
-            Set<ObjectName> threadPoolObjectNames = mbeanServerConn.queryNames(
-                    new ObjectName("org.apache.cassandra.metrics:type=ThreadPools,*"),
-                    null);
-
-            for (ObjectName oName : threadPoolObjectNames)
-            {
-                threadPools.put(oName.getKeyProperty("path"), oName.getKeyProperty("scope"));
-            }
-
-            return threadPools;
-        }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException("Bad query to JMX server: ", e);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException("Error getting threadpool names from JMX", e);
+            case "PreparedStatementsCount":
+            case "PreparedStatementsRatio":
+            case "PreparedStatementsCacheSize":
+            case "PreparedStatementsCacheCapacity":
+                return mBeanAccessor.findMBeanGauge(MBeanAccessor.Props.metric(CQLMetrics.TYPE_NAME, metricName)).getValue();
+            case "RegularStatementsExecuted":
+            case "PreparedStatementsExecuted":
+            case "PreparedStatementsEvicted":
+            case "UseStatementsExecuted":
+                return mBeanAccessor.findMBeanCounter(MBeanAccessor.Props.metric(CQLMetrics.TYPE_NAME, metricName)).getCount();
+            default:
+                throw new RuntimeException("Unknown CQL metric name " + metricName);
         }
     }
 
     public Object getThreadPoolMetric(String pathName, String poolName, String metricName)
     {
-      String name = String.format("org.apache.cassandra.metrics:type=ThreadPools,path=%s,scope=%s,name=%s",
-              pathName, poolName, metricName);
+        if (!mBeanAccessor.isMBeanMetricRegistered(MBeanAccessor.Props.threadPool("ThreadPools", pathName, poolName, metricName)))
+        {
+            return "N/A";
+        }
 
-      try
-      {
-          ObjectName oName = new ObjectName(name);
-          if (!mbeanServerConn.isRegistered(oName))
-          {
-              return "N/A";
-          }
-
-          switch (metricName)
-          {
-              case ThreadPoolMetrics.ACTIVE_TASKS:
-              case ThreadPoolMetrics.PENDING_TASKS:
-              case ThreadPoolMetrics.COMPLETED_TASKS:
-              case ThreadPoolMetrics.CORE_POOL_SIZE:
-              case ThreadPoolMetrics.MAX_POOL_SIZE:
-              case ThreadPoolMetrics.MAX_TASKS_QUEUED:
-                  return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
-              case ThreadPoolMetrics.TOTAL_BLOCKED_TASKS:
-              case ThreadPoolMetrics.CURRENTLY_BLOCKED_TASKS:
-                  return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
-              default:
-                  throw new AssertionError("Unknown ThreadPools metric name " + metricName);
-          }
-      }
-      catch (Exception e)
-      {
-          throw new RuntimeException("Error reading: " + name, e);
-      }
+        switch (metricName)
+        {
+            case ThreadPoolMetrics.ACTIVE_TASKS:
+            case ThreadPoolMetrics.PENDING_TASKS:
+            case ThreadPoolMetrics.COMPLETED_TASKS:
+            case ThreadPoolMetrics.CORE_POOL_SIZE:
+            case ThreadPoolMetrics.MAX_POOL_SIZE:
+            case ThreadPoolMetrics.MAX_TASKS_QUEUED:
+                return mBeanAccessor.findMBeanGauge(MBeanAccessor.Props.threadPool("ThreadPools", pathName, poolName, metricName)).getValue();
+            case ThreadPoolMetrics.TOTAL_BLOCKED_TASKS:
+            case ThreadPoolMetrics.CURRENTLY_BLOCKED_TASKS:
+                return mBeanAccessor.findMBeanCounter(MBeanAccessor.Props.threadPool("ThreadPools", pathName, poolName, metricName)).getCount();
+            default:
+                throw new RuntimeException("Unknown ThreadPools metric name " + metricName);
+        }
     }
 
     public Object getSaiMetric(String ks, String cf, String metricName)
     {
-        try
-        {
-            String scope = getSaiMetricScope(metricName);
-            String objectNameStr = String.format("org.apache.cassandra.metrics:type=StorageAttachedIndex,keyspace=%s,table=%s,scope=%s,name=%s",ks, cf, scope, metricName);
-            ObjectName oName = new ObjectName(objectNameStr);
+        String scope = getSaiMetricScope(metricName);
+        MBeanAccessor.Props props = MBeanAccessor.Props.sai("StorageAttachedIndex", ks, cf, scope, metricName);
+        if (!mBeanAccessor.isMBeanMetricRegistered(props))
+            return null;
 
-            Set<ObjectName> matchingMBeans = mbeanServerConn.queryNames(oName, null);
-            if (matchingMBeans.isEmpty())
-                return null;
-
-            return getSaiMetricValue(metricName, oName);
-        }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException("Invalid ObjectName format: " + e.getMessage(), e);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException("Error accessing MBean server: " + e.getMessage(), e);
-        }
-    }
-
-    private Object getSaiMetricValue(String metricName, ObjectName oName) throws IOException
-    {
         switch (metricName)
         {
             case "QueryLatency":
-                return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxTimerMBean.class);
+                return mBeanAccessor.findMBeanTimer(props);
             case "PostFilteringReadLatency":
             case "SSTableIndexesHit":
             case "IndexSegmentsHit":
             case "RowsFiltered":
-                return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxHistogramMBean.class);
+                return mBeanAccessor.findMBeanHistogram(props);
             case "DiskUsedBytes":
             case "TotalIndexCount":
             case "TotalQueryableIndexCount":
-                return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
+                return mBeanAccessor.findMBeanGauge(props).getValue();
             case "TotalQueryTimeouts":
-                return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
+                return mBeanAccessor.findMBeanCounter(props).getCount();
             default:
-                throw new IllegalArgumentException("Unknown metric name: " + metricName);
+                throw new RuntimeException("Unknown metric name: " + metricName);
         }
     }
 
@@ -2097,7 +1826,7 @@ public class NodeProbe implements AutoCloseable
             case "TotalQueryableIndexCount":
                 return TableStateMetrics.TABLE_STATE_METRIC_TYPE;
             default:
-                throw new IllegalArgumentException("Unknown metric name: " + metricName);
+                throw new RuntimeException("Unknown metric name: " + metricName);
         }
     }
 
@@ -2105,10 +1834,13 @@ public class NodeProbe implements AutoCloseable
      * Retrieve threadpool paths and names for threadpools with metrics.
      * @return Multimap from path (internal, request, etc.) to name
      */
-    public Multimap<String, String> getThreadPools()
-    {
-        return getJmxThreadPools(mbeanServerConn);
-    }
+        public Multimap<String, String> getThreadPools()
+        {
+            Multimap<String, String> threadPools = HashMultimap.create();
+            for (MBeanAccessor.ThreadPoolInfo info : mBeanAccessor.threadPoolInfos())
+                threadPools.put(info.path(), info.poolName());
+            return threadPools;
+        }
 
     public int getNumberOfTables()
     {
@@ -2123,92 +1855,85 @@ public class NodeProbe implements AutoCloseable
      */
     public Object getColumnFamilyMetric(String ks, String cf, String metricName)
     {
-        try
+        MBeanAccessor.Props props;
+        if (!Strings.isNullOrEmpty(ks) && !Strings.isNullOrEmpty(cf))
         {
-            ObjectName oName = null;
-            if (!Strings.isNullOrEmpty(ks) && !Strings.isNullOrEmpty(cf))
-            {
-                String type = cf.contains(".") ? "IndexTable" : "Table";
-                oName = new ObjectName(String.format("org.apache.cassandra.metrics:type=%s,keyspace=%s,scope=%s,name=%s", type, ks, cf, metricName));
-            }
-            else if (!Strings.isNullOrEmpty(ks))
-            {
-                oName = new ObjectName(String.format("org.apache.cassandra.metrics:type=Keyspace,keyspace=%s,name=%s", ks, metricName));
-            }
-            else
-            {
-                oName = new ObjectName(String.format("org.apache.cassandra.metrics:type=Table,name=%s", metricName));
-            }
-            switch(metricName)
-            {
-                case "BloomFilterDiskSpaceUsed":
-                case "BloomFilterFalsePositives":
-                case "BloomFilterFalseRatio":
-                case "BloomFilterOffHeapMemoryUsed":
-                case "IndexSummaryOffHeapMemoryUsed":
-                case "CompressionDictionariesMemoryUsed":
-                case "CompressionMetadataOffHeapMemoryUsed":
-                case "CompressionRatio":
-                case "EstimatedColumnCountHistogram":
-                case "EstimatedPartitionSizeHistogram":
-                case "EstimatedPartitionCount":
-                case "KeyCacheHitRate":
-                case "LiveSSTableCount":
-                case "MaxSSTableDuration":
-                case "MaxSSTableSize":
-                case "OldVersionSSTableCount":
-                case "MaxPartitionSize":
-                case "MeanPartitionSize":
-                case "MemtableColumnsCount":
-                case "MemtableLiveDataSize":
-                case "MemtableOffHeapSize":
-                case "MinPartitionSize":
-                case "PercentRepaired":
-                case "BytesRepaired":
-                case "BytesUnrepaired":
-                case "BytesPendingRepair":
-                case "RecentBloomFilterFalsePositives":
-                case "RecentBloomFilterFalseRatio":
-                case "SnapshotsSize":
-                    return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
-                case "LiveDiskSpaceUsed":
-                case "MemtableSwitchCount":
-                case "SpeculativeRetries":
-                case "TotalDiskSpaceUsed":
-                case "WriteTotalLatency":
-                case "ReadTotalLatency":
-                case "PendingFlushes":
-                {
-                    // these are gauges for keyspace metrics, not counters
-                    if (!Strings.isNullOrEmpty(ks) &&
-                        Strings.isNullOrEmpty(cf) &&
-                        (metricName.equals("TotalDiskSpaceUsed") ||
-                         metricName.equals("LiveDiskSpaceUsed") ||
-                         metricName.equals("MemtableSwitchCount")))
-                    {
-                        return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
-                    }
-                    else
-                    {
-                        return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
-                    }
-                }
-                case "CoordinatorReadLatency":
-                case "CoordinatorScanLatency":
-                case "ReadLatency":
-                case "WriteLatency":
-                    return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxTimerMBean.class);
-                case "LiveScannedHistogram":
-                case "SSTablesPerReadHistogram":
-                case "TombstoneScannedHistogram":
-                    return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxHistogramMBean.class);
-                default:
-                    throw new RuntimeException("Unknown table metric " + metricName);
-            }
+            String type = cf.contains(".") ? "IndexTable" : "Table";
+            props = MBeanAccessor.Props.columnFamily(type, ks, cf, metricName);
         }
-        catch (MalformedObjectNameException e)
+        else if (!Strings.isNullOrEmpty(ks))
         {
-            throw new RuntimeException(e);
+            props = MBeanAccessor.Props.keyspace("Keyspace", ks, metricName);
+        }
+        else
+        {
+            props = MBeanAccessor.Props.metric("Table", metricName);
+        }
+        switch (metricName)
+        {
+            case "BloomFilterDiskSpaceUsed":
+            case "BloomFilterFalsePositives":
+            case "BloomFilterFalseRatio":
+            case "BloomFilterOffHeapMemoryUsed":
+            case "IndexSummaryOffHeapMemoryUsed":
+            case "CompressionDictionariesMemoryUsed":
+            case "CompressionMetadataOffHeapMemoryUsed":
+            case "CompressionRatio":
+            case "EstimatedColumnCountHistogram":
+            case "EstimatedPartitionSizeHistogram":
+            case "EstimatedPartitionCount":
+            case "KeyCacheHitRate":
+            case "LiveSSTableCount":
+            case "MaxSSTableDuration":
+            case "MaxSSTableSize":
+            case "OldVersionSSTableCount":
+            case "MaxPartitionSize":
+            case "MeanPartitionSize":
+            case "MemtableColumnsCount":
+            case "MemtableLiveDataSize":
+            case "MemtableOffHeapSize":
+            case "MinPartitionSize":
+            case "PercentRepaired":
+            case "BytesRepaired":
+            case "BytesUnrepaired":
+            case "BytesPendingRepair":
+            case "RecentBloomFilterFalsePositives":
+            case "RecentBloomFilterFalseRatio":
+            case "SnapshotsSize":
+                return mBeanAccessor.findMBeanGauge(props).getValue();
+            case "LiveDiskSpaceUsed":
+            case "MemtableSwitchCount":
+            case "SpeculativeRetries":
+            case "TotalDiskSpaceUsed":
+            case "WriteTotalLatency":
+            case "ReadTotalLatency":
+            case "PendingFlushes":
+            {
+                // these are gauges for keyspace metrics, not counters
+                if (!Strings.isNullOrEmpty(ks) &&
+                    Strings.isNullOrEmpty(cf) &&
+                    (metricName.equals("TotalDiskSpaceUsed") ||
+                     metricName.equals("LiveDiskSpaceUsed") ||
+                     metricName.equals("MemtableSwitchCount")))
+                {
+                    return mBeanAccessor.findMBeanGauge(props).getValue();
+                }
+                else
+                {
+                    return mBeanAccessor.findMBeanCounter(props).getCount();
+                }
+            }
+            case "CoordinatorReadLatency":
+            case "CoordinatorScanLatency":
+            case "ReadLatency":
+            case "WriteLatency":
+                return mBeanAccessor.findMBeanTimer(props);
+            case "LiveScannedHistogram":
+            case "SSTablesPerReadHistogram":
+            case "TombstoneScannedHistogram":
+                return mBeanAccessor.findMBeanHistogram(props);
+            default:
+                throw new RuntimeException("Unknown table metric " + metricName);
         }
     }
 
@@ -2218,30 +1943,12 @@ public class NodeProbe implements AutoCloseable
      */
     public CassandraMetricsRegistry.JmxTimerMBean getProxyMetric(String scope)
     {
-        try
-        {
-            return JMX.newMBeanProxy(mbeanServerConn,
-                    new ObjectName("org.apache.cassandra.metrics:type=ClientRequest,scope=" + scope + ",name=Latency"),
-                    CassandraMetricsRegistry.JmxTimerMBean.class);
-        }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return mBeanAccessor.findMBeanTimer(MBeanAccessor.Props.scoped("ClientRequest", scope, "Latency"));
     }
 
     public CassandraMetricsRegistry.JmxTimerMBean getMessagingQueueWaitMetrics(String verb)
     {
-        try
-        {
-            return JMX.newMBeanProxy(mbeanServerConn,
-                                     new ObjectName("org.apache.cassandra.metrics:name=" + verb + "-WaitLatency,type=Messaging"),
-                                     CassandraMetricsRegistry.JmxTimerMBean.class);
-        }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return mBeanAccessor.findMBeanTimer(MBeanAccessor.Props.metric("Messaging", verb + "-WaitLatency"));
     }
 
     /**
@@ -2252,35 +1959,22 @@ public class NodeProbe implements AutoCloseable
      */
     public Object getCompactionMetric(String metricName)
     {
-        try
+        switch (metricName)
         {
-            switch(metricName)
-            {
-                case "BytesCompacted":
-                case "CompressedBytesCompacted":
-                case "CompactionsAborted":
-                case "CompactionsReduced":
-                case "SSTablesDroppedFromCompaction":
-                    return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
-                            CassandraMetricsRegistry.JmxCounterMBean.class);
-                case "CompletedTasks":
-                case "PendingTasks":
-                case "PendingTasksByTableName":
-                    return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
-                            CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
-                case "TotalCompactionsCompleted":
-                    return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
-                            CassandraMetricsRegistry.JmxMeterMBean.class);
-                default:
-                    throw new RuntimeException("Unknown compaction metric " + metricName);
-            }
-        }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException(e);
+            case "BytesCompacted":
+            case "CompressedBytesCompacted":
+            case "CompactionsAborted":
+            case "CompactionsReduced":
+            case "SSTablesDroppedFromCompaction":
+                return mBeanAccessor.findMBeanCounter(MBeanAccessor.Props.metric("Compaction", metricName));
+            case "CompletedTasks":
+            case "PendingTasks":
+            case "PendingTasksByTableName":
+                return mBeanAccessor.findMBeanGauge(MBeanAccessor.Props.metric("Compaction", metricName)).getValue();
+            case "TotalCompactionsCompleted":
+                return mBeanAccessor.findMBeanMeter(MBeanAccessor.Props.metric("Compaction", metricName));
+            default:
+                throw new RuntimeException("Unknown compaction metric " + metricName);
         }
     }
 
@@ -2290,65 +1984,15 @@ public class NodeProbe implements AutoCloseable
      */
     public Object getClientMetric(String metricName)
     {
-        try
+        switch (metricName)
         {
-            switch(metricName)
-            {
-                case "connections": // List<Map<String,String>> - list of all native connections and their properties
-                case "connectedNativeClients": // number of connected native clients
-                case "connectedNativeClientsByUser": // number of native clients by username
-                case "clientsByProtocolVersion": // number of native clients by protocol version
-                    return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=Client,name=" + metricName),
-                            CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
-                default:
-                    throw new RuntimeException("Unknown client metric " + metricName);
-            }
-        }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public Object getCidrFilteringMetric(String metricName)
-    {
-        try
-        {
-            switch(metricName)
-            {
-                case CIDRAuthorizerMetrics.CIDR_CHECKS_LATENCY:
-                    return JMX.newMBeanProxy(mbeanServerConn,
-                                             new ObjectName("org.apache.cassandra.metrics:type=CIDRAuthorization,name="
-                                                            + metricName),
-                                             CassandraMetricsRegistry.JmxTimerMBean.class).getMean();
-                case CIDRAuthorizerMetrics.CIDR_GROUPS_CACHE_RELOAD_COUNT:
-                    return JMX.newMBeanProxy(
-                        mbeanServerConn,
-                        new ObjectName("org.apache.cassandra.metrics:type=CIDRGroupsMappingCache,name=" + metricName),
-                        CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
-                case CIDRAuthorizerMetrics.CIDR_GROUPS_CACHE_RELOAD_LATENCY:
-                case CIDRAuthorizerMetrics.LOOKUP_CIDR_GROUPS_FOR_IP_LATENCY:
-                    return JMX.newMBeanProxy(
-                        mbeanServerConn,
-                        new ObjectName("org.apache.cassandra.metrics:type=CIDRGroupsMappingCache,name=" + metricName),
-                        CassandraMetricsRegistry.JmxTimerMBean.class).getMean();
-                default:
-                    if (metricName.contains(CIDRAuthorizerMetrics.CIDR_ACCESSES_REJECTED_COUNT_PREFIX) ||
-                        metricName.contains(CIDRAuthorizerMetrics.CIDR_ACCESSES_ACCEPTED_COUNT_PREFIX))
-                    {
-                        return JMX.newMBeanProxy(
-                            mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=mymetricname,name=" + metricName),
-                            CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
-                    }
-
-                    throw new RuntimeException("Unknown metric " + metricName);
-            }
-        }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException(e);
+            case "connections": // List<Map<String,String>> - list of all native connections and their properties
+            case "connectedNativeClients": // number of connected native clients
+            case "connectedNativeClientsByUser": // number of native clients by username
+            case "clientsByProtocolVersion": // number of native clients by protocol version
+                return mBeanAccessor.findMBeanGauge(MBeanAccessor.Props.metric("Client", metricName)).getValue();
+            default:
+                throw new RuntimeException("Unknown client metric " + metricName);
         }
     }
 
@@ -2368,16 +2012,7 @@ public class NodeProbe implements AutoCloseable
      */
     public long getStorageMetric(String metricName)
     {
-        try
-        {
-            return JMX.newMBeanProxy(mbeanServerConn,
-                    new ObjectName("org.apache.cassandra.metrics:type=Storage,name=" + metricName),
-                    CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
-        }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return mBeanAccessor.findMBeanCounter(MBeanAccessor.Props.metric("Storage", metricName)).getCount();
     }
 
     public Double[] metricPercentilesAsArray(CassandraMetricsRegistry.JmxHistogramMBean metric)
@@ -2439,8 +2074,8 @@ public class NodeProbe implements AutoCloseable
         BootstrapMonitor monitor = new BootstrapMonitor(out);
         try
         {
-            if (jmxc != null)
-                jmxc.addConnectionNotificationListener(monitor, null, null);
+            if (mBeanAccessor instanceof RemoteJmxMBeanAccessor)
+                ((RemoteJmxMBeanAccessor) mBeanAccessor).getJmxConnector().addConnectionNotificationListener(monitor, null, null);
             ssProxy.addNotificationListener(monitor, null, null);
             if (ssProxy.resumeBootstrap())
             {
@@ -2463,8 +2098,8 @@ public class NodeProbe implements AutoCloseable
             try
             {
                 ssProxy.removeNotificationListener(monitor);
-                if (jmxc != null)
-                    jmxc.removeConnectionNotificationListener(monitor);
+                if (mBeanAccessor instanceof RemoteJmxMBeanAccessor)
+                    ((RemoteJmxMBeanAccessor) mBeanAccessor).getJmxConnector().removeConnectionNotificationListener(monitor);
             }
             catch (Throwable e)
             {
@@ -2838,15 +2473,15 @@ public class NodeProbe implements AutoCloseable
         }
         catch (Exception e)
         {
-            if (e.getCause() instanceof InstanceNotFoundException)
+            if (Throwables.getRootCause(e) instanceof InstanceNotFoundException)
             {
                 String message = String.format("Table %s.%s does not exist or does not support dictionary compression",
                                                keyspace, table);
-                throw new IllegalArgumentException(message);
+                throw new RuntimeException(message);
             }
             else
             {
-                throw new IOException(e.getMessage());
+                throw e;
             }
         }
     }
@@ -2882,78 +2517,100 @@ public class NodeProbe implements AutoCloseable
 
     private CompressionDictionaryManagerMBean getDictionaryManagerProxy(String keyspace, String table) throws IOException
     {
-        // Construct table-specific MBean name
-        String mbeanName = CompressionDictionaryManagerMBean.MBEAN_NAME + ",keyspace=" + keyspace + ",table=" + table;
-        try
+        return mBeanAccessor.findCompressionDictionary(keyspace, table);
+    }
+
+    /**
+     * A dynamic proxy that lazily looks up the MBean the first time a method is invoked.
+     * @param <T> the MBean interface type.
+     */
+    private static class LazyMBeanProxy<T> implements java.lang.reflect.InvocationHandler
+    {
+        private final MBeanAccessor provider;
+        private final Class<T> mbeanClass;
+        private volatile T delegate;
+
+        LazyMBeanProxy(MBeanAccessor provider, Class<T> mbeanClass)
         {
-            ObjectName objectName = new ObjectName(mbeanName);
-            return JMX.newMBeanProxy(mbeanServerConn, objectName, CompressionDictionaryManagerMBean.class);
+            this.provider = provider;
+            this.mbeanClass = mbeanClass;
         }
-        catch (MalformedObjectNameException e)
+
+        @Override
+        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable
         {
-            throw new IOException("Invalid keyspace or table name", e);
+            if (delegate == null)
+            {
+                synchronized (this)
+                {
+                    if (delegate == null)
+                        delegate = provider.findMBean(mbeanClass);
+                }
+            }
+
+            if (delegate == null)
+                throw new RuntimeException(new InstanceNotFoundException(mbeanClass.getSimpleName() + " is not available on this node"));
+
+            try
+            {
+                return method.invoke(delegate, args);
+            }
+            catch (InvocationTargetException e)
+            {
+                Throwable cause = e.getCause();
+                if (cause == null)
+                    throw e;
+                throw cause;
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        static <T> T create(MBeanAccessor provider, Class<T> mbeanClass)
+        {
+            return (T) Proxy.newProxyInstance(mbeanClass.getClassLoader(),
+                                              new Class<?>[]{ mbeanClass },
+                                              new LazyMBeanProxy<>(provider, mbeanClass));
         }
     }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>
 {
-    private MBeanServerConnection mbeanServerConn;
     Iterator<Entry<String, ColumnFamilyStoreMBean>> mbeans;
 
-    public ColumnFamilyStoreMBeanIterator(MBeanServerConnection mbeanServerConn)
+    public ColumnFamilyStoreMBeanIterator(MBeanAccessor accessor)
         throws MalformedObjectNameException, NullPointerException, IOException
     {
-        this.mbeanServerConn = mbeanServerConn;
-        List<Entry<String, ColumnFamilyStoreMBean>> cfMbeans = getCFSMBeans(mbeanServerConn, "ColumnFamilies");
-        cfMbeans.addAll(getCFSMBeans(mbeanServerConn, "IndexColumnFamilies"));
-        Collections.sort(cfMbeans, new Comparator<Entry<String, ColumnFamilyStoreMBean>>()
-        {
-            public int compare(Entry<String, ColumnFamilyStoreMBean> e1, Entry<String, ColumnFamilyStoreMBean> e2)
-            {
-                //compare keyspace, then CF name, then normal vs. index
-                int keyspaceNameCmp = e1.getKey().compareTo(e2.getKey());
-                if(keyspaceNameCmp != 0)
-                    return keyspaceNameCmp;
+        List<Entry<String, ColumnFamilyStoreMBean>> cfMbeans = accessor.findColumnFamilies("ColumnFamilies");
+        cfMbeans.addAll(accessor.findColumnFamilies("IndexColumnFamilies"));
+        cfMbeans.sort((e1, e2) -> {
+            //compare keyspace, then CF name, then normal vs. index
+            int keyspaceNameCmp = e1.getKey().compareTo(e2.getKey());
+            if (keyspaceNameCmp != 0)
+                return keyspaceNameCmp;
 
-                // get CF name and split it for index name
-                String e1CF[] = e1.getValue().getTableName().split("\\.");
-                String e2CF[] = e2.getValue().getTableName().split("\\.");
-                assert e1CF.length <= 2 && e2CF.length <= 2 : "unexpected split count for table name";
+            // get CF name and split it for index name
+            String e1CF[] = e1.getValue().getTableName().split("\\.");
+            String e2CF[] = e2.getValue().getTableName().split("\\.");
+            assert e1CF.length <= 2 && e2CF.length <= 2 : "unexpected split count for table name";
 
-                //if neither are indexes, just compare CF names
-                if(e1CF.length == 1 && e2CF.length == 1)
-                    return e1CF[0].compareTo(e2CF[0]);
+            //if neither are indexes, just compare CF names
+            if (e1CF.length == 1 && e2CF.length == 1)
+                return e1CF[0].compareTo(e2CF[0]);
 
-                //check if it's the same CF
-                int cfNameCmp = e1CF[0].compareTo(e2CF[0]);
-                if(cfNameCmp != 0)
-                    return cfNameCmp;
+            //check if it's the same CF
+            int cfNameCmp = e1CF[0].compareTo(e2CF[0]);
+            if (cfNameCmp != 0)
+                return cfNameCmp;
 
-                // if both are indexes (for the same CF), compare them
-                if(e1CF.length == 2 && e2CF.length == 2)
-                    return e1CF[1].compareTo(e2CF[1]);
+            // if both are indexes (for the same CF), compare them
+            if (e1CF.length == 2 && e2CF.length == 2)
+                return e1CF[1].compareTo(e2CF[1]);
 
-                //if length of e1CF is 1, it's not an index, so sort it higher
-                return e1CF.length == 1 ? 1 : -1;
-            }
+            //if length of e1CF is 1, it's not an index, so sort it higher
+            return e1CF.length == 1 ? 1 : -1;
         });
         mbeans = cfMbeans.iterator();
-    }
-
-    private List<Entry<String, ColumnFamilyStoreMBean>> getCFSMBeans(MBeanServerConnection mbeanServerConn, String type)
-            throws MalformedObjectNameException, IOException
-    {
-        ObjectName query = new ObjectName("org.apache.cassandra.db:type=" + type +",*");
-        Set<ObjectName> cfObjects = mbeanServerConn.queryNames(query, null);
-        List<Entry<String, ColumnFamilyStoreMBean>> mbeans = new ArrayList<Entry<String, ColumnFamilyStoreMBean>>(cfObjects.size());
-        for(ObjectName n : cfObjects)
-        {
-            String keyspaceName = n.getKeyProperty("keyspace");
-            ColumnFamilyStoreMBean cfsProxy = JMX.newMBeanProxy(mbeanServerConn, n, ColumnFamilyStoreMBean.class);
-            mbeans.add(new AbstractMap.SimpleImmutableEntry<String, ColumnFamilyStoreMBean>(keyspaceName, cfsProxy));
-        }
-        return mbeans;
     }
 
     public boolean hasNext()
