@@ -18,7 +18,6 @@
 package org.apache.cassandra.io.sstable.format.bti;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -26,9 +25,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -47,7 +43,6 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReaderLoadingBuilder;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
-import org.apache.cassandra.io.sstable.format.SortedTableScrubber;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -60,8 +55,6 @@ import org.apache.cassandra.utils.Pair;
  */
 public class BtiFormat extends AbstractSSTableFormat<BtiTableReader, BtiTableWriter>
 {
-    private final static Logger logger = LoggerFactory.getLogger(BtiFormat.class);
-
     public static final String NAME = "bti";
 
     private final Version latestVersion = new BtiVersion(this, BtiVersion.current_version);
@@ -207,31 +200,11 @@ public class BtiFormat extends AbstractSSTableFormat<BtiTableReader, BtiTableWri
     }
 
     @Override
-    public void deleteOrphanedComponents(Descriptor descriptor, Set<Component> components)
-    {
-        SortedTableScrubber.deleteOrphanedComponents(descriptor, components);
-    }
-
-    private void delete(Descriptor desc, List<Component> components)
-    {
-        logger.info("Deleting sstable: {}", desc);
-
-        if (components.remove(SSTableFormat.Components.DATA))
-            components.add(0, SSTableFormat.Components.DATA); // DATA component should be first
-
-        for (Component component : components)
-        {
-            logger.trace("Deleting component {} of {}", component, desc);
-            desc.fileFor(component).deleteIfExists();
-        }
-    }
-
-    @Override
     public void delete(Descriptor desc)
     {
         try
         {
-            delete(desc, Lists.newArrayList(Sets.intersection(allComponents(), desc.discoverComponents())));
+            deleteComponentsOldestFirst(desc, Lists.newArrayList(Sets.intersection(allComponents(), desc.discoverComponents())));
         }
         catch (Throwable t)
         {
