@@ -154,6 +154,12 @@ Upgrading
     - memtable_offheap_space: 0 is now rejected at startup when memtable_allocation_type is
     offheap_buffers or offheap_objects. Set a positive memtable_offheap_space, or an allocation
     type that does not allocate off-heap. See CASSANDRA-21019.
+    - entire_sstable_stream_digest_validation_enabled now defaults to true. Entire-SSTable (zero-copy)
+    streams are validated against the streamed Digest.crc32 before being added to the table, which
+    detects corruption introduced in transit or already present on the sending node's disk. This may
+    reject sstables that would previously have been silently accepted despite being corrupted. Set
+    entire_sstable_stream_digest_validation_enabled to false in cassandra.yaml to restore the old
+    behavior. (CASSANDRA-21694)
     [The following is a placeholder, to be revised asap]
     - trickle_fsync is by default set to "true" instead of "false" in cassandra.yaml (see CASSANDRA-21572)
     - Upgrading to 5.1 is currently only supported from 4.0, 4.1 or 5.0. Clusters running earlier releases must first
