@@ -42,6 +42,9 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.rows.Cell;
@@ -618,6 +621,126 @@ public abstract class TxnCondition
         };
     }
 
+    public static class Reference extends TxnCondition
+    {
+        private static final EnumSet<Kind> KINDS = EnumSet.of(Kind.EQUAL, Kind.NOT_EQUAL,
+                                                              Kind.GREATER_THAN, Kind.GREATER_THAN_OR_EQUAL,
+                                                              Kind.LESS_THAN, Kind.LESS_THAN_OR_EQUAL);
+
+        private final TxnReference.ColumnReference referenceLHS;
+        private final TxnReference.ColumnReference referenceRHS;
+        private final ProtocolVersion version;
+
+        public Reference(TxnReference.ColumnReference referenceLHS, Kind kind, TxnReference.ColumnReference referenceRHS, ProtocolVersion version)
+        {
+            super(kind);
+            Invariants.requireArgument(KINDS.contains(kind), "Kind " + kind + " cannot be used with a reference condition");
+            this.referenceLHS = referenceLHS;
+            this.referenceRHS = referenceRHS;
+            this.version = version;
+        }
+
+        public static EnumSet<Kind> supported()
+        {
+            return EnumSet.copyOf(KINDS);
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            if (!super.equals(o)) return false;
+            Reference reference1 = (Reference) o;
+            return referenceLHS.equals(reference1.referenceLHS) && referenceRHS.equals(reference1.referenceRHS);
+        }
+
+        @Override
+        public void collect(TableMetadatas.Collector collector)
+        {
+            referenceLHS.collect(collector);
+            referenceRHS.collect(collector);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(super.hashCode(), referenceLHS, referenceRHS);
+        }
+
+        @Override
+        public String toString()
+        {
+            return referenceLHS.toString() + ' ' + kind.symbol + ' ' + referenceRHS.toString();
+        }
+
+        private static AbstractType<?> getColumnType(TxnReference.ColumnReference reference)
+        {
+            ColumnMetadata column = reference.column();
+            if (reference.isElementSelection())
+            {
+                if (column.type instanceof ListType)
+                    return ((ListType<?>) column.type).valueComparator();
+                else if (column.type instanceof SetType)
+                    return ((SetType<?>) column.type).nameComparator();
+                else if (column.type instanceof MapType)
+                    return ((MapType<?, ?>) column.type).valueComparator();
+            }
+            else if (reference.isFieldSelection())
+            {
+                return reference.getFieldSelectionType();
+            }
+
+            return column.type;
+        }
+
+        @Override
+        public boolean applies(TxnData data)
+        {
+            // We have already checked earlier that the type for the LHS is the same as the type for the RHS
+            // See ConditionStatement.java
+            AbstractType<?> typeLHS = getColumnType(referenceLHS);
+
+            ByteBuffer lhs = referenceLHS.toByteBuffer(data, typeLHS);
+            ByteBuffer rhs = referenceRHS.toByteBuffer(data, typeLHS);
+
+            if (lhs == null || rhs == null || typeLHS.isNull(lhs) || typeLHS.isNull(rhs))
+                return false;
+
+            return kind.operator.isSatisfiedBy(typeLHS, lhs, rhs);
+        }
+
+        private static final ConditionSerializer<Reference> serializer = new ConditionSerializer<>()
+        {
+            @Override
+            public void serialize(Reference condition, TableMetadatas tables, DataOutputPlus out) throws IOException
+            {
+                TxnReference.serializer.serialize(condition.referenceLHS, tables, out);
+                TxnReference.serializer.serialize(condition.referenceRHS, tables, out);
+                out.writeUTF(condition.version.name());
+            }
+
+            @Override
+            public Reference deserialize(TableMetadatas tables, DataInputPlus in, Kind kind) throws IOException
+            {
+                TxnReference.ColumnReference referenceLHS = TxnReference.serializer.deserialize(tables, in).asColumn();
+                TxnReference.ColumnReference referenceRHS = TxnReference.serializer.deserialize(tables, in).asColumn();
+                ProtocolVersion protocolVersion = ProtocolVersion.valueOf(in.readUTF());
+                return new Reference(referenceLHS, kind, referenceRHS, protocolVersion);
+            }
+
+            @Override
+            public long serializedSize(Reference condition, TableMetadatas tables)
+            {
+                long size = 0;
+                size += TxnReference.serializer.serializedSize(condition.referenceLHS, tables);
+                size += TxnReference.serializer.serializedSize(condition.referenceRHS, tables);
+                size += TypeSizes.sizeof(condition.version.name());
+                return size;
+            }
+        };
+    }
+
     public static class BooleanGroup extends TxnCondition
     {
         private static final Set<Kind> KINDS = ImmutableSet.of(Kind.AND, Kind.OR);
@@ -698,27 +821,64 @@ public abstract class TxnCondition
 
     public static final ParameterisedUnversionedSerializer<TxnCondition, TableMetadatas> serializer = new ParameterisedUnversionedSerializer<>()
     {
+        // TOP_BIT is used to differentiate between Value.Serializer and Reference.Serializer,
+        // in order to implement comparison between LET variables.
+        // The reason we use TOP_BIT is to support users who have been deploying off trunk
+        // to upgrade nodes without breaking them. Upgrading is safe under the following assumptions:
+        // 1) `ref op ref` feature is only used after all nodes have been upgraded
+        // 2) cluster can be mixed mode as long as `ref op ref` is not used
+        // If a user tries to use `ref op ref` in a mixed mode this will lead to undefined errors,
+        // where the only recovery process is to force older nodes to upgrade
+        // See CASSANDRA-21458
+        private static final int TOP_BIT = 0x40000000;
+
         @SuppressWarnings("unchecked")
         @Override
         public void serialize(TxnCondition condition, TableMetadatas tables, DataOutputPlus out) throws IOException
         {
-            out.writeUnsignedVInt32(condition.kind.ordinal());
-            condition.kind.serializer().serialize(condition, tables, out);
+            if (condition instanceof Reference)
+            {
+                out.writeUnsignedVInt32(condition.kind.ordinal() | TOP_BIT);
+                Reference.serializer.serialize((Reference) condition, tables, out);
+            }
+            else
+            {
+                out.writeUnsignedVInt32(condition.kind.ordinal());
+                condition.kind.serializer().serialize(condition, tables, out);
+            }
         }
 
         @Override
         public TxnCondition deserialize(TableMetadatas tables, DataInputPlus in) throws IOException
         {
-            Kind kind = Kind.values()[in.readUnsignedVInt32()];
-            return kind.serializer().deserialize(tables, in, kind);
+            int flag = in.readUnsignedVInt32();
+            if ((flag & TOP_BIT) != 0)
+            {
+                Kind kind = Kind.values()[flag ^ TOP_BIT];
+                return Reference.serializer.deserialize(tables, in, kind);
+            }
+            else
+            {
+                Kind kind = Kind.values()[flag];
+                return kind.serializer().deserialize(tables, in, kind);
+            }
         }
 
         @SuppressWarnings("unchecked")
         @Override
         public long serializedSize(TxnCondition condition, TableMetadatas tables)
         {
-            long size = TypeSizes.sizeofUnsignedVInt(condition.kind.ordinal());
-            size += condition.kind.serializer().serializedSize(condition, tables);
+            long size;
+            if (condition instanceof Reference)
+            {
+                size = TypeSizes.sizeofUnsignedVInt(condition.kind.ordinal() | TOP_BIT);
+                size += Reference.serializer.serializedSize((Reference) condition, tables);
+            }
+            else
+            {
+                size = TypeSizes.sizeofUnsignedVInt(condition.kind.ordinal());
+                size += condition.kind.serializer().serializedSize(condition, tables);
+            }
             return size;
         }
     };
