@@ -28,6 +28,7 @@ import javax.management.InstanceNotFoundException;
 
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.metrics.NettyMemoryMetrics;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.tools.NodeProbe;
 
@@ -75,6 +76,29 @@ public class Info extends AbstractCommand
             // offheap-metrics introduced in 2.1.3 - older versions do not have the appropriate mbeans
             if (!(e.getCause() instanceof InstanceNotFoundException))
                 throw e;
+        }
+
+        // Netty tracks its direct memory separately from java.nio.Bits (reported by nodetool gcstats) and from the
+        // buffer pools reported further down, and enforces its own limit, so it gets its own line.
+        try
+        {
+            long used = (long) probe.getNettyMemoryMetric(NettyMemoryMetrics.USED_DIRECT_MEMORY);
+            long limit = (long) probe.getNettyMemoryMetric(NettyMemoryMetrics.DIRECT_MEMORY_LIMIT);
+            
+            if (used < 0 || limit <= 0)
+                out.printf("%-23s: disabled%n", "Netty Direct Memory");
+            else
+                out.printf("%-23s: used %s, limit %s (%.2f%%)%n", "Netty Direct Memory",
+                           FileUtils.stringifyFileSize(used),
+                           FileUtils.stringifyFileSize(limit),
+                           used * 100.0 / limit);
+        }
+        catch (RuntimeException e)
+        {
+            if (!(e.getCause() instanceof InstanceNotFoundException))
+                throw e;
+
+            // Netty memory metrics are not registered.
         }
 
         // Data Center/Rack
