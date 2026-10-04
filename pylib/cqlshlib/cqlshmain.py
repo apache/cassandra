@@ -46,10 +46,11 @@ from cassandra.util import datetime_from_timestamp
 from cqlshlib import cql3handling, pylexotron, sslhandling, cqlshhandling, authproviderhandling
 from cqlshlib.copyutil import ExportTask, ImportTask
 from cqlshlib.displaying import (ANSI_RESET, BLUE, COLUMN_NAME_COLORS, CYAN,
-                                 RED, WHITE, FormattedValue, colorme)
+                                 RED, WHITE, FormattedValue, colorme, get_str,
+                                 TablePrinter, TabularTablePrinter, CsvTablePrinter, JsonTablePrinter)
 from cqlshlib.formatting import (DEFAULT_DATE_FORMAT, DEFAULT_NANOTIME_FORMAT,
                                  DEFAULT_TIMESTAMP_FORMAT, CqlType, DateTimeFormat,
-                                 format_by_type)
+                                 format_by_type, format_json_value)
 from cqlshlib.helptopics import get_html_anchor, get_html_topics
 from cqlshlib.tracing import print_trace, print_trace_session
 from cqlshlib.util import get_file_encoding_bomsize, is_file_secure
@@ -207,6 +208,27 @@ class SwitchState(Enum):
     ON = True
     OFF = False
 
+class OutputMode(str, Enum):
+    TABULAR = 'tabular'
+    CSV = 'csv'
+    JSON = 'json'
+
+    __str__ = str.__str__
+
+    @property
+    def is_machine_readable(self):
+        return self is not OutputMode.TABULAR
+
+    @classmethod
+    def parse(cls, value):
+        if isinstance(value, cls):
+            return value
+        try:
+            return cls(str(value).strip().lower())
+        except ValueError:
+            raise ValueError("Invalid output mode %r; expected one of: %s"
+                             % (value, ', '.join(m.value for m in cls)))
+
 
 def format_value(val, cqltype, encoding, addcolor=False, date_time_format=None,
                  float_precision=None, colormap=None, nullval=None):
@@ -284,13 +306,19 @@ class Shell(cmd.Cmd):
                  connect_timeout=DEFAULT_CONNECT_TIMEOUT_SECONDS,
                  is_subshell=False,
                  auth_provider=None,
-                 disable_history=False):
+                 disable_history=False,
+                 mode='tabular'):
         cmd.Cmd.__init__(self, completekey=completekey)
         self.hostname = hostname
         self.port = port
         self.auth_provider = auth_provider
         self.username = username
         self.config_file = config_file
+        try:
+            self.mode = OutputMode.parse(mode)
+        except ValueError as e:
+            sys.stderr.write("cqlsh: error: %s\n" % e)
+            sys.exit(1)
 
         if isinstance(auth_provider, PlainTextAuthProvider):
             self.username = auth_provider.username
@@ -329,6 +357,8 @@ class Shell(cmd.Cmd):
         self.browser = browser
         self.docspath = docspath
         self.color = color
+        if self.mode.is_machine_readable:
+            self.color = False
 
         self.display_nanotime_format = display_nanotime_format
         self.display_timestamp_format = display_timestamp_format
@@ -965,42 +995,55 @@ class Shell(cmd.Cmd):
             self.print_result(result, self.get_table_meta('system_auth', 'generated_values'))
         elif result:
             # CAS INSERT/UPDATE
-            self.writeresult("")
-            self.print_static_result(result, self.parse_for_update_meta(statement.query_string), with_header=True, tty=self.tty)
+            if not self.mode.is_machine_readable:
+                self.writeresult("")
+            cas_printer = TablePrinter.factory(self.mode.value, self)
+            self.print_static_result(result, self.parse_for_update_meta(statement.query_string),
+                                     with_header=True, tty=self.tty,
+                                     printer=cas_printer)
+            cas_printer.finish()
         if self.elapsed_enabled:
-            self.writeresult("(%dms elapsed)" % elapsed)
+            elapsed_msg = "(%dms elapsed)" % elapsed
+            if self.mode.is_machine_readable:
+                self.printerr(elapsed_msg)
+            else:
+                self.writeresult(elapsed_msg)
         self.flush_output()
         return True, future
 
     def print_result(self, result, table_meta):
         self.decoding_errors = []
 
-        self.writeresult("")
+        if not self.mode.is_machine_readable:
+            self.writeresult("")
+        printer = TablePrinter.factory(self.mode.value, self)
 
-        def print_all(result, table_meta, tty):
-            # Return the number of rows in total
+        def print_all(result, table_meta, tty, printer):
+            machine_mode = self.mode.is_machine_readable
+            effective_tty = tty and not machine_mode
             num_rows = 0
             is_first = True
             while True:
-                # Always print for the first page even it is empty
                 if result.current_rows or is_first:
-                    with_header = is_first or tty
-                    self.print_static_result(result, table_meta, with_header, tty, num_rows)
+                    with_header = is_first or effective_tty
+                    self.print_static_result(result, table_meta, with_header, effective_tty,
+                                             printer)
                     num_rows += len(result.current_rows)
                 if result.has_more_pages:
-                    if self.shunted_query_out is None and tty:
-                        # Only pause when not capturing.
+                    if self.shunted_query_out is None and effective_tty:
                         input("---MORE---")
                     result.fetch_next_page()
                 else:
-                    if not tty:
+                    if not effective_tty and not machine_mode:
                         self.writeresult("")
                     break
                 is_first = False
             return num_rows
 
-        num_rows = print_all(result, table_meta, self.tty)
-        self.writeresult("(%d rows)" % num_rows)
+        num_rows = print_all(result, table_meta, self.tty, printer)
+        printer.finish()
+        if not self.mode.is_machine_readable:
+            self.writeresult("(%d rows)" % num_rows)
 
         if self.decoding_errors:
             for err in self.decoding_errors[:2]:
@@ -1009,15 +1052,16 @@ class Shell(cmd.Cmd):
                 self.writeresult('%d more decoding errors suppressed.'
                                  % (len(self.decoding_errors) - 2), color=RED)
 
-    def print_static_result(self, result, table_meta, with_header, tty, row_count_offset=0):
+    def print_static_result(self, result, table_meta, with_header, tty, printer=None):
         if not result.column_names and not table_meta:
             return
 
         column_names = result.column_names or list(table_meta.columns.keys())
         formatted_names = [self.myformat_colname(name, table_meta) for name in column_names]
+
         if not result.current_rows:
-            # print header only
-            self.print_formatted_result(formatted_names, None, with_header=True, tty=tty)
+            if with_header:
+                printer.print_header(formatted_names)
             return
 
         cql_types = []
@@ -1026,12 +1070,48 @@ class Shell(cmd.Cmd):
             ks_meta = self.conn.metadata.keyspaces.get(ks_name, None)
             cql_types = [CqlType(cql_typename(t), ks_meta) for t in result.column_types]
 
+        if isinstance(printer, (JsonTablePrinter, CsvTablePrinter)):
+            dtformats = DateTimeFormat(timestamp_format=self.display_timestamp_format,
+                                       date_format=self.display_date_format,
+                                       nanotime_format=self.display_nanotime_format,
+                                       timezone=self.display_timezone)
+            raw_rows = []
+            for row in result.current_rows:
+                raw_row = []
+                for i, c in enumerate(column_names):
+                    cqltype = cql_types[i] if i < len(cql_types) else None
+                    val = row[c]
+                    if isinstance(printer, JsonTablePrinter):
+                        # JSON output uses full precision for machine readability;
+                        # display precision settings are intentionally ignored.
+                        formatted = format_json_value(val, cqltype=cqltype,
+                                                      encoding=self.output_codec.name,
+                                                      date_time_format=dtformats,
+                                                      float_precision=None)
+                    else:  # CsvTablePrinter
+                        # For CSV, use empty string for nulls (matching COPY TO default behavior)
+                        if val is None:
+                            formatted = ''
+                        else:
+                            # Format the value without color, preserving display precision for CSV
+                            precision = self.display_double_precision if cqltype and cqltype.type_name == 'double' \
+                                else self.display_float_precision
+                            formatted_val = format_value(val, cqltype=cqltype, encoding=self.output_codec.name,
+                                                         addcolor=False, date_time_format=dtformats,
+                                                         float_precision=precision)
+                            formatted = get_str(formatted_val)
+                    raw_row.append(formatted)
+                raw_rows.append(raw_row)
+            if with_header:
+                printer.print_header(formatted_names)
+            printer.print_rows(formatted_names, raw_rows)
+            return
+
         formatted_values = [list(map(self.myformat_value, [row[c] for c in column_names], cql_types)) for row in result.current_rows]
 
-        if self.expand_enabled:
-            self.print_formatted_result_vertically(formatted_names, formatted_values, row_count_offset)
-        else:
-            self.print_formatted_result(formatted_names, formatted_values, with_header, tty)
+        if with_header:
+            printer.print_header(formatted_names)
+        printer.print_rows(formatted_names, formatted_values)
 
     def print_formatted_result(self, formatted_names, formatted_values, with_header, tty):
         # determine column widths
@@ -1531,7 +1611,8 @@ class Shell(cmd.Cmd):
                          request_timeout=self.session.default_timeout,
                          connect_timeout=self.conn.connect_timeout,
                          is_subshell=True,
-                         auth_provider=self.auth_provider)
+                         auth_provider=self.auth_provider,
+                         mode=self.mode)
         # duplicate coverage related settings in subshell
         if self.coverage:
             subshell.coverage = True
@@ -2045,6 +2126,7 @@ def read_options(cmdlineargs, parser, config_file, cql_dir, environment=os.envir
     argvalues.completekey = option_with_default(configs.get, 'ui', 'completekey',
                                                 DEFAULT_COMPLETEKEY)
     argvalues.color = option_with_default(configs.getboolean, 'ui', 'color')
+    argvalues.mode = option_with_default(configs.get, 'ui', 'mode', 'tabular')
     argvalues.time_format = raw_option_with_default(configs, 'ui', 'time_format',
                                                     DEFAULT_TIMESTAMP_FORMAT)
     argvalues.nanotime_format = raw_option_with_default(configs, 'ui', 'nanotime_format',
@@ -2249,6 +2331,8 @@ def main(cmdline, pkgpath):
                         help='Force tty mode (command prompt).')
     parser.add_argument('--disable-history', default=False, action='store_true',
                         help='Disable saving of history (existing history will still be loaded)')
+    parser.add_argument('--mode', choices=['tabular', 'csv', 'json'],
+                        help='Specify the output format (tabular, csv, json). Default is tabular.')
 
     # This is a hidden option to suppress the warning when the -p/--password command line option is used.
     # Power users may use this option if they know no other people has access to the system where cqlsh is run or don't care about security.
@@ -2376,6 +2460,7 @@ def main(cmdline, pkgpath):
                       display_double_precision=options.double_precision,
                       display_timezone=timezone,
                       max_trace_wait=options.max_trace_wait,
+                      mode=options.mode,
                       ssl=options.ssl,
                       single_statement=options.execute,
                       request_timeout=options.request_timeout,
