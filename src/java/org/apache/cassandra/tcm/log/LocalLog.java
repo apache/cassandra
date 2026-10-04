@@ -808,6 +808,7 @@ public abstract class LocalLog implements Closeable
             }
             catch (InterruptedException e)
             {
+                Thread.currentThread().interrupt();
                 logger.error(e.getMessage(), e);
             }
         }
