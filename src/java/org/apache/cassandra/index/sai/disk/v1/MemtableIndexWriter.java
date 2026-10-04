@@ -62,6 +62,7 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
     private final IndexMetrics indexMetrics;
     private final MemtableIndex memtable;
     private final RowMapping rowMapping;
+    private final boolean literalPrefixEnabled;
 
     private PrimaryKey minKey;
     private PrimaryKey maxKey;
@@ -73,7 +74,8 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
                                IndexTermType indexTermType,
                                IndexIdentifier indexIdentifier,
                                IndexMetrics indexMetrics,
-                               RowMapping rowMapping)
+                               RowMapping rowMapping,
+                               boolean literalPrefixEnabled)
     {
         assert rowMapping != null && rowMapping != RowMapping.DUMMY : "Row mapping must exist during FLUSH.";
 
@@ -83,6 +85,7 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
         this.indexMetrics = indexMetrics;
         this.memtable = memtable;
         this.rowMapping = rowMapping;
+        this.literalPrefixEnabled = literalPrefixEnabled;
     }
 
     @Override
@@ -176,16 +179,50 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
 
     private long flush(MemtableTermsIterator terms) throws IOException
     {
-        SegmentWriter writer = indexTermType.isLiteral() ? new LiteralIndexWriter(indexDescriptor, indexIdentifier)
-                                                         : new NumericIndexWriter(indexDescriptor,
-                                                                                  indexIdentifier,
-                                                                                  indexTermType.fixedSizeOf());
+        SegmentMetadata.ComponentMetadataMap indexMetas;
+        long numRows;
+        // getMin/MaxSSTableRowId() are declared on MemtableTermsIterator, not the TermsIterator interface,
+        // so this must be typed as the concrete class.
+        MemtableTermsIterator boundsSource = terms;  // V1 path uses the incoming iterator for row-id bounds
 
-        SegmentMetadata.ComponentMetadataMap indexMetas = writer.writeCompleteSegment(terms);
-        long numRows = writer.getNumberOfRows();
+        if (indexTermType.isLiteral() && literalPrefixEnabled)
+        {
+            // Fast path: TrieMemoryIndex already accumulated prefix postings at intermediate nodes during
+            // insert (via putSingleton with the prefixAtDepth policy). Resolve PrimaryKey -> sstableRowId for
+            // both the exact and prefix sections directly, with no SegmentTrieBuffer rebuild.
+            final Iterator<Pair<ByteComparable, LongArrayList>> v2Iterator = rowMapping.mergeV2(memtable);
 
-        // If no rows were written we need to delete any created column index components
-        // so that the index is correctly identified as being empty (only having a completion marker)
+            if (v2Iterator.hasNext())
+            {
+                try (MemtableTermsIterator v2Terms = new MemtableTermsIterator(memtable.getMinTerm(),
+                                                                               memtable.getMaxTerm(),
+                                                                               v2Iterator,
+                                                                               true))
+                {
+                    LiteralIndexWriter writer = new LiteralIndexWriter(indexDescriptor, indexIdentifier);
+                    indexMetas = writer.writeCompleteSegment(v2Terms, true);
+                    numRows = writer.getNumberOfRows();
+                    boundsSource = v2Terms;
+                }
+            }
+            else
+            {
+                // Every primary key was deleted before flush; emit empty metadata so numRows == 0 is handled below.
+                indexMetas = new SegmentMetadata.ComponentMetadataMap();
+                numRows = 0;
+            }
+        }
+        else
+        {
+            SegmentWriter writer = indexTermType.isLiteral() ? new LiteralIndexWriter(indexDescriptor, indexIdentifier)
+                                                             : new NumericIndexWriter(indexDescriptor,
+                                                                                      indexIdentifier,
+                                                                                      indexTermType.fixedSizeOf());
+
+            indexMetas = writer.writeCompleteSegment(terms);
+            numRows = writer.getNumberOfRows();
+        }
+
         if (numRows == 0)
         {
             indexDescriptor.deleteColumnIndex(indexTermType, indexIdentifier);
@@ -195,9 +232,9 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
         // During index memtable flush, the data is sorted based on terms.
         SegmentMetadata metadata = new SegmentMetadata(0,
                                                        numRows,
-                                                       terms.getMinSSTableRowId(), terms.getMaxSSTableRowId(),
-                                                       minKey, maxKey, 
-                                                       terms.getMinTerm(), terms.getMaxTerm(),
+                                                       boundsSource.getMinSSTableRowId(), boundsSource.getMaxSSTableRowId(),
+                                                       minKey, maxKey,
+                                                       boundsSource.getMinTerm(), boundsSource.getMaxTerm(),
                                                        indexMetas);
 
         try (MetadataWriter metadataWriter = new MetadataWriter(indexDescriptor.openPerIndexOutput(IndexComponent.META, indexIdentifier)))

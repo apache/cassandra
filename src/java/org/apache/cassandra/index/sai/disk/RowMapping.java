@@ -24,11 +24,13 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import com.carrotsearch.hppc.LongArrayList;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.tries.InMemoryTrie;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
+import org.apache.cassandra.index.sai.memory.SectionedPrimaryKeys;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.io.compress.BufferType;
@@ -53,6 +55,9 @@ public class RowMapping
     {
         @Override
         public Iterator<Pair<ByteComparable, LongArrayList>> merge(MemtableIndex index) { return Collections.emptyIterator(); }
+
+        @Override
+        public Iterator<Pair<ByteComparable, LongArrayList>> mergeV2(MemtableIndex index) { return Collections.emptyIterator(); }
 
         @Override
         public void complete() {}
@@ -132,6 +137,88 @@ public class RowMapping
                         return Pair.create(pair.left, postings);
                 }
                 return endOfData();
+            }
+        };
+    }
+
+    /**
+     * V2 version of {@link #merge} for indexes with the SAI prefix feature enabled.
+     * <p>
+     * Iterates the sectioned payload of a {@link org.apache.cassandra.index.sai.memory.TrieMemoryIndex}
+     * (via {@link MemtableIndex#iteratorSectioned()}) and produces a {@link LongArrayList} per term in
+     * V2 wire format:
+     * <pre>
+     *   [exactCount, totalCount, exact_rowId_0, ..., prefix_rowId_0, ...]
+     * </pre>
+     * consumed verbatim by
+     * {@link org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter#writeCompleteSegment}.
+     * <p>
+     * <b>Early prefix pruning:</b> if a node's raw prefix primary-key count is below
+     * {@link CassandraRelevantProperties#SAI_MINIMUM_POSTINGS_LEAVES}, the prefix section is
+     * dropped before any {@link #rowMapping} lookups are performed. The in-memory count is always
+     * >= the resolved row-id count (deleted rows are absent from the row mapping), so this is a safe
+     * over-approximation of the check {@link org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter}
+     * would perform anyway.
+     * <p>
+     * Nodes whose exact and (pruned) prefix sections are both empty after resolution are skipped.
+     *
+     * @param index a {@link MemtableIndex} whose backing memory index was constructed with prefix
+     * accumulation enabled
+     * @return iterator of (term, v2-posting-list) pairs in trie-sorted order
+     */
+    public Iterator<Pair<ByteComparable, LongArrayList>> mergeV2(MemtableIndex index)
+    {
+        assert complete : "RowMapping is not built.";
+
+        final int minimumLeaves = CassandraRelevantProperties.SAI_MINIMUM_POSTINGS_LEAVES.getInt();
+        Iterator<Pair<ByteComparable, SectionedPrimaryKeys>> iterator = index.iteratorSectioned();
+        return new AbstractGuavaIterator<>()
+        {
+            @Override
+            protected Pair<ByteComparable, LongArrayList> computeNext()
+            {
+                while (iterator.hasNext())
+                {
+                    Pair<ByteComparable, SectionedPrimaryKeys> pair = iterator.next();
+                    SectionedPrimaryKeys sectioned = pair.right;
+
+                    LongArrayList exactIds = resolveRowIds(sectioned.exact());
+
+                    LongArrayList prefixIds;
+                    if (sectioned.prefix().size() >= minimumLeaves)
+                        prefixIds = resolveRowIds(sectioned.prefix());
+                    else
+                        prefixIds = new LongArrayList();
+
+                    if (exactIds.isEmpty() && prefixIds.isEmpty())
+                        continue;
+
+                    int exactCount = exactIds.size();
+                    int totalCount = exactCount + prefixIds.size();
+
+                    LongArrayList v2 = new LongArrayList(2 + totalCount);
+                    v2.add(exactCount);
+                    v2.add(totalCount);
+                    for (int i = 0; i < exactIds.size(); i++)
+                        v2.add(exactIds.get(i));
+                    for (int i = 0; i < prefixIds.size(); i++)
+                        v2.add(prefixIds.get(i));
+
+                    return Pair.create(pair.left, v2);
+                }
+                return endOfData();
+            }
+
+            private LongArrayList resolveRowIds(PrimaryKeys keys)
+            {
+                LongArrayList ids = new LongArrayList();
+                for (PrimaryKey pk : keys)
+                {
+                    Long sstableRowId = rowMapping.get(pk);
+                    if (sstableRowId != null)
+                        ids.add((long) sstableRowId);
+                }
+                return ids;
             }
         };
     }

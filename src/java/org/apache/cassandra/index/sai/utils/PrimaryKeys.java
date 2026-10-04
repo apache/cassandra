@@ -33,6 +33,16 @@ import org.apache.cassandra.utils.ObjectSizes;
 @ThreadSafe
 public class PrimaryKeys implements Iterable<PrimaryKey>
 {
+    /** Immutable empty sentinel. */
+    public static final PrimaryKeys EMPTY = new PrimaryKeys()
+    {
+        @Override
+        public long add(PrimaryKey key)
+        {
+            throw new UnsupportedOperationException();
+        }
+    };
+
     private static final long EMPTY_SIZE = ObjectSizes.measure(new PrimaryKeys());
     // from https://github.com/gaul/java-collection-overhead
     private static final long SET_ENTRY_OVERHEAD = 36;

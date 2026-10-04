@@ -186,7 +186,8 @@ public class V1OnDiskFormat implements OnDiskFormat
                                        index.termType(),
                                        index.identifier(),
                                        index.indexMetrics(),
-                                       rowMapping);
+                                       rowMapping,
+                                       index.indexWriterConfig().isLiteralPrefixEnabled());
     }
 
     @Override

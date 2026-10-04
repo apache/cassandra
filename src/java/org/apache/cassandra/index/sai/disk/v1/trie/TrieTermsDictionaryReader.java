@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sai.disk.v1.trie;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -78,6 +79,77 @@ public class TrieTermsDictionaryReader extends Walker<TrieTermsDictionaryReader>
         return follow(key) == ByteSource.END_OF_STREAM ? getCurrentPayload() : NOT_FOUND;
     }
 
+    /**
+     * Navigates to the trie node for {@code prefix}, positioning the walker at the subtree root for
+     * all terms that start with {@code prefix}.
+     * <p>
+     * The {@link ByteSource} encoding for string types ends with an {@code ESCAPE} (0x00) terminator
+     * before {@code END_OF_STREAM}. Using a one-byte look-ahead, we detect the terminator before
+     * following it: when the current byte is {@code ESCAPE} and the next is {@code END_OF_STREAM},
+     * we stop at the current node (which is exactly the prefix subtree root) rather than following
+     * the terminator into the exact-match child. This correctly handles both:
+     * <ul>
+     *   <li>Prefixes that are NOT terms themselves (e.g. "grp42x" when only "grp42x…" variants exist)</li>
+     *   <li>Prefixes that ARE terms (e.g. "exact" when both "exact" and "exact_*" are indexed)</li>
+     * </ul>
+     *
+     * @return the trie node position if the full prefix path exists in the trie, or {@link #NOT_FOUND}
+     *         when no indexed term starts with {@code prefix}.
+     */
+    public long followToPrefix(ByteComparable prefix)
+    {
+        ByteSource stream = prefix.asComparableBytes(BYTE_COMPARABLE_VERSION);
+        go(root);
+
+        int cur = stream.next();
+        while (cur != ByteSource.END_OF_STREAM)
+        {
+            int next = stream.next(); // one-byte look-ahead
+
+            // ESCAPE (0x00) followed by END_OF_STREAM is the null-escape terminator — do NOT follow it.
+            // The current node is the prefix subtree root: all children represent "prefix*" terms.
+            if (cur == ByteSource.ESCAPE && next == ByteSource.END_OF_STREAM)
+                return position;
+
+            int childIndex = search(cur);
+            if (childIndex < 0)
+                return NOT_FOUND; // a content byte is not in the trie → no terms start with prefix
+            go(transition(childIndex));
+            cur = next;
+        }
+        return position; // all bytes consumed without failure
+    }
+
+    /**
+     * Positions the walker at {@code nodePos} and returns its payload (postings file offset),
+     * or {@link #NOT_FOUND} if the node carries no payload.
+     */
+    public long payloadAt(long nodePos)
+    {
+        go(nodePos);
+        return getCurrentPayload();
+    }
+
+    /**
+     * Positions the walker at {@code nodePos} and returns the file positions of all non-null children,
+     * in transition-byte order. Children are collected into an array before returning so that the caller
+     * can safely recurse without the walker position being clobbered mid-iteration.
+     */
+    public long[] childrenOf(long nodePos)
+    {
+        go(nodePos);
+        int count = transitionRange();
+        long[] children = new long[count];
+        int filled = 0;
+        for (int i = 0; i < count; i++)
+        {
+            long child = transition(i);
+            if (child != NONE)
+                children[filled++] = child;
+        }
+        return filled == count ? children : Arrays.copyOf(children, filled);
+    }
+
     private long getCurrentPayload()
     {
         return getPayloadAt(buf, payloadPosition(), payloadFlags());
@@ -86,9 +158,8 @@ public class TrieTermsDictionaryReader extends Walker<TrieTermsDictionaryReader>
     private long getPayloadAt(ByteBuffer contents, int payloadPos, int bytes)
     {
         if (bytes == 0)
-        {
             return NOT_FOUND;
-        }
         return SizedInts.read(contents, payloadPos, bytes);
     }
 }
+
