@@ -301,7 +301,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
      * between this token and it in the token order.
      *
      * This is not possible for all token types, esp. for comparison-based
-     * tokens such as the LocalPartioner used for classic secondary indexes.
+     * tokens such as the LocalPartitioner used for classic secondary indexes.
      *
      * Used to avoid clashes between nodes in separate datacentres trying to
      * use the same token via the token allocation algorithm, as well as in
