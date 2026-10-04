@@ -4877,6 +4877,32 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
+    public String getFlushCompression()
+    {
+        return DatabaseDescriptor.getFlushCompression().toString();
+    }
+
+    @Override
+    public void setFlushCompression(String flushCompression)
+    {
+        Config.FlushCompression newValue;
+        try
+        {
+            newValue = Config.FlushCompression.valueOf(flushCompression);
+        }
+        catch (IllegalArgumentException | NullPointerException e)
+        {
+            throw new IllegalArgumentException(String.format("Invalid flush_compression: %s, possible values: %s",
+                                                             flushCompression,
+                                                             Arrays.toString(Config.FlushCompression.values())));
+        }
+
+        Config.FlushCompression oldValue = DatabaseDescriptor.getFlushCompression();
+        DatabaseDescriptor.setFlushCompression(newValue);
+        logger.info("Updated flush_compression to {} (was {})", newValue, oldValue);
+    }
+
+    @Override
     public void setColumnIndexSizeInKiB(int columnIndexSizeInKiB)
     {
         int oldValueInKiB = DatabaseDescriptor.getColumnIndexSizeInKiB();

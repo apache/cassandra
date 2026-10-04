@@ -88,6 +88,10 @@ public enum Version
      * - SchemaTransformation CQL serialized as raw bytes to avoid utf string limit
      */
     V10(10),
+    /**
+     * - TableParams has flushCompression
+     */
+    V11(11),
 
     UNKNOWN(Integer.MAX_VALUE);
 
