@@ -18,6 +18,7 @@
 package org.apache.cassandra.dht;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -103,6 +104,7 @@ public class RangeStreamer
     private final MovementMap movements;
     private final MovementMap strictMovements;
     private final boolean excludeAccordTables;
+    private final Set<String> tables;
 
     public static class FetchReplica
     {
@@ -304,10 +306,11 @@ public class RangeStreamer
                          int connectionsPerHost,
                          MovementMap movements,
                          MovementMap strictMovements,
-                         boolean excludeAccordTables)
+                         boolean excludeAccordTables,
+                         Set<String> tables)
     {
         this(metadata, streamOperation, useStrictConsistency, proximity, stateStore,
-             FailureDetector.instance, connectSequentially, connectionsPerHost, movements, strictMovements, excludeAccordTables);
+             FailureDetector.instance, connectSequentially, connectionsPerHost, movements, strictMovements, excludeAccordTables, tables);
     }
 
     RangeStreamer(ClusterMetadata metadata,
@@ -320,7 +323,8 @@ public class RangeStreamer
                   int connectionsPerHost,
                   MovementMap movements,
                   MovementMap strictMovements,
-                  boolean excludeAccordTables)
+                  boolean excludeAccordTables,
+                  Set<String> tables)
     {
         this.excludeAccordTables = excludeAccordTables;
         Preconditions.checkArgument(streamOperation == StreamOperation.BOOTSTRAP || streamOperation == StreamOperation.REBUILD, streamOperation);
@@ -333,6 +337,7 @@ public class RangeStreamer
         this.movements = movements;
         this.strictMovements = strictMovements;
         streamPlan.listeners(this.stateStore);
+        this.tables = tables;
 
         // We're _always_ filtering out a local node and down sources
         addSourceFilter(new RangeStreamer.FailureDetectorSourceFilter(failureDetector));
@@ -772,11 +777,15 @@ public class RangeStreamer
                 {
                     String[] cfNames = StreamPlan.nonAccordTablesForKeyspace(ksm);
                     if (cfNames != null)
+                    {
+                        cfNames = Arrays.stream(cfNames).filter(table -> tables == null || tables.contains(table)).toArray(String[]::new);
                         streamPlan.requestRanges(source, keyspace, full, transientReplicas, cfNames);
+                    }
                 }
                 else
                 {
-                    streamPlan.requestRanges(source, keyspace, full, transientReplicas);
+                    String[] cfNames = tables == null ? new String[0] : tables.toArray(String[]::new);
+                    streamPlan.requestRanges(source, keyspace, full, transientReplicas, cfNames);
                 }
             });
         });
