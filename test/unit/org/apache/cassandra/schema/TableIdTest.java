@@ -21,6 +21,8 @@ package org.apache.cassandra.schema;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
+import accord.utils.Gen;
+import accord.utils.Gens;
 import accord.utils.LazyToString;
 import accord.utils.ReflectionUtils;
 
@@ -31,6 +33,8 @@ import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.Generators;
 
 import static accord.utils.Property.qt;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class TableIdTest
 {
@@ -85,5 +89,41 @@ public class TableIdTest
         @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
         qt().forAll(Generators.toGen(CassandraGenerators.TABLE_ID_GEN))
             .check(input -> Serializers.testSerde(output, TableId.compactComparableSerializer, input));
+    }
+
+    /**
+     * Round-trip: fromString(tableId.toString()) must recover the original TableId.
+     * This exercises both the "tid:" path (MAGIC msb, uses Hex.parseLong) and the
+     * UUID path (non-MAGIC msb, uses UUID.fromString).
+     */
+    @Test
+    public void fromStringRoundTrip()
+    {
+        qt().forAll(Generators.toGen(CassandraGenerators.TABLE_ID_GEN)).check(input -> {
+            String str = input.toString();
+            TableId recovered = TableId.fromString(str);
+            assertThat(recovered)
+                .describedAs("fromString(toString()) must recover the original TableId for: %s", str)
+                .isEqualTo(input);
+        });
+    }
+
+    /**
+     * fromString must handle uppercase hex characters in the "tid:" format.
+     * Long.toHexString produces lowercase, but callers may pass uppercase.
+     */
+    @Test
+    public void fromStringHandlesUppercaseHex()
+    {
+        qt().forAll(Gens.longs().all()).check(lsb -> {
+            String lowercase = "tid:" + Long.toHexString(lsb);
+            String uppercase = "tid:" + Long.toHexString(lsb).toUpperCase();
+
+            TableId fromLower = TableId.fromString(lowercase);
+            TableId fromUpper = TableId.fromString(uppercase);
+            assertThat(fromUpper)
+                .describedAs("fromString must handle uppercase hex: %s vs %s", uppercase, lowercase)
+                .isEqualTo(fromLower);
+        });
     }
  }
