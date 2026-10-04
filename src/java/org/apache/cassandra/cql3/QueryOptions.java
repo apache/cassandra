@@ -93,7 +93,7 @@ public abstract class QueryOptions implements RealTimeFunctionContext
     public static QueryOptions create(ConsistencyLevel consistency,
                                       List<ByteBuffer> values,
                                       boolean skipMetadata,
-                                      int pageSize,
+                                      PageSize pageSize,
                                       PagingState pagingState,
                                       ConsistencyLevel serialConsistency,
                                       ProtocolVersion version,
@@ -105,7 +105,7 @@ public abstract class QueryOptions implements RealTimeFunctionContext
     public static QueryOptions create(ConsistencyLevel consistency,
                                       List<ByteBuffer> values,
                                       boolean skipMetadata,
-                                      int pageSize,
+                                      PageSize pageSize,
                                       PagingState pagingState,
                                       ConsistencyLevel serialConsistency,
                                       ProtocolVersion version,
@@ -131,7 +131,7 @@ public abstract class QueryOptions implements RealTimeFunctionContext
         return new OptionsWithConsistencyLevel(options, consistencyLevel);
     }
 
-    public static QueryOptions withPageSize(QueryOptions options, int pageSize)
+    public static QueryOptions withPageSize(QueryOptions options, PageSize pageSize)
     {
         return new OptionsWithPageSize(options, pageSize);
     }
@@ -236,7 +236,7 @@ public abstract class QueryOptions implements RealTimeFunctionContext
     }
 
     /**  The pageSize for this query. Will be {@code <= 0} if not relevant for the query.  */
-    public int getPageSize()
+    public PageSize getPageSize()
     {
         return getSpecificOptions().pageSize;
     }
@@ -559,16 +559,16 @@ public abstract class QueryOptions implements RealTimeFunctionContext
 
     static class OptionsWithPageSize extends QueryOptionsWrapper
     {
-        private final int pageSize;
+        private final PageSize pageSize;
 
-        OptionsWithPageSize(QueryOptions wrapped, int pageSize)
+        OptionsWithPageSize(QueryOptions wrapped, PageSize pageSize)
         {
             super(wrapped);
             this.pageSize = pageSize;
         }
 
         @Override
-        public int getPageSize()
+        public PageSize getPageSize()
         {
             return pageSize;
         }
@@ -643,9 +643,9 @@ public abstract class QueryOptions implements RealTimeFunctionContext
     // Options that are likely to not be present in most queries
     static class SpecificOptions
     {
-        private static final SpecificOptions DEFAULT = new SpecificOptions(-1, null, null, Long.MIN_VALUE, null, UNSET_NOWINSEC, false);
+        private static final SpecificOptions DEFAULT = new SpecificOptions(PageSize.NONE, null, null, Long.MIN_VALUE, null, UNSET_NOWINSEC, false);
 
-        private final int pageSize;
+        private final PageSize pageSize;
         private final PagingState state;
         private final ConsistencyLevel serialConsistency;
         private final long timestamp;
@@ -653,7 +653,7 @@ public abstract class QueryOptions implements RealTimeFunctionContext
         private final long nowInSeconds;
         private final boolean eligibleForArtificialLatency;
 
-        private SpecificOptions(int pageSize,
+        private SpecificOptions(PageSize pageSize,
                                 PagingState state,
                                 ConsistencyLevel serialConsistency,
                                 long timestamp,
@@ -691,7 +691,28 @@ public abstract class QueryOptions implements RealTimeFunctionContext
             KEYSPACE,
             NOW_IN_SECONDS,
             ELIGIBLE_FOR_ARTIFICIAL_LATENCY,
-            ;
+            UNUSED_10,
+            UNUSED_11,
+            UNUSED_12,
+            UNUSED_13,
+            UNUSED_14,
+            UNUSED_15,
+            UNUSED_16,
+            UNUSED_17,
+            UNUSED_18,
+            UNUSED_19,
+            UNUSED_20,
+            UNUSED_21,
+            UNUSED_22,
+            UNUSED_23,
+            UNUSED_24,
+            UNUSED_25,
+            UNUSED_26,
+            UNUSED_27,
+            UNUSED_28,
+            UNUSED_29,
+            PAGE_SIZE_IN_BYTES,
+            UNUSED_31;
 
             private final int mask;
 
@@ -758,7 +779,11 @@ public abstract class QueryOptions implements RealTimeFunctionContext
             SpecificOptions options = SpecificOptions.DEFAULT;
             if (!Flag.isEmpty(flags))
             {
-                int pageSize = Flag.contains(flags, Flag.PAGE_SIZE) ? body.readInt() : -1;
+                PageSize pageSize = Flag.contains(flags, Flag.PAGE_SIZE)
+                                          ? Flag.contains(flags, Flag.PAGE_SIZE_IN_BYTES)
+                                            ? PageSize.inBytes(body.readInt())
+                                            : PageSize.inRows(body.readInt())
+                                          : PageSize.NONE;
                 PagingState pagingState = Flag.contains(flags, Flag.PAGING_STATE) ? PagingState.deserialize(CBUtil.readValueNoCopy(body), version) : null;
                 ConsistencyLevel serialConsistency = Flag.contains(flags, Flag.SERIAL_CONSISTENCY) ? CBUtil.readConsistencyLevel(body) : ConsistencyLevel.SERIAL;
                 long timestamp = Long.MIN_VALUE;
@@ -793,7 +818,7 @@ public abstract class QueryOptions implements RealTimeFunctionContext
             if (Flag.contains(flags, Flag.VALUES))
                 CBUtil.writeValueList(options.getValues(), dest);
             if (Flag.contains(flags, Flag.PAGE_SIZE))
-                dest.writeInt(options.getPageSize());
+                dest.writeInt(options.getPageSize().isDefined() ? options.getPageSize().getSize() : -1);
             if (Flag.contains(flags, Flag.PAGING_STATE))
                 CBUtil.writeValue(options.getPagingState().serialize(version), dest);
             if (Flag.contains(flags, Flag.SERIAL_CONSISTENCY))
@@ -844,7 +869,7 @@ public abstract class QueryOptions implements RealTimeFunctionContext
                 flags = Flag.add(flags, Flag.VALUES);
             if (options.skipMetadata())
                 flags = Flag.add(flags, Flag.SKIP_METADATA);
-            if (options.getPageSize() >= 0)
+            if (options.getPageSize().isDefined())
                 flags = Flag.add(flags, Flag.PAGE_SIZE);
             if (options.getPagingState() != null)
                 flags = Flag.add(flags, Flag.PAGING_STATE);
@@ -859,6 +884,8 @@ public abstract class QueryOptions implements RealTimeFunctionContext
                     flags = Flag.add(flags, Flag.KEYSPACE);
                 if (options.getSpecificOptions().nowInSeconds != UNSET_NOWINSEC)
                     flags = Flag.add(flags, Flag.NOW_IN_SECONDS);
+                if (options.getPageSize().getUnit() == PageSize.PageUnit.BYTES)
+                    flags = Flag.add(flags, Flag.PAGE_SIZE_IN_BYTES);
             }
 
             return flags;

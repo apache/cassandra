@@ -70,7 +70,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         return new FromResultSet(rs);
     }
 
-    public static UntypedResultSet create(SelectStatement select, QueryPager pager, int pageSize)
+    public static UntypedResultSet create(SelectStatement select, QueryPager pager, PageSize pageSize)
     {
         return new FromPager(select, pager, pageSize);
     }
@@ -84,7 +84,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
                                           ConsistencyLevel cl,
                                           ClientState clientState,
                                           QueryPager pager,
-                                          int pageSize)
+                                          PageSize pageSize)
     {
         return new FromDistributedPager(select, cl, clientState, pager, pageSize);
     }
@@ -151,10 +151,10 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
     {
         private final SelectStatement select;
         private final QueryPager pager;
-        private final int pageSize;
+        private final PageSize pageSize;
         private final List<ColumnSpecification> metadata;
 
-        private FromPager(SelectStatement select, QueryPager pager, int pageSize)
+        private FromPager(SelectStatement select, QueryPager pager, PageSize pageSize)
         {
             this.select = select;
             this.pager = pager;
@@ -212,13 +212,13 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         private final ConsistencyLevel cl;
         private final ClientState clientState;
         private final QueryPager pager;
-        private final int pageSize;
+        private final PageSize pageSize;
         private final List<ColumnSpecification> metadata;
 
         private FromDistributedPager(SelectStatement select,
                                      ConsistencyLevel cl,
                                      ClientState clientState,
-                                     QueryPager pager, int pageSize)
+                                     QueryPager pager, PageSize pageSize)
         {
             this.select = select;
             this.cl = cl;

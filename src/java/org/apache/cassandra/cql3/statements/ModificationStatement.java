@@ -656,7 +656,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                            metadata().partitioner.decorateKey(key),
                                                            filterBuilder.apply(filterArg)));
 
-        SinglePartitionReadCommand.Group group = SinglePartitionReadCommand.Group.create(commands, DataLimits.NONE);
+        SinglePartitionReadCommand.Group group = SinglePartitionReadCommand.Group.create(commands, limits);
 
         if (local)
         {
@@ -1245,7 +1245,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                         clusterings,
                                         state,
                                         options,
-                                        DataLimits.cqlLimits(1),
+                                        DataLimits.cqlLimits(DataLimits.NO_LIMIT, 1),
                                         local,
                                         timestamp,
                                         nowInSeconds,

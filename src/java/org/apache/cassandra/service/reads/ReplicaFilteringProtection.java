@@ -426,19 +426,16 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
 
                         if (currentRowIterator != null)
                         {
-                            int i = 0;
-
-                            // Consume LIMIT filtered rows from the current partition, unless there are fewer results.
-                            // The underlying iterator is short-read protected, and limiting the number of rows we
-                            // consume avoids needless SRP reads when there are many more than LIMIT results.
-                            while (i < command.limits().count() && currentRowIterator.hasNext())
-                            {
-                                currentRowIterator.next();
-                                i++;
-                            }
+                            // Bound each batch by rows and bytes before short-read protection fetches more data.
+                            DataLimits.Counter counter = DataLimits.cqlLimits(command.limits().count())
+                                                                   .withBytesLimit(command.limits().bytes())
+                                                                   .newCounter(command.nowInSec(), true, false, command.metadata().enforceStrictLiveness());
+                            counter.applyToPartition(currentRowIterator.partitionKey(), currentRowIterator.staticRow());
+                            while (!counter.isDone() && currentRowIterator.hasNext())
+                                counter.applyToRow(currentRowIterator.next());
 
                             // If we actually consumed a row, checkpoint to populate the builders.
-                            if (i > 0)
+                            if (counter.rowsCounted() > 0)
                                 mergeListener.populate();
                         }
                     }
