@@ -23,6 +23,7 @@ import java.util.EnumSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Transformation;
@@ -49,7 +50,9 @@ public class MetadataSnapshotListener implements LogListener
             }
             catch (Throwable e)
             {
-                logger.warn("Unable to serialize metadata snapshot triggered by TriggerSnapshot transformation", e);
+                TCMMetrics.instance.snapshotStoreFailures.inc();
+                logger.error("Unable to serialize metadata snapshot triggered by {} transformation at epoch {}",
+                             entry.transform.kind(), next.epoch, e);
             }
         }
     }
