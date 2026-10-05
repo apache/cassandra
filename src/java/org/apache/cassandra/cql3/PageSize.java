@@ -120,15 +120,6 @@ public class PageSize
                : this;
     }
 
-    /**
-     * Assuming we went through the provided number of rows/bytes, it returns whether the page is completed.
-     * It will always return {@code false} if the page size is undefined (unlimited).
-     */
-    public boolean isCompleted(int count, PageUnit unit)
-    {
-        return this.unit == unit && this.size <= count;
-    }
-
     @Override
     public boolean equals(Object o)
     {

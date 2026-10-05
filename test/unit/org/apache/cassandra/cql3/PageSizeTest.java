@@ -52,11 +52,6 @@ public class PageSizeTest
         assertThat(ps.withDecreasedBytes(3)).isEqualTo(ps);
         assertThat(ps.withDecreasedBytes(-3)).isEqualTo(ps);
 
-        assertThat(ps.isCompleted(9, PageUnit.ROWS)).isFalse();
-        assertThat(ps.isCompleted(10, PageUnit.ROWS)).isTrue();
-        assertThat(ps.isCompleted(9, PageUnit.BYTES)).isFalse();
-        assertThat(ps.isCompleted(10, PageUnit.BYTES)).isFalse();
-
         assertThat(ps.toString()).contains("10 rows");
 
         assertThatIllegalArgumentException().isThrownBy(() -> PageSize.inRows(-1));
@@ -84,11 +79,6 @@ public class PageSizeTest
 
         assertThat(ps.withDecreasedRows(3)).isEqualTo(ps);
         assertThat(ps.withDecreasedRows(-3)).isEqualTo(ps);
-
-        assertThat(ps.isCompleted(9, PageUnit.BYTES)).isFalse();
-        assertThat(ps.isCompleted(10, PageUnit.BYTES)).isTrue();
-        assertThat(ps.isCompleted(9, PageUnit.ROWS)).isFalse();
-        assertThat(ps.isCompleted(10, PageUnit.ROWS)).isFalse();
 
         assertThat(ps.toString()).contains("10 bytes");
 
