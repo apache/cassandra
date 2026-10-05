@@ -82,6 +82,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.compaction.CompactionIterator;
 import org.apache.cassandra.db.compaction.ICompactionManager;
 import org.apache.cassandra.db.marshal.EmptyType;
 import org.apache.cassandra.db.repair.CassandraTableRepairManager;
@@ -668,11 +669,24 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             Stage.MISC.unsafeSetExecutor(orderedExecutor);
             Stage.INTERNAL_RESPONSE.unsafeSetExecutor(unorderedScheduled);
             Mockito.when(failureDetector.isAlive(Mockito.any())).thenReturn(true);
+            // WORKAROUND, remove once the permanent fix for CASSANDRA-21721 lands.  Since CASSANDRA-21721, creating a
+            // NoSpamLogger statement reads NoSpamLogger's clock.  CompactionIterator creates one in a static field, so if
+            // it first loads on a compaction thread after the clock below is installed, its class init throws and every
+            // repair validation fails.  Load it here, before that clock is installed.
+            try
+            {
+                Class.forName(CompactionIterator.class.getName());
+            }
+            catch (ClassNotFoundException e)
+            {
+                throw new AssertionError(e);
+            }
             Thread expectedThread = Thread.currentThread();
-            Clock realClock = new Clock.Default();
-            // Only the fuzz thread runs simulated repair; other subsystems' threads (compaction, for example) use the real clock,
-            // the same rule ClockAccess applies to Clock.Global.
-            NoSpamLogger.unsafeSetClock(() -> Thread.currentThread() == expectedThread ? globalExecutor.nanoTime() : realClock.nanoTime());
+            NoSpamLogger.unsafeSetClock(() -> {
+                if (Thread.currentThread() != expectedThread)
+                    throw new AssertionError("NoSpamLogger.Clock accessed outside of fuzzing...");
+                return globalExecutor.nanoTime();
+            });
 
             int numNodes = rs.nextInt(3, 10);
             List<String> dcs = Gens.lists(IDENTIFIER_GEN).unique().ofSizeBetween(1, Math.min(10, numNodes)).next(rs);
