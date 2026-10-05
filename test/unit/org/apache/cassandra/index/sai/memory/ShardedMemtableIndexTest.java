@@ -88,8 +88,7 @@ public class ShardedMemtableIndexTest extends SAIRandomizedTester
         cfs.disableAutoCompaction();
 
         Map<String, String> options = new HashMap<>();
-        options.put(IndexTarget.CUSTOM_INDEX_OPTION_NAME,
-                    StorageAttachedIndex.class.getCanonicalName());
+        options.put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, StorageAttachedIndex.class.getCanonicalName());
         options.put("target", "val");
 
         IndexMetadata indexMetadata = IndexMetadata.fromSchemaMetadata("val_idx", IndexMetadata.Kind.CUSTOM, options);
@@ -177,11 +176,10 @@ public class ShardedMemtableIndexTest extends SAIRandomizedTester
         for (int executionCount = 0; executionCount < 1000; executionCount++)
         {
             // These keys have midrange tokens that select 3 of the 8 shards
-            DecoratedKey minimum = makeKey(cfs.metadata(), getRandom().nextIntBetween(0, 20000));
-            DecoratedKey temp = makeKey(cfs.metadata(), getRandom().nextIntBetween(0, 20000));
-            while (temp.compareTo(minimum) <= 0)
-                temp = makeKey(cfs.metadata(), getRandom().nextIntBetween(0, 20000));
-            DecoratedKey maximum = temp;
+            DecoratedKey first = makeKey(cfs.metadata(), getRandom().nextIntBetween(0, 20000));
+            DecoratedKey second = makeKey(cfs.metadata(), getRandom().nextIntBetween(0, 20000));
+            final DecoratedKey minimum = first.compareTo(second) <= 0 ? first : second;
+            final DecoratedKey maximum = first.compareTo(second) <= 0 ? second : first;
 
             Iterator<Pair<ByteComparable, Iterator<PrimaryKey>>> iterator = memtableIndex.iterator(minimum, maximum);
 
