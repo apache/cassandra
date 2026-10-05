@@ -130,8 +130,9 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
             return EmptyIterators.partition();
 
         RowPagerTransformation pagerTransformation = new RowPagerTransformation(nextPageLimits.forPaging(pageSize), query.nowInSec());
+        PartitionIterator page = Transformation.apply(readQuery.execute(consistency, clientState, requestTime), pagerTransformation);
         currentPagerTransformation = pagerTransformation;
-        return Transformation.apply(readQuery.execute(consistency, clientState, requestTime), pagerTransformation);
+        return page;
     }
 
     @Override
@@ -143,8 +144,9 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
             return EmptyIterators.partition();
 
         RowPagerTransformation pagerTransformation = new RowPagerTransformation(nextPageLimits.forPaging(pageSize), query.nowInSec());
+        PartitionIterator page = Transformation.apply(readQuery.executeInternal(executionController), pagerTransformation);
         currentPagerTransformation = pagerTransformation;
-        return Transformation.apply(readQuery.executeInternal(executionController), pagerTransformation);
+        return page;
     }
 
     public UnfilteredPartitionIterator fetchPageUnfiltered(TableMetadata metadata, PageSize pageSize, ReadExecutionController executionController)
@@ -155,8 +157,9 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
             return EmptyIterators.unfilteredPartition(metadata);
 
         UnfilteredPagerTransformation pagerTransformation = new UnfilteredPagerTransformation(nextPageLimits.forPaging(pageSize), query.nowInSec());
+        UnfilteredPartitionIterator page = Transformation.apply(readQuery.executeLocally(executionController), pagerTransformation);
         currentPagerTransformation = pagerTransformation;
-        return Transformation.apply(readQuery.executeLocally(executionController), pagerTransformation);
+        return page;
     }
 
     /**
