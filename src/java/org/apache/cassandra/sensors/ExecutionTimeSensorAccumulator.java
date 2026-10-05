@@ -90,6 +90,15 @@ public class ExecutionTimeSensorAccumulator
         }
     }
 
+    /**
+     * Returns true if the response threshold has been reached, that is if {@link #onResponse(RequestSensors)}
+     * has been invoked enough times to trigger the sensor increment with the max.
+     */
+    public boolean isResponseThresholdReached()
+    {
+        return responseCount.get() >= threshold;
+    }
+
     private static final class ContextTypePair
     {
         final Context context;

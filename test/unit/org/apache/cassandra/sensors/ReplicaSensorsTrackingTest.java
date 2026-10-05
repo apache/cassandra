@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.sensors;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -44,15 +46,22 @@ import org.apache.cassandra.db.CounterMutationCallback;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.MultiRangeReadCommand;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.RepairedDataInfo;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -76,8 +85,11 @@ import org.apache.cassandra.service.paxos.PaxosPropose;
 import org.apache.cassandra.service.paxos.PrepareResponse;
 import org.apache.cassandra.service.paxos.v1.PrepareCallback;
 import org.apache.cassandra.service.paxos.v1.ProposeCallback;
+import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.DigestResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
+import org.apache.cassandra.service.reads.range.EndpointGroupingCoordinator;
+import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
@@ -198,7 +210,7 @@ public class ReplicaSensorsTrackingTest
         RequestTracker.instance.set(requestSensors);
 
         // init callback
-        ReplicaPlan.SharedForTokenRead plan = plan(ConsistencyLevel.ONE, targets);
+        ReplicaPlan.SharedForTokenRead plan = readPlan(ConsistencyLevel.ONE, targets);
         final Dispatcher.RequestTime requestTime = Dispatcher.RequestTime.forImmediateExecution();
         final DigestResolver<EndpointsForToken, ReplicaPlan.ForTokenRead> resolver = new DigestResolver<>(command, plan, requestTime, QueryInfoTracker.ReadTracker.NOOP);
         final ReadCallback<EndpointsForToken, ReplicaPlan.ForTokenRead> callback = new ReadCallback<>(resolver, command, plan, requestTime);
@@ -222,6 +234,234 @@ public class ReplicaSensorsTrackingTest
         assertThat(actualWriteBytesSensor.getValue())
                 .as("WRITE_BYTES must remain zero for regular read (verb handler emits READ_BYTES only)")
                 .isZero();
+    }
+    
+    @Test
+    public void testSensorsTrackedForSingleEndpointCallback()
+    {
+        RequestSensors coordinatorSensors = new ActiveRequestSensors();
+        Context context = Context.from(cfs.metadata());
+        coordinatorSensors.registerSensor(context, Type.READ_BYTES);
+        coordinatorSensors.registerSensor(context, Type.INTERNODE_BYTES);
+        coordinatorSensors.registerSensor(context, Type.READ_EXECUTION_TIME);
+        RequestTracker.instance.set(coordinatorSensors);
+        Sensor readBytesSensor = coordinatorSensors.getSensor(context, Type.READ_BYTES).get();
+        Sensor execTimeSensor = coordinatorSensors.getSensor(context, Type.READ_EXECUTION_TIME).get();
+        Dispatcher.RequestTime requestTime = Dispatcher.RequestTime.forImmediateExecution();
+
+        // Two replicas:
+        Replica replica1 = targets.get(0);
+        Replica replica2 = targets.get(1);
+
+        // Two vnode ranges, both replicated to both endpoints (RF=2, QUORUM → blockFor=2):
+        // handler1 and handler2 represent the two vnode ranges. In production each would cover a
+        // distinct sub-range, but for sensor-tracking purposes the range bounds don't matter.
+        PartitionRangeReadCommand command = (PartitionRangeReadCommand) Util.cmd(cfs).build();
+        AbstractBounds<PartitionPosition> range = command.dataRange().keyRange();
+        EndpointsForRange rangeReplicas = EndpointsForRange.of(replica1, replica2);
+        ReplicaPlan.SharedForRangeRead sharedPlan1 = rangePlan(ConsistencyLevel.QUORUM, range, rangeReplicas);
+        DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver1 =
+        new DataResolver<>(command, sharedPlan1, NoopReadRepair.instance, requestTime, QueryInfoTracker.ReadTracker.NOOP);
+        ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler1 =
+        new ReadCallback<>(resolver1, command, sharedPlan1, requestTime);
+        ReplicaPlan.SharedForRangeRead sharedPlan2 = rangePlan(ConsistencyLevel.QUORUM, range, rangeReplicas);
+        DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver2 =
+        new DataResolver<>(command, sharedPlan2, NoopReadRepair.instance, requestTime, QueryInfoTracker.ReadTracker.NOOP);
+        ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler2 =
+        new ReadCallback<>(resolver2, command, sharedPlan2, requestTime);
+
+        // Each context covers both vnode ranges — both handlers are added to each context.
+        DataLimits.Counter counter1 = DataLimits.NONE.newCounter(command.nowInSec(), true, command.selectsFullPartition(), true);
+        EndpointGroupingCoordinator.EndpointQueryContext ctx1 =
+        new EndpointGroupingCoordinator.EndpointQueryContext(replica1.endpoint(), counter1, requestTime);
+        ctx1.add(handler1);
+        ctx1.add(handler2);
+
+        DataLimits.Counter counter2 = DataLimits.NONE.newCounter(command.nowInSec(), true, command.selectsFullPartition(), true);
+        EndpointGroupingCoordinator.EndpointQueryContext ctx2 =
+        new EndpointGroupingCoordinator.EndpointQueryContext(replica2.endpoint(), counter2, requestTime);
+        ctx2.add(handler1);
+        ctx2.add(handler2);
+
+        // Wire the shared accumulator after both contexts are known — threshold = distinct endpoint count = 2.
+        // (Mirrors the EndpointGroupingCoordinator constructor which does the same after the range-building loop.)
+        ExecutionTimeSensorAccumulator sharedAccumulator = new ExecutionTimeSensorAccumulator(2);
+        ctx1.setExecTimeAccumulator(sharedAccumulator);
+        ctx2.setExecTimeAccumulator(sharedAccumulator);
+
+        // Capture both MULTI_RANGE_REQ ids (in send order) and drop the actual network sends.
+        long[] capturedId1 = new long[1];
+        long[] capturedId2 = new long[1];
+        AtomicInteger sendCount = new AtomicInteger(0);
+        MessagingService.instance().outboundSink.add((msg, to) -> {
+            if (msg.verb() == Verb.MULTI_RANGE_REQ)
+            {
+                if (sendCount.getAndIncrement() == 0)
+                    capturedId1[0] = msg.id();
+                else
+                    capturedId2[0] = msg.id();
+            }
+            return msg.verb() != Verb.MULTI_RANGE_REQ;
+        });
+        try
+        {
+            ctx1.queryReplica();
+            ctx2.queryReplica();
+        }
+        finally
+        {
+            MessagingService.instance().outboundSink.clear();
+        }
+
+        // w1: READ_BYTES=42, READ_EXECUTION_TIME=100ms
+        Sensor mockReadBytes1 = new mockingSensor(context, Type.READ_BYTES);
+        mockReadBytes1.increment(42.0);
+        Sensor mockExecTime1 = new mockingSensor(context, Type.READ_EXECUTION_TIME);
+        mockExecTime1.increment(100_000_000L);
+
+        // w2: READ_BYTES=17, READ_EXECUTION_TIME=200ms (the slower replica — defines the expected max)
+        Sensor mockReadBytes2 = new mockingSensor(context, Type.READ_BYTES);
+        mockReadBytes2.increment(17.0);
+        Sensor mockExecTime2 = new mockingSensor(context, Type.READ_EXECUTION_TIME);
+        mockExecTime2.increment(200_000_000L);
+
+        Message<ReadCommand> fakeReq1 = Message.builder(Verb.MULTI_RANGE_REQ, (ReadCommand) ctx1.multiRangeCommand())
+                                               .withId(capturedId1[0]).build();
+        Message<ReadCommand> fakeReq2 = Message.builder(Verb.MULTI_RANGE_REQ, (ReadCommand) ctx2.multiRangeCommand())
+                                               .withId(capturedId2[0]).build();
+
+        ResponseVerbHandler.instance.doVerb(createMultiRangeReadResponseMessage(fakeReq1, replica1.endpoint(),
+                                                                                mockReadBytes1, mockExecTime1));
+        ResponseVerbHandler.instance.doVerb(createMultiRangeReadResponseMessage(fakeReq2, replica2.endpoint(),
+                                                                                mockReadBytes2, mockExecTime2));
+
+        // READ_BYTES: additive across both endpoint responses.
+        assertThat(readBytesSensor.getValue())
+                .as("READ_BYTES must be the sum of both replicas' reported values")
+                .isEqualTo(mockReadBytes1.getValue() + mockReadBytes2.getValue());
+
+        // READ_EXECUTION_TIME: the shared accumulator flushes max(T_w1, T_w2) = 200ms exactly once.
+        assertThat(execTimeSensor.getValue())
+                .as("READ_EXECUTION_TIME must be max(T_w1, T_w2) = 200ms, not inflated by the number of vnode ranges")
+                .isEqualTo(mockExecTime2.getValue());
+    }
+
+    /**
+     * Verifies that the wrapper returned by {@link EndpointGroupingCoordinator#execute()} flushes
+     * the execution-time sensor on {@code close()} even when the outer iterator is closed before
+     * all endpoint responses have arrived — the "early-close / LIMIT-hit" path.
+     *
+     * <p>Setup: two vnode ranges replicated to two endpoints. {@code endpointContexts.size() == 2},
+     * so the shared {@link ExecutionTimeSensorAccumulator} has {@code threshold = 2}. Only replica1
+     * responds, bringing the counter to 1. The outer {@link PartitionIterator} is then closed
+     * immediately (no {@code hasNext()} / no data consumed). The wrapper's {@code close()} must
+     * detect that {@code responseCount < threshold} and synthesize the missing {@code onResponse()}
+     * call, causing the accumulated max to be written to the coordinator sensors exactly once.</p>
+     */
+    @Test
+    public void testSensorsTrackedForSingleEndpointCallbackOnEarlyClose()
+    {
+        RequestSensors coordinatorSensors = new ActiveRequestSensors();
+        Context context = Context.from(cfs.metadata());
+        coordinatorSensors.registerSensor(context, Type.READ_BYTES);
+        coordinatorSensors.registerSensor(context, Type.READ_EXECUTION_TIME);
+        RequestTracker.instance.set(coordinatorSensors);
+        Sensor readBytesSensor = coordinatorSensors.getSensor(context, Type.READ_BYTES).get();
+        Sensor execTimeSensor  = coordinatorSensors.getSensor(context, Type.READ_EXECUTION_TIME).get();
+
+        Replica replica1 = targets.get(0);
+        Replica replica2 = targets.get(1);
+
+        // Two vnode ranges, both replicated to both replicas (RF=2, QUORUM → blockFor=2).
+        // endpointContexts has exactly two entries (one per endpoint) → threshold = 2.
+        PartitionRangeReadCommand command = (PartitionRangeReadCommand) Util.cmd(cfs).build();
+        AbstractBounds<PartitionPosition> range = command.dataRange().keyRange();
+        EndpointsForRange rangeReplicas = EndpointsForRange.of(replica1, replica2);
+
+        ReplicaPlan.ForRangeRead plan1 = new ReplicaPlan.ForRangeRead(ks, ks.getReplicationStrategy(),
+                                                                       ConsistencyLevel.QUORUM, range,
+                                                                       rangeReplicas, rangeReplicas, 1);
+        ReplicaPlan.ForRangeRead plan2 = new ReplicaPlan.ForRangeRead(ks, ks.getReplicationStrategy(),
+                                                                       ConsistencyLevel.QUORUM, range,
+                                                                       rangeReplicas, rangeReplicas, 1);
+        Iterator<ReplicaPlan.ForRangeRead> replicaPlans = Arrays.asList(plan1, plan2).iterator();
+
+        DataLimits.Counter outerCounter = DataLimits.NONE.newCounter(command.nowInSec(), true,
+                                                                      command.selectsFullPartition(), true);
+
+        // Capture MULTI_RANGE_REQ message ids and destinations, then drop the sends so no
+        // real network I/O happens.  Construction does not send anything; execute() does.
+        long[] capturedIds   = new long[2];
+        InetAddressAndPort[] capturedDests = new InetAddressAndPort[2];
+        AtomicInteger sendIdx = new AtomicInteger(0);
+
+        EndpointGroupingCoordinator coordinator =
+                new EndpointGroupingCoordinator(command, outerCounter, replicaPlans,
+                                                2 /* concurrencyFactor */,
+                                                Dispatcher.RequestTime.forImmediateExecution(),
+                                                QueryInfoTracker.ReadTracker.NOOP);
+
+        MessagingService.instance().outboundSink.add((msg, to) -> {
+            if (msg.verb() == Verb.MULTI_RANGE_REQ)
+            {
+                int idx = sendIdx.getAndIncrement();
+                capturedIds[idx]   = msg.id();
+                capturedDests[idx] = to;
+            }
+            return msg.verb() != Verb.MULTI_RANGE_REQ;  // drop: do not actually send
+        });
+
+        PartitionIterator result;
+        try
+        {
+            // execute() calls queryReplica() on each EndpointQueryContext, firing the sends
+            // captured above, and returns the wrapped PartitionIterator whose close() flushes
+            // the accumulator regardless of whether any data was consumed.
+            result = coordinator.execute();
+        }
+        finally
+        {
+            MessagingService.instance().outboundSink.clear();
+        }
+
+        // Identify which captured slot belongs to replica1, then retrieve the MultiRangeReadCommand
+        // the coordinator built for that endpoint context.
+        int idxForReplica1 = capturedDests[0].equals(replica1.endpoint()) ? 0 : 1;
+        MultiRangeReadCommand multiRangeCmd1 = coordinator.endpointRanges()
+                                                          .stream()
+                                                          .filter(c -> c.endpoint().equals(replica1.endpoint()))
+                                                          .findFirst().get().multiRangeCommand();
+
+        // Only replica1 responds (replica2 is "slow" / never replies before the LIMIT is hit).
+        // accumulator count becomes 1, threshold is 2 → sensor must NOT be flushed yet.
+        Sensor mockReadBytes1 = new mockingSensor(context, Type.READ_BYTES);
+        mockReadBytes1.increment(75.0);
+        Sensor mockExecTime1  = new mockingSensor(context, Type.READ_EXECUTION_TIME);
+        mockExecTime1.increment(120_000_000L);
+
+        Message<ReadCommand> fakeReq1 = Message.builder(Verb.MULTI_RANGE_REQ, (ReadCommand) multiRangeCmd1)
+                                               .withId(capturedIds[idxForReplica1])
+                                               .build();
+        ResponseVerbHandler.instance.doVerb(
+                createMultiRangeReadResponseMessage(fakeReq1, replica1.endpoint(),
+                                                    mockReadBytes1, mockExecTime1));
+
+        assertThat(execTimeSensor.getValue())
+                .as("READ_EXECUTION_TIME must NOT be flushed before all endpoints have responded")
+                .isZero();
+
+        // Simulate LIMIT-hit: close the outer iterator immediately without calling hasNext().
+        // The execute() wrapper's close() must drive the accumulator from count=1 to threshold=2,
+        // flushing the accumulated max (= 120ms) exactly once.
+        result.close();
+
+        assertThat(readBytesSensor.getValue())
+                .as("READ_BYTES must equal replica1's reported value (additive)")
+                .isEqualTo(mockReadBytes1.getValue());
+
+        assertThat(execTimeSensor.getValue())
+                .as("READ_EXECUTION_TIME must be flushed by execute() wrapper close()")
+                .isEqualTo(mockExecTime1.getValue());
     }
 
     @Test
@@ -710,6 +950,14 @@ public class ReplicaSensorsTrackingTest
                                       List<Pair<Sensor, Sensor>> additiveSensors,
                                       List<Pair<Sensor, Sensor>> maxSensors) throws InterruptedException
     {
+        assertReplicaSensors(targets, request, callback, false, additiveSensors, maxSensors);
+    }
+
+    private void assertReplicaSensors(EndpointsForToken replicaList, Message<?> request, RequestCallback<?> callback,
+                                      boolean callbackAlreadyRegistered,
+                                      List<Pair<Sensor, Sensor>> additiveSensors,
+                                      List<Pair<Sensor, Sensor>> maxSensors) throws InterruptedException
+    {
         for (Pair<Sensor, Sensor> pair : additiveSensors)
         {
             assertThat(pair.left.getValue()).isZero();
@@ -730,9 +978,9 @@ public class ReplicaSensorsTrackingTest
                                            .map(Pair::right)
                                            .toArray(Sensor[]::new);
 
-        for (int responseIdx = 1; responseIdx <= targets.size(); responseIdx++)
+        for (int responseIdx = 1; responseIdx <= replicaList.size(); responseIdx++)
         {
-            simulateResponseFromReplica(targets.get(responseIdx - 1), request, callback, allReplicaSensors);
+            simulateResponseFromReplica(replicaList.get(responseIdx - 1), request, callback, callbackAlreadyRegistered, allReplicaSensors);
 
             // don't wait indefinitely if the test is stuck. Delay the assertion of the await results to give a better
             // chance of a meaningful error by virtue of the core test assertion
@@ -758,27 +1006,37 @@ public class ReplicaSensorsTrackingTest
             pair.left.reset();
     }
 
-    private void simulateResponseFromReplica(Replica replica, Message<?> request, RequestCallback<?> callback, Sensor... sensor)
+    private void simulateResponseFromReplica(Replica replica, Message<?> request, RequestCallback<?> callback, boolean callbackAlreadyRegistered, Sensor... sensor)
     {
         new Thread(() -> {
-            // AbstractWriteResponseHandler has a special handling for the callback
-            if (callback instanceof AbstractWriteResponseHandler)
-                MessagingService.instance().callbacks.addWithExpiration((AbstractWriteResponseHandler<?>) callback, request, replica);
-            else
-                MessagingService.instance().callbacks.addWithExpiration(callback, request, replica.endpoint());
+            if (!callbackAlreadyRegistered)
+            {
+                // AbstractWriteResponseHandler has a special handling for the callback
+                if (callback instanceof AbstractWriteResponseHandler)
+                    MessagingService.instance().callbacks.addWithExpiration((AbstractWriteResponseHandler<?>) callback, request, replica);
+                else
+                    MessagingService.instance().callbacks.addWithExpiration(callback, request, replica.endpoint());
+            }
             Message<?> response = createResponseMessageWithSensor(request, replica.endpoint(), sensor);
             ResponseVerbHandler.instance.doVerb(response);
         }).start();
     }
 
-    private ReplicaPlan.SharedForTokenRead plan(ConsistencyLevel consistencyLevel, EndpointsForToken replicas)
+    private ReplicaPlan.SharedForTokenRead readPlan(ConsistencyLevel consistencyLevel, EndpointsForToken replicas)
     {
         return ReplicaPlan.shared(new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), consistencyLevel, replicas, replicas));
     }
 
+    private ReplicaPlan.SharedForRangeRead rangePlan(ConsistencyLevel consistencyLevel, AbstractBounds<PartitionPosition> range, EndpointsForRange replicas)
+    {
+        return ReplicaPlan.shared(new ReplicaPlan.ForRangeRead(ks, ks.getReplicationStrategy(), consistencyLevel, range, replicas, replicas, 1));
+    }
+
     private Message<?> createResponseMessageWithSensor(Message<?> request, InetAddressAndPort endpoint, Sensor... sensors)
     {
-        if (request.verb() == Verb.READ_REQ)
+        if (request.verb() == Verb.MULTI_RANGE_REQ)
+            return createMultiRangeReadResponseMessage(request, endpoint, sensors);
+        else if (request.verb() == Verb.READ_REQ)
             return createReadResponseMessage(request, endpoint, sensors);
         else if (request.verb() == Verb.MUTATION_REQ)
             return createResponseMessage(Verb.MUTATION_RSP, NoPayload.noPayload, endpoint, request.id(), sensors);
@@ -801,6 +1059,23 @@ public class ReplicaSensorsTrackingTest
             return createResponseMessage(Verb.PAXOS2_PROPOSE_RSP, NoPayload.noPayload, endpoint, request.id(), sensors);
         else
             throw new IllegalArgumentException("Unsupported verb: " + request.verb());
+    }
+
+    private Message<ReadResponse> createMultiRangeReadResponseMessage(Message<?> request, InetAddressAndPort endpoint, Sensor... sensors)
+    {
+        MultiRangeReadCommand multiRangeCommand = (MultiRangeReadCommand) request.payload;
+        UnfilteredPartitionIterator data = Mockito.mock(UnfilteredPartitionIterator.class);
+        Mockito.when(data.metadata()).thenReturn(multiRangeCommand.metadata());
+        Mockito.when(data.hasNext()).thenReturn(false);
+        ReadResponse response = multiRangeCommand.createResponse(data, RepairedDataInfo.NO_OP_REPAIRED_DATA_INFO);
+        Message.Builder<ReadResponse> builder = Message.builder(Verb.MULTI_RANGE_RSP, response)
+                                                       .from(endpoint)
+                                                       .withId(request.id());
+
+        for (Sensor sensor : sensors)
+            builder.withCustomParam(SensorsCustomParams.paramForRequestSensor(sensor).get(), SensorsCustomParams.sensorValueAsBytes(sensor.getValue()));
+
+        return builder.build();
     }
 
     private Message<ReadResponse> createReadResponseMessage(Message<?> request, InetAddressAndPort endpoint, Sensor... sensors)

@@ -40,6 +40,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.ParamType;
+import org.apache.cassandra.net.ReadRequestCallback;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
@@ -62,7 +63,7 @@ import static java.util.concurrent.atomic.AtomicIntegerFieldUpdater.newUpdater;
 import static org.apache.cassandra.tracing.Tracing.isTracing;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
-public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> implements RequestCallback<ReadResponse>
+public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> implements ReadRequestCallback<ReadResponse>
 {
     protected static final Logger logger = LoggerFactory.getLogger(ReadCallback.class);
 
@@ -116,6 +117,12 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     public ReadCommand command()
     {
         return command;
+    }
+
+    @Override
+    public Context sensorsContext()
+    {
+        return Context.from(command);
     }
 
     @Override

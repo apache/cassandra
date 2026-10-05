@@ -37,6 +37,7 @@ import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.Endpoints;
@@ -46,8 +47,12 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.net.ReadRequestCallback;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.sensors.Context;
+import org.apache.cassandra.sensors.ExecutionTimeSensorAccumulator;
+import org.apache.cassandra.sensors.RequestSensors;
+import org.apache.cassandra.sensors.Type;
 import org.apache.cassandra.service.QueryInfoTracker;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
@@ -89,6 +94,8 @@ public class EndpointGroupingCoordinator
     private QueryInfoTracker.ReadTracker readTracker;
     private final int vnodeRanges;
 
+    private final ExecutionTimeSensorAccumulator execTimeAccumulator;
+
     /**
      * @param command current range read command
      * @param counter the unlimited counter for the command
@@ -126,6 +133,12 @@ public class EndpointGroupingCoordinator
             concurrentQueries.add(createResponse(replicaPlan, isFirst));
         }
         this.vnodeRanges = vnodeRanges;
+
+        // Initialise the shared execution-time accumulator with the distinct endpoint count as threshold: the max across
+        // all parallel endpoint responses is only correct once every queried endpoint has reported its time.
+        execTimeAccumulator = new ExecutionTimeSensorAccumulator(endpointContexts.size());
+        for (EndpointQueryContext ctx : endpointContexts.values())
+            ctx.setExecTimeAccumulator(execTimeAccumulator);
     }
 
     public int vnodeRanges()
@@ -138,11 +151,49 @@ public class EndpointGroupingCoordinator
         for (EndpointQueryContext replica : replicas())
             replica.queryReplica();
 
-        return counter.applyTo(PartitionIterators.concat(concurrentQueries));
+        PartitionIterator partitions = counter.applyTo(PartitionIterators.concat(concurrentQueries));
+
+        // Wrap so that close() — which may be called before the iterator is fully consumed
+        // (e.g. when a LIMIT is reached) — flushes the execution-time accumulator with
+        // whatever responses have arrived so far.
+        return new PartitionIterator()
+        {
+            @Override
+            public boolean hasNext()
+            {
+                return partitions.hasNext();
+            }
+
+            @Override
+            public RowIterator next()
+            {
+                return partitions.next();
+            }
+
+            @Override
+            public void close()
+            {
+                try
+                {
+                    partitions.close();
+                }
+                finally
+                {
+                    // Drive the accumulator to threshold with the sensors of any handler that
+                    // did receive a response; if threshold is already reached this is a no-op.
+                    if (!perRangeHandlers.isEmpty())
+                    {
+                        RequestSensors sensors = perRangeHandlers.get(0).getRequestSensors();
+                        while (sensors != null && !execTimeAccumulator.isResponseThresholdReached())
+                            execTimeAccumulator.onResponse(sensors);
+                    }
+                }
+            }
+        };
     }
 
     @VisibleForTesting
-    Collection<EndpointQueryContext> endpointRanges()
+    public Collection<EndpointQueryContext> endpointRanges()
     {
         return endpointContexts.values();
     }
@@ -179,7 +230,7 @@ public class EndpointGroupingCoordinator
         // Create a handler for the range and add it, by replica, to the endpoint contexts.
         ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler =
                 new ReadCallback<>(resolver, subrangeCommand, sharedReplicaPlan, requestTime);
-        
+
         perRangeHandlers.add(handler);
         for (Replica replica : replicaPlan.contacts())
         {
@@ -202,6 +253,7 @@ public class EndpointGroupingCoordinator
         // aka. no more data can be fetched.
         private final DataLimits.Counter singleResultCounter;
         private final Dispatcher.RequestTime requestTime;
+        private ExecutionTimeSensorAccumulator execTimeAccumulator;
 
         private MultiRangeReadCommand multiRangeCommand;
 
@@ -211,6 +263,14 @@ public class EndpointGroupingCoordinator
             this.handlers = new ArrayList<>();
             this.singleResultCounter = singleResultCounter;
             this.requestTime = requestTime;
+        }
+
+        /**
+         * @param execTimeAccumulator the shared accumulator
+         */
+        public void setExecTimeAccumulator(ExecutionTimeSensorAccumulator execTimeAccumulator)
+        {
+            this.execTimeAccumulator = execTimeAccumulator;
         }
 
         /**
@@ -236,9 +296,21 @@ public class EndpointGroupingCoordinator
         }
 
         @VisibleForTesting
+        public InetAddressAndPort endpoint()
+        {
+            return endpoint;
+        }
+
+        @VisibleForTesting
         public int rangesCount()
         {
             return handlers.size();
+        }
+
+        @VisibleForTesting
+        public MultiRangeReadCommand multiRangeCommand()
+        {
+            return multiRangeCommand;
         }
 
         /**
@@ -249,11 +321,37 @@ public class EndpointGroupingCoordinator
          * 3. passing the split single-range response to a corresponding read callback which will
          *    start resolving responses if it has got enough responses for the consistency level requirement.
          */
-        private class SingleEndpointCallback implements RequestCallback<ReadResponse>
+        private class SingleEndpointCallback implements ReadRequestCallback<ReadResponse>
         {
+            @Override
+            public Context sensorsContext()
+            {
+                // All handlers share the same table; derive the Context from the first one.
+                return Context.from(handlers.get(0).command());
+            }
+
+            @Override
+            public RequestSensors getRequestSensors()
+            {
+                // All per-range ReadCallbacks capture the same coordinator RequestSensors via RequestTracker.
+                return handlers.get(0).getRequestSensors();
+            }
+
+            @Override
+            public void accumulateExecutionTimeSensor(Context context, Type type, double value)
+            {
+                // One endpoint serves all its assigned vnode ranges in a single MULTI_RANGE_REQ round-trip,
+                // reporting one execution-time value for all of them.
+                execTimeAccumulator.accumulate(context, type, value);
+            }
+
             @Override
             public void onResponse(Message<ReadResponse> response)
             {
+                // Count this endpoint's response in the shared accumulator. Once all distinct endpoints
+                // have responded, the accumulated max is flushed to the coordinator sensors exactly once.
+                execTimeAccumulator.onResponse(getRequestSensors());
+
                 // split single-endpoint multi-range response into per-range handlers.
                 MultiRangeReadResponse multiRangeResponse = (MultiRangeReadResponse) response.payload;
                 for (ReadCallback<?, ?> handler : handlers)
