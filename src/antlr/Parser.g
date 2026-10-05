@@ -2191,7 +2191,7 @@ properties[PropertyDefinitions props]
 property[PropertyDefinitions props]
     : k=noncol_ident '=' simple=propertyValue { try { $props.addProperty(k.toString(), simple); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
     | k=noncol_ident '=' map=fullMapLiteral { try { $props.addProperty(k.toString(), convertPropertyMap(map)); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
-    | 'included_indexes' '=' names=indexNames            { try { $props.addProperty("included_indexes", names); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
+    | 'included_indexes' '=' names=indexNamesOrWildcards { try { $props.addProperty("included_indexes", names); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
     | 'excluded_indexes' '=' names=indexNamesOrWildcards { try { $props.addProperty("excluded_indexes", names); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
     ;
 
