@@ -66,9 +66,9 @@ public class PageSize
     }
 
     /**
-     * Creates a page size representing {@code count} rows.
+     * Creates a page size representing {@code rowsCount} rows.
      *
-     * @throws IllegalArgumentException if the size is not strictly positive.
+     * @throws IllegalArgumentException if the size is negative.
      */
     public static PageSize inRows(int rowsCount)
     {
@@ -76,9 +76,9 @@ public class PageSize
     }
 
     /**
-     * Creates a page size representing {@code size} bytes.
+     * Creates a page size representing {@code bytesCount} bytes.
      *
-     * @throws IllegalArgumentException if the size is not strictly positive.
+     * @throws IllegalArgumentException if the size is negative.
      */
     public static PageSize inBytes(int bytesCount)
     {
