@@ -66,7 +66,7 @@ import static java.util.Collections.singleton;
 
 public class TrackerTest
 {
-    private static final int COMPONENT_STATS_SIZE_BYTES = 4806;
+    private static final int COMPONENT_STATS_SIZE_BYTES = 4807;
 
     private static final class MockListener implements INotificationConsumer
     {
