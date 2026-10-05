@@ -117,7 +117,7 @@ abstract class Flusher implements Runnable
 
     protected final EventLoop eventLoop;
     // Many request threads produce, but only the event loop this flusher belongs to consumes, so an MPSC queue is enough.
-    private final MpscUnboundedArrayQueue<FlushItem<?>> queued = new MpscUnboundedArrayQueue<>(DatabaseDescriptor.getNativeTransportMaxThreads());
+    private final MpscUnboundedArrayQueue<FlushItem<?>> queued = new MpscUnboundedArrayQueue<>(queuedChunkSize());
     protected final AtomicBoolean scheduled = new AtomicBoolean(false);
     protected final List<FlushItem<?>> processed = new ArrayList<>();
     private final HashSet<Channel> channels = new HashSet<>();
@@ -134,6 +134,13 @@ abstract class Flusher implements Runnable
     private Flusher(EventLoop eventLoop)
     {
         this.eventLoop = eventLoop;
+    }
+
+    // a typical backlog should fit in one chunk, and overflow just links a new one
+    // MpscUnboundedArrayQueue requires >= 2 for chunk size
+    private static int queuedChunkSize()
+    {
+        return Math.max(2, DatabaseDescriptor.getNativeTransportMaxThreads());
     }
 
     void enqueue(FlushItem<?> item)
