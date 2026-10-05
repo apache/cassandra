@@ -287,11 +287,19 @@ public class RowsTest
             builder.addCell(live);
             builder.addCell(expiring);
             builder.addCell(tombstone);
-            ComplexColumnData data = builder.build().getComplexColumnData(m);
+            builder.addCell(BufferCell.live(v, timestamp, BB4));
+            Row row = builder.build();
+            ComplexColumnData data = row.getComplexColumnData(m);
 
             boolean deleted = !deletion.isLive() && deletion.markedForDeleteAt() == timestamp;
-            Assert.assertEquals(deleted ? 0 : live.dataSize() + expiring.dataSize(), data.liveDataSize(now));
-            Assert.assertEquals(deleted ? 0 : live.dataSize(), data.liveDataSize(now + 10));
+            if (!deleted)
+            {
+                for (long readNow : new long[]{ now, now + 10 })
+                    Assert.assertEquals(row.purge(DeletionPurger.PURGE_ALL, readNow, false).dataSize(), row.liveDataSize(readNow));
+            }
+
+            Assert.assertEquals(deleted ? 0 : deletion.dataSize() + live.dataSize() + expiring.dataSize(), data.liveDataSize(now));
+            Assert.assertEquals(deleted ? 0 : deletion.dataSize() + live.dataSize(), data.liveDataSize(now + 10));
         }
     }
 
