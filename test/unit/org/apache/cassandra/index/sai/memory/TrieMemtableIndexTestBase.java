@@ -43,6 +43,7 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.filter.ANNOptions;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.memtable.AbstractAllocatorMemtable;
@@ -60,6 +61,8 @@ import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.plan.Orderer;
+import org.apache.cassandra.index.sai.utils.PrimaryKeyWithSortKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.inject.InvokePointBuilder;
@@ -68,6 +71,7 @@ import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -215,6 +219,88 @@ public abstract class TrieMemtableIndexTestBase extends SAITester
     }
 
     @Test
+    public void emptyRangeQueryTest() throws Exception
+    {
+        memtableIndex = new TrieMemtableIndex(indexContext, memtable);
+
+        for (int row = 0; row < 100; row++)
+            addRow(row, row % 10);
+
+        // Ranges that cannot match anything: the lower bound above the upper one, or equal bounds with an exclusive side
+        assertEmptyRange(Operator.GT, 5, Operator.LT, 3);
+        assertEmptyRange(Operator.GTE, 5, Operator.LTE, 3);
+        assertEmptyRange(Operator.GT, 5, Operator.LT, 5);
+        assertEmptyRange(Operator.GTE, 5, Operator.LT, 5);
+        assertEmptyRange(Operator.GT, 5, Operator.LTE, 5);
+
+        Expression expression = new Expression(indexContext);
+        expression.add(Operator.GTE, Int32Type.instance.decompose(5));
+        expression.add(Operator.LTE, Int32Type.instance.decompose(5));
+        try (KeyRangeIterator iterator = memtableIndex.search(new QueryContext(), expression, fullKeyRange()))
+        {
+            assertEquals(10, Iterators.size(iterator));
+        }
+    }
+
+    private void assertEmptyRange(Operator lowerOp, int lower, Operator upperOp, int upper) throws Exception
+    {
+        Expression expression = new Expression(indexContext);
+        expression.add(lowerOp, Int32Type.instance.decompose(lower));
+        expression.add(upperOp, Int32Type.instance.decompose(upper));
+        try (KeyRangeIterator iterator = memtableIndex.search(new QueryContext(), expression, fullKeyRange()))
+        {
+            assertFalse(expression.toString(), iterator.hasNext());
+        }
+        assertEquals(expression.toString(), 0, memtableIndex.estimateMatchingRowsCount(expression));
+    }
+
+    @Test
+    public void emptyRangeOrderByTest() throws Exception
+    {
+        memtableIndex = new TrieMemtableIndex(indexContext, memtable);
+
+        for (int row = 0; row < 100; row++)
+            addRow(row, row % 10);
+
+        for (Operator direction : List.of(Operator.ORDER_BY_ASC, Operator.ORDER_BY_DESC))
+        {
+            Orderer orderer = new Orderer(indexContext, direction, null, ANNOptions.NONE);
+            assertEquals(List.of(), orderBy(orderer, Operator.GT, 5, Operator.LT, 3));
+            assertEquals(List.of(), orderBy(orderer, Operator.GTE, 5, Operator.LTE, 3));
+            assertEquals(List.of(), orderBy(orderer, Operator.GT, 5, Operator.LT, 5));
+            assertEquals(List.of(), orderBy(orderer, Operator.GTE, 5, Operator.LT, 5));
+            assertEquals(List.of(), orderBy(orderer, Operator.GT, 5, Operator.LTE, 5));
+            assertEquals(List.of(5, 15, 25, 35, 45, 55, 65, 75, 85, 95), orderBy(orderer, Operator.GTE, 5, Operator.LTE, 5));
+        }
+    }
+
+    /**
+     * Returns the sorted partition keys of the rows returned by ordering on the given slice.
+     */
+    private List<Integer> orderBy(Orderer orderer, Operator lowerOp, int lower, Operator upperOp, int upper) throws Exception
+    {
+        Expression slice = new Expression(indexContext);
+        slice.add(lowerOp, Int32Type.instance.decompose(lower));
+        slice.add(upperOp, Int32Type.instance.decompose(upper));
+        List<Integer> keys = new ArrayList<>();
+        for (CloseableIterator<PrimaryKeyWithSortKey> iterator : memtableIndex.orderBy(new QueryContext(), orderer, slice, fullKeyRange(), 100))
+        {
+            try (iterator)
+            {
+                while (iterator.hasNext())
+                    keys.add(Int32Type.instance.compose(iterator.next().partitionKey().getKey()));
+            }
+        }
+        keys.sort(Integer::compareTo);
+        return keys;
+    }
+
+    private AbstractBounds<PartitionPosition> fullKeyRange()
+    {
+        return new Range<>(partitioner.getMinimumToken().minKeyBound(), partitioner.getMinimumToken().minKeyBound());
+    }
+
+    @Test
     public void indexIteratorTest()
     {
         memtableIndex = new TrieMemtableIndex(indexContext, memtable);
@@ -320,9 +406,7 @@ public abstract class TrieMemtableIndexTestBase extends SAITester
         // Build eq expression to search for the value
         Expression expression = new Expression(integerListIndexContext);
         expression.add(Operator.EQ, Int32Type.instance.decompose(value));
-        AbstractBounds<PartitionPosition> keyRange = new Range<>(partitioner.getMinimumToken().minKeyBound(),
-                                                                 partitioner.getMinimumToken().minKeyBound());
-        var result = memtableIndex.search(new QueryContext(), expression, keyRange);
+        var result = memtableIndex.search(new QueryContext(), expression, fullKeyRange());
         // Confirm the partition keys are as expected in the provided order and that we have no more results
         for (int partitionKey : partitionKeys)
             assertEquals(makeKey(cfs.metadata(), partitionKey), result.next().partitionKey());
