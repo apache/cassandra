@@ -97,7 +97,7 @@ public class PartitionRangeQueryPager extends AbstractQueryPager<PartitionRangeR
             limits = limits.forPaging(pageSize);
         }
         // if the last key was the one of the end of the range we know that we are done
-        else if (lastReturnedKey.equals(fullRange.keyRange().right) && remainingInPartition() == 0)
+        else if (lastReturnedKey.equals(fullRange.keyRange().right) && remainingInPartition() == 0 && lastReturnedRow == null)
         {
             return null;
         }
