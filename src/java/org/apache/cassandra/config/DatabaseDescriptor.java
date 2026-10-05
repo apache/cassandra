@@ -4580,6 +4580,11 @@ public class DatabaseDescriptor
         conf.key_cache_keys_to_save = keyCacheKeysToSave;
     }
 
+    public static boolean getKeyCacheSaveOnShutdown()
+    {
+        return conf.key_cache_save_on_shutdown;
+    }
+
     public static String getRowCacheClassName()
     {
         return conf.row_cache_class_name;

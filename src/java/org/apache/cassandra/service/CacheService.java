@@ -362,6 +362,20 @@ public class CacheService implements CacheServiceMBean
         logger.debug("cache saves completed");
     }
 
+    /**
+     * Saves the key cache on the calling thread. Unlike {@link #saveCaches()}, this does not go through the
+     * compaction manager, so it can run during drain after compactions have been shut down.
+     */
+    public void saveKeyCacheBlocking() throws InterruptedException
+    {
+        AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry>.Writer writer =
+            keyCache.getWriter(DatabaseDescriptor.getKeyCacheKeysToSave());
+        try (AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry>.SaveOperation operation = writer.startSaveBlocking())
+        {
+            operation.saveCache();
+        }
+    }
+
     public static class CounterCacheSerializer extends CacheSerializer<CounterCacheKey, ClockAndCount>
     {
         public void serialize(CounterCacheKey key, DataOutputPlus out, ColumnFamilyStore cfs) throws IOException
