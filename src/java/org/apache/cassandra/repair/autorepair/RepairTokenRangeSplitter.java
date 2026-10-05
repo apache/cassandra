@@ -212,7 +212,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
     @Override
     public Iterator<KeyspaceRepairAssignments> getRepairAssignments(boolean primaryRangeOnly, List<PrioritizedRepairPlan> repairPlans)
     {
-        return new BytesBasedRepairAssignmentIterator(primaryRangeOnly, repairPlans);
+        return new BytesBasedRepairAssignmentIterator(repairPlans);
     }
 
     /**
@@ -222,13 +222,11 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
     private class BytesBasedRepairAssignmentIterator extends RepairAssignmentIterator
     {
 
-        private final boolean primaryRangeOnly;
         private long bytesSoFar = 0;
 
-        BytesBasedRepairAssignmentIterator(boolean primaryRangeOnly, List<PrioritizedRepairPlan> repairPlans)
+        BytesBasedRepairAssignmentIterator(List<PrioritizedRepairPlan> repairPlans)
         {
             super(repairPlans);
-            this.primaryRangeOnly = primaryRangeOnly;
         }
 
         @Override
@@ -242,7 +240,7 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
                 return new KeyspaceRepairAssignments(priority, repairPlan.getKeyspaceName(), Collections.emptyList());
             }
 
-            List<Range<Token>> tokenRanges = AutoRepairUtils.getTokenRanges(primaryRangeOnly, repairPlan.getKeyspaceName());
+            List<Range<Token>> tokenRanges = new ArrayList<>(repairPlan.getTokenRanges());
             // shuffle token ranges to unbias selection of ranges
             Collections.shuffle(tokenRanges);
             List<SizedRepairAssignment> repairAssignments = new ArrayList<>();
@@ -482,11 +480,8 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
         AutoRepairUtils.SizeEstimate sizeEstimate = repairPlan.getSizeEstimate(AutoRepairUtils.getKeyspaceTableName(repairPlan.getKeyspaceName(), tableName), tokenRange);
         if (sizeEstimate == null)
         {
-            // Ideally, it should have been cached already inside the KeyspaceRepairPlan, but incase it was not,
-            // then recalculating it. It is a bit expensive, but necessary for the repair
-            logger.warn("The size estimate for {}.{} range {} was not pre-calculated, calculating on-demand",
-                        repairPlan.getKeyspaceName(), tableName, tokenRange);
-            sizeEstimate = AutoRepairUtils.getRangeSizeEstimate(repairType, repairPlan.getKeyspaceName(), tableName, tokenRange);
+            throw new IllegalStateException(String.format("Missing planned size estimate for %s.%s range %s",
+                                                          repairPlan.getKeyspaceName(), tableName, tokenRange));
         }
         return getRepairAssignments(sizeEstimate);
     }
@@ -501,17 +496,6 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
     {
         List<SizedRepairAssignment> repairAssignments = new ArrayList<>();
 
-        // since its possible for us to hit maxBytesPerSchedule before seeing all ranges, shuffle so there is chance
-        // at least of hitting all the ranges _eventually_ for the worst case scenarios
-        int totalExpectedSubRanges = 0;
-        if (estimate.sizeForRepair != 0)
-        {
-            boolean needsSplitting = estimate.sizeForRepair > bytesPerAssignment.toBytes() || estimate.partitions > partitionsPerAssignment;
-            if (needsSplitting)
-            {
-                totalExpectedSubRanges += calculateNumberOfSplits(estimate);
-            }
-        }
         if (estimate.sizeForRepair == 0)
         {
             ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(estimate.keyspace, estimate.table);
@@ -543,13 +527,14 @@ public class RepairTokenRangeSplitter implements IAutoRepairTokenRangeSplitter
             if (needsSplitting)
             {
                 int numberOfSplits = calculateNumberOfSplits(estimate);
-                long approximateBytesPerSplit = estimate.sizeForRepair / numberOfSplits;
                 Collection<Range<Token>> subranges = split(estimate.tokenRange, numberOfSplits);
+                int splitIndex = 0;
                 for (Range<Token> subrange : subranges)
                 {
+                    long bytes = AutoRepairUtils.getEstimatedBytesForSplit(estimate.sizeForRepair, subranges.size(), splitIndex++);
                     SizedRepairAssignment assignment = new SizedRepairAssignment(subrange, estimate.keyspace, Collections.singletonList(estimate.table),
-                                                                                 String.format("subrange %d of %d", repairAssignments.size() + 1, totalExpectedSubRanges),
-                                                                                 approximateBytesPerSplit);
+                                                                                 String.format("subrange %d of %d", splitIndex, subranges.size()),
+                                                                                 bytes);
                     repairAssignments.add(assignment);
                 }
             }

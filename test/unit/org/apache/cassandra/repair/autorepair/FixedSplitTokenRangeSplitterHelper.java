@@ -245,7 +245,8 @@ public class FixedSplitTokenRangeSplitterHelper
                                                                        config.getRepairPrimaryTokenRangeOnly(repairType));
         assertEquals(1, plan.size());
         assertEquals(1, plan.get(0).getKeyspaceRepairPlans().size());
-        plan.get(0).getKeyspaceRepairPlans().get(0).ksTablesEstimatedBytes = ksTablesEstimatedBytes;
-        return plan;
+        KeyspaceRepairPlan snapshot = plan.get(0).getKeyspaceRepairPlans().get(0);
+        KeyspaceRepairPlan repairPlan = new KeyspaceRepairPlan(KEYSPACE, tables, snapshot.getTokenRanges(), ksTablesEstimatedBytes);
+        return List.of(new PrioritizedRepairPlan(plan.get(0).getPriority(), List.of(repairPlan)));
     }
 }

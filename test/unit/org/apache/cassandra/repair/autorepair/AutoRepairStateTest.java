@@ -125,7 +125,7 @@ public class AutoRepairStateTest extends CQLTester
         Range<Token> range = new Range<>(DatabaseDescriptor.getPartitioner().getMinimumToken(),
                                          DatabaseDescriptor.getPartitioner().getMaximumTokenForSplitting());
         List<Range<Token>> ranges = new ArrayList<>(AutoRepairUtils.split(range, numberOfRanges));
-        KeyspaceRepairPlan plan = new KeyspaceRepairPlan(KEYSPACE, ImmutableList.of(testTable),
+        KeyspaceRepairPlan plan = new KeyspaceRepairPlan(KEYSPACE, ImmutableList.of(testTable), ranges,
                                                         AutoRepairUtils.calcTotalBytesToBeRepaired(repairType, KEYSPACE,
                                                                                                    ImmutableList.of(testTable), ranges));
         for (Range<Token> tokenRange : ranges)
@@ -181,7 +181,7 @@ public class AutoRepairStateTest extends CQLTester
                                                                                .getTracker().getView().getCurrentMemtable().getLiveDataSize()).sum();
         List<Range<Token>> ranges = AutoRepairUtils.getTokenRanges(true, KEYSPACE);
         assertTrue(ranges.size() > 1);
-        KeyspaceRepairPlan plan = new KeyspaceRepairPlan(KEYSPACE, tables,
+        KeyspaceRepairPlan plan = new KeyspaceRepairPlan(KEYSPACE, tables, ranges,
                                                         AutoRepairUtils.calcTotalBytesToBeRepaired(repairType, KEYSPACE, tables, ranges));
         List<PrioritizedRepairPlan> plans = ImmutableList.of(new PrioritizedRepairPlan(0, ImmutableList.of(plan)));
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
@@ -240,7 +240,7 @@ public class AutoRepairStateTest extends CQLTester
         AutoRepairUtils.SizeEstimate estimate = AutoRepairUtils.getRangeSizeEstimate(repairType, KEYSPACE, testTable, range);
         assertTrue(estimate.sizeForRepair > 0);
         assertTrue(estimate.memtableSize > 0);
-        KeyspaceRepairPlan plan = new KeyspaceRepairPlan(KEYSPACE, ImmutableList.of(testTable),
+        KeyspaceRepairPlan plan = new KeyspaceRepairPlan(KEYSPACE, ImmutableList.of(testTable), Collections.singletonList(range),
                                                         Collections.singletonMap(keyspaceTableName, Collections.singletonMap(range, estimate)));
         AutoRepairState state = RepairType.getAutoRepairState(repairType, new AutoRepairConfig());
         state.updateRepairScheduleStatistics(ImmutableList.of(new PrioritizedRepairPlan(0, ImmutableList.of(plan))));

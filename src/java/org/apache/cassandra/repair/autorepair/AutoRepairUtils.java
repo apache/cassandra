@@ -1477,12 +1477,18 @@ public class AutoRepairUtils
             for (int i = 0; i < tokenRanges.size(); i++)
             {
                 Range<Token> tokenRange = tokenRanges.get(i);
-                long memtableBytesInRange = memtableSize / tokenRanges.size() + (i < memtableSize % tokenRanges.size() ? 1 : 0);
+                long memtableBytesInRange = getEstimatedBytesForSplit(memtableSize, tokenRanges.size(), i);
                 SizeEstimate tableAssignments = getRangeSizeEstimate(repairType, keyspaceName, tableName, tokenRange, memtableBytesInRange);
                 tokenToSize.put(tokenRange, tableAssignments);
             }
         }
         return ksTablesEstimatedBytes;
+    }
+
+    /** Distributes an estimate across the actual splits without losing integer remainders. */
+    static long getEstimatedBytesForSplit(long estimatedBytes, int splits, int index)
+    {
+        return estimatedBytes / splits + (index < estimatedBytes % splits ? 1 : 0);
     }
 
     public static String getKeyspaceTableName(String keyspace, String table)

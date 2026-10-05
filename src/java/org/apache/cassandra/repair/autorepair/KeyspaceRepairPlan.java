@@ -22,14 +22,19 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
-import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 /**
- * Encapsulates an intent to repair the given keyspace's tables
+ * Immutable snapshot of a keyspace's repair ranges and estimates, shared by statistics and assignment generation.
  */
 public class KeyspaceRepairPlan
 {
@@ -37,14 +42,29 @@ public class KeyspaceRepairPlan
 
     private final List<String> tableNames;
 
-    @VisibleForTesting
-    public Map<String, Map<Range<Token>, AutoRepairUtils.SizeEstimate>> ksTablesEstimatedBytes;
+    private final List<Range<Token>> tokenRanges;
 
-    public KeyspaceRepairPlan(String keyspaceName, List<String> tableNames, Map<String, Map<Range<Token>, AutoRepairUtils.SizeEstimate>> ksTablesEstimatedBytes)
+    private final Map<String, Map<Range<Token>, AutoRepairUtils.SizeEstimate>> ksTablesEstimatedBytes;
+
+    public KeyspaceRepairPlan(String keyspaceName, List<String> tableNames, List<Range<Token>> tokenRanges,
+                              Map<String, Map<Range<Token>, AutoRepairUtils.SizeEstimate>> ksTablesEstimatedBytes)
     {
         this.keyspaceName = keyspaceName;
-        this.tableNames = tableNames;
-        this.ksTablesEstimatedBytes = ksTablesEstimatedBytes;
+        this.tableNames = ImmutableList.copyOf(tableNames);
+        this.tokenRanges = ImmutableList.copyOf(tokenRanges);
+        Set<Range<Token>> ranges = ImmutableSet.copyOf(this.tokenRanges);
+        checkArgument(ranges.size() == this.tokenRanges.size(), "Duplicate repair ranges for %s", keyspaceName);
+        checkArgument(ksTablesEstimatedBytes.size() == this.tableNames.size(), "Size estimates must match the planned tables for %s", keyspaceName);
+        ImmutableMap.Builder<String, Map<Range<Token>, AutoRepairUtils.SizeEstimate>> estimates = ImmutableMap.builder();
+        for (String tableName : this.tableNames)
+        {
+            String keyspaceTable = AutoRepairUtils.getKeyspaceTableName(keyspaceName, tableName);
+            Map<Range<Token>, AutoRepairUtils.SizeEstimate> tableEstimates = ksTablesEstimatedBytes.get(keyspaceTable);
+            checkArgument(tableEstimates != null && tableEstimates.keySet().equals(ranges),
+                          "Size estimates for %s must match the planned ranges", keyspaceTable);
+            estimates.put(keyspaceTable, ImmutableMap.copyOf(tableEstimates));
+        }
+        this.ksTablesEstimatedBytes = estimates.build();
     }
 
     public String getKeyspaceName()
@@ -55,6 +75,11 @@ public class KeyspaceRepairPlan
     public List<String> getTableNames()
     {
         return tableNames;
+    }
+
+    public List<Range<Token>> getTokenRanges()
+    {
+        return tokenRanges;
     }
 
     public long getEstimatedBytes()
@@ -73,9 +98,7 @@ public class KeyspaceRepairPlan
 
     public AutoRepairUtils.SizeEstimate getSizeEstimate(String keyspaceTableName, Range<Token> tokenRange)
     {
-        return ksTablesEstimatedBytes == null ? null
-                                              : ksTablesEstimatedBytes.getOrDefault(keyspaceTableName, null) == null ? null
-                                                                                                                     : ksTablesEstimatedBytes.get(keyspaceTableName).get(tokenRange);
+        return ksTablesEstimatedBytes.getOrDefault(keyspaceTableName, Collections.emptyMap()).get(tokenRange);
     }
 
     @Override
@@ -84,13 +107,14 @@ public class KeyspaceRepairPlan
         if (o == null || getClass() != o.getClass()) return false;
         KeyspaceRepairPlan that = (KeyspaceRepairPlan) o;
         return Objects.equals(keyspaceName, that.keyspaceName) && Objects.equals(tableNames, that.tableNames)
+               && Objects.equals(tokenRanges, that.tokenRanges)
                && Objects.equals(ksTablesEstimatedBytes, that.ksTablesEstimatedBytes);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(keyspaceName, tableNames, ksTablesEstimatedBytes);
+        return Objects.hash(keyspaceName, tableNames, tokenRanges, ksTablesEstimatedBytes);
     }
 
     @Override
@@ -99,6 +123,7 @@ public class KeyspaceRepairPlan
         return "KeyspaceRepairPlan{" +
                "keyspaceName='" + keyspaceName + '\'' +
                ", tableNames=" + tableNames +
+               ", tokenRanges=" + tokenRanges +
                ", ksTablesEstimatedBytes=" + ksTablesEstimatedBytes +
                '}';
     }

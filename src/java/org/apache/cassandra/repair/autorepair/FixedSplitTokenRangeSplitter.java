@@ -82,19 +82,21 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
             @Override
             protected KeyspaceRepairAssignments next(int priority, KeyspaceRepairPlan repairPlan)
             {
-                return getRepairAssignmentsForKeyspace(primaryRangeOnly, priority, repairPlan);
+                return getRepairAssignmentsForKeyspace(priority, repairPlan);
             }
         };
     }
 
-    private KeyspaceRepairAssignments getRepairAssignmentsForKeyspace(boolean primaryRangeOnly, int priority, KeyspaceRepairPlan repairPlan)
+    private KeyspaceRepairAssignments getRepairAssignmentsForKeyspace(int priority, KeyspaceRepairPlan repairPlan)
     {
         AutoRepairConfig config = AutoRepairService.instance.getAutoRepairConfig();
         List<RepairAssignment> repairAssignments = new ArrayList<>();
         String keyspaceName = repairPlan.getKeyspaceName();
         List<String> tableNames = repairPlan.getTableNames();
 
-        Collection<Range<Token>> tokens = AutoRepairUtils.getTokenRanges(primaryRangeOnly, keyspaceName);
+        Collection<Range<Token>> tokens = repairPlan.getTokenRanges();
+        if (tokens.isEmpty())
+            return new KeyspaceRepairAssignments(priority, keyspaceName, Collections.emptyList());
         boolean byKeyspace = config.getRepairByKeyspace(repairType);
         // collect all token ranges.
         List<Range<Token>> allRanges = new ArrayList<>();
@@ -131,7 +133,7 @@ public class FixedSplitTokenRangeSplitter implements IAutoRepairTokenRangeSplitt
         // Preserve the total, including the remainder, even when there are more ranges than bytes.
         for (int i = 0; i < ranges.size(); i++)
         {
-            long bytes = totalBytes / ranges.size() + (i < totalBytes % ranges.size() ? 1 : 0);
+            long bytes = AutoRepairUtils.getEstimatedBytesForSplit(totalBytes, ranges.size(), i);
             assignments.add(new RepairAssignment(ranges.get(i), keyspace, tables, bytes));
         }
     }
