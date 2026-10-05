@@ -752,6 +752,17 @@ public class DatabaseDescriptorTest
             .hasMessageContaining(expectedMessage);
     }
 
+    @Test
+    public void testNegativeIncrementalRepairL0SSTableCountRejectThreshold()
+    {
+        Config conf = new Config();
+        conf.incremental_repair_l0_sstable_count_reject_threshold = -1;
+
+        assertThatThrownBy(() -> DatabaseDescriptor.applyThresholdsValidations(conf))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessage("incremental_repair_l0_sstable_count_reject_threshold must be >= 0, but was -1");
+    }
+
     // coordinator read
     @Test
     public void testClientLargeReadWarnGreaterThanAbort()

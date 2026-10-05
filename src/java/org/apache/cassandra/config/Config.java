@@ -436,6 +436,10 @@ public class Config
     @Replaces(oldName = "incremental_repair_disk_headroom_reject_ratio")
     public volatile double repair_disk_headroom_reject_ratio = 0.2;
 
+    // Reject incremental repair when the L0 SSTable count for any in-scope LCS table exceeds this threshold.
+    // Set to Integer.MAX_VALUE (default) to disable.
+    public volatile int incremental_repair_l0_sstable_count_reject_threshold = Integer.MAX_VALUE;
+
     /**
      * @deprecated retry support removed on CASSANDRA-10992
      */

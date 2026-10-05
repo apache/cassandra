@@ -697,6 +697,41 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         return true;
     }
 
+    public static boolean verifyL0SSTableCountThreshold(TimeUUID parentRepairSession, PreviewKind previewKind,
+                                                        boolean isIncremental,
+                                                        List<ColumnFamilyStore> columnFamilyStores)
+    {
+        if (!isIncremental)
+        {
+            return true;
+        }
+
+        int threshold = ActiveRepairService.instance().getIncrementalRepairL0SSTableCountRejectThreshold();
+        boolean passed = true;
+        for (ColumnFamilyStore cfs : columnFamilyStores)
+        {
+            if (!cfs.getCompactionStrategyManager().isLeveledCompaction())
+            {
+                logger.debug("[{}] Skipping L0 SSTable count check for {}.{} because it does not use LCS",
+                             previewKind.logPrefix(parentRepairSession),
+                             cfs.keyspace.getName(), cfs.getTableName());
+                continue;
+            }
+
+            int l0Count = cfs.getUnleveledSSTables();
+            if (l0Count > threshold)
+            {
+                logger.error("[{}] Rejecting incoming repair, L0 SSTable count ({}) for {}.{} above threshold ({})",
+                             previewKind.logPrefix(parentRepairSession), l0Count,
+                             cfs.keyspace.getName(), cfs.getTableName(), threshold);
+                cfs.metric.repairFailuresDueToL0SSTableCount.inc();
+                passed = false;
+            }
+        }
+
+        return passed;
+    }
+
     public Future<?> prepareForRepair(TimeUUID parentRepairSession, InetAddressAndPort coordinator, Set<InetAddressAndPort> endpoints, RepairOption options, boolean isForcedRepair, List<ColumnFamilyStore> columnFamilyStores)
     {
         if (!verifyDiskHeadroomThreshold(parentRepairSession, options.getPreviewKind()))
@@ -704,6 +739,12 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
         if (!verifyCompactionsPendingThreshold(parentRepairSession, options.getPreviewKind()))
             failRepair(parentRepairSession, "Rejecting incoming repair, pending compactions above threshold"); // failRepair throws exception
+
+        if (!verifyL0SSTableCountThreshold(parentRepairSession, options.getPreviewKind(),
+                                           options.isIncremental(), columnFamilyStores))
+        {
+            failRepair(parentRepairSession, "Rejecting incoming repair, L0 SSTable count above threshold");
+        }
 
         long repairedAt = getRepairedAt(options, isForcedRepair);
         registerParentRepairSession(parentRepairSession, coordinator, columnFamilyStores, options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
@@ -1142,6 +1183,16 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     public void setIncrementalRepairDiskHeadroomRejectRatio(double value)
     {
         DatabaseDescriptor.setRepairDiskHeadroomRejectRatio(value);
+    }
+
+    public int getIncrementalRepairL0SSTableCountRejectThreshold()
+    {
+        return DatabaseDescriptor.getIncrementalRepairL0SSTableCountRejectThreshold();
+    }
+
+    public void setIncrementalRepairL0SSTableCountRejectThreshold(int value)
+    {
+        DatabaseDescriptor.setIncrementalRepairL0SSTableCountRejectThreshold(value);
     }
 
     /**
