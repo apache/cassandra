@@ -313,7 +313,8 @@ public class TrieMemtable extends AbstractShardedMemtable
         boolean includeStart = isBound || keyRange instanceof IncludingExcludingBounds;
         boolean includeStop = isBound || keyRange instanceof Range;
 
-        Trie<BTreePartitionData> subMap = mergedTrie.subtrie(left, includeStart, right, includeStop);
+        Trie<BTreePartitionData> subMap = mergedTrie.subtrie(toComparableBound(left, includeStart),
+                                                             toComparableBound(right, !includeStop));
 
         return new MemtableUnfilteredPartitionIterator(metadata(),
                                                        allocator.ensureOnHeap(),
@@ -364,6 +365,11 @@ public class TrieMemtable extends AbstractShardedMemtable
     }
 
 
+    private static ByteComparable toComparableBound(PartitionPosition position, boolean before)
+    {
+        return position == null || position.isMinimum() ? null : position.asComparableBound(before);
+    }
+
     @Override
     public FlushablePartitionSet<MemtablePartition> getFlushSet(PartitionPosition from, PartitionPosition to)
     {
@@ -372,9 +378,9 @@ public class TrieMemtable extends AbstractShardedMemtable
                                          && from.isMinimum()
                                          && to.isMaximum();
 
-        // to avoid an unnessesary wrapping of mergedTrie into SlicedTrie
-        Trie<BTreePartitionData> toFlush = allPositionsToFlush ? mergedTrie.subtrie(null, true, null, false) :
-                                           mergedTrie.subtrie(from, true, to, false);
+        // to avoid an unnecessary wrapping of mergedTrie into an intersection
+        Trie<BTreePartitionData> toFlush = allPositionsToFlush ? mergedTrie :
+                                           mergedTrie.subtrie(toComparableBound(from, true), toComparableBound(to, true));
 
         long partitionKeySize;
         long partitionCount;
@@ -436,7 +442,8 @@ public class TrieMemtable extends AbstractShardedMemtable
         int keyCount = 0;
         Trie<BTreePartitionData> partialShardsTrie = partialShardTries.isEmpty()
                                                      ? Trie.empty(BYTE_COMPARABLE_VERSION)
-                                                     : Trie.mergeDistinct(partialShardTries).subtrie(from, true, to, false);
+                                                     : Trie.mergeDistinct(partialShardTries).subtrie(toComparableBound(from, true),
+                                                                                                     toComparableBound(to, true));
         IPartitioner partitioner = metadata().partitioner;
         for (Iterator<Map.Entry<ByteComparable.Preencoded, BTreePartitionData>> it = partialShardsTrie.entryIterator(); it.hasNext(); )
         {

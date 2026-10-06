@@ -29,43 +29,48 @@ import java.util.Map;
 import java.util.Random;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.base.Throwables;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multiset;
 
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
+import static org.apache.cassandra.db.tries.TrieUtil.VERSION;
+import static org.apache.cassandra.utils.bytecomparable.ByteComparable.Preencoded;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
 public abstract class InMemoryTrieTestBase
 {
+    @BeforeClass
+    public static void enableVerification()
+    {
+        CassandraRelevantProperties.TRIE_DEBUG.setBoolean(true);
+    }
+
     // Set this to true (in combination with smaller count) to dump the tries while debugging a problem.
     // Do not commit the code with VERBOSE = true.
-    private static final boolean VERBOSE = false;
-
-    // Set to true by some tests that need prefix-free keys.
-    static boolean prefixFree = false;
+    static final boolean VERBOSE = false;
 
     private static final int COUNT = 100000;
-    private static final int KEY_CHOICE = 25;
-    private static final int MIN_LENGTH = 10;
-    private static final int MAX_LENGTH = 50;
 
     Random rand = new Random();
 
@@ -90,12 +95,12 @@ public abstract class InMemoryTrieTestBase
     @Test
     public void testSingle()
     {
-        ByteComparable e = ByteComparable.of("test");
+        Preencoded e = TrieUtil.comparable("test");
         InMemoryTrie<String> trie = strategy.create();
         putSimpleResolve(trie, e, "test", (x, y) -> y);
         System.out.println("Trie " + trie.dump());
         assertEquals("test", trie.get(e));
-        assertEquals(null, trie.get(ByteComparable.of("teste")));
+        assertEquals(null, trie.get(TrieUtil.comparable("teste")));
     }
 
     public enum ReuseStrategy
@@ -104,40 +109,36 @@ public abstract class InMemoryTrieTestBase
         {
             <T> InMemoryTrie<T> create()
             {
-                return InMemoryTrie.shortLived(byteComparableVersion);
+                return InMemoryTrie.shortLived(VERSION);
             }
         },
         LONG_LIVED
         {
             <T> InMemoryTrie<T> create()
             {
-                return InMemoryTrie.longLived(byteComparableVersion, BufferType.OFF_HEAP, null);
+                return InMemoryTrie.longLived(VERSION, BufferType.OFF_HEAP, null);
             }
         };
 
         abstract <T> InMemoryTrie<T> create();
     }
 
-    @Parameterized.Parameters(name="{0} version {1}")
+    @Parameterized.Parameters(name="{0}")
     public static List<Object[]> generateData()
     {
         var list = new ArrayList<Object[]>();
         for (var s : ReuseStrategy.values())
-            for (var v : ByteComparable.Version.values())
-                list.add(new Object[] {s, v});
+            list.add(new Object[] {s});
         return list;
     }
 
     @Parameterized.Parameter(0)
     public static ReuseStrategy strategy = ReuseStrategy.LONG_LIVED;
 
-    @Parameterized.Parameter(1)
-    public static ByteComparable.Version byteComparableVersion = ByteComparable.Version.OSS50;
-
-    public static Comparator<ByteComparable> forwardComparator =
-        (bytes1, bytes2) -> ByteComparable.compare(bytes1, bytes2, byteComparableVersion);
-    public static Comparator<ByteComparable> reverseComparator =
-        (bytes1, bytes2) -> ByteComparable.compare(invert(bytes1), invert(bytes2), byteComparableVersion);
+    public static Comparator<Preencoded> forwardComparator =
+        (bytes1, bytes2) -> ByteComparable.compare(bytes1, bytes2, VERSION);
+    public static Comparator<Preencoded> reverseComparator =
+        (bytes1, bytes2) -> ByteComparable.compare(invert(bytes1), invert(bytes2), VERSION);
 
     @Test
     public void testSplitMulti()
@@ -163,7 +164,7 @@ public abstract class InMemoryTrieTestBase
         InMemoryTrie<String> trie = strategy.create();
         for (String test : tests)
         {
-            ByteComparable e = ByteComparable.preencoded(byteComparableVersion, ByteBufferUtil.hexToBytes(test));
+            Preencoded e = ByteComparable.preencoded(VERSION, ByteBufferUtil.hexToBytes(test));
             System.out.println("Adding " + asString(e) + ": " + test);
             putSimpleResolve(trie, e, test, (x, y) -> y);
         }
@@ -171,7 +172,7 @@ public abstract class InMemoryTrieTestBase
         System.out.println(trie.dump());
 
         for (String test : tests)
-            assertEquals(test, trie.get(ByteComparable.preencoded(byteComparableVersion, ByteBufferUtil.hexToBytes(test))));
+            assertEquals(test, trie.get(ByteComparable.preencoded(VERSION, ByteBufferUtil.hexToBytes(test))));
 
         Arrays.sort(tests);
 
@@ -195,7 +196,7 @@ public abstract class InMemoryTrieTestBase
         {
             String test = tests[i];
             String v = values[i];
-            ByteComparable e = ByteComparable.of(test);
+            Preencoded e = TrieUtil.comparable(test);
             System.out.println("Adding " + asString(e) + ": " + v);
             putSimpleResolve(trie, e, v, (x, y) -> "" + x + y);
             System.out.println("Trie " + trie.dump());
@@ -209,160 +210,40 @@ public abstract class InMemoryTrieTestBase
                                .filter(x -> tests[x] == test)
                                .map(x -> values[x])
                                .reduce("", (x, y) -> "" + x + y),
-                         trie.get(ByteComparable.of(test)));
+                         trie.get(TrieUtil.comparable(test)));
         }
-    }
-
-    static class SpecStackEntry
-    {
-        Object[] children;
-        int curChild;
-        Object content;
-        SpecStackEntry parent;
-
-        public SpecStackEntry(Object[] spec, Object content, SpecStackEntry parent, Direction direction)
-        {
-            this.children = spec;
-            this.content = content;
-            this.parent = parent;
-            this.curChild = direction.select(-1, spec.length);
-        }
-    }
-
-    public static class CursorFromSpec implements Trie.Cursor<ByteBuffer>
-    {
-        SpecStackEntry stack;
-        int depth;
-        Direction direction;
-
-        CursorFromSpec(Object[] spec, Direction direction)
-        {
-            this.direction = direction;
-            stack = new SpecStackEntry(spec, null, null, direction);
-            depth = 0;
-        }
-
-        public int advance()
-        {
-            SpecStackEntry current = stack;
-            while (current != null && !direction.inLoop(current.curChild += direction.increase, 0, current.children.length - 1))
-            {
-                current = current.parent;
-                --depth;
-            }
-            if (current == null)
-            {
-                assert depth == -1;
-                return depth;
-            }
-
-            Object child = current.children[current.curChild];
-            if (child instanceof Object[])
-                stack = new SpecStackEntry((Object[]) child, null, current, direction);
-            else
-                stack = new SpecStackEntry(new Object[0], child, current, direction);
-
-            return ++depth;
-        }
-
-        public int skipTo(int skipDepth, int skipTransition)
-        {
-            assert skipDepth <= depth + 1 : "skipTo descends more than one level";
-
-            while (skipDepth < depth)
-            {
-                --depth;
-                stack = stack.parent;
-            }
-            int index = skipTransition - 0x30;
-            assert direction.gt(index, stack.curChild) : "Backwards skipTo";
-            if (direction.gt(index, direction.select(stack.children.length - 1, 0)))
-            {
-                --depth;
-                stack = stack.parent;
-                return advance();
-            }
-            stack.curChild = index - direction.increase;
-            return advance();
-        }
-
-        public int depth()
-        {
-            return depth;
-        }
-
-        public ByteBuffer content()
-        {
-            return (ByteBuffer) stack.content;
-        }
-
-        public int incomingTransition()
-        {
-            SpecStackEntry parent = stack.parent;
-            return parent != null ? parent.curChild + 0x30 : -1;
-        }
-
-        @Override
-        public Direction direction()
-        {
-            return direction;
-        }
-
-        @Override
-        public ByteComparable.Version byteComparableVersion()
-        {
-            return byteComparableVersion;
-        }
-
-        @Override
-        public Trie<ByteBuffer> tailTrie()
-        {
-            throw new UnsupportedOperationException("tailTrie on test cursor");
-        }
-    }
-
-    static Trie<ByteBuffer> specifiedTrie(Object[] nodeDef)
-    {
-        return new Trie<ByteBuffer>()
-        {
-            @Override
-            protected Cursor<ByteBuffer> cursor(Direction direction)
-            {
-                return new CursorFromSpec(nodeDef, direction);
-            }
-        };
     }
 
     @Test
     public void testEntriesNullChildBug()
     {
         Object[] trieDef = new Object[]
-                                   {
-                                           new Object[] { // 0
-                                                   ByteBufferUtil.bytes(1), // 01
-                                                   ByteBufferUtil.bytes(2)  // 02
-                                           },
-                                           // If requestChild returns null, bad things can happen (DB-2982)
-                                           null, // 1
-                                           ByteBufferUtil.bytes(3), // 2
-                                           new Object[] {  // 3
-                                                   ByteBufferUtil.bytes(4), // 30
-                                                   // Also try null on the Remaining.ONE path
-                                                   null // 31
-                                           },
-                                           ByteBufferUtil.bytes(5), // 4
-                                           // Also test requestUniqueDescendant returning null
-                                           new Object[] { // 5
-                                                   new Object[] { // 50
-                                                           new Object[] { // 500
-                                                                   null // 5000
-                                                           }
-                                                   }
-                                           },
-                                           ByteBufferUtil.bytes(6) // 6
-                                   };
+                           {
+                               new Object[] { // 0
+                                              ByteBufferUtil.bytes(1), // 01
+                                              ByteBufferUtil.bytes(2)  // 02
+                               },
+                               // If requestChild returns null, bad things can happen (DB-2982)
+                               null, // 1
+                               ByteBufferUtil.bytes(3), // 2
+                               new Object[] {  // 3
+                                               ByteBufferUtil.bytes(4), // 30
+                                               // Also try null on the Remaining.ONE path
+                                               null // 31
+                               },
+                               ByteBufferUtil.bytes(5), // 4
+                               // Also test requestUniqueDescendant returning null
+                               new Object[] { // 5
+                                              new Object[] { // 50
+                                                             new Object[] { // 500
+                                                                            null // 5000
+                                                             }
+                                              }
+                               },
+                               ByteBufferUtil.bytes(6) // 6
+                           };
 
-        SortedMap<ByteComparable, ByteBuffer> expected = new TreeMap<>(forwardComparator);
+        SortedMap<Preencoded, ByteBuffer> expected = new TreeMap<>(forwardComparator);
         expected.put(comparable("00"), ByteBufferUtil.bytes(1));
         expected.put(comparable("01"), ByteBufferUtil.bytes(2));
         expected.put(comparable("2"), ByteBufferUtil.bytes(3));
@@ -370,25 +251,25 @@ public abstract class InMemoryTrieTestBase
         expected.put(comparable("4"), ByteBufferUtil.bytes(5));
         expected.put(comparable("6"), ByteBufferUtil.bytes(6));
 
-        Trie<ByteBuffer> trie = specifiedTrie(trieDef);
+        Trie<ByteBuffer> trie = TrieUtil.specifiedTrie(trieDef);
         System.out.println(trie.dump());
         assertSameContent(trie, expected);
     }
 
-    static ByteComparable comparable(String s)
+    static Preencoded comparable(String s)
     {
         ByteBuffer b = ByteBufferUtil.bytes(s);
-        return ByteComparable.preencoded(byteComparableVersion, b);
+        return ByteComparable.preencoded(VERSION, b);
     }
 
     @Test
     public void testDirect()
     {
-        ByteComparable[] src = generateKeys(rand, COUNT);
-        SortedMap<ByteComparable, ByteBuffer> content = new TreeMap<>(forwardComparator);
+        Preencoded[] src = TrieUtil.generateKeys(rand, COUNT);
+        SortedMap<Preencoded, ByteBuffer> content = new TreeMap<>(forwardComparator);
         InMemoryTrie<ByteBuffer> trie = makeInMemoryTrie(src, content, usePut());
         int keysize = Arrays.stream(src)
-                            .mapToInt(src1 -> ByteComparable.length(src1, byteComparableVersion))
+                            .mapToInt(src1 -> ByteComparable.length(src1, VERSION))
                             .sum();
         long ts = ObjectSizes.measureDeep(content);
         long onh = ObjectSizes.measureDeep(trie.contentArrays);
@@ -448,9 +329,9 @@ public abstract class InMemoryTrieTestBase
     }
 
     @Test
-    public void testPrefixUnsafeMulti()
+    public void testPrefixUnsafeChain()
     {
-        // Make sure prefixes on inside a multi aren't overwritten by embedded metadata node.
+        // Make sure prefixes on inside a chain aren't overwritten by embedded metadata node.
 
         testEntries(new String[] { "test89012345678901234567890",
                                    "test8",
@@ -465,9 +346,9 @@ public abstract class InMemoryTrieTestBase
 
     private void testEntries(String[] tests)
     {
-        for (Function<String, ByteComparable> mapping :
-                ImmutableList.<Function<String, ByteComparable>>of(ByteComparable::of,
-                                                                   s -> ByteComparable.preencoded(byteComparableVersion, s.getBytes())))
+        for (Function<String, Preencoded> mapping :
+                ImmutableList.<Function<String, Preencoded>>of(TrieUtil::comparable,
+                                                                   s -> ByteComparable.preencoded(VERSION, s.getBytes())))
         {
             testEntries(tests, mapping);
         }
@@ -475,18 +356,18 @@ public abstract class InMemoryTrieTestBase
 
     private void testEntriesHex(String[] tests)
     {
-        testEntries(tests, s -> ByteComparable.preencoded(byteComparableVersion, ByteBufferUtil.hexToBytes(s)));
+        testEntries(tests, s -> ByteComparable.preencoded(VERSION, ByteBufferUtil.hexToBytes(s)));
         // Run the other translations just in case.
         testEntries(tests);
     }
 
-    private void testEntries(String[] tests, Function<String, ByteComparable> mapping)
+    private void testEntries(String[] tests, Function<String, Preencoded> mapping)
 
     {
         InMemoryTrie<String> trie = strategy.create();
         for (String test : tests)
         {
-            ByteComparable e = mapping.apply(test);
+            Preencoded e = mapping.apply(test);
             System.out.println("Adding " + asString(e) + ": " + test);
             putSimpleResolve(trie, e, test, (x, y) -> y);
             System.out.println("Trie\n" + trie.dump());
@@ -494,10 +375,76 @@ public abstract class InMemoryTrieTestBase
 
         for (String test : tests)
             assertEquals(test, trie.get(mapping.apply(test)));
+
+        testDeletions(tests, mapping, trie);
+
+        randomizedTestEntries(tests, mapping, trie);
     }
 
-    static InMemoryTrie<ByteBuffer> makeInMemoryTrie(ByteComparable[] src,
-                                                     Map<ByteComparable, ByteBuffer> content,
+    private void testDeletions(String[] tests, Function<String, Preencoded> mapping, InMemoryTrie<String> trie)
+    {
+        System.out.println("\nDeleting all entries");
+        List<String> toDelete = Arrays.stream(tests).distinct().collect(Collectors.toList());
+        while (!toDelete.isEmpty())
+        {
+            int index = rand.nextInt(toDelete.size());
+            String entry = toDelete.remove(index);
+            Preencoded e = mapping.apply(entry);
+            System.out.println("Deleting " + asString(e) + ": " + entry);
+            delete(trie, e);
+            System.out.println("Trie\n" + trie.dump());
+
+            for (String test : toDelete)
+                assertEquals(test, trie.get(mapping.apply(test)));
+        }
+        assertTrue(trie.isEmpty());
+        if (trie.cellAllocator instanceof MemoryAllocationStrategy.OpOrderReuseStrategy)
+        {
+            assertEquals(0L, trie.usedBufferSpace());
+            assertEquals(0L, trie.usedObjectSpace());
+        }
+    }
+
+    private void randomizedTestEntries(String[] tests, Function<String, Preencoded> mapping, InMemoryTrie<String> trie)
+    {
+        System.out.println("\nRandomized insert and delete");
+        List<String> toInsert = Arrays.stream(tests).distinct().collect(Collectors.toList());
+        List<String> inserted = new ArrayList<>();
+
+        while (!toInsert.isEmpty())
+        {
+            if (rand.nextDouble() > 0.35)
+            {
+                // Insert one value
+                int index = rand.nextInt(toInsert.size());
+                String entry = toInsert.remove(index);
+                Preencoded e = mapping.apply(entry);
+                System.out.println("Adding " + asString(e) + ": " + entry);
+                putSimpleResolve(trie, e, entry, (x, y) -> y);
+                System.out.println("Trie\n" + trie.dump());
+                inserted.add(entry);
+            }
+            else if (!inserted.isEmpty())
+            {
+                // Delete one value
+                int index = rand.nextInt(inserted.size());
+                String entry = inserted.remove(index);
+                Preencoded e = mapping.apply(entry);
+                System.out.println("Deleting " + asString(e) + ": " + entry);
+                delete(trie, e);
+                System.out.println("Trie\n" + trie.dump());
+                toInsert.add(entry);
+            }
+
+            for (String test : inserted)
+                assertEquals(test, trie.get(mapping.apply(test)));
+            for (String test: toInsert)
+                assertEquals(null, trie.get(mapping.apply(test)));
+        }
+    }
+
+    static InMemoryTrie<ByteBuffer> makeInMemoryTrie(Preencoded[] src,
+                                                     Map<Preencoded, ByteBuffer> content,
                                                      boolean usePut)
 
     {
@@ -506,18 +453,18 @@ public abstract class InMemoryTrieTestBase
         return trie;
     }
 
-    static void addToInMemoryTrie(ByteComparable[] src,
-                                  Map<ByteComparable, ByteBuffer> content,
+    static void addToInMemoryTrie(Preencoded[] src,
+                                  Map<Preencoded, ByteBuffer> content,
                                   InMemoryTrie<? super ByteBuffer> trie,
                                   boolean usePut)
 
     {
-        for (ByteComparable b : src)
+        for (Preencoded b : src)
             addToInMemoryTrie(content, trie, usePut, b);
     }
 
-    static void addNthToInMemoryTrie(ByteComparable[] src,
-                                     Map<ByteComparable, ByteBuffer> content,
+    static void addNthToInMemoryTrie(Preencoded[] src,
+                                     Map<Preencoded, ByteBuffer> content,
                                      InMemoryTrie<? super ByteBuffer> trie,
                                      boolean usePut,
                                      int divisor,
@@ -525,7 +472,7 @@ public abstract class InMemoryTrieTestBase
 
     {
         int i = 0;
-        for (ByteComparable b : src)
+        for (Preencoded b : src)
         {
             if (i++ % divisor != remainder)
                 continue;
@@ -534,7 +481,7 @@ public abstract class InMemoryTrieTestBase
         }
     }
 
-    private static void addToInMemoryTrie(Map<ByteComparable, ByteBuffer> content, InMemoryTrie<? super ByteBuffer> trie, boolean usePut, ByteComparable b)
+    private static void addToInMemoryTrie(Map<Preencoded, ByteBuffer> content, InMemoryTrie<? super ByteBuffer> trie, boolean usePut, Preencoded b)
     {
         // Note: Because we don't ensure order when calling resolve, just use a hash of the key as payload
         // (so that all sources have the same value).
@@ -548,11 +495,11 @@ public abstract class InMemoryTrieTestBase
             System.out.println(trie.dump(x -> string(x)));
     }
 
-    static void addToMap(ByteComparable[] src,
-                         Map<ByteComparable, ByteBuffer> content)
+    static void addToMap(Preencoded[] src,
+                         Map<Preencoded, ByteBuffer> content)
 
     {
-        for (ByteComparable b : src)
+        for (Preencoded b : src)
         {
             // Note: Because we don't ensure order when calling resolve, just use a hash of the key as payload
             // (so that all sources have the same value).
@@ -562,18 +509,18 @@ public abstract class InMemoryTrieTestBase
         }
     }
 
-    private static String string(Object x)
+    static String string(Object x)
     {
         return x instanceof ByteBuffer
                ? ByteBufferUtil.bytesToHex((ByteBuffer) x)
-               : x instanceof ByteComparable
-                 ? ((ByteComparable) x).byteComparableAsString(byteComparableVersion)
+               : x instanceof Preencoded
+                 ? ((Preencoded) x).byteComparableAsString(VERSION)
                  : x.toString();
     }
 
-    static void checkGet(Trie<? super ByteBuffer> trie, Map<ByteComparable, ByteBuffer> items)
+    static void checkGet(BaseTrie<? super ByteBuffer, ?, ?> trie, Map<Preencoded, ByteBuffer> items)
     {
-        for (Map.Entry<ByteComparable, ByteBuffer> en : items.entrySet())
+        for (Map.Entry<Preencoded, ByteBuffer> en : items.entrySet())
         {
             if (VERBOSE)
                 System.out.println("Checking " + asString(en.getKey()) + ": " + ByteBufferUtil.bytesToHex(en.getValue()));
@@ -581,7 +528,7 @@ public abstract class InMemoryTrieTestBase
         }
     }
 
-    static void assertSameContent(Trie<ByteBuffer> trie, SortedMap<ByteComparable, ByteBuffer> map)
+    static void assertSameContent(Trie<ByteBuffer> trie, SortedMap<Preencoded, ByteBuffer> map)
     {
         assertMapEquals(trie, map, Direction.FORWARD);
         assertForEachEntryEquals(trie, map, Direction.FORWARD);
@@ -593,12 +540,12 @@ public abstract class InMemoryTrieTestBase
         checkGet(trie, map);
     }
 
-    private static void assertValuesEqual(Trie<ByteBuffer> trie, SortedMap<ByteComparable, ByteBuffer> map)
+    private static void assertValuesEqual(Trie<ByteBuffer> trie, SortedMap<Preencoded, ByteBuffer> map)
     {
         assertIterablesEqual(trie.values(), map.values());
     }
 
-    private static void assertUnorderedValuesEqual(Trie<ByteBuffer> trie, SortedMap<ByteComparable, ByteBuffer> map)
+    private static void assertUnorderedValuesEqual(Trie<ByteBuffer> trie, SortedMap<Preencoded, ByteBuffer> map)
     {
         Multiset<ByteBuffer> unordered = HashMultiset.create();
         StringBuilder errors = new StringBuilder();
@@ -615,36 +562,36 @@ public abstract class InMemoryTrieTestBase
         assertEquals("", errors.toString());
     }
 
-    static Collection<ByteComparable> maybeReversed(Direction direction, Collection<ByteComparable> data)
+    static Collection<Preencoded> maybeReversed(Direction direction, Collection<Preencoded> data)
     {
         return direction.isForward() ? data : reorderBy(data, reverseComparator);
     }
 
-    static <V> Map<ByteComparable, V> maybeReversed(Direction direction, Map<ByteComparable, V> data)
+    static <V> Map<Preencoded, V> maybeReversed(Direction direction, Map<Preencoded, V> data)
     {
         return direction.isForward() ? data : reorderBy(data, reverseComparator);
     }
 
-    private static <V> Map<ByteComparable, V> reorderBy(Map<ByteComparable, V> data, Comparator<ByteComparable> comparator)
+    private static <V> Map<Preencoded, V> reorderBy(Map<Preencoded, V> data, Comparator<Preencoded> comparator)
     {
-        Map<ByteComparable, V> newMap = new TreeMap<>(comparator);
+        Map<Preencoded, V> newMap = new TreeMap<>(comparator);
         newMap.putAll(data);
         return newMap;
     }
 
-    private static void assertForEachEntryEquals(Trie<ByteBuffer> trie, SortedMap<ByteComparable, ByteBuffer> map, Direction direction)
+    private static void assertForEachEntryEquals(Trie<ByteBuffer> trie, SortedMap<Preencoded, ByteBuffer> map, Direction direction)
     {
-        Iterator<Map.Entry<ByteComparable, ByteBuffer>> it = maybeReversed(direction, map).entrySet().iterator();
+        Iterator<Map.Entry<Preencoded, ByteBuffer>> it = maybeReversed(direction, map).entrySet().iterator();
         trie.forEachEntry(direction, (key, value) -> {
             Assert.assertTrue("Map exhausted first, key " + asString(key), it.hasNext());
-            Map.Entry<ByteComparable, ByteBuffer> entry = it.next();
-            assertEquals(0, ByteComparable.compare(entry.getKey(), key, byteComparableVersion));
+            Map.Entry<Preencoded, ByteBuffer> entry = it.next();
+            assertEquals(0, ByteComparable.compare(entry.getKey(), key, VERSION));
             assertEquals(entry.getValue(), value);
         });
         Assert.assertFalse("Trie exhausted first", it.hasNext());
     }
 
-    private static void assertForEachValueEquals(Trie<ByteBuffer> trie, SortedMap<ByteComparable, ByteBuffer> map)
+    private static void assertForEachValueEquals(Trie<ByteBuffer> trie, SortedMap<Preencoded, ByteBuffer> map)
     {
         Iterator<ByteBuffer> it = map.values().iterator();
         trie.forEachValue(value -> {
@@ -655,7 +602,7 @@ public abstract class InMemoryTrieTestBase
         Assert.assertFalse("Trie exhausted first", it.hasNext());
     }
 
-    static void assertMapEquals(Trie<ByteBuffer> trie, SortedMap<ByteComparable, ByteBuffer> map, Direction direction)
+    static void assertMapEquals(Trie<ByteBuffer> trie, SortedMap<Preencoded, ByteBuffer> map, Direction direction)
     {
         assertMapEquals(trie.entryIterator(direction), maybeReversed(direction, map).entrySet().iterator());
     }
@@ -667,29 +614,29 @@ public abstract class InMemoryTrieTestBase
         return list;
     }
 
-    static <B extends ByteComparable, C extends ByteComparable>
+    static <B extends Preencoded, C extends Preencoded>
     void assertMapEquals(Iterator<Map.Entry<B, ByteBuffer>> it1, Iterator<Map.Entry<C, ByteBuffer>> it2)
     {
-        List<ByteComparable> failedAt = new ArrayList<>();
+        List<Preencoded> failedAt = new ArrayList<>();
         StringBuilder b = new StringBuilder();
         while (it1.hasNext() && it2.hasNext())
         {
-            Map.Entry<? extends ByteComparable, ByteBuffer> en1 = it1.next();
-            Map.Entry<? extends ByteComparable, ByteBuffer> en2 = it2.next();
+            Map.Entry<? extends Preencoded, ByteBuffer> en1 = it1.next();
+            Map.Entry<? extends Preencoded, ByteBuffer> en2 = it2.next();
             b.append(String.format("TreeSet %s:%s\n", asString(en2.getKey()), ByteBufferUtil.bytesToHex(en2.getValue())));
             b.append(String.format("Trie    %s:%s\n", asString(en1.getKey()), ByteBufferUtil.bytesToHex(en1.getValue())));
-            if (ByteComparable.compare(en1.getKey(), en2.getKey(), byteComparableVersion) != 0 || ByteBufferUtil.compareUnsigned(en1.getValue(), en2.getValue()) != 0)
+            if (ByteComparable.compare(en1.getKey(), en2.getKey(), VERSION) != 0 || ByteBufferUtil.compareUnsigned(en1.getValue(), en2.getValue()) != 0)
                 failedAt.add(en1.getKey());
         }
         while (it1.hasNext())
         {
-            Map.Entry<? extends ByteComparable, ByteBuffer> en1 = it1.next();
+            Map.Entry<? extends Preencoded, ByteBuffer> en1 = it1.next();
             b.append(String.format("Trie    %s:%s\n", asString(en1.getKey()), ByteBufferUtil.bytesToHex(en1.getValue())));
             failedAt.add(en1.getKey());
         }
         while (it2.hasNext())
         {
-            Map.Entry<? extends ByteComparable, ByteBuffer> en2 = it2.next();
+            Map.Entry<? extends Preencoded, ByteBuffer> en2 = it2.next();
             b.append(String.format("TreeSet %s:%s\n", asString(en2.getKey()), ByteBufferUtil.bytesToHex(en2.getValue())));
             failedAt.add(en2.getKey());
         }
@@ -716,61 +663,21 @@ public abstract class InMemoryTrieTestBase
             Assert.fail("Remaing values in actual, starting with " + actual.next());
     }
 
-    static ByteComparable[] generateKeys(Random rand, int count)
+    static String asString(Preencoded bc)
     {
-        ByteComparable[] sources = new ByteComparable[count];
-        TreeSet<ByteComparable> added = new TreeSet<>(forwardComparator);
-        for (int i = 0; i < count; ++i)
-        {
-            sources[i] = generateKey(rand);
-            if (!added.add(sources[i]))
-                --i;
-        }
-
-        // note: not sorted!
-        return sources;
+        return bc != null ? bc.byteComparableAsString(VERSION) : "null";
     }
 
-    static ByteComparable generateKey(Random rand)
-    {
-        return generateKey(rand, MIN_LENGTH, MAX_LENGTH);
-    }
-
-    static ByteComparable generateKey(Random rand, int minLength, int maxLength)
-    {
-        int len = rand.nextInt(maxLength - minLength + 1) + minLength;
-        byte[] bytes = new byte[len];
-        int p = 0;
-        int length = bytes.length;
-        while (p < length)
-        {
-            int seed = rand.nextInt(KEY_CHOICE);
-            Random r2 = new Random(seed);
-            int m = r2.nextInt(5) + 2 + p;
-            if (m > length)
-                m = length;
-            while (p < m)
-                bytes[p++] = (byte) r2.nextInt(256);
-        }
-        return prefixFree ? v -> ByteSource.withTerminator(ByteSource.TERMINATOR, ByteSource.of(bytes, v))
-                          : ByteComparable.preencoded(byteComparableVersion, bytes);
-    }
-
-    static String asString(ByteComparable bc)
-    {
-        return bc != null ? bc.byteComparableAsString(byteComparableVersion) : "null";
-    }
-
-    <T, M> void putSimpleResolve(InMemoryTrie<T> trie,
-                                 ByteComparable key,
-                                 T value,
-                                 Trie.MergeResolver<T> resolver)
+    <T> void putSimpleResolve(InMemoryTrie<T> trie,
+                              Preencoded key,
+                              T value,
+                              Trie.MergeResolver<T> resolver)
     {
         putSimpleResolve(trie, key, value, resolver, usePut());
     }
 
-    static <T, M> void putSimpleResolve(InMemoryTrie<T> trie,
-                                        ByteComparable key,
+    static <T> void putSimpleResolve(InMemoryTrie<T> trie,
+                                        Preencoded key,
                                         T value,
                                         Trie.MergeResolver<T> resolver,
                                         boolean usePut)
@@ -786,6 +693,26 @@ public abstract class InMemoryTrieTestBase
         {
             // Should not happen, test stays well below size limit.
             throw new AssertionError(e);
+        }
+    }
+
+    <T> void delete(InMemoryTrie<T> trie, ByteComparable key)
+    {
+        delete(trie, key, usePut());
+    }
+
+    static <T> void delete(InMemoryTrie<T> trie, ByteComparable key, boolean usePut)
+    {
+        try
+        {
+            trie.putSingleton(key,
+                              Boolean.TRUE,
+                              (existing, update) -> update ? null : existing,
+                              usePut);
+        }
+        catch (TrieSpaceExhaustedException e)
+        {
+            throw Throwables.propagate(e);
         }
     }
 }

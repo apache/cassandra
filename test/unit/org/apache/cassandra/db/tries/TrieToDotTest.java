@@ -20,8 +20,6 @@ package org.apache.cassandra.db.tries;
 
 import org.junit.Test;
 
-import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public class TrieToDotTest
@@ -29,15 +27,16 @@ public class TrieToDotTest
     @Test
     public void testToDotContent() throws Exception
     {
-        InMemoryTrie<String> trie = InMemoryTrie.shortLived(ByteComparable.Version.OSS50);
+        InMemoryTrie<String> trie = InMemoryTrie.shortLived(TrieUtil.VERSION);
         String s = "Trie node types and manipulation mechanisms. The main purpose of this is to allow for handling tries directly as" +
                    " they are on disk without any serialization, and to enable the creation of such files.";
         s = toLowerCaseLocalized(s);
         for (String word : s.split("[^a-z]+"))
-            trie.putRecursive(InMemoryTrieTestBase.comparable(word), word, (x, y) -> y);
+            trie.putRecursive(TrieUtil.directComparable(word), word, (x, y) -> y);
 
-        System.out.println(trie.process(new TrieToDot(Object::toString,
+        System.out.println(trie.process(Direction.FORWARD,
+                                        new TrieToDot(Object::toString,
                                                       x -> Character.toString((char) ((int) x)),
-                                                      true), Direction.FORWARD));
+                                                      true)));
     }
 }

@@ -21,11 +21,9 @@ import java.util.function.BiConsumer;
 
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
-/**
- * Walker of trie entries, used with Trie.process to walk all content in order and provide the path through which values
- * are reached.
- */
-public abstract class TrieEntriesWalker<T, V> extends TriePathReconstructor implements Trie.Walker<T, V>
+/// Walker of trie entries, used with [Trie#process] to walk all content in order and provide the path through which values
+/// are reached.
+public abstract class TrieEntriesWalker<T, V> extends TriePathReconstructor implements Cursor.Walker<T, V>
 {
     @Override
     public void content(T content)
@@ -35,15 +33,13 @@ public abstract class TrieEntriesWalker<T, V> extends TriePathReconstructor impl
 
     protected abstract void content(T content, byte[] bytes, int byteLength);
 
-    /**
-     * Iterator representing the content of the trie a sequence of (path, content) pairs.
-     */
+    /// Iterator representing the content of the trie a sequence of (path, content) pairs.
     static class WithConsumer<T> extends TrieEntriesWalker<T, Void>
     {
-        private final BiConsumer<ByteComparable.Preencoded, T> consumer;
+        private final BiConsumer<ByteComparable.Preencoded, ? super T> consumer;
         private final ByteComparable.Version byteComparableVersion;
 
-        public WithConsumer(BiConsumer<ByteComparable.Preencoded, T> consumer, ByteComparable.Version byteComparableVersion)
+        public WithConsumer(BiConsumer<ByteComparable.Preencoded, ? super T> consumer, ByteComparable.Version byteComparableVersion)
         {
             this.consumer = consumer;
             this.byteComparableVersion = byteComparableVersion;

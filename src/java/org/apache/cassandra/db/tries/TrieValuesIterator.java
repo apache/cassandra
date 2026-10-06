@@ -19,16 +19,14 @@ package org.apache.cassandra.db.tries;
 
 import java.util.Iterator;
 
-/**
- * Ordered iterator of trie content.
- */
+/// Ordered iterator of trie content.
 class TrieValuesIterator<T> implements Iterator<T>
 {
-    private final Trie.Cursor<T> cursor;
+    private final Cursor<T> cursor;
     T next;
     boolean gotNext;
 
-    protected TrieValuesIterator(Trie.Cursor<T> cursor)
+    protected TrieValuesIterator(Cursor<T> cursor)
     {
         this.cursor = cursor;
         assert cursor.depth() == 0;
@@ -60,12 +58,12 @@ class TrieValuesIterator<T> implements Iterator<T>
 
     static class FilteredByType<T, U> implements Iterator<U>
     {
-        private final Trie.Cursor<T> cursor;
+        private final Cursor<T> cursor;
         T next;
         boolean gotNext;
         Class<U> clazz;
 
-        FilteredByType(Trie.Cursor<T> cursor, Class<U> clazz)
+        FilteredByType(Cursor<T> cursor, Class<U> clazz)
         {
             this.cursor = cursor;
             this.clazz = clazz;

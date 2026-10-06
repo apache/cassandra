@@ -326,7 +326,9 @@ public class TrieMemoryIndex extends MemoryIndex
         }
         else
         {
-            lowerBound = ByteComparable.EMPTY;
+            // Range queries are only supported for non-literal types, which do not index empty values, thus there can
+            // be no content for the empty key and we can leave the lower bound unspecified.
+            lowerBound = null;
             lowerInclusive = false;
         }
 
@@ -342,7 +344,7 @@ public class TrieMemoryIndex extends MemoryIndex
         }
 
         Collector cd = new Collector(keyRange, lastPriorityQueueSize.get());
-        Iterator<PrimaryKeys> values = data.subtrie(lowerBound, lowerInclusive, upperBound, upperInclusive).valueIterator();
+        Iterator<PrimaryKeys> values = data.slice(lowerBound, lowerInclusive, upperBound, upperInclusive).valueIterator();
 
         while (values.hasNext())
             cd.processContent(values.next());

@@ -165,7 +165,7 @@ public class InMemoryTrieReadBench
             }
         }
         Counter counter = new Counter();
-        trie.process(counter, direction);
+        trie.process(direction, counter);
         return counter.sum;
     }
 

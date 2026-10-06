@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
+import static org.apache.cassandra.db.tries.TrieUtil.VERSION;
 import static org.junit.Assert.fail;
 
 public class InMemoryTriePutTest extends InMemoryTrieTestBase
@@ -48,7 +49,7 @@ public class InMemoryTriePutTest extends InMemoryTrieTestBase
 
         try
         {
-            trie.putRecursive(ByteComparable.preencoded(byteComparableVersion, buf), "value", (x, y) -> y);
+            trie.putRecursive(ByteComparable.preencoded(VERSION, buf), "value", (x, y) -> y);
             Assert.fail("StackOverflowError expected with a recursive put for very long keys!");
         }
         catch (StackOverflowError soe)
@@ -56,7 +57,7 @@ public class InMemoryTriePutTest extends InMemoryTrieTestBase
             // Expected.
         }
         // Using non-recursive put should work.
-        putSimpleResolve(trie, ByteComparable.preencoded(byteComparableVersion, buf), "value", (x, y) -> y, false);
+        putSimpleResolve(trie, ByteComparable.preencoded(VERSION, buf), "value", (x, y) -> y, false);
     }
 
     // This tests that trie space allocation works correctly close to the 2G limit. It is normally disabled because
@@ -71,27 +72,27 @@ public class InMemoryTriePutTest extends InMemoryTrieTestBase
         String t1 = "test1";
         String t2 = "testing2";
         String t3 = "onemoretest3";
-        trie.putRecursive(ByteComparable.of(t1), t1, (x, y) -> y);
-        Assert.assertEquals(t1, trie.get(ByteComparable.of(t1)));
-        Assert.assertNull(trie.get(ByteComparable.of(t2)));
+        trie.putRecursive(TrieUtil.comparable(t1), t1, (x, y) -> y);
+        Assert.assertEquals(t1, trie.get(TrieUtil.comparable(t1)));
+        Assert.assertNull(trie.get(TrieUtil.comparable(t2)));
         Assert.assertFalse(trie.reachedAllocatedSizeThreshold());
 
         trie.advanceAllocatedPos(InMemoryTrie.ALLOCATED_SIZE_THRESHOLD + 0x1000);
-        trie.putRecursive(ByteComparable.of(t2), t2, (x, y) -> y);
-        Assert.assertEquals(t1, trie.get(ByteComparable.of(t1)));
-        Assert.assertEquals(t2, trie.get(ByteComparable.of(t2)));
-        Assert.assertNull(trie.get(ByteComparable.of(t3)));
+        trie.putRecursive(TrieUtil.comparable(t2), t2, (x, y) -> y);
+        Assert.assertEquals(t1, trie.get(TrieUtil.comparable(t1)));
+        Assert.assertEquals(t2, trie.get(TrieUtil.comparable(t2)));
+        Assert.assertNull(trie.get(TrieUtil.comparable(t3)));
         Assert.assertTrue(trie.reachedAllocatedSizeThreshold());
 
         trie.advanceAllocatedPos(0x7FFFFEE0);  // close to 2G
-        Assert.assertEquals(t1, trie.get(ByteComparable.of(t1)));
-        Assert.assertEquals(t2, trie.get(ByteComparable.of(t2)));
-        Assert.assertNull(trie.get(ByteComparable.of(t3)));
+        Assert.assertEquals(t1, trie.get(TrieUtil.comparable(t1)));
+        Assert.assertEquals(t2, trie.get(TrieUtil.comparable(t2)));
+        Assert.assertNull(trie.get(TrieUtil.comparable(t3)));
         Assert.assertTrue(trie.reachedAllocatedSizeThreshold());
 
         try
         {
-            trie.putRecursive(ByteComparable.of(t3), t3, (x, y) -> y);  // should put it over the edge
+            trie.putRecursive(TrieUtil.comparable(t3), t3, (x, y) -> y);  // should put it over the edge
             fail("InMemoryTrie.SpaceExhaustedError was expected");
         }
         catch (TrieSpaceExhaustedException e)
@@ -99,9 +100,9 @@ public class InMemoryTriePutTest extends InMemoryTrieTestBase
             // expected
         }
 
-        Assert.assertEquals(t1, trie.get(ByteComparable.of(t1)));
-        Assert.assertEquals(t2, trie.get(ByteComparable.of(t2)));
-        Assert.assertNull(trie.get(ByteComparable.of(t3)));
+        Assert.assertEquals(t1, trie.get(TrieUtil.comparable(t1)));
+        Assert.assertEquals(t2, trie.get(TrieUtil.comparable(t2)));
+        Assert.assertNull(trie.get(TrieUtil.comparable(t3)));
         Assert.assertTrue(trie.reachedAllocatedSizeThreshold());
 
         try
@@ -114,9 +115,9 @@ public class InMemoryTriePutTest extends InMemoryTrieTestBase
             // expected
         }
 
-        Assert.assertEquals(t1, trie.get(ByteComparable.of(t1)));
-        Assert.assertEquals(t2, trie.get(ByteComparable.of(t2)));
-        Assert.assertNull(trie.get(ByteComparable.of(t3)));
+        Assert.assertEquals(t1, trie.get(TrieUtil.comparable(t1)));
+        Assert.assertEquals(t2, trie.get(TrieUtil.comparable(t2)));
+        Assert.assertNull(trie.get(TrieUtil.comparable(t3)));
         Assert.assertTrue(trie.reachedAllocatedSizeThreshold());
 
         trie.discardBuffers();

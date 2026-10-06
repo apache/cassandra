@@ -105,6 +105,7 @@ public interface ByteSource
 
     // Special value for components that should be excluded from the normal min/max span. (static rows)
     int EXCLUDED = 0x18;
+    int LT_EXCLUDED = 0x10;
 
     /**
      * Encodes byte-accessible data as a byte-comparable source that has 0s escaped and finishes in an escaped

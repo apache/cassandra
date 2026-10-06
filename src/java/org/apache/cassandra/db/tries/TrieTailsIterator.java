@@ -24,25 +24,16 @@ import java.util.function.Predicate;
 
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
-/**
- * Iterator of trie entries that constructs tail tries for the content-bearing branches that satisfy the given predicate
- * and skips over the returned branches.
- */
-public abstract class TrieTailsIterator<T, V> extends TriePathReconstructor implements Iterator<V>
+/// Iterator of trie entries that constructs tail tries for the content-bearing branches that satisfy the given predicate
+/// and skips over the returned branches.
+public abstract class TrieTailsIterator<T, V, C extends Cursor<T>> extends TriePathReconstructor implements Iterator<V>
 {
-    final Trie.Cursor<T> cursor;
+    final C cursor;
     private final Predicate<T> predicate;
     private T next;
     private boolean gotNext;
 
-    protected TrieTailsIterator(Trie<T> trie, Direction direction, Predicate<T> predicate)
-    {
-        this.cursor = trie.cursor(direction);
-        this.predicate = predicate;
-        assert cursor.depth() == 0;
-    }
-
-    TrieTailsIterator(Trie.Cursor<T> cursor, Predicate<T> predicate)
+    TrieTailsIterator(C cursor, Predicate<T> predicate)
     {
         this.cursor = cursor;
         this.predicate = predicate;
@@ -86,30 +77,151 @@ public abstract class TrieTailsIterator<T, V> extends TriePathReconstructor impl
         gotNext = false;
         T v = next;
         next = null;
-        return mapContent(v, cursor.tailTrie(), keyBytes, keyPos);
+        return getContent(v);
     }
+
+    protected abstract V getContent(T v);
 
     ByteComparable.Version byteComparableVersion()
     {
         return cursor.byteComparableVersion();
     }
 
-    protected abstract V mapContent(T value, Trie<T> tailTrie, byte[] bytes, int byteLength);
-
-    /**
-     * Iterator representing the selected content of the trie a sequence of {@code (path, tail)} pairs, where
-     * {@code tail} is the branch of the trie rooted at the selected content node (reachable by following
-     * {@code path}). The tail trie will have the selected content at its root.
-     */
-    static class AsEntries<T> extends TrieTailsIterator<T, Map.Entry<ByteComparable.Preencoded, Trie<T>>>
+    public static abstract class Plain<T, V> extends TrieTailsIterator<T, V, Cursor<T>>
     {
-        public AsEntries(Trie.Cursor<T> cursor, Class<? extends T> clazz)
+        Plain(Cursor<T> cursor, Predicate<T> predicate)
+        {
+            super(cursor, predicate);
+        }
+
+        /// Public constructor accepting a Trie and creating a cursor from it
+        public Plain(Trie<T> trie, Predicate<T> predicate)
+        {
+            this(trie.cursor(Direction.FORWARD), predicate);
+        }
+
+        /// Public constructor accepting a Trie, Direction, and creating a cursor from it
+        public Plain(Trie<T> trie, Direction direction, Predicate<T> predicate)
+        {
+            this(trie.cursor(direction), predicate);
+        }
+
+        @Override
+        protected V getContent(T v)
+        {
+            return mapContent(v, dir -> cursor.tailCursor(dir), keyBytes, keyPos);
+        }
+
+        protected abstract V mapContent(T value, Trie<T> tailTrie, byte[] bytes, int byteLength);
+    }
+
+    public static abstract class Range<S extends RangeState<S>, V> extends TrieTailsIterator<S, V, RangeCursor<S>>
+    {
+        Range(RangeCursor<S> cursor, Predicate<S> predicate)
+        {
+            super(cursor, predicate);
+        }
+
+        /// Public constructor accepting a RangeTrie and creating a cursor from it
+        public Range(RangeTrie<S> trie, Predicate<S> predicate)
+        {
+            this(trie.cursor(Direction.FORWARD), predicate);
+        }
+
+        /// Public constructor accepting a RangeTrie, Direction, and creating a cursor from it
+        public Range(RangeTrie<S> trie, Direction direction, Predicate<S> predicate)
+        {
+            this(trie.cursor(direction), predicate);
+        }
+
+        @Override
+        protected V getContent(S v)
+        {
+            return mapContent(v, dir -> cursor.tailCursor(dir), keyBytes, keyPos);
+        }
+
+        protected abstract V mapContent(S value, RangeTrie<S> tailTrie, byte[] bytes, int byteLength);
+    }
+
+    public static abstract class DeletionAware<T, D extends RangeState<D>, V> extends TrieTailsIterator<T, V, DeletionAwareCursor<T, D>>
+    {
+        DeletionAware(DeletionAwareCursor<T, D> cursor, Predicate<T> predicate)
+        {
+            super(cursor, predicate);
+        }
+
+        /// Public constructor accepting a DeletionAwareTrie and creating a cursor from it
+        public DeletionAware(DeletionAwareTrie<T, D> trie, Predicate<T> predicate)
+        {
+            this(trie.cursor(Direction.FORWARD), predicate);
+        }
+
+        /// Public constructor accepting a DeletionAwareTrie, Direction, and creating a cursor from it
+        public DeletionAware(DeletionAwareTrie<T, D> trie, Direction direction, Predicate<T> predicate)
+        {
+            this(trie.cursor(direction), predicate);
+        }
+
+        @Override
+        protected V getContent(T v)
+        {
+            return mapContent(v, dir -> cursor.tailCursor(dir), keyBytes, keyPos);
+        }
+
+        protected abstract V mapContent(T value, DeletionAwareTrie<T, D> tailTrie, byte[] bytes, int byteLength);
+    }
+
+    /// Iterator representing the selected content of the trie a sequence of `(path, tail)` pairs, where
+    /// `tail` is the branch of the trie rooted at the selected content node (reachable by following
+    /// `path`). The tail trie will have the selected content at its root.
+    static class AsEntries<T> extends Plain<T, Map.Entry<ByteComparable.Preencoded, Trie<T>>>
+    {
+        public AsEntries(Cursor<T> cursor, Class<? extends T> clazz)
         {
             super(cursor, clazz::isInstance);
         }
 
         @Override
         protected Map.Entry<ByteComparable.Preencoded, Trie<T>> mapContent(T value, Trie<T> tailTrie, byte[] bytes, int byteLength)
+        {
+            ByteComparable.Preencoded key = toByteComparable(byteComparableVersion(), bytes, byteLength);
+            return new AbstractMap.SimpleImmutableEntry<>(key, tailTrie);
+        }
+    }
+
+    /// Iterator representing the selected content of the trie a sequence of `(path, tail)` pairs, where
+    /// `tail` is the branch of the trie rooted at the selected content node (reachable by following
+    /// `path`). The tail trie will have the selected content at its root.
+    static class AsEntriesRange<S extends RangeState<S>>
+    extends Range<S, Map.Entry<ByteComparable.Preencoded, RangeTrie<S>>>
+    {
+        public AsEntriesRange(RangeCursor<S> cursor, Class<? extends S> clazz)
+        {
+            super(cursor, clazz::isInstance);
+        }
+
+        @Override
+        protected Map.Entry<ByteComparable.Preencoded, RangeTrie<S>> mapContent(S value, RangeTrie<S> tailTrie, byte[] bytes, int byteLength)
+        {
+            ByteComparable.Preencoded key = toByteComparable(byteComparableVersion(), bytes, byteLength);
+            return new AbstractMap.SimpleImmutableEntry<>(key, tailTrie);
+        }
+    }
+
+
+    /// Iterator representing the selected content of the trie a sequence of `(path, tail)` pairs, where
+    /// `tail` is the branch of the trie rooted at the selected content node (reachable by following
+    /// `path`). The tail trie will have the selected content at its root.
+    static class AsEntriesDeletionAware<T, D extends RangeState<D>>
+    extends DeletionAware<T, D, Map.Entry<ByteComparable.Preencoded, DeletionAwareTrie<T, D>>>
+    {
+        public AsEntriesDeletionAware(DeletionAwareCursor<T, D> cursor, Class<? extends T> clazz)
+        {
+            super(cursor, clazz::isInstance);
+        }
+
+        @Override
+        protected Map.Entry<ByteComparable.Preencoded, DeletionAwareTrie<T, D>> mapContent(T value, DeletionAwareTrie<T, D> tailTrie, byte[] bytes, int byteLength)
         {
             ByteComparable.Preencoded key = toByteComparable(byteComparableVersion(), bytes, byteLength);
             return new AbstractMap.SimpleImmutableEntry<>(key, tailTrie);
