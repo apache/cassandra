@@ -329,6 +329,8 @@ public abstract class InMemoryReadTrie<T>
     }
 
     /// Returns first present transition byte in the node that is the same or greater as the given target transition.
+    /// The target may be above 0xFF (e.g. `transition + 1` after a 0xFF child), in which case `Integer.MAX_VALUE` is
+    /// returned.
     int getNextTransition(int node, int trans)
     {
         if (isNullOrLeaf(node))
@@ -490,6 +492,8 @@ public abstract class InMemoryReadTrie<T>
     {
         if (targetTransition < 0)
             targetTransition = 0;
+        else if (targetTransition > 0xFF)
+            return Integer.MAX_VALUE; // the index calculations below would wrap around to the first child
         int midIndex = splitNodeMidIndex(targetTransition);
         int tailIndex = splitNodeTailIndex(targetTransition);
         int childIndex = splitNodeChildIndex(targetTransition);

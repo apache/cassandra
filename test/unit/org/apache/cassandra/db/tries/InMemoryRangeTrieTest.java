@@ -324,6 +324,86 @@ public class InMemoryRangeTrieTest
         }
     }
 
+    @Test
+    public void testApplyPastLastTransitionOfSplitNode() throws TrieSpaceExhaustedException
+    {
+        // Six boundaries make 40 a full sparse node, the last range adds a seventh child 40ff (upgrading it to split)
+        // and continues past 40. Advancing past the 0xFF child must not wrap around to 40's first child.
+        testApplyPastLastTransition("4010", "4020", "4030", "4040", "4050", "4060", "40ff", "4110");
+        // Same with 40 already split before the last range is applied.
+        testApplyPastLastTransition("4010", "4020", "4030", "4040", "4050", "4060", "4070", "4080", "40ff", "4110");
+    }
+
+    private void testApplyPastLastTransition(String... bounds) throws TrieSpaceExhaustedException
+    {
+        InMemoryRangeTrie<TestRangeState> trie = InMemoryRangeTrie.shortLived(VERSION);
+        for (int i = 0; i < bounds.length; i += 2)
+        {
+            // later ranges have higher deletion times and would override earlier ones if applied over them
+            trie.apply(RangeTrie.range(leftBound(hexBc(bounds[i])), true, rightBound(hexBc(bounds[i + 1])), true, VERSION, toMarker(bounds[i], i + 1)),
+                       (existing, update) -> existing == null ? update : TestRangeState.combine(existing, update),
+                       x -> forceCopy);
+        }
+        System.out.println("Trie " + trie.dump());
+
+        assertEquals(bounds.length, TestRangeState.verify(TestRangeState.toList(trie, Direction.FORWARD)).size());
+        for (int k = 0x4000; k <= 0x41FF; ++k)
+        {
+            String probe = String.format("%04x", k);
+            if (Arrays.asList(bounds).contains(probe))
+                continue;
+            String expected = null;
+            for (int i = 0; i < bounds.length; i += 2)
+                if (probe.compareTo(bounds[i]) > 0 && probe.compareTo(bounds[i + 1]) < 0)
+                    expected = bounds[i];
+            assertEquals("for key " + probe, expected, fromMarker(trie.applicableRange(key(hexBc(probe)))));
+        }
+    }
+
+    @Test(timeout = 10000)
+    public void testApplyRangeToDataPastLastTransitionOfSplitNode() throws TrieSpaceExhaustedException
+    {
+        // Live data under 40 in a split node with a 0xFF child, deletion starting at 40ff and ending past 40.
+        // Advancing past the 0xFF child must not wrap around to 40's first child.
+        String[] keys = new String[]{ "4014", "4033", "405d", "405f", "40b0", "40de", "40ff", "4108", "4120" };
+        InMemoryTrie<Integer> trie = InMemoryTrie.shortLived(VERSION);
+        for (String k : keys)
+            trie.putRecursive(key(hexBc(k)), 1, (x, y) -> y);
+
+        // Delete everything with timestamp lower than the deletion time.
+        trie.rangeMutator((Integer existing, TestRangeState deletion) -> existing > Math.max(deletion.leftSide, deletion.rightSide) ? existing : null,
+                          x -> forceCopy)
+            .apply(RangeTrie.range(leftBound(hexBc("40f0")), true, rightBound(hexBc("4110")), true, VERSION, toMarker("40f0", 10)));
+
+        for (String k : keys)
+        {
+            boolean deleted = k.compareTo("40f0") > 0 && k.compareTo("4110") < 0;
+            assertEquals("for key " + k, deleted ? null : (Integer) 1, trie.get(key(hexBc(k))));
+        }
+    }
+
+    @Test(timeout = 10000)
+    public void testApplyRangeToNewerDataPastLastTransitionOfSplitNode() throws TrieSpaceExhaustedException
+    {
+        // As above, but with data newer than the deletion so that nothing is removed from the split node.
+        String[] keys = new String[]{ "4014", "4033", "405d", "405f", "40b0", "40de", "40ff", "4108", "4120" };
+        InMemoryTrie<Integer> trie = InMemoryTrie.shortLived(VERSION);
+        for (String k : keys)
+            trie.putRecursive(key(hexBc(k)), 20, (x, y) -> y);
+
+        trie.rangeMutator((Integer existing, TestRangeState deletion) -> existing > Math.max(deletion.leftSide, deletion.rightSide) ? existing : null,
+                          x -> forceCopy)
+            .apply(RangeTrie.range(leftBound(hexBc("40f0")), true, rightBound(hexBc("4110")), true, VERSION, toMarker("40f0", 10)));
+
+        for (String k : keys)
+            assertEquals("for key " + k, (Integer) 20, trie.get(key(hexBc(k))));
+    }
+
+    private static ByteComparable hexBc(String s)
+    {
+        return ByteComparable.preencoded(VERSION, ByteBufferUtil.hexToBytes(s));
+    }
+
     static String asString(ByteComparable bc)
     {
         return bc != null ? bc.byteComparableAsString(VERSION) : "null";

@@ -416,4 +416,33 @@ public class InMemoryBaseTrieInternalsTest
         assertEquals("Prefix node should have PREFIX_OFFSET", 
                     InMemoryReadTrie.PREFIX_OFFSET, InMemoryReadTrie.offset(prefixNode));
     }
+
+    @Test
+    public void testGetNextTransitionPastLastByte() throws TrieSpaceExhaustedException
+    {
+        // Walks advance to the next sibling with getNextTransition(node, transition + 1), which asks for 0x100 after
+        // a 0xFF child. This must report no further children for all node types rather than wrap around.
+        int[] transitions = new int[]{ 0x14, 0x33, 0x5d, 0x5f, 0xb0, 0xde, 0xff };
+        for (int count = 1; count <= transitions.length; ++count)
+        {
+            trie = InMemoryTrie.shortLived(ByteComparable.Version.OSS50);
+            int first = transitions.length - count;
+            for (int i = first; i < transitions.length; ++i)
+                trie.putRecursive(ByteComparable.preencoded(ByteComparable.Version.OSS50, new byte[]{ (byte) transitions[i] }),
+                                  "v" + i,
+                                  (x, y) -> y);
+
+            int node = trie.followPrefixTransition(trie.root);
+            int expectedType = count == 1 ? InMemoryReadTrie.CHAIN_MAX_OFFSET
+                                          : count <= InMemoryReadTrie.SPARSE_CHILD_COUNT ? InMemoryReadTrie.SPARSE_OFFSET
+                                                                                         : InMemoryReadTrie.SPLIT_OFFSET;
+            assertEquals("Node type for " + count + " children", expectedType, InMemoryReadTrie.offset(node));
+
+            assertEquals(transitions[first], trie.getNextTransition(node, 0));
+            assertEquals(0xFF, trie.getNextTransition(node, 0xFF));
+            assertEquals("Transition past 0xFF with " + count + " children",
+                         Integer.MAX_VALUE, trie.getNextTransition(node, 0x100));
+            assertEquals(InMemoryReadTrie.NONE, trie.getNextChild(node, 0x100));
+        }
+    }
 }
