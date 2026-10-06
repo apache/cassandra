@@ -29,31 +29,32 @@ import com.google.common.collect.ImmutableList;
 import org.agrona.DirectBuffer;
 
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 /**
  * Base class for tries.
- *
+ * <p>
  * Normal users of tries will only use the public methods, which provide various transformations of the trie, conversion
  * of its content to other formats (e.g. iterable of values), and several forms of processing.
- *
+ * <p>
  * For any unimplemented data extraction operations one can build on the {@link TrieEntriesWalker} (for-each processing)
  * and {@link TrieEntriesIterator} (to iterator) base classes, which provide the necessary mechanisms to handle walking
  * the trie.
- *
+ * <p>
  * The internal representation of tries using this interface is defined in the {@link Cursor} interface.
- *
+ * <p>
  * Cursors are a method of presenting the internal structure of a trie without representing nodes as objects, which is
  * still useful for performing the basic operations on tries (iteration, slicing/intersection and merging). A cursor
  * will list the nodes of a trie in order, together with information about the path that was taken to reach them.
- *
- * To begin traversal over a trie, one must retrieve a cursor by calling {@link #cursor()}. Because cursors are
+ * <p>
+ * To begin traversal over a trie, one must retrieve a cursor by calling {@link #cursor}. Because cursors are
  * stateful, the traversal must always proceed from one thread. Should concurrent reads be required, separate calls to
- * {@link #cursor()} must be made. Any modification that has completed before the construction of a cursor must be
+ * {@link #cursor} must be made. Any modification that has completed before the construction of a cursor must be
  * visible, but any later concurrent modifications may be presented fully, partially or not at all; this also means that
  * if multiple are made, the cursor may see any part of any subset of them.
- *
+ * <p>
  * Note: This model only supports depth-first traversals. We do not currently have a need for breadth-first walks.
- *
+ * <p>
  * See Trie.md for further description of the trie representation model.
  *
  * @param <T> The content type of the trie.
@@ -62,33 +63,38 @@ public abstract class Trie<T>
 {
     /**
      * A trie cursor.
-     *
+     * <p>
      * This is the internal representation of the trie, which enables efficient walks and basic operations (merge,
      * slice) on tries.
-     *
-     * The cursor represents the state of a walk over the nodes of trie. It provides three main features:
-     * - the current "depth" or descend-depth in the trie;
-     * - the "incomingTransition", i.e. the byte that was used to reach the current point;
-     * - the "content" associated with the current node,
+     * <p>
+     * The cursor represents the state of a walk over the nodes of trie. It provides three main features:<ul>
+     * <li>the current {@code depth} or descend-depth in the trie;</li>
+     * <li>the {@code incomingTransition}, i.e. the byte that was used to reach the current point;</li>
+     * <li>the {@code content} associated with the current node,</li>
+     * </ul>
      * and provides methods for advancing to the next position.  This is enough information to extract all paths, and
      * also to easily compare cursors over different tries that are advanced together. Advancing is always done in
      * order; if one imagines the set of nodes in the trie with their associated paths, a cursor may only advance from a
-     * node with a lexicographically smaller path to one with bigger. The "advance" operation moves to the immediate
-     * next, it is also possible to skip over some items e.g. all children of the current node ("skipChildren").
-     *
-     * Moving to the immediate next position in the lexicographic order is accomplished by:
-     * - if the current node has children, moving to its first child;
-     * - otherwise, ascend the parent chain and return the next child of the closest parent that still has any.
+     * node with a lexicographically smaller path to one with bigger. The {@code advance} operation moves to the immediate
+     * next, it is also possible to skip over some items e.g. all children of the current node ({@code skipChildren}).
+     * <p>
+     * Moving to the immediate next position in the lexicographic order is accomplished by:<ul>
+     * <li>if the current node has children, moving to its first child;</li>
+     * <li>otherwise, ascend the parent chain and return the next child of the closest parent that still has any.</li>
+     * </ul>
      * As long as the trie is not exhausted, advancing always takes one step down, from the current node, or from a node
-     * on the parent chain. By comparing the new depth (which "advance" also returns) with the one before the advance,
-     * one can tell if the former was the case (if newDepth == oldDepth + 1) and how many steps up we had to take
-     * (oldDepth + 1 - newDepth). When following a path down, the cursor will stop on all prefixes.
-     *
-     * When it is created the cursor is placed on the root node with depth() = 0, incomingTransition() = -1. Since
-     * tries can have mappings for empty, content() can possibly be non-null. It is not allowed for a cursor to start
-     * in exhausted state (i.e. with depth() = -1).
-     *
-     * For example, the following trie:
+     * on the parent chain. By comparing the new depth (which {@code advance} also returns) with the one before the advance,
+     * one can tell if the former was the case (if {@code newDepth == oldDepth + 1}) and how many steps up we had to take
+     * ({@code oldDepth + 1 - newDepth}). When following a path down, the cursor will stop on all prefixes.
+     * <p>
+     * When it is created the cursor is placed on the root node with {@code depth() = 0}, {@code incomingTransition() = -1}.
+     * Since tries can have mappings for empty, content() can possibly be non-null. The cursor is exhausted when it
+     * returns a depth of -1 (the operations that advance a cursor return the depth, and {@code depth()} will also
+     * return -1 if queried afterwards). It is not allowed for a cursor to start in exhausted state; once a cursor is
+     * exhausted, calling any of the advance methods or {@code tailTrie} is an error.
+     * <p>
+     * For example, the following trie:<br/>
+     * <pre>
      *  t
      *   r
      *    e
@@ -99,17 +105,20 @@ public abstract class Trie<T>
      *  w
      *   i
      *    n  *
-     * has nodes reachable with the paths
-     *  "", t, tr, tre, tree*, tri, trie*, trip*, w, wi, win*
-     * and the cursor will list them with the following (depth, incomingTransition) pairs:
-     *  (0, -1), (1, t), (2, r), (3, e), (4, e)*, (3, i), (4, e)*, (4, p)*, (1, w), (2, i), (3, n)*
-     *
+     * </pre>
+     * has nodes reachable with the paths<br/>
+     * &nbsp; "", t, tr, tre, tree*, tri, trie*, trip*, w, wi, win*<br/>
+     * and the cursor will list them with the following {@code (depth, incomingTransition)} pairs:<br/>
+     * &nbsp; (0, -1), (1, t), (2, r), (3, e), (4, e)*, (3, i), (4, e)*, (4, p)*, (1, w), (2, i), (3, n)*
+     * <p>
      * Because we exhaust transitions on bigger depths before we go the next transition on the smaller ones, when
-     * cursors are advanced together their positions can be easily compared using only the depth and incomingTransition:
-     * - one that is higher in depth is before one that is lower;
-     * - for equal depths, the one with smaller incomingTransition is first.
-     *
-     * If we consider walking the trie above in parallel with this:
+     * cursors are advanced together their positions can be easily compared using only the {@code depth} and
+     * {@code incomingTransition}:<ul>
+     * <li>one that is higher in depth is before one that is lower;</li>
+     * <li>for equal depths, the one with smaller incomingTransition is first.</li>
+     * </ul>
+     * If we consider walking the trie above in parallel with this:<br/>
+     * <pre>
      *  t
      *   r
      *    i
@@ -117,24 +126,26 @@ public abstract class Trie<T>
      *      k *
      *  u
      *   p *
-     * the combined iteration will proceed as follows:
-     *  (0, -1)+    (0, -1)+               cursors equal, advance both
-     *  (1, t)+     (1, t)+        t       cursors equal, advance both
-     *  (2, r)+     (2, r)+        tr      cursors equal, advance both
-     *  (3, e)+  <  (3, i)         tre     cursors not equal, advance smaller (3 = 3, e < i)
-     *  (4, e)+  <  (3, i)         tree*   cursors not equal, advance smaller (4 > 3)
-     *  (3, i)+     (3, i)+        tri     cursors equal, advance both
-     *  (4, e)   >  (4, c)+        tric    cursors not equal, advance smaller (4 = 4, e > c)
-     *  (4, e)   >  (5, k)+        trick*  cursors not equal, advance smaller (4 < 5)
-     *  (4, e)+  <  (1, u)         trie*   cursors not equal, advance smaller (4 > 1)
-     *  (4, p)+  <  (1, u)         trip*   cursors not equal, advance smaller (4 > 1)
-     *  (1, w)   >  (1, u)+        u       cursors not equal, advance smaller (1 = 1, w > u)
-     *  (1, w)   >  (2, p)+        up*     cursors not equal, advance smaller (1 < 2)
-     *  (1, w)+  <  (-1, -1)       w       cursors not equal, advance smaller (1 > -1)
-     *  (2, i)+  <  (-1, -1)       wi      cursors not equal, advance smaller (2 > -1)
-     *  (3, n)+  <  (-1, -1)       win*    cursors not equal, advance smaller (3 > -1)
-     *  (-1, -1)    (-1, -1)               both exhasted
-     *
+     * </pre>
+     * the combined iteration will proceed as follows:<pre>
+     *  (0, -1)+  (0, -1)+          cursors equal, advance both
+     *  (1, t)+   (1, t)+   t       cursors equal, advance both
+     *  (2, r)+   (2, r)+   tr      cursors equal, advance both
+     *  (3, e)+ < (3, i)    tre     cursors not equal, advance smaller (3 = 3, e < i)
+     *  (4, e)+ < (3, i)    tree*   cursors not equal, advance smaller (4 > 3)
+     *  (3, i)+   (3, i)+   tri     cursors equal, advance both
+     *  (4, e)  > (4, c)+   tric    cursors not equal, advance smaller (4 = 4, e > c)
+     *  (4, e)  > (5, k)+   trick*  cursors not equal, advance smaller (4 < 5)
+     *  (4, e)+ < (1, u)    trie*   cursors not equal, advance smaller (4 > 1)
+     *  (4, p)+ < (1, u)    trip*   cursors not equal, advance smaller (4 > 1)
+     *  (1, w)  > (1, u)+   u       cursors not equal, advance smaller (1 = 1, w > u)
+     *  (1, w)  > (2, p)+   up*     cursors not equal, advance smaller (1 < 2)
+     *  (1, w)+ < (-1, -1)  w       cursors not equal, advance smaller (1 > -1)
+     *  (2, i)+ < (-1, -1)  wi      cursors not equal, advance smaller (2 > -1)
+     *  (3, n)+ < (-1, -1)  win*    cursors not equal, advance smaller (3 > -1)
+     *  (-1, -1)  (-1, -1)          both exhasted
+     *  </pre>
+     * <p>
      * Cursors are created with a direction (forward or reverse), which specifies the order in which a node's children
      * are iterated (smaller first or larger first). Note that entries returned in reverse direction are in
      * lexicographic order for the inverted alphabet, which is not the same as being presented in reverse. For example,
@@ -162,12 +173,22 @@ public abstract class Trie<T>
         T content();
 
         /**
+         * Returns the direction in which this cursor is progressing.
+         */
+        Direction direction();
+
+        /**
+         * Returns the byte-comparable version that this trie uses.
+         */
+        ByteComparable.Version byteComparableVersion();
+
+        /**
          * Advance one position to the node whose associated path is next lexicographically.
-         * This can be either:
-         * - descending one level to the first child of the current node,
-         * - ascending to the closest parent that has remaining children, and then descending one level to its next
+         * This can be either:<ul>
+         * <li>descending one level to the first child of the current node,
+         * <li>ascending to the closest parent that has remaining children, and then descending one level to its next
          *   child.
-         *
+         * </ul>
          * It is an error to call this after the trie has already been exhausted (i.e. when depth() == -1);
          * for performance reasons we won't always check this.
          *
@@ -180,11 +201,11 @@ public abstract class Trie<T>
          * (e.g. when positioned on a chain node in a memtable trie). If the current node does not have children this
          * is exactly the same as advance(), otherwise it may take multiple steps down (but will not necessarily, even
          * if they exist).
-         *
+         * <p>
          * Note that if any positions are skipped, their content must be null.
-         *
+         * <p>
          * This is an optional optimization; the default implementation falls back to calling advance.
-         *
+         * <p>
          * It is an error to call this after the trie has already been exhausted (i.e. when depth() == -1);
          * for performance reasons we won't always check this.
          *
@@ -199,7 +220,7 @@ public abstract class Trie<T>
 
         /**
          * Advance all the way to the next node with non-null content.
-         *
+         * <p>
          * It is an error to call this after the trie has already been exhausted (i.e. when depth() == -1);
          * for performance reasons we won't always check this.
          *
@@ -228,15 +249,42 @@ public abstract class Trie<T>
         }
 
         /**
-         * Ignore the current node's children and advance to the next child of the closest node on the parent chain that
-         * has any.
-         *
-         * It is an error to call this after the trie has already been exhausted (i.e. when depth() == -1);
-         * for performance reasons we won't always check this.
+         * Advance to the specified depth and incoming transition or the first valid position that is after the specified
+         * position. The inputs must be something that could be returned by a single call to {@link #advance} (i.e.
+         * {@code depth} must be <= current depth + 1, and {@code incomingTransition} must be higher than what the
+         * current state saw at the requested depth.
          *
          * @return the new depth, always <= previous depth; -1 if the trie is exhausted
          */
-        int skipChildren();
+        int skipTo(int skipDepth, int skipTransition);
+
+        /**
+         * Descend into the cursor with the given path.
+         *
+         * @return True if the descent is positioned at the end of the given path, false if the trie did not have a path
+         * for it. In the latter case the cursor is positioned at the first node that follows the given key in iteration
+         * order.
+         */
+        default boolean descendAlong(ByteSource bytes)
+        {
+            int next = bytes.next();
+            int depth = depth();
+            while (next != ByteSource.END_OF_STREAM)
+            {
+                if (skipTo(++depth, next) != depth || incomingTransition() != next)
+                    return false;
+                next = bytes.next();
+            }
+            return true;
+        }
+
+        /**
+         * Returns a tail trie, i.e. a trie whose root is the current position. Walking a tail trie will list all
+         * descendants of the current position with depth adjusted by the current depth.
+         * <p>
+         * It is an error to call tailTrie on an exhausted cursor.
+         */
+        Trie<T> tailTrie();
     }
 
     protected abstract Cursor<T> cursor(Direction direction);
@@ -275,9 +323,6 @@ public abstract class Trie<T>
         /** Called at the completion of the walk. */
         R complete();
     }
-
-    // Version of the byte comparable conversion to use for all operations
-    protected static final ByteComparable.Version BYTE_COMPARABLE_VERSION = ByteComparable.Version.OSS50;
 
     /**
      * Adapter interface providing the methods a {@link Walker} to a {@link Consumer}, so that the latter can be used
@@ -328,11 +373,10 @@ public abstract class Trie<T>
         process(consumer, Direction.FORWARD);
     }
 
-
     /**
      * Call the given consumer on all (path, content) pairs with non-null content in the trie in order.
      */
-    public void forEachEntry(BiConsumer<ByteComparable, T> consumer)
+    public void forEachEntry(BiConsumer<ByteComparable.Preencoded, T> consumer)
     {
         forEachEntry(Direction.FORWARD, consumer);
     }
@@ -340,9 +384,10 @@ public abstract class Trie<T>
     /**
      * Call the given consumer on all (path, content) pairs with non-null content in the trie in order.
      */
-    public void forEachEntry(Direction direction, BiConsumer<ByteComparable, T> consumer)
+    public void forEachEntry(Direction direction, BiConsumer<ByteComparable.Preencoded, T> consumer)
     {
-        process(new TrieEntriesWalker.WithConsumer<T>(consumer), direction);
+        Cursor<T> cursor = cursor(direction);
+        process(new TrieEntriesWalker.WithConsumer<T>(consumer, cursor.byteComparableVersion()), cursor);
         // Note: we can't do the ValueConsumer trick here, because the implementation requires state and cannot be
         // implemented with default methods alone.
     }
@@ -370,6 +415,72 @@ public abstract class Trie<T>
         return walker.complete();
     }
 
+
+    /**
+     * Process the trie using the given ValueConsumer, skipping all branches below the top content-bearing node.
+     */
+    public Void forEachValueSkippingBranches(Direction direction, ValueConsumer<T> consumer)
+    {
+        return processSkippingBranches(consumer, cursor(direction));
+    }
+
+    /**
+     * Call the given consumer on all (path, content) pairs with non-null content in the trie in order, skipping all
+     * branches below the top content-bearing node.
+     */
+    public void forEachEntrySkippingBranches(Direction direction, BiConsumer<ByteComparable.Preencoded, T> consumer)
+    {
+        Cursor<T> cursor = cursor(direction);
+        processSkippingBranches(new TrieEntriesWalker.WithConsumer<T>(consumer, cursor.byteComparableVersion()), cursor);
+        // Note: we can't do the ValueConsumer trick here, because the implementation requires state and cannot be
+        // implemented with default methods alone.
+    }
+
+    /**
+     * Process the trie using the given Walker, skipping all branches below the top content-bearing node.
+     */
+    public <R> R processSkippingBranches(Walker<T, R> walker, Direction direction)
+    {
+        return processSkippingBranches(walker, cursor(direction));
+    }
+
+    static <T, R> R processSkippingBranches(Walker<T, R> walker, Cursor<T> cursor)
+    {
+        assert cursor.depth() == 0 : "The provided cursor has already been advanced.";
+        T content = cursor.content();   // handle content on the root node
+        if (content != null)
+        {
+            walker.content(content);
+            return walker.complete();
+        }
+        content = cursor.advanceToContent(walker);
+
+        while (content != null)
+        {
+            walker.content(content);
+            if (cursor.skipTo(cursor.depth(), cursor.incomingTransition() + cursor.direction().increase) < 0)
+                break;
+            walker.resetPathLength(cursor.depth() - 1);
+            walker.addPathByte(cursor.incomingTransition());
+            content = cursor.content();
+            if (content == null)
+                content = cursor.advanceToContent(walker);
+        }
+        return walker.complete();
+    }
+
+    /**
+     * Map-like get by key.
+     */
+    public T get(ByteComparable key)
+    {
+        Cursor<T> cursor = cursor(Direction.FORWARD);
+        if (cursor.descendAlong(key.asComparableBytes(cursor.byteComparableVersion())))
+            return cursor.content();
+        else
+            return null;
+    }
+
     /**
      * Constuct a textual representation of the trie.
      */
@@ -389,9 +500,9 @@ public abstract class Trie<T>
     /**
      * Returns a singleton trie mapping the given byte path to content.
      */
-    public static <T> Trie<T> singleton(ByteComparable b, T v)
+    public static <T> Trie<T> singleton(ByteComparable b, ByteComparable.Version byteComparableVersion, T v)
     {
-        return new SingletonTrie<>(b, v);
+        return new SingletonTrie<>(b, byteComparableVersion, v);
     }
 
     /**
@@ -416,19 +527,15 @@ public abstract class Trie<T>
     }
 
     /**
-     * Returns a view of the subtrie containing everything in this trie whose keys fall between the given boundaries,
-     * left-inclusive and right-exclusive.
+     * Returns a view of the subtrie containing everything in this trie whose keys fall between the given boundaries.
      * The view is live, i.e. any write to the source will be reflected in the subtrie.
      *
-     * This method will not check its arguments for correctness. The resulting trie may be empty or throw an exception
-     * if the right bound is smaller than the left.
-     *
-     * Equivalent to calling subtrie(left, true, right, false).
-     *
-     * @param left the left bound for the returned subtrie. If {@code null}, the resulting subtrie is not left-bounded.
-     * @param right the right bound for the returned subtrie. If {@code null}, the resulting subtrie is not right-bounded.
-     * @return a view of the subtrie containing all the keys of this trie falling between {@code left} (inclusively if
-     * {@code includeLeft}) and {@code right} (inclusively if {@code includeRight}).
+     * @param left the left bound for the returned subtrie, inclusive. If {@code null}, the resulting subtrie is not
+     *             left-bounded.
+     * @param right the right bound for the returned subtrie, exclusive. If {@code null}, the resulting subtrie is not
+     *              right-bounded.
+     * @return a view of the subtrie containing all the keys of this trie falling between {@code left} inclusively and
+     * {@code right} exclusively.
      */
     public Trie<T> subtrie(ByteComparable left, ByteComparable right)
     {
@@ -438,7 +545,7 @@ public abstract class Trie<T>
     /**
      * Returns the ordered entry set of this trie's content as an iterable.
      */
-    public Iterable<Map.Entry<ByteComparable, T>> entrySet()
+    public Iterable<Map.Entry<ByteComparable.Preencoded, T>> entrySet()
     {
         return this::entryIterator;
     }
@@ -446,7 +553,7 @@ public abstract class Trie<T>
     /**
      * Returns the ordered entry set of this trie's content as an iterable.
      */
-    public Iterable<Map.Entry<ByteComparable, T>> entrySet(Direction direction)
+    public Iterable<Map.Entry<ByteComparable.Preencoded, T>> entrySet(Direction direction)
     {
         return () -> entryIterator(direction);
     }
@@ -454,7 +561,7 @@ public abstract class Trie<T>
     /**
      * Returns the ordered entry set of this trie's content in an iterator.
      */
-    public Iterator<Map.Entry<ByteComparable, T>> entryIterator()
+    public Iterator<Map.Entry<ByteComparable.Preencoded, T>> entryIterator()
     {
         return entryIterator(Direction.FORWARD);
     }
@@ -462,9 +569,33 @@ public abstract class Trie<T>
     /**
      * Returns the ordered entry set of this trie's content in an iterator.
      */
-    public Iterator<Map.Entry<ByteComparable, T>> entryIterator(Direction direction)
+    public Iterator<Map.Entry<ByteComparable.Preencoded, T>> entryIterator(Direction direction)
     {
-        return new TrieEntriesIterator.AsEntries<>(this, direction);
+        return new TrieEntriesIterator.AsEntries<>(cursor(direction));
+    }
+
+    /**
+     * Returns the ordered entry set of this trie's content in an iterable, filtered by the given type.
+     */
+    public <U extends T> Iterable<Map.Entry<ByteComparable.Preencoded, U>> filteredEntrySet(Class<U> clazz)
+    {
+        return filteredEntrySet(Direction.FORWARD, clazz);
+    }
+
+    /**
+     * Returns the ordered entry set of this trie's content in an iterable, filtered by the given type.
+     */
+    public <U extends T> Iterable<Map.Entry<ByteComparable.Preencoded, U>> filteredEntrySet(Direction direction, Class<U> clazz)
+    {
+        return () -> filteredEntryIterator(direction, clazz);
+    }
+
+    /**
+     * Returns the ordered entry set of this trie's content in an iterator, filtered by the given type.
+     */
+    public <U extends T> Iterator<Map.Entry<ByteComparable.Preencoded, U>> filteredEntryIterator(Direction direction, Class<U> clazz)
+    {
+        return new TrieEntriesIterator.AsEntriesFilteredByType<>(cursor(direction), clazz);
     }
 
     /**
@@ -476,11 +607,59 @@ public abstract class Trie<T>
     }
 
     /**
+     * Returns the ordered set of values of this trie as an iterable.
+     */
+    public Iterable<T> values(Direction direction)
+    {
+        return direction.isForward() ? this::valueIterator : this::reverseValueIterator;
+    }
+
+    /**
      * Returns the ordered set of values of this trie in an iterator.
      */
     public Iterator<T> valueIterator()
     {
-        return new TrieValuesIterator<>(this);
+        return valueIterator(Direction.FORWARD);
+    }
+
+    /**
+     * Returns the inversely ordered set of values of this trie in an iterator.
+     */
+    public Iterator<T> reverseValueIterator()
+    {
+        return valueIterator(Direction.REVERSE);
+    }
+
+    /**
+     * Returns the ordered set of values of this trie in an iterator.
+     */
+    public Iterator<T> valueIterator(Direction direction)
+    {
+        return new TrieValuesIterator<>(cursor(direction));
+    }
+
+    /**
+     * Returns the ordered set of values of this trie in an iterable, filtered by the given type.
+     */
+    public <U extends T> Iterable<U> filteredValues(Class<U> clazz)
+    {
+        return filteredValues(Direction.FORWARD, clazz);
+    }
+
+    /**
+     * Returns the ordered set of values of this trie in an iterable, filtered by the given type.
+     */
+    public <U extends T> Iterable<U> filteredValues(Direction direction, Class<U> clazz)
+    {
+        return () -> filteredValuesIterator(direction, clazz);
+    }
+
+    /**
+     * Returns the ordered set of values of this trie in an iterator, filtered by the given type.
+     */
+    public <U extends T> Iterator<U> filteredValuesIterator(Direction direction, Class<U> clazz)
+    {
+        return new TrieValuesIterator.FilteredByType<>(cursor(direction), clazz);
     }
 
     /**
@@ -569,7 +748,7 @@ public abstract class Trie<T>
         switch (sources.size())
         {
         case 0:
-            return empty();
+            throw new AssertionError();
         case 1:
             return sources.iterator().next();
         case 2:
@@ -595,7 +774,7 @@ public abstract class Trie<T>
         switch (sources.size())
         {
         case 0:
-            return empty();
+            throw new AssertionError();
         case 1:
             return sources.iterator().next();
         case 2:
@@ -610,45 +789,107 @@ public abstract class Trie<T>
         }
     }
 
-    private static final Trie<Object> EMPTY = new Trie<Object>()
+    /**
+     * Returns a Trie that is a view of this one, where the given prefix is prepended before the root.
+     */
+    public Trie<T> prefixedBy(ByteComparable prefix)
     {
-        protected Cursor<Object> cursor(Direction direction)
+        return new PrefixedTrie(prefix, this);
+    }
+
+    /**
+     * Returns an entry set containing all tail tree constructed at the points that contain content of
+     * the given type.
+     */
+    public Iterable<Map.Entry<ByteComparable.Preencoded, Trie<T>>> tailTries(Direction direction, Class<? extends T> clazz)
+    {
+        return () -> new TrieTailsIterator.AsEntries<>(cursor(direction), clazz);
+    }
+
+    /**
+     * Returns a trie that corresponds to the branch of this trie rooted at the given prefix.
+     * <p>
+     * The result will include the same values as {@code subtrie(prefix, nextBranch(prefix))}, but the keys in the
+     * resulting trie will not include the prefix. In other words,
+     *   {@code tailTrie(prefix).prefixedBy(prefix) = subtrie(prefix, nextBranch(prefix))}
+     * where nextBranch stands for the key adjusted by adding one at the last position.
+     */
+    public Trie<T> tailTrie(ByteComparable prefix)
+    {
+        Cursor<T> c = cursor(Direction.FORWARD);
+        if (c.descendAlong(prefix.asComparableBytes(c.byteComparableVersion())))
+            return c.tailTrie();
+        else
+            return null;
+    }
+
+    public static <T> Trie<T> empty(ByteComparable.Version byteComparableVersion)
+    {
+        return new Trie<T>()
         {
-            return new Cursor<Object>()
+            public Cursor<T> cursor(Direction dir)
             {
-                int depth = 0;
+                return new EmptyCursor<>(dir, byteComparableVersion);
+            }
+        };
+    }
 
-                public int advance()
-                {
-                    return depth = -1;
-                }
-
-                public int skipChildren()
-                {
-                    return depth = -1;
-                }
-
-                public int depth()
-                {
-                    return depth;
-                }
-
-                public Object content()
-                {
-                    return null;
-                }
-
-                public int incomingTransition()
-                {
-                    return -1;
-                }
-            };
-        }
-    };
-
-    @SuppressWarnings("unchecked")
-    public static <T> Trie<T> empty()
+    static class EmptyCursor<T> implements Cursor<T>
     {
-        return (Trie<T>) EMPTY;
+        private final Direction direction;
+        private final ByteComparable.Version byteComparableVersion;
+        int depth;
+
+        public EmptyCursor(Direction direction, ByteComparable.Version byteComparableVersion)
+        {
+            this.direction = direction;
+            this.byteComparableVersion = byteComparableVersion;
+            depth = 0;
+        }
+
+        public int advance()
+        {
+            return depth = -1;
+        }
+
+        public int skipTo(int skipDepth, int skipTransition)
+        {
+            return depth = -1;
+        }
+
+        public ByteComparable.Version byteComparableVersion()
+        {
+            if (byteComparableVersion != null)
+                return byteComparableVersion;
+            throw new AssertionError();
+        }
+
+        @Override
+        public Trie<T> tailTrie()
+        {
+            assert depth == 0 : "tailTrie called on exhausted cursor";
+            return empty(byteComparableVersion);
+        }
+
+        public int depth()
+        {
+            return depth;
+        }
+
+        public T content()
+        {
+            return null;
+        }
+
+        @Override
+        public Direction direction()
+        {
+            return direction;
+        }
+
+        public int incomingTransition()
+        {
+            return -1;
+        }
     }
 }

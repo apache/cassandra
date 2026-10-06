@@ -709,15 +709,15 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
     }
 
     @Test
-    public void testFixedLengthWithOffset()
+    public void testPreencodedWithOffset()
     {
         byte[] bytes = new byte[]{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
 
-        ByteSource source = ByteSource.fixedLength(bytes, 0, 1);
+        ByteSource source = ByteSource.preencoded(bytes, 0, 1);
         assertEquals(1, source.next());
         assertEquals(ByteSource.END_OF_STREAM, source.next());
 
-        source = ByteSource.fixedLength(bytes, 4, 5);
+        source = ByteSource.preencoded(bytes, 4, 5);
         assertEquals(5, source.next());
         assertEquals(6, source.next());
         assertEquals(7, source.next());
@@ -725,35 +725,35 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
         assertEquals(9, source.next());
         assertEquals(ByteSource.END_OF_STREAM, source.next());
 
-        ByteSource.fixedLength(bytes, 9, 0);
+        ByteSource.preencoded(bytes, 9, 0);
         assertEquals(ByteSource.END_OF_STREAM, source.next());
     }
 
     @Test
-    public void testFixedLengthNegativeLength()
+    public void testPreencodedNegativeLength()
     {
         byte[] bytes = new byte[]{ 1, 2, 3 };
 
         expectedException.expect(IllegalArgumentException.class);
-        ByteSource.fixedLength(bytes, 0, -1);
+        ByteSource.preencoded(bytes, 0, -1);
     }
 
     @Test
-    public void testFixedLengthNegativeOffset()
+    public void testPreencodedNegativeOffset()
     {
         byte[] bytes = new byte[]{ 1, 2, 3 };
 
         expectedException.expect(IllegalArgumentException.class);
-        ByteSource.fixedLength(bytes, -1, 1);
+        ByteSource.preencoded(bytes, -1, 1);
     }
 
     @Test
-    public void testFixedLengthOutOfBounds()
+    public void testPreencodedOutOfBounds()
     {
         byte[] bytes = new byte[]{ 1, 2, 3 };
 
         expectedException.expect(IllegalArgumentException.class);
-        ByteSource.fixedLength(bytes, 0, 4);
+        ByteSource.preencoded(bytes, 0, 4);
     }
 
     @Test
@@ -762,7 +762,7 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
         byte[] bytes = new byte[]{ 1, 2, 3 };
 
         expectedException.expect(IllegalArgumentException.class);
-        ByteSource.fixedLength(bytes, 4, 1);
+        ByteSource.preencoded(bytes, 4, 1);
     }
 
     @Test

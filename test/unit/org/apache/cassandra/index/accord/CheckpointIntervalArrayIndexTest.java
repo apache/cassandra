@@ -381,7 +381,7 @@ public class CheckpointIntervalArrayIndexTest
 
     private static int unbc(byte[] bc)
     {
-        return Int32Type.instance.fromComparableBytes(ByteSource.peekable(ByteSource.fixedLength(bc)), ByteComparable.Version.OSS50).getInt();
+        return Int32Type.instance.fromComparableBytes(ByteSource.peekable(ByteSource.preencoded(bc)), ByteComparable.Version.OSS50).getInt();
     }
 
     @SuppressWarnings({ "IOResourceOpenedButNotSafelyClosed", "resource" })

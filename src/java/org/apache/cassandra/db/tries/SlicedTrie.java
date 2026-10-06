@@ -61,33 +61,13 @@ public class SlicedTrie<T> extends Trie<T>
         this.includeRight = includeRight;
     }
 
-    static ByteSource add0(ByteSource src)
-    {
-        return new ByteSource()
-        {
-            boolean done = false;
-
-            @Override
-            public int next()
-            {
-                if (done)
-                    return END_OF_STREAM;
-                int next = src.next();
-                if (next != END_OF_STREAM)
-                    return next;
-                done = true;
-                return 0;
-            }
-        };
-    }
-
-    static ByteSource openAndMaybeAdd0(ByteComparable key, boolean shouldAdd0)
+    static ByteSource openAndMaybeAdd0(ByteComparable key, ByteComparable.Version byteComparableVersion, boolean shouldAdd0)
     {
         if (key == null)
             return null;
-        ByteSource src = key.asComparableBytes(Trie.BYTE_COMPARABLE_VERSION);
+        ByteSource src = key.asComparableBytes(byteComparableVersion);
         if (shouldAdd0)
-            return add0(src);
+            return ByteSource.append(src, 0);
         else
             return src;
     }
@@ -95,10 +75,11 @@ public class SlicedTrie<T> extends Trie<T>
     @Override
     protected Cursor<T> cursor(Direction direction)
     {
+        Cursor<T> sourceCursor = source.cursor(direction);
         // The cursor is left-inclusive and right-exclusive by default. If we need to change the inclusiveness, adjust
         // the bound to the next possible value by adding a 00 byte at the end.
-        ByteSource leftSource = openAndMaybeAdd0(left, !includeLeft);
-        ByteSource rightSource = openAndMaybeAdd0(right, includeRight);
+        ByteSource leftSource = openAndMaybeAdd0(left, sourceCursor.byteComparableVersion(), !includeLeft);
+        ByteSource rightSource = openAndMaybeAdd0(right, sourceCursor.byteComparableVersion(), includeRight);
 
         // Empty left bound is the same as having no left bound, adjust for that.
         int leftNext = -1;
@@ -117,11 +98,11 @@ public class SlicedTrie<T> extends Trie<T>
             if (rightNext == ByteSource.END_OF_STREAM)
             {
                 assert leftSource == null : "Invalid range " + sliceString();
-                return Trie.<T>empty().cursor(direction);
+                return new Trie.EmptyCursor<>(direction, sourceCursor.byteComparableVersion());
             }
         }
 
-        return new SlicedCursor<>(source.cursor(direction),
+        return new SlicedCursor<>(sourceCursor,
                                   leftSource,
                                   leftNext,
                                   rightSource,
@@ -131,10 +112,11 @@ public class SlicedTrie<T> extends Trie<T>
 
     String sliceString()
     {
+        ByteComparable.Version version = source.cursor(Direction.FORWARD).byteComparableVersion();
         return String.format("%s%s;%s%s",
                              includeLeft ? "[" : "(",
-                             left.byteComparableAsString(Trie.BYTE_COMPARABLE_VERSION),
-                             right.byteComparableAsString(Trie.BYTE_COMPARABLE_VERSION),
+                             left.byteComparableAsString(version),
+                             right.byteComparableAsString(version),
                              includeRight ? "]" : ")");
     }
 
@@ -168,16 +150,16 @@ public class SlicedTrie<T> extends Trie<T>
 
     private static class SlicedCursor<T> implements Cursor<T>
     {
-        private final ByteSource start;
-        private final ByteSource end;
+        private ByteSource start;
+        private ByteSource end;
         private final Cursor<T> source;
         private final Direction direction;
 
-        private State state;
-        private int startNext;
-        private int startNextDepth;
-        private int endNext;
-        private int endNextDepth;
+        State state;
+        int startNext;
+        int startNextDepth;
+        int endNext;
+        int endNextDepth;
 
         public SlicedCursor(Cursor<T> source,
                             ByteSource leftSource,
@@ -206,42 +188,21 @@ public class SlicedTrie<T> extends Trie<T>
         @Override
         public int advance()
         {
-            int newDepth = source.advance();
-            int transition = source.incomingTransition();
+            int newDepth;
+            int transition;
 
             switch (state)
             {
                 case COMMON_PREFIX:
                 case START_PREFIX:
                     // Skip any transitions before the start bound
-                    while (newDepth == startNextDepth && direction.lt(transition, startNext))
-                    {
-                        newDepth = source.skipChildren();
-                        transition = source.incomingTransition();
-                    }
-
-                    // Check if we are still following the start bound
-                    if (newDepth == startNextDepth && transition == startNext)
-                    {
-                        assert startNext != ByteSource.END_OF_STREAM;
-                        startNext = start.next();
-                        ++startNextDepth;
-                        State currState = state;
-                        // In the forward direction the exact match for the left bound and all descendant states are
-                        // included in the set.
-                        // In the reverse direction we will instead use the -1 as target transition and thus ascend on
-                        // the next advance (skipping the exact right bound and all its descendants).
-                        if (startNext == ByteSource.END_OF_STREAM && direction.isForward())
-                            state = State.INSIDE; // checkEndBound may adjust this to END_PREFIX
-                        if (currState == State.START_PREFIX)
-                            return newDepth;   // there is no need to check the end bound as we descended along a
-                                               // strictly earlier path
-                    }
-                    else // otherwise we are beyond the start bound
-                        state = State.INSIDE; // checkEndBound may adjust this to END_PREFIX
-                    // pass through
+                    newDepth = source.skipTo(startNextDepth, startNext);
+                    transition = source.incomingTransition();
+                    return checkBothBounds(newDepth, transition);
                 case INSIDE:
                 case END_PREFIX:
+                    newDepth = source.advance();
+                    transition = source.incomingTransition();
                     return checkEndBound(newDepth, transition);
                 default:
                     throw new AssertionError();
@@ -252,6 +213,31 @@ public class SlicedTrie<T> extends Trie<T>
         {
             state = State.EXHAUSTED;
             return -1;
+        }
+
+        int checkBothBounds(int newDepth, int transition)
+        {
+            // Check if we are still following the start bound
+            if (newDepth == startNextDepth && transition == startNext)
+            {
+                assert startNext != ByteSource.END_OF_STREAM;
+                startNext = start.next();
+                ++startNextDepth;
+                State currState = state;
+                // In the forward direction the exact match for the left bound and all descendant states are
+                // included in the set.
+                // In the reverse direction we will instead use the -1 as target transition and thus ascend on
+                // the next advance (skipping the exact right bound and all its descendants).
+                if (startNext == ByteSource.END_OF_STREAM && direction.isForward())
+                    state = State.INSIDE; // checkEndBound may adjust this to END_PREFIX
+                if (currState == State.START_PREFIX)
+                    return newDepth;   // there is no need to check the end bound as we descended along a
+                                       // strictly earlier path
+            }
+            else // otherwise we are beyond the start bound
+                state = State.INSIDE; // checkEndBound may adjust this to END_PREFIX
+
+            return checkEndBound(newDepth, transition);
         }
 
         private int checkEndBound(int newDepth, int transition)
@@ -340,22 +326,25 @@ public class SlicedTrie<T> extends Trie<T>
         }
 
         @Override
-        public int skipChildren()
+        public int skipTo(int skipDepth, int skipTransition)
         {
+            // if skipping beyond end, we are done
+            if (skipDepth < endNextDepth || skipDepth == endNextDepth && direction.gt(skipTransition, endNext))
+                return markDone();
+            // if skipping before start, adjust request to skip to start
+            if (skipDepth == startNextDepth && direction.lt(skipTransition, startNext))
+                skipTransition = startNext;
+
             switch (state)
             {
                 case START_PREFIX:
-                    // Skipping children takes us beyond the start path.
-                    state = State.INSIDE;
-                case INSIDE:
-                    // Check that we are still inside after we skip.
-                    return checkEndBound(source.skipChildren(), source.incomingTransition());
                 case COMMON_PREFIX:
+                    return checkBothBounds(source.skipTo(skipDepth, skipTransition), source.incomingTransition());
+                case INSIDE:
                 case END_PREFIX:
-                    // The skip takes us beyond the end bound; we are done.
-                    return markDone();
+                    return checkEndBound(source.skipTo(skipDepth, skipTransition), source.incomingTransition());
                 default:
-                    throw new AssertionError();
+                    throw new AssertionError("Cursor already exhaused.");
             }
         }
 
@@ -369,6 +358,18 @@ public class SlicedTrie<T> extends Trie<T>
         public int incomingTransition()
         {
             return source.incomingTransition();
+        }
+
+        @Override
+        public Direction direction()
+        {
+            return direction;
+        }
+
+        @Override
+        public ByteComparable.Version byteComparableVersion()
+        {
+            return source.byteComparableVersion();
         }
 
         @Override
@@ -388,6 +389,70 @@ public class SlicedTrie<T> extends Trie<T>
                 default:
                     return null;
             }
+        }
+
+        @Override
+        public Trie<T> tailTrie()
+        {
+            final Trie<T> sourceTail = source.tailTrie();
+            switch (state)
+            {
+                case INSIDE:
+                    return sourceTail;
+                case COMMON_PREFIX:
+                    return makeTrie(sourceTail, duplicatableStart(), startNext, duplicatableEnd(), endNext, direction);
+                case START_PREFIX:
+                    return makeTrie(sourceTail, duplicatableStart(), startNext, null, -1, direction);
+                case END_PREFIX:
+                    return makeTrie(sourceTail, null, -1, duplicatableEnd(), endNext, direction);
+                default:
+                    throw new UnsupportedOperationException("tailTrie on a slice boundary");
+            }
+        }
+
+        private ByteSource.Duplicatable duplicatableStart()
+        {
+            if (start == null || start instanceof ByteSource.Duplicatable)
+                return (ByteSource.Duplicatable) start;
+            ByteSource.Duplicatable duplicatable = ByteSource.duplicatable(start);
+            start = duplicatable;
+            return duplicatable;
+        }
+
+        private ByteSource.Duplicatable duplicatableEnd()
+        {
+            if (end == null || end instanceof ByteSource.Duplicatable)
+                return (ByteSource.Duplicatable) end;
+            ByteSource.Duplicatable duplicatable = ByteSource.duplicatable(end);
+            end = duplicatable;
+            return duplicatable;
+        }
+
+
+        private static <T> Trie<T> makeTrie(Trie<T> source,
+                                            ByteSource.Duplicatable startSource,
+                                            int startNext,
+                                            ByteSource.Duplicatable endSource,
+                                            int endNext,
+                                            Direction direction)
+        {
+            ByteSource.Duplicatable leftSource = direction.select(startSource, endSource);
+            ByteSource.Duplicatable rightSource = direction.select(endSource, startSource);
+            int leftNext = direction.select(startNext, endNext);
+            int rightNext = direction.select(endNext, startNext);
+            return new Trie<T>()
+            {
+                @Override
+                protected Cursor<T> cursor(Direction direction)
+                {
+                    return new SlicedCursor<>(source.cursor(direction),
+                                              leftSource != null ? leftSource.duplicate() : null,
+                                              leftNext,
+                                              rightSource != null ? rightSource.duplicate() : null,
+                                              rightNext,
+                                              direction);
+                }
+            };
         }
     }
 }

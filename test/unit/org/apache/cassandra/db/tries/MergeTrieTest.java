@@ -28,9 +28,9 @@ import org.junit.Test;
 
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
-import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.FORWARD_COMPARATOR;
 import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.addToInMemoryTrie;
 import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.assertSameContent;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.forwardComparator;
 import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.generateKeys;
 import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.makeInMemoryTrie;
 
@@ -44,8 +44,8 @@ public class MergeTrieTest
     {
         ByteComparable[] src1 = generateKeys(rand, COUNT);
         ByteComparable[] src2 = generateKeys(rand, COUNT);
-        SortedMap<ByteComparable, ByteBuffer> content1 = new TreeMap<>(FORWARD_COMPARATOR);
-        SortedMap<ByteComparable, ByteBuffer> content2 = new TreeMap<>(FORWARD_COMPARATOR);
+        SortedMap<ByteComparable, ByteBuffer> content1 = new TreeMap<>(forwardComparator);
+        SortedMap<ByteComparable, ByteBuffer> content2 = new TreeMap<>(forwardComparator);
 
         InMemoryTrie<ByteBuffer> trie1 = makeInMemoryTrie(src1, content1, true);
         InMemoryTrie<ByteBuffer> trie2 = makeInMemoryTrie(src2, content2, true);
@@ -61,11 +61,11 @@ public class MergeTrieTest
     {
         ByteComparable[] src1 = generateKeys(rand, COUNT);
         ByteComparable[] src2 = generateKeys(rand, COUNT);
-        SortedMap<ByteComparable, ByteBuffer> content1 = new TreeMap<>(FORWARD_COMPARATOR);
-        SortedMap<ByteComparable, ByteBuffer> content2 = new TreeMap<>(FORWARD_COMPARATOR);
+        SortedMap<ByteComparable, ByteBuffer> content1 = new TreeMap<>(forwardComparator);
+        SortedMap<ByteComparable, ByteBuffer> content2 = new TreeMap<>(forwardComparator);
 
-        InMemoryTrie<ByteBuffer> trie1 = makeInMemoryTrie(src1, content1, true);
-        InMemoryTrie<ByteBuffer> trie2 = makeInMemoryTrie(src2, content2, true);
+        InMemoryTrie trie1 = makeInMemoryTrie(src1, content1, true);
+        InMemoryTrie trie2 = makeInMemoryTrie(src2, content2, true);
 
         addToInMemoryTrie(generateKeys(new Random(5), COUNT), content1, trie1, true);
         addToInMemoryTrie(generateKeys(new Random(5), COUNT), content2, trie2, true);
@@ -80,12 +80,12 @@ public class MergeTrieTest
     public void testDistinct()
     {
         ByteComparable[] src1 = generateKeys(rand, COUNT);
-        SortedMap<ByteComparable, ByteBuffer> content1 = new TreeMap<>(FORWARD_COMPARATOR);
+        SortedMap<ByteComparable, ByteBuffer> content1 = new TreeMap<>(forwardComparator);
         InMemoryTrie<ByteBuffer> trie1 = makeInMemoryTrie(src1, content1, true);
 
         ByteComparable[] src2 = generateKeys(rand, COUNT);
         src2 = removeDuplicates(src2, content1);
-        SortedMap<ByteComparable, ByteBuffer> content2 = new TreeMap<>(FORWARD_COMPARATOR);
+        SortedMap<ByteComparable, ByteBuffer> content2 = new TreeMap<>(forwardComparator);
         InMemoryTrie<ByteBuffer> trie2 = makeInMemoryTrie(src2, content2, true);
 
         content1.putAll(content2);

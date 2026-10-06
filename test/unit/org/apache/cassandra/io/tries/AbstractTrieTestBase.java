@@ -122,7 +122,7 @@ abstract public class AbstractTrieTestBase
         for (int i = 0; i < s.length(); ++i)
             buf.put((byte) s.charAt(i));
         buf.rewind();
-        return ByteComparable.fixedLength(buf);
+        return ByteComparable.preencoded(Walker.BYTE_COMPARABLE_VERSION, buf);
     }
 
     protected String toBase(long v)

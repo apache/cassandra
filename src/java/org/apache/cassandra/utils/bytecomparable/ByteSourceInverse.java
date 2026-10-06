@@ -18,11 +18,14 @@
 package org.apache.cassandra.utils.bytecomparable;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.utils.ByteArrayUtil;
 
 /**
  * Contains inverse transformation utilities for {@link ByteSource}s.
@@ -31,7 +34,6 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
  */
 public final class ByteSourceInverse
 {
-    private static final int INITIAL_BUFFER_CAPACITY = 32;
     private static final int BYTE_ALL_BITS = 0xFF;
     private static final int BYTE_NO_BITS = 0x00;
     private static final int BYTE_SIGN_BIT = 1 << 7;
@@ -370,36 +372,43 @@ public final class ByteSourceInverse
      * Reads the bytes of the given source into a byte array. Doesn't do any transformation on the bytes, just reads
      * them until it reads an {@link ByteSource#END_OF_STREAM} byte, after which it returns an array of all the read
      * bytes, <strong>excluding the {@link ByteSource#END_OF_STREAM}</strong>.
-     * <p>
-     * This method sizes a tentative internal buffer array at {@code initialBufferCapacity}.  However, if
-     * {@code byteSource} exceeds this size, the buffer array is recreated with doubled capacity as many times as
-     * necessary.  If, after {@code byteSource} is fully exhausted, the number of bytes read from it does not exactly
-     * match the current size of the tentative buffer array, then it is copied into another array sized to fit the
-     * number of bytes read; otherwise, it is returned without that final copy step.
      *
      * @param byteSource The source which bytes we're interested in.
-     * @param initialBufferCapacity The initial size of the internal buffer.
      * @return A byte array containing exactly all the read bytes. In case of a {@code null} source, the returned byte
      * array will be empty.
      */
-    public static byte[] readBytes(ByteSource byteSource, final int initialBufferCapacity)
+    public static byte[] readBytes(ByteSource byteSource)
     {
-        Preconditions.checkNotNull(byteSource);
+        if (byteSource instanceof ByteSource.ConvertableToArray)
+            return ((ByteSource.ConvertableToArray) byteSource).remainingBytesToArray();
 
-        int readBytes = 0;
-        byte[] buf = new byte[initialBufferCapacity];
-        int data;
-        while ((data = byteSource.next()) != ByteSource.END_OF_STREAM)
-        {
-            buf = ensureCapacity(buf, readBytes);
-            buf[readBytes++] = (byte) data;
-        }
+        if (byteSource == null)
+            return ByteArrayUtil.EMPTY_BYTE_ARRAY;
 
-        if (readBytes != buf.length)
+        int step = 232;    // size chosen so that new byte[step] fits into 256 bytes
+        byte[] last = new byte[step];
+        int copied = byteSource.nextBytes(last);
+        if (copied < step)
+            return Arrays.copyOf(last, copied);
+
+        List<byte[]> other = new ArrayList<>();
+        do
         {
-            buf = Arrays.copyOf(buf, readBytes);
+            other.add(last);
+            last = new byte[step];
+            copied = byteSource.nextBytes(last);
         }
-        return buf;
+        while (copied == step);
+
+        byte[] dest = new byte[other.size() * step + copied];
+        int pos = 0;
+        for (byte[] b : other)
+        {
+            System.arraycopy(b, 0, dest, pos, step);
+            pos += step;
+        }
+        System.arraycopy(last, 0, dest, pos, copied);
+        return dest;
     }
 
     public static int countBytes(ByteSource byteSource)
@@ -412,23 +421,6 @@ public final class ByteSourceInverse
             readBytes++;
         }
         return readBytes;
-    }
-
-    /**
-     * Reads the bytes of the given source into a byte array. Doesn't do any transformation on the bytes, just reads
-     * them until it reads an {@link ByteSource#END_OF_STREAM} byte, after which it returns an array of all the read
-     * bytes, <strong>excluding the {@link ByteSource#END_OF_STREAM}</strong>.
-     * <p>
-     * This is equivalent to {@link #readBytes(ByteSource, int)} where the second actual parameter is
-     * {@linkplain #INITIAL_BUFFER_CAPACITY} ({@value INITIAL_BUFFER_CAPACITY}).
-     *
-     * @param byteSource The source which bytes we're interested in.
-     * @return A byte array containing exactly all the read bytes. In case of a {@code null} source, the returned byte
-     * array will be empty.
-     */
-    public static byte[] readBytes(ByteSource byteSource)
-    {
-        return readBytes(byteSource, INITIAL_BUFFER_CAPACITY);
     }
 
     public static void copyBytes(ByteSource byteSource, byte[] bytes)
@@ -445,19 +437,17 @@ public final class ByteSourceInverse
     }
 
     /**
-     * Ensures the given buffer has capacity for taking data with the given length - if it doesn't, it returns a copy
-     * of the buffer, but with double the capacity.
+     * Reads the bytes of the given source into the given byte array and returns the number of bytes read. Doesn't do
+     * any transformation on the bytes, just reads them until it reads an {@code ByteSource.END_OF_STREAM} byte. If the
+     * target byte array does not have enough space to fit the whole source, a {@code RuntimeException} is thrown. See
+     * also {@link ByteSource#nextBytes(byte[])}.
      */
-    private static byte[] ensureCapacity(byte[] buf, int dataLengthInBytes)
+    public static int readBytesMustFit(ByteSource byteSource, byte[] dest)
     {
-        if (dataLengthInBytes == buf.length)
-            // We won't gain much with guarding against overflow. We'll overflow when dataLengthInBytes >= 1 << 30,
-            // and if we do guard, we'll be able to extend the capacity to Integer.MAX_VALUE (which is 1 << 31 - 1).
-            // Controlling the exception that will be thrown shouldn't matter that much, and  in practice, we almost
-            // surely won't be reading gigabytes of ByteSource data at once.
-            return Arrays.copyOf(buf, dataLengthInBytes * 2);
-        else
-            return buf;
+        int read = byteSource.nextBytes(dest);
+        if (read == dest.length && byteSource.next() != ByteSource.END_OF_STREAM)
+            throw new RuntimeException(String.format("Number of bytes available exceeds the buffer size of %d.", dest.length));
+        return read;
     }
 
     /**

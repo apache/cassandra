@@ -20,7 +20,7 @@ package org.apache.cassandra.db.tries;
 
 import org.junit.Test;
 
-import org.apache.cassandra.io.compress.BufferType;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
@@ -29,7 +29,7 @@ public class TrieToMermaidTest
     @Test
     public void testToMermaidContent() throws Exception
     {
-        InMemoryTrie<String> trie = new InMemoryTrie<>(BufferType.OFF_HEAP);
+        InMemoryTrie<Object> trie = InMemoryTrie.shortLived(ByteComparable.Version.OSS50);
         // This was used as a basis the graphs in BTIFormat.md
         String s = "a allow an and any are as node of on the this to trie types with without";
         s = toLowerCaseLocalized(s);
@@ -38,7 +38,6 @@ public class TrieToMermaidTest
 
         System.out.println(trie.process(new TrieToMermaid(Object::toString,
                                                       x -> Character.toString((char) ((int) x)),
-                                                      false),
-                                        Direction.FORWARD));
+                                                      false), Direction.FORWARD));
     }
 }

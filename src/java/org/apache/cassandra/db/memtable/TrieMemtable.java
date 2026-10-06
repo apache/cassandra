@@ -59,6 +59,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.tries.InMemoryTrie;
 import org.apache.cassandra.db.tries.Trie;
+import org.apache.cassandra.db.tries.TrieSpaceExhaustedException;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.IPartitioner;
@@ -206,7 +207,7 @@ public class TrieMemtable extends AbstractShardedMemtable
 
             return colUpdateTimeDelta;
         }
-        catch (InMemoryTrie.SpaceExhaustedException e)
+        catch (TrieSpaceExhaustedException e)
         {
             // This should never happen as {@link InMemoryTrie#reachedAllocatedSizeThreshold} should become
             // true and trigger a memtable switch long before this limit is reached.
@@ -354,7 +355,7 @@ public class TrieMemtable extends AbstractShardedMemtable
         return new MemtablePartition(metadata, ensureOnHeap, key, data);
     }
 
-    private static MemtablePartition getPartitionFromTrieEntry(TableMetadata metadata, EnsureOnHeap ensureOnHeap, Map.Entry<ByteComparable, BTreePartitionData> en)
+    private static MemtablePartition getPartitionFromTrieEntry(TableMetadata metadata, EnsureOnHeap ensureOnHeap, Map.Entry<ByteComparable.Preencoded, BTreePartitionData> en)
     {
         DecoratedKey key = BufferDecoratedKey.fromByteComparable(en.getKey(),
                                                                  BYTE_COMPARABLE_VERSION,
@@ -433,11 +434,13 @@ public class TrieMemtable extends AbstractShardedMemtable
 
         long keySize = 0;
         int keyCount = 0;
-        Trie<BTreePartitionData> partialShardsTrie = Trie.mergeDistinct(partialShardTries).subtrie(from, true, to, false);
+        Trie<BTreePartitionData> partialShardsTrie = partialShardTries.isEmpty()
+                                                     ? Trie.empty(BYTE_COMPARABLE_VERSION)
+                                                     : Trie.mergeDistinct(partialShardTries).subtrie(from, true, to, false);
         IPartitioner partitioner = metadata().partitioner;
-        for (Iterator<Map.Entry<ByteComparable, BTreePartitionData>> it = partialShardsTrie.entryIterator(); it.hasNext(); )
+        for (Iterator<Map.Entry<ByteComparable.Preencoded, BTreePartitionData>> it = partialShardsTrie.entryIterator(); it.hasNext(); )
         {
-            Map.Entry<ByteComparable, BTreePartitionData> en = it.next();
+            Map.Entry<ByteComparable.Preencoded, BTreePartitionData> en = it.next();
             int keyByteSize = DecoratedKey.keySizeFromByteSource(ByteSource.peekable(en.getKey().asComparableBytes(BYTE_COMPARABLE_VERSION)),
                                                                  BYTE_COMPARABLE_VERSION,
                                                                  partitioner);
@@ -547,14 +550,14 @@ public class TrieMemtable extends AbstractShardedMemtable
         @VisibleForTesting
         MemtableShard(TableMetadataRef metadata, MemtableAllocator allocator, TrieMemtableMetricsView metrics)
         {
-            this.data = new InMemoryTrie<>(BUFFER_TYPE);
+            this.data = InMemoryTrie.shortLived(BYTE_COMPARABLE_VERSION, BUFFER_TYPE);
             this.columnsCollector = new AbstractMemtable.ColumnsCollector(metadata.get().regularAndStaticColumns());
             this.statsCollector = new AbstractMemtable.StatsCollector();
             this.allocator = allocator;
             this.metrics = metrics;
         }
 
-        public long put(DecoratedKey key, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup) throws InMemoryTrie.SpaceExhaustedException
+        public long put(DecoratedKey key, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup) throws TrieSpaceExhaustedException
         {
             BTreePartitionUpdater updater = new BTreePartitionUpdater(allocator, allocator.cloner(opGroup), opGroup, indexer);
             boolean locked = writeLock.tryLock();
@@ -573,15 +576,15 @@ public class TrieMemtable extends AbstractShardedMemtable
             {
                 try
                 {
-                    long onHeap = data.sizeOnHeap();
-                    long offHeap = data.sizeOffHeap();
+                    long onHeap = data.usedSizeOnHeap();
+                    long offHeap = data.usedSizeOffHeap();
                     // Use the fast recursive put if we know the key is small enough to not cause a stack overflow.
                     data.putSingleton(key,
                                       update,
                                       updater::mergePartitions,
                                       key.getKeyLength() < MAX_RECURSIVE_KEY_LENGTH);
-                    allocator.offHeap().adjust(data.sizeOffHeap() - offHeap);
-                    allocator.onHeap().adjust(data.sizeOnHeap() - onHeap);
+                    allocator.offHeap().adjust(data.usedSizeOffHeap() - offHeap);
+                    allocator.onHeap().adjust(data.usedSizeOnHeap() - onHeap);
                 }
                 finally
                 {
@@ -642,7 +645,7 @@ public class TrieMemtable extends AbstractShardedMemtable
     {
         private final TableMetadata metadata;
         private final EnsureOnHeap ensureOnHeap;
-        private final Iterator<Map.Entry<ByteComparable, BTreePartitionData>> iter;
+        private final Iterator<Map.Entry<ByteComparable.Preencoded, BTreePartitionData>> iter;
         private final ColumnFilter columnFilter;
         private final DataRange dataRange;
 
@@ -811,7 +814,7 @@ public class TrieMemtable extends AbstractShardedMemtable
     {
         long size = 0;
         for (MemtableShard shard : shards)
-            size += shard.data.unusedReservedMemory();
+            size += shard.data.unusedReservedOnHeapMemory();
         return size;
     }
 }

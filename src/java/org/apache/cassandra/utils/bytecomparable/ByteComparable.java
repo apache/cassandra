@@ -20,6 +20,9 @@ package org.apache.cassandra.utils.bytecomparable;
 
 import java.nio.ByteBuffer;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+
 /**
  * Interface indicating a value can be represented/identified by a comparable {@link ByteSource}.
  *
@@ -56,10 +59,25 @@ public interface ByteComparable
         return builder.toString();
     }
 
+    /**
+     * Returns the full byte-comparable representation of the value as a byte array.
+     */
+    default byte[] asByteComparableArray(Version version)
+    {
+        return ByteSourceInverse.readBytes(asComparableBytes(version));
+    }
+
+    default Preencoded preencode(Version version)
+    {
+        return preencoded(version, asByteComparableArray(version));
+    }
+
     // Simple factories used for testing
 
+    @VisibleForTesting
     static ByteComparable of(String s)
     {
+        // Note: This is not prefix-free
         return v -> ByteSource.of(s, v);
     }
 
@@ -73,19 +91,54 @@ public interface ByteComparable
         return v -> ByteSource.of(value);
     }
 
-    static ByteComparable fixedLength(ByteBuffer bytes)
+    interface Preencoded extends ByteComparable
     {
-        return v -> ByteSource.fixedLength(bytes);
+        Version encodingVersion();
+
+        ByteSource.Duplicatable getPreencodedBytes();
+
+        @Override
+        default ByteSource.Duplicatable asComparableBytes(Version version)
+        {
+            Preconditions.checkState(version == encodingVersion(),
+                                     "Preencoded byte-source at version %s queried at version %s",
+                                     encodingVersion(),
+                                     version);
+            return getPreencodedBytes();
+        }
+
+        @Override
+        default byte[] asByteComparableArray(Version version)
+        {
+            return asComparableBytes(version).remainingBytesToArray();
+        }
     }
 
-    static ByteComparable fixedLength(byte[] bytes)
+    /**
+     * A ByteComparable value that is already encoded for a specific version. Requesting the source with a different
+     * version will result in an exception.
+     */
+    static Preencoded preencoded(Version version, ByteBuffer bytes)
     {
-        return v -> ByteSource.fixedLength(bytes);
+        return new PreencodedByteComparable.Buffer(version, bytes);
     }
 
-    static ByteComparable fixedLength(byte[] bytes, int offset, int len)
+    /**
+     * A ByteComparable value that is already encoded for a specific version. Requesting the source with a different
+     * version will result in an exception.
+     */
+    static Preencoded preencoded(Version version, byte[] bytes)
     {
-        return v -> ByteSource.fixedLength(bytes, offset, len);
+        return new PreencodedByteComparable.Array(version, bytes);
+    }
+
+    /**
+     * A ByteComparable value that is already encoded for a specific version. Requesting the source with a different
+     * version will result in an exception.
+     */
+    static Preencoded preencoded(Version version, byte[] bytes, int offset, int len)
+    {
+        return new PreencodedByteComparable.Array(version, bytes, offset, len);
     }
 
     /**
@@ -127,29 +180,29 @@ public interface ByteComparable
     }
 
     /**
-     * Compare two byte-comparable values by their byte-comparable representation. Used for tests.
+     * Compare two byte-comparable values by their byte-comparable representation.
      *
      * @return the result of the lexicographic unsigned byte comparison of the byte-comparable representations of the
      *         two arguments
      */
     static int compare(ByteComparable bytes1, ByteComparable bytes2, Version version)
     {
-        ByteSource s1 = bytes1.asComparableBytes(version);
-        ByteSource s2 = bytes2.asComparableBytes(version);
+        return ByteSource.compare(bytes1.asComparableBytes(version), bytes2.asComparableBytes(version));
+    }
 
-        if (s1 == null || s2 == null)
-            return Boolean.compare(s1 != null, s2 != null);
-
-        while (true)
-        {
-            int b1 = s1.next();
-            int b2 = s2.next();
-            int cmp = Integer.compare(b1, b2);
-            if (cmp != 0)
-                return cmp;
-            if (b1 == ByteSource.END_OF_STREAM)
-                return 0;
-        }
+    /**
+     * Compare two preencoded byte-comparable values, using their encoding versions.
+     *
+     * @return the result of the lexicographic unsigned byte comparison of the byte-comparable representations of the
+     *         two arguments
+     */
+    static int compare(Preencoded a, Preencoded b)
+    {
+        Preconditions.checkArgument(a.encodingVersion() == b.encodingVersion(),
+                                    "Cannot compare preencoded byte-comparables of different versions %s vs %s",
+                                    a.encodingVersion(),
+                                    b.encodingVersion());
+        return ByteSource.compare(a.getPreencodedBytes(), b.getPreencodedBytes());
     }
 
     /**

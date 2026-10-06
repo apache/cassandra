@@ -28,9 +28,9 @@ class TrieValuesIterator<T> implements Iterator<T>
     T next;
     boolean gotNext;
 
-    protected TrieValuesIterator(Trie<T> trie)
+    protected TrieValuesIterator(Trie.Cursor<T> cursor)
     {
-        cursor = trie.cursor(Direction.FORWARD);
+        this.cursor = cursor;
         assert cursor.depth() == 0;
         next = cursor.content();
         gotNext = next != null;
@@ -49,9 +49,51 @@ class TrieValuesIterator<T> implements Iterator<T>
 
     public T next()
     {
+        if (!hasNext())
+            throw new IllegalStateException("next without hasNext");
+
         gotNext = false;
         T v = next;
         next = null;
         return v;
+    }
+
+    static class FilteredByType<T, U> implements Iterator<U>
+    {
+        private final Trie.Cursor<T> cursor;
+        T next;
+        boolean gotNext;
+        Class<U> clazz;
+
+        FilteredByType(Trie.Cursor<T> cursor, Class<U> clazz)
+        {
+            this.cursor = cursor;
+            this.clazz = clazz;
+            assert cursor.depth() == 0;
+            next = cursor.content();
+            gotNext = next != null && clazz.isInstance(next);
+        }
+
+        public boolean hasNext()
+        {
+            while (!gotNext)
+            {
+                next = cursor.advanceToContent(null);
+                gotNext = next == null || clazz.isInstance(next);
+            }
+
+            return next != null;
+        }
+
+        public U next()
+        {
+            if (!hasNext())
+                throw new IllegalStateException("next without hasNext");
+
+            gotNext = false;
+            T v = next;
+            next = null;
+            return (U) v;
+        }
     }
 }

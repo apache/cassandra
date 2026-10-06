@@ -487,7 +487,7 @@ public class AbstractTypeTest
 
                     // test byte[] api
                     byte[] bytes = ByteSourceInverse.readBytes(type.asComparableBytes(bb, bcv));
-                    assertBytesEquals(type.fromComparableBytes(ByteSource.peekable(ByteSource.fixedLength(bytes)), bcv), bb, "fromOrderedBytes(toOrderedBytes(bb)) != bb");
+                    assertBytesEquals(type.fromComparableBytes(ByteSource.peekable(ByteSource.preencoded(bytes)), bcv), bb, "fromOrderedBytes(toOrderedBytes(bb)) != bb");
                 }
             }
         });

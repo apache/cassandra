@@ -55,6 +55,9 @@ public class InMemoryTrieReadBench
     @Param({"ON_HEAP", "OFF_HEAP"})
     BufferType bufferType = BufferType.OFF_HEAP;
 
+    @Param({"OSS50"})
+    ByteComparable.Version byteComparableVersion = ByteComparable.Version.OSS50;
+
     @Param({"1000", "100000", "10000000"})
     int count = 1000;
 
@@ -68,7 +71,7 @@ public class InMemoryTrieReadBench
     @Setup(Level.Trial)
     public void setup() throws Throwable
     {
-        trie = new InMemoryTrie<>(bufferType);
+        trie = InMemoryTrie.longLived(byteComparableVersion, bufferType, null);
         Random rand = new Random(1);
 
         System.out.format("Putting %,d\n", count);
@@ -78,9 +81,9 @@ public class InMemoryTrieReadBench
             trie.putRecursive(ByteComparable.of(l), Byte.valueOf((byte) (l >> 56)), resolver);
         }
         System.out.format("Trie size on heap %,d off heap %,d\n",
-                          trie.sizeOnHeap(), trie.sizeOffHeap());
+                          trie.usedSizeOnHeap(), trie.usedSizeOffHeap());
         System.out.format("per entry on heap %.2f off heap %.2f\n",
-                          trie.sizeOnHeap() * 1.0 / count, trie.sizeOffHeap() * 1.0 / count);
+                          trie.usedSizeOnHeap() * 1.0 / count, trie.usedSizeOffHeap() * 1.0 / count);
     }
 
     @Benchmark
@@ -127,12 +130,12 @@ public class InMemoryTrieReadBench
     @Benchmark
     public int consumeEntries()
     {
-        class Counter implements BiConsumer<ByteComparable, Byte>
+        class Counter implements BiConsumer<ByteComparable.Preencoded, Byte>
         {
             int sum = 0;
 
             @Override
-            public void accept(ByteComparable byteComparable, Byte aByte)
+            public void accept(ByteComparable.Preencoded byteComparable, Byte aByte)
             {
                 sum += aByte;
             }
@@ -179,7 +182,7 @@ public class InMemoryTrieReadBench
     public int iterateEntries()
     {
         int sum = 0;
-        for (Map.Entry<ByteComparable, Byte> en : trie.entrySet(direction))
+        for (Map.Entry<ByteComparable.Preencoded, Byte> en : trie.entrySet(direction))
             sum += en.getValue();
         return sum;
     }
@@ -188,9 +191,7 @@ public class InMemoryTrieReadBench
     public int iterateValuesLimited()
     {
         Iterable<Byte> values = trie.subtrie(ByteComparable.of(0L),
-                                             true,
-                                             ByteComparable.of(Long.MAX_VALUE / 2),         // 1/4 of all
-                                             false)
+                                             ByteComparable.of(Long.MAX_VALUE / 2))         // 1/4 of all
                                     .values();
         int sum = 0;
         for (byte b : values)

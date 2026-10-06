@@ -19,6 +19,8 @@ package org.apache.cassandra.db.tries;
 
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+
 /**
  * A merged view of two tries.
  *
@@ -78,10 +80,17 @@ class MergeTrie<T> extends Trie<T>
         }
 
         @Override
-        public int skipChildren()
+        public int skipTo(int skipDepth, int skipTransition)
         {
-            return checkOrder(atC1 ? c1.skipChildren() : c1.depth(),
-                              atC2 ? c2.skipChildren() : c2.depth());
+            int c1depth = c1.depth();
+            int c2depth = c2.depth();
+            assert skipDepth <= c1depth + 1 || skipDepth <= c2depth + 1;
+            if (atC1 || skipDepth < c1depth || skipDepth == c1depth && direction.gt(skipTransition, c1.incomingTransition()))
+                c1depth = c1.skipTo(skipDepth, skipTransition);
+            if (atC2 || skipDepth < c2depth || skipDepth == c2depth && direction.gt(skipTransition, c2.incomingTransition()))
+                c2depth = c2.skipTo(skipDepth, skipTransition);
+
+            return checkOrder(c1depth, c2depth);
         }
 
         @Override
@@ -120,6 +129,7 @@ class MergeTrie<T> extends Trie<T>
             int c2trans = c2.incomingTransition();
             atC1 = direction.le(c1trans, c2trans);
             atC2 = direction.le(c2trans, c1trans);
+            assert atC1 | atC2;
             return c1depth;
         }
 
@@ -135,6 +145,21 @@ class MergeTrie<T> extends Trie<T>
             return atC1 ? c1.incomingTransition() : c2.incomingTransition();
         }
 
+        @Override
+        public Direction direction()
+        {
+            return direction;
+        }
+
+        @Override
+        public ByteComparable.Version byteComparableVersion()
+        {
+            assert c1.byteComparableVersion() == c2.byteComparableVersion() :
+                "Merging cursors with different byteComparableVersions: " +
+                c1.byteComparableVersion() + " vs " + c2.byteComparableVersion();
+            return c1.byteComparableVersion();
+        }
+
         public T content()
         {
             T mc = atC2 ? c2.content() : null;
@@ -145,6 +170,19 @@ class MergeTrie<T> extends Trie<T>
                 return mc;
             else
                 return resolver.resolve(nc, mc);
+        }
+
+        @Override
+        public Trie<T> tailTrie()
+        {
+            if (atC1 && atC2)
+                return new MergeTrie<>(resolver, c1.tailTrie(), c2.tailTrie());
+            else if (atC1)
+                return c1.tailTrie();
+            else if (atC2)
+                return c2.tailTrie();
+            else
+                throw new AssertionError();
         }
     }
 

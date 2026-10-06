@@ -36,7 +36,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.memtable.TrieMemtable;
 import org.apache.cassandra.db.tries.InMemoryTrie;
-import org.apache.cassandra.db.tries.Trie;
+import org.apache.cassandra.db.tries.TrieSpaceExhaustedException;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
@@ -78,7 +78,7 @@ public class TrieMemoryIndex extends MemoryIndex
     public TrieMemoryIndex(StorageAttachedIndex index)
     {
         super(index);
-        this.data = new InMemoryTrie<>(TrieMemtable.BUFFER_TYPE);
+        this.data = InMemoryTrie.shortLived(ByteComparable.Version.OSS50, TrieMemtable.BUFFER_TYPE);
         this.primaryKeysReducer = new PrimaryKeysReducer();
     }
 
@@ -96,8 +96,8 @@ public class TrieMemoryIndex extends MemoryIndex
         value = index.termType().asIndexBytes(value);
         final PrimaryKey primaryKey = index.hasClustering() ? index.keyFactory().create(key, clustering)
                                                             : index.keyFactory().create(key);
-        final long initialSizeOnHeap = data.sizeOnHeap();
-        final long initialSizeOffHeap = data.sizeOffHeap();
+        final long initialSizeOnHeap = data.usedSizeOnHeap();
+        final long initialSizeOffHeap = data.usedSizeOffHeap();
         final long reducerHeapSize = primaryKeysReducer.heapAllocations();
 
         if (index.hasAnalyzer())
@@ -120,8 +120,8 @@ public class TrieMemoryIndex extends MemoryIndex
         {
             addTerm(primaryKey, value);
         }
-        long onHeap = data.sizeOnHeap();
-        long offHeap = data.sizeOffHeap();
+        long onHeap = data.usedSizeOnHeap();
+        long offHeap = data.usedSizeOffHeap();
         long heapAllocations = primaryKeysReducer.heapAllocations();
         return (onHeap - initialSizeOnHeap) + (offHeap - initialSizeOffHeap) + (heapAllocations - reducerHeapSize);
     }
@@ -170,7 +170,7 @@ public class TrieMemoryIndex extends MemoryIndex
     @Override
     public Iterator<Pair<ByteComparable, PrimaryKeys>> iterator()
     {
-        Iterator<Map.Entry<ByteComparable, PrimaryKeys>> iterator = data.entrySet().iterator();
+        Iterator<Map.Entry<ByteComparable.Preencoded, PrimaryKeys>> iterator = data.entrySet().iterator();
         return new Iterator<>()
         {
             @Override
@@ -182,7 +182,7 @@ public class TrieMemoryIndex extends MemoryIndex
             @Override
             public Pair<ByteComparable, PrimaryKeys> next()
             {
-                Map.Entry<ByteComparable, PrimaryKeys> entry = iterator.next();
+                Map.Entry<ByteComparable.Preencoded, PrimaryKeys> entry = iterator.next();
                 return Pair.create(entry.getKey(), entry.getValue());
             }
         };
@@ -224,16 +224,9 @@ public class TrieMemoryIndex extends MemoryIndex
 
             try
             {
-                if (term.limit() <= MAX_RECURSIVE_KEY_LENGTH)
-                {
-                    data.putRecursive(comparableBytes, primaryKey, primaryKeysReducer);
-                }
-                else
-                {
-                    data.apply(Trie.singleton(comparableBytes, primaryKey), primaryKeysReducer);
-                }
+                data.putSingleton(comparableBytes, primaryKey, primaryKeysReducer, term.limit() <= MAX_RECURSIVE_KEY_LENGTH);
             }
-            catch (InMemoryTrie.SpaceExhaustedException e)
+            catch (TrieSpaceExhaustedException e)
             {
                 throw new RuntimeException(e);
             }

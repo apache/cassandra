@@ -248,7 +248,7 @@ as soon as the source becomes larger than the right bound.
 implicit representation using a pair of `depth` and `incomingTransition` for each bound.
 
 In slices we can also use `advanceMultiple` when we are certain to be strictly inside the slice, i.e. beyond the
-left bound and before a prefix of the right bound. As above, descending to any depth in this case is safe as the
+left bound and before the right bound. As above, descending to any depth in this case is safe as the
 result will remain smaller than the right bound.
 
 ## Reverse iteration

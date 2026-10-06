@@ -26,25 +26,33 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 class SingletonTrie<T> extends Trie<T>
 {
     private final ByteComparable key;
+    private final ByteComparable.Version byteComparableVersion;
     private final T value;
 
-    SingletonTrie(ByteComparable key, T value)
+    SingletonTrie(ByteComparable key, ByteComparable.Version byteComparableVersion, T value)
     {
+        this.byteComparableVersion = byteComparableVersion;
         this.key = key;
         this.value = value;
     }
 
     public Cursor cursor(Direction direction)
     {
-        return new Cursor();
+        return new Cursor(direction);
     }
 
     class Cursor implements Trie.Cursor<T>
     {
-        private final ByteSource src = key.asComparableBytes(BYTE_COMPARABLE_VERSION);
+        private final Direction direction;
+        private ByteSource src = key.asComparableBytes(byteComparableVersion);
         private int currentDepth = 0;
         private int currentTransition = -1;
         private int nextTransition = src.next();
+
+        public Cursor(Direction direction)
+        {
+            this.direction = direction;
+        }
 
         @Override
         public int advance()
@@ -83,9 +91,17 @@ class SingletonTrie<T> extends Trie<T>
         }
 
         @Override
-        public int skipChildren()
+        public int skipTo(int skipDepth, int skipTransition)
         {
-            return currentDepth = -1;  // no alternatives
+            if (skipDepth <= currentDepth)
+            {
+                assert skipDepth < currentDepth || direction.gt(skipTransition, currentTransition);
+                return currentDepth = -1;  // no alternatives
+            }
+            if (direction.gt(skipTransition, nextTransition))
+                return currentDepth = -1;   // request is skipping over our path
+
+            return advance();
         }
 
         @Override
@@ -104,6 +120,28 @@ class SingletonTrie<T> extends Trie<T>
         public int incomingTransition()
         {
             return currentTransition;
+        }
+
+        @Override
+        public Direction direction()
+        {
+            return direction;
+        }
+
+        @Override
+        public ByteComparable.Version byteComparableVersion()
+        {
+            return byteComparableVersion;
+        }
+
+        @Override
+        public Trie<T> tailTrie()
+        {
+            if (!(src instanceof ByteSource.Duplicatable))
+                src = ByteSource.duplicatable(src);
+            ByteSource.Duplicatable duplicatableSource = (ByteSource.Duplicatable) src;
+
+            return new SingletonTrie(v -> duplicatableSource.duplicate(), byteComparableVersion, value);
         }
     }
 }

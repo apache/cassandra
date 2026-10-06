@@ -1011,6 +1011,6 @@ public class IndexTermType
     {
         ByteSource bs = DecimalType.instance.asComparableBytes(value, ByteComparable.Version.OSS50);
         bs = ByteSource.cutOrRightPad(bs, DECIMAL_APPROXIMATION_BYTES, 0);
-        return ByteBuffer.wrap(ByteSourceInverse.readBytes(bs, DECIMAL_APPROXIMATION_BYTES));
+        return ByteBuffer.wrap(ByteSourceInverse.readBytes(bs));
     }
 }

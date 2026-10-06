@@ -39,6 +39,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import static java.util.Arrays.asList;
 import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.asString;
 import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.assertSameContent;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.byteComparableVersion;
 import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.generateKeys;
 import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.makeInMemoryTrie;
 import static org.junit.Assert.assertEquals;
@@ -56,13 +57,13 @@ public class SlicedTrieTest
     "s",
     "q",
     "\000",
-    "\777",
-    "\777\000",
-    "\000\777",
+    "\377",
+    "\377\000",
+    "\000\377",
     "\000\000",
     "\000\000\000",
-    "\000\000\777",
-    "\777\777"
+    "\000\000\377",
+    "\377\377"
     });
     public static final ByteComparable[] KEYS = toByteComparable(new String[]{
     "test1",
@@ -76,14 +77,15 @@ public class SlicedTrieTest
     "sort",
     "sorting",
     "square",
-    "\777\000",
-    "\000\777",
+    "\377\000",
+    "\000\377",
     "\000\000",
     "\000\000\000",
-    "\000\000\777",
-    "\777\777"
+    "\000\000\377",
+    "\377\377"
     });
-    public static final Comparator<ByteComparable> BYTE_COMPARABLE_COMPARATOR = (bytes1, bytes2) -> ByteComparable.compare(bytes1, bytes2, Trie.BYTE_COMPARABLE_VERSION);
+
+    public static final Comparator<ByteComparable> BYTE_COMPARABLE_COMPARATOR = (bytes1, bytes2) -> ByteComparable.compare(bytes1, bytes2, byteComparableVersion);
     private static final int COUNT = 15000;
     Random rand = new Random();
 
@@ -96,7 +98,7 @@ public class SlicedTrieTest
     public void testIntersectRange(int count)
     {
         ByteComparable[] src1 = generateKeys(rand, count);
-        NavigableMap<ByteComparable, ByteBuffer> content1 = new TreeMap<>((bytes1, bytes2) -> ByteComparable.compare(bytes1, bytes2, Trie.BYTE_COMPARABLE_VERSION));
+        NavigableMap<ByteComparable, ByteBuffer> content1 = new TreeMap<>((bytes1, bytes2) -> ByteComparable.compare(bytes1, bytes2, byteComparableVersion));
 
         InMemoryTrie<ByteBuffer> trie1 = makeInMemoryTrie(src1, content1, true);
 
@@ -107,7 +109,7 @@ public class SlicedTrieTest
         {
             ByteComparable l = rand.nextBoolean() ? InMemoryTrieTestBase.generateKey(rand) : src1[rand.nextInt(src1.length)];
             ByteComparable r = rand.nextBoolean() ? InMemoryTrieTestBase.generateKey(rand) : src1[rand.nextInt(src1.length)];
-            int cmp = ByteComparable.compare(l, r, Trie.BYTE_COMPARABLE_VERSION);
+            int cmp = ByteComparable.compare(l, r, byteComparableVersion);
             if (cmp > 0)
             {
                 ByteComparable t = l;
@@ -126,14 +128,14 @@ public class SlicedTrieTest
     private static ByteComparable[] toByteComparable(String[] keys)
     {
         return Arrays.stream(keys)
-                     .map(x -> ByteComparable.fixedLength(x.getBytes(StandardCharsets.UTF_8)))
+                     .map(x -> ByteComparable.preencoded(byteComparableVersion, x.getBytes(StandardCharsets.UTF_8)))
                      .toArray(ByteComparable[]::new);
     }
 
     @Test
     public void testSingletonSubtrie()
     {
-        Arrays.sort(BOUNDARIES, (a, b) -> ByteComparable.compare(a, b, ByteComparable.Version.OSS50));
+        Arrays.sort(BOUNDARIES, (a, b) -> ByteComparable.compare(a, b, byteComparableVersion));
         for (int li = -1; li < BOUNDARIES.length; ++li)
         {
             ByteComparable l = li < 0 ? null : BOUNDARIES[li];
@@ -148,9 +150,9 @@ public class SlicedTrieTest
 
                     for (ByteComparable key : KEYS)
                     {
-                        int cmp1 = l != null ? ByteComparable.compare(key, l, ByteComparable.Version.OSS50) : 1;
-                        int cmp2 = r != null ? ByteComparable.compare(r, key, ByteComparable.Version.OSS50) : 1;
-                        Trie<Boolean> ix = new SlicedTrie<>(Trie.singleton(key, true), l, includeLeft, r, includeRight);
+                        int cmp1 = l != null ? ByteComparable.compare(key, l, byteComparableVersion) : 1;
+                        int cmp2 = r != null ? ByteComparable.compare(r, key, byteComparableVersion) : 1;
+                        Trie<Boolean> ix = new SlicedTrie<>(Trie.singleton(key, byteComparableVersion, true), l, includeLeft, r, includeRight);
                         boolean expected = true;
                         if (cmp1 < 0 || cmp1 == 0 && !includeLeft)
                             expected = false;
@@ -163,10 +165,10 @@ public class SlicedTrieTest
                             System.err.println(ix.dump());
                             Assert.fail(String.format("Failed on range %s%s,%s%s key %s expected %s got %s\n",
                                                       includeLeft ? "[" : "(",
-                                                      l != null ? l.byteComparableAsString(ByteComparable.Version.OSS50) : null,
-                                                      r != null ? r.byteComparableAsString(ByteComparable.Version.OSS50) : null,
+                                                      l != null ? l.byteComparableAsString(byteComparableVersion) : null,
+                                                      r != null ? r.byteComparableAsString(byteComparableVersion) : null,
                                                       includeRight ? "]" : ")",
-                                                      key.byteComparableAsString(ByteComparable.Version.OSS50),
+                                                      key.byteComparableAsString(byteComparableVersion),
                                                       expected,
                                                       actual));
                         }
@@ -229,8 +231,8 @@ public class SlicedTrieTest
             tries.add(makeInMemoryTrie(Arrays.copyOfRange(KEYS,
                                                            KEYS.length * i / mergeCount,
                                                            KEYS.length * (i + 1) / mergeCount),
-                                        content1,
-                                        true));
+                                       content1,
+                                       true));
         }
         Trie<ByteBuffer> trie1 = Trie.mergeDistinct(tries);
 
@@ -329,9 +331,19 @@ public class SlicedTrieTest
                 }
 
                 @Override
-                public int skipChildren()
+                public int skipTo(int depth, int transition)
                 {
-                    return advance();
+                    if (depth > 1)
+                        return advance();
+                    if (depth < 1)
+                        transition = direction.select(childs, -1);
+
+                    if (direction.isForward())
+                        current = Math.max(0, transition);
+                    else
+                        current = Math.min(childs - 1, transition);
+
+                    return depth();
                 }
 
                 @Override
@@ -347,13 +359,31 @@ public class SlicedTrieTest
                 @Override
                 public int incomingTransition()
                 {
-                    return current;
+                    return current >= childs ? -1 : current;
                 }
 
                 @Override
                 public Integer content()
                 {
-                    return current;
+                    return current == direction.select(-1, childs) ? -1 : current;
+                }
+
+                @Override
+                public Direction direction()
+                {
+                    return direction;
+                }
+
+                @Override
+                public ByteComparable.Version byteComparableVersion()
+                {
+                    return byteComparableVersion;
+                }
+
+                @Override
+                public Trie<Integer> tailTrie()
+                {
+                    throw new UnsupportedOperationException("tailTrie on test cursor");
                 }
             }
         };
@@ -363,7 +393,7 @@ public class SlicedTrieTest
     private static ByteComparable of(int value)
     {
         assert value >= 0 && value <= Byte.MAX_VALUE;
-        return ByteComparable.fixedLength(new byte[]{ (byte)value });
+        return ByteComparable.preencoded(byteComparableVersion, new byte[]{ (byte)value });
     }
 
     @Test

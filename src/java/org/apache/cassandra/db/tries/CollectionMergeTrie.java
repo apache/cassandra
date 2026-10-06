@@ -23,6 +23,8 @@ import java.util.List;
 
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+
 /**
  * A merged view of multiple tries.
  *
@@ -157,21 +159,26 @@ class CollectionMergeTrie<T> extends Trie<T>
         }
 
         /**
-         * Interface for internal operations that can be applied to the equal top elements of the heap.
+         * Interface for internal operations that can be applied to selected top elements of the heap.
          */
         interface HeapOp<T>
         {
             void apply(CollectionMergeCursor<T> self, Cursor<T> cursor, int index);
+
+            default boolean shouldContinueWithChild(Cursor<T> child, Cursor<T> head)
+            {
+                return equalCursor(child, head);
+            }
         }
 
         /**
          * Apply a non-interfering operation, i.e. one that does not change the cursor state, to all inputs in the heap
-         * that are on equal position to the head.
-         * For interfering operations like advancing the cursors, use {@link #advanceEqualAndRestoreHeap(AdvancingHeapOp)}.
+         * that satisfy the {@link HeapOp#shouldContinueWithChild} condition (by default, being equal to the head).
+         * For interfering operations like advancing the cursors, use {@link #advanceSelectedAndRestoreHeap(AdvancingHeapOp)}.
          */
-        private void applyToEqualOnHeap(HeapOp<T> action)
+        private void applyToSelectedInHeap(HeapOp<T> action)
         {
-            applyToEqualElementsInHeap(action, 0);
+            applyToSelectedElementsInHeap(action, 0);
         }
 
         /**
@@ -197,35 +204,36 @@ class CollectionMergeTrie<T> extends Trie<T>
 
 
         /**
-         * Advance the state of all inputs in the heap that are on equal position as the head and restore the heap
-         * invariant.
+         * Advance the state of all inputs in the heap that satisfy the {@link HeapOp#shouldContinueWithChild} condition
+         * (by default, being equal to the head) and restore the heap invariant.
          */
-        private void advanceEqualAndRestoreHeap(AdvancingHeapOp<T> action)
+        private void advanceSelectedAndRestoreHeap(AdvancingHeapOp<T> action)
         {
-            applyToEqualElementsInHeap(action, 0);
+            applyToSelectedElementsInHeap(action, 0);
         }
 
         /**
-         * Apply an operation to all elements on the heap that are equal to the head. Descends recursively in the heap
-         * structure to all equal children and applies the operation on the way back.
-         *
+         * Apply an operation to all elements on the heap that satisfy, recursively through the heap hierarchy, the
+         * {@code shouldContinueWithChild} condition (being equal to the head by default). Descends recursively in the
+         * heap structure to all selected children and applies the operation on the way back.
+         * <p>
          * This operation can be something that does not change the cursor state (see {@link #content}) or an operation
          * that advances the cursor to a new state, wrapped in a {@link AdvancingHeapOp} ({@link #advance} or
-         * {@link #skipChildren}). The latter interface takes care of pushing elements down in the heap after advancing
+         * {@link #skipTo}). The latter interface takes care of pushing elements down in the heap after advancing
          * and restores the subheap state on return from each level of the recursion.
          */
-        private void applyToEqualElementsInHeap(HeapOp<T> action, int index)
+        private void applyToSelectedElementsInHeap(HeapOp<T> action, int index)
         {
             if (index >= heap.length)
                 return;
             Cursor<T> item = heap[index];
-            if (!equalCursor(item, head))
+            if (!action.shouldContinueWithChild(item, head))
                 return;
 
             // If the children are at the same position, they also need advancing and their subheap
             // invariant to be restored.
-            applyToEqualElementsInHeap(action, index * 2 + 1);
-            applyToEqualElementsInHeap(action, index * 2 + 2);
+            applyToSelectedElementsInHeap(action, index * 2 + 1);
+            applyToSelectedElementsInHeap(action, index * 2 + 2);
 
             // Apply the action. This is done on the reverse direction to give the action a chance to form proper
             // subheaps and combine them on processing the parent.
@@ -275,10 +283,15 @@ class CollectionMergeTrie<T> extends Trie<T>
             return heap0Depth;
         }
 
+        boolean branchHasMultipleSources()
+        {
+            return equalCursor(heap[0], head);
+        }
+
         @Override
         public int advance()
         {
-            advanceEqualAndRestoreHeap(Cursor::advance);
+            advanceSelectedAndRestoreHeap(Cursor::advance);
             return maybeSwapHead(head.advance());
         }
 
@@ -287,7 +300,7 @@ class CollectionMergeTrie<T> extends Trie<T>
         {
             // If the current position is present in just one cursor, we can safely descend multiple levels within
             // its branch as no one of the other tries has content for it.
-            if (equalCursor(heap[0], head))
+            if (branchHasMultipleSources())
                 return advance();   // More than one source at current position, do single-step advance.
 
             // If there are no children, i.e. the cursor ascends, we have to check if it's become larger than some
@@ -296,10 +309,36 @@ class CollectionMergeTrie<T> extends Trie<T>
         }
 
         @Override
-        public int skipChildren()
+        public int skipTo(int skipDepth, int skipTransition)
         {
-            advanceEqualAndRestoreHeap(Cursor::skipChildren);
-            return maybeSwapHead(head.skipChildren());
+            // We need to advance all cursors that stand before the requested position.
+            // If a child cursor does not need to advance as it is greater than the skip position, neither of the ones
+            // below it in the heap hierarchy do as they can't have an earlier position.
+            class SkipTo implements AdvancingHeapOp<T>
+            {
+                @Override
+                public boolean shouldContinueWithChild(Cursor<T> child, Cursor<T> head)
+                {
+                    // When the requested position descends, the inplicit prefix bytes are those of the head cursor,
+                    // and thus we need to check against that if it is a match.
+                    if (equalCursor(child, head))
+                        return true;
+                    // Otherwise we can compare the child's position against a cursor advanced as requested, and need
+                    // to skip only if it would be before it.
+                    int childDepth = child.depth();
+                    return childDepth > skipDepth ||
+                           childDepth == skipDepth && direction.lt(child.incomingTransition(), skipTransition);
+                }
+
+                @Override
+                public void apply(Cursor<T> cursor)
+                {
+                    cursor.skipTo(skipDepth, skipTransition);
+                }
+            }
+
+            applyToSelectedElementsInHeap(new SkipTo(), 0);
+            return maybeSwapHead(head.skipTo(skipDepth, skipTransition));
         }
 
         @Override
@@ -315,9 +354,24 @@ class CollectionMergeTrie<T> extends Trie<T>
         }
 
         @Override
+        public Direction direction()
+        {
+            return direction;
+        }
+
+        @Override
+        public ByteComparable.Version byteComparableVersion()
+        {
+            return head.byteComparableVersion();
+        }
+
+        @Override
         public T content()
         {
-            applyToEqualOnHeap(CollectionMergeCursor::collectContent);
+            if (!branchHasMultipleSources())
+                return head.content();
+
+            applyToSelectedInHeap(CollectionMergeCursor::collectContent);
             collectContent(head, -1);
 
             T toReturn;
@@ -342,6 +396,19 @@ class CollectionMergeTrie<T> extends Trie<T>
             T itemContent = item.content();
             if (itemContent != null)
                 contents.add(itemContent);
+        }
+
+        @Override
+        public Trie<T> tailTrie()
+        {
+            if (!branchHasMultipleSources())
+                return head.tailTrie();
+
+            List<Trie<T>> inputs = new ArrayList<>(heap.length);
+            inputs.add(head.tailTrie());
+            applyToSelectedInHeap((self, cursor, index) -> inputs.add(cursor.tailTrie()));
+
+            return new CollectionMergeTrie<>(inputs, resolver);
         }
     }
 
